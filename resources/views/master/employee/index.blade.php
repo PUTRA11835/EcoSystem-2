@@ -270,29 +270,42 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                             <input type="text" id="postalCode" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                         </div>
 
+                        {{-- Alamat cascading (Country → Region → City → District → Village)
+                             via tabel `wilayah` (API /api/regions/children). Nilai yang
+                             disimpan tetap NAMA. Mirror halaman edit employee address. --}}
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Country</label>
-                            <input type="text" id="country" value="Indonesia" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <select id="country" class="addr-select px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                                <option value="Indonesia" selected>Indonesia</option>
+                            </select>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Region/Province</label>
-                            <input type="text" id="region" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <select id="region" onchange="addrOnRegionChange()" data-searchable="true" data-search-placeholder="Search region..." class="addr-select px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                                <option value="">-- Select Region --</option>
+                            </select>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">City</label>
-                            <input type="text" id="city" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <select id="city" onchange="addrOnCityChange()" data-searchable="true" data-search-placeholder="Search city..." class="addr-select px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                                <option value="">-- Select City --</option>
+                            </select>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">District</label>
-                            <input type="text" id="district" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <select id="district" onchange="addrOnDistrictChange()" data-searchable="true" data-search-placeholder="Search district..." class="addr-select px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                                <option value="">-- Select District --</option>
+                            </select>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Rural / Urban Villages</label>
-                            <input type="text" id="village" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <select id="village" data-searchable="true" data-search-placeholder="Search village..." class="addr-select px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                                <option value="">-- Select Village --</option>
+                            </select>
                         </div>
 
                         <div class="flex flex-col">
@@ -525,6 +538,15 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 </div>
 
 <style>
+    /* Chevron kustom untuk dropdown alamat cascading (Country → … → Village)
+       di modal Create/Edit Employee. Mirror sections/address.blade.php. */
+    .addr-select {
+        -webkit-appearance: none; -moz-appearance: none; appearance: none;
+        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 0.625rem center; background-size: 1rem;
+        padding-right: 2rem;
+    }
+
     /* Hover effect untuk baris tabel yang bisa diklik */
     .employee-row {
         cursor: pointer;
@@ -543,6 +565,10 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         z-index: 5;
         background: inherit;
         box-shadow: 2px 0 4px rgba(0,0,0,0.04);
+        /* Samakan durasi dengan `.employee-row { transition: all .2s }` agar latar
+           kolom sticky memudar SEIRING sisa baris saat hover (tanpa ini sel sticky
+           berubah instan sementara sisa baris beranimasi → terasa ada delay). */
+        transition: background-color 0.2s ease;
     }
     #employeeTableWrapper table th:nth-child(2),
     #employeeTableWrapper table td:nth-child(2) {
@@ -551,6 +577,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         z-index: 5;
         background: inherit;
         box-shadow: 2px 0 4px rgba(0,0,0,0.04);
+        transition: background-color 0.2s ease;
     }
     #employeeTableWrapper thead th:nth-child(1),
     #employeeTableWrapper thead th:nth-child(2) {
@@ -565,6 +592,20 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     .employee-row:hover td:nth-child(2) {
         background-color: #fef2f2;
     }
+
+    @if(session('user_preferences.theme','light') === 'dark')
+    /* Kolom sticky (ECI + Full Name) memakai warna terang HARDCODED yang tak ikut
+       ter-tema. Karena kolom ini di-freeze & mengambang di atas kolom lain saat
+       scroll horizontal, latarnya wajib OPAQUE gelap — samakan dengan permukaan
+       tema: header = bg-gray-50 (#0b1120), body = bg-white (#1f2937), hover =
+       .employee-row:hover global (#374151). */
+    #employeeTableWrapper thead th:nth-child(1),
+    #employeeTableWrapper thead th:nth-child(2) { background: #0b1120 !important; }
+    #employeeTableWrapper tbody tr td:nth-child(1),
+    #employeeTableWrapper tbody tr td:nth-child(2) { background: #1f2937 !important; }
+    #employeeTableWrapper .employee-row:hover td:nth-child(1),
+    #employeeTableWrapper .employee-row:hover td:nth-child(2) { background-color: #374151 !important; }
+    @endif
 
     /* Mencegah text selection saat double click */
     .employee-row {
@@ -832,6 +873,114 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         return statusMap[status] || statusMap['active'];
     }
 
+    /* ─────────────────────────────────────────────────────────────────────
+       CASCADING DROPDOWN WILAYAH (Create/Edit Employee modal)
+       Country → Region → City → District → Rural/Urban Village.
+       Sumber: /api/regions/children (tabel `wilayah`). Nilai yang DISIMPAN
+       tetap NAMA (kolom region/city/district/rural_urban_village). Kode wilayah
+       dibawa di data-code tiap <option> untuk menautkan ke level di bawahnya.
+       Port dari resources/views/master/employee/sections/address.blade.php.
+       ───────────────────────────────────────────────────────────────────── */
+    const addrRegionSel   = () => document.getElementById('region');
+    const addrCitySel     = () => document.getElementById('city');
+    const addrDistrictSel = () => document.getElementById('district');
+    const addrVillageSel  = () => document.getElementById('village');
+
+    function addrSelectedCode(sel) {
+        const o = sel && sel.options[sel.selectedIndex];
+        return o ? (o.dataset.code || '') : '';
+    }
+
+    async function addrFetchWilayah(parentCode) {
+        try {
+            const res = await fetch(`/api/regions/children?parent=${encodeURIComponent(parentCode)}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            return data.success ? data.data : [];
+        } catch (e) {
+            console.error('Error loading wilayah:', e);
+            return [];
+        }
+    }
+
+    // Isi <select> dengan daftar wilayah. selectedName = nama yang ingin dipilih
+    // ulang (saat edit); bila tak ada di daftar resmi (data lama free-text), tetap
+    // ditambahkan sebagai opsi agar tidak hilang. Dispatch 'change' agar
+    // select-enhance menyegarkan label tampilannya.
+    function addrFillWilayah(sel, items, placeholder, selectedName = '') {
+        sel.innerHTML = `<option value="">${placeholder}</option>`;
+        let matched = false;
+        items.forEach(it => {
+            const opt = document.createElement('option');
+            opt.value = it.name;
+            opt.dataset.code = it.code;
+            opt.textContent = it.name;
+            if (selectedName && selectedName === it.name) { opt.selected = true; matched = true; }
+            sel.appendChild(opt);
+        });
+        if (selectedName && !matched) {
+            const opt = document.createElement('option');
+            opt.value = selectedName;
+            opt.textContent = selectedName;
+            opt.selected = true;
+            sel.appendChild(opt);
+        }
+        sel.dispatchEvent(new Event('change', { bubbles: false }));
+    }
+
+    function addrResetWilayah(sel, placeholder) {
+        sel.innerHTML = `<option value="">${placeholder}</option>`;
+        sel.dispatchEvent(new Event('change', { bubbles: false }));
+    }
+
+    let addrRegionsReady = null;
+    function addrLoadRegions(selectedName = '') {
+        addrRegionsReady = addrFetchWilayah('').then(items => {
+            addrFillWilayah(addrRegionSel(), items, '-- Select Region --', selectedName);
+        });
+        return addrRegionsReady;
+    }
+
+    async function addrOnRegionChange() {
+        addrResetWilayah(addrCitySel(), '-- Select City --');
+        addrResetWilayah(addrDistrictSel(), '-- Select District --');
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
+        const code = addrSelectedCode(addrRegionSel());
+        if (code) addrFillWilayah(addrCitySel(), await addrFetchWilayah(code), '-- Select City --');
+    }
+    async function addrOnCityChange() {
+        addrResetWilayah(addrDistrictSel(), '-- Select District --');
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
+        const code = addrSelectedCode(addrCitySel());
+        if (code) addrFillWilayah(addrDistrictSel(), await addrFetchWilayah(code), '-- Select District --');
+    }
+    async function addrOnDistrictChange() {
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
+        const code = addrSelectedCode(addrDistrictSel());
+        if (code) addrFillWilayah(addrVillageSel(), await addrFetchWilayah(code), '-- Select Village --');
+    }
+
+    // Rekonstruksi seluruh rantai dropdown dari nilai tersimpan (saat edit).
+    async function addrHydrateLocation(regionName, cityName, districtName, villageName) {
+        await addrLoadRegions(regionName || '');
+        const rCode = addrSelectedCode(addrRegionSel());
+        addrFillWilayah(addrCitySel(), rCode ? await addrFetchWilayah(rCode) : [], '-- Select City --', cityName || '');
+        const cCode = addrSelectedCode(addrCitySel());
+        addrFillWilayah(addrDistrictSel(), cCode ? await addrFetchWilayah(cCode) : [], '-- Select District --', districtName || '');
+        const dCode = addrSelectedCode(addrDistrictSel());
+        addrFillWilayah(addrVillageSel(), dCode ? await addrFetchWilayah(dCode) : [], '-- Select Village --', villageName || '');
+    }
+
+    // Kosongkan seluruh rantai dropdown ke kondisi awal (mode Create).
+    function addrResetLocation() {
+        addrLoadRegions();
+        addrResetWilayah(addrCitySel(), '-- Select City --');
+        addrResetWilayah(addrDistrictSel(), '-- Select District --');
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
+    }
+
     function openCreateModal() {
         currentEmployeeId = null;
         document.getElementById('modalTitle').textContent = 'Create Employee';
@@ -847,9 +996,10 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             setCustomDropdownValue('grade', '');
         }
 
-        // Set default value for Country
+        // Set default value for Country + reset rantai dropdown wilayah (kosong).
         document.getElementById('country').value = 'Indonesia';
-        
+        addrResetLocation();
+
         // Set password as required for create
         document.getElementById('password').required = true;
         document.getElementById('confirmPassword').required = true;
@@ -924,10 +1074,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 document.getElementById('houseNumber').value = emp.house_number || '';
                 document.getElementById('postalCode').value = emp.postal_code || '';
                 document.getElementById('country').value = emp.country || 'Indonesia';
-                document.getElementById('region').value = emp.region || '';
-                document.getElementById('city').value = emp.city || '';
-                document.getElementById('district').value = emp.district || '';
-                document.getElementById('village').value = emp.rural_urban_village || '';
+                // Rekonstruksi dropdown cascading Region → City → District → Village.
+                await addrHydrateLocation(emp.region, emp.city, emp.district, emp.rural_urban_village);
                 if (typeof setCustomDropdownValue === 'function') {
                     setCustomDropdownValue('language', emp.language || '');
                 } else {

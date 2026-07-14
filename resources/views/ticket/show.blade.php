@@ -1385,6 +1385,130 @@
     height: 100%;
     cursor: pointer;
 }
+
+@if(session('user_preferences.theme', 'light') === 'dark')
+/* ── Dark mode: elemen ber-warna HARDCODED khusus halaman ticket ─────────────
+   Override global di dashboard.blade.php hanya menjangkau utilitas Tailwind
+   (`.bg-white`, `.text-gray-*`, …). Elemen di bawah distyle lewat CSS mentah /
+   inline style, jadi tak tersentuh. Teks bubble memakai `text-gray-700` yang
+   sudah di-terangkan global → latar bubble WAJIB digelapkan di sini, jika tidak
+   jadi terang-di-atas-terang (tak terbaca). */
+
+/* Bubble pesan */
+.message-bubble.customer            { background: rgba(59,130,246,.14) !important; }
+.message-bubble.employee            { background: #273244 !important; }
+.message-bubble.internal-note       { background: rgba(234,179,8,.14) !important; border-color: #b45309 !important; }
+.message-bubble.internal-note.mine  { background: rgba(245,158,11,.18) !important; border-color: #d97706 !important; }
+
+/* Link di dalam bubble → biru terang agar kontras di latar gelap */
+.message-content a, .email-html-body a, .ql-editor a { color: #60a5fa !important; }
+.message-content a:hover               { color: #93c5fd !important; }
+
+/* Chip @mention (internal note) disisipkan Quill dengan inline color PEKAT
+   (#1d4ed8 employee / #7c3aed role) — di latar gelap terlihat menyolok /
+   kontras berlebih. Lembutkan ke tone pastel tema (biru/ungu) agar tetap jelas
+   sebagai mention tapi menyatu. Quill menserialisasi warna ke `rgb(...)` saat
+   disimpan, jadi cocokkan kedua bentuk (hex saat mengetik + rgb tersimpan). */
+.message-content span[style*="rgb(29, 78, 216)"],  .message-content span[style*="#1d4ed8"],
+.ql-editor span[style*="rgb(29, 78, 216)"],        .ql-editor span[style*="#1d4ed8"]   { color: #93c5fd !important; }
+.message-content span[style*="rgb(124, 58, 237)"], .message-content span[style*="#7c3aed"],
+.ql-editor span[style*="rgb(124, 58, 237)"],       .ql-editor span[style*="#7c3aed"]   { color: #c4b5fd !important; }
+
+/* Border tabel HTML email (#000 → abu gelap agar tak "keras") & blockquote */
+.email-html-body td, .email-html-body th,
+.message-content td, .message-content th { border-color: #4b5563 !important; }
+.email-html-body blockquote, .message-content blockquote { border-left-color: #4b5563 !important; color: #9ca3af !important; }
+
+/* Deliverable card: label/colon inline #6b7280 → dicerahkan */
+.deliv-card td { color: #cbd5e1 !important; }
+
+/* ── Modal "Deliverable Documents" ───────────────────────────────────────────
+   Header kolom (text-gray-500) redup di latar gelap, dan badge ber-latar pastel
+   (Doc Type bg-indigo-50, Status bg-green-100/bg-orange-100) TIDAK dijangkau
+   override global → teks berwarna gelapnya (text-indigo/green/orange-700) jadi
+   nyaru di atas latar terang. Gelapkan latar badge + cerahkan teksnya di sini. */
+#deliverableModal thead th        { color: #cbd5e1 !important; }
+#deliverableModal .bg-indigo-50 {
+    background-color: rgba(99,102,241,.20) !important;
+    border-color: rgba(129,140,248,.40) !important;
+    color: #c7d2fe !important;
+}
+#deliverableModal .bg-green-100 {
+    background-color: rgba(34,197,94,.20) !important;
+    color: #86efac !important;
+}
+#deliverableModal .bg-orange-100 {
+    background-color: rgba(249,115,22,.20) !important;
+    color: #fdba74 !important;
+}
+/* Placeholder em-dash "—" (text-gray-300 → terlalu redup) sedikit dinaikkan */
+#deliverableModal .text-gray-300 { color: #7c8595 !important; }
+/* Bulk action bar: bg-indigo-50 tak dijangkau override global → gelapkan. */
+#delivBulkBar {
+    background-color: rgba(99,102,241,.14) !important;
+    border-color: rgba(99,102,241,.30) !important;
+}
+
+/* Baris status delivery (garis pemisah hitam samar → putih samar) */
+.msg-status-row      { border-top-color: rgba(255,255,255,.08) !important; }
+.msg-status          { color: #9ca3af !important; }
+.msg-status.read     { color: #60a5fa !important; }
+.msg-status.failed   { color: #f87171 !important; }
+.msg-status.partial  { color: #fbbf24 !important; }
+
+/* Bubble & banner email GAGAL (merah) */
+.message-bubble.email-failed { background: rgba(153,27,27,.20) !important; border-color: #7f1d1d !important; }
+.msg-failed-banner  { background: rgba(153,27,27,.25) !important; border-color: #7f1d1d !important; color: #fca5a5 !important; }
+.msg-failed-reason  { color: #fecaca !important; }
+
+/* Bubble & banner email SEBAGIAN (amber) */
+.message-bubble.email-partial { background: rgba(245,158,11,.16) !important; border-color: #b45309 !important; }
+.msg-warn-banner   { background: rgba(245,158,11,.16) !important; border-color: #b45309 !important; color: #fcd34d !important; }
+.msg-warn-reason   { color: #fde68a !important; }
+
+/* Tombol SLA kecil di baris status */
+.sla-open-btn              { background: #1f2937 !important; border-color: #4b5563 !important; color: #9ca3af !important; }
+.sla-open-btn:hover        { background: #374151 !important; border-color: #6b7280 !important; color: #cbd5e1 !important; }
+.sla-open-btn.has-sla      { background: rgba(34,197,94,.16) !important; border-color: #15803d !important; color: #4ade80 !important; }
+.sla-open-btn.has-sla:hover{ background: rgba(34,197,94,.24) !important; border-color: #22c55e !important; color: #86efac !important; }
+
+/* Input To/CC flash saat alamat tidak valid */
+.recipient-invalid { background: rgba(153,27,27,.25) !important; box-shadow: 0 0 0 2px #7f1d1d inset; }
+
+/* Handle resize editor */
+.reply-resize-handle::before { background: #4b5563 !important; }
+.reply-resize-handle:hover::before,
+.reply-resize-handle.is-resizing::before { background: #6b7280 !important; }
+
+/* ── Quill editor (reply / internal note) ──────────────────────────────────
+   Toolbar & ikon Quill memakai warna terang/stroke gelap bawaan → dipetakan
+   ke permukaan gelap + ikon terang. */
+.ql-toolbar.ql-snow { background: #1f2937 !important; border-bottom-color: #374151 !important; }
+.ql-snow .ql-stroke        { stroke: #cbd5e1 !important; }
+.ql-snow .ql-fill,
+.ql-snow .ql-stroke.ql-fill { fill: #cbd5e1 !important; }
+.ql-snow .ql-picker-label  { color: #cbd5e1 !important; }
+.ql-snow .ql-picker-label .ql-stroke { stroke: #cbd5e1 !important; }
+.ql-snow.ql-toolbar button:hover,
+.ql-snow.ql-toolbar button.ql-active,
+.ql-snow .ql-picker-label:hover,
+.ql-snow .ql-picker-item:hover,
+.ql-snow .ql-picker-item.ql-selected { color: #ffffff !important; }
+.ql-snow.ql-toolbar button:hover .ql-stroke,
+.ql-snow.ql-toolbar button.ql-active .ql-stroke,
+.ql-snow .ql-picker-label:hover .ql-stroke,
+.ql-snow .ql-picker-item:hover .ql-stroke,
+.ql-snow .ql-picker-item.ql-selected .ql-stroke { stroke: #ffffff !important; }
+.ql-snow.ql-toolbar button:hover .ql-fill,
+.ql-snow.ql-toolbar button.ql-active .ql-fill { fill: #ffffff !important; }
+/* Panel dropdown picker & tooltip link */
+.ql-toolbar.ql-snow .ql-picker.ql-expanded .ql-picker-options { background: #1f2937 !important; border-color: #4b5563 !important; }
+.ql-snow .ql-picker-options { background: #1f2937 !important; }
+.ql-snow .ql-tooltip { background: #1f2937 !important; border-color: #4b5563 !important; color: #e5e7eb !important; box-shadow: 0 2px 12px rgba(0,0,0,.5) !important; }
+.ql-snow .ql-tooltip input[type=text] { background: #374151 !important; border-color: #4b5563 !important; color: #f9fafb !important; }
+.ql-snow .ql-tooltip a { color: #60a5fa !important; }
+.ql-editor.ql-blank::before { color: #6b7280 !important; }
+@endif
 </style>
 
 {{-- Assign to Delivery Support Modal --}}
@@ -4500,6 +4624,13 @@
         document.getElementById('sendStatusModal').classList.remove('hidden');
     }
 
+    // Bulk send: status dipilih sekali, lalu dipakai untuk semua dokumen terpilih.
+    function openDeliverableBulkStatusModal() {
+        _statusModalMode = 'deliverable-bulk';
+        setStatusModalSubtitle('Pilih status tiket sebelum dokumen dikirim');
+        document.getElementById('sendStatusModal').classList.remove('hidden');
+    }
+
     function closeSendStatusModal() {
         document.getElementById('sendStatusModal').classList.add('hidden');
         _pendingSendType      = null;
@@ -4514,6 +4645,11 @@
             _pendingDeliverableId = null;
             _statusModalMode      = 'reply';
             _doSendDeliverable(id, chosenStatus || 'inprocess');
+            return;
+        }
+        if (_statusModalMode === 'deliverable-bulk') {
+            _statusModalMode = 'reply';
+            _doBulkSendDeliverables(chosenStatus || 'inprocess');
             return;
         }
         openConfirmSendModal(chosenStatus || 'inprocess');
@@ -7736,11 +7872,42 @@
             </div>
         </div>
 
+        {{-- Bulk action bar (muncul saat ≥1 dokumen terpilih) --}}
+        <div id="delivBulkBar" class="hidden items-center justify-between gap-3 px-6 py-2.5 bg-indigo-50 border-b border-indigo-100 shrink-0">
+            <div class="flex items-center gap-3 text-xs">
+                <span class="font-semibold text-gray-700">
+                    <span id="delivBulkCount">0</span> selected
+                </span>
+                <button onclick="clearDelivSelection()" class="text-[11px] font-medium text-gray-400 hover:text-gray-600 underline">Clear</button>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="bulkSendDeliverables()"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/>
+                    </svg>
+                    Send to Customer
+                </button>
+                <button onclick="bulkDeleteDeliverables()"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    Delete
+                </button>
+            </div>
+        </div>
+
         {{-- Table --}}
         <div class="overflow-auto flex-1 px-2">
             <table class="w-full text-xs border-collapse" id="deliverableTable">
                 <thead class="sticky top-0 bg-white z-10">
                     <tr class="border-b border-gray-200">
+                        <th class="px-3 py-2.5 w-9 text-center">
+                            <input type="checkbox" id="delivSelectAll" onchange="toggleDelivSelectAll(this.checked)"
+                                   title="Select all sendable documents"
+                                   class="w-4 h-4 accent-red-600 cursor-pointer align-middle disabled:opacity-40 disabled:cursor-not-allowed">
+                        </th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Upload Date</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Time</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style="min-width:90px">Doc Type</th>
@@ -7752,7 +7919,7 @@
                 </thead>
                 <tbody id="deliverableBody">
                     <tr>
-                        <td colspan="7" class="text-center py-10 text-gray-400">Loading...</td>
+                        <td colspan="8" class="text-center py-10 text-gray-400">Loading...</td>
                     </tr>
                 </tbody>
             </table>
@@ -7794,11 +7961,11 @@
             <div>
                 <label class="text-xs font-semibold text-gray-600 mb-1 block">File</label>
                 <div class="flex items-center gap-2">
-                    <label class="flex-1 cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    <label class="flex-1 min-w-0 cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
                         <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
                         </svg>
-                        <span id="ndFileName" class="text-xs text-gray-400 truncate">Choose file...</span>
+                        <span id="ndFileName" class="text-xs text-gray-400 truncate flex-1 min-w-0">Choose file...</span>
                         <input type="file" id="ndFile" class="hidden" onchange="updateFileName()">
                     </label>
                     <button onclick="document.getElementById('ndFile').value=''; document.getElementById('ndFileName').textContent='Choose file...'"
@@ -7997,7 +8164,7 @@ function closeDeliverableModal() {
 
 async function loadDeliverables() {
     document.getElementById('deliverableBody').innerHTML =
-        `<tr><td colspan="7" class="text-center py-10 text-gray-400">Loading...</td></tr>`;
+        `<tr><td colspan="8" class="text-center py-10 text-gray-400">Loading...</td></tr>`;
     document.getElementById('deliverableFooter').innerHTML = '';
 
     try {
@@ -8029,14 +8196,14 @@ async function loadDeliverables() {
         }
     } catch (e) {
         document.getElementById('deliverableBody').innerHTML =
-            `<tr><td colspan="7" class="text-center py-8 text-red-500 text-xs">Failed to load: ${e.message}</td></tr>`;
+            `<tr><td colspan="8" class="text-center py-8 text-red-500 text-xs">Failed to load: ${e.message}</td></tr>`;
     }
 }
 
 function renderDeliverableTable(data) {
     if (!data || data.length === 0) {
         document.getElementById('deliverableBody').innerHTML =
-            `<tr><td colspan="7" class="text-center py-14 text-gray-400">
+            `<tr><td colspan="8" class="text-center py-14 text-gray-400">
                 <svg class="w-9 h-9 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                 </svg>
@@ -8077,7 +8244,17 @@ function renderDeliverableTable(data) {
                 Delete</button>`
             : '';
 
+        // Hanya dokumen yang belum terkirim yang bisa dipilih (bulk send/delete).
+        const checkCell = isSent
+            ? `<td class="px-3 py-2 w-9"></td>`
+            : `<td class="px-3 py-2 w-9 text-center">
+                <input type="checkbox" class="deliv-row-check w-4 h-4 accent-red-600 cursor-pointer align-middle"
+                       data-id="${d.id}" ${_selectedDelivIds.has(d.id) ? 'checked' : ''}
+                       onchange="toggleDelivRow(${d.id}, this.checked)">
+               </td>`;
+
         return `<tr class="border-b border-gray-100 hover:bg-gray-50/60">
+            ${checkCell}
             <td class="px-3 py-2 text-gray-600 whitespace-nowrap">${escHtmlD(d.upload_date ?? '—')}</td>
             <td class="px-3 py-2 text-gray-600 whitespace-nowrap">${escHtmlD(d.upload_time ?? '—')}</td>
             <td class="px-3 py-2">
@@ -8095,6 +8272,146 @@ function renderDeliverableTable(data) {
     });
 
     document.getElementById('deliverableBody').innerHTML = rows.join('');
+
+    // Buang id terpilih yang barisnya sudah tak ada lagi (mis. setelah terkirim/dihapus),
+    // lalu segarkan bar & state select-all.
+    const validIds = new Set(delivSelectableIds());
+    _selectedDelivIds.forEach(id => { if (!validIds.has(id)) _selectedDelivIds.delete(id); });
+    const selectAll = document.getElementById('delivSelectAll');
+    if (selectAll) selectAll.disabled = validIds.size === 0;
+    updateDelivBulkBar();
+}
+
+// ── Bulk selection (Send/Delete beberapa dokumen sekaligus) ─────────────────
+let _selectedDelivIds = new Set();
+
+// ID dokumen yang boleh dipilih = yang BELUM terkirim ke customer.
+function delivSelectableIds() {
+    return (deliverableData || [])
+        .filter(d => !(d.status === 'Sent' || d.status === 'Sended'))
+        .map(d => d.id);
+}
+
+function toggleDelivRow(id, checked) {
+    if (checked) _selectedDelivIds.add(id); else _selectedDelivIds.delete(id);
+    updateDelivBulkBar();
+}
+
+function toggleDelivSelectAll(checked) {
+    _selectedDelivIds = checked ? new Set(delivSelectableIds()) : new Set();
+    document.querySelectorAll('#deliverableBody .deliv-row-check').forEach(cb => { cb.checked = checked; });
+    updateDelivBulkBar();
+}
+
+function clearDelivSelection() {
+    _selectedDelivIds.clear();
+    document.querySelectorAll('#deliverableBody .deliv-row-check').forEach(cb => { cb.checked = false; });
+    updateDelivBulkBar();
+}
+
+function updateDelivBulkBar() {
+    const n = _selectedDelivIds.size;
+    const countEl = document.getElementById('delivBulkCount');
+    if (countEl) countEl.textContent = n;
+
+    const bar = document.getElementById('delivBulkBar');
+    if (bar) {
+        bar.classList.toggle('hidden', n === 0);
+        bar.classList.toggle('flex', n > 0);
+    }
+
+    // State checkbox "select all": checked penuh / indeterminate / kosong.
+    const selectable = delivSelectableIds();
+    const all = document.getElementById('delivSelectAll');
+    if (all) {
+        if (n === 0)                                     { all.checked = false; all.indeterminate = false; }
+        else if (selectable.length > 0 && n >= selectable.length) { all.checked = true;  all.indeterminate = false; }
+        else                                             { all.checked = false; all.indeterminate = true;  }
+    }
+}
+
+async function bulkDeleteDeliverables() {
+    const ids = [..._selectedDelivIds];
+    if (ids.length === 0) return;
+    if (!await showConfirm(`Delete ${ids.length} document${ids.length > 1 ? 's' : ''}? This cannot be undone.`, 'Delete Documents', 'danger')) return;
+
+    const overlay = document.getElementById('deliverableLoadingOverlay');
+    if (overlay) overlay.classList.remove('hidden');
+
+    let ok = 0, fail = 0, lastErr = '';
+    for (const id of ids) {
+        try {
+            const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/delete`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+                credentials: 'same-origin',
+            });
+            const json = await delivParseJson(res);
+            if (!json.success) throw new Error(json.message);
+            ok++;
+        } catch (e) { fail++; lastErr = e.message; }
+    }
+
+    _selectedDelivIds.clear();
+    await loadDeliverables();
+    if (overlay) overlay.classList.add('hidden');
+
+    if (fail === 0)            showToast(`${ok} document${ok > 1 ? 's' : ''} deleted.`, 'success');
+    else if (ok === 0)        showToast('Failed to delete: ' + lastErr, 'error');
+    else                      showToast(`${ok} deleted, ${fail} failed.`, 'error');
+}
+
+// Bulk send: minta pilih status tiket dulu (sama seperti single send), lalu kirim
+// tiap dokumen berurutan. Eksekusi sebenarnya di _doBulkSendDeliverables.
+function bulkSendDeliverables() {
+    if (_selectedDelivIds.size === 0) return;
+    openDeliverableBulkStatusModal();
+}
+
+async function _doBulkSendDeliverables(chosenStatus) {
+    const ids = [..._selectedDelivIds];
+    if (ids.length === 0) return;
+
+    if (typeof commitToInput === 'function') commitToInput();
+    if (typeof commitCcInput === 'function') commitCcInput();
+    const toList     = (typeof toEmails !== 'undefined' && Array.isArray(toEmails)) ? toEmails : [];
+    const ccListSend = (typeof ccEmails !== 'undefined' && Array.isArray(ccEmails)) ? ccEmails : [];
+
+    const overlay = document.getElementById('deliverableLoadingOverlay');
+    if (overlay) overlay.classList.remove('hidden');
+
+    let ok = 0, emailFail = 0, hardFail = 0, lastErr = '';
+    for (const id of ids) {
+        try {
+            const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ ticket_status: chosenStatus || null, to_emails: toList, cc_emails: ccListSend }),
+            });
+            const json = await delivParseJson(res);
+            if (!json.success) throw new Error(json.message);
+            if (json.email_failed) emailFail++; else ok++;
+        } catch (e) { hardFail++; lastErr = e.message; }
+    }
+
+    _selectedDelivIds.clear();
+    if (chosenStatus && typeof updateStatusUI === 'function') updateStatusUI(chosenStatus);
+    await loadDeliverables();
+    if (typeof loadMessages === 'function') { try { await loadMessages(); } catch (_) {} }
+    if (overlay) overlay.classList.add('hidden');
+
+    if (hardFail === 0 && emailFail === 0) {
+        showToast(`${ok} document${ok > 1 ? 's' : ''} sent to customer.`, 'success');
+    } else if (hardFail === ids.length) {
+        showToast('Failed to send documents: ' + lastErr, 'error');
+    } else {
+        const parts = [];
+        if (ok)        parts.push(`${ok} sent`);
+        if (emailFail) parts.push(`${emailFail} saved but email failed`);
+        if (hardFail)  parts.push(`${hardFail} failed`);
+        showToast(parts.join(', ') + '.', 'error');
+    }
 }
 
 function escHtmlD(s) {
