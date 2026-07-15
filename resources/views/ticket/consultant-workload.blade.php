@@ -611,26 +611,15 @@
     function consultantRows(c) {
         // Angka baris & angka sort berasal dari fungsi yang sama (lihat calcActive).
         // Akumulasi hanya dari mandays consultant ini (bukan total semua consultant per tiket)
-        let totalAllocMdMain = 0,
-            totalAddMdMain = 0,
-            totalEffectiveMdMain = 0,
-            totalRemainMain = 0;
-        visibleTickets.forEach(t => {
-            const myD = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
-            if (myD && myD.is_approved) {
-                const alloc   = parseFloat(myD.mandays) || 0;
-                const add     = parseFloat(myD.approved_additional) || 0;
-                const remain  = parseFloat(myD.remain_md) || 0;
-                totalAllocMdMain     += alloc;
-                totalAddMdMain       += add;
-                totalEffectiveMdMain += alloc + add;
-                totalRemainMain      += remain;
-            }
-        });
-        const ticketCount = visibleTickets.length;
-        const wPct = totalEffectiveMdMain > 0 ? Math.round(totalRemainMain / totalEffectiveMdMain * 100 * 10) / 10 : 0;
-        const wDays = Math.round(totalRemainMain * 100) / 100;
-        const loadScore = Math.round(totalRemainMain * (1 + 0.1 * ticketCount) * 100) / 100;
+        const m = calcActive(c);
+        const visibleTickets       = m.tickets;
+        const totalAllocMdMain     = m.total_days;
+        const totalAddMdMain       = m.add_md;
+        const totalRemainMain      = m.remain_md;
+        const ticketCount          = m.ticket_count;
+        const wPct                 = m.workload_pct;
+        const wDays                = m.workload_days;
+        const loadScore            = m.load_score;
 
         let html = `
     <tr class="border-b border-gray-100 hover:bg-gray-50/70 cursor-pointer"
