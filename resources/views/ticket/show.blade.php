@@ -4430,7 +4430,6 @@
                             ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
-                            <div class="msg-status-row">${slaMsgBtn(msg)}</div>
                         </div>
                     </div>
                 </div>`;
@@ -4450,7 +4449,6 @@
                             ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
-                            <div class="msg-status-row">${slaMsgBtn(msg)}</div>
                         </div>
                     </div>
                 </div>`;

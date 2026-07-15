@@ -932,6 +932,112 @@ class ReportingController extends Controller
         }
     }
 
+    // ── Web: Log Shifting ───────────────────────────────────────────────────
+
+    public function logShiftingIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.log-shifting', ['user' => session('user')]);
+    }
+
+    // ── API: Log Shifting — tickets that have at least one SLA message ─────
+
+    public function logShifting(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.log-shifting')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $tickets = Ticket::whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereHas('messages', function ($q) {
+                    $q->whereNotNull('sla_message')->where('sla_message', '!=', '');
+                })
+                ->orderByDesc('created_at')
+                ->get(['ticket_id', 'ticket_number', 'description', 'created_at']);
+
+            $data = $tickets->map(fn (Ticket $ticket) => [
+                'ticket_id'     => $ticket->ticket_id,
+                'ticket_number' => $ticket->ticket_number,
+                'description'   => $ticket->description,
+                'created_at'    => $ticket->created_at,
+            ])->values();
+
+            return response()->json(['success' => true, 'data' => $data]);
+
+        } catch (\Exception $e) {
+            Log::error('logShifting error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load log shifting data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Log Shifting — SLA message detail rows for one ticket ─────────
+
+    public function logShiftingDetail($ticketId)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.log-shifting')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $ticket = Ticket::whereNull('deleted_at')->findOrFail($ticketId);
+
+            $messages = $ticket->messages()
+                ->whereNotNull('sla_message')
+                ->where('sla_message', '!=', '')
+                ->with('slaMessageBy.basicData')
+                ->orderBy('created_at')
+                ->get();
+
+            $rows = $messages->map(function (\App\Models\TicketMessage $msg) {
+                $byName = $msg->slaMessageBy
+                    ? trim(($msg->slaMessageBy->basicData->first_name ?? '') . ' ' . ($msg->slaMessageBy->basicData->last_name ?? '')) ?: ($msg->slaMessageBy->eci ?? 'Unknown')
+                    : null;
+
+                return [
+                    'message_id'      => $msg->id,
+                    'bubble_date'     => $msg->created_at,
+                    'sla_message'     => $msg->sla_message,
+                    'sla_message_by'  => $byName,
+                    'sla_message_at'  => $msg->sla_message_at,
+                ];
+            })->values();
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'ticket' => [
+                        'ticket_id'     => $ticket->ticket_id,
+                        'ticket_number' => $ticket->ticket_number,
+                        'description'   => $ticket->description,
+                    ],
+                    'messages' => $rows,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('logShiftingDetail error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load SLA message detail. Please try again.'], 500);
+        }
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────
 
     private function monthName(int $month): string
