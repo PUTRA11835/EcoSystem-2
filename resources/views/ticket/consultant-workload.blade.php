@@ -597,6 +597,7 @@
                         <th class="pl-6 pr-3 py-2.5 text-left w-8">#</th>
                         <th class="px-3 py-2.5 text-left w-36">Ticket No.</th>
                         <th class="px-3 py-2.5 text-left">Subject</th>
+                        <th class="px-3 py-2.5 text-left w-36">Customer</th>
                         <th class="px-3 py-2.5 text-left w-20">Role</th>
                         <th class="px-3 py-2.5 text-left w-28">Status</th>
                         <th class="px-3 py-2.5 text-left w-20">Priority</th>
@@ -609,7 +610,7 @@
                 <tbody>
                     ${visibleTickets.map((t, idx) => ticketRow(t, idx + 1, c.employee_id, c.modules)).join('')}
                     <tr style="background:#eff6ff;border-top:1px solid #bfdbfe">
-                        <td colspan="6" class="pl-6 pr-3 py-2.5 text-xs text-left text-blue-700 font-semibold">
+                        <td colspan="7" class="pl-6 pr-3 py-2.5 text-xs text-left text-blue-700 font-semibold">
                             Total (${visibleTickets.length} ticket${visibleTickets.length > 1 ? 's' : ''})
                         </td>
                         <td class="px-3 py-2.5 text-right text-xs font-bold text-gray-700">
@@ -672,6 +673,9 @@
         <td class="px-3 py-2.5 text-xs text-gray-700 hover:underline cursor-pointer max-w-xs"
             onclick="event.stopPropagation(); window.location='/ticket/${t.ticket_id}'">
             <span class="line-clamp-2">${t.subject || '—'}</span>
+        </td>
+        <td class="px-3 py-2.5 text-xs text-gray-600 max-w-xs">
+            <span class="line-clamp-2">${t.customer_name || '—'}</span>
         </td>
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-semibold ${roleCls}">${roleLabel}</span>

@@ -1143,6 +1143,15 @@ async function fetchDeliverableSubfolders() {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
                     </svg>
                     <span class="flex-1 min-w-0 text-sm text-gray-700 truncate px-1">${escapeHtml(folder.name)}</span>
+                    <button type="button" class="dlv-copy-btn flex-shrink-0 p-1 rounded text-gray-400 hover:text-emerald-600 hover:bg-emerald-100 opacity-0 group-hover:opacity-100 transition" title="Copy shareable link (anyone with the link can open)">
+                        <svg class="dlv-copy-icon w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 015.656 5.656l-1.5 1.5"/>
+                        </svg>
+                        <svg class="dlv-copy-spin hidden animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                    </button>
                     <svg class="dlv-open-icon w-3.5 h-3.5 flex-shrink-0 text-gray-400 group-hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                     </svg>
@@ -1150,6 +1159,10 @@ async function fetchDeliverableSubfolders() {
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                     </svg>`;
+                row.querySelector('.dlv-copy-btn').onclick = (e) => {
+                    e.stopPropagation();
+                    copyDeliverableLink(folder.id, row);
+                };
                 list.appendChild(row);
             });
         } else {
@@ -1206,6 +1219,63 @@ async function openDeliverableLink(folderId, row) {
     } finally {
         spinIcon.classList.add('hidden');
         openIcon.classList.remove('hidden');
+    }
+}
+
+// Salin anonymous share link (bukan URL address-bar SharePoint yang terikat izin).
+// Link ini bisa dibuka siapa saja & aman disimpan sebagai credential company.
+async function copyDeliverableLink(folderId, row) {
+    const btn      = row.querySelector('.dlv-copy-btn');
+    const copyIcon = row.querySelector('.dlv-copy-icon');
+    const copySpin = row.querySelector('.dlv-copy-spin');
+
+    copyIcon.classList.add('hidden');
+    copySpin.classList.remove('hidden');
+    if (btn) btn.disabled = true;
+
+    try {
+        const res  = await fetch('{{ route('delivery.support.deliverable-share-link', $support->id, false) }}', {
+            method:  'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            },
+            body: JSON.stringify({ folder_id: folderId }),
+        });
+        const data = await res.json();
+
+        if (!data.success || !data.url) {
+            throw new Error(data.message || 'Failed to get link');
+        }
+
+        let copied = false;
+        try {
+            await navigator.clipboard.writeText(data.url);
+            copied = true;
+        } catch (_) {
+            // Fallback untuk konteks non-secure / clipboard API diblok
+            const ta = document.createElement('textarea');
+            ta.value = data.url;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            copied = document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+
+        if (copied) {
+            showToast('Shareable link copied — anyone with this link can open the folder.', 'success');
+        } else {
+            window.prompt('Copy this shareable link:', data.url);
+        }
+    } catch (err) {
+        showToast('Failed to copy link: ' + err.message, 'error');
+    } finally {
+        copySpin.classList.add('hidden');
+        copyIcon.classList.remove('hidden');
+        if (btn) btn.disabled = false;
     }
 }
 

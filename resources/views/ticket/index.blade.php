@@ -1255,6 +1255,18 @@
         return `${diffYr} years ago`;
     }
 
+    // Ticket closed → freeze "Day on Close" at the close timestamp instead of
+    // letting it keep counting up to today.
+    function dayOnCloseValue(ticket) {
+        const created = ticket.start_date || ticket.created_at;
+        if (!created) return null;
+        const closedAt = ticket.status === 'closed'
+            ? (ticket.sla?.resolved_at || ticket.updated_at)
+            : null;
+        const end = closedAt ? new Date(closedAt) : new Date();
+        return Math.max(0, Math.floor((end.getTime() - new Date(created).getTime()) / 86400000));
+    }
+
     function createTicketRow(ticket) {
         const customerName = ticket.customer?.customer_name || 'Unknown';
         const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
@@ -1442,9 +1454,11 @@
             {{-- Day on Close --}}
             <td class="px-3 py-3 whitespace-nowrap">
                 ${(function() {
-                    const created = ticket.start_date || ticket.created_at;
-                    if (!created) return '<span class="text-gray-300 text-xs">—</span>';
-                    const days = Math.max(0, Math.floor((Date.now() - new Date(created).getTime()) / 86400000));
+                    if (ticket.status === 'closed') {
+                        return '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-green-50 text-green-700">Closed</span>';
+                    }
+                    const days = dayOnCloseValue(ticket);
+                    if (days === null) return '<span class="text-gray-300 text-xs">—</span>';
                     return `<span class="text-sm font-semibold text-gray-700">${days}</span>`;
                 })()}
             </td>
@@ -2078,8 +2092,8 @@
                 vb = new Date(b.start_date || b.created_at).getTime();
             } else if (key === 'day_on_close') {
                 const daysOf = t => {
-                    const created = t.start_date || t.created_at;
-                    return created ? Math.floor((Date.now() - new Date(created).getTime()) / 86400000) : -Infinity;
+                    const v = dayOnCloseValue(t);
+                    return v === null ? -Infinity : v;
                 };
                 va = daysOf(a);
                 vb = daysOf(b);

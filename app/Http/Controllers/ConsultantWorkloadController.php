@@ -38,6 +38,7 @@ class ConsultantWorkloadController extends Controller
             $allTicketIds = DB::table('ticket')
                 ->whereIn('status', self::ACTIVE_STATUSES)
                 ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
                 ->pluck('ticket_id')
                 ->toArray();
             $progressMap = self::progressMapForTickets($allTicketIds);
@@ -124,6 +125,7 @@ class ConsultantWorkloadController extends Controller
             $ticketIds   = DB::table('ticket')
                 ->whereIn('status', self::ACTIVE_STATUSES)
                 ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
                 ->pluck('ticket_id')
                 ->toArray();
             $progressMap = self::progressMapForTickets($ticketIds);
@@ -184,6 +186,7 @@ class ConsultantWorkloadController extends Controller
             ->where('ticket_lead_id', $empId)
             ->whereIn('status', self::ACTIVE_STATUSES)
             ->whereNull('deleted_at')
+            ->whereNull('is_hidden')
             ->pluck('ticket_id');
 
         $memberIds = DB::table('ticket_member')
@@ -217,6 +220,7 @@ class ConsultantWorkloadController extends Controller
             ->whereIn('ticket.ticket_id', $ticketIds)
             ->whereIn('ticket.status', self::ACTIVE_STATUSES)
             ->whereNull('ticket.deleted_at')
+            ->whereNull('ticket.is_hidden')
             ->select($baseSelect)
             ->get();
 
@@ -452,6 +456,7 @@ class ConsultantWorkloadController extends Controller
             ->whereIn('cmd.employee_id', $empIds)
             ->whereIn('t.status', ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'])
             ->whereNull('t.deleted_at')
+            ->whereNull('t.is_hidden')
             ->whereNotNull('cmd.module')
             ->where('cmd.module', '!=', '')
             ->select('cmd.employee_id', 'cmd.module')
@@ -500,6 +505,7 @@ class ConsultantWorkloadController extends Controller
             ->whereIn('cmd.employee_id', $empIds)
             ->whereIn('t.status', $activeStatuses)
             ->whereNull('t.deleted_at')
+            ->whereNull('t.is_hidden')
             ->select(
                 'cmd.employee_id',
                 DB::raw('SUM(cmd.mandays) as total_allocated_md'),
