@@ -40,8 +40,15 @@ class TicketAttachment extends Model
      * Prioritas:
      * 1. Record baru (graph_message_id tersedia) → proxy route /attachments/{id}
      *    Fetch file langsung dari Microsoft Graph saat dibutuhkan (hemat storage)
-     * 2. Record lama (file_path tersedia) → path relatif /storage/...
+     * 2. File lokal (file_path tersedia) → route /attachments/{id} juga
      * 3. Fallback → link_url dari DB
+     *
+     * File lokal sengaja TIDAK memakai '/storage/' . $file_path: nama file di disk
+     * adalah hash acak dari UploadedFile::store(), dan route bawaan Laravel
+     * (public disk `serve => true`) mengirim `Content-Disposition: inline;
+     * filename="<hash>.docx"`. Filename di header itu menang atas atribut
+     * `download="..."` di <a>, jadi browser menyimpan file bernama acak. Proxy
+     * /attachments/{id} mengirim file_name asli dari DB di header tersebut.
      */
     public function getPublicUrlAttribute(): ?string
     {
@@ -50,9 +57,9 @@ class TicketAttachment extends Model
             return route('attachments.show', $this->id);
         }
 
-        // Record lama: file sudah disimpan lokal sebelum strategi berubah
+        // File lokal (internal note, ticket non-email) — di-stream via proxy yang sama
         if ($this->file_path) {
-            return '/storage/' . $this->file_path;
+            return route('attachments.show', $this->id);
         }
 
         return $this->link_url;

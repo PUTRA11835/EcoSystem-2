@@ -170,18 +170,18 @@
                         </div>
 
                         <div class="flex flex-col">
-                            <label class="text-xs font-semibold text-gray-600 mb-1">Parent Customer</label>
-                            <div class="custom-dd relative" id="ddParentCustomer" data-searchable="true" data-fixed="true">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">AE (Account Executive)</label>
+                            <div class="custom-dd relative" id="ddAccountExecutive" data-searchable="true" data-fixed="true">
                                 <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
-                                    <span class="custom-dd-label text-gray-400">None (Top-level customer)</span>
+                                    <span class="custom-dd-label text-gray-400">— Select Employee —</span>
                                     <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                 </button>
-                                <input type="hidden" id="parentCustomerId" value="">
+                                <input type="hidden" id="ecAccountExecutive" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="">None (Top-level customer)</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="">— Select Employee —</button>
                                 </div>
                             </div>
-                            <span class="text-xs text-gray-400 mt-1">Leave empty if this is a top-level customer (e.g., Sinergi).</span>
+                            <span class="text-xs text-gray-400 mt-1">Only employees with a Sales role are listed.</span>
                         </div>
                     </div>
 
@@ -261,6 +261,21 @@
                     <!-- SECTION 3: ORGANIZATIONAL DATA -->
                     <div class="space-y-4">
                         <h4 class="text-base font-bold text-gray-900 mb-4 pb-2 border-b-2 border-gray-200">Organizational Data</h4>
+
+                        <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Parent Customer</label>
+                            <div class="custom-dd relative" id="ddParentCustomer" data-searchable="true" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-400">None (Top-level customer)</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="parentCustomerId" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="">None (Top-level customer)</button>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-400 mt-1">Leave empty if this is a top-level customer (e.g., Sinergi).</span>
+                        </div>
 
                         <div class="flex flex-col">
                             <div class="flex items-center justify-between mb-1">
@@ -681,13 +696,15 @@
         document.getElementById('language').value = 'Indonesian';
         addrResetLocation();
 
-        // Reset parent customer & group dropdowns
+        // Reset parent customer, group & AE dropdowns
         if (typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('parentCustomerId', '');
             setCustomDropdownValue('parentCustomerGroupId', '');
+            setCustomDropdownValue('ecAccountExecutive', '');
         } else {
             document.getElementById('parentCustomerId').value = '';
             document.getElementById('parentCustomerGroupId').value = '';
+            document.getElementById('ecAccountExecutive').value = '';
         }
 
         // Auto-generate search term when company name changes
@@ -697,6 +714,7 @@
 
         loadTopLevelCustomers();
         loadCustomerGroups();
+        loadSalesEmployees();
 
         document.getElementById('customerModal').classList.remove('hidden');
         document.getElementById('customerModal').classList.add('flex');
@@ -739,6 +757,46 @@
             });
         } catch (e) {
             console.error('Failed to load top-level customers', e);
+        }
+    }
+
+    // Employee ber-role Sales untuk dropdown AE. Value = ECI, sama dengan
+    // kolom `ec_account_executive` yang dipakai tab Basic Data di halaman detail.
+    async function loadSalesEmployees() {
+        try {
+            const res = await fetch('/api/customers/sales-employees', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (!data.success) return;
+
+            const dd = document.getElementById('ddAccountExecutive');
+            if (!dd) return;
+            const panel = dd._ddPanel || dd.querySelector('.custom-dd-panel');
+            if (!panel) return;
+
+            panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
+
+            const insertBefore = panel._ddEmpty || null;
+
+            const none = document.createElement('button');
+            none.type = 'button';
+            none.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50';
+            none.dataset.value = '';
+            none.textContent = '— Select Employee —';
+            panel.insertBefore(none, insertBefore);
+
+            data.data.forEach(emp => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50';
+                btn.dataset.value = emp.eci;
+                btn.textContent = `${emp.name} (${emp.eci})`;
+                panel.insertBefore(btn, insertBefore);
+            });
+        } catch (e) {
+            console.error('Failed to load sales employees', e);
         }
     }
 
@@ -875,6 +933,7 @@
             contact_name: document.getElementById('contactName').value,
             contact_phone: document.getElementById('contactPhone').value,
             parent_customer_id: document.getElementById('parentCustomerId').value || null,
+            ec_account_executive: document.getElementById('ecAccountExecutive').value || null,
             role: 3 // Default customer role
         };
 

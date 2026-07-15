@@ -1536,20 +1536,75 @@ function resetFilters() {
     }
 }
 
+// Apakah ada filter/search kolom yang sedang aktif? Dipakai untuk memilih pesan
+// "no result" — kalau ada filter, user butuh tombol Clear Filters, bukan ajakan
+// membuat timesheet baru.
+function tsHasActiveFilters() {
+    const ids = ['colFilterTsEmployee', 'colFilterTsTicket', 'colFilterTsCustomer', 'colFilterTsActivityType',
+                 'colFilterTsStatus', 'colFilterTsMonth', 'colFilterTsYear', 'tsDateFrom', 'tsDateTo'];
+    if (ids.some(id => !!(document.getElementById(id)?.value))) return true;
+    return !!(currentFilters.status || currentFilters.activity_type);
+}
+
+// Baris "kosong" di dalam <tbody>, lebarnya mengikuti jumlah kolom thead yang
+// sedang aktif (thead di-swap saat mode Support / approval).
+function renderTimesheetEmptyRow() {
+    const colCount = document.querySelectorAll('#timesheetTable thead th').length || 1;
+    const filtered = tsHasActiveFilters();
+
+    let title, subtitle, action = '';
+    if (filtered) {
+        title = 'No timesheets found';
+        subtitle = 'Try adjusting your filters or search terms';
+        action = `
+            <button onclick="resetFilters()"
+                class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-xl hover:opacity-90 transition-all shadow-sm">
+                <i class="fas fa-times text-xs"></i>Clear Filters
+            </button>`;
+    } else if (window.isApprovalMode || window.isHoSMode) {
+        title = 'No Timesheets Pending Approval';
+        subtitle = 'All employee timesheets have been reviewed';
+    } else {
+        title = 'No Timesheets Found';
+        subtitle = 'Try adjusting your filters or create a new timesheet';
+        if (window.canCreateTimesheet) {
+            action = `
+                <button onclick="openTimesheetModal()"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-xl hover:opacity-90 transition-all shadow-sm">
+                    <i class="fas fa-plus text-xs"></i>Create Timesheet
+                </button>`;
+        }
+    }
+
+    return `
+        <tr>
+            <td colspan="${colCount}" class="px-4 py-16 text-center">
+                <div class="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4 mx-auto">
+                    <i class="fas fa-${filtered ? 'search' : 'clock'} text-gray-300 text-2xl"></i>
+                </div>
+                <p class="text-gray-700 font-semibold mb-1">${title}</p>
+                <p class="text-gray-400 text-xs ${action ? 'mb-5' : ''}">${subtitle}</p>
+                ${action}
+            </td>
+        </tr>`;
+}
+
 function renderTimesheetRows() {
     const tbody = document.getElementById('timesheetsTableBody');
     const emptyState = document.getElementById('emptyState');
 
     if (!tbody) return;
 
+    // Hasil kosong TIDAK menyembunyikan tabel (pola halaman Ticket): header, toolbar,
+    // dan popup search/filter tetap tampil supaya filter yang bikin kosong masih bisa
+    // dilihat & dihapus. #emptyState hanya untuk kegagalan load (lihat showEmptyState()).
+    if (emptyState) emptyState.classList.add('hidden');
+
     if (filteredTimesheets.length === 0) {
-        tbody.innerHTML = '';
-        if (emptyState) emptyState.classList.remove('hidden');
-        updatePagination(0);
+        tbody.innerHTML = renderTimesheetEmptyRow();
+        updatePagination(0, 0, 0);
         return;
     }
-
-    if (emptyState) emptyState.classList.add('hidden');
 
     // Pagination
     const total = filteredTimesheets.length;
