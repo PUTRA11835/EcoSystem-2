@@ -345,6 +345,36 @@ class CustomerController extends Controller
     }
 
     /**
+     * Get active employees holding a Sales role (API).
+     * Dipakai dropdown "AE (Account Executive)" di modal Create Customer.
+     * Nilai yang dikirim = ECI, sama dengan kolom `ec_account_executive`
+     * di customer_basic_data supaya tab Basic Data menampilkan pilihan
+     * yang sama. Role di-resolve via NAMA ("Sales ...") — ID role diverge
+     * antar environment.
+     */
+    public function salesEmployees()
+    {
+        try {
+            $employees = \App\Models\Employee::with('basicData')
+                ->where('is_active', true)
+                ->whereHas('roles', fn($q) => $q->where('employee_role.name', 'like', 'Sales%'))
+                ->get()
+                ->map(fn($e) => [
+                    'eci'  => $e->eci,
+                    'name' => $e->basicData->full_name ?? $e->eci,
+                ])
+                ->filter(fn($e) => !empty($e['eci']))
+                ->sortBy('name')
+                ->values();
+
+            return response()->json(['success' => true, 'data' => $employees]);
+        } catch (\Exception $e) {
+            Log::error('salesEmployees error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to fetch sales employees'], 500);
+        }
+    }
+
+    /**
      * Get end customers (children) of a given parent customer (API).
      * Dipakai dropdown "For customer" saat validate staging ticket dari email.
      */
@@ -388,6 +418,7 @@ class CustomerController extends Controller
             'contact_phone' => 'nullable|string|max:50',
             'customer_group_id'  => 'nullable|integer|exists:customer_groups,id',
             'parent_customer_id' => 'nullable|integer|exists:customer,customer_id',
+            'ec_account_executive' => 'nullable|string|max:100',
         ], [
             'customer_code.required' => 'Customer code is required.',
             'customer_code.regex'    => 'Customer code may only contain letters and numbers.',

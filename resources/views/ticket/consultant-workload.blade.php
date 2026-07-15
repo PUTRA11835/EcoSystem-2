@@ -105,44 +105,6 @@
     </div>
 
     {{-- Filter Bar --}}
-    <div class="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-5">
-        <div class="flex items-center gap-2 mb-3">
-            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
-            </svg>
-            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filters</span>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div class="flex flex-col">
-                <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Month</label>
-                <select id="filterMonth" onchange="loadWorkload()"
-                    class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white hover:border-gray-400 focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all">
-                    @for ($m = 1; $m <= 12; $m++)
-                        <option value="{{ $m }}" {{ $m == now()->month ? 'selected' : '' }}>
-                            {{ \Carbon\Carbon::create()->month($m)->format('F') }}
-                        </option>
-                    @endfor
-                </select>
-            </div>
-            <div class="flex flex-col">
-                <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Year</label>
-                <select id="filterYear" onchange="loadWorkload()"
-                    class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white hover:border-gray-400 focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all">
-                    @for ($y = now()->year - 1; $y <= now()->year + 1; $y++)
-                        <option value="{{ $y }}" {{ $y == now()->year ? 'selected' : '' }}>{{ $y }}</option>
-                    @endfor
-                </select>
-            </div>
-            <div class="flex flex-col">
-                <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Search</label>
-                <input id="searchConsultant" type="text" placeholder="Name / ECI / module..."
-                    oninput="filterTable()"
-                    class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white hover:border-gray-400 focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all">
-            </div>
-        </div>
-    </div>
-
     {{-- Table --}}
     <div class="rounded-xl border border-gray-200 overflow-hidden">
         <div class="overflow-x-auto">
@@ -150,18 +112,46 @@
                 <thead>
                     <tr class="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         <th class="w-8 px-3 py-3"></th>
-                        <th class="px-4 py-3 text-left">Consultant</th>
+                        {{-- CONSULTANT: keyword search (nama / ECI) --}}
+                        <th class="p-0 text-left" style="min-width:200px;">
+                            <div class="relative" id="consultantFilterDd">
+                                <button type="button" id="consultantFilterBtn" onclick="toggleConsultantPanel(event)"
+                                        class="w-full flex items-center gap-1.5 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span>Consultant</span>
+                                    <svg id="consultantFilterArrow" class="w-3 h-3 text-gray-400 transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    </svg>
+                                    <svg id="consultantFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/>
+                                    </svg>
+                                </button>
+                                {{-- normal-case/tracking-normal/font-normal: <tr> header memaksa uppercase +
+                                     tracking, dan <th> UA-nya bold yang diwarisi input (preflight Tailwind). --}}
+                                <div id="consultantFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3 normal-case tracking-normal" style="min-width:240px;">
+                                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search consultant</label>
+                                    <input type="text" id="consultantFilterInput" placeholder="Name / ECI…"
+                                           oninput="onConsultantFilterInput()" onclick="event.stopPropagation()"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal normal-case tracking-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    <div class="flex justify-end mt-3">
+                                        <button type="button" onclick="clearConsultantFilter()"
+                                                class="px-3 py-1.5 text-xs font-normal text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
                         <th class="px-4 py-3 text-left" style="min-width:170px">
                             <div class="flex items-center gap-1.5">
                                 <span>Module</span>
                                 <div class="relative" id="moduleFilterDd">
-                                    <button type="button" id="moduleFilterBtn" onclick="toggleModulePanel()" class="flex items-center gap-1 normal-case font-normal tracking-normal text-xs text-gray-400 hover:text-gray-600 cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
+                                    <button type="button" id="moduleFilterBtn" onclick="toggleModulePanel(event)" class="flex items-center gap-1 normal-case font-normal tracking-normal text-xs text-gray-400 hover:text-gray-600 cursor-pointer bg-transparent border-0 p-0 focus:outline-none">
                                         <span id="moduleFilterLabel">All</span>
                                         <svg id="moduleFilterArrow" class="w-3 h-3 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                         </svg>
                                     </button>
-                                    <div id="moduleFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden" style="min-width:180px;">
+                                    {{-- uppercase/tracking-wide eksplisit: panel ini dipindah ke <body> saat
+                                         dibuka, jadi tidak lagi mewarisinya dari <tr> header. --}}
+                                    <div id="moduleFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden uppercase tracking-wide" style="min-width:180px;">
                                         <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
                                             <span class="text-xs font-semibold text-gray-500">Filter Modul</span>
                                             <button onclick="clearModuleFilter()" class="text-xs text-red-600 hover:underline">Reset</button>
@@ -268,10 +258,9 @@
     }
 
     // ── API Load ───────────────────────────────────────────────────────
+    // Tanpa param month/year: controller default ke now()->month / now()->year,
+    // jadi periode selalu bulan berjalan menurut timezone server.
     async function loadWorkload() {
-        const month = document.getElementById('filterMonth').value;
-        const year = document.getElementById('filterYear').value;
-
         document.getElementById('workloadBody').innerHTML = `
         <tr><td colspan="8" class="text-center py-12 text-gray-400">
             <svg class="animate-spin w-5 h-5 mx-auto mb-2 text-red-400" fill="none" viewBox="0 0 24 24">
@@ -281,7 +270,7 @@
         </td></tr>`;
 
         try {
-            const res = await fetch(`/api/consultant-workload?month=${month}&year=${year}`);
+            const res = await fetch('/api/consultant-workload');
             const text = await res.text();
             let json;
             try {
@@ -308,14 +297,47 @@
         }
     }
 
+    // ── Panel filter di header tabel ───────────────────────────────────
+    // Wrapper tabel punya overflow (rounded-xl overflow-hidden + overflow-x-auto),
+    // yang memotong panel absolute begitu barisnya sedikit. Jadi saat dibuka panel
+    // dilepas ke <body> dan diposisikan fixed di bawah tombolnya — pola yang sama
+    // dipakai dropdown header halaman Ticket (data-fixed, custom-dropdown.js).
+    function openHeaderPanel(btn, panel, arrow) {
+        if (panel.parentElement !== document.body) document.body.appendChild(panel);
+        const r = btn.getBoundingClientRect();
+        panel.style.position = 'fixed';
+        panel.style.zIndex   = '9999';
+        panel.style.left     = `${r.left}px`;
+        panel.style.top      = `${r.bottom + 4}px`;
+        panel.classList.remove('hidden');
+        arrow?.classList.add('rotate-180');
+    }
+
+    function closeHeaderPanel(panel, arrow) {
+        panel?.classList.add('hidden');
+        arrow?.classList.remove('rotate-180');
+    }
+
+    // Panel sudah pindah ke <body>, jadi tidak lagi "di dalam" wrapper dd-nya:
+    // klik di dalam panel harus dicek terpisah supaya tidak ikut menutup.
+    function clickedInside(e, ddId, panelId) {
+        return !!document.getElementById(ddId)?.contains(e.target)
+            || !!document.getElementById(panelId)?.contains(e.target);
+    }
+
     let selectedModules = new Set();
 
-    function toggleModulePanel() {
+    function toggleModulePanel(event) {
+        event?.stopPropagation();
         const panel = document.getElementById('moduleFilterPanel');
         const arrow = document.getElementById('moduleFilterArrow');
-        const isOpen = !panel.classList.contains('hidden');
-        panel.classList.toggle('hidden', isOpen);
-        arrow.classList.toggle('rotate-180', !isOpen);
+        const btn   = document.getElementById('moduleFilterBtn');
+        if (panel.classList.contains('hidden')) {
+            closeHeaderPanel(document.getElementById('consultantFilterPanel'), document.getElementById('consultantFilterArrow'));
+            openHeaderPanel(btn, panel, arrow);
+        } else {
+            closeHeaderPanel(panel, arrow);
+        }
     }
 
     function populateModuleFilter() {
@@ -365,17 +387,60 @@
         filterTable();
     }
 
+    // ── Consultant search (nama / ECI) ─────────────────────────────────
+    function toggleConsultantPanel(event) {
+        event.stopPropagation();
+        const panel = document.getElementById('consultantFilterPanel');
+        const arrow = document.getElementById('consultantFilterArrow');
+        const btn   = document.getElementById('consultantFilterBtn');
+        if (panel.classList.contains('hidden')) {
+            closeHeaderPanel(document.getElementById('moduleFilterPanel'), document.getElementById('moduleFilterArrow'));
+            openHeaderPanel(btn, panel, arrow);
+            requestAnimationFrame(() => document.getElementById('consultantFilterInput').focus());
+        } else {
+            closeHeaderPanel(panel, arrow);
+        }
+    }
+
+    function onConsultantFilterInput() {
+        updateConsultantFilterIcon();
+        filterTable();
+    }
+
+    function updateConsultantFilterIcon() {
+        const active = !!document.getElementById('consultantFilterInput').value.trim();
+        const icon = document.getElementById('consultantFilterIcon');
+        icon.classList.toggle('text-red-500', active);
+        icon.classList.toggle('text-gray-300', !active);
+    }
+
+    function clearConsultantFilter() {
+        document.getElementById('consultantFilterInput').value = '';
+        updateConsultantFilterIcon();
+        filterTable();
+    }
+
     // Close panel on outside click
     document.addEventListener('click', e => {
-        const dd = document.getElementById('moduleFilterDd');
-        if (dd && !dd.contains(e.target)) {
-            document.getElementById('moduleFilterPanel')?.classList.add('hidden');
-            document.getElementById('moduleFilterArrow')?.classList.remove('rotate-180');
+        if (!clickedInside(e, 'moduleFilterDd', 'moduleFilterPanel')) {
+            closeHeaderPanel(document.getElementById('moduleFilterPanel'), document.getElementById('moduleFilterArrow'));
+        }
+        if (!clickedInside(e, 'consultantFilterDd', 'consultantFilterPanel')) {
+            closeHeaderPanel(document.getElementById('consultantFilterPanel'), document.getElementById('consultantFilterArrow'));
         }
     });
 
+    // Panel fixed tidak ikut bergerak saat halaman/tabel di-scroll → tutup saja,
+    // supaya tidak menggantung lepas dari tombolnya. Kecuali scroll yang berasal
+    // dari dalam panel itu sendiri (daftar modul bisa di-scroll).
+    ['scroll', 'resize'].forEach(evt => window.addEventListener(evt, e => {
+        if (e.target?.closest?.('#moduleFilterPanel, #consultantFilterPanel')) return;
+        closeHeaderPanel(document.getElementById('moduleFilterPanel'), document.getElementById('moduleFilterArrow'));
+        closeHeaderPanel(document.getElementById('consultantFilterPanel'), document.getElementById('consultantFilterArrow'));
+    }, true));
+
     function filterTable() {
-        const q = document.getElementById('searchConsultant').value.toLowerCase();
+        const q = (document.getElementById('consultantFilterInput')?.value ?? '').trim().toLowerCase();
         let filtered = allConsultants;
         if (selectedModules.size > 0) {
             filtered = filtered.filter(c => {
@@ -384,9 +449,8 @@
             });
         }
         if (q) filtered = filtered.filter(c =>
-            c.name.toLowerCase().includes(q) ||
-            (c.modules ?? '').toLowerCase().includes(q) ||
-            c.eci.toLowerCase().includes(q));
+            (c.name ?? '').toLowerCase().includes(q) ||
+            (c.eci ?? '').toLowerCase().includes(q));
         renderTable(applySortTo(filtered));
     }
 
@@ -407,6 +471,47 @@
         filterTable();
     }
 
+    // Status yang dianggap "aktif" — dasar SEMUA angka di baris tabel.
+    const ACTIVE_STATUSES = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
+
+    // Metrik baris tabel. Dipakai bareng oleh consultantRows() (yang menampilkan)
+    // dan applySortTo() (yang mengurutkan) supaya urutan selalu cocok dengan angka
+    // yang dilihat user. Sebelumnya sort memakai calcInProgress() yang hanya
+    // menghitung tiket 'inprocess', sementara baris menghitung 6 status aktif —
+    // hasilnya kolom Tickets tampak acak (0, 1, lalu 0 lagi).
+    function calcActive(c) {
+        const tickets = c.tickets.filter(t => ACTIVE_STATUSES.includes(t.status));
+        let allocMd = 0,
+            addMd = 0,
+            effectiveMd = 0,
+            remainMd = 0;
+        tickets.forEach(t => {
+            const myD = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
+            if (myD) {
+                const alloc  = parseFloat(myD.mandays) || 0;
+                const add    = parseFloat(myD.approved_additional) || 0;
+                const remain = parseFloat(myD.remain_md) || 0;
+                allocMd     += alloc;
+                addMd       += add;
+                effectiveMd += alloc + add;
+                remainMd    += remain;
+            }
+        });
+        return {
+            tickets,
+            ticket_count:  tickets.length,
+            total_days:    allocMd,
+            workload_days: Math.round(remainMd * 100) / 100,
+            workload_pct:  effectiveMd > 0 ? Math.round(remainMd / effectiveMd * 100 * 10) / 10 : 0,
+            load_score:    Math.round(remainMd * (1 + 0.1 * tickets.length) * 100) / 100,
+            add_md:        addMd,
+            remain_md:     remainMd,
+        };
+    }
+
+    // Khusus kartu ringkasan di atas ("Active Tickets" berlabel In-progress tickets,
+    // Busy/Moderate/Light) — sengaja hanya menghitung tiket 'inprocess', beda
+    // cakupan dari baris tabel di atas.
     function calcInProgress(c) {
         const tickets = c.tickets.filter(t => t.status === 'inprocess');
         let allocMd = 0,
@@ -437,11 +542,11 @@
             key,
             dir
         } = currentSort;
-        return [...list].sort((a, b) => {
-            const va = calcInProgress(a)[key] ?? 0;
-            const vb = calcInProgress(b)[key] ?? 0;
-            return dir === 'desc' ? vb - va : va - vb;
-        });
+        // Hitung sekali per consultant, bukan tiap perbandingan.
+        return list
+            .map(c => ({ c, v: calcActive(c)[key] ?? 0 }))
+            .sort((a, b) => dir === 'desc' ? b.v - a.v : a.v - b.v)
+            .map(x => x.c);
     }
 
     function updateSortIcons() {
@@ -504,9 +609,7 @@
     }
 
     function consultantRows(c) {
-        const activeStatuses = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
-        const visibleTickets = c.tickets.filter(t => activeStatuses.includes(t.status));
-
+        // Angka baris & angka sort berasal dari fungsi yang sama (lihat calcActive).
         // Akumulasi hanya dari mandays consultant ini (bukan total semua consultant per tiket)
         let totalAllocMdMain = 0,
             totalAddMdMain = 0,
@@ -895,15 +998,12 @@
     }
 
     async function refreshAfterProgressUpdate(empId) {
-        const month = document.getElementById('filterMonth').value;
-        const year  = document.getElementById('filterYear').value;
-
         // Remember if this consultant's ticket-row was expanded
         const ticketsRowEl = document.getElementById(`tickets-${empId}`);
         const wasExpanded  = ticketsRowEl && !ticketsRowEl.classList.contains('hidden');
 
         try {
-            const res  = await fetch(`/api/consultant-workload?month=${month}&year=${year}`);
+            const res  = await fetch('/api/consultant-workload');
             const json = await res.json();
             if (!json.success) return;
 
