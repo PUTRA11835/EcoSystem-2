@@ -601,6 +601,7 @@
                         <th class="px-3 py-2.5 text-left w-20">Role</th>
                         <th class="px-3 py-2.5 text-left w-28">Status</th>
                         <th class="px-3 py-2.5 text-left w-20">Priority</th>
+                        <th class="px-3 py-2.5 text-left w-24">Day not Close</th>
                         <th class="px-3 py-2.5 text-right w-24">Alloc Days</th>
                         <th class="px-3 py-2.5 text-right w-24">Add. Days</th>
                         <th class="px-3 py-2.5 text-right w-36">Remain</th>
@@ -610,7 +611,7 @@
                 <tbody>
                     ${visibleTickets.map((t, idx) => ticketRow(t, idx + 1, c.employee_id, c.modules)).join('')}
                     <tr style="background:#eff6ff;border-top:1px solid #bfdbfe">
-                        <td colspan="7" class="pl-6 pr-3 py-2.5 text-xs text-left text-blue-700 font-semibold">
+                        <td colspan="8" class="pl-6 pr-3 py-2.5 text-xs text-left text-blue-700 font-semibold">
                             Total (${visibleTickets.length} ticket${visibleTickets.length > 1 ? 's' : ''})
                         </td>
                         <td class="px-3 py-2.5 text-right text-xs font-bold text-gray-700">
@@ -634,6 +635,15 @@
         return html;
     }
 
+    // Sama seperti halaman ticket utama: hitung umur tiket sejak start_date.
+    // Tiket di halaman ini selalu berstatus aktif (closed sudah difilter di backend),
+    // jadi cukup hitung selisih ke waktu sekarang.
+    function dayOnCloseValue(t) {
+        const created = t.start_date;
+        if (!created) return null;
+        return Math.max(0, Math.floor((new Date().getTime() - new Date(created).getTime()) / 86400000));
+    }
+
     function ticketRow(t, num, empId) {
         const st = STATUS_BADGE[t.status] ?? {
             text: t.status,
@@ -655,13 +665,19 @@
         const ticketPct = parseFloat(t.progress_percentage) || 0;
         // Belum ada proposal Resolution Days (myDetail kosong) → pakai progress level-tiket
         const displayPct = myDetail ? myPct : ticketPct;
-        const updAt = t.last_progress_at ?
-            new Date(t.last_progress_at).toLocaleDateString('en-GB', {
+        const updSource = myDetail ? myDetail.progress_updated_at : t.last_progress_at;
+        const updBy = myDetail ? myDetail.progress_updated_by_name : t.last_progress_by_name;
+        const updAt = updSource ?
+            new Date(updSource).toLocaleString('en-GB', {
                 day: '2-digit',
                 month: 'short',
-                year: 'numeric'
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
             }) :
             '—';
+
+        const dayOnClose = dayOnCloseValue(t);
 
         const remainCell = myAllocMd > 0
             ? `<span class="font-semibold ${myRemainMd > 0 ? 'text-orange-600' : 'text-green-600'}">${myRemainMd.toFixed(2)} d</span>
@@ -689,6 +705,7 @@
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${prCls}">${t.ticket_priority ?? '—'}</span>
         </td>
+        <td class="px-3 py-2.5 text-xs font-semibold text-gray-700">${dayOnClose !== null ? dayOnClose : '<span class="text-gray-300 font-normal">—</span>'}</td>
         <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${myApproved ? myAllocMd.toFixed(2) + ' days' : '<span class="text-gray-400 italic font-normal">Belum ditentukan</span>'}</td>
         <td class="px-3 py-2.5 text-right text-xs text-gray-500">
             ${myAddMd > 0
@@ -707,7 +724,7 @@
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                 </button>
             </div>
-            <div class="text-xs text-gray-400 mt-0.5">Updated: ${updAt}</div>
+            <div class="text-xs text-gray-400 mt-0.5">Updated: ${updAt}${updBy ? ` by <span class="text-gray-500 font-medium">${updBy}</span>` : ''}</div>
         </td>
     </tr>`;
     }

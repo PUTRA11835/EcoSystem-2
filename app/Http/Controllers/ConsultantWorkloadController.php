@@ -209,6 +209,7 @@ class ConsultantWorkloadController extends Controller
             'ticket.last_progress_at', 'ticket.module', 'ticket.start_date',
             'ticket.end_date', 'ticket.ticket_lead_id',
             'customer_basic_data.name_1 as customer_name',
+            DB::raw("NULLIF(TRIM(CONCAT(COALESCE(ticket_updater_ebd.first_name,''), ' ', COALESCE(ticket_updater_ebd.last_name,''))), '') as last_progress_by_name"),
         ];
 
         if ($ticketIds->isEmpty()) {
@@ -217,6 +218,7 @@ class ConsultantWorkloadController extends Controller
 
         $tickets = DB::table('ticket')
             ->leftJoin('customer_basic_data', 'ticket.customer_id', '=', 'customer_basic_data.customer_id')
+            ->leftJoin('employee_basic_data as ticket_updater_ebd', 'ticket_updater_ebd.employee_id', '=', 'ticket.progress_updated_by')
             ->whereIn('ticket.ticket_id', $ticketIds)
             ->whereIn('ticket.status', self::ACTIVE_STATUSES)
             ->whereNull('ticket.deleted_at')
@@ -262,6 +264,7 @@ class ConsultantWorkloadController extends Controller
             ->join('consultant_mandays_detail as cmd', 'cmd.consultant_mandays_id', '=', 'cm.id')
             ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
             ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'e.employee_id')
+            ->leftJoin('employee_basic_data as updater_ebd', 'updater_ebd.employee_id', '=', 'cmd.progress_updated_by')
             ->leftJoinSub(
                 DB::table('employee_qualification')
                     ->join('modules', 'modules.id', '=', 'employee_qualification.module_id')
@@ -286,7 +289,8 @@ class ConsultantWorkloadController extends Controller
                 'cmd.approved_additional',
                 'cmd.progress_percentage as consultant_progress',
                 'cmd.progress_note as consultant_progress_note',
-                'cmd.progress_updated_at as consultant_progress_updated_at'
+                'cmd.progress_updated_at as consultant_progress_updated_at',
+                DB::raw("NULLIF(TRIM(CONCAT(COALESCE(updater_ebd.first_name,''), ' ', COALESCE(updater_ebd.last_name,''))), '') as consultant_progress_updated_by_name")
             )
             ->get();
 
@@ -317,6 +321,7 @@ class ConsultantWorkloadController extends Controller
                 'progress_percentage'          => $consultantPct,
                 'progress_note'                => $row->consultant_progress_note,
                 'progress_updated_at'          => $row->consultant_progress_updated_at,
+                'progress_updated_by_name'     => $row->consultant_progress_updated_by_name,
             ];
         }
 
@@ -431,6 +436,7 @@ class ConsultantWorkloadController extends Controller
                     'progress_percentage' => $item['progress_percentage'],
                     'progress_note'       => $item['progress_note'] ?? null,
                     'progress_updated_at' => $now,
+                    'progress_updated_by' => $empId,
                 ]);
             }
 
