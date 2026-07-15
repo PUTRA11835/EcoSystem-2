@@ -42,6 +42,7 @@ class TaskController extends Controller
                     'ticket.status', 'ticket.ticket_priority', 'ticket.ticket_type',
                     'ticket.man_days', 'ticket.progress_percentage', 'ticket.progress_note',
                     'ticket.last_progress_at', 'ticket.module', 'ticket.start_date', 'ticket.end_date',
+                    'ticket.resolution_days_status', 'ticket.mandays_proposal_status',
                     'customer_basic_data.name_1 as customer_name',
                 ])
                 ->orderByRaw("FIELD(ticket.status, 'inprocess', 'open', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold')")
@@ -62,8 +63,21 @@ class TaskController extends Controller
             $modulesMap        = ConsultantWorkloadController::modulesMapForEmployees([$empId]);
             $myModules         = $modulesMap[$empId] ?? '-';
 
-            $ticketsData = $tickets->map(function ($ticket) use ($progressMap, $consultantDetails) {
+            // Tiket dengan konfirmasi take-ticket yang sudah confirmed juga dianggap
+            // punya man_days asli (bukan cuma placeholder headcount), sama seperti
+            // Ticket::hasRealManDays().
+            $confirmedTicketIds = DB::table('ticket_confirmation')
+                ->whereIn('ticket_id', $ticketIds)
+                ->where('status', 'confirmed')
+                ->pluck('ticket_id')
+                ->flip();
+
+            $ticketsData = $tickets->map(function ($ticket) use ($progressMap, $consultantDetails, $confirmedTicketIds) {
                 $tid = $ticket->ticket_id;
+                $hasRealManDays = $ticket->resolution_days_status === 'approved'
+                    || $ticket->mandays_proposal_status === 'approved'
+                    || $confirmedTicketIds->has($tid);
+
                 return [
                     'ticket_id'           => $tid,
                     'ticket_number'       => $ticket->ticket_number,
@@ -72,6 +86,7 @@ class TaskController extends Controller
                     'ticket_priority'     => $ticket->ticket_priority,
                     'ticket_type'         => $ticket->ticket_type,
                     'man_days'            => (float) $ticket->man_days,
+                    'has_real_man_days'   => $hasRealManDays,
                     'progress_percentage' => (float) $ticket->progress_percentage,
                     'progress_note'       => $ticket->progress_note,
                     'module'              => $ticket->module,
@@ -133,6 +148,13 @@ class TaskController extends Controller
             ->whereIn('ticket_id', $ticketIds)
             ->pluck('progress_percentage', 'ticket_id');
 
+        // Hanya proposal terbaru per ticket (hindari baris historis kalau ada >1 per ticket_id)
+        $latestIds = DB::table('consultant_mandays')
+            ->whereIn('ticket_id', $ticketIds)
+            ->selectRaw('MAX(id) as id')
+            ->groupBy('ticket_id')
+            ->pluck('id');
+
         $rows = DB::table('consultant_mandays as cm')
             ->join('consultant_mandays_detail as cmd', 'cmd.consultant_mandays_id', '=', 'cm.id')
             ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
@@ -148,9 +170,10 @@ class TaskController extends Controller
                 '=',
                 'cmd.employee_id'
             )
-            ->whereIn('cm.ticket_id', $ticketIds)
+            ->whereIn('cm.id', $latestIds)
             ->select(
                 'cm.ticket_id',
+                'cm.status as proposal_status',
                 'cmd.id as detail_id',
                 'cmd.employee_id',
                 DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''), ' ', COALESCE(ebd.last_name,''))) as emp_name"),
@@ -165,9 +188,13 @@ class TaskController extends Controller
 
         $map = [];
         foreach ($rows as $row) {
-            $tid         = (int) $row->ticket_id;
-            $mandays     = (float) $row->mandays;
-            $additional  = (float) $row->approved_additional;
+            $tid        = (int) $row->ticket_id;
+            $isApproved = $row->proposal_status === 'approved';
+
+            // Sebelum Head approve, MD yang ditampilkan tetap placeholder (1 MD, tanpa
+            // additional) — biar tidak ikut berubah begitu PIC edit draft proposal-nya.
+            $mandays     = $isApproved ? (float) $row->mandays : 1.0;
+            $additional  = $isApproved ? (float) $row->approved_additional : 0.0;
             $effectiveMd = $mandays + $additional;
             $progress    = (float) ($ticketProgress[$tid] ?? 0);
             $remainShare = round($effectiveMd * (1 - $progress / 100), 2);
@@ -182,6 +209,7 @@ class TaskController extends Controller
                 'approved_additional'  => $additional,
                 'effective_md'         => $effectiveMd,
                 'remain_md'            => $remainShare,
+                'is_approved'          => $isApproved,
                 'progress_percentage'  => (float) ($row->progress_percentage ?? 0),
                 'progress_note'        => $row->progress_note ?? null,
             ];

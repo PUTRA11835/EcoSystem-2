@@ -251,6 +251,13 @@ class ConsultantWorkloadController extends Controller
     {
         if (empty($ticketIds)) return [];
 
+        // Hanya proposal terbaru per ticket (hindari baris historis kalau ada >1 per ticket_id)
+        $latestIds = DB::table('consultant_mandays')
+            ->whereIn('ticket_id', $ticketIds)
+            ->selectRaw('MAX(id) as id')
+            ->groupBy('ticket_id')
+            ->pluck('id');
+
         $rows = DB::table('consultant_mandays as cm')
             ->join('consultant_mandays_detail as cmd', 'cmd.consultant_mandays_id', '=', 'cm.id')
             ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
@@ -266,9 +273,10 @@ class ConsultantWorkloadController extends Controller
                 '=',
                 'cmd.employee_id'
             )
-            ->whereIn('cm.ticket_id', $ticketIds)
+            ->whereIn('cm.id', $latestIds)
             ->select(
                 'cm.ticket_id',
+                'cm.status as proposal_status',
                 'cmd.id as detail_id',
                 'cmd.employee_id',
                 DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''), ' ', COALESCE(ebd.last_name,''))) as emp_name"),
@@ -284,9 +292,13 @@ class ConsultantWorkloadController extends Controller
 
         $map = [];
         foreach ($rows as $row) {
-            $tid         = (int) $row->ticket_id;
-            $mandays     = (float) $row->mandays;
-            $additional  = (float) $row->approved_additional;
+            $tid        = (int) $row->ticket_id;
+            $isApproved = $row->proposal_status === 'approved';
+
+            // Sebelum Head approve, MD yang ditampilkan tetap placeholder (1 MD, tanpa
+            // additional) — biar tidak ikut berubah begitu PIC edit draft proposal-nya.
+            $mandays     = $isApproved ? (float) $row->mandays : 1.0;
+            $additional  = $isApproved ? (float) $row->approved_additional : 0.0;
             $effectiveMd = $mandays + $additional;
             $consultantPct = (float) ($row->consultant_progress ?? 0);
             $remainShare = round($effectiveMd * (1 - $consultantPct / 100), 2);
@@ -301,6 +313,7 @@ class ConsultantWorkloadController extends Controller
                 'approved_additional'          => $additional,
                 'effective_md'                 => $effectiveMd,
                 'remain_md'                    => $remainShare,
+                'is_approved'                  => $isApproved,
                 'progress_percentage'          => $consultantPct,
                 'progress_note'                => $row->consultant_progress_note,
                 'progress_updated_at'          => $row->consultant_progress_updated_at,
@@ -319,7 +332,24 @@ class ConsultantWorkloadController extends Controller
             $cm = ConsultantMandays::where('ticket_id', $ticketId)->latest()->first();
 
             if (!$cm) {
-                return response()->json(['success' => true, 'data' => []]);
+                // Belum ada proposal Resolution Days — tawarkan progress level-tiket
+                // (satu angka, ditulis langsung ke ticket.progress_percentage).
+                $ticket = Ticket::where('ticket_id', $ticketId)->first();
+                if (!$ticket) {
+                    return response()->json(['success' => false, 'message' => 'Ticket not found'], 404);
+                }
+
+                return response()->json(['success' => true, 'data' => [[
+                    'detail_id'           => null,
+                    'employee_id'         => null,
+                    'emp_name'            => 'Progress Tiket (belum ada proposal Resolution Days)',
+                    'eci'                 => '—',
+                    'module'              => '—',
+                    'mandays'             => null,
+                    'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
+                    'progress_note'       => $ticket->progress_note,
+                    'progress_updated_at' => $ticket->last_progress_at,
+                ]]]);
             }
 
             $details = DB::table('consultant_mandays_detail as cmd')
@@ -345,7 +375,9 @@ class ConsultantWorkloadController extends Controller
                     'emp_name'           => trim($d->emp_name) ?: ($d->eci ?? '—'),
                     'eci'                => $d->eci ?? '—',
                     'module'             => $d->module ?? '—',
-                    'mandays'            => (float) $d->mandays,
+                    // Sebelum Head approve, tampilkan placeholder 1 MD — bukan angka draft
+                    // yang mungkin sedang diedit PIC — supaya konsisten dengan sub-tabel.
+                    'mandays'            => $cm->status === 'approved' ? (float) $d->mandays : 1.0,
                     'progress_percentage' => (float) ($d->progress_percentage ?? 0),
                     'progress_note'      => $d->progress_note,
                     'progress_updated_at' => $d->progress_updated_at,
@@ -367,13 +399,32 @@ class ConsultantWorkloadController extends Controller
         try {
             $validated = $request->validate([
                 'progresses'                           => 'required|array|min:1',
-                'progresses.*.detail_id'               => 'required|integer|exists:consultant_mandays_detail,id',
+                'progresses.*.detail_id'               => 'nullable|integer|exists:consultant_mandays_detail,id',
                 'progresses.*.progress_percentage'     => 'required|numeric|min:0|max:100',
                 'progresses.*.progress_note'           => 'nullable|string|max:500',
             ]);
 
             $now   = now();
             $empId = session('user.id');
+
+            // Mode ticket-level: belum ada proposal Resolution Days, jadi progress
+            // ditulis langsung ke ticket.progress_percentage, bukan ke consultant_mandays_detail.
+            if (count($validated['progresses']) === 1 && empty($validated['progresses'][0]['detail_id'])) {
+                $item = $validated['progresses'][0];
+
+                Ticket::where('ticket_id', $ticketId)->update([
+                    'progress_percentage' => $item['progress_percentage'],
+                    'progress_note'       => $item['progress_note'] ?? null,
+                    'last_progress_at'    => $now,
+                    'progress_updated_by' => $empId,
+                ]);
+
+                return response()->json([
+                    'success'         => true,
+                    'message'         => 'Progress updated',
+                    'ticket_progress' => $item['progress_percentage'],
+                ]);
+            }
 
             foreach ($validated['progresses'] as $item) {
                 ConsultantMandaysDetail::where('id', $item['detail_id'])->update([
@@ -383,19 +434,17 @@ class ConsultantWorkloadController extends Controller
                 ]);
             }
 
-            // Recalculate ticket.progress_percentage sebagai weighted average mandays
+            // Recalculate ticket.progress_percentage sebagai rata-rata sederhana progress
+            // semua konsultan di tiket (bukan dibobot MD, supaya konsultan dengan alokasi
+            // kecil tidak "tenggelam" oleh konsultan dengan alokasi besar).
             $cm = ConsultantMandays::where('ticket_id', $ticketId)->latest()->first();
             $ticketProgress = 0.0;
             $latestNote     = null;
 
             if ($cm) {
                 $allDetails = ConsultantMandaysDetail::where('consultant_mandays_id', $cm->id)->get();
-                $totalMd    = $allDetails->sum(fn($d) => (float) $d->mandays);
 
-                if ($totalMd > 0) {
-                    $weightedSum    = $allDetails->sum(fn($d) => (float) $d->mandays * (float) $d->progress_percentage);
-                    $ticketProgress = round($weightedSum / $totalMd, 2);
-                } elseif ($allDetails->count() > 0) {
+                if ($allDetails->count() > 0) {
                     $ticketProgress = round($allDetails->avg('progress_percentage'), 2);
                 }
 

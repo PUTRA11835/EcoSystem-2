@@ -414,7 +414,7 @@
             remainMd = 0;
         tickets.forEach(t => {
             const myD = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
-            if (myD) {
+            if (myD && myD.is_approved) {
                 const alloc  = parseFloat(myD.mandays) || 0;
                 const add    = parseFloat(myD.approved_additional) || 0;
                 const remain = parseFloat(myD.remain_md) || 0;
@@ -514,7 +514,7 @@
             totalRemainMain = 0;
         visibleTickets.forEach(t => {
             const myD = (t.consultant_details ?? []).find(d => d.employee_id == c.employee_id);
-            if (myD) {
+            if (myD && myD.is_approved) {
                 const alloc   = parseFloat(myD.mandays) || 0;
                 const add     = parseFloat(myD.approved_additional) || 0;
                 const remain  = parseFloat(myD.remain_md) || 0;
@@ -646,12 +646,15 @@
 
         // Hanya ambil mandays milik consultant ini (bukan total semua consultant)
         const myDetail    = (t.consultant_details ?? []).find(d => d.employee_id == empId);
-        const myAllocMd   = myDetail ? parseFloat(myDetail.mandays) || 0 : 0;
-        const myAddMd     = myDetail ? parseFloat(myDetail.approved_additional) || 0 : 0;
-        const myRemainMd  = myDetail ? parseFloat(myDetail.remain_md) || 0 : 0;
+        const myApproved  = myDetail ? !!myDetail.is_approved : false;
+        const myAllocMd   = myApproved ? parseFloat(myDetail.mandays) || 0 : 0;
+        const myAddMd     = myApproved ? parseFloat(myDetail.approved_additional) || 0 : 0;
+        const myRemainMd  = myApproved ? parseFloat(myDetail.remain_md) || 0 : 0;
         const myPct       = myDetail ? parseFloat(myDetail.progress_percentage) || 0 : 0;
 
         const ticketPct = parseFloat(t.progress_percentage) || 0;
+        // Belum ada proposal Resolution Days (myDetail kosong) → pakai progress level-tiket
+        const displayPct = myDetail ? myPct : ticketPct;
         const updAt = t.last_progress_at ?
             new Date(t.last_progress_at).toLocaleDateString('en-GB', {
                 day: '2-digit',
@@ -686,7 +689,7 @@
         <td class="px-3 py-2.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${prCls}">${t.ticket_priority ?? '—'}</span>
         </td>
-        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${myAllocMd > 0 ? myAllocMd.toFixed(2) + ' days' : '—'}</td>
+        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${myApproved ? myAllocMd.toFixed(2) + ' days' : '<span class="text-gray-400 italic font-normal">Belum ditentukan</span>'}</td>
         <td class="px-3 py-2.5 text-right text-xs text-gray-500">
             ${myAddMd > 0
                 ? `<span class="text-indigo-600 font-semibold">${myAddMd.toFixed(2)} days</span>`
@@ -696,13 +699,13 @@
         <td class="px-3 py-2.5">
             <div class="flex items-center gap-2">
                 <div class="bg-gray-200 rounded-full h-2" style="width:90px">
-                    <div class="${progressBarColor(myPct)} h-2 rounded-full" style="width:${myPct}%"></div>
+                    <div class="${progressBarColor(displayPct)} h-2 rounded-full" style="width:${displayPct}%"></div>
                 </div>
-                <span class="text-xs font-bold ${myPct>=75?'text-green-700':myPct>=40?'text-yellow-600':'text-red-600'}">${myPct}%</span>
-                ${myDetail && myDetail.detail_id ? `<button onclick="event.stopPropagation(); openWlCpModal(${t.ticket_id}, '${(t.ticket_number ?? '').replace(/'/g, "\\'")}', ${empId}, ${myDetail.detail_id})"
+                <span class="text-xs font-bold ${displayPct>=75?'text-green-700':displayPct>=40?'text-yellow-600':'text-red-600'}">${displayPct}%</span>
+                <button onclick="event.stopPropagation(); openWlCpModal(${t.ticket_id}, '${(t.ticket_number ?? '').replace(/'/g, "\\'")}', ${empId}, ${myDetail && myDetail.detail_id ? myDetail.detail_id : 'null'})"
                     class="ml-1 inline-flex items-center gap-0.5 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white px-1.5 py-0.5 rounded transition" title="Edit Progress">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                </button>` : ''}
+                </button>
             </div>
             <div class="text-xs text-gray-400 mt-0.5">Updated: ${updAt}</div>
         </td>
@@ -774,15 +777,15 @@
             }
 
             const filtered = detailId ? json.data.filter(d => d.detail_id == detailId) : json.data;
-            if (filtered.length === 1) {
+            if (filtered.length === 1 && filtered[0].detail_id != null) {
                 document.getElementById('wl-cp-modal-title').textContent = 'Progress: ' + filtered[0].emp_name;
             }
 
             const rows = filtered.map(d => `
-                <tr class="border-t border-gray-100" data-detail-id="${d.detail_id}" data-mandays="${d.mandays}">
+                <tr class="border-t border-gray-100" data-detail-id="${d.detail_id ?? 'null'}" data-mandays="${d.mandays ?? ''}">
                     <td class="py-3 pr-4">
                         <p class="font-semibold text-gray-800 text-sm">${d.emp_name}</p>
-                        <p class="text-gray-400 text-xs font-mono">${d.mandays} md</p>
+                        <p class="text-gray-400 text-xs font-mono">${d.mandays != null ? d.mandays + ' md' : 'Belum ada proposal Resolution Days'}</p>
                     </td>
                     <td class="py-3 pr-2 w-52">
                         <div class="flex items-center gap-2">
@@ -834,11 +837,14 @@
     async function submitWlCpModal() {
         if (!_wlCpModalTicketId) return;
         const rows = document.querySelectorAll('#wl-cp-modal-body tr[data-detail-id]');
-        const progresses = [...rows].map(r => ({
-            detail_id:           parseInt(r.dataset.detailId),
-            progress_percentage: parseFloat(r.querySelector('.wl-cp-modal-range')?.value) || 0,
-            progress_note:       (r.querySelector('.wl-cp-modal-note')?.value ?? '').trim() || null,
-        }));
+        const progresses = [...rows].map(r => {
+            const parsedId = parseInt(r.dataset.detailId);
+            return {
+                detail_id:           (r.dataset.detailId === 'null' || isNaN(parsedId)) ? null : parsedId,
+                progress_percentage: parseFloat(r.querySelector('.wl-cp-modal-range')?.value) || 0,
+                progress_note:       (r.querySelector('.wl-cp-modal-note')?.value ?? '').trim() || null,
+            };
+        });
 
         const btn = document.getElementById('wl-cp-modal-save-btn');
         btn.disabled = true;

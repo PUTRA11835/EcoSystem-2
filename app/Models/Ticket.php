@@ -148,6 +148,122 @@ class Ticket extends Model
             ->orderBy('created_at', 'desc');
     }
 
+    /**
+     * Isi man_days sementara (1 MD per orang: lead + member aktif) supaya progress
+     * tidak tampil "-" sebelum ada man_days "asli". Tidak menambah kolom baru —
+     * status "sudah asli atau belum" diturunkan dari data yang sudah ada:
+     * proposal mandays yang approved, riwayat man_days manual, atau konfirmasi
+     * take-ticket yang sudah confirmed. Kalau salah satu itu ada, method ini
+     * tidak menyentuh man_days sama sekali.
+     */
+    public function refreshPlaceholderManDays(): void
+    {
+        if ($this->hasRealManDays()) {
+            return;
+        }
+
+        $headcount = ($this->ticket_lead_id ? 1 : 0) + $this->members()->count();
+
+        if ($headcount === 0) {
+            return;
+        }
+
+        $this->update(['man_days' => $headcount]);
+    }
+
+    /**
+     * True kalau man_days berasal dari nilai asli (bukan placeholder headcount):
+     * proposal Resolution Days / Customer Mandays yang approved, atau take-ticket
+     * yang sudah dikonfirmasi (man_days dari form assignment).
+     *
+     * Catatan: admin yang mengedit man_days manual lewat form edit tiket
+     * (bukan lewat salah satu alur di atas) tidak punya penanda persisten di
+     * skema saat ini, jadi nilai itu bisa tertimpa lagi oleh placeholder kalau
+     * lead/member berubah sesudahnya.
+     */
+    public function hasRealManDays(): bool
+    {
+        if ($this->resolution_days_status === 'approved' || $this->mandays_proposal_status === 'approved') {
+            return true;
+        }
+
+        return \Illuminate\Support\Facades\DB::table('ticket_confirmation')
+            ->where('ticket_id', $this->ticket_id)
+            ->where('status', 'confirmed')
+            ->exists();
+    }
+
+    /**
+     * Jaga proposal Resolution Days berstatus draft supaya punya 1 baris
+     * consultant_mandays_detail per orang aktif (lead + member). mandays
+     * disimpan 0 (bukan 1) supaya form "Propose Resolution Days" tampil
+     * kosong/baru bagi PIC — angka "1 md" yang tampil di My Task/Consultant
+     * Workload dihasilkan terpisah oleh freeze display, bukan dari kolom ini.
+     * Tujuannya supaya tombol expand/edit progress per-orang di My Task &
+     * Consultant Workload bisa dipakai sebelum PIC benar-benar mengajukan
+     * proposal. Tidak membuat tabel baru — reuse consultant_mandays/
+     * consultant_mandays_detail yang sudah ada. Tidak pernah menyentuh
+     * proposal yang statusnya bukan draft (sedang direview/sudah diputuskan).
+     */
+    public function syncDraftResolutionMembers(): void
+    {
+        if ($this->hasRealManDays() || !$this->ticket_lead_id) {
+            return;
+        }
+
+        $targetIds = \Illuminate\Support\Facades\DB::table('ticket_member')
+            ->where('ticket_id', $this->ticket_id)
+            ->where('is_active', true)
+            ->pluck('employee_id')
+            ->push($this->ticket_lead_id)
+            ->unique()
+            ->values();
+
+        $proposal = \App\Models\ConsultantMandays::where('ticket_id', $this->ticket_id)
+            ->latestPerTicket()
+            ->first();
+
+        if ($proposal && $proposal->status !== 'draft') {
+            return;
+        }
+
+        if (!$proposal) {
+            $proposal = \App\Models\ConsultantMandays::create([
+                'ticket_id'            => $this->ticket_id,
+                'proposed_by_agent_id' => $this->ticket_lead_id,
+                'proposed_at'          => now(),
+                'last_edited_at'       => now(),
+                'status'               => 'draft',
+                'total_mandays'        => 0,
+            ]);
+        }
+
+        $existingDetails = $proposal->details()->get()->keyBy('employee_id');
+
+        foreach ($targetIds as $empId) {
+            if (!$existingDetails->has($empId)) {
+                // mandays disimpan 0 (bukan 1) supaya form "Propose Resolution Days"
+                // tampil kosong/baru bagi PIC — angka "1 md" yang ditampilkan di
+                // My Task/Consultant Workload dihasilkan terpisah oleh freeze display
+                // (lihat ConsultantWorkloadController::consultantDetailsForTickets()),
+                // bukan dari kolom ini.
+                \App\Models\ConsultantMandaysDetail::create([
+                    'consultant_mandays_id' => $proposal->id,
+                    'employee_id'           => $empId,
+                    'mandays'               => 0,
+                    'additional_mandays'    => 0,
+                    'approved_additional'   => 0,
+                ]);
+            }
+        }
+
+        $proposal->details()->whereNotIn('employee_id', $targetIds)->delete();
+
+        $proposal->update([
+            'total_mandays'  => $proposal->details()->sum('mandays'),
+            'last_edited_at' => now(),
+        ]);
+    }
 
     // Relasi Many-to-Many ke Employee (Support Members/Pendamping)
     /** Active members only — digunakan di semua logika bisnis dan tampilan ticket list */
