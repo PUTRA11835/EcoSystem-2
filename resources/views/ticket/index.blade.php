@@ -2790,6 +2790,14 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
         Log Ticket Activity
     </button>
     @endif
+    @if($can('reporting.log-shifting'))
+    <div class="border-t border-gray-100 my-1"></div>
+    <button type="button" id="ctxLogShifting"
+        class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors text-left">
+        <i class="fas fa-clock text-gray-400 w-3.5"></i>
+        Log Shifting
+    </button>
+    @endif
 </div>
 
 <script>
@@ -2829,6 +2837,16 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
         if (ctxLog) {
             ctxLog.addEventListener('click', function() {
                 if (_ctxTicketId) openActivityLogModal(_ctxTicketId, _ctxTicketNum);
+                menu.classList.add('hidden');
+                _ctxTicketId = null;
+                _ctxTicketNum = null;
+            });
+        }
+
+        const ctxLogShifting = document.getElementById('ctxLogShifting');
+        if (ctxLogShifting) {
+            ctxLogShifting.addEventListener('click', function() {
+                if (_ctxTicketId && typeof openLogShiftingTicketModal === 'function') openLogShiftingTicketModal(_ctxTicketId);
                 menu.classList.add('hidden');
                 _ctxTicketId = null;
                 _ctxTicketNum = null;
@@ -3172,6 +3190,93 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
             if (e.target === this) closeAlForm();
         });
     })();
+</script>
+@endif
+
+@if($can('reporting.log-shifting'))
+{{-- ══════════════════════════════════════════════════════════════════════════
+     LOG SHIFTING MODAL (single ticket — same data as Reporting > Log Shifting)
+══════════════════════════════════════════════════════════════════════════ --}}
+<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[9990] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900">Log Shifting</h3>
+                <p id="lstModalTicketNum" class="text-xs text-gray-400 mt-0.5">—</p>
+            </div>
+            <button onclick="closeLogShiftingTicketModal()"
+                class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all text-sm">✕</button>
+        </div>
+        <div class="flex-1 overflow-auto">
+            <table class="w-full text-xs border-collapse">
+                <thead class="sticky top-0 bg-gray-50 z-10">
+                    <tr>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Date</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Time</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">SLA Message</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Created By</th>
+                    </tr>
+                </thead>
+                <tbody id="lstModalBody">
+                    <tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.openLogShiftingTicketModal = async function(ticketId) {
+        const modal = document.getElementById('logShiftingTicketModal');
+        const body  = document.getElementById('lstModalBody');
+        document.getElementById('lstModalTicketNum').textContent = 'Loading...';
+        body.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>';
+        modal.classList.remove('hidden');
+
+        try {
+            const res = await fetch(`/api/reporting/log-shifting/${ticketId}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+            const { ticket, messages } = json.data;
+            document.getElementById('lstModalTicketNum').textContent = ticket.ticket_number || '—';
+
+            if (!messages.length) {
+                body.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">No SLA messages found for this ticket.</td></tr>';
+                return;
+            }
+
+            body.innerHTML = messages.map(m => {
+                const bubble  = m.bubble_date ? new Date(m.bubble_date) : null;
+                const dateStr = bubble ? bubble.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+                const timeStr = bubble ? bubble.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' WIB' : '—';
+                return `
+                <tr class="border-b border-gray-100">
+                    <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">${dateStr}</td>
+                    <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">${timeStr}</td>
+                    <td class="px-3 py-2.5 text-gray-700">${lstEsc(m.sla_message || '—')}</td>
+                    <td class="px-3 py-2.5 text-gray-700 whitespace-nowrap">${m.sla_message_by ? lstEsc(m.sla_message_by) : '<span class="text-gray-300 italic">Unknown</span>'}</td>
+                </tr>`;
+            }).join('');
+        } catch (e) {
+            body.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-red-500">${lstEsc(e.message)}</td></tr>`;
+        }
+    };
+
+    window.closeLogShiftingTicketModal = function() {
+        document.getElementById('logShiftingTicketModal').classList.add('hidden');
+    };
+
+    document.getElementById('logShiftingTicketModal').addEventListener('click', function(e) {
+        if (e.target === this) closeLogShiftingTicketModal();
+    });
+
+    function lstEsc(str) {
+        return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
 </script>
 @endif
 

@@ -30,6 +30,8 @@ class TicketMessage extends Model
         'message',
         'message_html',
         'sla_message',
+        'sla_message_by',
+        'sla_message_at',
         'is_internal_note',
         'is_deleted',
         'edited_at',
@@ -54,6 +56,7 @@ class TicketMessage extends Model
         'is_internal_note'       => 'boolean',
         'is_deleted'             => 'boolean',
         'edited_at'              => 'datetime',
+        'sla_message_at'         => 'datetime',
         'is_read_by_customer'    => 'boolean',
         'is_read_by_agent'       => 'boolean',
         'read_at'                => 'datetime',
@@ -142,6 +145,11 @@ class TicketMessage extends Model
     public function replyTo()
     {
         return $this->belongsTo(TicketMessage::class, 'reply_to_id');
+    }
+
+    public function slaMessageBy()
+    {
+        return $this->belongsTo(Employee::class, 'sla_message_by', 'employee_id');
     }
 
     public function scopeInternal($query)

@@ -815,6 +815,14 @@
                             <span class="nav-text text-sm">Ticket by Modul</span>
                         </a>
                         @endif
+                        @if($can('reporting.log-shifting'))
+                        <a href="{{ route('reporting.log-shifting') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/log-shifting*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-clock text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Log Shifting</span>
+                        </a>
+                        @endif
                     </div>
                 </div>
                 @endif
