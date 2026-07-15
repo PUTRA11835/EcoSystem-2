@@ -1757,6 +1757,8 @@ class TicketController extends Controller
             }
 
             $ticket->update($updateData);
+            $ticket->refreshPlaceholderManDays();
+            $ticket->syncDraftResolutionMembers();
 
             return response()->json(['success' => true, 'message' => $isFirstAssign ? 'Ticket Lead assigned successfully' : 'Ticket Lead updated successfully']);
         } catch (\Exception $e) {
@@ -2163,6 +2165,11 @@ class TicketController extends Controller
 
             if (!empty($updateData)) {
                 $ticket->update($updateData);
+
+                if (array_key_exists('ticket_lead_id', $updateData) && !array_key_exists('man_days', $updateData)) {
+                    $ticket->refreshPlaceholderManDays();
+                    $ticket->syncDraftResolutionMembers();
+                }
             }
 
             $ticket->load(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData']);
@@ -2549,6 +2556,9 @@ class TicketController extends Controller
                 $ticket->members()->attach($empId, ['is_active' => true]);
             }
 
+            $ticket->refreshPlaceholderManDays();
+            $ticket->syncDraftResolutionMembers();
+
             // Return semua members (aktif + nonaktif) untuk UI
             $ticket->load('allMembers.basicData');
             $members = $this->formatAllMembers($ticket);
@@ -2690,6 +2700,8 @@ class TicketController extends Controller
         try {
             // Sync members (akan replace existing)
             $ticket->members()->sync($request->member_ids);
+            $ticket->refreshPlaceholderManDays();
+            $ticket->syncDraftResolutionMembers();
 
             return response()->json([
                 'success' => true,
@@ -2818,6 +2830,8 @@ class TicketController extends Controller
                 ->where('employee_id', $employeeId)
                 ->update(['is_active' => false, 'updated_at' => now()]);
 
+            $ticket->refreshPlaceholderManDays();
+            $ticket->syncDraftResolutionMembers();
             $ticket->load('allMembers.basicData');
 
             // Notifikasi
@@ -2960,7 +2974,10 @@ class TicketController extends Controller
                         ->whereIn('employee_id', $memberIds)
                         ->update(['is_active' => false, 'updated_at' => now()]);
                 }
-                
+
+                $ticket->refreshPlaceholderManDays();
+                $ticket->syncDraftResolutionMembers();
+
                 // Update request status
                 DB::table('member_change_requests')
                     ->where('change_request_id', $changeRequestId)

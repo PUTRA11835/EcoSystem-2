@@ -16,23 +16,112 @@
         </a>
     </div>
 
-    {{-- Summary bar --}}
-    <div id="tbmSummary" class="flex items-center justify-between gap-3 mb-4 text-sm text-gray-500">
-        <span id="tbmSummaryText">Loading...</span>
-        <div class="flex items-center gap-3">
-            <select id="tbmStatusFilter" onchange="applyTbmStatusFilter()" class="text-xs font-medium text-gray-700 border border-gray-200 rounded-lg pl-2.5 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300">
-                <option value="">All Status</option>
-                <option value="open">Open</option>
-                <option value="inprocess">Inprocess</option>
-                <option value="waiting_on_customer">Waiting on Customer</option>
-                <option value="waiting_on_3rd_party">Waiting on 3rd Party</option>
-                <option value="waiting_to_confirmation">Waiting to Confirmation</option>
-                <option value="hold">Hold</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="closed">Closed</option>
-            </select>
-            <button type="button" onclick="setAllTbmCards(true)" class="text-xs font-semibold text-red-800 hover:underline">Expand All</button>
-            <button type="button" onclick="setAllTbmCards(false)" class="text-xs font-semibold text-gray-500 hover:underline">Collapse All</button>
+    {{-- Filter toolbar --}}
+    <div id="tbmToolbar" class="mb-4">
+        <div class="flex flex-wrap items-center gap-2">
+            {{-- No Tiket: keyword search --}}
+            <div class="relative">
+                <button type="button" id="tbmTicketFilterBtn" onclick="toggleTbmPopover(event, 'tbmTicketFilterPanel')" class="tbm-filter-btn">
+                    <i class="fas fa-hashtag text-[10px] text-gray-400"></i>
+                    <span>No Tiket</span>
+                    <svg id="tbmTicketFilterIcon" class="w-3 h-3 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <div id="tbmTicketFilterPanel" class="tbm-popover hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[60] p-3" style="min-width:220px;">
+                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search no tiket</label>
+                    <input type="text" id="tbmTicketFilterInput" placeholder="e.g. TKT-2024-001…" oninput="onTbmTextFilterInput()"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                    <div class="flex justify-end gap-2 mt-3">
+                        <button type="button" onclick="clearTbmTextFilter('ticket')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Description: keyword search --}}
+            <div class="relative">
+                <button type="button" id="tbmDescFilterBtn" onclick="toggleTbmPopover(event, 'tbmDescFilterPanel')" class="tbm-filter-btn">
+                    <i class="fas fa-align-left text-[10px] text-gray-400"></i>
+                    <span>Description</span>
+                    <svg id="tbmDescFilterIcon" class="w-3 h-3 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <div id="tbmDescFilterPanel" class="tbm-popover hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[60] p-3" style="min-width:260px;">
+                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search description</label>
+                    <input type="text" id="tbmDescFilterInput" placeholder="Type keyword (case-insensitive)…" oninput="onTbmTextFilterInput()"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                    <div class="flex justify-end gap-2 mt-3">
+                        <button type="button" onclick="clearTbmTextFilter('desc')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Status: multi-select dropdown --}}
+            <div class="custom-dd relative" id="ddTbmStatus" data-multi="true" data-onchange="applyTbmColFilter" data-placeholder="Status">
+                <button type="button" class="custom-dd-btn tbm-filter-btn">
+                    <i class="fas fa-flag text-[10px] text-gray-400"></i>
+                    <span class="custom-dd-label text-gray-500">Status</span>
+                    <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                <input type="hidden" id="tbmColStatus" value="">
+                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[60] py-1.5 overflow-y-auto" style="max-height:260px;min-width:220px;">
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="open"><span class="custom-dd-item-text">Open</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg></button>
+                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="inprocess"><span class="custom-dd-item-text">Inprocess</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg></button>
+                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_on_customer"><span class="custom-dd-item-text">Waiting on Customer</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg></button>
+                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_on_3rd_party"><span class="custom-dd-item-text">Waiting on 3rd Party</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg></button>
+                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="waiting_to_confirmation"><span class="custom-dd-item-text">Waiting to Confirmation</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg></button>
+                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="hold"><span class="custom-dd-item-text">Hold</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg></button>
+                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="cancelled"><span class="custom-dd-item-text">Cancelled</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg></button>
+                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="closed"><span class="custom-dd-item-text">Closed</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg></button>
+                </div>
+            </div>
+
+            {{-- Ticket Lead: single-select searchable dropdown (populated from data) --}}
+            <div class="custom-dd relative" id="ddTbmLead" data-searchable="true" data-onchange="applyTbmColFilter">
+                <button type="button" class="custom-dd-btn tbm-filter-btn">
+                    <i class="fas fa-user text-[10px] text-gray-400"></i>
+                    <span class="custom-dd-label text-gray-500">Ticket Lead</span>
+                    <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                <input type="hidden" id="tbmColLead" value="">
+                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[60] py-1.5 overflow-y-auto" style="max-height:260px;min-width:200px;">
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                </div>
+            </div>
+
+            {{-- Modul: single-select searchable dropdown (populated from data) --}}
+            <div class="custom-dd relative" id="ddTbmModul" data-searchable="true" data-onchange="applyTbmColFilter">
+                <button type="button" class="custom-dd-btn tbm-filter-btn">
+                    <i class="fas fa-puzzle-piece text-[10px] text-gray-400"></i>
+                    <span class="custom-dd-label text-gray-500">Modul</span>
+                    <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                <input type="hidden" id="tbmColModul" value="">
+                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[60] py-1.5 overflow-y-auto" style="max-height:260px;min-width:200px;">
+                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                </div>
+            </div>
+
+            <button type="button" id="tbmClearAllBtn" onclick="resetTbmFilters()" class="hidden inline-flex items-center gap-1 text-xs font-semibold text-red-700 hover:underline ml-1">
+                <i class="fas fa-times"></i>Clear Filters
+            </button>
+        </div>
+
+        {{-- Summary bar --}}
+        <div class="flex items-center justify-between gap-3 mt-3 text-sm text-gray-500">
+            <span id="tbmSummaryText">Loading...</span>
+            <div class="flex items-center gap-3">
+                <button type="button" onclick="setAllTbmCards(true)" class="text-xs font-semibold text-red-800 hover:underline">Expand All</button>
+                <button type="button" onclick="setAllTbmCards(false)" class="text-xs font-semibold text-gray-500 hover:underline">Collapse All</button>
+            </div>
         </div>
     </div>
 
@@ -69,14 +158,42 @@
 .tbm-body { transition: grid-template-rows 0.2s ease; display: grid; grid-template-rows: 1fr; }
 .tbm-body.is-collapsed { grid-template-rows: 0fr; }
 .tbm-body > div { overflow: hidden; }
+
+/* Filter toolbar */
+.tbm-filter-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 10px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    font-size: 12px; font-weight: 600; color: #4b5563; cursor: pointer; transition: all 0.15s;
+}
+.tbm-filter-btn:hover { background: #f9fafb; border-color: #d1d5db; }
+.custom-dd.tbm-dd-active .custom-dd-arrow { color: #dc2626; }
+.custom-dd.tbm-dd-active .custom-dd-btn { border-color: #fecaca; background: #fff8f8; }
+.custom-dd.tbm-dd-active .custom-dd-btn span,
+.custom-dd.tbm-dd-active .custom-dd-btn .custom-dd-label { color: #dc2626 !important; font-weight: 700; }
 </style>
 @endpush
 
 @push('scripts')
+@php
+$customDdPath = public_path('js/custom-dropdown.js');
+$customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
+
 <script>
-document.addEventListener('DOMContentLoaded', loadTicketByModule);
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
+    loadTicketByModule();
+});
 
 let tbmAllGroups = [];
+let tbmFilters = {
+    ticketKw: '',
+    descKw: '',
+    statuses: [],
+    lead: '',
+    modul: '',
+};
 
 async function loadTicketByModule() {
     const cards   = document.getElementById('tbmCards');
@@ -93,7 +210,9 @@ async function loadTicketByModule() {
         if (!json.success) throw new Error(json.message || 'Failed to load data');
 
         tbmAllGroups = json.data || [];
-        renderTicketByModule(tbmAllGroups);
+        populateTbmLeadFilter();
+        populateTbmModulFilter();
+        applyTbmFilters();
     } catch (e) {
         console.error(e);
         summary.textContent = 'Failed to load data.';
@@ -103,22 +222,189 @@ async function loadTicketByModule() {
     }
 }
 
-function applyTbmStatusFilter() {
-    const status = document.getElementById('tbmStatusFilter').value;
+// ── Column filter option population ─────────────────────────────────
+function populateTbmLeadFilter() {
+    const ddEl = document.getElementById('ddTbmLead');
+    if (!ddEl) return;
+    const panel = ddEl._ddPanel || ddEl.querySelector('.custom-dd-panel');
+    if (!panel) return;
+    panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
 
-    if (!status) {
-        renderTicketByModule(tbmAllGroups);
-        return;
+    let hasUnassigned = false;
+    const seen = new Set();
+    const names = [];
+    tbmAllGroups.forEach(g => g.tickets.forEach(t => {
+        if (t.lead_name) {
+            if (!seen.has(t.lead_name)) { seen.add(t.lead_name); names.push(t.lead_name); }
+        } else {
+            hasUnassigned = true;
+        }
+    }));
+    names.sort((a, b) => a.localeCompare(b));
+
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(tbmMakeDdItem('', 'All'));
+    names.forEach(n => fragment.appendChild(tbmMakeDdItem(n, n)));
+    if (hasUnassigned) fragment.appendChild(tbmMakeDdItem('__unassigned__', 'Unassigned', true));
+
+    const emptyEl = panel._ddEmpty || null;
+    if (emptyEl) panel.insertBefore(fragment, emptyEl);
+    else panel.appendChild(fragment);
+}
+
+function populateTbmModulFilter() {
+    const ddEl = document.getElementById('ddTbmModul');
+    if (!ddEl) return;
+    const panel = ddEl._ddPanel || ddEl.querySelector('.custom-dd-panel');
+    if (!panel) return;
+    panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
+
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(tbmMakeDdItem('', 'All'));
+    tbmAllGroups.forEach(g => {
+        fragment.appendChild(tbmMakeDdItem(g.module_name, g.module_name, g.module_name === 'No Modul Assign'));
+    });
+
+    const emptyEl = panel._ddEmpty || null;
+    if (emptyEl) panel.insertBefore(fragment, emptyEl);
+    else panel.appendChild(fragment);
+}
+
+function tbmMakeDdItem(val, text, italic) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50' + (italic ? ' italic text-gray-400' : '');
+    btn.dataset.value = val;
+    btn.textContent = text;
+    return btn;
+}
+
+// ── Filter state wiring ──────────────────────────────────────────────
+function applyTbmColFilter() {
+    tbmFilters.statuses = (document.getElementById('tbmColStatus')?.value || '').split(',').filter(Boolean);
+    tbmFilters.lead = document.getElementById('tbmColLead')?.value || '';
+    tbmFilters.modul = document.getElementById('tbmColModul')?.value || '';
+    applyTbmFilters();
+}
+
+let _tbmTextFilterTimer = null;
+function onTbmTextFilterInput() {
+    clearTimeout(_tbmTextFilterTimer);
+    _tbmTextFilterTimer = setTimeout(() => {
+        tbmFilters.ticketKw = document.getElementById('tbmTicketFilterInput')?.value || '';
+        tbmFilters.descKw = document.getElementById('tbmDescFilterInput')?.value || '';
+        applyTbmFilters();
+    }, 250);
+}
+
+function clearTbmTextFilter(which) {
+    if (which === 'ticket') {
+        document.getElementById('tbmTicketFilterInput').value = '';
+        tbmFilters.ticketKw = '';
+    } else {
+        document.getElementById('tbmDescFilterInput').value = '';
+        tbmFilters.descKw = '';
+    }
+    applyTbmFilters();
+}
+
+// ── Popover open/close helpers ───────────────────────────────────────
+function toggleTbmPopover(ev, panelId) {
+    ev?.stopPropagation();
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    const isOpen = !panel.classList.contains('hidden');
+    closeTbmPopovers();
+    if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
+    if (!isOpen) panel.classList.remove('hidden');
+}
+
+function closeTbmPopovers() {
+    document.querySelectorAll('.tbm-popover').forEach(p => p.classList.add('hidden'));
+}
+
+// Closing a text-search popover doesn't close open custom-dd panels (and
+// vice versa) because both sides call stopPropagation() on their trigger
+// click — this capture-phase listener runs before that and bridges the two.
+document.getElementById('tbmToolbar')?.addEventListener('click', (e) => {
+    if (e.target.closest('.custom-dd-btn')) closeTbmPopovers();
+}, true);
+
+document.addEventListener('click', (e) => {
+    document.querySelectorAll('.tbm-popover:not(.hidden)').forEach(panel => {
+        const wrap = panel.closest('.relative');
+        if (wrap && !wrap.contains(e.target)) panel.classList.add('hidden');
+    });
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeTbmPopovers();
+});
+
+// ── Core filtering + render pipeline ─────────────────────────────────
+function tbmDayOnClose(created) {
+    return created ? Math.max(0, Math.ceil((Date.now() - new Date(created).getTime()) / 86400000)) : -1;
+}
+
+function computeFilteredGroups() {
+    let groups = tbmAllGroups;
+    if (tbmFilters.modul) groups = groups.filter(g => g.module_name === tbmFilters.modul);
+
+    const kw = tbmFilters.ticketKw.trim().toLowerCase();
+    const dkw = tbmFilters.descKw.trim().toLowerCase();
+
+    return groups.map(g => {
+        let tickets = g.tickets;
+        if (tbmFilters.statuses.length) tickets = tickets.filter(t => tbmFilters.statuses.includes(t.status));
+        if (kw) tickets = tickets.filter(t => (t.ticket_number || '').toLowerCase().includes(kw));
+        if (dkw) tickets = tickets.filter(t => (t.description || '').toLowerCase().includes(dkw));
+        if (tbmFilters.lead) {
+            tickets = tickets.filter(t => tbmFilters.lead === '__unassigned__' ? !t.lead_name : t.lead_name === tbmFilters.lead);
+        }
+        return { module_name: g.module_name, tickets };
+    }).filter(g => g.tickets.length > 0);
+}
+
+function applyTbmFilters() {
+    renderTicketByModule(computeFilteredGroups());
+    updateTbmFilterIndicators();
+}
+
+function isTbmFilterActive() {
+    return !!(tbmFilters.ticketKw.trim() || tbmFilters.descKw.trim() || tbmFilters.statuses.length
+        || tbmFilters.lead || tbmFilters.modul);
+}
+
+function updateTbmFilterIndicators() {
+    setTbmIconActive('tbmTicketFilterIcon', !!tbmFilters.ticketKw.trim());
+    setTbmIconActive('tbmDescFilterIcon', !!tbmFilters.descKw.trim());
+
+    document.getElementById('ddTbmStatus')?.classList.toggle('tbm-dd-active', tbmFilters.statuses.length > 0);
+    document.getElementById('ddTbmLead')?.classList.toggle('tbm-dd-active', !!tbmFilters.lead);
+    document.getElementById('ddTbmModul')?.classList.toggle('tbm-dd-active', !!tbmFilters.modul);
+
+    document.getElementById('tbmClearAllBtn')?.classList.toggle('hidden', !isTbmFilterActive());
+}
+
+function setTbmIconActive(id, active) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('text-red-500', active);
+    el.classList.toggle('text-gray-300', !active);
+}
+
+function resetTbmFilters() {
+    tbmFilters = { ticketKw: '', descKw: '', statuses: [], lead: '', modul: '' };
+
+    document.getElementById('tbmTicketFilterInput').value = '';
+    document.getElementById('tbmDescFilterInput').value = '';
+
+    if (typeof clearCustomDropdownMulti === 'function') clearCustomDropdownMulti('tbmColStatus');
+    if (typeof setCustomDropdownValue === 'function') {
+        setCustomDropdownValue('tbmColLead', '');
+        setCustomDropdownValue('tbmColModul', '');
     }
 
-    const filtered = tbmAllGroups
-        .map(group => ({
-            module_name: group.module_name,
-            tickets: group.tickets.filter(t => t.status === status),
-        }))
-        .filter(group => group.tickets.length > 0);
-
-    renderTicketByModule(filtered);
+    applyTbmFilters();
 }
 
 function renderTicketByModule(groups) {
@@ -129,8 +415,7 @@ function renderTicketByModule(groups) {
     if (!groups.length) {
         cards.innerHTML = '';
         empty.classList.remove('hidden');
-        const statusFilter = document.getElementById('tbmStatusFilter')?.value;
-        summary.textContent = statusFilter ? 'No tickets match the selected status.' : 'No modules found.';
+        summary.textContent = isTbmFilterActive() ? 'No tickets match the selected filters.' : 'No modules found.';
         return;
     }
     empty.classList.add('hidden');
@@ -205,9 +490,7 @@ const TBM_STATUS_MAP = {
 function ticketRow(ticket, moduleName) {
     const created = ticket.created_at;
     const dateStr = created ? new Date(created).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-    const dayOnClose = created
-        ? Math.max(0, Math.ceil((Date.now() - new Date(created).getTime()) / 86400000))
-        : null;
+    const dayOnClose = tbmDayOnClose(created);
     const sInfo = TBM_STATUS_MAP[ticket.status] || { label: ticket.status_label || ticket.status || '—', cls: 'bg-gray-100 text-gray-500' };
 
     return `
@@ -218,7 +501,7 @@ function ticketRow(ticket, moduleName) {
         <td class="tbm-td text-sm text-gray-700">${ticket.lead_name ? escHtml(ticket.lead_name) : '<span class="text-gray-300 italic">Unassigned</span>'}</td>
         <td class="tbm-td text-sm text-gray-700">${escHtml(moduleName)}</td>
         <td class="tbm-td text-xs text-gray-500">${dateStr}</td>
-        <td class="tbm-td text-right text-sm font-semibold text-gray-700">${dayOnClose === null ? '—' : dayOnClose}</td>
+        <td class="tbm-td text-right text-sm font-semibold text-gray-700">${dayOnClose < 0 ? '—' : dayOnClose}</td>
     </tr>`;
 }
 

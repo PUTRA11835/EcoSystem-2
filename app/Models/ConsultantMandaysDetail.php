@@ -22,6 +22,7 @@ class ConsultantMandaysDetail extends Model
         'progress_percentage',
         'progress_note',
         'progress_updated_at',
+        'progress_updated_by',
     ];
 
     protected $casts = [

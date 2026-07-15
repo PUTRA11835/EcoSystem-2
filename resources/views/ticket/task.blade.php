@@ -423,7 +423,9 @@
         const details = t.consultant_details ?? [];
         const myDetail = details.find(d => d.employee_id == myEmpId);
         const myMd = myDetail ? Math.round((parseFloat(myDetail.mandays) + parseFloat(myDetail.approved_additional || 0)) * 100) / 100 : null;
-        const displayMd = myMd || (t.man_days ? parseFloat(t.man_days) : null);
+        // Sebelum ada resolution mandays yang approved, mandays yang tersimpan cuma
+        // placeholder (1 md per orang) — tetap tampilkan "Belum ditentukan".
+        const displayMd = t.has_real_man_days ? (myMd || (t.man_days ? parseFloat(t.man_days) : null)) : null;
         const hasDetails = details.length > 0;
 
         const detailSubTable = hasDetails ? `
@@ -450,10 +452,10 @@
                                 <p class="text-gray-400 font-mono text-[11px]">${d.eci}</p>
                             </td>
                             <td class="px-4 py-2 text-gray-500">${d.module !== '—' ? d.module : '<span class="text-gray-300">—</span>'}</td>
-                            <td class="px-4 py-2 text-right font-semibold text-gray-700">${d.mandays} md</td>
+                            <td class="px-4 py-2 text-right font-semibold text-gray-700">${d.is_approved ? d.mandays + ' md' : '<span class="text-gray-400 italic font-normal">Belum ditentukan</span>'}</td>
                             <td class="px-4 py-2 text-right font-semibold ${d.approved_additional > 0 ? 'text-indigo-600' : 'text-gray-300'}">${d.approved_additional > 0 ? d.approved_additional + ' md' : '—'}</td>
                             <td class="px-4 py-2 text-right">
-                                ${d.remain_md !== null && d.remain_md !== undefined
+                                ${d.is_approved && d.remain_md !== null && d.remain_md !== undefined
                                     ? `<span class="font-bold ${d.remain_md > 0 ? 'text-orange-600' : 'text-emerald-600'}">${d.remain_md} d</span>`
                                     : '<span class="text-gray-300">—</span>'}
                             </td>
@@ -477,9 +479,15 @@
                         <tr class="border-t-2 border-indigo-200 bg-indigo-50/80 font-bold">
                             <td class="px-4 py-2 text-indigo-700">Total · ${details.length} consultant${details.length > 1 ? 's' : ''}</td>
                             <td class="px-4 py-2"></td>
-                            <td class="px-4 py-2 text-right text-gray-700">${details.reduce((s,d)=>s+(parseFloat(d.mandays)||0),0).toFixed(2)} md</td>
-                            <td class="px-4 py-2 text-right text-indigo-600">${details.reduce((s,d)=>s+(parseFloat(d.approved_additional)||0),0).toFixed(2)} md</td>
-                            <td class="px-4 py-2 text-right text-orange-600">${details.reduce((s,d)=>s+(parseFloat(d.remain_md)||0),0).toFixed(2)} d</td>
+                            ${details.some(d => d.is_approved) ? `
+                            <td class="px-4 py-2 text-right text-gray-700">${details.reduce((s,d)=>s+(d.is_approved ? parseFloat(d.mandays)||0 : 0),0).toFixed(2)} md</td>
+                            <td class="px-4 py-2 text-right text-indigo-600">${details.reduce((s,d)=>s+(d.is_approved ? parseFloat(d.approved_additional)||0 : 0),0).toFixed(2)} md</td>
+                            <td class="px-4 py-2 text-right text-orange-600">${details.reduce((s,d)=>s+(d.is_approved ? parseFloat(d.remain_md)||0 : 0),0).toFixed(2)} d</td>
+                            ` : `
+                            <td class="px-4 py-2 text-right text-gray-400 italic font-normal">Belum ditentukan</td>
+                            <td class="px-4 py-2"></td>
+                            <td class="px-4 py-2"></td>
+                            `}
                             <td class="px-4 py-2"></td>
                             <td class="px-4 py-2"></td>
                         </tr>
@@ -519,6 +527,11 @@
                     <div id="progress-bar-${t.ticket_id}" class="${progressBarColor(pct)} h-2 rounded-full transition-all" style="width:${pct}%"></div>
                 </div>
                 <span id="progress-pct-${t.ticket_id}" class="text-xs font-bold text-gray-600 w-8 text-right shrink-0">${pct}%</span>
+                ${!hasDetails ? `
+                <button onclick="openCpModal(${t.ticket_id}, '${(t.ticket_number ?? '').replace(/'/g, "\\'")}', null)"
+                    class="inline-flex items-center gap-0.5 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white px-1.5 py-0.5 rounded transition" title="Edit Progress">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </button>` : ''}
             </div>
         </td>
         <td class="pr-3 py-3" onclick="event.stopPropagation()">
@@ -561,14 +574,14 @@
             if (!json.success) { document.getElementById('cp-modal-body').innerHTML = '<p class="text-red-500 text-sm py-4 text-center">Gagal memuat data.</p>'; return; }
 
             const filtered = detailId ? json.data.filter(d => d.detail_id == detailId) : json.data;
-            if (filtered.length === 1) {
+            if (filtered.length === 1 && filtered[0].detail_id != null) {
                 document.getElementById('cp-modal-title').textContent = 'Progress: ' + filtered[0].emp_name;
             }
             const rows = filtered.map(d => `
-                <tr class="border-t border-gray-100" data-detail-id="${d.detail_id}" data-mandays="${d.mandays}">
+                <tr class="border-t border-gray-100" data-detail-id="${d.detail_id ?? 'null'}" data-mandays="${d.mandays ?? ''}">
                     <td class="py-3 pr-4">
                         <p class="font-semibold text-gray-800 text-sm">${d.emp_name}</p>
-                        <p class="text-gray-400 text-xs font-mono">${d.mandays} md</p>
+                        <p class="text-gray-400 text-xs font-mono">${d.mandays != null ? d.mandays + ' md' : 'Belum ada proposal Resolution Days'}</p>
                     </td>
                     <td class="py-3 pr-2 w-52">
                         <div class="flex items-center gap-2">
@@ -632,11 +645,14 @@
     async function submitCpModal() {
         if (!_cpModalTicketId) return;
         const rows = document.querySelectorAll('#cp-modal-body tr[data-detail-id]');
-        const progresses = [...rows].map(r => ({
-            detail_id:           parseInt(r.dataset.detailId),
-            progress_percentage: parseFloat(r.querySelector('.cp-modal-range')?.value) || 0,
-            progress_note:       (r.querySelector('.cp-modal-note')?.value ?? '').trim() || null,
-        }));
+        const progresses = [...rows].map(r => {
+            const parsedId = parseInt(r.dataset.detailId);
+            return {
+                detail_id:           (r.dataset.detailId === 'null' || isNaN(parsedId)) ? null : parsedId,
+                progress_percentage: parseFloat(r.querySelector('.cp-modal-range')?.value) || 0,
+                progress_note:       (r.querySelector('.cp-modal-note')?.value ?? '').trim() || null,
+            };
+        });
 
         const btn = document.getElementById('cp-modal-save-btn');
         btn.disabled = true;
