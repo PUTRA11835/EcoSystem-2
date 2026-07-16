@@ -1710,13 +1710,6 @@ class TicketMessageController extends Controller
 
             $message = TicketMessage::where('ticket_id', $ticketId)->findOrFail($messageId);
 
-            if ($message->is_internal_note) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'SLA message cannot be set on an internal note',
-                ], 422);
-            }
-
             $slaMessage = $request->input('sla_message');
             $hasContent = $slaMessage !== null && trim($slaMessage) !== '';
 

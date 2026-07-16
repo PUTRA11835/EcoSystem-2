@@ -383,11 +383,14 @@
     @php
         $mandaysStatus   = $ticket->mandays_proposal_status   ?? 'none';
         $resolutionStatus  = $ticket->resolution_days_status    ?? 'none';
-        $isPic      = $can('ticket.propose-mandays');
         $isHelpdesk = $can('ticket.review-mandays');
         $isHead     = $can('ticket.head-mandays');
-        if ($isHead || $isHelpdesk) { $isPic = false; }
-        // Computed AFTER override
+        // Propose (Customer Mandays / Resolution Days) and Review/Head are independently
+        // configurable — a user who holds both a propose and a review/head permission
+        // (whether via one role or several) sees BOTH the propose UI and the review UI,
+        // for both Customer Mandays and Resolution Days. No mutual-exclusion override.
+        $isPicCustomer   = $can('ticket.propose-mandays-customer');
+        $isPicResolution = $can('ticket.propose-mandays-resolution');
         $hdCanEditActivity    = $isHelpdesk && $can('ticket.review-mandays.edit-activity');
         $hdCanEditDesc        = $isHelpdesk && $can('ticket.review-mandays.edit-description');
         $hdCanEditNotes       = $isHelpdesk && $can('ticket.review-mandays.edit-proposal-notes');
@@ -425,13 +428,14 @@
         $canAssignPic      = $can('ticket.assign-pic');
         $canAssignDelivery = $can('ticket.assign-delivery-support');
         // Mandays buttons only visible when ticket has a PIC
-        $isPicMandays           = $isPic      && $ticketAssigned;
+        $isPicCustomerMandays   = $isPicCustomer   && $ticketAssigned;
+        $isPicResolutionDays    = $isPicResolution && $ticketAssigned;
         $isHelpdeskMandays      = $isHelpdesk && $ticketAssigned;
         $isHeadMandays          = $isHead     && $ticketAssigned;
         // Tampilkan Head "View Mandays Proposal" hanya jika user tidak punya akses Helpdesk review
         // (jika punya keduanya, Helpdesk block sudah cukup — hindari duplikasi Customer Mandays di sidebar)
         $isHeadCustomerMandays  = $isHead && !$isHelpdesk && $ticketAssigned;
-        $hasMandaysSection = $isPicMandays || $isHelpdeskMandays || $isHeadMandays || $isHeadCustomerMandays
+        $hasMandaysSection = $isPicCustomerMandays || $isPicResolutionDays || $isHelpdeskMandays || $isHeadMandays || $isHeadCustomerMandays
                            || $canTakeTicket || $canAssignPic || $canAssignDelivery;
     @endphp
 
@@ -446,8 +450,8 @@
                 <i id="mandaysChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
             </div>
             <div id="mandaysPanel" class="px-4 pb-4 pt-3 space-y-4 border-t border-gray-100">
-                {{-- PIC: Customer Mandays & Resolution Days --}}
-                @if($isPicMandays)
+                {{-- PIC: Customer Mandays --}}
+                @if($isPicCustomerMandays)
                 <div>
                     <div class="flex items-center justify-between mb-1.5">
                         <label class="text-xs font-semibold text-gray-500">Customer Mandays</label>
@@ -457,7 +461,10 @@
                         {{ $picMandaysLabel }}
                     </button>
                 </div>
-                <div class="pt-1 border-t border-gray-100">
+                @endif
+                {{-- PIC: Resolution Days --}}
+                @if($isPicResolutionDays)
+                <div class="{{ $isPicCustomerMandays ? 'pt-1 border-t border-gray-100' : '' }}">
                     <div class="flex items-center justify-between mb-1.5">
                         <label class="text-xs font-semibold text-gray-500">Resolution Days</label>
                         <span id="resolutionBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
@@ -521,7 +528,7 @@
                 @endif
                 {{-- Assign to Delivery Support --}}
                 @if($canAssignDelivery)
-                <div class="{{ ($isPicMandays || $isHelpdeskMandays || $isHeadMandays) ? 'pt-1 border-t border-gray-100' : '' }}">
+                <div class="{{ ($isPicCustomerMandays || $isPicResolutionDays || $isHelpdeskMandays || $isHeadMandays) ? 'pt-1 border-t border-gray-100' : '' }}">
                     <button onclick="openAssignSupportModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Assign to Delivery Support
                     </button>
@@ -1570,7 +1577,7 @@
 {{-- ===== MANDAYS MODALS ===== --}}
 
 {{-- PIC: Customer Mandays Modal --}}
-@if(isset($isPic) && $isPic)
+@if(isset($isPicCustomerMandays) && $isPicCustomerMandays)
 <div id="picMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
@@ -1642,8 +1649,10 @@
         </div>
     </div>
 </div>
+@endif
 
 {{-- PIC: Resolution Days Modal --}}
+@if(isset($isPicResolutionDays) && $isPicResolutionDays)
 <div id="picResolutionModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
@@ -1977,7 +1986,7 @@
                 <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"/></svg>
                 Click a row to view version detail
             </p>
-            @if($isPicMandays)
+            @if($isPicCustomerMandays)
             <button id="mandaysVersionBtnNewPropose" onclick="mandaysVersionNewPropose()" class="hidden inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                 New Proposal
@@ -2039,7 +2048,7 @@
                 &larr; Back to List
             </button>
             {{-- Only PIC: button to open edit modal if this version is still a draft --}}
-            @if($isPicMandays)
+            @if($isPicCustomerMandays)
             <button id="mvdBtnEditDraft" onclick="mvdOpenEditDraft()" class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Edit Draft
             </button>
@@ -4430,6 +4439,7 @@
                             ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
+                            <div class="msg-status-row">${slaMsgBtn(msg)}</div>
                         </div>
                     </div>
                 </div>`;
@@ -4449,6 +4459,7 @@
                             ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
+                            <div class="msg-status-row">${slaMsgBtn(msg)}</div>
                         </div>
                     </div>
                 </div>`;

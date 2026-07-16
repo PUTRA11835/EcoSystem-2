@@ -91,7 +91,10 @@
       "Bash(node --check public/js/calendar-timesheets.js)",
       "Bash(php -l app/Models/TicketMessage.php)",
       "Bash(php -l app/Http/Controllers/ReportingController.php)",
-      "Bash(grep -c '^@if\\\\|^    @if\\\\|@if\\($can' resources/views/ticket/index.blade.php)"
+      "Bash(grep -c '^@if\\\\|^    @if\\\\|@if\\($can' resources/views/ticket/index.blade.php)",
+      "Bash(awk 'NR==1573,NR==1648 {print NR\": \"$0}' resources/views/ticket/show.blade.php)",
+      "Bash(awk 'NR>=1573 && NR<=1850 {print NR\": \"$0}' resources/views/ticket/show.blade.php)",
+      "Bash(awk 'NR>=1656 && NR<=1720 {print NR\": \"$0}' resources/views/ticket/show.blade.php)"
     ],
     "additionalDirectories": [
       "C:\\ecosystem-2\\database\\migrations",
