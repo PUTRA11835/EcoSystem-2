@@ -62,7 +62,7 @@
                         <th class="ls-th text-left">Date</th>
                         <th class="ls-th text-left">Time</th>
                         <th class="ls-th text-left">SLA Message</th>
-                        <th class="ls-th text-left">Created By</th>
+                        <th class="ls-th text-left">PIC</th>
                     </tr>
                 </thead>
                 <tbody id="lsModalBody">

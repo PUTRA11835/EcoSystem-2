@@ -934,8 +934,84 @@
         return allTickets;
     }
 
+    // ── Filter state persistence ──────────────────────────────────────────
+    // Klik "Back to Tickets" atau row ticket adalah full page navigation
+    // (bukan history traversal), jadi tidak selalu di-restore dari bfcache.
+    // Simpan state filter ke sessionStorage supaya tetap aktif walau halaman
+    // di-load ulang dari awal saat user kembali ke list ini.
+    const TICKET_FILTER_STORAGE_KEY = 'ticketIndexFilterState';
+
+    function persistTicketFilterState() {
+        try {
+            const state = {
+                currentFilter: currentFilter,
+                currentTicketSort: currentTicketSort,
+                colFilterCustomer: document.getElementById('colFilterCustomer')?.value || '',
+                colFilterPic: document.getElementById('colFilterPic')?.value || '',
+                colFilterPriority: document.getElementById('colFilterPriority')?.value || '',
+                colFilterScale: document.getElementById('colFilterScale')?.value || '',
+                colFilterStatus: document.getElementById('colFilterStatus')?.value || '',
+                colFilterType: document.getElementById('colFilterType')?.value || '',
+                dateFilterFrom: document.getElementById('dateFilterFrom')?.value || '',
+                dateFilterTo: document.getElementById('dateFilterTo')?.value || '',
+                ticketFilterInput: document.getElementById('ticketFilterInput')?.value || '',
+                descFilterInput: document.getElementById('descFilterInput')?.value || '',
+            };
+            sessionStorage.setItem(TICKET_FILTER_STORAGE_KEY, JSON.stringify(state));
+        } catch (e) { /* sessionStorage unavailable (private mode, dsb) — abaikan */ }
+    }
+
+    function restoreTicketFilterState() {
+        let state = null;
+        try {
+            const raw = sessionStorage.getItem(TICKET_FILTER_STORAGE_KEY);
+            if (raw) state = JSON.parse(raw);
+        } catch (e) { /* corrupt/unavailable — abaikan */ }
+        if (!state) return;
+
+        if (state.currentTicketSort && state.currentTicketSort.key) currentTicketSort = state.currentTicketSort;
+
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el && val) el.value = val;
+        };
+        setVal('dateFilterFrom', state.dateFilterFrom);
+        setVal('dateFilterTo', state.dateFilterTo);
+        setVal('ticketFilterInput', state.ticketFilterInput);
+        setVal('descFilterInput', state.descFilterInput);
+
+        // Single-select custom dropdowns — restore value + label sekaligus
+        if (state.colFilterCustomer && typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('colFilterCustomer', state.colFilterCustomer);
+        }
+        if (state.colFilterPic && typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('colFilterPic', state.colFilterPic);
+        }
+
+        // Multi-select custom dropdowns — set value mentah lalu sync checkmark + label
+        ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType'].forEach(id => {
+            if (!state[id]) return;
+            const hidden = document.getElementById(id);
+            if (!hidden) return;
+            hidden.value = state[id];
+            const dd = hidden.closest('.custom-dd');
+            if (dd && typeof _syncMultiVisualState === 'function') _syncMultiVisualState(dd);
+        });
+
+        // Status card (currentFilter) — pakai filterTickets() supaya highlight border-nya
+        // ikut ter-update, bukan cuma variabelnya.
+        if (state.currentFilter && typeof filterTickets === 'function') {
+            filterTickets(state.currentFilter);
+        }
+
+        // Sinkronkan indikator "active" di dropdown kolom + terapkan filter ke data
+        // (aman dipanggil walau allTickets masih kosong — akan diulang lagi oleh loadTickets()).
+        if (typeof applyColFilter === 'function') applyColFilter();
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
+        restoreTicketFilterState();
         loadTickets();
         if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE || STAFF_TOGGLE_ROLES.includes(userRole) || userRole === SUPPORT_MANAGER_ROLE || CAN_VIEW_UNASSIGNED_TICKET) updateViewToggle();
         startEmailPolling();
@@ -1040,6 +1116,7 @@
             // Support Manager and others: re-fetch from server
             loadTickets();
         }
+        persistTicketFilterState();
     }
 
     function updateViewToggle() {
@@ -1460,7 +1537,7 @@
             </td>
             {{-- Description --}}
             <td class="px-3 py-3 text-sm" style="min-width:260px;max-width:320px;">
-                <span class="block truncate text-gray-700 font-normal leading-snug"
+                <span class="block truncate text-gray-700 ${ticket.is_read ? 'font-normal' : 'font-bold'} leading-snug"
                       title="${(ticket.description||'').replace(/"/g,'&quot;')}">${ticket.description || '—'}</span>
             </td>
             {{-- Date --}}
@@ -1760,6 +1837,7 @@
         updateStats(base);
         currentPage = 1;
         renderTickets();
+        persistTicketFilterState();
     }
 
     // ── Date Range Filter ─────────────────────────────────────────────
@@ -2087,6 +2165,7 @@
         }
         updateTicketSortIcons();
         renderTickets();
+        persistTicketFilterState();
     }
 
     function applyTicketSort(list) {
@@ -3230,7 +3309,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Date</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Time</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">SLA Message</th>
-                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Created By</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">PIC</th>
                     </tr>
                 </thead>
                 <tbody id="lstModalBody">
