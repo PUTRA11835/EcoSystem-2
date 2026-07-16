@@ -16,11 +16,21 @@ class CustomerBasicData extends Model
         'name_1',
         'name_2',
         'search_term_1',
+        'search_term_2',
         'external_number',
         'customer_group',
         'customer_category',
+        'credit_limit_type',
+        'industry_sector',
+        'ec_account_executive',
+        'sap_account_executive',
+        'authorization_group',
         'block',
         'deletion_flag',
+        'created_by',
+        'created_on',
+        'last_changed_by',
+        'last_changed_on',
     ];
 
     protected $casts = [

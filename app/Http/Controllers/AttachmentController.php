@@ -29,7 +29,9 @@ class AttachmentController extends Controller
 
         $attachment = TicketAttachment::findOrFail($id);
 
-        // Record lama: file disimpan lokal → stream dengan Content-Disposition agar nama file benar
+        // File lokal (internal note / ticket non-email / record lama) → stream dari disk
+        // dengan Content-Disposition berisi file_name asli. Tanpa ini browser memakai
+        // nama hash acak dari path di disk.
         if (!$attachment->graph_message_id && $attachment->file_path) {
             $filePath = $attachment->file_path;
             abort_if(
@@ -42,8 +44,12 @@ class AttachmentController extends Controller
             $filename  = $attachment->file_name ?? basename($filePath);
             $mime      = $attachment->mime_type ?? Storage::disk('public')->mimeType($filePath) ?? 'application/octet-stream';
             $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $filename));
+            // Sama seperti cabang Graph: inline (gambar) boleh dirender di tab,
+            // sisanya dipaksa download. Atribut download="" di <a> tetap memaksa
+            // unduh untuk yang inline, dengan nama dari filename header ini.
+            $disposition = $attachment->is_inline ? 'inline' : 'attachment';
 
-            Log::info('AttachmentController: legacy file accessed', [
+            Log::info('AttachmentController: local file accessed', [
                 'attachment_id' => $id,
                 'file_name'     => $filename,
                 'ticket_id'     => $attachment->ticket_id ?? null,
@@ -56,7 +62,7 @@ class AttachmentController extends Controller
                 fclose($stream);
             }, 200, [
                 'Content-Type'        => $mime,
-                'Content-Disposition' => 'attachment; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($filename),
+                'Content-Disposition' => $disposition . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($filename),
                 'Content-Length'      => Storage::disk('public')->size($filePath),
                 'Cache-Control'       => 'private, max-age=3600',
             ]);

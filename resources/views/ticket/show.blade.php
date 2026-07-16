@@ -4069,7 +4069,7 @@
                         title="${tip}"
                         onclick="openSlaModal(${msg.id}, this)"
                         data-sla-val="${escHtml(msg.sla_message || '')}">
-                    ${SLA_ICON}SLA
+                    ${SLA_ICON}Note
                 </button>`;
     }
 

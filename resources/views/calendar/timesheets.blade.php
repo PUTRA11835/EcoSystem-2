@@ -1135,7 +1135,8 @@
 /* ── Table rows ── */
 #timesheetsTableBody tr { cursor: default; transition: background 0.1s; }
 #timesheetsTableBody tr:hover { background: #f8fafc; }
-/* ── Hide table toolbar + table when empty state is visible ── */
+/* ── #emptyState hanya dipakai saat load gagal (showEmptyState()); hasil filter
+      kosong dirender sebagai baris di dalam tabel supaya header/filter tetap ada ── */
 .ts-card:has(#emptyState:not(.hidden)) .ts-toolbar,
 .ts-card:has(#emptyState:not(.hidden)) .ts-table-wrap { display: none !important; }
 </style>
@@ -1149,6 +1150,7 @@
     window.lockedType      = {!! $lockedType ? "'{$lockedType}'" : 'null' !!};
     window.allowedTypes    = {!! json_encode($allowedTypes ?? ['project','support','office']) !!};
     window.isHoSMode       = {{ $isHoSMode ? 'true' : 'false' }};
+    window.canCreateTimesheet = {{ $can('timesheet.create') ? 'true' : 'false' }};
 </script>
 <script src="/js/custom-dropdown.js?v={{ filemtime(public_path('js/custom-dropdown.js')) }}"></script>
 <script src="/js/calendar-timesheets.js?v={{ filemtime(public_path('js/calendar-timesheets.js')) }}"></script>

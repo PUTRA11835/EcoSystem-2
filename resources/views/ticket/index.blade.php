@@ -196,7 +196,7 @@
                             <div id="ticketFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
                                 <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket number</label>
                                 <input type="text" id="ticketFilterInput" placeholder="e.g. TKT-2024-001…"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
                                     oninput="onTicketFilterInput()">
                                 <div class="border-t border-gray-100 mt-3 pt-3">
                                     <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Sort</label>
@@ -232,7 +232,7 @@
                             <div id="descFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:260px;">
                                 <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search description</label>
                                 <input type="text" id="descFilterInput" placeholder="Type keyword (case-insensitive)…"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
                                     oninput="onDescFilterInput()">
                                 <div class="flex justify-end gap-2 mt-3">
                                     <button type="button" onclick="clearDescFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
@@ -285,7 +285,7 @@
                                 </div>
                             </div>
                         </th>
-                        {{-- DAY ON CLOSE: sort filter (terbesar/terkecil) --}}
+                        {{-- DAY ON CLOSE: sort filter (highest/lowest) --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px;">
                             <button type="button" id="dayOnCloseFilterBtn" onclick="toggleDayOnCloseFilter(event)"
                                 class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
@@ -300,11 +300,11 @@
                                 <div class="flex gap-2">
                                     <button type="button" id="sort-btn-day_on_close-desc" onclick="sortTickets('day_on_close','desc'); closeDayOnCloseFilter();"
                                         class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
-                                        Terbesar
+                                        ↓ Highest
                                     </button>
                                     <button type="button" id="sort-btn-day_on_close-asc" onclick="sortTickets('day_on_close','asc'); closeDayOnCloseFilter();"
                                         class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
-                                        Terkecil
+                                        ↑ Lowest
                                     </button>
                                 </div>
                                 <div class="flex justify-end gap-2 mt-3">
@@ -718,6 +718,22 @@
 
     .sort-icon.active {
         color: #111827;
+    }
+
+    /* Label tombol sort ("↓ Highest", "↑ Descending") adalah satu teks; tanpa ini
+       ia membungkus dan panahnya jatuh ke baris sendiri di atas teks. Panel-nya
+       absolute, jadi biarkan melebar mengikuti isi. Ditaruh di CSS (bukan class
+       Tailwind) karena updateSortButtons() menimpa className tombol ini. */
+    .sort-dir-btn {
+        white-space: nowrap;
+    }
+
+    /* Item dropdown adalah <button>, yang default UA-nya text-align:center. Selama
+       teksnya muat satu baris span-nya menyusut sehingga terlihat rata kiri, tapi
+       label panjang ("Waiting on Customer", "Change Request") membungkus jadi dua
+       baris dan langsung tampak ter-center. Paksa rata kiri. */
+    .custom-dd-item {
+        text-align: left;
     }
 
     /* ── Column filter dropdown active state ── */
@@ -1444,7 +1460,7 @@
             </td>
             {{-- Description --}}
             <td class="px-3 py-3 text-sm" style="min-width:260px;max-width:320px;">
-                <span class="block truncate text-gray-700 ${ticket.is_read ? 'font-normal' : 'font-bold'} leading-snug"
+                <span class="block truncate text-gray-700 font-normal leading-snug"
                       title="${(ticket.description||'').replace(/"/g,'&quot;')}">${ticket.description || '—'}</span>
             </td>
             {{-- Date --}}
