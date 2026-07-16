@@ -814,6 +814,53 @@ class ReportingController extends Controller
         }
     }
 
+    // ── API: Ticketing Overview — tickets for one customer ─────────────────
+
+    public function ticketingOverviewDetail(Request $request, $customerId)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.ticketing-overview')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $tickets = Ticket::with('ticketLead.basicData')
+                ->where('customer_id', $customerId)
+                ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->where('status', '!=', 'closed')
+                ->where(function ($query) {
+                    $query->whereNull('ticket_type')
+                        ->orWhere('ticket_type', '!=', 'EWA');
+                })
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(fn (Ticket $ticket) => [
+                    'ticket_id'     => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'description'   => $ticket->description,
+                    'status'        => $ticket->status,
+                    'status_label'  => $ticket->status_label,
+                    'lead_name'     => $ticket->ticketLead
+                        ? ($ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown')
+                        : null,
+                    'created_at'    => $ticket->created_at,
+                ])
+                ->values();
+
+            return response()->json(['success' => true, 'tickets' => $tickets]);
+
+        } catch (\Exception $e) {
+            Log::error('ticketingOverviewDetail error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load customer detail. Please try again.'], 500);
+        }
+    }
+
     // ── Web: Ticket by Modul page ───────────────────────────────────────────
 
     public function ticketByModuleIndex()
