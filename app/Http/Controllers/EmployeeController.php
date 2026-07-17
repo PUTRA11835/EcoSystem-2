@@ -102,7 +102,6 @@ class EmployeeController extends Controller
                     'eb.manager',
                     'eb.authorization_group',
                     'eb.home_base',
-                    'eb.grade',
                     'eb.employee_type',
                     'eb.block',
                     'eb.deletion_flag',
@@ -547,7 +546,6 @@ class EmployeeController extends Controller
                     'eb.manager',
                     'eb.authorization_group',
                     'eb.home_base',
-                    'eb.grade',
                     'eb.employee_type',
                     // Address
                     'ea.address_type',
@@ -711,7 +709,6 @@ class EmployeeController extends Controller
                 'manager' => $request->manager,
                 'authorization_group' => $request->authorization_group,
                 'home_base' => $request->home_base,
-                'grade' => $request->grade,
                 // Internal/External diturunkan dari home_base ("Others" → External).
                 'employee_type' => \App\Models\EmployeeBasicData::deriveEmployeeType($request->home_base),
                 'created_by' => $currentUserECI,  // ✅ Gunakan ECI
@@ -965,7 +962,6 @@ class EmployeeController extends Controller
                         'manager' => $request->manager,
                         'authorization_group' => $request->authorization_group,
                         'home_base' => $request->home_base,
-                        'grade' => $request->grade,
                         // Internal/External diturunkan dari home_base ("Others" → External).
                         'employee_type' => \App\Models\EmployeeBasicData::deriveEmployeeType($request->home_base),
                         'last_changed_by' => $currentUserECI,  // ✅ Gunakan ECI

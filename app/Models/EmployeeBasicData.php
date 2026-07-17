@@ -47,7 +47,6 @@ class EmployeeBasicData extends Model
         'manager',
         'authorization_group',
         'home_base',
-        'grade',
         'employee_type', // Internal / External (turunan dari home_base; lihat deriveEmployeeType)
 
         // Status Administrasi

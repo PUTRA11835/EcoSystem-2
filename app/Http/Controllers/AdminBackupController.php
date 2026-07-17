@@ -226,7 +226,7 @@ class AdminBackupController extends Controller
                 'b.personnel_area', 'b.personnel_subarea',
                 'b.employee_group', 'b.employee_subgroup',
                 'b.position', 'b.division', 'b.department',
-                'b.home_base', 'b.grade',
+                'b.home_base',
                 'b.since_date',
                 'ei.identification_number as nik'
             )
@@ -251,7 +251,7 @@ class AdminBackupController extends Controller
                 'personnel_area', 'personnel_subarea',
                 'employee_group', 'employee_subgroup',
                 'position', 'division', 'department',
-                'home_base', 'grade',
+                'home_base',
                 'since_date', 'nik',
             ]);
             foreach ($rows as $r) {
@@ -263,7 +263,7 @@ class AdminBackupController extends Controller
                     $r->personnel_area, $r->personnel_subarea,
                     $r->employee_group, $r->employee_subgroup,
                     $r->position, $r->division, $r->department,
-                    $r->home_base, $r->grade,
+                    $r->home_base,
                     $r->since_date, $r->nik,
                 ]);
             }
@@ -452,7 +452,7 @@ class AdminBackupController extends Controller
                 'personnel_area', 'personnel_subarea',
                 'employee_group', 'employee_subgroup',
                 'position', 'division', 'department',
-                'home_base', 'grade',
+                'home_base',
                 'since_date', 'nik',
             ],
             // Example row
@@ -464,7 +464,7 @@ class AdminBackupController extends Controller
                 'Area A', 'Sub Area A',
                 'Group 1', 'Subgroup 1',
                 'Consultant', 'IT', 'Support',
-                'Jakarta', 'Junior Consultant',
+                'Jakarta',
                 '2023-01-01', '3201010101900001',
             ],
         ]);
@@ -578,7 +578,6 @@ class AdminBackupController extends Controller
             'division'          => ['division', 'Division'],
             'department'        => ['department', 'Department'],
             'home_base'         => ['home_base', 'Home Base', 'homebase', 'based', 'Based'],
-            'grade'             => ['grade', 'Grade', 'grade / level', 'Grade / Level', 'grade/level', 'Grade/Level'],
             'since_date'        => ['since_date', 'Since Date'],
             'nik'               => ['nik', 'NIK', 'nik (identification_type)', 'NIK (identification_type)'],
             'email'             => ['email', 'Email', 'email_work', 'Email Work'],
@@ -641,10 +640,8 @@ class AdminBackupController extends Controller
             'system registered'         => 'User System Registered',
         ];
 
-        // Peta kanonik Grade & Home Base (key: lowercase+trim → nilai kanonik).
+        // Peta kanonik Home Base (key: lowercase+trim → nilai kanonik).
         // Dipakai menormalkan nilai CSV agar konsisten dgn opsi dropdown UI.
-        $gradeCanon = collect(\App\Models\Grade::options())
-            ->mapWithKeys(fn ($n) => [mb_strtolower(trim($n)) => $n])->all();
         $homeBaseCanon = collect(\App\Enums\HomeBase::options())
             ->mapWithKeys(fn ($n) => [mb_strtolower(trim($n)) => $n])->all();
         // "User System Registered" wajib ada di employee_role_assignment agar employee
@@ -705,7 +702,7 @@ class AdminBackupController extends Controller
                 ? (strtolower($get('status')) === 'active' ? 1 : 0)
                 : 1;
 
-            // Normalisasi Home Base & Grade ke nilai kanonik (case-insensitive).
+            // Normalisasi Home Base ke nilai kanonik (case-insensitive).
             // Tak dikenali → tetap disimpan apa adanya + peringatan non-fatal
             // (UI tetap menampilkan nilai mentah, tapi tak terhubung ke daftar).
             $homeBase = $get('home_base');
@@ -715,32 +712,6 @@ class AdminBackupController extends Controller
                     $homeBase = $homeBaseCanon[$key];
                 } else {
                     $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): Home Base '{$homeBase}' tidak dikenali — tersimpan apa adanya";
-                }
-            }
-
-            $grade = $get('grade');
-            if ($grade !== null) {
-                $key = mb_strtolower(trim($grade));
-                if (isset($gradeCanon[$key])) {
-                    $grade = $gradeCanon[$key];
-                } else {
-                    // Fallback: CSV sering pakai bentuk singkat — bisa kata AWAL
-                    // ("Senior" → "Senior Consultant", "Management" → "Management
-                    // Trainee") MAUPUN kata AKHIR ("Trainee" → "Management Trainee").
-                    // Cocokkan bila nilai = prefix/suffix (per-kata) dari tepat SATU
-                    // grade kanonik (ambigu/tak ada → biarkan + peringatan).
-                    $matches = [];
-                    foreach ($gradeCanon as $canonLower => $canonName) {
-                        if (str_starts_with($canonLower, $key . ' ')
-                            || str_ends_with($canonLower, ' ' . $key)) {
-                            $matches[] = $canonName;
-                        }
-                    }
-                    if (count($matches) === 1) {
-                        $grade = $matches[0];
-                    } else {
-                        $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): Grade '{$grade}' tidak dikenali — tersimpan apa adanya, tidak terhubung ke daftar Grade";
-                    }
                 }
             }
 
@@ -765,7 +736,6 @@ class AdminBackupController extends Controller
                 'division'           => $get('division'),
                 'department'         => $get('department'),
                 'home_base'          => $homeBase,
-                'grade'              => $grade,
                 // Internal/External diturunkan dari home_base ("Others" → External).
                 'employee_type'      => \App\Models\EmployeeBasicData::deriveEmployeeType($homeBase),
                 'since_date'         => $this->normalizeDate($get('since_date')),

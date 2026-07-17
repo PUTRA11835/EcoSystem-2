@@ -2,9 +2,15 @@
 
 namespace App\Providers;
 
+use App\Enums\Division;
+use App\Enums\EmployeeGroup;
+use App\Enums\EmployeeSubgroup;
 use App\Enums\HomeBase;
+use App\Enums\PersonnelArea;
 use App\Enums\RoleId;
+use App\Models\Department;
 use App\Models\Grade;
+use App\Models\Position;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
@@ -43,16 +49,36 @@ class AppServiceProvider extends ServiceProvider
             return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
         });
 
-        // Suntik opsi Grade & Home Base ke form employee (modal index + section
-        // basicdata yang dipakai detail & profile). Satu sumber: tabel `grades`
-        // + enum HomeBase — view tidak lagi hardcode daftarnya.
+        // Suntik opsi Home Base, Position, Department & 4 enum organisasi ke form
+        // employee (modal index + section basicdata yang dipakai detail & profile).
+        // Satu sumber per field — view tidak lagi hardcode daftarnya.
+        // Catatan: Grade TIDAK lagi dipakai di Basic Data — konsepnya pindah ke
+        // "Level" pada Employee Qualification (lihat composer di bawah).
         View::composer(
             ['master.employee.index', 'master.employee.sections.basicdata'],
             function ($view) {
                 // Guard: hindari error bila tabel belum ada (mis. saat migrate awal).
-                $gradeOptions = Schema::hasTable('grades') ? Grade::options() : [];
-                $view->with('gradeOptions', $gradeOptions)
-                     ->with('homeBaseOptions', HomeBase::options());
+                $positionOptions   = Schema::hasTable('positions') ? Position::options() : [];
+                $departmentOptions = Schema::hasTable('departments') ? Department::options() : [];
+
+                $view->with('homeBaseOptions', HomeBase::options())
+                     ->with('positionOptions', $positionOptions)
+                     ->with('departmentOptions', $departmentOptions)
+                     ->with('divisionOptions', Division::options())
+                     ->with('personnelAreaOptions', PersonnelArea::options())
+                     ->with('employeeGroupOptions', EmployeeGroup::options())
+                     ->with('employeeSubgroupOptions', EmployeeSubgroup::options());
+            }
+        );
+
+        // Suntik opsi "Level" ke form Employee Qualification (tipe Certification) —
+        // dari tabel `grades` yang sama dengan Home Base/Grade lama, tapi nama
+        // di-strip suffix " Consultant" (Grade::levelOptions()).
+        View::composer(
+            'master.employee.sections.qualification',
+            function ($view) {
+                $levelOptions = Schema::hasTable('grades') ? Grade::levelOptions() : [];
+                $view->with('qualificationLevelOptions', $levelOptions);
             }
         );
     }

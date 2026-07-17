@@ -12,6 +12,16 @@ harga MD), supaya pekerjaan lanjutan tidak membuat ulang yang sudah ada atau men
 setelan yang tak terpakai.
 
 > Tanggal disiapkan: 11 Jun 2026. Lihat juga memory `employee-homebase-grade-jun2026`.
+>
+> **Update 17 Jul 2026:** Grade **tidak lagi dipakai di Employee Basic Data**. Kolom
+> `employee_basic_data.grade` sudah di-drop (91 nilai lama sengaja tidak dimigrasikan —
+> keputusan pemilik produk). Konsepnya pindah jadi field **"Level"** di Employee
+> Qualification (khusus tipe *Certification*) — lihat `qualification_level` di tabel
+> `employee_qualification`. Tabel `grades` & `App\Models\Grade` TETAP ada sebagai
+> single source of truth, dengan method baru `Grade::levelOptions()` yang men-strip
+> suffix " Consultant" (mis. "Junior Consultant" → "Junior") untuk dropdown Level itu.
+> Bagian di bawah yang menyebut Grade di Basic Data sudah usang, dibiarkan sebagai
+> arsip histori keputusan awal.
 
 ---
 

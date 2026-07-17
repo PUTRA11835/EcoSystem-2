@@ -90,10 +90,28 @@
                     </div>
                 </div>
 
-                <!-- Qualification Level -->
-                <div class="col-span-1">
+                <!-- Qualification Level (text bebas, semua tipe kecuali Certification) -->
+                <div class="col-span-1" id="levelTextField">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Level</label>
-                    <input type="text" id="qualificationLevel" placeholder="Advanced" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                    <input type="text" id="qualificationLevelText" placeholder="Advanced" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                </div>
+
+                <!-- Qualification Level (dropdown, khusus tipe Certification) -->
+                <div class="col-span-1 hidden" id="levelDropdownField">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Level</label>
+                    <div class="custom-dd relative">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Level</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="qualificationLevelDropdown" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Level</button>
+                            @foreach(($qualificationLevelOptions ?? []) as $lvl)
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $lvl }}">{{ $lvl }}</button>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
 
                 <!-- First Year -->
@@ -306,16 +324,27 @@
         const type = document.getElementById('qualificationType').value;
         const moduleField = document.getElementById('moduleField');
         const languageField = document.getElementById('languageField');
-        
+        const levelTextField = document.getElementById('levelTextField');
+        const levelDropdownField = document.getElementById('levelDropdownField');
+
         // Hide all conditional fields
         moduleField.classList.add('hidden');
         languageField.classList.add('hidden');
-        
+
         // Show relevant fields
         if (type === 'Education' || type === 'Certification' || type === 'Training') {
             moduleField.classList.remove('hidden');
         } else if (type === 'Language') {
             languageField.classList.remove('hidden');
+        }
+
+        // Level: dropdown (Trainee/Junior/.../Expert) khusus Certification, tipe lain tetap text bebas.
+        if (type === 'Certification') {
+            levelTextField.classList.add('hidden');
+            levelDropdownField.classList.remove('hidden');
+        } else {
+            levelTextField.classList.remove('hidden');
+            levelDropdownField.classList.add('hidden');
         }
     }
 
@@ -491,7 +520,10 @@
 
                 setModuleDropdownValue(qual.module_id || '', qual.module || '');
                 setCustomDropdownValue('qualificationLanguage', qual.language || '');
-                document.getElementById('qualificationLevel').value = qual.qualification_level || '';
+                // Isi kedua varian Level (text & dropdown) — cuma yang relevan dgn
+                // type saat ini yang tervisibel & terpakai saat save.
+                document.getElementById('qualificationLevelText').value = qual.qualification_level || '';
+                setCustomDropdownValue('qualificationLevelDropdown', qual.qualification_level || '');
                 document.getElementById('qualificationFirstYear').value = qual.first_year || '';
                 document.getElementById('qualificationCertified').checked = qual.certified || false;
                 document.getElementById('qualificationDpm').checked = qual.dpm || false;
@@ -518,7 +550,8 @@
         setCustomDropdownValue('qualificationType', '');
         setModuleDropdownValue('', '');
         setCustomDropdownValue('qualificationLanguage', '');
-        document.getElementById('qualificationLevel').value = '';
+        document.getElementById('qualificationLevelText').value = '';
+        setCustomDropdownValue('qualificationLevelDropdown', '');
         document.getElementById('qualificationFirstYear').value = '';
         document.getElementById('qualificationCertified').checked = false;
         document.getElementById('qualificationDpm').checked = false;
@@ -557,11 +590,16 @@
         const qualificationId = document.getElementById('editQualificationId').value;
         const isUpdate = qualificationId !== '';
 
+        // Level: dropdown kalau Certification, text bebas untuk tipe lain.
+        const qualificationLevel = qualificationType === 'Certification'
+            ? document.getElementById('qualificationLevelDropdown').value
+            : document.getElementById('qualificationLevelText').value;
+
         const qualificationData = {
             qualification_type: qualificationType,
             module_id: document.getElementById('qualificationModuleId').value ? parseInt(document.getElementById('qualificationModuleId').value) : null,
             language: document.getElementById('qualificationLanguage').value || null,
-            qualification_level: document.getElementById('qualificationLevel').value || null,
+            qualification_level: qualificationLevel || null,
             first_year: document.getElementById('qualificationFirstYear').value || null,
             certified: document.getElementById('qualificationCertified').checked,
             dpm: document.getElementById('qualificationDpm').checked,

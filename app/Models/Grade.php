@@ -35,4 +35,19 @@ class Grade extends Model
             ->pluck('name')
             ->all();
     }
+
+    /**
+     * Daftar nama grade tanpa suffix " Consultant" (mis. "Junior Consultant" -> "Junior").
+     * Dipakai untuk opsi dropdown "Level" di Employee Qualification (tipe Certification) —
+     * konsep career-level yang sama dengan Grade, cuma labelnya lebih singkat.
+     *
+     * @return string[]
+     */
+    public static function levelOptions(): array
+    {
+        return array_map(
+            fn (string $name) => preg_replace('/\s*Consultant$/', '', $name),
+            static::options()
+        );
+    }
 }
