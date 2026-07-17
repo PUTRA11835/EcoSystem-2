@@ -34,6 +34,7 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\LoginLogController;
 use App\Http\Controllers\AdminSessionController;
 use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
@@ -175,6 +176,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             return view('admin.index');
         })->name('index')->middleware('menu:control-center.overview');
         Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log')->middleware('menu:control-center.activity-log');
+        Route::get('/login-log', [LoginLogController::class, 'index'])->name('login-log')->middleware('menu:control-center.login-log');
         Route::get('/sessions', [AdminSessionController::class, 'page'])->name('sessions')->middleware('menu:control-center.sessions');
         Route::get('/failed-jobs', [AdminJobController::class, 'page'])->name('failed-jobs')->middleware('menu:control-center.failed-jobs');
         Route::get('/backup', [AdminBackupController::class, 'page'])->name('backup')->middleware('menu:control-center.backup');

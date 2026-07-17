@@ -35,6 +35,7 @@ use App\Http\Controllers\MandaysController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\LoginLogController;
 use App\Http\Controllers\AdminSessionController;
 use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
@@ -573,6 +574,7 @@ Route::middleware(['web'])->group(function () {
     // ==================== ADMIN ROUTES ====================
     Route::prefix('admin')->group(function () {
         Route::get('/activity-logs', [ActivityLogController::class, 'getData']);
+        Route::get('/login-logs', [LoginLogController::class, 'getData']);
 
         // Session Management
         Route::get('/sessions', [AdminSessionController::class, 'index']);
