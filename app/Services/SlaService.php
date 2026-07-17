@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\Log;
 
 class SlaService
 {
+    public function __construct(protected HolidayService $holidays)
+    {
+    }
+
     // ── Status-to-SLA effect mapping (ticket.status values) ──────────────────
 
     const FULL_SLA_TYPES = ['Incident', 'Service Request'];
@@ -81,6 +85,68 @@ class SlaService
         }
 
         return round($total, 2);
+    }
+
+    /**
+     * Resolve the SLA clock start time given when the ticket was received and its policy.
+     *
+     * - No policy, 24/7 policy, or policy without a configured work window → start = received time as-is.
+     * - Otherwise: if received within the policy's work window (excluding any break window) on a working
+     *   day, start = received time as-is. If received during the break, start = end of break, same day.
+     *   If outside the work window entirely (or on a weekend/holiday), roll forward to the next working
+     *   day's window start.
+     */
+    private function resolveSlaStartAt(Carbon $receivedAt, ?SlaPolicy $policy): Carbon
+    {
+        if (!$policy || $policy->is_24_hours || !$policy->work_start_time || !$policy->work_end_time) {
+            return $receivedAt->copy();
+        }
+
+        [$startH, $startM] = array_map('intval', explode(':', $policy->work_start_time));
+        [$endH, $endM]     = array_map('intval', explode(':', $policy->work_end_time));
+
+        $hasBreak = $policy->break_start_time && $policy->break_end_time;
+        if ($hasBreak) {
+            [$brkStartH, $brkStartM] = array_map('intval', explode(':', $policy->break_start_time));
+            [$brkEndH, $brkEndM]     = array_map('intval', explode(':', $policy->break_end_time));
+        }
+
+        $cursor = $receivedAt->copy();
+
+        for ($i = 0; $i < 30; $i++) {
+            if ($this->holidays->isNonWorkingDay($cursor)) {
+                $cursor = $cursor->copy()->addDay()->setTime($startH, $startM, 0);
+                continue;
+            }
+
+            $dayStart = $cursor->copy()->setTime($startH, $startM, 0);
+            $dayEnd   = $cursor->copy()->setTime($endH, $endM, 0);
+
+            if ($cursor->lt($dayStart)) {
+                return $dayStart;
+            }
+
+            if ($hasBreak) {
+                $breakStart = $cursor->copy()->setTime($brkStartH, $brkStartM, 0);
+                $breakEnd   = $cursor->copy()->setTime($brkEndH, $brkEndM, 0);
+                if ($cursor->gte($breakStart) && $cursor->lt($breakEnd)) {
+                    return $breakEnd;
+                }
+            }
+
+            if ($cursor->lt($dayEnd)) {
+                return $cursor->copy();
+            }
+
+            $cursor = $cursor->copy()->addDay()->setTime($startH, $startM, 0);
+        }
+
+        Log::warning('SlaService@resolveSlaStartAt: exceeded rollover safety bound', [
+            'received_at' => $receivedAt->toDateTimeString(),
+            'policy_id'   => $policy->id,
+        ]);
+
+        return $cursor;
     }
 
     // ── 2. attachToStaging ───────────────────────────────────────────────────
@@ -195,12 +261,14 @@ class SlaService
 
         $policy = SlaPolicy::findFor($deliverySupportId, $priority, $scale);
 
-        $slaStartAt  = $staging?->created_at ?? $ticket->created_at;
+        $receivedAt  = $staging?->created_at ?? $ticket->created_at;
         $respondedAt = $ticket->created_at;
 
-        if ($slaStartAt->gt($respondedAt)) {
-            $slaStartAt = $respondedAt;
+        if ($receivedAt->gt($respondedAt)) {
+            $receivedAt = $respondedAt;
         }
+
+        $slaStartAt = $this->resolveSlaStartAt($receivedAt, $policy);
 
         // Calculate validation hours; use business hours as default when policy not yet known
         $is24h           = $policy ? $policy->is_24_hours : false;
@@ -334,14 +402,25 @@ class SlaService
             return;
         }
 
-        $slaStartAt  = $sla->sla_start_at;
-        $respondedAt = $sla->first_responded_at ?? $sla->sla_start_at;
+        // Recompute from the true original received time (ticket/staging created_at),
+        // never from $sla->sla_start_at — that column gets overwritten with the resolved
+        // (already rolled-forward) value once a policy is applied, so re-running this after
+        // the policy's work-hour window changes must not use it as the "received" input again.
+        $staging    = $sla->stagingTicket;
+        $receivedAt = $staging?->created_at ?? $ticket->created_at;
+        if ($receivedAt->gt($ticket->created_at)) {
+            $receivedAt = $ticket->created_at;
+        }
+
+        $slaStartAt  = $this->resolveSlaStartAt($receivedAt, $policy);
+        $respondedAt = $sla->first_responded_at ?? $ticket->created_at;
 
         $validationHours = $this->calcHours($slaStartAt, $respondedAt, $policy->is_24_hours);
         $responseStatus  = $validationHours <= (float) $policy->response_hours ? 'met' : 'breached';
 
         $sla->update([
             'sla_policy_id'             => $policy->id,
+            'sla_start_at'              => $slaStartAt,
             'response_due_at'           => $slaStartAt->copy()->addHours((float) $policy->response_hours),
             'resolution_due_at'         => $respondedAt->copy()->addHours((float) $policy->resolution_hours),
             'validation_duration_hours' => $validationHours,
@@ -517,27 +596,58 @@ class SlaService
             ->whereNotNull('ticket_priority')
             ->get();
 
-        if ($missing->isEmpty()) {
-            return;
-        }
+        if ($missing->isNotEmpty()) {
+            $newIds = [];
+            foreach ($missing as $ticket) {
+                try {
+                    $staging = StagingTicket::where('ticket_id', $ticket->ticket_id)->first();
+                    $this->attachToTicket($ticket, $staging);
+                    $newIds[] = $ticket->ticket_id;
+                } catch (\Throwable $e) {
+                    Log::warning('SlaService@ensureTicketsHaveSla: failed to attach', [
+                        'ticket_id' => $ticket->ticket_id,
+                        'error'     => $e->getMessage(),
+                    ]);
+                }
+            }
 
-        $newIds = [];
-        foreach ($missing as $ticket) {
-            try {
-                $staging = $ticket->stagingTicket ?? null;
-                $this->attachToTicket($ticket, $staging);
-                $newIds[] = $ticket->ticket_id;
-            } catch (\Throwable $e) {
-                Log::warning('SlaService@ensureTicketsHaveSla: failed to attach', [
-                    'ticket_id' => $ticket->ticket_id,
-                    'error'     => $e->getMessage(),
-                ]);
+            if (!empty($newIds)) {
+                $this->backfillEventsForTickets($newIds);
+                $this->autoCloseSlaForClosedTickets($newIds);
             }
         }
 
-        if (!empty($newIds)) {
-            $this->backfillEventsForTickets($newIds);
-            $this->autoCloseSlaForClosedTickets($newIds);
+        $this->syncMissingPolicies();
+    }
+
+    /**
+     * Retry policy-matching for SLA records still without a policy.
+     *
+     * A ticket's SLA record can be left with sla_policy_id = null when its delivery
+     * support had no matching SlaPolicy at the time it was assigned. If that policy
+     * gets configured later (SLA Config is often filled in after tickets already
+     * exist), nothing re-triggers the match — so this re-attempts it on every report
+     * load. Safe to call repeatedly; syncPolicy() itself is a no-op when still no match.
+     */
+    private function syncMissingPolicies(): void
+    {
+        $slas = TicketSla::whereNotNull('ticket_id')
+            ->whereNull('sla_policy_id')
+            ->with('ticket')
+            ->get();
+
+        foreach ($slas as $sla) {
+            if (!$sla->ticket) {
+                continue;
+            }
+            try {
+                $this->syncPolicy($sla->ticket);
+            } catch (\Throwable $e) {
+                Log::warning('SlaService@syncMissingPolicies: failed', [
+                    'ticket_id' => $sla->ticket_id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
         }
     }
 

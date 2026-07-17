@@ -484,7 +484,7 @@ function exportToExcel() {
                 'Resolution Duration (STOP-GO)': t.resolution?.actual_hours != null ? fmtHHMM(t.resolution.actual_hours) : '',
                 'SLA Resolution Status': resStatusLabel,
                 'Closed Date': t.closed_at ? t.closed_at.substring(0, 16).replace('T', ' ') : '',
-                'Notes': '',
+                'Notes': t.sla_policy_missing ? 'Belum ada SLA Policy untuk delivery support ini — jam kerja tidak diterapkan' : '',
             };
         });
 
@@ -601,6 +601,9 @@ function renderTable(tickets) {
 
     tbody.innerHTML = tickets.map((t, idx) => {
         const isPending = t.is_pending_validation;
+        const noPolicyWarning = t.sla_policy_missing
+            ? `<span class="ml-1 text-amber-500 cursor-help" title="Belum ada SLA Policy untuk delivery support tiket ini — jam kerja tidak diterapkan, waktu ditampilkan apa adanya"><i class="fas fa-exclamation-triangle text-[9px]"></i></span>`
+            : '';
         const prio = PRIORITY_CFG[t.ticket_priority] || { bg:'bg-gray-50', text:'text-gray-600', dot:'bg-gray-400' };
         const rscKey = t.resolution?.status || 'pending';
         const rsc = STATUS_CFG[rscKey] || STATUS_CFG['pending'];
@@ -681,7 +684,7 @@ function renderTable(tickets) {
             </td>
             {{-- SLA Response --}}
             <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.received_at)}</td>
-            <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}</td>
+            <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}${noPolicyWarning}</td>
             <td class="px-2 py-2 text-center bg-blue-50/20">
                 <span class="text-[10px] text-blue-700 font-semibold">${t.response?.target_hours ?? '—'}</span>
             </td>
@@ -701,7 +704,7 @@ function renderTable(tickets) {
             <td class="px-2 py-2 text-center bg-green-50/20">
                 <span class="text-[10px] text-green-700 font-semibold">${fmtDays(t.resolution?.target_days)}</span>
             </td>
-            <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}</td>
+            <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}${noPolicyWarning}</td>
             <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.resolution?.due_at)}</td>
             <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.resolution?.resolved_at)}</td>
             <td class="px-2 py-2 text-center bg-green-50/20 text-gray-300 text-[10px]">—</td>

@@ -96,6 +96,10 @@ class SlaController extends Controller
             'response_hours'      => 'required|numeric|min:0.1|max:999',
             'resolution_hours'    => 'required|numeric|min:0.1|max:999',
             'is_24_hours'         => 'boolean',
+            'work_start_time'     => 'nullable|date_format:H:i',
+            'work_end_time'       => 'nullable|date_format:H:i|after:work_start_time',
+            'break_start_time'    => 'nullable|date_format:H:i|required_with:break_end_time',
+            'break_end_time'      => 'nullable|date_format:H:i|after:break_start_time|required_with:break_start_time',
         ]);
 
         if ($v->fails()) {
@@ -122,6 +126,10 @@ class SlaController extends Controller
             'response_hours'      => $request->response_hours,
             'resolution_hours'    => $request->resolution_hours,
             'is_24_hours'         => $request->priority === 'Very High' ? true : $request->boolean('is_24_hours', false),
+            'work_start_time'     => $request->work_start_time,
+            'work_end_time'       => $request->work_end_time,
+            'break_start_time'    => $request->break_start_time,
+            'break_end_time'      => $request->break_end_time,
             'is_active'           => true,
             'created_by'          => session('user.id'),
         ]);
@@ -142,6 +150,10 @@ class SlaController extends Controller
             'response_hours'   => 'sometimes|numeric|min:0.1|max:999',
             'resolution_hours' => 'sometimes|numeric|min:0.1|max:999',
             'is_24_hours'      => 'sometimes|boolean',
+            'work_start_time'  => 'nullable|date_format:H:i',
+            'work_end_time'    => 'nullable|date_format:H:i|after:work_start_time',
+            'break_start_time' => 'nullable|date_format:H:i|required_with:break_end_time',
+            'break_end_time'   => 'nullable|date_format:H:i|after:break_start_time|required_with:break_start_time',
             'is_active'        => 'sometimes|boolean',
         ]);
 
@@ -150,7 +162,11 @@ class SlaController extends Controller
         }
 
         $policy  = SlaPolicy::findOrFail($id);
-        $updates = $request->only(['response_hours', 'resolution_hours', 'is_24_hours', 'is_active']);
+        $updates = $request->only([
+            'response_hours', 'resolution_hours', 'is_24_hours',
+            'work_start_time', 'work_end_time',
+            'break_start_time', 'break_end_time', 'is_active',
+        ]);
         if ($policy->priority === 'Very High') {
             $updates['is_24_hours'] = true;
         }
@@ -889,6 +905,10 @@ class SlaController extends Controller
             'response_hours'       => (float) $p->response_hours,
             'resolution_hours'     => (float) $p->resolution_hours,
             'is_24_hours'          => (bool) $p->is_24_hours,
+            'work_start_time'      => $p->work_start_time ? substr($p->work_start_time, 0, 5) : null,
+            'work_end_time'        => $p->work_end_time ? substr($p->work_end_time, 0, 5) : null,
+            'break_start_time'     => $p->break_start_time ? substr($p->break_start_time, 0, 5) : null,
+            'break_end_time'       => $p->break_end_time ? substr($p->break_end_time, 0, 5) : null,
             'is_active'            => (bool) $p->is_active,
             'created_at'           => $p->created_at?->toDateTimeString(),
         ];
@@ -949,6 +969,7 @@ class SlaController extends Controller
             'delivery_support_type'  => $deliverySupportType,
             'received_at'            => ($staging?->created_at ?? $t?->created_at)?->toDateTimeString(),
             'sla_start_at'           => $s->sla_start_at?->toDateTimeString(),
+            'sla_policy_missing'     => $policy === null,
             'closed_at'              => $closedAt,
             'ball_holder'            => $s->ball_holder,
             'response'               => [

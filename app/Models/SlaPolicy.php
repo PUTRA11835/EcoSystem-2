@@ -15,6 +15,10 @@ class SlaPolicy extends Model
         'response_hours',
         'resolution_hours',
         'is_24_hours',
+        'work_start_time',
+        'work_end_time',
+        'break_start_time',
+        'break_end_time',
         'is_active',
         'created_by',
     ];
