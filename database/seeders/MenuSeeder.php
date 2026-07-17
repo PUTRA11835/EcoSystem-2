@@ -44,6 +44,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'reporting.collection-outlook', 'name' => 'Collection Outlook',      'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.collection-outlook', 'icon' => null,                   'order_seq' => 3],
             ['slug' => 'reporting.ticketing-overview', 'name' => 'Ticketing Overview',      'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.ticketing-overview', 'icon' => null,                   'order_seq' => 4],
             ['slug' => 'reporting.ticket-by-module',   'name' => 'Ticket by Modul',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.ticket-by-module',   'icon' => null,                   'order_seq' => 5],
+            ['slug' => 'reporting.log-shifting',       'name' => 'Log Shifting',            'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.log-shifting',       'icon' => null,                   'order_seq' => 6],
 
             // ── Master ────────────────────────────────────────────────────────────
             ['slug' => 'master',                       'name' => 'Master',                  'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-database',          'order_seq' => 4],
@@ -85,6 +86,8 @@ class MenuSeeder extends Seeder
             ['slug' => 'ticket.meeting',          'name' => 'Meeting',                   'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 17],
             ['slug' => 'ticket.delete',           'name' => 'Delete Ticket',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 18],
             ['slug' => 'ticket.hide',             'name' => 'Hide Ticket',               'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 19],
+            ['slug' => 'ticket.propose-mandays-customer',   'name' => 'Propose Mandays Customer', 'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 20],
+            ['slug' => 'ticket.propose-mandays-resolution', 'name' => 'Propose Resolution Days',  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 21],
 
             // ── Room Chat (ticket detail sidebar toggles) ───────────────────────────
             ['slug' => 'room-chat',                    'name' => 'Room Chat',               'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-comments',          'order_seq' => 8],
@@ -216,6 +219,7 @@ class MenuSeeder extends Seeder
             'reporting.collection-outlook' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'reporting.ticketing-overview' => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'reporting.ticket-by-module'   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'reporting.log-shifting'       => [self::ADMIN=>$vced, self::HOS=>$vce, self::HELPDESK=>$vce, self::RPMO=>$vce],
             // Master
             'master'                      => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$v],
             'master.employee'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$ve,  self::HOP=>$v,      self::HOS=>$v],
@@ -249,6 +253,8 @@ class MenuSeeder extends Seeder
             'ticket.meeting'          => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'ticket.delete'           => [self::ADMIN=>$v],
             'ticket.hide'             => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'ticket.propose-mandays-customer'   => [self::EMPLOYEE=>$v],
+            'ticket.propose-mandays-resolution' => [self::EMPLOYEE=>$v],
             // Room Chat
             'room-chat'                   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'room-chat.tab-all-ticket'    => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],

@@ -510,7 +510,15 @@ class SlaController extends Controller
             ]);
         }
 
-        $query = TicketSla::with(['ticket.customer.basicData', 'ticket.ticketLead.basicData', 'ticket.moduleMaster', 'policy'])
+        $query = TicketSla::with([
+            'ticket.customer.basicData',
+            'ticket.ticketLead.basicData',
+            'ticket.moduleMaster',
+            'ticket.deliverySupportActivities' => fn ($q) => $q->orderByDesc('delivery_support_id'),
+            'ticket.deliverySupportActivities.deliverySupport',
+            'stagingTicket',
+            'policy',
+        ])
             ->whereNotNull('ticket_id');
 
         if ($request->filled('customer_id')) {
@@ -902,6 +910,8 @@ class SlaController extends Controller
             $customerName = trim(($bd->title ?? '') . ' ' . ($bd->name_1 ?? ''));
         }
 
+        $deliverySupportType = $t?->deliverySupportActivities?->first()?->deliverySupport?->type;
+
         $isPendingValidation = $s->resolution_status === 'pending_validation';
 
         $responseTargetHours    = $policy ? (float) $policy->response_hours   : null;
@@ -936,7 +946,8 @@ class SlaController extends Controller
             'pic'                    => $t?->ticketLead?->basicData?->full_name,
             'ticket_status'          => $t?->status,
             'sla_mode'               => $s->sla_mode,
-            'received_at'            => $t?->created_at?->toDateTimeString(),
+            'delivery_support_type'  => $deliverySupportType,
+            'received_at'            => ($staging?->created_at ?? $t?->created_at)?->toDateTimeString(),
             'sla_start_at'           => $s->sla_start_at?->toDateTimeString(),
             'closed_at'              => $closedAt,
             'ball_holder'            => $s->ball_holder,

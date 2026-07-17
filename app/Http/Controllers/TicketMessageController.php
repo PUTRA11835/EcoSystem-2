@@ -1709,7 +1709,15 @@ class TicketMessageController extends Controller
             }
 
             $message = TicketMessage::where('ticket_id', $ticketId)->findOrFail($messageId);
-            $message->update(['sla_message' => $request->input('sla_message')]);
+
+            $slaMessage = $request->input('sla_message');
+            $hasContent = $slaMessage !== null && trim($slaMessage) !== '';
+
+            $message->update([
+                'sla_message'    => $slaMessage,
+                'sla_message_by' => $hasContent ? ($sessionUser['id'] ?? null) : null,
+                'sla_message_at' => $hasContent ? now() : null,
+            ]);
 
             return response()->json(['success' => true]);
         } catch (\Exception $e) {

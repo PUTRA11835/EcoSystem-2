@@ -503,7 +503,10 @@ Route::middleware(['web'])->group(function () {
         Route::get('/md-recap',          [\App\Http\Controllers\ReportingController::class, 'mdRecap']);
         Route::get('/collection-outlook', [\App\Http\Controllers\ReportingController::class, 'collectionOutlook']);
         Route::get('/ticketing-overview', [\App\Http\Controllers\ReportingController::class, 'ticketingOverview']);
+        Route::get('/ticketing-overview/{customerId}', [\App\Http\Controllers\ReportingController::class, 'ticketingOverviewDetail']);
         Route::get('/ticket-by-module', [\App\Http\Controllers\ReportingController::class, 'ticketByModule']);
+        Route::get('/log-shifting', [\App\Http\Controllers\ReportingController::class, 'logShifting']);
+        Route::get('/log-shifting/{ticketId}', [\App\Http\Controllers\ReportingController::class, 'logShiftingDetail']);
     });
 
     // ==================== NOTIFICATION ROUTES ====================
