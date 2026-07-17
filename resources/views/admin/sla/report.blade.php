@@ -448,7 +448,7 @@ function exportToExcel() {
                 };
             }
 
-            const typeOfService = t.sla_mode === 'full' ? 'CR' : 'MO';
+            const typeOfService = t.delivery_support_type || '';
             const respStatusLabel = STATUS_CFG[t.response?.status]?.label || '';
             const resStatusLabel  = STATUS_CFG[t.resolution?.status]?.label || '';
 
@@ -640,8 +640,8 @@ function renderTable(tickets) {
         const desc = (t.description || '').substring(0, 70) + ((t.description || '').length > 70 ? '…' : '');
         const ticketUrl = t.ticket_id ? `/ticket/${t.ticket_id}` : '#';
 
-        // Type of Service label based on SLA mode
-        const typeOfService = t.sla_mode === 'full' ? 'CR' : 'MO';
+        // Type of Service label from ticket's assigned Delivery Support type (MO/CR/AMS/ATS/...)
+        const typeOfService = t.delivery_support_type || '—';
 
         return `
         <tr class="border-b border-gray-50 hover:bg-blue-50/20 transition-colors">
