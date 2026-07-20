@@ -52,7 +52,8 @@ class SlaService
     /**
      * Calculate elapsed hours between two timestamps.
      * is24h = true  → full calendar hours (7×24)
-     * is24h = false → business hours only (Mon–Fri 09:00–18:00)
+     * is24h = false → business hours only (Mon–Fri 08:00–17:00)
+     * Result is never negative — $from at/after $to returns 0.0.
      */
     public function calcHours(Carbon $from, Carbon $to, bool $is24h): float
     {
@@ -64,15 +65,15 @@ class SlaService
             return round($from->floatDiffInHours($to), 2);
         }
 
-        // Business hours: Mon–Fri 09:00–18:00
+        // Business hours: Mon–Fri 08:00–17:00
         $total   = 0.0;
         $current = $from->copy();
 
         while ($current->lt($to)) {
             $dayOfWeek = $current->dayOfWeek; // 0=Sun, 6=Sat
             if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-                $dayStart = $current->copy()->setTime(9, 0, 0);
-                $dayEnd   = $current->copy()->setTime(18, 0, 0);
+                $dayStart = $current->copy()->setTime(8, 0, 0);
+                $dayEnd   = $current->copy()->setTime(17, 0, 0);
 
                 $periodStart = $current->gt($dayStart) ? $current : $dayStart;
                 $periodEnd   = $to->lt($dayEnd) ? $to : $dayEnd;
@@ -81,7 +82,7 @@ class SlaService
                     $total += $periodStart->floatDiffInHours($periodEnd);
                 }
             }
-            $current = $current->copy()->addDay()->setTime(9, 0, 0);
+            $current = $current->copy()->addDay()->setTime(8, 0, 0);
         }
 
         return round($total, 2);
