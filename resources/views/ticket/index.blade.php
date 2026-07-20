@@ -1254,12 +1254,13 @@
 
             let matchDate = true;
             if (fromMs !== null || toMs !== null) {
-                const created = ticket.created_at ? new Date(ticket.created_at).getTime() : NaN;
-                if (Number.isNaN(created)) {
+                const ticketDate = ticket.start_date || ticket.created_at;
+                const startMs = ticketDate ? new Date(ticketDate).getTime() : NaN;
+                if (Number.isNaN(startMs)) {
                     matchDate = false;
                 } else {
-                    if (fromMs !== null && created < fromMs) matchDate = false;
-                    if (toMs !== null && created > toMs) matchDate = false;
+                    if (fromMs !== null && startMs < fromMs) matchDate = false;
+                    if (toMs !== null && startMs > toMs) matchDate = false;
                 }
             }
 
@@ -1349,22 +1350,22 @@
     }
 
     // Ticket closed → freeze "Day on Close" at the close timestamp instead of
-    // letting it keep counting up to today. Dihitung sejak tiket dibuat
-    // (created_at), bukan sejak start_date/assignment.
+    // letting it keep counting up to today. Dihitung sejak start_date
+    // (fallback ke created_at jika belum ada start_date), sama seperti kolom Date.
     function dayOnCloseValue(ticket) {
-        const created = ticket.created_at;
-        if (!created) return null;
+        const start = ticket.start_date || ticket.created_at;
+        if (!start) return null;
         const closedAt = ticket.status === 'closed'
             ? (ticket.sla?.resolved_at || ticket.updated_at)
             : null;
         const end = closedAt ? new Date(closedAt) : new Date();
-        return Math.max(0, Math.ceil((end.getTime() - new Date(created).getTime()) / 86400000));
+        return Math.max(0, Math.ceil((end.getTime() - new Date(start).getTime()) / 86400000));
     }
 
     function createTicketRow(ticket) {
         const customerName = ticket.customer?.customer_name || 'Unknown';
         const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
-        const createdAt = new Date(ticket.created_at);
+        const startDate = new Date(ticket.start_date || ticket.created_at);
         const endDate = ticket.end_date ? new Date(ticket.end_date) : null;
 
         const fmt = d => d.toLocaleDateString('en-GB', {
@@ -1385,7 +1386,7 @@
 
         const lastUpdateStr = relativeTime(lastActivity);
         const lastUpdateTitle = fmtDT(lastActivity);
-        const dateStr = fmt(createdAt);
+        const dateStr = fmt(startDate);
         const endDateStr = endDate ? fmt(endDate) : '—';
 
         const agentName = ticket.employee?.employee_name || '<span class="text-gray-400">Unassigned</span>';
@@ -2184,8 +2185,8 @@
                 va = extractNum(a);
                 vb = extractNum(b);
             } else if (key === 'date') {
-                va = new Date(a.created_at).getTime();
-                vb = new Date(b.created_at).getTime();
+                va = new Date(a.start_date || a.created_at).getTime();
+                vb = new Date(b.start_date || b.created_at).getTime();
             } else if (key === 'day_on_close') {
                 const daysOf = t => {
                     const v = dayOnCloseValue(t);
