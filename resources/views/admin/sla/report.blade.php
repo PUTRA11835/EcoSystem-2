@@ -197,7 +197,7 @@
                     <tr class="border-b border-gray-200">
                         <th colspan="4"  class="sc sc-last px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider grp-info" style="left:0;">Informasi Tiket</th>
                         <th colspan="9"  class="px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider border-r border-gray-200 grp-info"></th>
-                        <th colspan="8"  class="px-3 py-2 text-center text-[10px] font-bold text-blue-700 uppercase tracking-wider border-r border-gray-200 grp-resp">SLA Response</th>
+                        <th colspan="7"  class="px-3 py-2 text-center text-[10px] font-bold text-blue-700 uppercase tracking-wider border-r border-gray-200 grp-resp">SLA Response</th>
                         <th colspan="10" class="px-3 py-2 text-center text-[10px] font-bold text-green-700 uppercase tracking-wider border-r border-gray-200 grp-res">SLA Resolution</th>
                         <th colspan="1"  class="px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider grp-info">Aksi</th>
                     </tr>
@@ -225,9 +225,8 @@
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time<br>Received</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time Start<br>SLA Response<br><span class="text-[8px] font-normal normal-case">(Working Hours 08:00–17:00)</span></th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:70px">SLA<br>Response<br>Time</th>
-                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">SLA Due On</th>
+                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Response Due On</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time<br>Responded</th>
-                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:50px">X</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:80px">Response<br>Duration</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp border-r border-gray-200" style="min-width:80px">SLA<br>Response<br>Time</th>
                         {{-- SLA Resolution --}}
@@ -247,7 +246,7 @@
                 </thead>
                 <tbody id="reportTableBody">
                     <tr>
-                        <td colspan="32" class="py-16 text-center">
+                        <td colspan="31" class="py-16 text-center">
                             <div class="flex flex-col items-center gap-2 text-gray-300">
                                 <i class="fas fa-spinner fa-spin text-3xl"></i>
                                 <p class="text-sm">Loading report...</p>
@@ -484,7 +483,7 @@ function exportToExcel() {
                 'Resolution Duration (STOP-GO)': t.resolution?.actual_hours != null ? fmtHHMM(t.resolution.actual_hours) : '',
                 'SLA Resolution Status': resStatusLabel,
                 'Closed Date': t.closed_at ? t.closed_at.substring(0, 16).replace('T', ' ') : '',
-                'Notes': '',
+                'Notes': t.sla_policy_missing ? 'Belum ada SLA Policy untuk delivery support ini — jam kerja tidak diterapkan' : '',
             };
         });
 
@@ -553,7 +552,7 @@ async function loadReport() {
         applyReportFilters();
     } catch (e) {
         document.getElementById('reportTableBody').innerHTML = `
-            <tr><td colspan="32" class="py-12 text-center">
+            <tr><td colspan="31" class="py-12 text-center">
                 <div class="flex flex-col items-center gap-2 text-red-400">
                     <i class="fas fa-exclamation-triangle text-3xl"></i>
                     <p class="text-sm">Failed to load report.</p>
@@ -586,7 +585,7 @@ function renderTable(tickets) {
     if (!tickets.length) {
         footer.classList.add('hidden');
         tbody.innerHTML = `
-            <tr><td colspan="32" class="py-16 text-center">
+            <tr><td colspan="31" class="py-16 text-center">
                 <div class="flex flex-col items-center gap-2 text-gray-300">
                     <i class="fas fa-search text-4xl"></i>
                     <p class="text-sm font-medium text-gray-400 mt-1">Tidak ada tiket ditemukan</p>
@@ -601,6 +600,9 @@ function renderTable(tickets) {
 
     tbody.innerHTML = tickets.map((t, idx) => {
         const isPending = t.is_pending_validation;
+        const noPolicyWarning = t.sla_policy_missing
+            ? `<span class="ml-1 text-amber-500 cursor-help" title="Belum ada SLA Policy untuk delivery support tiket ini — jam kerja tidak diterapkan, waktu ditampilkan apa adanya"><i class="fas fa-exclamation-triangle text-[9px]"></i></span>`
+            : '';
         const prio = PRIORITY_CFG[t.ticket_priority] || { bg:'bg-gray-50', text:'text-gray-600', dot:'bg-gray-400' };
         const rscKey = t.resolution?.status || 'pending';
         const rsc = STATUS_CFG[rscKey] || STATUS_CFG['pending'];
@@ -617,15 +619,10 @@ function renderTable(tickets) {
                 <td class="px-2 py-2 text-center text-amber-600" colspan="9">
                     <span class="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Menunggu Validasi</span>
                 </td>
-                <td class="px-2 py-2 text-gray-400" colspan="18">—</td>
+                <td class="px-2 py-2 text-gray-400" colspan="17">—</td>
                 <td class="px-2 py-2 text-center text-gray-400 italic text-[10px]">Validasi dulu</td>
             </tr>`;
         }
-
-        const respMet  = t.response?.met;
-        const respIcon = respMet === true  ? '<i class="fas fa-check-circle sla-check-met text-base"></i>'
-                       : respMet === false ? '<i class="fas fa-times-circle sla-check-breached text-base"></i>'
-                       : '<i class="fas fa-minus sla-check-none text-base"></i>';
 
         const resMet  = t.resolution?.met;
         const resIcon = resMet === true  ? '<i class="fas fa-check-circle sla-check-met text-base"></i>'
@@ -681,13 +678,12 @@ function renderTable(tickets) {
             </td>
             {{-- SLA Response --}}
             <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.received_at)}</td>
-            <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}</td>
+            <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}${noPolicyWarning}</td>
             <td class="px-2 py-2 text-center bg-blue-50/20">
                 <span class="text-[10px] text-blue-700 font-semibold">${t.response?.target_hours ?? '—'}</span>
             </td>
             <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.response?.due_at)}</td>
             <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.response?.responded_at)}</td>
-            <td class="px-2 py-2 text-center bg-blue-50/20">${respIcon}</td>
             <td class="px-2 py-2 text-center bg-blue-50/20">
                 <span class="text-[10px] font-semibold ${respStatusColor}">${fmtHHMM(t.response?.actual_hours)}</span>
             </td>
@@ -701,7 +697,7 @@ function renderTable(tickets) {
             <td class="px-2 py-2 text-center bg-green-50/20">
                 <span class="text-[10px] text-green-700 font-semibold">${fmtDays(t.resolution?.target_days)}</span>
             </td>
-            <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}</td>
+            <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}${noPolicyWarning}</td>
             <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.resolution?.due_at)}</td>
             <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.resolution?.resolved_at)}</td>
             <td class="px-2 py-2 text-center bg-green-50/20 text-gray-300 text-[10px]">—</td>

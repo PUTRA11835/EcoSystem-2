@@ -100,7 +100,7 @@
                     </svg>
                 </div>
             </div>
-            <p class="text-xs text-gray-400 mt-2">In-progress tickets</p>
+            <p class="text-xs text-gray-400 mt-2">Open, in-progress, waiting, or hold</p>
         </div>
     </div>
 
@@ -848,7 +848,11 @@
             return p >= 40 && p < 70;
         }).length;
         const low = data.filter(c => calcInProgress(c).workload_pct < 40).length;
-        const tickets = data.reduce((s, c) => s + calcInProgress(c).ticket_count, 0);
+        // Satu tiket bisa punya beberapa konsultan (PIC + member), jadi jangan
+        // dijumlah per-konsultan (dobel hitung) — hitung ticket_id unik saja.
+        const uniqueTicketIds = new Set();
+        data.forEach(c => calcActive(c).tickets.forEach(t => uniqueTicketIds.add(t.ticket_id)));
+        const tickets = uniqueTicketIds.size;
 
         document.getElementById('cardTotal').textContent = data.length;
         document.getElementById('cardBusy').textContent = high;

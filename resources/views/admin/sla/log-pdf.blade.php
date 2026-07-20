@@ -319,7 +319,7 @@
                     </div>
                     <div class="sla-box-detail">
                         Target: <strong>{{ $policy?->response_hours ?? '—' }} hrs</strong><br>
-                        Deadline: {{ $sla->response_due_at?->format('d M Y H:i') ?? '—' }}<br>
+                        Deadline: {{ $responseDueAt?->format('d M Y H:i') ?? '—' }}<br>
                         Responded: {{ $sla->first_responded_at?->format('d M Y H:i') ?? '—' }}
                     </div>
                     @php $rBg = match($sla->response_status) { 'met' => 'bg-met', 'breached' => 'bg-breached', default => 'bg-pending' }; @endphp
