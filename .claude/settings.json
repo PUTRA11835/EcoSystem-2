@@ -96,7 +96,13 @@
       "Bash(awk 'NR>=1573 && NR<=1850 {print NR\": \"$0}' resources/views/ticket/show.blade.php)",
       "Bash(awk 'NR>=1656 && NR<=1720 {print NR\": \"$0}' resources/views/ticket/show.blade.php)",
       "Bash(php -l resources/views/master/employee/sections/basicdata.blade.php)",
-      "Bash(php -l app/Providers/AppServiceProvider.php)"
+      "Bash(php -l app/Providers/AppServiceProvider.php)",
+      "Bash(node -c public/js/calendar-timesheets.js)",
+      "Bash(php -l resources/views/reporting/resolution-days.blade.php)",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\resources\\\\views\\\\reporting\\\\resolution-days.blade.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\ReportingController.php\")",
+      "Bash(powershell -NoProfile -Command \"Get-Date -Format yyyy_MM_dd_HHmmss\")",
+      "Bash(php -l resources/views/ticket/show.blade.php)"
     ],
     "additionalDirectories": [
       "C:\\ecosystem-2\\database\\migrations",
