@@ -58,6 +58,43 @@ class TicketController extends Controller
     }
 
     /**
+     * Live SLA summary for ticket-list endpoints (index/myTickets/unassignedTickets) — uses
+     * the same live-recompute methods as the admin SLA report (SlaService::responseDurationHours()
+     * etc.) instead of reading the stored validation_duration_hours/net_resolution_hours/
+     * response_status/resolution_status columns, which are frozen at the time they were
+     * written and won't reflect a later calcHours() formula change for historical tickets.
+     * Pass $pauses (batch-fetched per ticket_id) to avoid an N+1 query per ticket. Pass
+     * $ticket too (it's already loaded by the caller) and it gets wired onto $sla's
+     * `ticket` relation manually — Eloquent doesn't auto-populate the inverse belongsTo
+     * when eager-loading Ticket::with('sla'), so without this, liveResolutionMetrics()'s
+     * `$sla->ticket?->status` check would lazy-load a query per row (N+1 on an unbounded list).
+     */
+    private function liveSlaSummary($sla, ?Ticket $ticket = null, ?\Illuminate\Support\Collection $pauses = null): ?array
+    {
+        if (!$sla) {
+            return null;
+        }
+
+        if ($ticket && !$sla->relationLoaded('ticket')) {
+            $sla->setRelation('ticket', $ticket);
+        }
+
+        $slaService        = app(SlaService::class);
+        $resolutionMetrics = $slaService->liveResolutionMetrics($sla, $pauses);
+
+        return [
+            'target_response_hours'   => $sla->policy?->response_hours,
+            'response_time_hours'     => $slaService->responseDurationHours($sla),
+            'response_status'         => $slaService->responseStatusLive($sla),
+            'target_resolution_hours' => $sla->policy?->resolution_hours,
+            'resolution_due_at'       => $sla->resolution_due_at,
+            'resolution_time_hours'   => $resolutionMetrics['net_hours'],
+            'resolution_status'       => $resolutionMetrics['status'],
+            'resolved_at'             => $sla->resolved_at,
+        ];
+    }
+
+    /**
      * Lightweight endpoint untuk polling — kembalikan timestamp update terakhir dari DB lokal.
      * Tidak menyentuh Graph API, aman dipanggil dari browser setiap 10 detik.
      */
@@ -262,8 +299,13 @@ class TicketController extends Controller
                 ->get()
                 ->groupBy('ticket_id');
 
+            // Batch-load SLA pause history (untuk liveSlaSummary() — hindari N+1)
+            $pausesByTicket = \App\Models\TicketSlaPause::whereIn('ticket_id', $ticketIds)
+                ->get()
+                ->groupBy('ticket_id');
+
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap, $pausesByTicket) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -327,16 +369,7 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
-                    'sla' => $ticket->sla ? [
-                        'target_response_hours'   => $ticket->sla->policy?->response_hours,
-                        'response_time_hours'     => $ticket->sla->validation_duration_hours,
-                        'response_status'         => $ticket->sla->response_status,
-                        'target_resolution_hours' => $ticket->sla->policy?->resolution_hours,
-                        'resolution_due_at'       => $ticket->sla->resolution_due_at,
-                        'resolution_time_hours'   => $ticket->sla->net_resolution_hours,
-                        'resolution_status'       => $ticket->sla->resolution_status,
-                        'resolved_at'             => $ticket->sla->resolved_at,
-                    ] : null,
+                    'sla' => $this->liveSlaSummary($ticket->sla, $ticket, $pausesByTicket->get($ticket->ticket_id)),
                     'support_manager' => $deliverySupportMap[$ticket->ticket_id]['support_manager_name'] ?? null,
                     'support_admin'   => $deliverySupportMap[$ticket->ticket_id]['support_admin_name'] ?? null,
                     'delivery' => isset($deliverySupportMap[$ticket->ticket_id]) ? [
@@ -1122,8 +1155,13 @@ class TicketController extends Controller
                     ];
                 });
 
+            // Batch-load SLA pause history (untuk liveSlaSummary() — hindari N+1)
+            $myPausesByTicket = \App\Models\TicketSlaPause::whereIn('ticket_id', $myTicketIds)
+                ->get()
+                ->groupBy('ticket_id');
+
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature, $myDeliverySupportMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature, $myDeliverySupportMap, $myPausesByTicket) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -1195,16 +1233,7 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
-                    'sla' => $ticket->sla ? [
-                        'target_response_hours'   => $ticket->sla->policy?->response_hours,
-                        'response_time_hours'     => $ticket->sla->validation_duration_hours,
-                        'response_status'         => $ticket->sla->response_status,
-                        'target_resolution_hours' => $ticket->sla->policy?->resolution_hours,
-                        'resolution_due_at'       => $ticket->sla->resolution_due_at,
-                        'resolution_time_hours'   => $ticket->sla->net_resolution_hours,
-                        'resolution_status'       => $ticket->sla->resolution_status,
-                        'resolved_at'             => $ticket->sla->resolved_at,
-                    ] : null,
+                    'sla' => $this->liveSlaSummary($ticket->sla, $ticket, $myPausesByTicket->get($ticket->ticket_id)),
                     'delivery' => $myDeliverySupportMap[$ticket->ticket_id] ?? null,
                     'created_at' => $ticket->created_at,
                     'updated_at' => $ticket->updated_at,
@@ -1304,7 +1333,12 @@ class TicketController extends Controller
                     ];
                 });
 
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $readAtMap, $canReadFeature, $deliverySupportMap) {
+            // Batch-load SLA pause history (untuk liveSlaSummary() — hindari N+1)
+            $pausesByTicket = \App\Models\TicketSlaPause::whereIn('ticket_id', $ticketIds)
+                ->get()
+                ->groupBy('ticket_id');
+
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $readAtMap, $canReadFeature, $deliverySupportMap, $pausesByTicket) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -1372,16 +1406,7 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
-                    'sla' => $ticket->sla ? [
-                        'target_response_hours'   => $ticket->sla->policy?->response_hours,
-                        'response_time_hours'     => $ticket->sla->validation_duration_hours,
-                        'response_status'         => $ticket->sla->response_status,
-                        'target_resolution_hours' => $ticket->sla->policy?->resolution_hours,
-                        'resolution_due_at'       => $ticket->sla->resolution_due_at,
-                        'resolution_time_hours'   => $ticket->sla->net_resolution_hours,
-                        'resolution_status'       => $ticket->sla->resolution_status,
-                        'resolved_at'             => $ticket->sla->resolved_at,
-                    ] : null,
+                    'sla' => $this->liveSlaSummary($ticket->sla, $ticket, $pausesByTicket->get($ticket->ticket_id)),
                     'delivery' => $deliverySupportMap[$ticket->ticket_id] ?? null,
                     'created_at' => $ticket->created_at,
                     'updated_at' => $ticket->updated_at,

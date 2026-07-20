@@ -312,9 +312,9 @@
             <td style="width:25%; padding-right:8px;">
                 <div class="sla-box">
                     <div class="sla-box-label">Response SLA</div>
-                    @php $rCls = match($sla->response_status) { 'met' => 'c-met', 'breached' => 'c-breached', default => 'c-pending' }; @endphp
+                    @php $rCls = match($responseStatusLive) { 'met' => 'c-met', 'breached' => 'c-breached', default => 'c-pending' }; @endphp
                     <div class="sla-box-value {{ $rCls }}">
-                        {{ $sla->validation_duration_hours !== null ? number_format($sla->validation_duration_hours, 2) : '—' }}
+                        {{ $responseActualHours !== null ? number_format($responseActualHours, 2) : '—' }}
                         <span style="font-size:10px; font-weight:normal; color:#888;">hrs</span>
                     </div>
                     <div class="sla-box-detail">
@@ -322,8 +322,8 @@
                         Deadline: {{ $responseDueAt?->format('d M Y H:i') ?? '—' }}<br>
                         Responded: {{ $sla->first_responded_at?->format('d M Y H:i') ?? '—' }}
                     </div>
-                    @php $rBg = match($sla->response_status) { 'met' => 'bg-met', 'breached' => 'bg-breached', default => 'bg-pending' }; @endphp
-                    <div class="sla-box-status {{ $rBg }}">{{ strtoupper($sla->response_status) }}</div>
+                    @php $rBg = match($responseStatusLive) { 'met' => 'bg-met', 'breached' => 'bg-breached', default => 'bg-pending' }; @endphp
+                    <div class="sla-box-status {{ $rBg }}">{{ strtoupper($responseStatusLive) }}</div>
                 </div>
             </td>
 
@@ -332,18 +332,18 @@
                 <div class="sla-box">
                     <div class="sla-box-label">Resolution SLA (Net)</div>
                     @if($sla->sla_mode === 'full')
-                        @php $resCls = match($sla->resolution_status) { 'met' => 'c-met', 'breached' => 'c-breached', 'paused' => 'c-paused', default => 'c-pending' }; @endphp
+                        @php $resCls = match($resolutionStatusLive) { 'met' => 'c-met', 'breached' => 'c-breached', 'paused' => 'c-paused', default => 'c-pending' }; @endphp
                         <div class="sla-box-value {{ $resCls }}">
-                            {{ $sla->net_resolution_hours !== null ? number_format($sla->net_resolution_hours, 2) : '—' }}
+                            {{ $resolutionNetHours !== null ? number_format($resolutionNetHours, 2) : '—' }}
                             <span style="font-size:10px; font-weight:normal; color:#888;">hrs</span>
                         </div>
                         <div class="sla-box-detail">
                             Target: <strong>{{ $policy?->resolution_hours ?? '—' }} hrs</strong><br>
                             Deadline: {{ $sla->resolution_due_at?->format('d M Y H:i') ?? '—' }}<br>
-                            Waiting deducted: {{ number_format($sla->total_waiting_hours, 2) }} hrs
+                            Waiting deducted: {{ number_format($liveWaitingHours, 2) }} hrs
                         </div>
-                        @php $resBg = match($sla->resolution_status) { 'met' => 'bg-met', 'breached' => 'bg-breached', 'paused' => 'bg-paused', default => 'bg-pending' }; @endphp
-                        <div class="sla-box-status {{ $resBg }}">{{ strtoupper($sla->resolution_status) }}</div>
+                        @php $resBg = match($resolutionStatusLive) { 'met' => 'bg-met', 'breached' => 'bg-breached', 'paused' => 'bg-paused', default => 'bg-pending' }; @endphp
+                        <div class="sla-box-status {{ $resBg }}">{{ strtoupper($resolutionStatusLive) }}</div>
                     @else
                         <div class="sla-box-value c-pending">— <span style="font-size:10px; font-weight:normal; color:#888;">hrs</span></div>
                         <div class="sla-box-detail">Response-only mode.<br>Resolution is not tracked for this ticket type.</div>
@@ -358,7 +358,7 @@
                     <tr>
                         <td>
                             <div class="metric-label">Total Waiting</div>
-                            <div class="metric-value">{{ number_format($sla->total_waiting_hours, 2) }} hrs</div>
+                            <div class="metric-value">{{ number_format($liveWaitingHours, 2) }} hrs</div>
                         </td>
                         <td>
                             <div class="metric-label">Gross Hours</div>
@@ -384,7 +384,7 @@
                             <div style="font-size:8px; color:#555; margin-top:2px; background:#f8f8f8; border-radius:3px; padding:4px 6px; border-left:2px solid #7b1010;">
                                 Net Resolution = Gross Hours − Total Waiting Hours
                                 @if($grossH !== null)
-                                &nbsp;→&nbsp; {{ $grossH }} − {{ number_format($sla->total_waiting_hours, 2) }} = <strong>{{ number_format(max(0, $grossH - $sla->total_waiting_hours), 2) }} hrs</strong>
+                                &nbsp;→&nbsp; {{ $grossH }} − {{ number_format($liveWaitingHours, 2) }} = <strong>{{ number_format(max(0, $grossH - $liveWaitingHours), 2) }} hrs</strong>
                                 @endif
                             </div>
                         </td>
@@ -421,7 +421,7 @@
             @endforeach
             <tr style="background:#f0f0f0; font-weight:bold;">
                 <td colspan="2" style="text-align:right; color:#555;">Total Waiting Time:</td>
-                <td style="text-align:right; color:#7b1010;">{{ number_format($sla->total_waiting_hours, 2) }} hrs</td>
+                <td style="text-align:right; color:#7b1010;">{{ number_format($liveWaitingHours, 2) }} hrs</td>
                 <td colspan="2"></td>
             </tr>
         </tbody>
@@ -442,9 +442,9 @@
                 <th class="col-resp" style="text-align:right">Response</th>
                 <th class="col-res"  style="text-align:right">
                     Resolution
-                    @if($sla->net_resolution_hours !== null)
+                    @if($resolutionNetHours !== null)
                         @php
-                            $netH = (float) $sla->net_resolution_hours;
+                            $netH = (float) $resolutionNetHours;
                             $h = floor($netH);
                             $m = round(($netH - $h) * 60);
                         @endphp
