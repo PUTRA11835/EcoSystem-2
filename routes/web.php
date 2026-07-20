@@ -225,67 +225,104 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== PROJECT DELIVERY ROUTES ====================
 
     // Project routes (CRUD)
-    Route::resource('projects', DeliveryProjectController::class)->except(['edit', 'update'])->middleware(['index' => 'menu:delivery.project', 'show' => 'menu:delivery.project', 'create' => 'menu:delivery.project']);
-    Route::patch('/projects/{project}/general-info', [DeliveryProjectController::class, 'updateGeneralInfo'])->name('projects.updateGeneralInfo');
-    Route::patch('/projects/{project}/update-field', [DeliveryProjectController::class, 'updateField'])->name('projects.updateField');
-    Route::patch('/projects/{project}/delivery-info', [DeliveryProjectController::class, 'updateDeliveryInfo'])->name('projects.updateDeliveryInfo');
-    Route::patch('/projects/{project}/location-info', [DeliveryProjectController::class, 'updateLocationInfo'])->name('projects.updateLocationInfo');
-    Route::patch('/projects/{project}/financial-info', [DeliveryProjectController::class, 'updateFinancialInfo'])->name('projects.updateFinancialInfo');
-    Route::post('/projects/{project}/generate-folder', [DeliveryProjectController::class, 'generateFolder'])->name('projects.generateFolder');
-    Route::delete('/projects/{project}/folder', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder');
-    Route::post('/projects/{project}/folder/delete', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder.post');
-    Route::post('/projects/{project}/delete', [DeliveryProjectController::class, 'destroy'])->name('projects.destroy.post');
+    // CATATAN: keyed-array middleware pada Route::resource() TIDAK per-method —
+    // Laravel menerapkan semua nilainya ke setiap route resource. Jadi begitu
+    // tiap aksi butuh izin berbeda, route-nya harus didaftarkan eksplisit.
+    // `projects/create` wajib didaftarkan sebelum `projects/{project}` agar
+    // "create" tidak tertangkap sebagai parameter {project}.
+    Route::get('/projects/create', [DeliveryProjectController::class, 'create'])->name('projects.create')->middleware('menu:delivery-project.add-new');
+    Route::post('/projects', [DeliveryProjectController::class, 'store'])->name('projects.store')->middleware('menu:delivery-project.add-new');
+    Route::delete('/projects/{project}', [DeliveryProjectController::class, 'destroy'])->name('projects.destroy')->middleware('menu:delivery-project.delete-project');
+    Route::post('/projects/{project}/delete', [DeliveryProjectController::class, 'destroy'])->name('projects.destroy.post')->middleware('menu:delivery-project.delete-project');
 
-    // Term of Payment (TOP) Plan routes
+    Route::get('/projects', [DeliveryProjectController::class, 'index'])->name('projects.index')->middleware('menu:delivery.project');
+    Route::get('/projects/{project}', [DeliveryProjectController::class, 'show'])->name('projects.show')->middleware('menu:delivery.project');
+
+    // Write endpoints per section — dipetakan ke function menu section-nya masing-masing
+    // supaya sebuah role bisa dibatasi hanya boleh mengedit section tertentu.
+    Route::middleware('menu:delivery-project.edit-general-info')->group(function () {
+        Route::patch('/projects/{project}/general-info', [DeliveryProjectController::class, 'updateGeneralInfo'])->name('projects.updateGeneralInfo');
+        Route::patch('/projects/{project}/update-field', [DeliveryProjectController::class, 'updateField'])->name('projects.updateField');
+    });
+
+    Route::middleware('menu:delivery-project.edit-location-info')->group(function () {
+        Route::patch('/projects/{project}/location-info', [DeliveryProjectController::class, 'updateLocationInfo'])->name('projects.updateLocationInfo');
+    });
+
+    Route::middleware('menu:delivery-project.manage-documents')->group(function () {
+        Route::post('/projects/{project}/generate-folder', [DeliveryProjectController::class, 'generateFolder'])->name('projects.generateFolder');
+        Route::delete('/projects/{project}/folder', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder');
+        Route::post('/projects/{project}/folder/delete', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder.post');
+    });
+
+    // Delivery Information — termasuk Term Of Payment (TOP) Plan yang tampil di
+    // dalam section yang sama pada halaman project detail.
+    Route::middleware('menu:delivery-project.edit-delivery-info')->group(function () {
+        Route::patch('/projects/{project}/delivery-info', [DeliveryProjectController::class, 'updateDeliveryInfo'])->name('projects.updateDeliveryInfo');
+        Route::patch('/projects/{project}/financial-info', [DeliveryProjectController::class, 'updateFinancialInfo'])->name('projects.updateFinancialInfo');
+
+        Route::post('/projects/{project}/payment-terms',        [DeliveryProjectPaymentTermController::class, 'store'])->name('projects.paymentTerms.store');
+        Route::put('/projects/{project}/payment-terms/{term}',  [DeliveryProjectPaymentTermController::class, 'update'])->name('projects.paymentTerms.update');
+        Route::delete('/projects/{project}/payment-terms/{term}',[DeliveryProjectPaymentTermController::class, 'destroy'])->name('projects.paymentTerms.destroy');
+        Route::post('/projects/{project}/payment-terms/{term}/delete',[DeliveryProjectPaymentTermController::class, 'destroy'])->name('projects.paymentTerms.destroy.post');
+    });
+
+    // Term of Payment (TOP) Plan — read-only
     Route::get('/projects/{project}/payment-terms',         [DeliveryProjectPaymentTermController::class, 'index'])->name('projects.paymentTerms.index');
-    Route::post('/projects/{project}/payment-terms',        [DeliveryProjectPaymentTermController::class, 'store'])->name('projects.paymentTerms.store');
-    Route::put('/projects/{project}/payment-terms/{term}',  [DeliveryProjectPaymentTermController::class, 'update'])->name('projects.paymentTerms.update');
-    Route::delete('/projects/{project}/payment-terms/{term}',[DeliveryProjectPaymentTermController::class, 'destroy'])->name('projects.paymentTerms.destroy');
-    Route::post('/projects/{project}/payment-terms/{term}/delete',[DeliveryProjectPaymentTermController::class, 'destroy'])->name('projects.paymentTerms.destroy.post');
 
     // Risk Register routes
     Route::get('/projects/{project}/risks',          [DeliveryProjectRiskController::class, 'index'])->name('projects.risks.index');
-    Route::post('/projects/{project}/risks',         [DeliveryProjectRiskController::class, 'store'])->name('projects.risks.store');
-    Route::put('/projects/{project}/risks/{risk}',   [DeliveryProjectRiskController::class, 'update'])->name('projects.risks.update');
-    Route::delete('/projects/{project}/risks/{risk}',[DeliveryProjectRiskController::class, 'destroy'])->name('projects.risks.destroy');
-    Route::post('/projects/{project}/risks/{risk}/delete',[DeliveryProjectRiskController::class, 'destroy'])->name('projects.risks.destroy.post');
+    Route::middleware('menu:delivery-project.manage-risk')->group(function () {
+        Route::post('/projects/{project}/risks',         [DeliveryProjectRiskController::class, 'store'])->name('projects.risks.store');
+        Route::put('/projects/{project}/risks/{risk}',   [DeliveryProjectRiskController::class, 'update'])->name('projects.risks.update');
+        Route::delete('/projects/{project}/risks/{risk}',[DeliveryProjectRiskController::class, 'destroy'])->name('projects.risks.destroy');
+        Route::post('/projects/{project}/risks/{risk}/delete',[DeliveryProjectRiskController::class, 'destroy'])->name('projects.risks.destroy.post');
+    });
 
     // Plan Cost routes
     Route::get('/projects/{project}/costs',                                      [DeliveryProjectCostController::class, 'index'])->name('projects.costs.index');
-    Route::post('/projects/{project}/costs',                                     [DeliveryProjectCostController::class, 'store'])->name('projects.costs.store');
-    Route::post('/projects/{project}/costs/init',                                [DeliveryProjectCostController::class, 'init'])->name('projects.costs.init');
-    Route::put('/projects/{project}/costs/{cost}',                               [DeliveryProjectCostController::class, 'update'])->name('projects.costs.update');
-    Route::delete('/projects/{project}/costs/{cost}',                            [DeliveryProjectCostController::class, 'destroy'])->name('projects.costs.destroy');
-    Route::post('/projects/{project}/costs/{cost}/delete',                        [DeliveryProjectCostController::class, 'destroy'])->name('projects.costs.destroy.post');
-    // Cost item (expense line-items) routes
     Route::get('/projects/{project}/costs/{cost}/items',                         [DeliveryProjectCostController::class, 'indexItems'])->name('projects.costs.items.index');
-    Route::post('/projects/{project}/costs/{cost}/items',                        [DeliveryProjectCostController::class, 'storeItem'])->name('projects.costs.items.store');
-    Route::put('/projects/{project}/costs/{cost}/items/{item}',                  [DeliveryProjectCostController::class, 'updateItem'])->name('projects.costs.items.update');
-    Route::delete('/projects/{project}/costs/{cost}/items/{item}',               [DeliveryProjectCostController::class, 'destroyItem'])->name('projects.costs.items.destroy');
-    Route::post('/projects/{project}/costs/{cost}/items/{item}/delete',           [DeliveryProjectCostController::class, 'destroyItem'])->name('projects.costs.items.destroy.post');
+    Route::middleware('menu:delivery-project.manage-plan-cost')->group(function () {
+        Route::post('/projects/{project}/costs',                                     [DeliveryProjectCostController::class, 'store'])->name('projects.costs.store');
+        Route::post('/projects/{project}/costs/init',                                [DeliveryProjectCostController::class, 'init'])->name('projects.costs.init');
+        Route::put('/projects/{project}/costs/{cost}',                               [DeliveryProjectCostController::class, 'update'])->name('projects.costs.update');
+        Route::delete('/projects/{project}/costs/{cost}',                            [DeliveryProjectCostController::class, 'destroy'])->name('projects.costs.destroy');
+        Route::post('/projects/{project}/costs/{cost}/delete',                        [DeliveryProjectCostController::class, 'destroy'])->name('projects.costs.destroy.post');
+        // Cost item (expense line-items) routes
+        Route::post('/projects/{project}/costs/{cost}/items',                        [DeliveryProjectCostController::class, 'storeItem'])->name('projects.costs.items.store');
+        Route::put('/projects/{project}/costs/{cost}/items/{item}',                  [DeliveryProjectCostController::class, 'updateItem'])->name('projects.costs.items.update');
+        Route::delete('/projects/{project}/costs/{cost}/items/{item}',               [DeliveryProjectCostController::class, 'destroyItem'])->name('projects.costs.items.destroy');
+        Route::post('/projects/{project}/costs/{cost}/items/{item}/delete',           [DeliveryProjectCostController::class, 'destroyItem'])->name('projects.costs.items.destroy.post');
+    });
 
     // Document management routes
-    Route::post('/projects/{project}/documents', [DeliveryProjectController::class, 'storeDocument'])->name('project.documents.store');
-    Route::post('/projects/{project}/documents/upload', [DeliveryProjectController::class, 'uploadDocument'])->name('project.documents.upload');
-    Route::post('/projects/{project}/documents/create-upload-session', [DeliveryProjectController::class, 'createDocumentUploadSession'])->name('project.documents.create-upload-session');
-    Route::post('/projects/{project}/documents/finalize-upload', [DeliveryProjectController::class, 'finalizeDocumentUpload'])->name('project.documents.finalize-upload');
-    Route::patch('/project/documents/{document}', [DeliveryProjectController::class, 'updateDocument'])->name('project.documents.update');
-    Route::delete('/project/documents/{document}', [DeliveryProjectController::class, 'destroyDocument'])->name('project.documents.destroy');
-    Route::post('/project/documents/{document}/delete', [DeliveryProjectController::class, 'destroyDocument'])->name('project.documents.destroy.post');
+    Route::middleware('menu:delivery-project.manage-documents')->group(function () {
+        Route::post('/projects/{project}/documents', [DeliveryProjectController::class, 'storeDocument'])->name('project.documents.store');
+        Route::post('/projects/{project}/documents/upload', [DeliveryProjectController::class, 'uploadDocument'])->name('project.documents.upload');
+        Route::post('/projects/{project}/documents/create-upload-session', [DeliveryProjectController::class, 'createDocumentUploadSession'])->name('project.documents.create-upload-session');
+        Route::post('/projects/{project}/documents/finalize-upload', [DeliveryProjectController::class, 'finalizeDocumentUpload'])->name('project.documents.finalize-upload');
+        Route::patch('/project/documents/{document}', [DeliveryProjectController::class, 'updateDocument'])->name('project.documents.update');
+        Route::delete('/project/documents/{document}', [DeliveryProjectController::class, 'destroyDocument'])->name('project.documents.destroy');
+        Route::post('/project/documents/{document}/delete', [DeliveryProjectController::class, 'destroyDocument'])->name('project.documents.destroy.post');
+    });
 
     // Team member management routes
     Route::get('/projects/{project}/team-members', [DeliveryProjectController::class, 'getTeamMembers'])->name('projects.team.index');
-    Route::post('/projects/{project}/team-members', [DeliveryProjectController::class, 'storeTeamMember'])->name('projects.team.store');
-    Route::put('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'updateTeamMember'])->name('projects.team.update');
-    Route::delete('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy');
-    Route::post('/projects/{project}/team-members/{employee}/delete', [DeliveryProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy.post');
+    Route::middleware('menu:delivery-project.manage-team')->group(function () {
+        Route::post('/projects/{project}/team-members', [DeliveryProjectController::class, 'storeTeamMember'])->name('projects.team.store');
+        Route::put('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'updateTeamMember'])->name('projects.team.update');
+        Route::delete('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy');
+        Route::post('/projects/{project}/team-members/{employee}/delete', [DeliveryProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy.post');
+    });
 
     // Project updates/issues routes
-    Route::post('/projects/{project}/updates', [DeliveryProjectUpdateController::class, 'store'])->name('project.updates.store');
-    Route::patch('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'update'])->name('project.updates.update');
-    Route::delete('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'destroy'])->name('project.updates.destroy');
-    Route::post('/project-updates/{project_update}/delete', [DeliveryProjectUpdateController::class, 'destroy'])->name('project.updates.destroy.post');
     Route::get('/project-updates/{project_update}/edit', [DeliveryProjectUpdateController::class, 'edit'])->name('project.updates.edit');
+    Route::middleware('menu:delivery-project.manage-issue-log')->group(function () {
+        Route::post('/projects/{project}/updates', [DeliveryProjectUpdateController::class, 'store'])->name('project.updates.store');
+        Route::patch('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'update'])->name('project.updates.update');
+        Route::delete('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'destroy'])->name('project.updates.destroy');
+        Route::post('/project-updates/{project_update}/delete', [DeliveryProjectUpdateController::class, 'destroy'])->name('project.updates.destroy.post');
+    });
 
     // API routes for regions/cities
     Route::get('/api/regions', [DeliveryProjectController::class, 'getRegions'])->name('api.regions');
@@ -297,10 +334,12 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // Project Issue Log routes (AJAX CRUD on the project detail page)
     Route::get('/projects/{project}/issues',           [DeliveryProjectIssueController::class, 'apiIndex'])->name('projects.issues.index');
-    Route::post('/projects/{project}/issues',          [DeliveryProjectIssueController::class, 'store'])->name('projects.issues.store');
-    Route::put('/projects/{project}/issues/{issue}',   [DeliveryProjectIssueController::class, 'update'])->name('projects.issues.update');
-    Route::delete('/projects/{project}/issues/{issue}',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy');
-    Route::post('/projects/{project}/issues/{issue}/delete',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy.post');
+    Route::middleware('menu:delivery-project.manage-issue-log')->group(function () {
+        Route::post('/projects/{project}/issues',          [DeliveryProjectIssueController::class, 'store'])->name('projects.issues.store');
+        Route::put('/projects/{project}/issues/{issue}',   [DeliveryProjectIssueController::class, 'update'])->name('projects.issues.update');
+        Route::delete('/projects/{project}/issues/{issue}',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy');
+        Route::post('/projects/{project}/issues/{issue}/delete',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy.post');
+    });
 
     // Profile routes
     Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index')->middleware('menu:tickets.staging');
@@ -330,48 +369,57 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/scurve', [DeliveryProjectPlanningController::class, 'scurve'])->name('scurve');
         Route::get('/phases-list', [DeliveryProjectPlanningController::class, 'getPhases'])->name('phases-list');
 
-        // Phase Management
+        // Phase Management — baca terbuka, tulis butuh izin Manage Planning
         Route::prefix('phases')->name('phases.')->group(function () {
             Route::get('/', [DeliveryDynamicPhaseController::class, 'index'])->name('index');
-            Route::post('/create-custom', [DeliveryDynamicPhaseController::class, 'createCustomPhase'])->name('create');
-            Route::post('/add', [DeliveryDynamicPhaseController::class, 'addPhase'])->name('add');
-            Route::put('/{phase}', [DeliveryDynamicPhaseController::class, 'updatePhase'])->name('update');
-            Route::delete('/{phase}', [DeliveryDynamicPhaseController::class, 'removePhase'])->name('remove');
-            Route::post('/{phase}/delete', [DeliveryDynamicPhaseController::class, 'removePhase'])->name('remove.post');
-            Route::post('/reorder', [DeliveryDynamicPhaseController::class, 'reorderPhases'])->name('reorder');
-            Route::post('/{phase}/toggle', [DeliveryDynamicPhaseController::class, 'togglePhaseVisibility'])->name('toggle');
+
+            Route::middleware('menu:delivery-project.manage-planning')->group(function () {
+                Route::post('/create-custom', [DeliveryDynamicPhaseController::class, 'createCustomPhase'])->name('create');
+                Route::post('/add', [DeliveryDynamicPhaseController::class, 'addPhase'])->name('add');
+                Route::put('/{phase}', [DeliveryDynamicPhaseController::class, 'updatePhase'])->name('update');
+                Route::delete('/{phase}', [DeliveryDynamicPhaseController::class, 'removePhase'])->name('remove');
+                Route::post('/{phase}/delete', [DeliveryDynamicPhaseController::class, 'removePhase'])->name('remove.post');
+                Route::post('/reorder', [DeliveryDynamicPhaseController::class, 'reorderPhases'])->name('reorder');
+                Route::post('/{phase}/toggle', [DeliveryDynamicPhaseController::class, 'togglePhaseVisibility'])->name('toggle');
+            });
         });
 
         // View configuration
-        Route::post('/view-config', [DeliveryDynamicPhaseController::class, 'updateViewConfig'])->name('view-config');
+        Route::post('/view-config', [DeliveryDynamicPhaseController::class, 'updateViewConfig'])->name('view-config')->middleware('menu:delivery-project.manage-planning');
 
         // Phase weight info
         Route::get('/phases/{phaseId}/weight-info', [ActivityManagementController::class, 'getPhaseWeightInfo'])->name('phases.weight-info');
 
         // Activity Management
         Route::prefix('activities')->name('activities.')->group(function () {
-            Route::post('/', [ActivityManagementController::class, 'store'])->name('store');
             Route::get('/{activity}', [ActivityManagementController::class, 'show'])->name('show');
-            Route::put('/{activity}', [ActivityManagementController::class, 'update'])->name('update');
-            Route::delete('/{activity}', [ActivityManagementController::class, 'destroy'])->name('destroy');
-            Route::post('/{activity}/delete', [ActivityManagementController::class, 'destroy'])->name('destroy.post');
-
-            // Activity Member Assignment
             Route::get('/{activity}/members', [ActivityManagementController::class, 'getAssignedMembers'])->name('members.index');
-            Route::post('/{activity}/members', [ActivityManagementController::class, 'assignMember'])->name('members.store');
-            Route::put('/{activity}/members/{employee}', [ActivityManagementController::class, 'updateAssignedMember'])->name('members.update');
-            Route::delete('/{activity}/members/{employee}', [ActivityManagementController::class, 'unassignMember'])->name('members.destroy');
-            Route::post('/{activity}/members/{employee}/delete', [ActivityManagementController::class, 'unassignMember'])->name('members.destroy.post');
+
+            Route::middleware('menu:delivery-project.manage-planning')->group(function () {
+                Route::post('/', [ActivityManagementController::class, 'store'])->name('store');
+                Route::put('/{activity}', [ActivityManagementController::class, 'update'])->name('update');
+                Route::delete('/{activity}', [ActivityManagementController::class, 'destroy'])->name('destroy');
+                Route::post('/{activity}/delete', [ActivityManagementController::class, 'destroy'])->name('destroy.post');
+
+                // Activity Member Assignment
+                Route::post('/{activity}/members', [ActivityManagementController::class, 'assignMember'])->name('members.store');
+                Route::put('/{activity}/members/{employee}', [ActivityManagementController::class, 'updateAssignedMember'])->name('members.update');
+                Route::delete('/{activity}/members/{employee}', [ActivityManagementController::class, 'unassignMember'])->name('members.destroy');
+                Route::post('/{activity}/members/{employee}/delete', [ActivityManagementController::class, 'unassignMember'])->name('members.destroy.post');
+            });
         });
 
         // Stage Management
         Route::prefix('stages')->name('stages.')->group(function () {
-            Route::post('/', [DeliveryProjectStageManagementController::class, 'store'])->name('store');
             Route::get('/{stage}', [DeliveryProjectStageManagementController::class, 'show'])->name('show');
-            Route::put('/{stage}', [DeliveryProjectStageManagementController::class, 'update'])->name('update');
-            Route::delete('/{stage}', [DeliveryProjectStageManagementController::class, 'destroy'])->name('destroy');
-            Route::post('/{stage}/delete', [DeliveryProjectStageManagementController::class, 'destroy'])->name('destroy.post');
-            Route::post('/{stage}/reorder', [DeliveryProjectStageManagementController::class, 'reorder'])->name('reorder');
+
+            Route::middleware('menu:delivery-project.manage-planning')->group(function () {
+                Route::post('/', [DeliveryProjectStageManagementController::class, 'store'])->name('store');
+                Route::put('/{stage}', [DeliveryProjectStageManagementController::class, 'update'])->name('update');
+                Route::delete('/{stage}', [DeliveryProjectStageManagementController::class, 'destroy'])->name('destroy');
+                Route::post('/{stage}/delete', [DeliveryProjectStageManagementController::class, 'destroy'])->name('destroy.post');
+                Route::post('/{stage}/reorder', [DeliveryProjectStageManagementController::class, 'reorder'])->name('reorder');
+            });
         });
 
         // Data endpoints
@@ -397,7 +445,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         // Import routes (bulk migration of the planning structure from CSV)
         Route::prefix('import')->name('import.')->group(function () {
             Route::get('/template', [DeliveryProjectPlanningImportController::class, 'template'])->name('template');
-            Route::post('/', [DeliveryProjectPlanningImportController::class, 'import'])->name('store');
+            Route::post('/', [DeliveryProjectPlanningImportController::class, 'import'])->name('store')->middleware('menu:delivery-project.manage-planning');
         });
     });
 
