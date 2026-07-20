@@ -821,6 +821,9 @@ class ReportingController extends Controller
                     'invoice_number'      => $t->invoice_number,
                     'paid_date'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('d M Y') : null,
                     'project_revenue'     => (float) $t->project_revenue,
+                    // Bentuk ISO dipakai form edit status di modal detail.
+                    'submit_invoice_date_iso' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('Y-m-d') : null,
+                    'paid_date_iso'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('Y-m-d') : null,
                 ];
             }
 
@@ -839,6 +842,71 @@ class ReportingController extends Controller
         } catch (\Exception $e) {
             Log::error('collectionOutlook error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to load collection outlook data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Collection Outlook — ubah status penagihan sebuah TOP ────────
+    //
+    // Hanya menyentuh field pelunasan (status, paid date, submit invoice date,
+    // invoice number). Nominal/percentage tetap dikelola dari Delivery Info
+    // project agar total termin tidak bisa melampaui revenue lewat jalur ini.
+    // Otorisasi ditangani middleware `menu:reporting.collection-outlook.edit`.
+
+    public function collectionOutlookUpdateTerm(Request $request, $term)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $paymentTerm = \App\Models\DeliveryProjectPaymentTerm::find($term);
+            if (!$paymentTerm) {
+                return response()->json(['success' => false, 'message' => 'Payment term not found.'], 404);
+            }
+
+            $validated = $request->validate([
+                'status'              => 'required|string|in:Open,Paid,Delay',
+                // Konsisten dengan TOP Plan di Delivery Info: Paid wajib punya tanggal.
+                'paid_date'           => 'nullable|required_if:status,Paid|date',
+                'submit_invoice_date' => 'nullable|date',
+                'invoice_number'      => 'nullable|required_with:submit_invoice_date|string|max:255',
+            ], [
+                'paid_date.required_if'        => 'Paid Date is required when Status is Paid.',
+                'invoice_number.required_with' => 'Invoice Number is required when Submit Invoice Date is filled.',
+            ]);
+
+            // Status non-Paid tidak boleh menyisakan paid_date yatim.
+            if ($validated['status'] !== 'Paid') {
+                $validated['paid_date'] = null;
+            }
+
+            $paymentTerm->update($validated);
+
+            // Tanggal invoice berubah → reminder penagihan harus dievaluasi ulang.
+            app(\App\Services\ProjectReminderService::class)->syncAllQuietly();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment status updated successfully.',
+                'term'    => [
+                    'term_id'             => $paymentTerm->id,
+                    'status'              => $paymentTerm->status,
+                    'paid_date'           => $paymentTerm->paid_date?->format('d M Y'),
+                    'submit_invoice_date' => $paymentTerm->submit_invoice_date?->format('d M Y'),
+                    'invoice_number'      => $paymentTerm->invoice_number,
+                ],
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first() ?? 'Invalid data.',
+                'errors'  => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('collectionOutlookUpdateTerm error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to update payment status. Please try again.'], 500);
         }
     }
 

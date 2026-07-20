@@ -164,8 +164,8 @@
                 </dl>
             </div>
 
-            {{-- Invoice detail --}}
-            <div>
+            {{-- Invoice detail (read view) --}}
+            <div id="coDetailView">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Invoice Information</p>
                 <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-4 text-sm">
                     <div><dt class="text-xs text-gray-400">Estimated Date</dt><dd id="coDetEst" class="text-gray-800 font-medium">—</dd></div>
@@ -174,11 +174,58 @@
                     <div><dt class="text-xs text-gray-400">Paid Date</dt><dd id="coDetPaid" class="text-gray-800 font-medium">—</dd></div>
                 </dl>
             </div>
+
+            @if($can('reporting.collection-outlook.edit'))
+            {{-- Invoice detail (edit form) — hanya untuk role dengan izin
+                 "Edit Payment Status" pada Menu Access. Nominal & percentage
+                 sengaja tidak ada di sini; itu tetap dikelola dari Delivery
+                 Information project agar total termin terjaga ≤ revenue. --}}
+            <form id="coEditForm" class="hidden" onsubmit="event.preventDefault(); saveCoStatus();">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Edit Payment Status</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-4 text-sm">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Status</label>
+                        <select id="coEditStatus" class="co-select w-full" onchange="toggleCoPaidDate()">
+                            <option value="Open">Open</option>
+                            <option value="Paid">Paid</option>
+                            <option value="Delay">Delay</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Paid Date <span id="coPaidReq" class="hidden text-red-500">*</span></label>
+                        <input type="date" id="coEditPaidDate" class="co-select w-full">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Submit Invoice Date</label>
+                        <input type="date" id="coEditSubmitDate" class="co-select w-full" onchange="toggleCoInvoiceRequired()">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Invoice Number <span id="coInvReq" class="hidden text-red-500">*</span></label>
+                        <input type="text" id="coEditInvNo" class="co-select w-full" placeholder="e.g. INV/2026/001">
+                    </div>
+                </div>
+                <p id="coEditError" class="hidden mt-3 text-xs text-red-600"></p>
+            </form>
+            @endif
         </div>
 
         {{-- Modal footer --}}
-        <div class="px-6 py-3 border-t border-gray-100 flex justify-end">
-            <button onclick="closeCoDetail()" class="px-4 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Close</button>
+        <div class="px-6 py-3 border-t border-gray-100 flex justify-end gap-2">
+            @if($can('reporting.collection-outlook.edit'))
+            <button type="button" id="coEditBtn" onclick="startCoEdit()"
+                    class="px-4 py-2 text-sm font-semibold text-white primary-bg rounded-lg hover:opacity-90 transition-opacity">
+                <i class="fas fa-pen text-xs mr-1"></i> Edit Status
+            </button>
+            <button type="button" id="coCancelEditBtn" onclick="cancelCoEdit()"
+                    class="hidden px-4 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                Cancel
+            </button>
+            <button type="button" id="coSaveBtn" onclick="saveCoStatus()"
+                    class="hidden px-4 py-2 text-sm font-semibold text-white primary-bg rounded-lg hover:opacity-90 transition-opacity">
+                Save Changes
+            </button>
+            @endif
+            <button type="button" id="coCloseBtn" onclick="closeCoDetail()" class="px-4 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Close</button>
         </div>
     </div>
 </div>
@@ -248,8 +295,10 @@ body.co-resizing { cursor: col-resize !important; user-select: none !important; 
 @push('scripts')
 <script>
 const CO_MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-let coRows   = [];
-let coMonths = [];
+const CO_CAN_EDIT  = @json($can('reporting.collection-outlook.edit'));
+let coRows      = [];
+let coMonths    = [];
+let coActiveRow = null;   // baris TOP yang sedang dibuka di modal detail
 
 document.addEventListener('DOMContentLoaded', function () {
     // Default range: January to December of the current year
@@ -422,6 +471,9 @@ function openCoDetail(termId) {
     const r = coRows.find(x => x.term_id === termId);
     if (!r) return;
 
+    coActiveRow = r;
+    if (CO_CAN_EDIT) cancelCoEdit();   // selalu buka dalam mode baca
+
     document.getElementById('coModalTitle').textContent = r.project_name || '—';
     document.getElementById('coModalSub').textContent   = `TOP #${r.term_number} · ${r.payment_term || '-'}`;
 
@@ -453,6 +505,125 @@ function openCoDetail(termId) {
 function closeCoDetail() {
     document.getElementById('coDetailModal').classList.add('hidden');
     document.body.style.overflow = '';
+    coActiveRow = null;
+}
+
+// ── Edit payment status (izin: reporting.collection-outlook.edit) ─────────────
+// Hanya field pelunasan yang bisa diubah di sini. Nominal/percentage tetap milik
+// Delivery Information project supaya total termin tidak bisa melampaui revenue.
+
+function startCoEdit() {
+    if (!coActiveRow) return;
+
+    document.getElementById('coEditStatus').value     = coActiveRow.status || 'Open';
+    document.getElementById('coEditPaidDate').value   = coActiveRow.paid_date_iso || '';
+    document.getElementById('coEditSubmitDate').value = coActiveRow.submit_invoice_date_iso || '';
+    document.getElementById('coEditInvNo').value      = coActiveRow.invoice_number || '';
+    hideCoError();
+    toggleCoPaidDate();
+    toggleCoInvoiceRequired();
+
+    document.getElementById('coDetailView').classList.add('hidden');
+    document.getElementById('coEditForm').classList.remove('hidden');
+    document.getElementById('coEditBtn').classList.add('hidden');
+    document.getElementById('coCancelEditBtn').classList.remove('hidden');
+    document.getElementById('coSaveBtn').classList.remove('hidden');
+}
+
+function cancelCoEdit() {
+    const form = document.getElementById('coEditForm');
+    if (!form) return;
+    hideCoError();
+    document.getElementById('coDetailView').classList.remove('hidden');
+    form.classList.add('hidden');
+    document.getElementById('coEditBtn').classList.remove('hidden');
+    document.getElementById('coCancelEditBtn').classList.add('hidden');
+    document.getElementById('coSaveBtn').classList.add('hidden');
+}
+
+// Paid Date wajib saat status Paid — cerminan aturan TOP Plan di Delivery Info.
+function toggleCoPaidDate() {
+    const isPaid = document.getElementById('coEditStatus').value === 'Paid';
+    document.getElementById('coPaidReq').classList.toggle('hidden', !isPaid);
+    document.getElementById('coEditPaidDate').required = isPaid;
+}
+
+// Invoice Number wajib saat Submit Invoice Date terisi.
+function toggleCoInvoiceRequired() {
+    const filled = !!document.getElementById('coEditSubmitDate').value;
+    document.getElementById('coInvReq').classList.toggle('hidden', !filled);
+    document.getElementById('coEditInvNo').required = filled;
+}
+
+function showCoError(msg) {
+    const el = document.getElementById('coEditError');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+}
+
+function hideCoError() {
+    const el = document.getElementById('coEditError');
+    if (el) el.classList.add('hidden');
+}
+
+async function saveCoStatus() {
+    if (!coActiveRow) return;
+
+    const status     = document.getElementById('coEditStatus').value;
+    const paidDate   = document.getElementById('coEditPaidDate').value;
+    const submitDate = document.getElementById('coEditSubmitDate').value;
+    const invNo      = document.getElementById('coEditInvNo').value.trim();
+
+    if (status === 'Paid' && !paidDate) {
+        showCoError('Paid Date is required when Status is Paid.');
+        return;
+    }
+    if (submitDate && !invNo) {
+        showCoError('Invoice Number is required when Submit Invoice Date is filled.');
+        return;
+    }
+
+    const btn = document.getElementById('coSaveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+        const res = await fetch(`/api/reporting/collection-outlook/terms/${coActiveRow.term_id}`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                status:              status,
+                paid_date:           paidDate || null,
+                submit_invoice_date: submitDate || null,
+                invoice_number:      invNo || null,
+            }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Failed to save.');
+
+        // Perbarui baris di memori lalu render ulang matrix + stats, supaya
+        // pewarnaan hijau/kuning dan total Paid/Unpaid langsung ikut berubah.
+        Object.assign(coActiveRow, {
+            status:                  json.term.status,
+            paid_date:               json.term.paid_date,
+            paid_date_iso:           paidDate || null,
+            submit_invoice_date:     json.term.submit_invoice_date,
+            submit_invoice_date_iso: submitDate || null,
+            invoice_number:          json.term.invoice_number,
+        });
+        renderOutlook();
+        openCoDetail(coActiveRow.term_id);
+    } catch (e) {
+        showCoError(e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+    }
 }
 
 document.addEventListener('keydown', function (e) {
