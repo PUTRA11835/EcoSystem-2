@@ -149,6 +149,106 @@ class SlaService
         return $cursor;
     }
 
+    /**
+     * Add a duration of SLA response hours to a starting timestamp, counting only
+     * minutes that fall inside the policy's working window (skipping breaks, non-working
+     * days/holidays, and out-of-window time) — mirrors resolveSlaStartAt's working-hours
+     * rules so "Response Due On" stays consistent with "Start SLA Response".
+     *
+     * No policy, a 24/7 policy, or a policy without a configured work window → plain
+     * calendar addHours (same fallback used elsewhere for these cases).
+     */
+    private function addWorkingHours(Carbon $from, float $hours, ?SlaPolicy $policy): Carbon
+    {
+        if ($hours <= 0) {
+            return $from->copy();
+        }
+
+        if (!$policy || $policy->is_24_hours || !$policy->work_start_time || !$policy->work_end_time) {
+            return $from->copy()->addHours($hours);
+        }
+
+        [$startH, $startM] = array_map('intval', explode(':', $policy->work_start_time));
+        [$endH, $endM]     = array_map('intval', explode(':', $policy->work_end_time));
+
+        $hasBreak = $policy->break_start_time && $policy->break_end_time;
+        if ($hasBreak) {
+            [$brkStartH, $brkStartM] = array_map('intval', explode(':', $policy->break_start_time));
+            [$brkEndH, $brkEndM]     = array_map('intval', explode(':', $policy->break_end_time));
+        }
+
+        $remainingMinutes = (int) round($hours * 60);
+        $cursor           = $from->copy();
+
+        for ($i = 0; $i < 400 && $remainingMinutes > 0; $i++) {
+            if ($this->holidays->isNonWorkingDay($cursor)) {
+                $cursor = $cursor->copy()->addDay()->setTime($startH, $startM, 0);
+                continue;
+            }
+
+            $dayStart = $cursor->copy()->setTime($startH, $startM, 0);
+            $dayEnd   = $cursor->copy()->setTime($endH, $endM, 0);
+
+            if ($cursor->lt($dayStart)) {
+                $cursor = $dayStart;
+            }
+            if ($cursor->gte($dayEnd)) {
+                $cursor = $cursor->copy()->addDay()->setTime($startH, $startM, 0);
+                continue;
+            }
+
+            if ($hasBreak) {
+                $breakStart = $cursor->copy()->setTime($brkStartH, $brkStartM, 0);
+                $breakEnd   = $cursor->copy()->setTime($brkEndH, $brkEndM, 0);
+                if ($cursor->gte($breakStart) && $cursor->lt($breakEnd)) {
+                    $cursor = $breakEnd;
+                    continue;
+                }
+            }
+
+            // Usable segment today runs from $cursor to the next break start (if any) or day end
+            $segmentEnd = $dayEnd;
+            if ($hasBreak) {
+                $breakStart = $cursor->copy()->setTime($brkStartH, $brkStartM, 0);
+                if ($breakStart->gt($cursor) && $breakStart->lt($segmentEnd)) {
+                    $segmentEnd = $breakStart;
+                }
+            }
+
+            $availableMinutes = $cursor->diffInMinutes($segmentEnd);
+
+            if ($remainingMinutes <= $availableMinutes) {
+                return $cursor->copy()->addMinutes($remainingMinutes);
+            }
+
+            $remainingMinutes -= $availableMinutes;
+            $cursor = $segmentEnd;
+        }
+
+        Log::warning('SlaService@addWorkingHours: exceeded rollover safety bound', [
+            'from'      => $from->toDateTimeString(),
+            'hours'     => $hours,
+            'policy_id' => $policy->id,
+        ]);
+
+        return $cursor;
+    }
+
+    /**
+     * Response-due timestamp for display, computed live from sla_start_at + the currently
+     * attached policy's response_hours (working-hours-aware). Always reflects the policy's
+     * current configuration rather than whatever was frozen into the stored response_due_at
+     * column at attach/sync time.
+     */
+    public function responseDueAt(TicketSla $sla): ?Carbon
+    {
+        if (!$sla->sla_start_at || !$sla->policy) {
+            return null;
+        }
+
+        return $this->addWorkingHours($sla->sla_start_at, (float) $sla->policy->response_hours, $sla->policy);
+    }
+
     // ── 2. attachToStaging ───────────────────────────────────────────────────
 
     /**
@@ -289,7 +389,7 @@ class SlaService
                 'sla_policy_id'             => $policy?->id,
                 'sla_mode'                  => 'full',
                 'sla_start_at'              => $slaStartAt,
-                'response_due_at'           => $policy ? $slaStartAt->copy()->addHours((float) $policy->response_hours) : null,
+                'response_due_at'           => $policy ? $this->addWorkingHours($slaStartAt, (float) $policy->response_hours, $policy) : null,
                 'resolution_due_at'         => $policy ? $respondedAt->copy()->addHours((float) $policy->resolution_hours) : null,
                 'first_responded_at'        => $respondedAt,
                 'validation_duration_hours' => $validationHours,
@@ -312,7 +412,7 @@ class SlaService
                 'sla_policy_id'             => $policy?->id,
                 'sla_mode'                  => 'full',
                 'sla_start_at'              => $slaStartAt,
-                'response_due_at'           => $policy ? $slaStartAt->copy()->addHours((float) $policy->response_hours) : null,
+                'response_due_at'           => $policy ? $this->addWorkingHours($slaStartAt, (float) $policy->response_hours, $policy) : null,
                 'resolution_due_at'         => $policy ? $respondedAt->copy()->addHours((float) $policy->resolution_hours) : null,
                 'first_responded_at'        => $respondedAt,
                 'validation_duration_hours' => $validationHours,
@@ -421,7 +521,7 @@ class SlaService
         $sla->update([
             'sla_policy_id'             => $policy->id,
             'sla_start_at'              => $slaStartAt,
-            'response_due_at'           => $slaStartAt->copy()->addHours((float) $policy->response_hours),
+            'response_due_at'           => $this->addWorkingHours($slaStartAt, (float) $policy->response_hours, $policy),
             'resolution_due_at'         => $respondedAt->copy()->addHours((float) $policy->resolution_hours),
             'validation_duration_hours' => $validationHours,
             'response_status'           => $responseStatus,

@@ -117,7 +117,7 @@
             </div>
             <div class="sub">
                 Target: {{ $policy ? $policy->response_hours : '—' }} hrs &bull;
-                Deadline: {{ $sla->response_due_at?->format('d M Y H:i') ?? '—' }}<br>
+                Deadline: {{ $responseDueAt?->format('d M Y H:i') ?? '—' }}<br>
                 Status: <strong>{{ strtoupper($sla->response_status) }}</strong>
             </div>
         </div>

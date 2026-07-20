@@ -598,16 +598,17 @@ class SlaController extends Controller
             'customer.basicData',
         ])->findOrFail($id);
 
-        $sla    = $ticket->sla;
-        $policy = $sla?->policy;
-        $pauses = $sla?->pauses ?? collect();
+        $sla           = $ticket->sla;
+        $policy        = $sla?->policy;
+        $pauses        = $sla?->pauses ?? collect();
+        $responseDueAt = $sla ? $this->sla->responseDueAt($sla) : null;
 
         $events = $sla ? $this->buildSlaEventLog($sla, $ticket->ticket_id, $ticket->status) : collect();
 
         $docNumber = 'ECL/SLA/' . $ticket->ticket_number . '/' . now()->format('Ym');
 
         $pdf = Pdf::loadView('admin.sla.log-pdf', compact(
-            'ticket', 'sla', 'policy', 'events', 'pauses', 'docNumber'
+            'ticket', 'sla', 'policy', 'events', 'pauses', 'docNumber', 'responseDueAt'
         ));
         $pdf->setPaper('A4', 'landscape');
 
@@ -627,12 +628,13 @@ class SlaController extends Controller
             'customer.basicData',
         ])->findOrFail($id);
 
-        $sla    = $ticket->sla;
-        $policy = $sla?->policy;
-        $events = $sla?->events ?? collect();
-        $pauses = $sla?->pauses ?? collect();
+        $sla           = $ticket->sla;
+        $policy        = $sla?->policy;
+        $events        = $sla?->events ?? collect();
+        $pauses        = $sla?->pauses ?? collect();
+        $responseDueAt = $sla ? $this->sla->responseDueAt($sla) : null;
 
-        $pdf = Pdf::loadView('admin.sla.ticket-pdf', compact('ticket', 'sla', 'policy', 'events', 'pauses'));
+        $pdf = Pdf::loadView('admin.sla.ticket-pdf', compact('ticket', 'sla', 'policy', 'events', 'pauses', 'responseDueAt'));
         $pdf->setPaper('A4', 'portrait');
 
         return $pdf->download('SLA-Ticket-' . $ticket->ticket_number . '.pdf');
@@ -977,7 +979,7 @@ class SlaController extends Controller
                 'actual_hours'  => $responseActualHours,
                 'target_hours'  => $responseTargetHours,
                 'target_days'   => $toWorkingDays($responseTargetHours),
-                'due_at'        => $s->response_due_at?->toDateTimeString(),
+                'due_at'        => $this->sla->responseDueAt($s)?->toDateTimeString(),
                 'responded_at'  => $s->first_responded_at?->toDateTimeString(),
                 'met'           => $responseStatus === 'met',
             ],

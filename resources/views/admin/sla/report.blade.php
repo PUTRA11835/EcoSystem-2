@@ -225,7 +225,7 @@
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time<br>Received</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time Start<br>SLA Response<br><span class="text-[8px] font-normal normal-case">(Working Hours 08:00–17:00)</span></th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:70px">SLA<br>Response<br>Time</th>
-                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">SLA Due On</th>
+                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Response Due On</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time<br>Responded</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:50px">X</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:80px">Response<br>Duration</th>
