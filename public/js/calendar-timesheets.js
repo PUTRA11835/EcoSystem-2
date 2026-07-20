@@ -6,6 +6,7 @@ let deleteTimesheetId = null;
 let myTicketsCache = []; // cache for support ticket auto-fill
 let _pendingTicketPreselect   = null; // ticket_id to preselect when edit opens support modal
 let _pendingActivityPreselect = null; // activity_id to preselect when edit opens project modal
+let _currentTicketRemainingMd = null; // remaining MD for the currently-selected support ticket (null = no quota tracked)
 
 const TH = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200';
 
@@ -169,6 +170,18 @@ async function loadTsPeriodBadge() {
         const label  = document.getElementById('tsBadgeLabel');
         const status = document.getElementById('tsBadgeStatus');
         if (!badge) return;
+
+        // No period is globally open at all (RPMO hasn't opened one yet) — distinct
+        // from "open" and "closed", so it must not silently render as either.
+        if (p.status === 'not_open' || !p.month) {
+            label.textContent  = 'No active period';
+            status.textContent = '';
+            status.className   = 'font-semibold text-gray-500';
+            badge.classList.remove('hidden');
+            badge.classList.add('flex');
+            return;
+        }
+
         label.textContent  = `${MONTHS[p.month - 1]} ${p.year}`;
         status.textContent = p.is_closed ? '(Closed)' : '(Open)';
         status.className   = p.is_closed ? 'font-semibold text-red-500' : 'font-semibold text-green-500';
@@ -850,7 +863,10 @@ async function loadTicketsForDropdown() {
     const panel  = dd?.querySelector('.custom-dd-panel') || dd?._ddPanel;
 
     try {
-        const response = await fetch('/api/tickets/my', {
+        // Keep the currently-edited ticket selectable even if its remaining MD is now 0
+        // (its own consumption is part of that 0) — the endpoint always includes it.
+        const includeParam = _pendingTicketPreselect ? `?include_ticket_id=${encodeURIComponent(_pendingTicketPreselect)}` : '';
+        const response = await fetch(`/api/tickets/my-for-timesheet${includeParam}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -873,7 +889,7 @@ async function loadTicketsForDropdown() {
 
                 let itemsHtml;
                 if (allTickets.length === 0) {
-                    itemsHtml = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No tickets assigned to you</button>';
+                    itemsHtml = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No tickets with remaining MD quota</button>';
                 } else {
                     itemsHtml = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select a Ticket</button>';
                     allTickets.forEach(ticket => {
@@ -933,6 +949,7 @@ async function onSupportTicketSelected() {
     setText(jatahMdEl,   '—');
     setText(remainingEl, '—');
     if (remainingEl) remainingEl.className = 'text-xs font-bold text-gray-700';
+    _currentTicketRemainingMd = null;
 
     if (!ticketId) return;
 
@@ -963,6 +980,7 @@ async function onSupportTicketSelected() {
         remainingEl.className   = rem < 0
             ? 'text-xs font-bold text-red-600'
             : 'text-xs font-bold text-green-600';
+        _currentTicketRemainingMd = rem;
     });
 }
 
@@ -2616,6 +2634,19 @@ async function handleFormSubmit(e) {
     } else if (selectedType === 'support') {
         const onSite = document.getElementById('supportOnSite')?.checked;
         const mdConsumedVal = document.getElementById('supportMdConsumed')?.value;
+
+        // Client-side fast-fail for NEW timesheets only — edit mode leaves this to the
+        // backend, since remaining shown there already includes this draft's own MD
+        // consumption and a correct client-side re-check would need to add it back.
+        if (!timesheetId?.value && _currentTicketRemainingMd !== null) {
+            const mdVal = parseFloat(mdConsumedVal || 0);
+            if (mdVal > _currentTicketRemainingMd) {
+                showNotification(`MD Consumed (${mdVal}) exceeds the remaining quota (${_currentTicketRemainingMd.toFixed(2)}) for this ticket.`, 'error');
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
+                return;
+            }
+        }
+
         timesheetData.delivery_projects_id = null;
         timesheetData.ticket_id = document.getElementById('timesheetTicket')?.value || null;
         timesheetData.activity_type = 'support';

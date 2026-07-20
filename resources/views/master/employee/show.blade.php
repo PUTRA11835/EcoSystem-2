@@ -318,7 +318,6 @@
                 setValue('manager', basicData.manager);
                 setValue('authorizationGroup', basicData.authorization_group);
                 setValue('homeBase', basicData.home_base);
-                setValue('grade', basicData.grade);
 
                 // Status
                 setCheckbox('block', basicData.block);
@@ -371,7 +370,6 @@
             manager: getValue('manager'),
             authorization_group: getValue('authorizationGroup'),
             home_base: getValue('homeBase'),
-            grade: getValue('grade'),
             block: getCheckbox('block'),
             deletion_flag: getCheckbox('deletionFlag')
         };

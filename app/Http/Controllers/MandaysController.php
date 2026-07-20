@@ -24,6 +24,18 @@ class MandaysController extends Controller
     // AUTH HELPERS
     // =========================================================================
 
+    /**
+     * Can this employee review/approve Resolution Days regardless of ticket participation?
+     * 'ticket.head-mandays' = Head of Support (also grants the ticket-detail review UI).
+     * 'ticket.approve-resolution-days' = separate slug for the Resolution Days report list
+     * (granted to Admin) — kept distinct so granting it doesn't also surface the
+     * Head-only ticket-detail sidebar sections for roles that shouldn't see those.
+     */
+    private function canReviewResolutionDays(?Employee $employee): bool
+    {
+        return (bool) ($employee?->canAccessMenu('ticket.head-mandays') || $employee?->canAccessMenu('ticket.approve-resolution-days'));
+    }
+
     /** Return 403 if session user is not a PIC or member of $ticket. Head-level permission bypasses this check. */
     private function denyUnlessParticipant(Ticket $ticket, string $msg = 'You are not a participant of this ticket.'): ?\Illuminate\Http\JsonResponse
     {
@@ -59,7 +71,7 @@ class MandaysController extends Controller
 
         $employee = Employee::find($empId);
 
-        if ($employee?->canAccessMenu('ticket.head-mandays')) return null;
+        if ($this->canReviewResolutionDays($employee)) return null;
 
         $isPic    = (int) $ticket->ticket_lead_id === (int) $empId;
         $isMember = $ticket->members()->where('ticket_member.employee_id', $empId)->exists();
@@ -145,7 +157,7 @@ class MandaysController extends Controller
 
         $request->validate([
             'details'           => 'required|array|min:1',
-            'details.*.activity'=> 'nullable|string|max:150',
+            'details.*.activity'=> 'nullable|string',
             'details.*.module'  => 'required|string|max:100',
             'details.*.mandays' => 'required|numeric|min:0',
             'description'       => 'required|string|max:255',
@@ -307,7 +319,7 @@ class MandaysController extends Controller
 
         $request->validate([
             'details'           => 'required|array|min:1',
-            'details.*.activity'=> 'nullable|string|max:150',
+            'details.*.activity'=> 'nullable|string',
             'details.*.module'  => 'required|string|max:100',
             'details.*.mandays' => 'required|numeric|min:0',
             'description'       => 'nullable|string|max:255',
@@ -886,8 +898,8 @@ class MandaysController extends Controller
     {
         $sessionUserId = session('user')['id'] ?? null;
         $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
-        if (!$employee?->canAccessMenu('ticket.head-mandays')) {
-            return response()->json(['success' => false, 'message' => 'Only Head of Support or Head of Project can approve resolution days proposals.'], 403);
+        if (!$this->canReviewResolutionDays($employee)) {
+            return response()->json(['success' => false, 'message' => 'Only Head of Support or Admin can approve resolution days proposals.'], 403);
         }
 
         $request->validate([

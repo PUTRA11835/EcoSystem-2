@@ -39,18 +39,37 @@ class ReportingController extends Controller
     public function currentPeriod()
     {
         try {
-            $current = ReportingPeriod::current();
-            $range   = ReportingPeriod::dateRange($current['year'], $current['month']);
+            // The globally-open period (as RPMO's period management sees it) — not
+            // just "whatever month today's date falls in". RPMO can reopen an older
+            // period (e.g. for late corrections) while the calendar-current month has
+            // never been opened; the badge must reflect the former, not the latter.
+            $active = ReportingPeriod::getActive();
+
+            if (!$active) {
+                return response()->json([
+                    'success' => true,
+                    'data'    => [
+                        'year'       => null,
+                        'month'      => null,
+                        'status'     => 'not_open',
+                        'is_closed'  => false,
+                        'closed_at'  => null,
+                        'start_date' => null,
+                        'end_date'   => null,
+                    ],
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
                 'data'    => [
-                    'year'       => $current['year'],
-                    'month'      => $current['month'],
-                    'is_closed'  => $current['is_closed'],
-                    'closed_at'  => $current['closed_at'],
-                    'start_date' => $range['start']->format('Y-m-d'),
-                    'end_date'   => $range['end']->format('Y-m-d'),
+                    'year'       => $active->year,
+                    'month'      => $active->month,
+                    'status'     => 'open',
+                    'is_closed'  => false,
+                    'closed_at'  => null,
+                    'start_date' => $active->start_date?->format('Y-m-d'),
+                    'end_date'   => $active->end_date?->format('Y-m-d'),
                 ],
             ]);
         } catch (\Exception $e) {
@@ -604,6 +623,93 @@ class ReportingController extends Controller
         } catch (\Exception $e) {
             Log::error('exportResolutionDays error', ['msg' => $e->getMessage()]);
             abort(500, $e->getMessage());
+        }
+    }
+
+    // ── Web: Resolution Days (unapproved) page ─────────────────────────────
+
+    public function resolutionDaysIndex()
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) return redirect()->route('login');
+
+        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+        $allowed = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
+        if (empty(array_intersect($roleIds, $allowed))) {
+            abort(403, 'Access denied. Only Admins and Head of Support can view Resolution Days.');
+        }
+
+        return view('reporting.resolution-days', ['user' => $sessionUser]);
+    }
+
+    // ── API: Resolution Days (unapproved) list ─────────────────────────────
+    // Tickets whose resolution_days_status is 'none' (never proposed) or
+    // 'pending_head' (submitted, awaiting Head approval) — i.e. everything
+    // that isn't approved/rejected/draft yet, across all tickets company-wide.
+
+    public function resolutionDays(Request $request)
+    {
+        try {
+            $sessionUser = session('user');
+            $roleIds     = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+            $allowed     = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
+
+            if (empty(array_intersect($roleIds, $allowed))) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            }
+
+            $tickets = Ticket::with(['customer.basicData', 'ticketLead.basicData'])
+                ->whereNull('is_hidden')
+                ->whereIn('resolution_days_status', ['none', 'pending_head'])
+                ->get(['ticket_id', 'ticket_number', 'description', 'customer_id', 'ticket_lead_id', 'resolution_days_status', 'created_at']);
+
+            $ticketIds = $tickets->pluck('ticket_id');
+
+            // Latest pending-approval proposal per ticket (only relevant for pending_head rows)
+            $pendingProposals = ConsultantMandays::whereIn('ticket_id', $ticketIds)
+                ->where('status', 'pending_approval')
+                ->with('proposedByAgent.basicData')
+                ->orderBy('proposed_at', 'desc')
+                ->get()
+                ->unique('ticket_id')
+                ->keyBy('ticket_id');
+
+            // Pending Head first (newest-submitted proposal on top), then None
+            // (oldest un-proposed ticket on top, so the longest-neglected ones surface first).
+            $tickets = $tickets->sortBy(function ($t) use ($pendingProposals) {
+                if ($t->resolution_days_status === 'pending_head') {
+                    $proposedAt = $pendingProposals->get($t->ticket_id)?->proposed_at;
+                    return [0, $proposedAt ? -$proposedAt->timestamp : 0];
+                }
+                return [1, $t->created_at?->timestamp ?? 0];
+            })->values();
+
+            $data = $tickets->map(function ($t) use ($pendingProposals) {
+                $proposal = $pendingProposals->get($t->ticket_id);
+                $agent    = $proposal?->proposedByAgent;
+
+                return [
+                    'ticket_id'              => $t->ticket_id,
+                    'ticket_number'          => $t->ticket_number,
+                    'description'            => $t->description,
+                    'customer_name'          => $t->customer?->basicData?->name_1,
+                    'pic_name'               => $t->ticketLead
+                        ? trim(($t->ticketLead->basicData?->first_name ?? '') . ' ' . ($t->ticketLead->basicData?->last_name ?? ''))
+                        : null,
+                    'resolution_days_status' => $t->resolution_days_status,
+                    'proposed_total_mandays' => $proposal ? round((float) $proposal->total_mandays, 2) : null,
+                    'proposed_at'            => $proposal?->proposed_at?->format('Y-m-d H:i'),
+                    'proposed_by'            => $agent
+                        ? trim(($agent->basicData?->first_name ?? '') . ' ' . ($agent->basicData?->last_name ?? ''))
+                        : null,
+                ];
+            });
+
+            return response()->json(['success' => true, 'data' => $data]);
+
+        } catch (\Exception $e) {
+            Log::error('resolutionDays error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to retrieve resolution days data.'], 500);
         }
     }
 
