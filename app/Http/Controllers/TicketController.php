@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Enums\RoleId;
 use App\Exports\TicketExport;
 use App\Http\Controllers\EmailController;
+use App\Models\ConsultantMandays;
+use App\Models\ConsultantMandaysDetail;
 use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
+use App\Models\Timesheet;
 use App\Services\SlaService;
 use App\Services\StagingTicketService;
 use App\Services\TicketNumberService;
@@ -55,6 +58,43 @@ class TicketController extends Controller
             ->first();
         
         return $qualification && $qualification->dsm == 1;
+    }
+
+    /**
+     * Live SLA summary for ticket-list endpoints (index/myTickets/unassignedTickets) — uses
+     * the same live-recompute methods as the admin SLA report (SlaService::responseDurationHours()
+     * etc.) instead of reading the stored validation_duration_hours/net_resolution_hours/
+     * response_status/resolution_status columns, which are frozen at the time they were
+     * written and won't reflect a later calcHours() formula change for historical tickets.
+     * Pass $pauses (batch-fetched per ticket_id) to avoid an N+1 query per ticket. Pass
+     * $ticket too (it's already loaded by the caller) and it gets wired onto $sla's
+     * `ticket` relation manually — Eloquent doesn't auto-populate the inverse belongsTo
+     * when eager-loading Ticket::with('sla'), so without this, liveResolutionMetrics()'s
+     * `$sla->ticket?->status` check would lazy-load a query per row (N+1 on an unbounded list).
+     */
+    private function liveSlaSummary($sla, ?Ticket $ticket = null, ?\Illuminate\Support\Collection $pauses = null): ?array
+    {
+        if (!$sla) {
+            return null;
+        }
+
+        if ($ticket && !$sla->relationLoaded('ticket')) {
+            $sla->setRelation('ticket', $ticket);
+        }
+
+        $slaService        = app(SlaService::class);
+        $resolutionMetrics = $slaService->liveResolutionMetrics($sla, $pauses);
+
+        return [
+            'target_response_hours'   => $sla->policy?->response_hours,
+            'response_time_hours'     => $slaService->responseDurationHours($sla),
+            'response_status'         => $slaService->responseStatusLive($sla),
+            'target_resolution_hours' => $sla->policy?->resolution_hours,
+            'resolution_due_at'       => $sla->resolution_due_at,
+            'resolution_time_hours'   => $resolutionMetrics['net_hours'],
+            'resolution_status'       => $resolutionMetrics['status'],
+            'resolved_at'             => $sla->resolved_at,
+        ];
     }
 
     /**
@@ -262,8 +302,13 @@ class TicketController extends Controller
                 ->get()
                 ->groupBy('ticket_id');
 
+            // Batch-load SLA pause history (untuk liveSlaSummary() — hindari N+1)
+            $pausesByTicket = \App\Models\TicketSlaPause::whereIn('ticket_id', $ticketIds)
+                ->get()
+                ->groupBy('ticket_id');
+
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap, $pausesByTicket) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -327,16 +372,7 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
-                    'sla' => $ticket->sla ? [
-                        'target_response_hours'   => $ticket->sla->policy?->response_hours,
-                        'response_time_hours'     => $ticket->sla->validation_duration_hours,
-                        'response_status'         => $ticket->sla->response_status,
-                        'target_resolution_hours' => $ticket->sla->policy?->resolution_hours,
-                        'resolution_due_at'       => $ticket->sla->resolution_due_at,
-                        'resolution_time_hours'   => $ticket->sla->net_resolution_hours,
-                        'resolution_status'       => $ticket->sla->resolution_status,
-                        'resolved_at'             => $ticket->sla->resolved_at,
-                    ] : null,
+                    'sla' => $this->liveSlaSummary($ticket->sla, $ticket, $pausesByTicket->get($ticket->ticket_id)),
                     'support_manager' => $deliverySupportMap[$ticket->ticket_id]['support_manager_name'] ?? null,
                     'support_admin'   => $deliverySupportMap[$ticket->ticket_id]['support_admin_name'] ?? null,
                     'delivery' => isset($deliverySupportMap[$ticket->ticket_id]) ? [
@@ -1122,8 +1158,13 @@ class TicketController extends Controller
                     ];
                 });
 
+            // Batch-load SLA pause history (untuk liveSlaSummary() — hindari N+1)
+            $myPausesByTicket = \App\Models\TicketSlaPause::whereIn('ticket_id', $myTicketIds)
+                ->get()
+                ->groupBy('ticket_id');
+
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature, $myDeliverySupportMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature, $myDeliverySupportMap, $myPausesByTicket) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -1195,16 +1236,7 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
-                    'sla' => $ticket->sla ? [
-                        'target_response_hours'   => $ticket->sla->policy?->response_hours,
-                        'response_time_hours'     => $ticket->sla->validation_duration_hours,
-                        'response_status'         => $ticket->sla->response_status,
-                        'target_resolution_hours' => $ticket->sla->policy?->resolution_hours,
-                        'resolution_due_at'       => $ticket->sla->resolution_due_at,
-                        'resolution_time_hours'   => $ticket->sla->net_resolution_hours,
-                        'resolution_status'       => $ticket->sla->resolution_status,
-                        'resolved_at'             => $ticket->sla->resolved_at,
-                    ] : null,
+                    'sla' => $this->liveSlaSummary($ticket->sla, $ticket, $myPausesByTicket->get($ticket->ticket_id)),
                     'delivery' => $myDeliverySupportMap[$ticket->ticket_id] ?? null,
                     'created_at' => $ticket->created_at,
                     'updated_at' => $ticket->updated_at,
@@ -1227,6 +1259,151 @@ class TicketController extends Controller
                 'success' => false,
                 'message' => 'Failed to retrieve my tickets',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Tickets for the Create Timesheet dropdown: same access scope as myTickets()
+     * (lead/member, or a DS Manager's managed delivery tickets), but restricted to
+     * tickets where the employee still has remaining mandays quota (approved quota
+     * minus consumed > 0). A ticket the employee has no approved mandays proposal
+     * for is excluded — there's no quota to log time against. If a Head later
+     * approves additional mandays, remaining goes back above 0 and the ticket
+     * reappears on its own (this is computed live, not cached).
+     */
+    public function myTicketsForTimesheet(Request $request)
+    {
+        try {
+            $sessionUser = session('user');
+
+            if (!$sessionUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 401);
+            }
+
+            // When editing an existing draft timesheet, its ticket must stay selectable
+            // even if remaining is now 0 — this timesheet's own md_consumed is part of
+            // that 0, so hiding it would make an already-valid selection un-editable.
+            $includeTicketId = $request->filled('include_ticket_id') ? (int) $request->input('include_ticket_id') : null;
+
+            $employeeId = $sessionUser['id'];
+            $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+
+            if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
+                $scopedQuery = Ticket::whereNull('is_hidden')
+                    ->where(function ($query) use ($employeeId) {
+                        $query->where('ticket.ticket_lead_id', $employeeId)
+                            ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId));
+                    });
+            } else {
+                $employee = Employee::find($employeeId);
+                $isDsManagerScope = $employee && $employee->hasMenuPermission('ticket.my-tickets.ds-manager');
+
+                if ($isDsManagerScope) {
+                    $managedDeliveryIds = DB::table('delivery_support_managers')
+                        ->where('employee_id', $employeeId)
+                        ->pluck('delivery_support_id');
+
+                    $managedTicketIds = DB::table('delivery_support_activities')
+                        ->whereIn('delivery_support_id', $managedDeliveryIds)
+                        ->whereNotNull('ticket_id')
+                        ->pluck('ticket_id')
+                        ->unique()
+                        ->values();
+
+                    $scopedQuery = Ticket::whereNull('is_hidden')->whereIn('ticket_id', $managedTicketIds);
+                } else {
+                    $scopedQuery = Ticket::whereNull('is_hidden')
+                        ->where(function ($query) use ($employeeId) {
+                            $query->where('ticket.ticket_lead_id', $employeeId)
+                                ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId));
+                        });
+                }
+            }
+
+            $tickets = $scopedQuery
+                ->with(['customer.basicData'])
+                ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
+                ->get(['ticket_id', 'ticket_number', 'customer_id', 'description']);
+
+            $ticketIds = $tickets->pluck('ticket_id');
+
+            // Latest approved mandays proposal per ticket
+            $latestApprovedByTicket = ConsultantMandays::whereIn('ticket_id', $ticketIds)
+                ->where('status', 'approved')
+                ->orderBy('approved_at', 'desc')
+                ->get()
+                ->groupBy('ticket_id')
+                ->map(fn ($g) => $g->first());
+
+            $cmIdToTicketId = $latestApprovedByTicket->mapWithKeys(fn ($cm) => [$cm->id => $cm->ticket_id]);
+
+            // This employee's quota (mandays + approved_additional) per ticket
+            $quotaByTicket = ConsultantMandaysDetail::whereIn('consultant_mandays_id', $cmIdToTicketId->keys())
+                ->where('employee_id', $employeeId)
+                ->get()
+                ->reduce(function ($carry, $detail) use ($cmIdToTicketId) {
+                    $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
+                    if ($ticketId) {
+                        $carry[$ticketId] = round((float) $detail->mandays + (float) ($detail->approved_additional ?? 0), 2);
+                    }
+                    return $carry;
+                }, []);
+
+            // MD already consumed by this employee per ticket (draft/submitted/approved count against quota)
+            $consumedByTicket = Timesheet::whereIn('ticket_id', $ticketIds)
+                ->where('employee_id', $employeeId)
+                ->whereIn('status', ['draft', 'submitted', 'approved'])
+                ->selectRaw('ticket_id, SUM(md_consumed) as total')
+                ->groupBy('ticket_id')
+                ->pluck('total', 'ticket_id');
+
+            $ticketsData = $tickets
+                ->filter(function ($ticket) use ($quotaByTicket, $consumedByTicket, $includeTicketId) {
+                    if ($includeTicketId !== null && $ticket->ticket_id === $includeTicketId) {
+                        return true;
+                    }
+                    // No approved proposal for this employee on this ticket → no quota to fill, exclude.
+                    if (!array_key_exists($ticket->ticket_id, $quotaByTicket)) {
+                        return false;
+                    }
+                    $consumed = (float) ($consumedByTicket[$ticket->ticket_id] ?? 0);
+                    return round($quotaByTicket[$ticket->ticket_id] - $consumed, 2) > 0;
+                })
+                ->values()
+                ->map(function ($ticket) use ($quotaByTicket, $consumedByTicket) {
+                    $consumed = (float) ($consumedByTicket[$ticket->ticket_id] ?? 0);
+                    $quota    = $quotaByTicket[$ticket->ticket_id] ?? null;
+                    return [
+                        'ticket_id' => $ticket->ticket_id,
+                        'ticket_number' => $ticket->ticket_number,
+                        'description' => $ticket->description,
+                        'customer' => $ticket->customer ? [
+                            'customer_id' => $ticket->customer->customer_id,
+                            'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
+                            'customer_code' => $ticket->customer->customer_code,
+                        ] : null,
+                        'remaining_md' => $quota !== null ? round($quota - $consumed, 2) : null,
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $ticketsData,
+                'message' => 'My tickets with remaining mandays retrieved successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching my tickets for timesheet:', [
+                'error' => $e->getMessage(),
+                'error_at' => $e->getFile() . ':' . $e->getLine()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve tickets'
             ], 500);
         }
     }
@@ -1304,7 +1481,12 @@ class TicketController extends Controller
                     ];
                 });
 
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $readAtMap, $canReadFeature, $deliverySupportMap) {
+            // Batch-load SLA pause history (untuk liveSlaSummary() — hindari N+1)
+            $pausesByTicket = \App\Models\TicketSlaPause::whereIn('ticket_id', $ticketIds)
+                ->get()
+                ->groupBy('ticket_id');
+
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $readAtMap, $canReadFeature, $deliverySupportMap, $pausesByTicket) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -1372,16 +1554,7 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
-                    'sla' => $ticket->sla ? [
-                        'target_response_hours'   => $ticket->sla->policy?->response_hours,
-                        'response_time_hours'     => $ticket->sla->validation_duration_hours,
-                        'response_status'         => $ticket->sla->response_status,
-                        'target_resolution_hours' => $ticket->sla->policy?->resolution_hours,
-                        'resolution_due_at'       => $ticket->sla->resolution_due_at,
-                        'resolution_time_hours'   => $ticket->sla->net_resolution_hours,
-                        'resolution_status'       => $ticket->sla->resolution_status,
-                        'resolved_at'             => $ticket->sla->resolved_at,
-                    ] : null,
+                    'sla' => $this->liveSlaSummary($ticket->sla, $ticket, $pausesByTicket->get($ticket->ticket_id)),
                     'delivery' => $deliverySupportMap[$ticket->ticket_id] ?? null,
                     'created_at' => $ticket->created_at,
                     'updated_at' => $ticket->updated_at,

@@ -798,7 +798,14 @@
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${prCls}">${t.ticket_priority ?? '—'}</span>
         </td>
         <td class="px-3 py-2.5 text-xs font-semibold text-gray-700">${dayOnClose !== null ? dayOnClose : '<span class="text-gray-300 font-normal">—</span>'}</td>
-        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${myApproved ? myAllocMd.toFixed(2) + ' days' : '<span class="text-gray-400 italic font-normal">Belum ditentukan</span>'}</td>
+        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${myApproved
+            ? myAllocMd.toFixed(2) + ' days'
+            : (myDetail && myDetail.mandays != null
+                ? `<span class="inline-flex items-center gap-1 text-amber-600 italic font-normal" title="Proposed ${parseFloat(myDetail.mandays).toFixed(2)} days, awaiting approval">
+                       <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m0 3h.008v.008H12v-.008zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                       Pending approval
+                   </span>`
+                : '<span class="text-gray-400 italic font-normal">Not determined</span>')}</td>
         <td class="px-3 py-2.5 text-right text-xs text-gray-500">
             ${myAddMd > 0
                 ? `<span class="text-indigo-600 font-semibold">${myAddMd.toFixed(2)} days</span>`
@@ -874,18 +881,18 @@
         _wlCpModalTicketId = ticketId;
         _wlCpModalEmpId    = empId;
         document.getElementById('wl-cp-modal-title').textContent = 'Progress: ' + (ticketNumber || '#' + ticketId);
-        document.getElementById('wl-cp-modal-body').innerHTML = '<div class="text-center py-6 text-gray-400">Memuat data…</div>';
+        document.getElementById('wl-cp-modal-body').innerHTML = '<div class="text-center py-6 text-gray-400">Loading data…</div>';
         document.getElementById('wl-cp-modal-overlay').style.display = 'flex';
         const btn = document.getElementById('wl-cp-modal-save-btn');
         btn.disabled = false;
-        btn.textContent = 'Simpan';
+        btn.textContent = 'Save';
         btn.className = btn.className.replace('bg-emerald-500', 'bg-indigo-600 hover:bg-indigo-700');
 
         try {
             const res  = await fetch(`/api/consultant-workload/tickets/${ticketId}/consultant-progress`);
             const json = await res.json();
             if (!json.success) {
-                document.getElementById('wl-cp-modal-body').innerHTML = '<p class="text-red-500 text-sm py-4 text-center">Gagal memuat data.</p>';
+                document.getElementById('wl-cp-modal-body').innerHTML = '<p class="text-red-500 text-sm py-4 text-center">Failed to load data.</p>';
                 return;
             }
 
@@ -898,7 +905,7 @@
                 <tr class="border-t border-gray-100" data-detail-id="${d.detail_id ?? 'null'}" data-mandays="${d.mandays ?? ''}">
                     <td class="py-3 pr-4">
                         <p class="font-semibold text-gray-800 text-sm">${d.emp_name}</p>
-                        <p class="text-gray-400 text-xs font-mono">${d.mandays != null ? d.mandays + ' md' : 'Belum ada proposal Resolution Days'}</p>
+                        <p class="text-gray-400 text-xs font-mono">${d.mandays != null ? d.mandays + ' md' : 'No Resolution Days proposed yet'}</p>
                     </td>
                     <td class="py-3 pr-2 w-52">
                         <div class="flex items-center gap-2">
@@ -971,7 +978,7 @@
             });
             const json = await res.json();
             if (json.success) {
-                btn.textContent = 'Tersimpan!';
+                btn.textContent = 'Saved!';
                 btn.className = btn.className.replace('bg-indigo-600 hover:bg-indigo-700', 'bg-emerald-500');
                 const empIdToRefresh = _wlCpModalEmpId;
                 setTimeout(() => {
@@ -979,14 +986,14 @@
                     refreshAfterProgressUpdate(empIdToRefresh);
                 }, 700);
             } else {
-                alert('Gagal: ' + (json.message ?? 'Error'));
+                alert('Failed: ' + (json.message ?? 'Error'));
                 btn.disabled = false;
-                btn.textContent = 'Simpan';
+                btn.textContent = 'Save';
             }
         } catch (e) {
             alert('Error: ' + e.message);
             btn.disabled = false;
-            btn.textContent = 'Simpan';
+            btn.textContent = 'Save';
         }
     }
 
@@ -1049,16 +1056,16 @@
             </button>
         </div>
         <div class="px-6 py-4" id="wl-cp-modal-body">
-            <div class="text-center py-6 text-gray-400">Memuat data…</div>
+            <div class="text-center py-6 text-gray-400">Loading data…</div>
         </div>
         <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
             <button onclick="closeWlCpModal()"
                 class="px-4 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition">
-                Batal
+                Cancel
             </button>
             <button id="wl-cp-modal-save-btn" onclick="submitWlCpModal()"
                 class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition">
-                Simpan
+                Save
             </button>
         </div>
     </div>

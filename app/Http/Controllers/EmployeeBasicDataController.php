@@ -61,7 +61,6 @@ class EmployeeBasicDataController extends Controller
                         'manager' => null,
                         'authorization_group' => null,
                         'home_base' => null,
-                        'grade' => null,
                         'employee_type' => null,
                         'block' => false,
                         'deletion_flag' => false,
@@ -122,7 +121,7 @@ class EmployeeBasicDataController extends Controller
             'birth_date', 'birth_place', 'since_date',
             'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
             'position', 'division', 'department', 'direct_supervision',
-            'manager', 'authorization_group', 'home_base', 'grade',
+            'manager', 'authorization_group', 'home_base',
         ];
         foreach ($nullableFields as $field) {
             if ($request->input($field) === '') {
@@ -170,7 +169,6 @@ class EmployeeBasicDataController extends Controller
             'manager' => 'nullable|string|max:255',
             'authorization_group' => 'nullable|string|max:100',
             'home_base' => 'nullable|string|max:100',
-            'grade' => 'nullable|string|max:100',
 
             // Status Administrasi
             'block' => 'nullable|boolean',
@@ -321,7 +319,6 @@ class EmployeeBasicDataController extends Controller
                 'manager' => 'nullable|string|max:255',
                 'authorization_group' => 'nullable|string|max:100',
                 'home_base' => 'nullable|string|max:100',
-                'grade' => 'nullable|string|max:100',
                 'block' => 'nullable|boolean',
                 'deletion_flag' => 'nullable|boolean',
             ], [
@@ -351,7 +348,7 @@ class EmployeeBasicDataController extends Controller
                 'marital_status', 'birth_date', 'birth_place', 'since_date',
                 'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
                 'position', 'division', 'department', 'direct_supervision',
-                'manager', 'authorization_group', 'home_base', 'grade', 'block', 'deletion_flag'
+                'manager', 'authorization_group', 'home_base', 'block', 'deletion_flag'
             ]);
 
             // Auto-update search terms if names are updated

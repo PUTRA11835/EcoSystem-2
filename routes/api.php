@@ -368,6 +368,7 @@ Route::middleware(['web'])->group(function () {
         // Static routes first
         Route::get('/', [TicketController::class, 'index']);
         Route::get('/my', [TicketController::class, 'myTickets']);
+        Route::get('/my-for-timesheet', [TicketController::class, 'myTicketsForTimesheet']);
         Route::get('/unassigned', [TicketController::class, 'unassignedTickets']);
         Route::get('/hidden', [TicketController::class, 'hiddenIndex']);
         Route::get('/latest-update', [TicketController::class, 'latestUpdate']);
@@ -517,6 +518,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/ticket-by-module', [\App\Http\Controllers\ReportingController::class, 'ticketByModule']);
         Route::get('/log-shifting', [\App\Http\Controllers\ReportingController::class, 'logShifting']);
         Route::get('/log-shifting/{ticketId}', [\App\Http\Controllers\ReportingController::class, 'logShiftingDetail']);
+        Route::get('/resolution-days', [\App\Http\Controllers\ReportingController::class, 'resolutionDays']);
     });
 
     // ==================== NOTIFICATION ROUTES ====================

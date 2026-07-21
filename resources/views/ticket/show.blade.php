@@ -7050,7 +7050,7 @@
             let bodyHtml = '';
             activities.forEach(act => {
                 const actCell = (isEditable && HD_CAN_EDIT_ACTIVITY)
-                    ? `<input type="text" class="hd-activity-input w-full px-2 py-1.5 text-xs border-0 focus:outline-none focus:bg-gray-50 bg-white font-medium" value="${escAttr(act)}" placeholder="Activity..." maxlength="150">`
+                    ? `<input type="text" class="hd-activity-input w-full px-2 py-1.5 text-xs border-0 focus:outline-none focus:bg-gray-50 bg-white font-medium" value="${escAttr(act)}" placeholder="Activity...">`
                     : `<span class="px-2 py-1.5 block text-xs font-medium">${escAttr(act)}</span>`;
                 bodyHtml += `<tr><td class="border border-gray-200 p-0">${actCell}</td>`;
                 mods.forEach(m => {

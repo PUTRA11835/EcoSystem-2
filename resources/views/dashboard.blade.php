@@ -823,6 +823,14 @@
                             <span class="nav-text text-sm">Log Shifting</span>
                         </a>
                         @endif
+                        @if($can('reporting.resolution-days'))
+                        <a href="{{ route('reporting.resolution-days') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/resolution-days*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-hourglass-half text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Resolution Days</span>
+                        </a>
+                        @endif
                     </div>
                 </div>
                 @endif

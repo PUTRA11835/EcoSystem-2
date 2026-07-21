@@ -593,6 +593,19 @@ class TimesheetController extends Controller
                 $validated['activity_id'] = null;
             }
 
+            // ── Resolution Days quota guard ───────────────────────────────────
+            if (!empty($validated['ticket_id'])) {
+                $quotaError = $this->checkResolutionQuota(
+                    (int) $validated['ticket_id'],
+                    (int) $validated['employee_id'],
+                    (float) ($validated['md_consumed'] ?? 0)
+                );
+                if ($quotaError) {
+                    return response()->json(['success' => false, 'message' => $quotaError], 422);
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
+
             // ── Period access gate ────────────────────────────────────────────
             // Bypass for Admin and RPMO (they can always submit)
             $sessionRoleId = (int) (session('user')['role']['id'] ?? 0);
@@ -716,6 +729,20 @@ class TimesheetController extends Controller
                 $validated['ticket_id'] = null;
                 $validated['activity_id'] = null;
             }
+
+            // ── Resolution Days quota guard ───────────────────────────────────
+            if (!empty($validated['ticket_id'])) {
+                $quotaError = $this->checkResolutionQuota(
+                    (int) $validated['ticket_id'],
+                    (int) $timesheet->employee_id,
+                    (float) ($validated['md_consumed'] ?? 0),
+                    (int) $timesheet->id
+                );
+                if ($quotaError) {
+                    return response()->json(['success' => false, 'message' => $quotaError], 422);
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
 
             // Auto-assign period if date changed or period not yet set
             $this->assignPeriod($validated);
@@ -1271,6 +1298,52 @@ class TimesheetController extends Controller
                 'message' => 'Failed to retrieve activities'
             ], 500);
         }
+    }
+
+    // ── Resolution Days quota guard ─────────────────────────────────────────
+
+    /**
+     * For support timesheets: verify this MD Consumed value won't push the employee's
+     * remaining quota for this ticket negative. Mirrors the "remaining < 0" hard-stop
+     * already enforced at submit() (see submit() above) — applied earlier, at
+     * create/update, so a timesheet can't end up stuck as an unsubmittable draft.
+     * Returns an error message if blocked, or null if OK (including when no approved
+     * proposal exists yet — that case is caught later by submit(), not here).
+     */
+    private function checkResolutionQuota(int $ticketId, int $employeeId, float $newMdConsumed, ?int $excludeTimesheetId = null): ?string
+    {
+        $latestApproved = ConsultantMandays::where('ticket_id', $ticketId)
+            ->where('status', 'approved')
+            ->orderBy('approved_at', 'desc')
+            ->first();
+
+        if (!$latestApproved) {
+            return null;
+        }
+
+        $quotaDetail = ConsultantMandaysDetail::where('consultant_mandays_id', $latestApproved->id)
+            ->where('employee_id', $employeeId)
+            ->first();
+
+        if (!$quotaDetail) {
+            return null;
+        }
+
+        $quota = round((float) $quotaDetail->mandays + (float) ($quotaDetail->approved_additional ?? 0), 2);
+
+        $consumed = (float) Timesheet::where('ticket_id', $ticketId)
+            ->where('employee_id', $employeeId)
+            ->whereIn('status', ['draft', 'submitted', 'approved'])
+            ->when($excludeTimesheetId, fn ($q) => $q->where('id', '!=', $excludeTimesheetId))
+            ->sum('md_consumed');
+
+        $remaining = round($quota - $consumed - $newMdConsumed, 2);
+
+        if ($remaining < 0) {
+            return "MD Consumed exceeds the remaining quota for this ticket. Remaining would be {$remaining}. Contact your Head to increase the quota.";
+        }
+
+        return null;
     }
 
     // ── Period helper ─────────────────────────────────────────────────────

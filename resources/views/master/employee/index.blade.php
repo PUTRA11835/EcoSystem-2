@@ -345,27 +345,87 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Personnel Area</label>
-                            <input type="text" id="personnelArea" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Personnel Area</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="personnelArea" value="">
+                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 overflow-y-auto" style="max-height:220px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Personnel Area</button>
+                                    @foreach(($personnelAreaOptions ?? []) as $pa)
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pa }}">{{ $pa }}</button>
+                                    @endforeach
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Position</label>
-                            <input type="text" id="position" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Position</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="position" value="">
+                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 overflow-y-auto" style="max-height:220px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Position</button>
+                                    @foreach(($positionOptions ?? []) as $pos)
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pos }}">{{ $pos }}</button>
+                                    @endforeach
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Employee Group</label>
-                            <input type="text" id="employeeGroup" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Employee Group</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="employeeGroup" value="">
+                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 overflow-y-auto" style="max-height:220px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Employee Group</button>
+                                    @foreach(($employeeGroupOptions ?? []) as $eg)
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $eg }}">{{ $eg }}</button>
+                                    @endforeach
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Employee Sub-Group</label>
-                            <input type="text" id="employeeSubgroup" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Employee Sub-Group</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="employeeSubgroup" value="">
+                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 overflow-y-auto" style="max-height:220px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Employee Sub-Group</button>
+                                    @foreach(($employeeSubgroupOptions ?? []) as $esg)
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $esg }}">{{ $esg }}</button>
+                                    @endforeach
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Division</label>
-                            <input type="text" id="division" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <div class="custom-dd relative" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Division</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="division" value="">
+                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 overflow-y-auto" style="max-height:220px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Division</button>
+                                    @foreach(($divisionOptions ?? []) as $div)
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $div }}">{{ $div }}</button>
+                                    @endforeach
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex flex-col">
@@ -380,23 +440,6 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Home Base</button>
                                     @foreach(($homeBaseOptions ?? []) as $hb)
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $hb }}">{{ $hb }}</button>
-                                    @endforeach
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col">
-                            <label class="text-xs font-semibold text-gray-600 mb-1">Grade</label>
-                            <div class="custom-dd relative" data-fixed="true">
-                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
-                                    <span class="custom-dd-label text-gray-500">Select Grade</span>
-                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                </button>
-                                <input type="hidden" id="grade" value="">
-                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 overflow-y-auto" style="max-height:220px;">
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Grade</button>
-                                    @foreach(($gradeOptions ?? []) as $g)
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $g }}">{{ $g }}</button>
                                     @endforeach
                                 </div>
                             </div>
@@ -993,7 +1036,11 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             setCustomDropdownValue('gender', '');
             setCustomDropdownValue('language', '');
             setCustomDropdownValue('homeBase', '');
-            setCustomDropdownValue('grade', '');
+            setCustomDropdownValue('personnelArea', '');
+            setCustomDropdownValue('position', '');
+            setCustomDropdownValue('employeeGroup', '');
+            setCustomDropdownValue('employeeSubgroup', '');
+            setCustomDropdownValue('division', '');
         }
 
         // Set default value for Country + reset rantai dropdown wilayah (kosong).
@@ -1085,17 +1132,20 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 document.getElementById('cellPhone').value = emp.cell_phone || '';
                 
                 // SECTION 3: ORGANIZATIONAL DATA
-                document.getElementById('personnelArea').value = emp.personnel_area || '';
-                document.getElementById('position').value = emp.position || '';
-                document.getElementById('employeeGroup').value = emp.employee_group || '';
-                document.getElementById('employeeSubgroup').value = emp.employee_subgroup || '';
-                document.getElementById('division').value = emp.division || '';
                 if (typeof setCustomDropdownValue === 'function') {
+                    setCustomDropdownValue('personnelArea', emp.personnel_area || '');
+                    setCustomDropdownValue('position', emp.position || '');
+                    setCustomDropdownValue('employeeGroup', emp.employee_group || '');
+                    setCustomDropdownValue('employeeSubgroup', emp.employee_subgroup || '');
+                    setCustomDropdownValue('division', emp.division || '');
                     setCustomDropdownValue('homeBase', emp.home_base || '');
-                    setCustomDropdownValue('grade', emp.grade || '');
                 } else {
+                    document.getElementById('personnelArea').value = emp.personnel_area || '';
+                    document.getElementById('position').value = emp.position || '';
+                    document.getElementById('employeeGroup').value = emp.employee_group || '';
+                    document.getElementById('employeeSubgroup').value = emp.employee_subgroup || '';
+                    document.getElementById('division').value = emp.division || '';
                     document.getElementById('homeBase').value = emp.home_base || '';
-                    document.getElementById('grade').value = emp.grade || '';
                 }
 
                 document.getElementById('modalTitle').textContent = 'Edit Employee';
@@ -1164,7 +1214,6 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             employee_subgroup: document.getElementById('employeeSubgroup').value,
             division: document.getElementById('division').value,
             home_base: document.getElementById('homeBase').value,
-            grade: document.getElementById('grade').value,
         };
 
         // Add password only if it's provided
