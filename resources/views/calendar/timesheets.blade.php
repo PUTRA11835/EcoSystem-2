@@ -133,6 +133,20 @@
     </div>
     @endif
 
+    <!-- Support MD Summary — shown only while the Support type filter is active.
+         Totals follow whatever is currently filtered in the table (search, status,
+         date range, etc.), recomputed in updateSupportMdSummary(). -->
+    <div id="supportMdSummary" class="hidden grid grid-cols-2 gap-3 mb-4">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Total Quota MD</p>
+            <p class="text-2xl font-bold text-gray-700 leading-none" id="statSupportQuotaMd">0.00</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Total MD Consumed</p>
+            <p class="text-2xl font-bold text-purple-700 leading-none" id="statSupportConsumedMd">0.00</p>
+        </div>
+    </div>
+
     <!-- Type Tabs — hidden when locked to a single type, otherwise show only allowed types -->
     @php
         $lockedType   = $lockedType ?? null;

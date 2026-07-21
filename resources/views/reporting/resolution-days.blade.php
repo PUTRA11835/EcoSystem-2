@@ -542,7 +542,7 @@ function rdUpdateRowTotal(inp) {
     document.getElementById('rdReviewTotal').textContent = grand.toFixed(1);
 }
 
-async function rdReviewApprove() {
+async function rdReviewApprove(confirmNegative = false) {
     if (!rdReviewTicketId) return;
     const btn = document.getElementById('rdBtnApprove');
     btn.disabled = true;
@@ -557,16 +557,26 @@ async function rdReviewApprove() {
 
         const res  = await fetch(`/api/tickets/${rdReviewTicketId}/mandays/resolution/approve`, {
             method: 'POST', headers: rdHeaders(), credentials: 'same-origin',
-            body: JSON.stringify({ approved_details: approvedDetails }),
+            body: JSON.stringify({ approved_details: approvedDetails, confirm_negative: confirmNegative }),
         });
         const data = await res.json();
         if (data.success) {
             showNotification('Resolution days saved!', 'success');
             closeRdReviewModal();
             loadRd();
-        } else {
-            showNotification(data.message || 'Failed', 'error');
+            return;
         }
+        if (data.requires_confirmation) {
+            const lines = (data.warnings || []).map(w => `- ${w.employee_name}: remaining would be ${w.remaining} MD`);
+            const proceed = confirm(`Some employees will go negative if you approve these numbers:\n\n${lines.join('\n')}\n\nApprove anyway?`);
+            if (proceed) {
+                await rdReviewApprove(true);
+            } else {
+                showNotification('Approval cancelled.', 'info');
+            }
+            return;
+        }
+        showNotification(data.message || 'Failed', 'error');
     } catch (e) {
         showNotification('Error: ' + e.message, 'error');
     } finally {
