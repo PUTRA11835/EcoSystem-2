@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Ticket;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -16,7 +17,8 @@ class TaskController extends Controller
     }
 
     /**
-     * API: Daftar tiket aktif di mana user yang login adalah PIC.
+     * API: Daftar tiket aktif di mana user yang login ditugaskan —
+     * sebagai Lead, Member, atau punya alokasi mandays.
      */
     public function list(Request $request)
     {
@@ -30,10 +32,13 @@ class TaskController extends Controller
             $month = $request->integer('month', now()->month);
             $year  = $request->integer('year', now()->year);
 
-            // Ambil tiket di mana user ini adalah PIC
+            // Ambil tiket di mana user ini ditugaskan (lead, member, atau alokasi mandays)
+            $assignedTicketIds = Ticket::assignedTicketIds($empId);
+
             $tickets = DB::table('ticket')
                 ->leftJoin('customer_basic_data', 'ticket.customer_id', '=', 'customer_basic_data.customer_id')
-                ->where('ticket.ticket_lead_id', $empId)
+                ->leftJoin('employee_basic_data as ticket_updater_ebd', 'ticket_updater_ebd.employee_id', '=', 'ticket.progress_updated_by')
+                ->whereIn('ticket.ticket_id', $assignedTicketIds)
                 ->whereIn('ticket.status', self::ACTIVE_STATUSES)
                 ->whereNull('ticket.deleted_at')
                 ->whereNull('ticket.is_hidden')
@@ -44,7 +49,9 @@ class TaskController extends Controller
                     'ticket.man_days', 'ticket.progress_percentage', 'ticket.progress_note',
                     'ticket.last_progress_at', 'ticket.module', 'ticket.start_date', 'ticket.end_date',
                     'ticket.resolution_days_status', 'ticket.mandays_proposal_status',
+                    'ticket.ticket_lead_id',
                     'customer_basic_data.name_1 as customer_name',
+                    DB::raw("NULLIF(TRIM(CONCAT(COALESCE(ticket_updater_ebd.first_name,''), ' ', COALESCE(ticket_updater_ebd.last_name,''))), '') as last_progress_by_name"),
                 ])
                 ->orderByRaw("FIELD(ticket.status, 'inprocess', 'open', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold')")
                 ->get();
@@ -60,7 +67,7 @@ class TaskController extends Controller
 
             $ticketIds         = $tickets->pluck('ticket_id')->toArray();
             $progressMap       = ConsultantWorkloadController::progressMapForTickets($ticketIds);
-            $consultantDetails = $this->consultantDetailsForTickets($ticketIds);
+            $consultantDetails = ConsultantWorkloadController::consultantDetailsForTickets($ticketIds);
             $modulesMap        = ConsultantWorkloadController::modulesMapForEmployees([$empId]);
             $myModules         = $modulesMap[$empId] ?? '-';
 
@@ -73,7 +80,7 @@ class TaskController extends Controller
                 ->pluck('ticket_id')
                 ->flip();
 
-            $ticketsData = $tickets->map(function ($ticket) use ($progressMap, $consultantDetails, $confirmedTicketIds) {
+            $ticketsData = $tickets->map(function ($ticket) use ($progressMap, $consultantDetails, $confirmedTicketIds, $empId) {
                 $tid = $ticket->ticket_id;
                 $hasRealManDays = $ticket->resolution_days_status === 'approved'
                     || $ticket->mandays_proposal_status === 'approved'
@@ -88,8 +95,11 @@ class TaskController extends Controller
                     'ticket_type'         => $ticket->ticket_type,
                     'man_days'            => (float) $ticket->man_days,
                     'has_real_man_days'   => $hasRealManDays,
+                    'is_lead'             => (int) $ticket->ticket_lead_id === $empId,
                     'progress_percentage' => (float) $ticket->progress_percentage,
                     'progress_note'       => $ticket->progress_note,
+                    'last_progress_at'    => $ticket->last_progress_at,
+                    'last_progress_by_name' => $ticket->last_progress_by_name,
                     'module'              => $ticket->module,
                     'start_date'          => $ticket->start_date,
                     'end_date'            => $ticket->end_date,
@@ -139,83 +149,5 @@ class TaskController extends Controller
                 'message' => 'Gagal memuat data: ' . $e->getMessage(),
             ], 500);
         }
-    }
-
-    private function consultantDetailsForTickets(array $ticketIds): array
-    {
-        if (empty($ticketIds)) return [];
-
-        $ticketProgress = DB::table('ticket')
-            ->whereIn('ticket_id', $ticketIds)
-            ->pluck('progress_percentage', 'ticket_id');
-
-        // Hanya proposal terbaru per ticket (hindari baris historis kalau ada >1 per ticket_id)
-        $latestIds = DB::table('consultant_mandays')
-            ->whereIn('ticket_id', $ticketIds)
-            ->selectRaw('MAX(id) as id')
-            ->groupBy('ticket_id')
-            ->pluck('id');
-
-        $rows = DB::table('consultant_mandays as cm')
-            ->join('consultant_mandays_detail as cmd', 'cmd.consultant_mandays_id', '=', 'cm.id')
-            ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
-            ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'e.employee_id')
-            ->leftJoinSub(
-                DB::table('employee_qualification')
-                    ->join('modules', 'modules.id', '=', 'employee_qualification.module_id')
-                    ->where('modules.is_active', true)
-                    ->select('employee_qualification.employee_id', DB::raw("GROUP_CONCAT(DISTINCT modules.name ORDER BY modules.name SEPARATOR ', ') as qualification_modules"))
-                    ->groupBy('employee_qualification.employee_id'),
-                'eq',
-                'eq.employee_id',
-                '=',
-                'cmd.employee_id'
-            )
-            ->whereIn('cm.id', $latestIds)
-            ->select(
-                'cm.ticket_id',
-                'cm.status as proposal_status',
-                'cmd.id as detail_id',
-                'cmd.employee_id',
-                DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''), ' ', COALESCE(ebd.last_name,''))) as emp_name"),
-                'e.eci',
-                'eq.qualification_modules',
-                'cmd.mandays',
-                'cmd.approved_additional',
-                'cmd.progress_percentage',
-                'cmd.progress_note'
-            )
-            ->get();
-
-        $map = [];
-        foreach ($rows as $row) {
-            $tid        = (int) $row->ticket_id;
-            $isApproved = $row->proposal_status === 'approved';
-
-            // Sebelum Head approve, MD yang ditampilkan tetap placeholder (1 MD, tanpa
-            // additional) — biar tidak ikut berubah begitu PIC edit draft proposal-nya.
-            $mandays     = $isApproved ? (float) $row->mandays : 1.0;
-            $additional  = $isApproved ? (float) $row->approved_additional : 0.0;
-            $effectiveMd = $mandays + $additional;
-            $progress    = (float) ($ticketProgress[$tid] ?? 0);
-            $remainShare = round($effectiveMd * (1 - $progress / 100), 2);
-
-            $map[$tid][] = [
-                'detail_id'           => $row->detail_id,
-                'employee_id'         => $row->employee_id,
-                'emp_name'            => trim($row->emp_name) ?: ($row->eci ?? '—'),
-                'eci'                 => $row->eci ?? '—',
-                'module'              => $row->qualification_modules ?? '—',
-                'mandays'             => $mandays,
-                'approved_additional'  => $additional,
-                'effective_md'         => $effectiveMd,
-                'remain_md'            => $remainShare,
-                'is_approved'          => $isApproved,
-                'progress_percentage'  => (float) ($row->progress_percentage ?? 0),
-                'progress_note'        => $row->progress_note ?? null,
-            ];
-        }
-
-        return $map;
     }
 }

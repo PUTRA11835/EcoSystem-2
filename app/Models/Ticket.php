@@ -292,6 +292,30 @@ class Ticket extends Model
         )->withTimestamps()->withPivot('is_active');
     }
 
+    /**
+     * ID tiket di mana employee ini ditugaskan — sebagai Lead, Member
+     * (ticket_member aktif), atau punya alokasi di consultant_mandays_detail.
+     * Tidak memfilter status/deleted/hidden — caller yang menerapkan filter itu
+     * di query final.
+     */
+    public static function assignedTicketIds(int $employeeId): \Illuminate\Support\Collection
+    {
+        $leadIds = static::query()
+            ->where('ticket_lead_id', $employeeId)
+            ->pluck('ticket_id');
+
+        $memberIds = \Illuminate\Support\Facades\DB::table('ticket_member')
+            ->where('employee_id', $employeeId)
+            ->pluck('ticket_id');
+
+        $mandaysIds = \Illuminate\Support\Facades\DB::table('consultant_mandays_detail as cmd')
+            ->join('consultant_mandays as cm', 'cm.id', '=', 'cmd.consultant_mandays_id')
+            ->where('cmd.employee_id', $employeeId)
+            ->pluck('cm.ticket_id');
+
+        return $leadIds->merge($memberIds)->merge($mandaysIds)->unique()->values();
+    }
+
     // Scope untuk filter berdasarkan status
     public function scopeOpen($query)
     {
