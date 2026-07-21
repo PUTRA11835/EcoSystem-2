@@ -26,10 +26,12 @@ class SlaController extends Controller
         return session('user.role.id') === 1;
     }
 
-    // Admin + Delivery Support Head + Helpdesk
+    // Diatur lewat Role Management (menu slug: sla.report), bukan role hardcode,
+    // supaya role apa pun bisa diberi/dicabut akses SLA Report dari UI Role Management.
     private function assertSlaAccess(): bool
     {
-        return in_array(session('user.role.id'), [1, 5, 6], true);
+        $employee = Employee::find(session('user.id'));
+        return (bool) $employee?->hasPermission('sla.report');
     }
 
     // Admin + Delivery Support Head (can create/edit/delete policies)
