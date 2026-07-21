@@ -16,6 +16,7 @@ use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Employee;
 use App\Models\EmployeeQualification;
+use App\Models\Timesheet;
 use App\Models\TicketMessage;
 
 class MandaysController extends Controller
@@ -716,23 +717,6 @@ class MandaysController extends Controller
         $preDetails  = $existing ? $existing->details()->get()->keyBy('employee_id') : collect();
         $dataChanged = !$existing || $this->resolutionDataChanged($existing, $preDetails, $request);
 
-        // If pending Head approval: block edits, but allow no-op saves silently
-        if ($existing && $existing->status === 'pending_approval') {
-            if ($dataChanged) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot edit while pending Delivery Support Head approval.',
-                ], 422);
-            }
-            return response()->json([
-                'success'                 => true,
-                'message'                 => 'No changes detected.',
-                'data'                    => $this->formatResolutionProposal($existing->load(['details.employee.basicData', 'proposedByAgent.basicData', 'approvedByHead.basicData'])),
-                'resolution_days_status' => 'pending_head',
-                'data_changed'            => false,
-            ]);
-        }
-
         DB::beginTransaction();
         try {
             $total = collect($request->details)->sum('mandays');
@@ -749,8 +733,13 @@ class MandaysController extends Controller
                 ]);
             } else {
                 $proposal = $existing;
-                // Keep current status only when data is unchanged AND status is approvable
-                $keepStatus = !$dataChanged && in_array($existing->status, ['approved', 'pending_approval']);
+                // PIC can keep refining the proposal while it's pending Head approval —
+                // status stays pending_head so it's still visible in the Head's queue
+                // without needing to resubmit. An already-approved proposal that gets
+                // edited falls back to draft (needs re-approval); draft/needs_revision/
+                // rejected also (re)fall to draft on edit as before.
+                $keepStatus = $existing->status === 'pending_approval'
+                    || (!$dataChanged && $existing->status === 'approved');
                 $proposal->update([
                     'status'           => $keepStatus ? $existing->status : 'draft',
                     'last_edited_at'   => now(),
@@ -809,11 +798,15 @@ class MandaysController extends Controller
             return response()->json(['success' => false, 'message' => 'Failed to save the resolution days proposal. Please try again.'], 500);
         }
 
+        $message = match (true) {
+            !$dataChanged                       => 'Saved. No changes detected.',
+            $ticketStatus === 'pending_head'    => 'Updated — still pending Head approval, no need to resubmit.',
+            default                              => 'Draft saved. Submit to Head Support for approval.',
+        };
+
         return response()->json([
             'success'                 => true,
-            'message'                 => $dataChanged
-                ? 'Draft saved. Submit to Head Support for approval.'
-                : 'Saved. No changes detected.',
+            'message'                 => $message,
             'data'                    => $this->formatResolutionProposal($proposal->fresh(['details.employee.basicData', 'proposedByAgent.basicData', 'approvedByHead.basicData'])),
             'resolution_days_status' => $ticketStatus,
             'data_changed'            => $dataChanged,
@@ -906,6 +899,7 @@ class MandaysController extends Controller
             'approved_details'                      => 'nullable|array',
             'approved_details.*.employee_id'        => 'required|integer',
             'approved_details.*.approved_additional'=> 'required|numeric|min:0',
+            'confirm_negative'                      => 'sometimes|boolean',
         ]);
 
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
@@ -917,6 +911,22 @@ class MandaysController extends Controller
         $saveable = ['draft', 'pending_approval', 'needs_revision', 'approved'];
         if (!$proposal || !in_array($proposal->status, $saveable)) {
             return response()->json(['success' => false, 'message' => 'No proposal to save.'], 422);
+        }
+
+        // PIC can keep editing this proposal right up until approval (see
+        // saveResolutionProposal()), so the numbers Head is about to lock in here may
+        // already have outpaced what employees logged. Warn before finalizing —
+        // require an explicit confirm_negative=true resend to proceed anyway.
+        if (!$request->boolean('confirm_negative')) {
+            $warnings = $this->findNegativeRemainingWarnings($ticket, $proposal, $request->input('approved_details', []));
+            if (!empty($warnings)) {
+                return response()->json([
+                    'success'               => false,
+                    'requires_confirmation' => true,
+                    'message'               => 'Some employees will have negative remaining MD with these numbers.',
+                    'warnings'              => $warnings,
+                ], 422);
+            }
         }
 
         DB::beginTransaction();
@@ -957,6 +967,43 @@ class MandaysController extends Controller
             'resolution_days_status' => 'approved',
             'total_mandays'           => $total,
         ]);
+    }
+
+    /**
+     * Per employee in the proposal being approved, compare the quota that would take
+     * effect (mandays + the approved_additional Head is about to save) against what
+     * they've already logged (draft/submitted/approved timesheets on this ticket).
+     * Returns one entry per employee whose remaining would go negative.
+     */
+    private function findNegativeRemainingWarnings(Ticket $ticket, ConsultantMandays $proposal, array $approvedDetails): array
+    {
+        $approvedAdditionalMap = collect($approvedDetails)->keyBy('employee_id');
+        $details = $proposal->details()->with('employee.basicData')->get();
+
+        $warnings = [];
+        foreach ($details as $detail) {
+            $approvedAdditional = (float) ($approvedAdditionalMap->get($detail->employee_id)['approved_additional'] ?? $detail->approved_additional ?? 0);
+            $quota = round((float) $detail->mandays + $approvedAdditional, 2);
+
+            $consumed = (float) Timesheet::where('ticket_id', $ticket->ticket_id)
+                ->where('employee_id', $detail->employee_id)
+                ->whereIn('status', ['draft', 'submitted', 'approved'])
+                ->sum('md_consumed');
+
+            $remaining = round($quota - $consumed, 2);
+            if ($remaining < 0) {
+                $name = trim(($detail->employee?->basicData?->first_name ?? '') . ' ' . ($detail->employee?->basicData?->last_name ?? ''));
+                $warnings[] = [
+                    'employee_id'   => $detail->employee_id,
+                    'employee_name' => $name ?: "Employee #{$detail->employee_id}",
+                    'quota'         => $quota,
+                    'consumed'      => $consumed,
+                    'remaining'     => $remaining,
+                ];
+            }
+        }
+
+        return $warnings;
     }
 
     // =========================================================================
