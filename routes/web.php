@@ -260,6 +260,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // dalam section yang sama pada halaman project detail.
     Route::middleware('menu:delivery-project.edit-delivery-info')->group(function () {
         Route::patch('/projects/{project}/delivery-info', [DeliveryProjectController::class, 'updateDeliveryInfo'])->name('projects.updateDeliveryInfo');
+        Route::patch('/projects/{project}/delivery-data', [DeliveryProjectController::class, 'updateDeliveryData'])->name('projects.updateDeliveryData');
         Route::patch('/projects/{project}/financial-info', [DeliveryProjectController::class, 'updateFinancialInfo'])->name('projects.updateFinancialInfo');
 
         Route::post('/projects/{project}/payment-terms',        [DeliveryProjectPaymentTermController::class, 'store'])->name('projects.paymentTerms.store');
