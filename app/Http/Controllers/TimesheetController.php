@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
 use App\Exports\TimesheetApprovalExport;
+use App\Exports\TimesheetSupportExport;
+use App\Exports\TimesheetProjectExport;
+use App\Exports\TimesheetOfficeExport;
 use App\Models\Timesheet;
 use App\Support\SessionUser;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectActivity;
+use App\Models\DeliverySupportActivity;
 use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\ReportingPeriod;
@@ -146,7 +150,15 @@ class TimesheetController extends Controller
 
     /**
      * Export timesheets to Excel (Head & above).
-     * GET /api/timesheets/export?start_date=&end_date=&status=&type_filter=
+     *
+     * Exports exactly the rows the caller currently has on screen — the frontend
+     * sends the ids of its already-filtered/sorted table (`filteredTimesheets`),
+     * so there is no separate filtering logic to keep in sync with the table's
+     * column filters, stat-card status, date range, sort, etc. `type_filter`
+     * only decides which column layout to use (it mirrors whichever type tab is
+     * active), not which rows to include — that's already been decided by `ids`.
+     *
+     * POST /api/timesheets/export  { ids: number[], type_filter: '' | 'support' | 'project' | 'office' }
      */
     public function exportToExcel(Request $request)
     {
@@ -157,28 +169,75 @@ class TimesheetController extends Controller
             abort(403);
         }
 
-        $query = Timesheet::with(['employee.basicData', 'ticket.customer.basicData', 'activity.delivery_project', 'delivery_project', 'approver.basicData'])
-            ->whereNull('deleted_at');
-
-        if ($request->filled('start_date') && $request->filled('end_date')) {
-            $query->dateRange($request->start_date, $request->end_date);
-        }
-        if ($request->filled('status')) {
-            $query->byStatus($request->status);
-        }
-        if ($request->filled('type_filter')) {
-            $type = $request->type_filter;
-            if ($type === 'support') {
-                $query->whereNotNull('ticket_id');
-            } elseif ($type === 'project') {
-                $query->whereNotNull('delivery_projects_id');
-            } elseif ($type === 'office') {
-                $query->whereNull('ticket_id')->whereNull('delivery_projects_id');
-            }
+        $ids = array_map('intval', (array) $request->input('ids', []));
+        if (empty($ids)) {
+            abort(422, 'No timesheets to export.');
         }
 
-        $rows     = $query->orderBy('date', 'desc')->orderBy('created_at', 'desc')->get();
+        $type = $request->input('type_filter', '');
+
+        $rows = Timesheet::with(['employee.basicData', 'ticket.customer.basicData', 'activity.delivery_project', 'delivery_project', 'approver.basicData'])
+            ->whereIn('id', $ids)
+            ->whereNull('deleted_at')
+            ->get();
+
+        // whereIn() doesn't preserve order — reorder to match the on-screen
+        // sort/order the frontend sent.
+        $order = array_flip($ids);
+        $rows  = $rows->sortBy(fn ($r) => $order[$r->id] ?? PHP_INT_MAX)->values();
+
         $filename = 'TIMESHEET_' . now()->timezone('Asia/Jakarta')->format('dmY') . '.xlsx';
+
+        if ($type === 'support') {
+            $ticketIds = $rows->pluck('ticket_id')->filter()->unique()->values();
+
+            // Per-employee quota MD — same batch lookup used by index()/submittedForApproval().
+            $jatahMap = [];
+            if ($ticketIds->isNotEmpty()) {
+                $latestCMs = ConsultantMandays::whereIn('ticket_id', $ticketIds)
+                    ->where('status', 'approved')
+                    ->orderBy('approved_at', 'desc')
+                    ->get()
+                    ->groupBy('ticket_id')
+                    ->map(fn ($g) => $g->first());
+
+                $cmIdToTicketId = $latestCMs->mapWithKeys(fn ($cm) => [$cm->id => $cm->ticket_id]);
+
+                ConsultantMandaysDetail::whereIn('consultant_mandays_id', $cmIdToTicketId->keys())
+                    ->get()
+                    ->each(function ($detail) use (&$jatahMap, $cmIdToTicketId) {
+                        $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
+                        if ($ticketId) {
+                            $key = $ticketId . '_' . $detail->employee_id;
+                            $jatahMap[$key] = round((float) $detail->mandays + (float) ($detail->approved_additional ?? 0), 2);
+                        }
+                    });
+            }
+
+            $deliveryMap = DeliverySupportActivity::with(['deliverySupport.client.basicData'])
+                ->whereIn('ticket_id', $ticketIds)
+                ->whereNotNull('ticket_id')
+                ->get()
+                ->keyBy('ticket_id')
+                ->map(function ($activity) {
+                    $ds = $activity->deliverySupport;
+                    if (!$ds) {
+                        return null;
+                    }
+                    $clientName = $ds->client?->basicData?->name_1;
+                    return trim($ds->name . ($clientName ? " ({$clientName})" : '') . ($ds->type ? ", {$ds->type}" : ''));
+                });
+
+            return Excel::download(new TimesheetSupportExport($rows, $jatahMap, $deliveryMap), $filename);
+        }
+
+        if ($type === 'project') {
+            return Excel::download(new TimesheetProjectExport($rows), $filename);
+        }
+
+        if ($type === 'office') {
+            return Excel::download(new TimesheetOfficeExport($rows), $filename);
+        }
 
         return Excel::download(new TimesheetApprovalExport($rows), $filename);
     }

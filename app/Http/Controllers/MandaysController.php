@@ -552,8 +552,11 @@ class MandaysController extends Controller
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
         $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
 
-        if (!$proposal || $proposal->status !== 'sent_to_chat') {
-            return response()->json(['success' => false, 'message' => 'Proposal must be sent to customer chat before it can be approved.'], 422);
+        // Sending to the customer chat is no longer required before approving —
+        // Helpdesk can approve directly from pending_helpdesk, or from sent_to_chat
+        // if it was sent anyway.
+        if (!$proposal || !in_array($proposal->status, ['pending_helpdesk', 'sent_to_chat'])) {
+            return response()->json(['success' => false, 'message' => 'No proposal ready to approve.'], 422);
         }
 
         $proposal->update(['status' => 'approved']);
@@ -581,11 +584,35 @@ class MandaysController extends Controller
             return response()->json(['success' => false, 'message' => 'You do not have permission to cancel the customer mandays proposal.'], 403);
         }
 
-        $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
-        $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
-        if (!$proposal || !in_array($proposal->status, ['pending_helpdesk', 'sent_to_chat'])) {
+        $latestProposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+
+        // Target a specific (possibly already-superseded) version via mandays_id, or
+        // default to the latest version — covers both "cancel the current draft/
+        // pending proposal" and "cancel an older version a newer one has since
+        // superseded" (that older version, since it's superseded, is always already
+        // 'approved' — a version only gets superseded once the prior one was
+        // approved or canceled).
+        $mandaysId = $request->input('mandays_id');
+        $proposal  = $mandaysId
+            ? CustomerMandays::where('ticket_id', $ticketId)->where('id', $mandaysId)->first()
+            : $latestProposal;
+
+        if (!$proposal || !in_array($proposal->status, ['pending_helpdesk', 'sent_to_chat', 'approved'])) {
             return response()->json(['success' => false, 'message' => 'No active proposal to cancel.'], 422);
+        }
+
+        $isLatest = $latestProposal && $proposal->id === $latestProposal->id;
+
+        // Cancelling an already-approved proposal reverses something the customer
+        // already signed off on (approval happens on their side via JARVIES) — gated
+        // behind a separate permission on top of the base cancel permission. Also
+        // required whenever a non-latest version is targeted, since that version is
+        // always already-approved by definition. No automated customer notification
+        // here by design; Helpdesk follows up by email manually.
+        if (($proposal->status === 'approved' || !$isLatest) && !$employee->canAccessMenu('ticket.review-mandays.cancel-approved')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to cancel an already-approved proposal.'], 403);
         }
 
         $cancelNotes    = $request->input('cancel_notes');
@@ -596,13 +623,21 @@ class MandaysController extends Controller
             'status'          => 'canceled',
             'notes'           => $cancelNotes ?: null,
             'canceled_by_id'  => $canceledById,
+            'canceled_at'     => now(),
         ]);
-        $ticket->update(['mandays_proposal_status' => 'canceled']);
+
+        // ticket.mandays_proposal_status mirrors the LATEST version's status only —
+        // cancelling an older, already-superseded version must not overwrite it with
+        // a stale 'canceled' while the actual latest version is still active/approved.
+        if ($isLatest) {
+            $ticket->update(['mandays_proposal_status' => 'canceled']);
+        }
 
         // Notify PIC and all members
         $fromName  = $sessionUser['name'] ?? 'Helpdesk';
         $ticketNum = $ticket->ticket_number ?? $ticketId;
-        $preview   = "Ticket #{$ticketNum} — Customer mandays proposal has been canceled"
+        $versionNote = !$isLatest ? " (Version {$proposal->version})" : '';
+        $preview   = "Ticket #{$ticketNum} — Customer mandays proposal{$versionNote} has been canceled"
                    . ($cancelNotes ? ': ' . mb_substr($cancelNotes, 0, 80) : '');
         $link      = "/ticket/{$ticketId}";
 
@@ -1266,6 +1301,7 @@ class MandaysController extends Controller
             'total_mandays'        => (float) $p->total_mandays,
             'cancel_notes'         => $p->notes,
             'canceled_by_name'     => $canceledByName,
+            'canceled_at'          => $p->canceled_at?->toISOString(),
             'proposed_by_name'     => $proposedByName,
             'rejection_reason'     => $p->rejection_reason,
             'customer_notes'       => $p->customer_notes,
