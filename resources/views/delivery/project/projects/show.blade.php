@@ -586,12 +586,13 @@
                                     <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
                                 </div>
                                 <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                                @foreach($employees as $employee)
+                                @foreach($aeEmployees as $employee)
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
                                 @endforeach
                                 <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
                             </div>
                         </div>
+                        <p class="mt-1 text-xs text-gray-500">Only employees with a Sales Operation role are listed.</p>
                     </div>
                     {{-- Text input untuk AE External --}}
                     <input type="text" name="{{ $aeIsExternal ? 'ae_name' : '' }}" id="ae_name_input"
@@ -758,9 +759,27 @@
             </div>
             </div>{{-- /Sales Data --}}
 
-            {{-- Delivery Data Sub-section --}}
-            <div class="border-t border-gray-200 pt-6">
-            <h4 class="text-lg font-medium text-gray-900 mb-4">Delivery Data</h4>
+            {{-- Tombol simpan Delivery Information: diletakkan tepat di bawah tabel
+                 Term Of Payment agar jelas cakupannya (Sales Data + TOP), tidak lagi
+                 rancu dengan Delivery Data yang kini jadi section tersendiri. --}}
+            <div class="mt-6 text-right">
+                <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Update Information
+                </button>
+            </div>
+        </form>
+    </div>
+</section>
+
+{{-- Delivery Data — section terpisah dengan tombol simpannya sendiri --}}
+<section id="delivery-data" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.edit-delivery-info') ? '1' : '0' }}">
+    <div class="bg-white shadow-md rounded-lg">
+        <div class="p-6 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-700">Delivery Data</h2>
+            <p class="mt-1 text-sm text-gray-600">Delivery method, warranty, and mandays</p>
+        </div>
+        <form id="deliveryDataForm" action="{{ route('projects.updateDeliveryData', $project->id) }}" method="POST" class="p-6">
+            @csrf @method('PATCH')
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Warranty Period <span class="text-gray-400 font-normal">(months)</span></label>
@@ -791,7 +810,6 @@
                            class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                 </div>
             </div>
-            </div>{{-- /Delivery Data --}}
             <div class="mt-6 text-right">
                 <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                     Update Information
@@ -4566,7 +4584,9 @@ const observerOptions = {
 const sectionObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
         if (entry.isIntersecting) {
-            const sectionId = entry.target.id;
+            let sectionId = entry.target.id;
+            // Delivery Data is its own section but shares the "Delivery Info" tab.
+            if (sectionId === 'delivery-data') sectionId = 'delivery';
             updateActiveTab(sectionId);
         }
     });
@@ -5555,6 +5575,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     attachSectionForm('generalInfoForm',  'General information updated successfully.',  'Failed to update general information.');
     attachSectionForm('deliveryInfoForm', 'Delivery information updated successfully.', 'Failed to update delivery information.');
+    attachSectionForm('deliveryDataForm', 'Delivery data updated successfully.', 'Failed to update delivery data.');
     attachSectionForm('locationInfoForm', 'Location information updated successfully.', 'Failed to update location information.');
 })();
 

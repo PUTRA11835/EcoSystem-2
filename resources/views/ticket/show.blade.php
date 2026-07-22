@@ -6283,7 +6283,7 @@
         let footHtml = '<tr class="bg-gray-50 font-bold"><td class="px-2 py-1.5 border border-gray-200 text-xs">Total</td>';
         modules.forEach(m => {
             const colTotal = Object.values(detailMap).reduce((s, row) => s + (parseFloat(row[m]) || 0), 0);
-            footHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs text-center">${colTotal > 0 ? colTotal.toFixed(1) : '—'}</td>`;
+            footHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs text-center">${colTotal > 0 ? colTotal.toFixed(2) : '—'}</td>`;
         });
         footHtml += '</tr>';
         document.getElementById('mvdTableFoot').innerHTML = footHtml;
@@ -6484,10 +6484,10 @@
             colTotals[m] = (colTotals[m] || 0) + v;
             grand += v;
         });
-        document.getElementById('picTotalDisplay').textContent = grand.toFixed(1);
+        document.getElementById('picTotalDisplay').textContent = grand.toFixed(2);
         Object.entries(colTotals).forEach(([m, t]) => {
             const el = document.getElementById(`picColTotal_${m}`);
-            if (el) el.textContent = t.toFixed(1);
+            if (el) el.textContent = t.toFixed(2);
         });
     }
 
@@ -7125,10 +7125,10 @@
         });
         Object.entries(colTotals).forEach(([m, t]) => {
             const el = document.getElementById(`hdColTotal_${m}`);
-            if (el) el.textContent = t.toFixed(1);
+            if (el) el.textContent = t.toFixed(2);
         });
         const totalEl = document.getElementById('hdTotalDisplay');
-        if (totalEl) totalEl.textContent = grand.toFixed(1);
+        if (totalEl) totalEl.textContent = grand.toFixed(2);
     }
 
     async function hdSaveAndAction(endpoint, method = 'POST', extraBody = {}) {
@@ -7434,7 +7434,7 @@
         document.getElementById('headResolutionTotal').textContent = grand.toFixed(1);
     }
 
-    async function headResolutionApprove() {
+    async function headResolutionApprove(confirmNegative = false) {
         const btn = document.getElementById('headBtnApprove');
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
@@ -7448,7 +7448,7 @@
 
             const res  = await fetch(MANDAYS_API('resolution/approve'), {
                 method: 'POST', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify({ approved_details: approvedDetails }),
+                body: JSON.stringify({ approved_details: approvedDetails, confirm_negative: confirmNegative }),
             });
             const data = await res.json();
             if (data.success) {
@@ -7456,7 +7456,19 @@
                 resolutionUpdateSidebarBadge?.(data.resolution_days_status);
                 closeHeadResolutionModal();
                 setTimeout(() => location.reload(), 800);
-            } else showNotification(data.message || 'Failed', 'error');
+                return;
+            }
+            if (data.requires_confirmation) {
+                const lines = (data.warnings || []).map(w => `- ${w.employee_name}: remaining would be ${w.remaining} MD`);
+                const proceed = confirm(`Some employees will go negative if you approve these numbers:\n\n${lines.join('\n')}\n\nApprove anyway?`);
+                if (proceed) {
+                    await headResolutionApprove(true);
+                } else {
+                    showNotification('Approval cancelled.', 'info');
+                }
+                return;
+            }
+            showNotification(data.message || 'Failed', 'error');
         } catch(e) { showNotification('Error: '+e.message,'error'); }
         finally { btn.disabled = false; btn.textContent = 'Save'; }
     }
@@ -7492,11 +7504,11 @@
                     bodyHtml += `<tr>
                         <td class="px-3 py-2 border border-gray-200 text-xs">${d.activity || '—'}</td>
                         <td class="px-3 py-2 border border-gray-200 text-xs">${d.module || '—'}</td>
-                        <td class="px-3 py-2 border border-gray-200 text-xs text-center font-semibold">${parseFloat(d.mandays || 0).toFixed(1)}</td>
+                        <td class="px-3 py-2 border border-gray-200 text-xs text-center font-semibold">${parseFloat(d.mandays || 0).toFixed(2)}</td>
                     </tr>`;
                 });
                 document.getElementById('headCustMandaysBody').innerHTML = bodyHtml;
-                document.getElementById('headCustMandaysTotal').textContent = total.toFixed(1);
+                document.getElementById('headCustMandaysTotal').textContent = total.toFixed(2);
 
                 if (proposal.notes) {
                     const nw = document.getElementById('headCustMandaysNotes');

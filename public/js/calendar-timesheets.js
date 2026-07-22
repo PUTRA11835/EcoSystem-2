@@ -970,13 +970,13 @@ async function onSupportTicketSelected() {
         const d = data.data;
 
         // Quota MD — per-user allocation (mandays + approved_additional for this employee)
-        setText(jatahMdEl, d.quota !== null ? Number(d.quota).toFixed(2) : '—');
+        setText(jatahMdEl, d.quota !== null ? formatMdTrim(d.quota) : '—');
 
         // Remaining MD
         if (!remainingEl) return;
         const rem = d.remaining;
         if (rem === null) { remainingEl.textContent = '—'; return; }
-        remainingEl.textContent = Number(rem).toFixed(2);
+        remainingEl.textContent = formatMdTrim(rem);
         remainingEl.className   = rem < 0
             ? 'text-xs font-bold text-red-600'
             : 'text-xs font-bold text-green-600';
@@ -1240,7 +1240,51 @@ function applyStatusFilter() {
     }
 
     filteredTimesheets = result;
+    updateSupportMdSummary(activeType);
     renderTimesheetRows();
+}
+
+// Support-only summary cards: Total Quota MD (unique per ticket+employee, so a
+// ticket with several timesheet rows doesn't get its quota counted more than once)
+// and Total MD Consumed (summed across every filtered row). Rejected rows are
+// excluded from both — always recomputed from filteredTimesheets, so it tracks
+// whatever the table's current filters (search/status/date/etc.) are showing.
+function updateSupportMdSummary(activeType) {
+    const wrap = document.getElementById('supportMdSummary');
+    if (!wrap) return;
+
+    if (activeType !== 'support') {
+        wrap.classList.add('hidden');
+        return;
+    }
+    wrap.classList.remove('hidden');
+
+    const rows = filteredTimesheets.filter(t => t.status !== 'rejected');
+
+    let consumed = 0;
+    let quota = 0;
+    const quotaSeen = new Set();
+    rows.forEach(t => {
+        consumed += Number(t.md_consumed) || 0;
+        if (t.ticket_id != null && t.jatah_md != null) {
+            const key = `${t.ticket_id}_${t.employee_id}`;
+            if (!quotaSeen.has(key)) {
+                quotaSeen.add(key);
+                quota += Number(t.jatah_md) || 0;
+            }
+        }
+    });
+
+    const quotaEl    = document.getElementById('statSupportQuotaMd');
+    const consumedEl = document.getElementById('statSupportConsumedMd');
+    if (quotaEl)    quotaEl.textContent    = formatMdTrim(quota);
+    if (consumedEl) consumedEl.textContent = formatMdTrim(consumed);
+}
+
+// 12 → "12", 12.5 → "12.5", 12.25 → "12.25" — round to 2 decimals first (avoids
+// floating-point noise like 12.299999999996) then drop trailing zeros.
+function formatMdTrim(num) {
+    return parseFloat((Number(num) || 0).toFixed(2)).toString();
 }
 
 // Called by custom-dd data-onchange and text panel oninput
@@ -1621,6 +1665,7 @@ function renderTimesheetRows() {
     if (filteredTimesheets.length === 0) {
         tbody.innerHTML = renderTimesheetEmptyRow();
         updatePagination(0, 0, 0);
+        updateBulkActionButtons();
         return;
     }
 
@@ -1664,9 +1709,9 @@ function renderTimesheetRows() {
             var tkt   = ts.ticket_number ? ('#' + escapeHtml(ts.ticket_number)) : (ts.ticket_id ? ('#' + ts.ticket_id) : '-');
             var tdesc = escapeHtml(ts.ticket_description || '-');
             var cust  = escapeHtml(ts.customer_name || '-');
-            var jmd   = ts.jatah_md   != null ? Number(ts.jatah_md).toFixed(1)   : '-';
+            var jmd   = ts.jatah_md   != null ? formatMdTrim(ts.jatah_md)   : '-';
             var akt   = escapeHtml(ts.description || '-');
-            var mdc   = ts.md_consumed != null ? Number(ts.md_consumed).toFixed(1) : '-';
+            var mdc   = ts.md_consumed != null ? formatMdTrim(ts.md_consumed) : '-';
             var ons   = ts.presence === 'onsite' ? 'X' : '';
 
             // Row click and first cell
@@ -1725,6 +1770,7 @@ function renderTimesheetRows() {
                 + '</tr>';
         }
         tbody.innerHTML = rows;
+        updateBulkActionButtons();
         return;
     }
 
@@ -1772,7 +1818,7 @@ function renderTimesheetRows() {
                         <span class="text-sm text-gray-700">${actType ? actType.charAt(0).toUpperCase() + actType.slice(1) : '-'}</span>
                     </div>`;
             } else if (isSupport) {
-                const mdVal = timesheet.md_consumed != null ? Number(timesheet.md_consumed).toFixed(1) : '—';
+                const mdVal = timesheet.md_consumed != null ? formatMdTrim(timesheet.md_consumed) : '—';
                 const onSiteBadge = timesheet.presence === 'onsite'
                     ? '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-semibold"><i class="fas fa-map-marker-alt"></i>On Site</span>'
                     : '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-semibold"><i class="fas fa-wifi"></i>Remote</span>';
@@ -1817,6 +1863,7 @@ function renderTimesheetRows() {
                 </tr>
             `;
         }).join('');
+        updateBulkActionButtons();
         return;
     }
 
@@ -1876,7 +1923,7 @@ function renderTimesheetRows() {
                 </div>
                 ${timesheet.is_billable ? '<div class="text-xs text-green-600 font-semibold mt-0.5"><i class="fas fa-tag mr-1"></i>Billable</div>' : ''}`;
         } else if (isSupport) {
-            const mdVal      = timesheet.md_consumed != null ? Number(timesheet.md_consumed).toFixed(1) : '—';
+            const mdVal      = timesheet.md_consumed != null ? formatMdTrim(timesheet.md_consumed) : '—';
             const onSite     = timesheet.presence === 'onsite';
             const presenceBadge = onSite
                 ? '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-semibold"><i class="fas fa-map-marker-alt"></i>On Site</span>'
@@ -1920,6 +1967,7 @@ function renderTimesheetRows() {
             </tr>
         `;
     }).join('');
+    updateBulkActionButtons();
 }
 
 function escapeHtml(str) {
@@ -2235,7 +2283,7 @@ async function openSubmitModal(id) {
                 const rem = Number(remaining);
                 if (rem < 0) {
                     showNotification(
-                        `Cannot submit: quota exceeded (remaining MD: ${rem.toFixed(2)}). Save as draft only until quota is increased.`,
+                        `Cannot submit: quota exceeded (remaining MD: ${formatMdTrim(rem)}). Save as draft only until quota is increased.`,
                         'error'
                     );
                     return;
@@ -2340,6 +2388,11 @@ function updateBulkActionButtons() {
     } else {
         bulkActions.classList.add('hidden');
         bulkActions.classList.remove('flex');
+        // Table body is rebuilt fresh on every reload — its row checkboxes are already
+        // unchecked, but the header "select all" checkbox lives outside tbody and keeps
+        // its own state, so it can be left showing checked with nothing actually selected.
+        const selectAllCb = document.getElementById('selectAll');
+        if (selectAllCb) selectAllCb.checked = false;
     }
 
     const noBulkActions = document.getElementById('noBulkActions');
@@ -2641,7 +2694,7 @@ async function handleFormSubmit(e) {
         if (!timesheetId?.value && _currentTicketRemainingMd !== null) {
             const mdVal = parseFloat(mdConsumedVal || 0);
             if (mdVal > _currentTicketRemainingMd) {
-                showNotification(`MD Consumed (${mdVal}) exceeds the remaining quota (${_currentTicketRemainingMd.toFixed(2)}) for this ticket.`, 'error');
+                showNotification(`MD Consumed (${mdVal}) exceeds the remaining quota (${formatMdTrim(_currentTicketRemainingMd)}) for this ticket.`, 'error');
                 if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
                 return;
             }
