@@ -295,12 +295,13 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                                         <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
                                     </div>
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                                    @foreach($employees as $employee)
+                                    @foreach($aeEmployees as $employee)
                                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
                                     @endforeach
                                     <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
                                 </div>
                             </div>
+                            <p class="mt-1 text-xs text-gray-500">Only employees with a Sales Operation role are listed.</p>
                         </div>
                         {{-- Text input untuk AE External --}}
                         <input type="text" name="{{ $isExternal ? 'ae_name' : '' }}" id="ae_name_input"

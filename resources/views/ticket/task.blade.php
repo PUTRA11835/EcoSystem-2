@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'My Tasks')
 @section('page-title', 'My Tasks')
-@section('page-subtitle', 'Active tickets where I am assigned as Lead')
+@section('page-subtitle', 'Active tickets assigned to you')
 
 @section('content')
 <div class="flex flex-col gap-6">
@@ -420,6 +420,11 @@
 
         const isOverdue = t.end_date && new Date(t.end_date) < new Date() && t.status !== 'closed' && t.status !== 'cancel';
 
+        // Sama seperti Consultant Workload: "Updated: <tanggal> by <nama>"
+        const formatUpdatedAt = (raw) => raw ? new Date(raw).toLocaleString('en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        }) : '—';
+
         const details = t.consultant_details ?? [];
         const myDetail = details.find(d => d.employee_id == myEmpId);
         const myMd = myDetail ? Math.round((parseFloat(myDetail.mandays) + parseFloat(myDetail.approved_additional || 0)) * 100) / 100 : null;
@@ -465,12 +470,14 @@
                                         <div id="sub-bar-${d.detail_id}" class="${progressBarColor(parseFloat(d.progress_percentage)||0)} h-1.5 rounded-full" style="width:${parseFloat(d.progress_percentage)||0}%"></div>
                                     </div>
                                     <span id="sub-pct-${d.detail_id}" class="font-bold text-gray-700">${parseFloat(d.progress_percentage)||0}%</span>
+                                    ${d.employee_id == myEmpId ? `
                                     <button onclick="event.stopPropagation(); openCpModal(${t.ticket_id}, '${(t.ticket_number ?? '').replace(/'/g, "\\'")}', ${d.detail_id})"
                                         class="inline-flex items-center gap-1 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white px-2.5 py-1 rounded-lg transition" title="Edit Progress">
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                         Edit
-                                    </button>
+                                    </button>` : ''}
                                 </div>
+                                <div id="sub-upd-${d.detail_id}" class="text-[10px] text-gray-400 mt-0.5 text-right">Updated: ${formatUpdatedAt(d.progress_updated_at)}${d.progress_updated_by_name ? ` by <span class="text-gray-500 font-medium">${d.progress_updated_by_name}</span>` : ''}</div>
                             </td>
                             <td id="sub-note-${d.detail_id}" class="px-4 py-2 text-gray-500 text-xs max-w-[180px]">
                                 ${d.progress_note ? `<span class="italic">${d.progress_note}</span>` : '<span class="text-gray-300">—</span>'}
@@ -505,7 +512,10 @@
     <tr class="border-b border-gray-50 hover:bg-gray-50/60 cursor-pointer group transition-colors"
         onclick="window.location='/ticket/${t.ticket_id}'">
         <td class="px-5 py-3.5">
-            <span class="font-mono text-xs font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-lg group-hover:bg-indigo-50 group-hover:text-indigo-700 transition">${t.ticket_number ?? '—'}</span>
+            <div class="flex items-center gap-1.5">
+                <span class="font-mono text-xs font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-lg group-hover:bg-indigo-50 group-hover:text-indigo-700 transition">${t.ticket_number ?? '—'}</span>
+                ${t.is_lead ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-semibold">Lead</span>' : ''}
+            </div>
         </td>
         <td class="px-5 py-3.5 text-sm font-medium text-gray-700 max-w-[180px] truncate">${t.customer_name ?? '—'}</td>
         <td class="px-5 py-3.5">
@@ -527,12 +537,13 @@
                     <div id="progress-bar-${t.ticket_id}" class="${progressBarColor(pct)} h-2 rounded-full transition-all" style="width:${pct}%"></div>
                 </div>
                 <span id="progress-pct-${t.ticket_id}" class="text-xs font-bold text-gray-600 w-8 text-right shrink-0">${pct}%</span>
-                ${!hasDetails ? `
+                ${!hasDetails && t.is_lead ? `
                 <button onclick="openCpModal(${t.ticket_id}, '${(t.ticket_number ?? '').replace(/'/g, "\\'")}', null)"
                     class="inline-flex items-center gap-0.5 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white px-1.5 py-0.5 rounded transition" title="Edit Progress">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                 </button>` : ''}
             </div>
+            <div class="text-[10px] text-gray-400 mt-0.5">Updated: ${formatUpdatedAt(t.last_progress_at)}${t.last_progress_by_name ? ` by <span class="text-gray-500 font-medium">${t.last_progress_by_name}</span>` : ''}</div>
         </td>
         <td class="pr-3 py-3" onclick="event.stopPropagation()">
             ${hasDetails ? `
@@ -684,7 +695,7 @@
 
                 btn.textContent = 'Tersimpan!';
                 btn.className   = btn.className.replace(/bg-indigo-\d+\s+hover:bg-indigo-\d+/, 'bg-emerald-500');
-                setTimeout(closeCpModal, 900);
+                setTimeout(() => { closeCpModal(); loadTasks(); }, 900);
             } else {
                 alert('Gagal: ' + (json.message ?? 'Error'));
                 btn.disabled = false; btn.textContent = 'Simpan';

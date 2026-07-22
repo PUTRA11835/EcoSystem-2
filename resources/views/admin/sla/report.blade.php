@@ -52,29 +52,6 @@
 
 <div class="space-y-5">
 
-    {{-- ── KPI Cards ──────────────────────────────────────────────────────── --}}
-    <div id="kpiGrid" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
-        @foreach([
-            ['icon'=>'fa-ticket-alt',    'bg'=>'bg-gray-50',    'color'=>'text-gray-500',   'id'=>'kpiTotal',      'label'=>'Total Tickets'],
-            ['icon'=>'fa-clock',         'bg'=>'bg-blue-50',    'color'=>'text-blue-500',   'id'=>'kpiActive',     'label'=>'Active'],
-            ['icon'=>'fa-check-circle',  'bg'=>'bg-green-50',   'color'=>'text-green-500',  'id'=>'kpiMet',        'label'=>'Met'],
-            ['icon'=>'fa-times-circle',  'bg'=>'bg-red-50',     'color'=>'text-red-500',    'id'=>'kpiBreached',   'label'=>'Breached'],
-            ['icon'=>'fa-chart-pie',     'bg'=>'bg-purple-50',  'color'=>'text-purple-500', 'id'=>'kpiCompliance', 'label'=>'Compliance'],
-            ['icon'=>'fa-bolt',          'bg'=>'bg-yellow-50',  'color'=>'text-yellow-500', 'id'=>'kpiAvgResp',    'label'=>'Avg Response'],
-            ['icon'=>'fa-flag-checkered','bg'=>'bg-orange-50',  'color'=>'text-orange-500', 'id'=>'kpiAvgRes',     'label'=>'Avg Resolution'],
-        ] as $k)
-        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
-            <div class="flex items-center gap-3 mb-2">
-                <div class="w-9 h-9 rounded-xl {{ $k['bg'] }} flex items-center justify-center flex-shrink-0">
-                    <i class="fas {{ $k['icon'] }} {{ $k['color'] }} text-sm"></i>
-                </div>
-            </div>
-            <p class="text-xl font-bold text-gray-800" id="{{ $k['id'] }}">—</p>
-            <p class="text-xs text-gray-400 mt-0.5">{{ $k['label'] }}</p>
-        </div>
-        @endforeach
-    </div>
-
     {{-- ── Main Card ──────────────────────────────────────────────────────── --}}
     <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
 
@@ -197,8 +174,8 @@
                     <tr class="border-b border-gray-200">
                         <th colspan="4"  class="sc sc-last px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider grp-info" style="left:0;">Informasi Tiket</th>
                         <th colspan="9"  class="px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider border-r border-gray-200 grp-info"></th>
-                        <th colspan="8"  class="px-3 py-2 text-center text-[10px] font-bold text-blue-700 uppercase tracking-wider border-r border-gray-200 grp-resp">SLA Response</th>
-                        <th colspan="10" class="px-3 py-2 text-center text-[10px] font-bold text-green-700 uppercase tracking-wider border-r border-gray-200 grp-res">SLA Resolution</th>
+                        <th colspan="7"  class="px-3 py-2 text-center text-[10px] font-bold text-blue-700 uppercase tracking-wider border-r border-gray-200 grp-resp">SLA Response</th>
+                        <th colspan="8" class="px-3 py-2 text-center text-[10px] font-bold text-green-700 uppercase tracking-wider border-r border-gray-200 grp-res">SLA Resolution</th>
                         <th colspan="1"  class="px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider grp-info">Aksi</th>
                     </tr>
                     {{-- Column header row (sc = sticky column, left = cumulative px offset) --}}
@@ -225,29 +202,26 @@
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time<br>Received</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time Start<br>SLA Response<br><span class="text-[8px] font-normal normal-case">(Working Hours 08:00–17:00)</span></th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:70px">SLA<br>Response<br>Time</th>
-                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">SLA Due On</th>
+                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Response Due On</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:130px">Date &amp; Time<br>Responded</th>
-                        <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:50px">X</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp" style="min-width:80px">Response<br>Duration</th>
                         <th class="text-center px-2 py-2 font-semibold text-blue-500 uppercase tracking-wider grp-resp border-r border-gray-200" style="min-width:80px">SLA<br>Response<br>Time</th>
                         {{-- SLA Resolution --}}
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:70px">SLA<br>Resolution<br>(HOUR)</th>
-                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:65px">SLA<br>Resolution<br>(DAY)</th>
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">Date &amp; Time Start<br>SLA Resolution<br><span class="text-[8px] font-normal normal-case">(Working Day, 08:00–17:00 EXCEPT VERY HIGH)</span></th>
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">SLA Resolution<br>Due On<br><span class="text-[8px] font-normal normal-case">(Working Day, 08:00–17:00 EXCEPT VERY HIGH)</span></th>
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">First<br>Resolved Date</th>
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">Date of sending<br>Resolution doc./mail</th>
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:80px">Resolution<br>Duration<br>(STOP-GO)</th>
-                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:80px">SLA<br>Resolution<br>Time</th>
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">Closed Date</th>
-                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res border-r border-gray-200" style="min-width:160px">Notes</th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res border-r border-gray-200" style="min-width:70px">Notes</th>
                         {{-- Actions --}}
                         <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:80px">Log / PDF</th>
                     </tr>
                 </thead>
                 <tbody id="reportTableBody">
                     <tr>
-                        <td colspan="32" class="py-16 text-center">
+                        <td colspan="29" class="py-16 text-center">
                             <div class="flex flex-col items-center gap-2 text-gray-300">
                                 <i class="fas fa-spinner fa-spin text-3xl"></i>
                                 <p class="text-sm">Loading report...</p>
@@ -336,6 +310,26 @@
     </div>
 </div>
 
+{{-- ── Notes Modal ───────────────────────────────────────────────────────── --}}
+<div id="notesModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onclick="closeNotesModal()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
+            <div class="flex-shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Notes</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Ticket <span id="notesTicketNum" class="font-mono font-semibold text-gray-600"></span></p>
+                </div>
+                <button onclick="closeNotesModal()"
+                    class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
+            </div>
+            <div id="notesModalContent" class="overflow-auto flex-1 px-5 py-4 text-xs text-gray-600 leading-relaxed"></div>
+        </div>
+    </div>
+</div>
+
 <script>
 const PRIORITY_CFG = {
     'Very High': { bg:'bg-red-50',    text:'text-red-700',    dot:'bg-red-500'    },
@@ -350,14 +344,35 @@ const STATUS_CFG = {
     'met':                { bg:'sla-badge-met',      label:'Terpenuhi',     icon:'fa-check-circle'    },
     'breached':           { bg:'sla-badge-breached', label:'Dilanggar',     icon:'fa-times-circle'    },
 };
-const KPI_IDS = ['kpiTotal','kpiActive','kpiMet','kpiBreached','kpiCompliance','kpiAvgResp','kpiAvgRes'];
-
 let _allTickets = [];
 let _filteredTickets = [];
 
 function fmtDT(dt) {
     if (!dt) return '—';
     return dt.substring(0, 16).replace('T', ' ');
+}
+
+// "2026-07-07 12:21:00" → "07.07.2026 12:21" (Notes column log format)
+function fmtNoteDT(dt) {
+    if (!dt) return '';
+    const [y, m, d] = dt.substring(0, 10).split('-');
+    return `${d}.${m}.${y} ${dt.substring(11, 16)}`;
+}
+
+function escHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+}
+
+// Build the "[DD.MM.YYYY HH:mm] text" chronological log (plain text lines) for the Notes
+// column from the ticket's tagged SLA chat messages.
+function buildNotesLog(t) {
+    const lines = (t.notes || []).map(n => `[${fmtNoteDT(n.at)}] ${n.text}`);
+    if (!lines.length && t.sla_policy_missing) {
+        lines.push('Belum ada SLA Policy untuk delivery support ini — jam kerja tidak diterapkan');
+    }
+    return lines;
 }
 
 // Format decimal hours → HH:MM
@@ -369,10 +384,6 @@ function fmtHHMM(h) {
     return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
 }
 
-function fmtDays(d) {
-    if (d === null || d === undefined) return '—';
-    return parseFloat(d).toFixed(2);
-}
 
 function clearFilters() {
     setCustomDropdownValue('filterCustomer', '');
@@ -436,22 +447,25 @@ function exportToExcel() {
                     'SLA Response Status': '',
                     // SLA Resolution
                     'SLA Resolution (Hour)': '',
-                    'SLA Resolution (Day)': '',
                     'Date & Time Start SLA Resolution': '',
                     'SLA Resolution Due On': '',
                     'First Resolved Date': '',
                     'Date Sending Resolution Doc': '',
                     'Resolution Duration (STOP-GO)': '',
-                    'SLA Resolution Status': '',
                     'Closed Date': '',
                     'Notes': '',
                 };
             }
 
-            const typeOfService = t.sla_mode === 'full' ? 'CR' : 'MO';
-            const respStatusLabel = STATUS_CFG[t.response?.status]?.label || '';
-            const resStatusLabel  = STATUS_CFG[t.resolution?.status]?.label || '';
-
+            const typeOfService = t.delivery_support_type || '';
+            let respStatusLabel;
+            if (t.sla_policy_missing) {
+                respStatusLabel = 'No SLA Config';
+            } else if (t.response?.actual_hours != null && t.response?.target_hours != null) {
+                respStatusLabel = parseFloat(t.response.actual_hours) <= parseFloat(t.response.target_hours) ? 'Achieved' : 'Not Achieved';
+            } else {
+                respStatusLabel = STATUS_CFG[t.response?.status]?.label || '';
+            }
             return {
                 'No': idx + 1,
                 'Year': t.year || '',
@@ -476,15 +490,13 @@ function exportToExcel() {
                 'SLA Response Status': respStatusLabel,
                 // SLA Resolution
                 'SLA Resolution (Hour)': t.resolution?.target_hours ?? '',
-                'SLA Resolution (Day)': t.resolution?.target_days != null ? parseFloat(t.resolution.target_days).toFixed(2) : '',
-                'Date & Time Start SLA Resolution': t.sla_start_at ? t.sla_start_at.substring(0, 16).replace('T', ' ') : '',
+                'Date & Time Start SLA Resolution': t.resolution?.start_at ? t.resolution.start_at.substring(0, 16).replace('T', ' ') : '',
                 'SLA Resolution Due On': t.resolution?.due_at ? t.resolution.due_at.substring(0, 16).replace('T', ' ') : '',
                 'First Resolved Date': t.resolution?.resolved_at ? t.resolution.resolved_at.substring(0, 16).replace('T', ' ') : '',
-                'Date Sending Resolution Doc': '',
+                'Date Sending Resolution Doc': t.resolution?.doc_sent_at ? t.resolution.doc_sent_at.substring(0, 16).replace('T', ' ') : '',
                 'Resolution Duration (STOP-GO)': t.resolution?.actual_hours != null ? fmtHHMM(t.resolution.actual_hours) : '',
-                'SLA Resolution Status': resStatusLabel,
                 'Closed Date': t.closed_at ? t.closed_at.substring(0, 16).replace('T', ' ') : '',
-                'Notes': '',
+                'Notes': buildNotesLog(t).join('\n'),
             };
         });
 
@@ -534,26 +546,11 @@ async function loadReport() {
         const json = await res.json();
         if (!json.success) return;
 
-        const sm  = json.data.summary;
-        const vals = [
-            sm.total,
-            sm.active,
-            sm.met,
-            sm.breached,
-            sm.compliance_rate !== null ? sm.compliance_rate + '%' : '—',
-            sm.avg_response_hours   !== null ? fmtHHMM(sm.avg_response_hours)   : '—',
-            sm.avg_resolution_hours !== null ? fmtHHMM(sm.avg_resolution_hours) : '—',
-        ];
-        KPI_IDS.forEach((id, i) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = vals[i];
-        });
-
         _allTickets = json.data.tickets || [];
         applyReportFilters();
     } catch (e) {
         document.getElementById('reportTableBody').innerHTML = `
-            <tr><td colspan="32" class="py-12 text-center">
+            <tr><td colspan="29" class="py-12 text-center">
                 <div class="flex flex-col items-center gap-2 text-red-400">
                     <i class="fas fa-exclamation-triangle text-3xl"></i>
                     <p class="text-sm">Failed to load report.</p>
@@ -586,7 +583,7 @@ function renderTable(tickets) {
     if (!tickets.length) {
         footer.classList.add('hidden');
         tbody.innerHTML = `
-            <tr><td colspan="32" class="py-16 text-center">
+            <tr><td colspan="29" class="py-16 text-center">
                 <div class="flex flex-col items-center gap-2 text-gray-300">
                     <i class="fas fa-search text-4xl"></i>
                     <p class="text-sm font-medium text-gray-400 mt-1">Tidak ada tiket ditemukan</p>
@@ -601,9 +598,10 @@ function renderTable(tickets) {
 
     tbody.innerHTML = tickets.map((t, idx) => {
         const isPending = t.is_pending_validation;
+        const noPolicyWarning = t.sla_policy_missing
+            ? `<span class="ml-1 text-amber-500 cursor-help" title="Belum ada SLA Policy untuk delivery support tiket ini — jam kerja tidak diterapkan, waktu ditampilkan apa adanya"><i class="fas fa-exclamation-triangle text-[9px]"></i></span>`
+            : '';
         const prio = PRIORITY_CFG[t.ticket_priority] || { bg:'bg-gray-50', text:'text-gray-600', dot:'bg-gray-400' };
-        const rscKey = t.resolution?.status || 'pending';
-        const rsc = STATUS_CFG[rscKey] || STATUS_CFG['pending'];
 
         if (isPending) {
             return `
@@ -617,31 +615,42 @@ function renderTable(tickets) {
                 <td class="px-2 py-2 text-center text-amber-600" colspan="9">
                     <span class="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Menunggu Validasi</span>
                 </td>
-                <td class="px-2 py-2 text-gray-400" colspan="18">—</td>
+                <td class="px-2 py-2 text-gray-400" colspan="15">—</td>
                 <td class="px-2 py-2 text-center text-gray-400 italic text-[10px]">Validasi dulu</td>
             </tr>`;
         }
 
-        const respMet  = t.response?.met;
-        const respIcon = respMet === true  ? '<i class="fas fa-check-circle sla-check-met text-base"></i>'
-                       : respMet === false ? '<i class="fas fa-times-circle sla-check-breached text-base"></i>'
-                       : '<i class="fas fa-minus sla-check-none text-base"></i>';
-
-        const resMet  = t.resolution?.met;
-        const resIcon = resMet === true  ? '<i class="fas fa-check-circle sla-check-met text-base"></i>'
-                      : resMet === false ? '<i class="fas fa-times-circle sla-check-breached text-base"></i>'
-                      : '<i class="fas fa-minus sla-check-none text-base"></i>';
-
-        const respStatusLabel = STATUS_CFG[t.response?.status]?.label || '—';
-        const resStatusLabel  = STATUS_CFG[t.resolution?.status]?.label || '—';
-        const respStatusColor = t.response?.status === 'met' ? 'text-green-600' : t.response?.status === 'breached' ? 'text-red-600' : 'text-gray-400';
         const resStatusColor  = t.resolution?.status === 'met' ? 'text-green-600' : t.resolution?.status === 'breached' ? 'text-red-600' : 'text-gray-400';
+
+        // SLA Response Time (achieved) — Achieved if Response Duration <= SLA Response Time (Hour), else Not Achieved.
+        // If not yet responded, fall back to the raw status label (e.g. Active).
+        // If there's no SLA config (policy) for this delivery support, warn instead of silently comparing against a null target.
+        let respStatusLabel, respStatusColor;
+        if (t.sla_policy_missing) {
+            respStatusLabel = 'No SLA Config';
+            respStatusColor = 'text-amber-600';
+        } else if (t.response?.actual_hours != null && t.response?.target_hours != null) {
+            const respAchieved = parseFloat(t.response.actual_hours) <= parseFloat(t.response.target_hours);
+            respStatusLabel = respAchieved ? 'Achieved' : 'Not Achieved';
+            respStatusColor = respAchieved ? 'text-green-600' : 'text-red-600';
+        } else {
+            respStatusLabel = STATUS_CFG[t.response?.status]?.label || '—';
+            respStatusColor = t.response?.status === 'met' ? 'text-green-600' : t.response?.status === 'breached' ? 'text-red-600' : 'text-gray-400';
+        }
 
         const desc = (t.description || '').substring(0, 70) + ((t.description || '').length > 70 ? '…' : '');
         const ticketUrl = t.ticket_id ? `/ticket/${t.ticket_id}` : '#';
 
-        // Type of Service label based on SLA mode
-        const typeOfService = t.sla_mode === 'full' ? 'CR' : 'MO';
+        const notesCount = buildNotesLog(t).length;
+        const notesCell  = notesCount
+            ? `<button onclick="openNotesModal(${t.ticket_id}, '${t.ticket_number}')" title="Lihat semua notes"
+                   class="inline-flex items-center gap-1.5 text-[10px] font-semibold text-gray-500 hover:text-indigo-600 border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 px-2 py-1 rounded-lg transition">
+                   <i class="fas fa-clipboard-list text-[10px]"></i> ${notesCount}
+               </button>`
+            : '<span class="text-gray-300 text-[10px]">—</span>';
+
+        // Type of Service label from ticket's assigned Delivery Support type (MO/CR/AMS/ATS/...)
+        const typeOfService = t.delivery_support_type || '—';
 
         return `
         <tr class="border-b border-gray-50 hover:bg-blue-50/20 transition-colors">
@@ -681,38 +690,31 @@ function renderTable(tickets) {
             </td>
             {{-- SLA Response --}}
             <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.received_at)}</td>
-            <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}</td>
+            <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}${noPolicyWarning}</td>
             <td class="px-2 py-2 text-center bg-blue-50/20">
                 <span class="text-[10px] text-blue-700 font-semibold">${t.response?.target_hours ?? '—'}</span>
             </td>
             <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.response?.due_at)}</td>
             <td class="px-2 py-2 bg-blue-50/20 text-[10px] text-gray-600">${fmtDT(t.response?.responded_at)}</td>
-            <td class="px-2 py-2 text-center bg-blue-50/20">${respIcon}</td>
             <td class="px-2 py-2 text-center bg-blue-50/20">
                 <span class="text-[10px] font-semibold ${respStatusColor}">${fmtHHMM(t.response?.actual_hours)}</span>
             </td>
             <td class="px-2 py-2 text-center bg-blue-50/20 border-r border-gray-200">
-                <span class="text-[10px] font-semibold ${respStatusColor}">${respStatusLabel}</span>
+                <span class="text-[10px] font-semibold ${respStatusColor}">${respStatusLabel}</span>${noPolicyWarning}
             </td>
             {{-- SLA Resolution --}}
             <td class="px-2 py-2 text-center bg-green-50/20">
                 <span class="text-[10px] text-green-700 font-semibold">${t.resolution?.target_hours ?? '—'}</span>
             </td>
-            <td class="px-2 py-2 text-center bg-green-50/20">
-                <span class="text-[10px] text-green-700 font-semibold">${fmtDays(t.resolution?.target_days)}</span>
-            </td>
-            <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.sla_start_at)}</td>
+            <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.resolution?.start_at)}${noPolicyWarning}</td>
             <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.resolution?.due_at)}</td>
             <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.resolution?.resolved_at)}</td>
-            <td class="px-2 py-2 text-center bg-green-50/20 text-gray-300 text-[10px]">—</td>
+            <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.resolution?.doc_sent_at)}</td>
             <td class="px-2 py-2 text-center bg-green-50/20">
                 <span class="text-[10px] font-semibold ${resStatusColor}">${fmtHHMM(t.resolution?.actual_hours)}</span>
             </td>
-            <td class="px-2 py-2 text-center bg-green-50/20">
-                <span class="inline-flex items-center gap-1 text-[10px] font-semibold ${resStatusColor}">${resIcon} ${resStatusLabel}</span>
-            </td>
             <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.closed_at)}</td>
-            <td class="px-2 py-2 text-center bg-green-50/20 border-r border-gray-200 text-gray-300 text-[10px]">—</td>
+            <td class="px-2 py-2 text-center bg-green-50/20 border-r border-gray-200">${notesCell}</td>
             {{-- Actions --}}
             <td class="px-2 py-2">
                 <div class="flex items-center gap-1">
@@ -899,8 +901,28 @@ function closeDetailModal() {
     _currentDetailTicketId = null;
 }
 
+// ── Notes Modal ──────────────────────────────────────────────────────────────
+
+function openNotesModal(ticketId, ticketNum) {
+    const t = _allTickets.find(x => x.ticket_id === ticketId);
+    const lines = t ? buildNotesLog(t) : [];
+
+    document.getElementById('notesTicketNum').textContent = '#' + ticketNum;
+    document.getElementById('notesModalContent').innerHTML = lines.length
+        ? lines.map(l => `<p class="mb-2 pb-2 border-b border-gray-50 last:border-0 last:mb-0 last:pb-0">${escHtml(l)}</p>`).join('')
+        : '<p class="text-center text-gray-300 py-8">Tidak ada notes.</p>';
+
+    document.getElementById('notesModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeNotesModal() {
+    document.getElementById('notesModal').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeDetailModal();
+    if (e.key === 'Escape') { closeDetailModal(); closeNotesModal(); }
 });
 
 loadReport();

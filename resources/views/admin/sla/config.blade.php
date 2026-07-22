@@ -250,12 +250,38 @@
                 </div>
 
                 <label id="add24hLabel" class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
-                    <input type="checkbox" name="is_24_hours" id="add24h" class="mt-0.5 w-4 h-4 rounded accent-red-700">
+                    <input type="checkbox" name="is_24_hours" id="add24h" onchange="updatePreview()" class="mt-0.5 w-4 h-4 rounded accent-red-700">
                     <div>
                         <p class="text-sm font-medium text-gray-700">24/7 Calendar Hours</p>
-                        <p class="text-xs text-gray-400 mt-0.5" id="add24hNote">Count all hours; otherwise business hours only (Mon–Fri 09:00–18:00)</p>
+                        <p class="text-xs text-gray-400 mt-0.5" id="add24hNote">Count all hours; otherwise business hours only (per the window below)</p>
                     </div>
                 </label>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Work Start</label>
+                        <input type="time" name="work_start_time" id="addWorkStart" oninput="validateAddWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Work End</label>
+                        <input type="time" name="work_end_time" id="addWorkEnd" oninput="validateAddWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Break Start</label>
+                        <input type="time" name="break_start_time" id="addBreakStart" oninput="validateAddWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Break End</label>
+                        <input type="time" name="break_end_time" id="addBreakEnd" oninput="validateAddWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    </div>
+                </div>
 
                 <div id="addError" class="hidden items-center gap-2 bg-red-50 rounded-xl px-4 py-3 border border-red-100">
                     <i class="fas fa-exclamation-circle text-red-500 flex-shrink-0 text-xs"></i>
@@ -309,12 +335,38 @@
                 </div>
 
                 <label id="edit24hLabel" class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
-                    <input type="checkbox" id="edit24h" class="mt-0.5 w-4 h-4 rounded accent-red-700">
+                    <input type="checkbox" id="edit24h" onchange="editUpdate24h()" class="mt-0.5 w-4 h-4 rounded accent-red-700">
                     <div>
                         <p class="text-sm font-medium text-gray-700">24/7 Calendar Hours</p>
                         <p class="text-xs text-gray-400 mt-0.5" id="edit24hNote">Count all hours instead of business hours</p>
                     </div>
                 </label>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Work Start</label>
+                        <input type="time" id="editWorkStart" oninput="validateEditWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Work End</label>
+                        <input type="time" id="editWorkEnd" oninput="validateEditWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Break Start</label>
+                        <input type="time" id="editBreakStart" oninput="validateEditWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Break End</label>
+                        <input type="time" id="editBreakEnd" oninput="validateEditWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    </div>
+                </div>
 
                 <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
                     <input type="checkbox" id="editIsActive" class="mt-0.5 w-4 h-4 rounded accent-green-600" checked>
@@ -442,14 +494,25 @@ function updatePreview() {
         is24hEl.disabled = true;
         labelEl.classList.add('opacity-75', 'cursor-not-allowed');
         labelEl.classList.remove('cursor-pointer', 'hover:bg-gray-100');
-        noteEl.textContent = 'Wajib 24/7 — priority Very High selalu menggunakan kalender penuh.';
+        noteEl.textContent = 'Required 24/7 — Very High priority always uses full calendar hours.';
     } else {
         is24hEl.disabled = false;
         labelEl.classList.remove('opacity-75', 'cursor-not-allowed');
         labelEl.classList.add('cursor-pointer', 'hover:bg-gray-100');
-        noteEl.textContent = 'Count all hours; otherwise business hours only (Mon–Fri 09:00–18:00)';
+        noteEl.textContent = 'Count all hours; otherwise business hours only (per the window below)';
     }
     document.getElementById('labelPreview').textContent = makeLabel(dsName, priority, scale);
+}
+
+function validateAddWindow() {
+    const start  = document.getElementById('addWorkStart');
+    const end    = document.getElementById('addWorkEnd');
+    const bStart = document.getElementById('addBreakStart');
+    const bEnd   = document.getElementById('addBreakEnd');
+    end.setCustomValidity((start.value && end.value && end.value <= start.value)
+        ? 'Work end must be after work start.' : '');
+    bEnd.setCustomValidity((bStart.value && bEnd.value && bEnd.value <= bStart.value)
+        ? 'Break end must be after break start.' : '');
 }
 
 // ── Column filter system (config page) ───────────────────────────────────────
@@ -635,9 +698,11 @@ function renderPolicies(policies) {
                </div>`
             : `<span class="text-xs text-gray-400 italic">—</span>`;
 
+        const breakLabel = (p.break_start_time && p.break_end_time) ? ` (break ${p.break_start_time}-${p.break_end_time})` : '';
+        const workHoursLabel = (p.work_start_time && p.work_end_time) ? ` ${p.work_start_time}–${p.work_end_time}${breakLabel}` : '';
         const modeCell = p.is_24_hours
             ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full"><i class="fas fa-infinity text-[9px]"></i>24/7</span>`
-            : `<span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Business</span>`;
+            : `<span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Business${workHoursLabel}</span>`;
 
         const statusCell = p.is_active
             ? `<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 px-2.5 py-0.5 rounded-full">
@@ -696,6 +761,8 @@ function renderPolicies(policies) {
 // ── Modal helpers ─────────────────────────────────────────────────────────────
 function openAddModal() {
     document.getElementById('addPolicyForm').reset();
+    document.getElementById('addWorkEnd').setCustomValidity('');
+    document.getElementById('addBreakEnd').setCustomValidity('');
     hideErr('add');
     updatePreview();
     document.getElementById('addModal').classList.remove('hidden');
@@ -705,33 +772,58 @@ function closeAddModal() {
     selectDeliverySupport('', '');
 }
 
+let _editPriority = null;
+
 function openEditModal(p) {
     document.getElementById('editPolicyId').value        = p.id;
     document.getElementById('editResponseHours').value   = p.response_hours;
     document.getElementById('editResolutionHours').value = p.resolution_hours;
+    document.getElementById('editWorkStart').value        = p.work_start_time || '';
+    document.getElementById('editWorkEnd').value          = p.work_end_time || '';
+    document.getElementById('editBreakStart').value       = p.break_start_time || '';
+    document.getElementById('editBreakEnd').value         = p.break_end_time || '';
+    document.getElementById('editWorkEnd').setCustomValidity('');
+    document.getElementById('editBreakEnd').setCustomValidity('');
     document.getElementById('editIsActive').checked      = p.is_active;
     document.getElementById('editPolicyLabel').textContent = makeLabel(p.delivery_support_name, p.priority, p.scale);
 
-    const el24    = document.getElementById('edit24h');
-    const lbl24   = document.getElementById('edit24hLabel');
-    const note24  = document.getElementById('edit24hNote');
-
-    if (p.priority === 'Very High') {
-        el24.checked  = true; el24.disabled = true;
-        lbl24.classList.add('opacity-75','cursor-not-allowed');
-        lbl24.classList.remove('cursor-pointer','hover:bg-gray-100');
-        note24.textContent = 'Wajib 24/7 — priority Very High selalu menggunakan kalender penuh.';
-    } else {
-        el24.checked  = p.is_24_hours; el24.disabled = false;
-        lbl24.classList.remove('opacity-75','cursor-not-allowed');
-        lbl24.classList.add('cursor-pointer','hover:bg-gray-100');
-        note24.textContent = 'Count all hours instead of business hours';
-    }
+    _editPriority = p.priority;
+    document.getElementById('edit24h').checked = p.is_24_hours;
+    editUpdate24h();
 
     hideErr('edit');
     document.getElementById('editModal').classList.remove('hidden');
 }
 function closeEditModal() { document.getElementById('editModal').classList.add('hidden'); }
+
+function editUpdate24h() {
+    const el24   = document.getElementById('edit24h');
+    const lbl24  = document.getElementById('edit24hLabel');
+    const note24 = document.getElementById('edit24hNote');
+
+    if (_editPriority === 'Very High') {
+        el24.checked  = true; el24.disabled = true;
+        lbl24.classList.add('opacity-75','cursor-not-allowed');
+        lbl24.classList.remove('cursor-pointer','hover:bg-gray-100');
+        note24.textContent = 'Required 24/7 — Very High priority always uses full calendar hours.';
+    } else {
+        el24.disabled = false;
+        lbl24.classList.remove('opacity-75','cursor-not-allowed');
+        lbl24.classList.add('cursor-pointer','hover:bg-gray-100');
+        note24.textContent = 'Count all hours instead of business hours';
+    }
+}
+
+function validateEditWindow() {
+    const start  = document.getElementById('editWorkStart');
+    const end    = document.getElementById('editWorkEnd');
+    const bStart = document.getElementById('editBreakStart');
+    const bEnd   = document.getElementById('editBreakEnd');
+    end.setCustomValidity((start.value && end.value && end.value <= start.value)
+        ? 'Work end must be after work start.' : '');
+    bEnd.setCustomValidity((bStart.value && bEnd.value && bEnd.value <= bStart.value)
+        ? 'Break end must be after break start.' : '');
+}
 
 function showErr(pfx, msg) {
     const box = document.getElementById(pfx + 'Error');
@@ -765,6 +857,10 @@ async function submitAddPolicy(e) {
                 response_hours:      parseFloat(form.response_hours.value),
                 resolution_hours:    parseFloat(form.resolution_hours.value),
                 is_24_hours:         form.is_24_hours.checked,
+                work_start_time:     form.work_start_time.value || null,
+                work_end_time:       form.work_end_time.value || null,
+                break_start_time:    form.break_start_time.value || null,
+                break_end_time:      form.break_end_time.value || null,
             }),
         });
         const json = await res.json();
@@ -790,6 +886,10 @@ async function submitEditPolicy(e) {
                 response_hours:   parseFloat(document.getElementById('editResponseHours').value),
                 resolution_hours: parseFloat(document.getElementById('editResolutionHours').value),
                 is_24_hours:      document.getElementById('edit24h').checked,
+                work_start_time:  document.getElementById('editWorkStart').value || null,
+                work_end_time:    document.getElementById('editWorkEnd').value || null,
+                break_start_time: document.getElementById('editBreakStart').value || null,
+                break_end_time:   document.getElementById('editBreakEnd').value || null,
                 is_active:        document.getElementById('editIsActive').checked,
             }),
         });

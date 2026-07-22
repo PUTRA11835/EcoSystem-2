@@ -8,6 +8,7 @@ use App\Http\Controllers\TicketMessageController;
 use App\Models\EmployeeBasicData;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
+use App\Services\SlaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -738,16 +739,40 @@ class LiteTicketController extends Controller
             // daftar baru untuk override (lihat POST /tickets/{ticketId}/messages).
             'to_emails'                => $ticket->to_emails ?? [],
             'cc_emails'                => $ticket->cc_emails ?? [],
-            'sla_detail' => $ticket->sla ? [
-                'target_response_hours'   => $ticket->sla->policy?->response_hours,
-                'response_time_hours'     => $ticket->sla->validation_duration_hours,
-                'response_status'         => $ticket->sla->response_status,
-                'target_resolution_hours' => $ticket->sla->policy?->resolution_hours,
-                'resolution_due_at'       => $ticket->sla->resolution_due_at,
-                'resolution_time_hours'   => $ticket->sla->net_resolution_hours,
-                'resolution_status'       => $ticket->sla->resolution_status,
-            ] : null,
+            'sla_detail' => $this->liveSlaDetail($ticket),
         ]);
+    }
+
+    /**
+     * Live SLA summary for the ticket detail endpoint — same live-recompute methods as the
+     * admin SLA report (SlaService::responseDurationHours() etc.) instead of the stored
+     * validation_duration_hours/net_resolution_hours/response_status/resolution_status
+     * columns, which are frozen at write time and won't reflect a later calcHours() formula
+     * change for historical tickets. Single-ticket endpoint, so no batch/N+1 concern here.
+     */
+    private function liveSlaDetail(Ticket $ticket): ?array
+    {
+        $sla = $ticket->sla;
+        if (!$sla) {
+            return null;
+        }
+
+        if (!$sla->relationLoaded('ticket')) {
+            $sla->setRelation('ticket', $ticket);
+        }
+
+        $slaService        = app(SlaService::class);
+        $resolutionMetrics = $slaService->liveResolutionMetrics($sla);
+
+        return [
+            'target_response_hours'   => $sla->policy?->response_hours,
+            'response_time_hours'     => $slaService->responseDurationHours($sla),
+            'response_status'         => $slaService->responseStatusLive($sla),
+            'target_resolution_hours' => $sla->policy?->resolution_hours,
+            'resolution_due_at'       => $sla->resolution_due_at,
+            'resolution_time_hours'   => $resolutionMetrics['net_hours'],
+            'resolution_status'       => $resolutionMetrics['status'],
+        ];
     }
 
     /** Resolve {employee_id: name} untuk sekumpulan id — dipakai untuk field `mentions` */

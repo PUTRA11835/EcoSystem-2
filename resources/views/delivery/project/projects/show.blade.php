@@ -346,7 +346,7 @@
                 </svg>
                 Open Folder
             </a>
-            @else
+            @elseif($can('delivery-project.manage-documents'))
             <button type="button" id="headerFolderBtn" onclick="openOneDriveModal()"
                     class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -355,17 +355,19 @@
                 Create Folder
             </button>
             @endif
+            @if($can('delivery-project.delete-project'))
             <button type="button"
                     onclick="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')"
                     class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Delete Project
             </button>
+            @endif
         </div>
     </div>
 </div>
 
 {{-- General Information Section --}}
-<section id="general" class="mb-6 card-hover section-animate">
+<section id="general" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.edit-general-info') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200">
             <h2 class="text-lg font-semibold text-gray-700">General Information</h2>
@@ -530,7 +532,7 @@
 </section>
 
 {{-- Delivery Information Section --}}
-<section id="delivery" class="mb-6 card-hover section-animate">
+<section id="delivery" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.edit-delivery-info') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200">
             <h2 class="text-lg font-semibold text-gray-700">Delivery Information</h2>
@@ -584,12 +586,13 @@
                                     <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
                                 </div>
                                 <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                                @foreach($employees as $employee)
+                                @foreach($aeEmployees as $employee)
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
                                 @endforeach
                                 <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
                             </div>
                         </div>
+                        <p class="mt-1 text-xs text-gray-500">Only employees with a Sales Operation role are listed.</p>
                     </div>
                     {{-- Text input untuk AE External --}}
                     <input type="text" name="{{ $aeIsExternal ? 'ae_name' : '' }}" id="ae_name_input"
@@ -756,9 +759,27 @@
             </div>
             </div>{{-- /Sales Data --}}
 
-            {{-- Delivery Data Sub-section --}}
-            <div class="border-t border-gray-200 pt-6">
-            <h4 class="text-lg font-medium text-gray-900 mb-4">Delivery Data</h4>
+            {{-- Tombol simpan Delivery Information: diletakkan tepat di bawah tabel
+                 Term Of Payment agar jelas cakupannya (Sales Data + TOP), tidak lagi
+                 rancu dengan Delivery Data yang kini jadi section tersendiri. --}}
+            <div class="mt-6 text-right">
+                <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Update Information
+                </button>
+            </div>
+        </form>
+    </div>
+</section>
+
+{{-- Delivery Data — section terpisah dengan tombol simpannya sendiri --}}
+<section id="delivery-data" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.edit-delivery-info') ? '1' : '0' }}">
+    <div class="bg-white shadow-md rounded-lg">
+        <div class="p-6 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-700">Delivery Data</h2>
+            <p class="mt-1 text-sm text-gray-600">Delivery method, warranty, and mandays</p>
+        </div>
+        <form id="deliveryDataForm" action="{{ route('projects.updateDeliveryData', $project->id) }}" method="POST" class="p-6">
+            @csrf @method('PATCH')
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Warranty Period <span class="text-gray-400 font-normal">(months)</span></label>
@@ -789,7 +810,6 @@
                            class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                 </div>
             </div>
-            </div>{{-- /Delivery Data --}}
             <div class="mt-6 text-right">
                 <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                     Update Information
@@ -800,7 +820,7 @@
 </section>
 
 {{-- Team Section WITH CHECKBOX SELECTION --}}
-<section id="team" class="mb-6 card-hover section-animate">
+<section id="team" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-team') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-700">Team Members</h2>
@@ -964,7 +984,7 @@
 </section>
 
 {{-- Documents Section WITH CHECKBOX SELECTION --}}
-<section id="documents" class="mb-6 card-hover section-animate">
+<section id="documents" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-documents') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <div>
@@ -1048,7 +1068,7 @@
 </section>
 
 {{-- Issues Section WITH CHECKBOX SELECTION --}}
-<section id="issues" class="mb-6 card-hover section-animate" data-project-id="{{ $project->id }}">
+<section id="issues" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-issue-log') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
 
         {{-- ── Header ─────────────────────────────────────────────── --}}
@@ -1118,7 +1138,7 @@
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- PROJECT RISK REGISTER SECTION                                 --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
-<section id="risks" class="mb-6 card-hover section-animate" data-project-id="{{ $project->id }}">
+<section id="risks" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-risk') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
 
         {{-- ── Header ─────────────────────────────────────────────── --}}
@@ -1224,7 +1244,7 @@
 </div>
 
 {{-- Location Section --}}
-<section id="location" class="mb-6 card-hover section-animate">
+<section id="location" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.edit-location-info') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200">
             <h2 class="text-lg font-semibold text-gray-700">Location Information</h2>
@@ -1445,7 +1465,7 @@
 </script>
 
 {{-- ✅✅✅ PROJECT PLANNING SECTION (INTEGRATED) ✅✅✅ --}}
-<section id="planning" class="mb-6 card-hover section-animate" data-project-id="{{ $project->id }}">
+<section id="planning" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-planning') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200">
             <div class="flex justify-between items-center flex-wrap gap-4">
@@ -1606,7 +1626,7 @@
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- PLAN COST SECTION                                             --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
-<section id="plancost" class="mb-6 card-hover section-animate" data-project-id="{{ $project->id }}">
+<section id="plancost" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-plan-cost') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
 
         {{-- ── Header ─────────────────────────────────────────────── --}}
@@ -4564,7 +4584,9 @@ const observerOptions = {
 const sectionObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
         if (entry.isIntersecting) {
-            const sectionId = entry.target.id;
+            let sectionId = entry.target.id;
+            // Delivery Data is its own section but shares the "Delivery Info" tab.
+            if (sectionId === 'delivery-data') sectionId = 'delivery';
             updateActiveTab(sectionId);
         }
     });
@@ -5553,6 +5575,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     attachSectionForm('generalInfoForm',  'General information updated successfully.',  'Failed to update general information.');
     attachSectionForm('deliveryInfoForm', 'Delivery information updated successfully.', 'Failed to update delivery information.');
+    attachSectionForm('deliveryDataForm', 'Delivery data updated successfully.', 'Failed to update delivery data.');
     attachSectionForm('locationInfoForm', 'Location information updated successfully.', 'Failed to update location information.');
 })();
 
@@ -7313,3 +7336,97 @@ window.PaymentTermPlan = (function () {
 })();
 </script>
 @endsection
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- SECTION-LEVEL READ-ONLY (Menu Access)                          --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{--
+    Setiap <section> di halaman ini menandai izinnya lewat data-perm-granted
+    ("1" = boleh edit, "0" = read-only). Section tanpa izin tetap TERLIHAT,
+    tapi seluruh field dikunci dan tombol aksi tulis disembunyikan, sehingga
+    sebuah role bisa dibatasi mis. "hanya boleh edit Delivery Information".
+
+    Ini murni lapisan UI — penegakan sebenarnya ada di middleware `menu:` pada
+    route tulis masing-masing section (lihat routes/web.php).
+--}}
+@push('styles')
+<style>
+.perm-readonly input:not([type="hidden"]),
+.perm-readonly select,
+.perm-readonly textarea {
+    background-color: #f9fafb !important;
+    color: #6b7280 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+.perm-readonly .perm-hidden { display: none !important; }
+.perm-readonly-badge {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.15rem 0.55rem; margin-left: 0.6rem;
+    border-radius: 9999px; background: #f3f4f6; color: #6b7280;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    vertical-align: middle;
+}
+</style>
+@endpush
+
+@push('scripts')
+<script>
+(function () {
+    'use strict';
+
+    // Tombol yang dianggap aksi tulis. Tombol lain (collapse, tab, export,
+    // pindah view) sengaja dibiarkan agar section tetap bisa dibaca penuh.
+    const WRITE_LABEL = /\b(add|new|create|save|update|edit|delete|remove|upload|import|assign|generate|submit|confirm)\b/i;
+
+    function isWriteAction(el) {
+        if (el.hasAttribute('data-perm-keep')) return false;          // opt-out manual
+        if (el.type === 'submit') return true;
+        const label = (el.textContent || '') + ' ' + (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '');
+        return WRITE_LABEL.test(label);
+    }
+
+    function lockSection(section) {
+        section.querySelectorAll('input, select, textarea').forEach(function (f) {
+            if (f.type === 'hidden') return;
+            f.disabled = true;
+        });
+
+        section.querySelectorAll('button, a[role="button"], input[type="submit"]').forEach(function (b) {
+            if (!isWriteAction(b)) return;
+            b.classList.add('perm-hidden');
+            b.disabled = true;
+        });
+
+        section.querySelectorAll('form').forEach(function (f) {
+            if (f.dataset.permBlocked) return;   // lockSection dipanggil ulang oleh observer
+            f.dataset.permBlocked = '1';
+            f.addEventListener('submit', function (e) { e.preventDefault(); e.stopImmediatePropagation(); }, true);
+        });
+    }
+
+    function badge(section) {
+        const heading = section.querySelector('h2');
+        if (!heading || heading.querySelector('.perm-readonly-badge')) return;
+        const span = document.createElement('span');
+        span.className = 'perm-readonly-badge';
+        span.title = 'Your role does not have permission to edit this section';
+        span.textContent = 'Read only';
+        heading.appendChild(span);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('section[data-perm-granted="0"]').forEach(function (section) {
+            section.classList.add('perm-readonly');
+            badge(section);
+            lockSection(section);
+
+            // Sebagian besar tabel section ini dirender ulang oleh JS setelah
+            // data di-fetch, jadi penguncian harus diulang tiap kali DOM berubah.
+            new MutationObserver(function () { lockSection(section); })
+                .observe(section, { childList: true, subtree: true });
+        });
+    });
+})();
+</script>
+@endpush

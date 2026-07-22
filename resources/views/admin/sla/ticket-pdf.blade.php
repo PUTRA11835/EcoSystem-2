@@ -111,14 +111,14 @@
         {{-- Response --}}
         <div class="sla-box">
             <div class="label">Response SLA</div>
-            @php $rClass = match($sla->response_status) { 'met' => 'status-met', 'breached' => 'status-breached', default => 'status-pending' }; @endphp
+            @php $rClass = match($responseStatusLive) { 'met' => 'status-met', 'breached' => 'status-breached', default => 'status-pending' }; @endphp
             <div class="value {{ $rClass }}">
-                {{ $sla->validation_duration_hours !== null ? number_format($sla->validation_duration_hours, 2) : '—' }} hrs
+                {{ $responseActualHours !== null ? number_format($responseActualHours, 2) : '—' }} hrs
             </div>
             <div class="sub">
                 Target: {{ $policy ? $policy->response_hours : '—' }} hrs &bull;
-                Deadline: {{ $sla->response_due_at?->format('d M Y H:i') ?? '—' }}<br>
-                Status: <strong>{{ strtoupper($sla->response_status) }}</strong>
+                Deadline: {{ $responseDueAt?->format('d M Y H:i') ?? '—' }}<br>
+                Status: <strong>{{ strtoupper($responseStatusLive) }}</strong>
             </div>
         </div>
 
@@ -126,14 +126,14 @@
         <div class="sla-box">
             <div class="label">Resolution SLA</div>
             @if($sla->sla_mode === 'full')
-                @php $resClass = match($sla->resolution_status) { 'met' => 'status-met', 'breached' => 'status-breached', 'paused' => 'status-paused', default => 'status-pending' }; @endphp
+                @php $resClass = match($resolutionStatusLive) { 'met' => 'status-met', 'breached' => 'status-breached', 'paused' => 'status-paused', default => 'status-pending' }; @endphp
                 <div class="value {{ $resClass }}">
-                    {{ $sla->net_resolution_hours !== null ? number_format($sla->net_resolution_hours, 2) : '—' }} hrs (net)
+                    {{ $resolutionNetHours !== null ? number_format($resolutionNetHours, 2) : '—' }} hrs (net)
                 </div>
                 <div class="sub">
                     Target: {{ $policy ? $policy->resolution_hours : '—' }} hrs &bull;
                     Deadline: {{ $sla->resolution_due_at?->format('d M Y H:i') ?? '—' }}<br>
-                    Status: <strong>{{ strtoupper($sla->resolution_status) }}</strong>
+                    Status: <strong>{{ strtoupper($resolutionStatusLive) }}</strong>
                 </div>
             @else
                 <div class="value status-pending">Response Only</div>
@@ -149,7 +149,7 @@
     <div class="metrics-strip">
         <div class="metric">
             <div class="label">Total Waiting</div>
-            <div class="value">{{ number_format($sla->total_waiting_hours, 2) }} hrs</div>
+            <div class="value">{{ number_format($liveWaitingHours, 2) }} hrs</div>
         </div>
         <div class="metric">
             <div class="label">Hour Calculation</div>

@@ -8,6 +8,7 @@ use App\Models\SlaPolicy;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use App\Models\TicketSla;
+use App\Models\TicketSlaEvent;
 use App\Models\TicketSlaPause;
 use App\Services\SlaService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -25,10 +26,12 @@ class SlaController extends Controller
         return session('user.role.id') === 1;
     }
 
-    // Admin + Delivery Support Head + Helpdesk
+    // Diatur lewat Role Management (menu slug: sla.report), bukan role hardcode,
+    // supaya role apa pun bisa diberi/dicabut akses SLA Report dari UI Role Management.
     private function assertSlaAccess(): bool
     {
-        return in_array(session('user.role.id'), [1, 5, 6], true);
+        $employee = Employee::find(session('user.id'));
+        return (bool) $employee?->hasPermission('sla.report');
     }
 
     // Admin + Delivery Support Head (can create/edit/delete policies)
@@ -96,6 +99,10 @@ class SlaController extends Controller
             'response_hours'      => 'required|numeric|min:0.1|max:999',
             'resolution_hours'    => 'required|numeric|min:0.1|max:999',
             'is_24_hours'         => 'boolean',
+            'work_start_time'     => 'nullable|date_format:H:i',
+            'work_end_time'       => 'nullable|date_format:H:i|after:work_start_time',
+            'break_start_time'    => 'nullable|date_format:H:i|required_with:break_end_time',
+            'break_end_time'      => 'nullable|date_format:H:i|after:break_start_time|required_with:break_start_time',
         ]);
 
         if ($v->fails()) {
@@ -122,6 +129,10 @@ class SlaController extends Controller
             'response_hours'      => $request->response_hours,
             'resolution_hours'    => $request->resolution_hours,
             'is_24_hours'         => $request->priority === 'Very High' ? true : $request->boolean('is_24_hours', false),
+            'work_start_time'     => $request->work_start_time,
+            'work_end_time'       => $request->work_end_time,
+            'break_start_time'    => $request->break_start_time,
+            'break_end_time'      => $request->break_end_time,
             'is_active'           => true,
             'created_by'          => session('user.id'),
         ]);
@@ -142,6 +153,10 @@ class SlaController extends Controller
             'response_hours'   => 'sometimes|numeric|min:0.1|max:999',
             'resolution_hours' => 'sometimes|numeric|min:0.1|max:999',
             'is_24_hours'      => 'sometimes|boolean',
+            'work_start_time'  => 'nullable|date_format:H:i',
+            'work_end_time'    => 'nullable|date_format:H:i|after:work_start_time',
+            'break_start_time' => 'nullable|date_format:H:i|required_with:break_end_time',
+            'break_end_time'   => 'nullable|date_format:H:i|after:break_start_time|required_with:break_start_time',
             'is_active'        => 'sometimes|boolean',
         ]);
 
@@ -150,7 +165,11 @@ class SlaController extends Controller
         }
 
         $policy  = SlaPolicy::findOrFail($id);
-        $updates = $request->only(['response_hours', 'resolution_hours', 'is_24_hours', 'is_active']);
+        $updates = $request->only([
+            'response_hours', 'resolution_hours', 'is_24_hours',
+            'work_start_time', 'work_end_time',
+            'break_start_time', 'break_end_time', 'is_active',
+        ]);
         if ($policy->priority === 'Very High') {
             $updates['is_24_hours'] = true;
         }
@@ -230,28 +249,30 @@ class SlaController extends Controller
         }
 
         $policy   = $sla->policy;
-        $liveWait = $this->sla->liveWaitingHours($sla);
+        // Same live-recompute as the admin SLA report (SlaController::formatSlaRow) —
+        // derived from raw timestamps/pauses instead of the stored duration/status columns,
+        // so this panel and the report never disagree, and both self-correct historical
+        // tickets after a calcHours() change without a backfill.
+        $liveWait = $this->sla->liveTotalWaitingHours($sla);
 
         $responseData = [
-            'status'       => $sla->response_status,
+            'status'       => $this->sla->responseStatusLive($sla),
             'target_hours' => $policy ? (float) $policy->response_hours : null,
-            'actual_hours' => $sla->validation_duration_hours !== null
-                               ? (float) $sla->validation_duration_hours : null,
+            'actual_hours' => $this->sla->responseDurationHours($sla),
             'due_at'       => $sla->response_due_at?->toDateTimeString(),
             'responded_at' => $sla->first_responded_at?->toDateTimeString(),
         ];
 
         $resolutionData = null;
         if ($sla->sla_mode === 'full') {
+            $resolutionMetrics = $this->sla->liveResolutionMetrics($sla);
             $resolutionData = [
-                'status'        => $sla->resolution_status,
+                'status'        => $resolutionMetrics['status'],
                 'target_hours'  => $policy ? (float) $policy->resolution_hours : null,
-                'actual_hours'  => $sla->net_resolution_hours !== null
-                                    ? (float) $sla->net_resolution_hours : null,
+                'actual_hours'  => $resolutionMetrics['net_hours'],
                 'due_at'        => $sla->resolution_due_at?->toDateTimeString(),
                 'resolved_at'   => $sla->resolved_at?->toDateTimeString(),
-                'net_hours'     => $sla->net_resolution_hours !== null
-                                    ? (float) $sla->net_resolution_hours : null,
+                'net_hours'     => $resolutionMetrics['net_hours'],
                 'waiting_hours' => $liveWait,
             ];
         }
@@ -391,11 +412,11 @@ class SlaController extends Controller
                     $waitingH = round((float) $endedPause->duration_hours, 2);
 
                 } elseif ($ballHolder !== 'helpdesk' && $pauseStart !== null) {
-                    $waitingH = round($this->sla->calcHours($pauseStart, $msg->created_at, $is24h), 2);
+                    $waitingH = round($this->sla->calcHours($pauseStart, $msg->created_at, $is24h, $sla->policy), 2);
 
                 } elseif ($lastAgentAt !== null) {
                     // Tidak ada formal pause — hitung gap sejak agent terakhir balas
-                    $waitingH = round($this->sla->calcHours($lastAgentAt, $msg->created_at, $is24h), 2);
+                    $waitingH = round($this->sla->calcHours($lastAgentAt, $msg->created_at, $is24h, $sla->policy), 2);
                 }
 
                 // Reset state: ball kembali ke helpdesk
@@ -430,7 +451,7 @@ class SlaController extends Controller
 
                 // Resolution = waktu aktif helpdesk sejak session terakhir (selalu dihitung fresh dari timeline)
                 if ($sessionStart !== null) {
-                    $resolutionH = round($this->sla->calcHours($sessionStart, $msg->created_at, $is24h), 2);
+                    $resolutionH = round($this->sla->calcHours($sessionStart, $msg->created_at, $is24h, $sla->policy), 2);
                 }
 
                 // Jika ada meeting pause aktif saat pesan ini dikirim, waktu resolusi tidak dihitung
@@ -510,7 +531,15 @@ class SlaController extends Controller
             ]);
         }
 
-        $query = TicketSla::with(['ticket.customer.basicData', 'ticket.ticketLead.basicData', 'ticket.moduleMaster', 'policy'])
+        $query = TicketSla::with([
+            'ticket.customer.basicData',
+            'ticket.ticketLead.basicData',
+            'ticket.moduleMaster',
+            'ticket.deliverySupportActivities' => fn ($q) => $q->orderByDesc('delivery_support_id'),
+            'ticket.deliverySupportActivities.deliverySupport',
+            'stagingTicket',
+            'policy',
+        ])
             ->whereNotNull('ticket_id');
 
         if ($request->filled('customer_id')) {
@@ -524,11 +553,60 @@ class SlaController extends Controller
             $query->whereYear('sla_start_at', $request->year);
         }
 
-        if ($request->filled('resolution_status')) {
-            $query->where('resolution_status', $request->resolution_status);
+        // 'pending'/'paused' are ball-holder-state-driven (set directly by ticket status
+        // transitions) and were never affected by the calcHours() formula fix, so filtering
+        // on the stored column is always accurate for them — do it at the SQL level as before.
+        // 'met'/'breached' are duration-based verdicts that ARE now recomputed live (see
+        // SlaService::liveResolutionMetrics()) for closed tickets, so the stored column can
+        // occasionally disagree with what's displayed (only for tickets whose closed-duration
+        // crossed a holiday/break-window boundary). Filtering those live means fetching a
+        // larger bounded candidate pool first, then filtering + capping to 200 in PHP.
+        $statusFilter = $request->filled('resolution_status') ? $request->resolution_status : null;
+        $filterLive   = in_array($statusFilter, ['met', 'breached'], true);
+
+        if ($statusFilter && !$filterLive) {
+            $query->where('resolution_status', $statusFilter);
         }
 
-        $slas = $query->orderBy('sla_start_at', 'desc')->limit(200)->get();
+        $slas = $query->orderBy('sla_start_at', 'desc')->limit($filterLive ? 1000 : 200)->get();
+
+        // Batch-fetch "first waiting_on_customer" reply timestamps for all rows at once
+        // (avoids N+1 queries inside formatSlaRow for up to 200 rows).
+        $firstResolvedByTicket = TicketSlaEvent::whereIn('ticket_id', $slas->pluck('ticket_id')->filter())
+            ->where('jarvis_status', 'waiting_on_customer')
+            ->orderBy('event_at')
+            ->get()
+            ->unique('ticket_id')
+            ->keyBy('ticket_id')
+            ->map(fn ($e) => $e->event_at);
+
+        // Batch-fetch "first deliverable sent" timestamps for all rows at once (same
+        // N+1 avoidance as $firstResolvedByTicket above).
+        $docSentByTicket = \App\Models\TicketDeliverable::whereIn('ticket_id', $slas->pluck('ticket_id')->filter())
+            ->where('status', 'Sent')
+            ->orderBy('updated_at')
+            ->get()
+            ->unique('ticket_id')
+            ->keyBy('ticket_id')
+            ->map(fn ($d) => $d->updated_at);
+
+        // Batch-fetch SLA notes (agent-tagged "sla_message" annotations on chat messages,
+        // same source as the Log Shifting report) for the Notes column, grouped by ticket.
+        $notesByTicket = TicketMessage::whereIn('ticket_id', $slas->pluck('ticket_id')->filter())
+            ->whereNotNull('sla_message')
+            ->where('sla_message', '!=', '')
+            ->where('is_deleted', false)
+            ->orderBy('created_at')
+            ->get(['ticket_id', 'sla_message', 'created_at'])
+            ->groupBy('ticket_id');
+
+        // Batch-fetch pause history for all rows at once — used to live-recompute Waiting
+        // Hours / Resolution Duration from raw timestamps (see SlaService::liveTotalWaitingHours),
+        // so historical tickets self-correct after a calcHours() formula change without a
+        // separate backfill command.
+        $pausesByTicket = TicketSlaPause::whereIn('ticket_id', $slas->pluck('ticket_id')->filter())
+            ->get()
+            ->groupBy('ticket_id');
 
         $total    = $slas->count();
         $met      = $slas->where('resolution_status', 'met')->count();
@@ -540,6 +618,22 @@ class SlaController extends Controller
 
         $avgResponse   = $slas->whereNotNull('validation_duration_hours')->avg('validation_duration_hours');
         $avgResolution = $slas->whereNotNull('net_resolution_hours')->avg('net_resolution_hours');
+
+        $tickets = $slas->map(fn ($s) => $this->formatSlaRow(
+            $s,
+            $firstResolvedByTicket->get($s->ticket_id),
+            $docSentByTicket->get($s->ticket_id),
+            $notesByTicket->get($s->ticket_id),
+            $pausesByTicket->get($s->ticket_id)
+        ));
+
+        // Live-filtered met/breached (see $filterLive above) — filter on the recomputed
+        // status now that formatSlaRow() has produced it, then cap to the usual 200.
+        if ($filterLive) {
+            $tickets = $tickets->filter(fn ($t) => ($t['resolution']['status'] ?? null) === $statusFilter)
+                ->take(200)
+                ->values();
+        }
 
         return response()->json([
             'success' => true,
@@ -553,7 +647,7 @@ class SlaController extends Controller
                     'avg_response_hours'   => $avgResponse ? round($avgResponse, 2) : null,
                     'avg_resolution_hours' => $avgResolution ? round($avgResolution, 2) : null,
                 ],
-                'tickets' => $slas->map(fn ($s) => $this->formatSlaRow($s)),
+                'tickets' => $tickets,
             ],
         ]);
     }
@@ -574,17 +668,20 @@ class SlaController extends Controller
             'customer.basicData',
         ])->findOrFail($id);
 
-        $sla    = $ticket->sla;
-        $policy = $sla?->policy;
-        $pauses = $sla?->pauses ?? collect();
+        $sla           = $ticket->sla;
+        $policy        = $sla?->policy;
+        $pauses        = $sla?->pauses ?? collect();
+        $responseDueAt = $sla ? $this->sla->responseDueAt($sla) : null;
+
+        [$pauses, $liveMetrics] = $this->liveSlaPdfMetrics($sla, $pauses);
 
         $events = $sla ? $this->buildSlaEventLog($sla, $ticket->ticket_id, $ticket->status) : collect();
 
         $docNumber = 'ECL/SLA/' . $ticket->ticket_number . '/' . now()->format('Ym');
 
-        $pdf = Pdf::loadView('admin.sla.log-pdf', compact(
-            'ticket', 'sla', 'policy', 'events', 'pauses', 'docNumber'
-        ));
+        $pdf = Pdf::loadView('admin.sla.log-pdf', array_merge(compact(
+            'ticket', 'sla', 'policy', 'events', 'pauses', 'docNumber', 'responseDueAt'
+        ), $liveMetrics));
         $pdf->setPaper('A4', 'landscape');
 
         return $pdf->download('SLA-Log-' . $ticket->ticket_number . '.pdf');
@@ -603,12 +700,17 @@ class SlaController extends Controller
             'customer.basicData',
         ])->findOrFail($id);
 
-        $sla    = $ticket->sla;
-        $policy = $sla?->policy;
-        $events = $sla?->events ?? collect();
-        $pauses = $sla?->pauses ?? collect();
+        $sla           = $ticket->sla;
+        $policy        = $sla?->policy;
+        $events        = $sla?->events ?? collect();
+        $pauses        = $sla?->pauses ?? collect();
+        $responseDueAt = $sla ? $this->sla->responseDueAt($sla) : null;
 
-        $pdf = Pdf::loadView('admin.sla.ticket-pdf', compact('ticket', 'sla', 'policy', 'events', 'pauses'));
+        [$pauses, $liveMetrics] = $this->liveSlaPdfMetrics($sla, $pauses);
+
+        $pdf = Pdf::loadView('admin.sla.ticket-pdf', array_merge(compact(
+            'ticket', 'sla', 'policy', 'events', 'pauses', 'responseDueAt'
+        ), $liveMetrics));
         $pdf->setPaper('A4', 'portrait');
 
         return $pdf->download('SLA-Ticket-' . $ticket->ticket_number . '.pdf');
@@ -881,13 +983,22 @@ class SlaController extends Controller
             'response_hours'       => (float) $p->response_hours,
             'resolution_hours'     => (float) $p->resolution_hours,
             'is_24_hours'          => (bool) $p->is_24_hours,
+            'work_start_time'      => $p->work_start_time ? substr($p->work_start_time, 0, 5) : null,
+            'work_end_time'        => $p->work_end_time ? substr($p->work_end_time, 0, 5) : null,
+            'break_start_time'     => $p->break_start_time ? substr($p->break_start_time, 0, 5) : null,
+            'break_end_time'       => $p->break_end_time ? substr($p->break_end_time, 0, 5) : null,
             'is_active'            => (bool) $p->is_active,
             'created_at'           => $p->created_at?->toDateTimeString(),
         ];
     }
 
-    private function formatSlaRow(TicketSla $s): array
-    {
+    private function formatSlaRow(
+        TicketSla $s,
+        ?Carbon $firstResolvedAt = null,
+        ?Carbon $docSentAt = null,
+        ?\Illuminate\Support\Collection $notes = null,
+        ?\Illuminate\Support\Collection $pauses = null
+    ): array {
         $t       = $s->ticket;
         $staging = $s->stagingTicket;
         $policy  = $s->policy;
@@ -902,18 +1013,28 @@ class SlaController extends Controller
             $customerName = trim(($bd->title ?? '') . ' ' . ($bd->name_1 ?? ''));
         }
 
+        $deliverySupportType = $t?->deliverySupportActivities?->first()?->deliverySupport?->type;
+
         $isPendingValidation = $s->resolution_status === 'pending_validation';
 
         $responseTargetHours    = $policy ? (float) $policy->response_hours   : null;
         $resolutionTargetHours  = $policy ? (float) $policy->resolution_hours : null;
-        $responseActualHours    = $s->validation_duration_hours !== null ? (float) $s->validation_duration_hours : null;
-        $resolutionActualHours  = $s->net_resolution_hours !== null ? (float) $s->net_resolution_hours : null;
+
+        // Response/Resolution Duration + verdict are recomputed live from raw timestamps
+        // (sla_start_at, first_responded_at, resolved_at, ticket_sla_pauses) rather than
+        // read from the stored validation_duration_hours/net_resolution_hours/response_status/
+        // resolution_status columns — those are frozen with whatever calcHours() looked like
+        // at the time they were written, so historical tickets would keep showing stale
+        // numbers after a calcHours() formula change unless recomputed live like this.
+        $responseActualHours   = $this->sla->responseDurationHours($s);
+        $responseStatus        = $this->sla->responseStatusLive($s);
+
+        $resolutionMetrics     = $this->sla->liveResolutionMetrics($s, $pauses);
+        $resolutionActualHours = $resolutionMetrics['net_hours'];
+        $resolutionStatus      = $resolutionMetrics['status'];
 
         // Convert hours to days (8 working hours per day)
         $toWorkingDays = fn (?float $h) => $h !== null ? round($h / 8, 2) : null;
-
-        $responseStatus    = $s->response_status;
-        $resolutionStatus  = $s->resolution_status;
 
         $endStatuses = SlaService::END_STATUSES;
         $closedAt    = ($t && in_array($t->status, $endStatuses))
@@ -936,8 +1057,10 @@ class SlaController extends Controller
             'pic'                    => $t?->ticketLead?->basicData?->full_name,
             'ticket_status'          => $t?->status,
             'sla_mode'               => $s->sla_mode,
-            'received_at'            => $t?->created_at?->toDateTimeString(),
+            'delivery_support_type'  => $deliverySupportType,
+            'received_at'            => ($staging?->created_at ?? $t?->created_at)?->toDateTimeString(),
             'sla_start_at'           => $s->sla_start_at?->toDateTimeString(),
+            'sla_policy_missing'     => $policy === null,
             'closed_at'              => $closedAt,
             'ball_holder'            => $s->ball_holder,
             'response'               => [
@@ -945,7 +1068,7 @@ class SlaController extends Controller
                 'actual_hours'  => $responseActualHours,
                 'target_hours'  => $responseTargetHours,
                 'target_days'   => $toWorkingDays($responseTargetHours),
-                'due_at'        => $s->response_due_at?->toDateTimeString(),
+                'due_at'        => $this->sla->responseDueAt($s)?->toDateTimeString(),
                 'responded_at'  => $s->first_responded_at?->toDateTimeString(),
                 'met'           => $responseStatus === 'met',
             ],
@@ -955,11 +1078,82 @@ class SlaController extends Controller
                 'actual_days'   => $toWorkingDays($resolutionActualHours),
                 'target_hours'  => $resolutionTargetHours,
                 'target_days'   => $toWorkingDays($resolutionTargetHours),
-                'due_at'        => $s->resolution_due_at?->toDateTimeString(),
-                'resolved_at'   => $s->resolved_at?->toDateTimeString(),
+                'start_at'      => $this->sla->resolutionStartAt($s)?->toDateTimeString(),
+                'due_at'        => $this->sla->resolutionDueAt($s)?->toDateTimeString(),
+                'resolved_at'   => ($firstResolvedAt ?? $this->sla->firstResolvedAt($s))?->toDateTimeString(),
+                'doc_sent_at'   => ($docSentAt ?? $this->sla->resolutionDocSentAt($s))?->toDateTimeString(),
                 'met'           => in_array($resolutionStatus, ['met', 'pending_validation']),
             ],
-            'waiting_hours'          => (float) $s->total_waiting_hours,
+            'waiting_hours'          => $this->sla->liveTotalWaitingHours($s, $pauses),
+            // SLA notes: chat messages the agent tagged with a short "sla_message" annotation
+            // (same source as the Log Shifting report), chronological, for the Notes column.
+            'notes'                  => ($notes ?? collect())->map(fn ($m) => [
+                'at'   => $m->created_at->toDateTimeString(),
+                'text' => $this->stripLeadingTimestamp($m->sla_message),
+            ])->values(),
         ];
+    }
+
+    /**
+     * The Notes column already prefixes each line with the message's own created_at
+     * timestamp — "[DD.MM.YYYY HH:mm] text". Some agents also manually type a leading
+     * "[...]" (sometimes preceded by "- ") timestamp of their own into the sla_message
+     * text itself (e.g. "- [14.07.2026 22.10] Email received."), which then duplicates
+     * the auto timestamp. Strip that leading bracket so only the created_at date shows.
+     */
+    private function stripLeadingTimestamp(?string $text): ?string
+    {
+        if ($text === null) {
+            return null;
+        }
+
+        return trim(preg_replace('/^-?\s*\[[^\]]*\]\s*/', '', trim($text)));
+    }
+
+    /**
+     * Live-recomputed duration/status metrics for the SLA PDF exports — same live methods
+     * as the admin SLA report / SLA Log popup (SlaService::responseDurationHours() etc.),
+     * so the PDF never shows stale figures for historical tickets whose stored
+     * validation_duration_hours/net_resolution_hours/total_waiting_hours/*_status columns
+     * were frozen with an older calcHours() formula.
+     *
+     * Also returns $pauses with each row's duration_hours recomputed in-memory (not
+     * persisted) so the "Waiting / Pause History" table in the Log PDF matches the live total.
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: array}
+     */
+    private function liveSlaPdfMetrics(?TicketSla $sla, \Illuminate\Support\Collection $pauses): array
+    {
+        if (!$sla) {
+            return [$pauses, [
+                'responseActualHours'  => null,
+                'responseStatusLive'   => null,
+                'resolutionNetHours'   => null,
+                'resolutionStatusLive' => null,
+                'liveWaitingHours'     => 0.0,
+            ]];
+        }
+
+        $is24h  = $sla->policy?->is_24_hours ?? true;
+        $pauses = $pauses->map(function ($p) use ($sla, $is24h) {
+            if ($p->ended_at) {
+                $p->duration_hours = $this->sla->calcHours($p->started_at, $p->ended_at, $is24h, $sla->policy);
+            }
+            return $p;
+        });
+
+        // $pauses here was loaded with a whereNotNull('ended_at') constraint (see
+        // downloadLogPdf/downloadTicketPdf), i.e. it's already exactly the "ended pauses"
+        // set liveTotalWaitingHours()/liveResolutionMetrics() need — pass it through to
+        // avoid a redundant query for the same data.
+        $resolutionMetrics = $this->sla->liveResolutionMetrics($sla, $pauses);
+
+        return [$pauses, [
+            'responseActualHours'  => $this->sla->responseDurationHours($sla),
+            'responseStatusLive'   => $this->sla->responseStatusLive($sla),
+            'resolutionNetHours'   => $resolutionMetrics['net_hours'],
+            'resolutionStatusLive' => $resolutionMetrics['status'],
+            'liveWaitingHours'     => $this->sla->liveTotalWaitingHours($sla, $pauses),
+        ]];
     }
 }

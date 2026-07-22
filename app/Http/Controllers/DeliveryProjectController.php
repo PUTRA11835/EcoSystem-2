@@ -10,6 +10,7 @@ use App\Models\Document;
 use App\Models\DeliveryProjectPlanning;
 use App\Models\DeliveryProjectPhase;
 use App\Models\DeliveryProjectActivity;
+use App\Models\DeliveryProjectPaymentTerm;
 use App\Services\OneDriveService;
 use App\Services\ProjectReminderService;
 use Illuminate\Http\Request;
@@ -34,7 +35,11 @@ class DeliveryProjectController extends Controller
         $clientPicMap = $clients->pluck('pic', 'customer_id');
         $employees = Employee::with(['basicData', 'addresses' => fn($q) => $q->where('is_primary', true)])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
 
-        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees'));
+        // Account Executive dropdown: karyawan aktif ber-role family "Sales Operation"
+        // selain "Sales Operation User" (lihat salesRoleEmployees()).
+        $aeEmployees = $this->salesRoleEmployees();
+
+        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees', 'aeEmployees'));
     }
 
     public function store(Request $request)
@@ -221,6 +226,9 @@ class DeliveryProjectController extends Controller
 
         $employees = Employee::with(['basicData', 'addresses'])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
 
+        // AE dropdown: karyawan aktif ber-role "Sales Operation" (lihat salesRoleEmployees()).
+        $aeEmployees = $this->salesRoleEmployees();
+
         $clients = Customer::with('basicData')->get()->sortBy(fn($c) => strtolower($c->basicData->name_1 ?? ''))->values();
 
         $hasPlanning = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)->exists();
@@ -277,6 +285,7 @@ class DeliveryProjectController extends Controller
         return view('delivery.project.projects.show', compact(
             'project',
             'employees',
+            'aeEmployees',
             'clients',
             'hasPlanning',
             'phases',
@@ -468,10 +477,35 @@ class DeliveryProjectController extends Controller
 
         $project->update($validatedData);
 
+        // Payment term amounts are derived (amount = revenue × % / 100). We resync on
+        // every save — not just when revenue changes on this request — so terms that
+        // went stale from an earlier revenue edit are corrected too. It's idempotent.
+        $this->syncPaymentTermAmounts($project);
+
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'message' => 'Delivery information updated successfully.']);
         }
         return back()->with('success', 'Delivery information updated successfully.');
+    }
+
+    // Delivery Data (warranty / delivery method / mandays) berdiri sebagai section
+    // & form tersendiri di halaman detail, terpisah dari Sales Data + Term Of Payment,
+    // agar tombol simpannya tidak rancu dengan "Update Information" milik Delivery
+    // Information. Endpoint ini sengaja tidak menyentuh field AE/finansial.
+    public function updateDeliveryData(Request $request, DeliveryProject $project)
+    {
+        $validatedData = $request->validate([
+            'delivery_method' => 'nullable|in:Onsite,Hybrid,WFH',
+            'warranty_period' => 'nullable|integer|min:0',
+            'total_mandays'   => 'nullable|integer|min:0',
+        ]);
+
+        $project->update($validatedData);
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Delivery data updated successfully.']);
+        }
+        return back()->with('success', 'Delivery data updated successfully.');
     }
 
     public function updateFinancialInfo(Request $request, DeliveryProject $project)
@@ -485,7 +519,51 @@ class DeliveryProjectController extends Controller
 
         $project->update($validatedData);
 
+        // Keep derived payment term amounts in sync with the current revenue (see above).
+        $this->syncPaymentTermAmounts($project);
+
         return back()->with('success', 'Financial information updated successfully.');
+    }
+
+    /**
+     * Karyawan aktif kandidat "Account Executive" (dropdown create & detail
+     * project) = pemegang role family "Sales Operation" SELAIN "Sales Operation
+     * User": yaitu Administrator, Director, Account Executive, dan Head.
+     * Role di-resolve via NAMA (`Sales Operation%` minus "Sales Operation User")
+     * karena ID role diverge antar environment. Pengecualian berada di closure
+     * `whereHas` yang sama, jadi karyawan yang juga punya role Sales Operation
+     * lain tetap muncul. Diurutkan berdasarkan nama lengkap agar konsisten
+     * dengan daftar karyawan lain di form.
+     */
+    private function salesRoleEmployees()
+    {
+        return Employee::with('basicData')
+            ->where('is_active', true)
+            ->whereHas('roles', fn($q) => $q
+                ->where('employee_role.name', 'like', 'Sales Operation%')
+                ->where('employee_role.name', '!=', 'Sales Operation User'))
+            ->get()
+            ->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))
+            ->values();
+    }
+
+    /**
+     * Hitung ulang amount setiap payment term dari revenue project terkini,
+     * mengikuti rumus amount = revenue × payment_percentage / 100 yang juga dipakai
+     * saat term dibuat/diedit (lihat DeliveryProjectPaymentTermController::computeAmount).
+     */
+    private function syncPaymentTermAmounts(DeliveryProject $project): void
+    {
+        $revenue = (float) ($project->revenue ?? 0);
+
+        DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
+            ->get()
+            ->each(function (DeliveryProjectPaymentTerm $term) use ($revenue) {
+                $amount = round($revenue * ((float) $term->payment_percentage) / 100, 2);
+                if (abs((float) $term->amount - $amount) > 0.001) {
+                    $term->update(['amount' => $amount]);
+                }
+            });
     }
 
     public function updateLocationInfo(Request $request, DeliveryProject $project)

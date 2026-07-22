@@ -182,24 +182,7 @@ class ConsultantWorkloadController extends Controller
      */
     private function ticketsByEmployee(int $empId, array $progressMap = [])
     {
-        $picIds    = DB::table('ticket')
-            ->where('ticket_lead_id', $empId)
-            ->whereIn('status', self::ACTIVE_STATUSES)
-            ->whereNull('deleted_at')
-            ->whereNull('is_hidden')
-            ->pluck('ticket_id');
-
-        $memberIds = DB::table('ticket_member')
-            ->where('employee_id', $empId)
-            ->pluck('ticket_id');
-
-        // Tiket di mana employee punya alokasi di consultant_mandays_detail
-        $mandaysIds = DB::table('consultant_mandays_detail as cmd')
-            ->join('consultant_mandays as cm', 'cm.id', '=', 'cmd.consultant_mandays_id')
-            ->where('cmd.employee_id', $empId)
-            ->pluck('cm.ticket_id');
-
-        $ticketIds = $picIds->merge($memberIds)->merge($mandaysIds)->unique()->values();
+        $ticketIds = Ticket::assignedTicketIds($empId);
 
         $baseSelect = [
             'ticket.ticket_id', 'ticket.ticket_number',
@@ -227,7 +210,7 @@ class ConsultantWorkloadController extends Controller
             ->get();
 
         // Load per-consultant progress detail untuk semua tiket sekaligus
-        $consultantDetails = $this->consultantDetailsForTickets($ticketIds->toArray());
+        $consultantDetails = self::consultantDetailsForTickets($ticketIds->toArray());
 
         return $tickets->map(function ($ticket) use ($progressMap, $consultantDetails, $empId) {
             $ticket->role_in_ticket = ((int) $ticket->ticket_lead_id === $empId) ? 'pic' : 'member';
@@ -249,7 +232,7 @@ class ConsultantWorkloadController extends Controller
      * Return: [ticket_id => [ [...], ... ]]
      * remain_md = effective_md × (1 − progress/100)
      */
-    private function consultantDetailsForTickets(array $ticketIds): array
+    public static function consultantDetailsForTickets(array $ticketIds): array
     {
         if (empty($ticketIds)) return [];
 
@@ -417,6 +400,15 @@ class ConsultantWorkloadController extends Controller
             if (count($validated['progresses']) === 1 && empty($validated['progresses'][0]['detail_id'])) {
                 $item = $validated['progresses'][0];
 
+                // Belum ada breakdown per-consultant, jadi hanya Lead yang boleh mengubah.
+                $leadId = Ticket::where('ticket_id', $ticketId)->value('ticket_lead_id');
+                if ((int) $leadId !== (int) $empId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Hanya Lead yang dapat mengubah progress level-tiket.',
+                    ], 403);
+                }
+
                 Ticket::where('ticket_id', $ticketId)->update([
                     'progress_percentage' => $item['progress_percentage'],
                     'progress_note'       => $item['progress_note'] ?? null,
@@ -429,6 +421,18 @@ class ConsultantWorkloadController extends Controller
                     'message'         => 'Progress updated',
                     'ticket_progress' => $item['progress_percentage'],
                 ]);
+            }
+
+            // Setiap orang hanya boleh mengubah progress miliknya sendiri.
+            $ownDetailIds = collect($validated['progresses'])->pluck('detail_id');
+            $ownedCount   = ConsultantMandaysDetail::whereIn('id', $ownDetailIds)
+                ->where('employee_id', $empId)
+                ->count();
+            if ($ownedCount !== $ownDetailIds->count()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda hanya dapat mengubah progress milik sendiri.',
+                ], 403);
             }
 
             foreach ($validated['progresses'] as $item) {

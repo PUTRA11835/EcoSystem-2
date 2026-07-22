@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\Log;
 
 class SlaService
 {
+    public function __construct(protected HolidayService $holidays)
+    {
+    }
+
     // ── Status-to-SLA effect mapping (ticket.status values) ──────────────────
 
     const FULL_SLA_TYPES = ['Incident', 'Service Request'];
@@ -48,9 +52,16 @@ class SlaService
     /**
      * Calculate elapsed hours between two timestamps.
      * is24h = true  → full calendar hours (7×24)
-     * is24h = false → business hours only (Mon–Fri 09:00–18:00)
+     * is24h = false → business hours only (Mon–Fri 08:00–17:00), excluding Saturday, Sunday,
+     *   and Indonesian national holidays (via HolidayService — same source used by
+     *   resolveSlaStartAt/addWorkingHours for due-date math, so elapsed-duration figures like
+     *   Resolution Duration stay consistent with the due dates they're compared against).
+     *   If $policy has a configured break window (break_start_time/break_end_time), that
+     *   window is also excluded each day (e.g. a 08:00–17:00 window with a 12:00–13:00 break
+     *   nets 8 hours/day). No policy or no break configured → full 08:00–17:00 window (9h/day).
+     * Result is never negative — $from at/after $to returns 0.0.
      */
-    public function calcHours(Carbon $from, Carbon $to, bool $is24h): float
+    public function calcHours(Carbon $from, Carbon $to, bool $is24h, ?SlaPolicy $policy = null): float
     {
         if ($from->gte($to)) {
             return 0.0;
@@ -60,27 +71,388 @@ class SlaService
             return round($from->floatDiffInHours($to), 2);
         }
 
-        // Business hours: Mon–Fri 09:00–18:00
+        $hasBreak = $policy && $policy->break_start_time && $policy->break_end_time;
+        if ($hasBreak) {
+            [$brkStartH, $brkStartM] = array_map('intval', explode(':', $policy->break_start_time));
+            [$brkEndH, $brkEndM]     = array_map('intval', explode(':', $policy->break_end_time));
+        }
+
+        // Business hours: Mon–Fri 08:00–17:00, skipping non-working days and (if configured) breaks
         $total   = 0.0;
         $current = $from->copy();
 
         while ($current->lt($to)) {
-            $dayOfWeek = $current->dayOfWeek; // 0=Sun, 6=Sat
-            if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-                $dayStart = $current->copy()->setTime(9, 0, 0);
-                $dayEnd   = $current->copy()->setTime(18, 0, 0);
+            if (!$this->holidays->isNonWorkingDay($current)) {
+                $dayStart = $current->copy()->setTime(8, 0, 0);
+                $dayEnd   = $current->copy()->setTime(17, 0, 0);
 
                 $periodStart = $current->gt($dayStart) ? $current : $dayStart;
                 $periodEnd   = $to->lt($dayEnd) ? $to : $dayEnd;
 
                 if ($periodStart->lt($periodEnd)) {
-                    $total += $periodStart->floatDiffInHours($periodEnd);
+                    $segmentHours = $periodStart->floatDiffInHours($periodEnd);
+
+                    if ($hasBreak) {
+                        $breakStart   = $current->copy()->setTime($brkStartH, $brkStartM, 0);
+                        $breakEnd     = $current->copy()->setTime($brkEndH, $brkEndM, 0);
+                        $overlapStart = $periodStart->gt($breakStart) ? $periodStart : $breakStart;
+                        $overlapEnd   = $periodEnd->lt($breakEnd) ? $periodEnd : $breakEnd;
+                        if ($overlapStart->lt($overlapEnd)) {
+                            $segmentHours -= $overlapStart->floatDiffInHours($overlapEnd);
+                        }
+                    }
+
+                    $total += $segmentHours;
                 }
             }
-            $current = $current->copy()->addDay()->setTime(9, 0, 0);
+            $current = $current->copy()->addDay()->setTime(8, 0, 0);
         }
 
         return round($total, 2);
+    }
+
+    /**
+     * Resolve the SLA clock start time given when the ticket was received and its policy.
+     *
+     * - No policy, 24/7 policy, or policy without a configured work window → start = received time as-is.
+     * - Otherwise: if received within the policy's work window (excluding any break window) on a working
+     *   day, start = received time as-is. If received during the break, start = end of break, same day.
+     *   If outside the work window entirely (or on a weekend/holiday), roll forward to the next working
+     *   day's window start.
+     */
+    private function resolveSlaStartAt(Carbon $receivedAt, ?SlaPolicy $policy): Carbon
+    {
+        if (!$policy || $policy->is_24_hours || !$policy->work_start_time || !$policy->work_end_time) {
+            return $receivedAt->copy();
+        }
+
+        [$startH, $startM] = array_map('intval', explode(':', $policy->work_start_time));
+        [$endH, $endM]     = array_map('intval', explode(':', $policy->work_end_time));
+
+        $hasBreak = $policy->break_start_time && $policy->break_end_time;
+        if ($hasBreak) {
+            [$brkStartH, $brkStartM] = array_map('intval', explode(':', $policy->break_start_time));
+            [$brkEndH, $brkEndM]     = array_map('intval', explode(':', $policy->break_end_time));
+        }
+
+        $cursor = $receivedAt->copy();
+
+        for ($i = 0; $i < 30; $i++) {
+            if ($this->holidays->isNonWorkingDay($cursor)) {
+                $cursor = $cursor->copy()->addDay()->setTime($startH, $startM, 0);
+                continue;
+            }
+
+            $dayStart = $cursor->copy()->setTime($startH, $startM, 0);
+            $dayEnd   = $cursor->copy()->setTime($endH, $endM, 0);
+
+            if ($cursor->lt($dayStart)) {
+                return $dayStart;
+            }
+
+            if ($hasBreak) {
+                $breakStart = $cursor->copy()->setTime($brkStartH, $brkStartM, 0);
+                $breakEnd   = $cursor->copy()->setTime($brkEndH, $brkEndM, 0);
+                if ($cursor->gte($breakStart) && $cursor->lt($breakEnd)) {
+                    return $breakEnd;
+                }
+            }
+
+            if ($cursor->lt($dayEnd)) {
+                return $cursor->copy();
+            }
+
+            $cursor = $cursor->copy()->addDay()->setTime($startH, $startM, 0);
+        }
+
+        Log::warning('SlaService@resolveSlaStartAt: exceeded rollover safety bound', [
+            'received_at' => $receivedAt->toDateTimeString(),
+            'policy_id'   => $policy->id,
+        ]);
+
+        return $cursor;
+    }
+
+    /**
+     * Add a duration of SLA response hours to a starting timestamp, counting only
+     * minutes that fall inside the policy's working window (skipping breaks, non-working
+     * days/holidays, and out-of-window time) — mirrors resolveSlaStartAt's working-hours
+     * rules so "Response Due On" stays consistent with "Start SLA Response".
+     *
+     * No policy, a 24/7 policy, or a policy without a configured work window → plain
+     * calendar addHours (same fallback used elsewhere for these cases).
+     */
+    private function addWorkingHours(Carbon $from, float $hours, ?SlaPolicy $policy): Carbon
+    {
+        if ($hours <= 0) {
+            return $from->copy();
+        }
+
+        if (!$policy || $policy->is_24_hours || !$policy->work_start_time || !$policy->work_end_time) {
+            return $from->copy()->addHours($hours);
+        }
+
+        [$startH, $startM] = array_map('intval', explode(':', $policy->work_start_time));
+        [$endH, $endM]     = array_map('intval', explode(':', $policy->work_end_time));
+
+        $hasBreak = $policy->break_start_time && $policy->break_end_time;
+        if ($hasBreak) {
+            [$brkStartH, $brkStartM] = array_map('intval', explode(':', $policy->break_start_time));
+            [$brkEndH, $brkEndM]     = array_map('intval', explode(':', $policy->break_end_time));
+        }
+
+        $remainingMinutes = (int) round($hours * 60);
+        $cursor           = $from->copy();
+
+        for ($i = 0; $i < 400 && $remainingMinutes > 0; $i++) {
+            if ($this->holidays->isNonWorkingDay($cursor)) {
+                $cursor = $cursor->copy()->addDay()->setTime($startH, $startM, 0);
+                continue;
+            }
+
+            $dayStart = $cursor->copy()->setTime($startH, $startM, 0);
+            $dayEnd   = $cursor->copy()->setTime($endH, $endM, 0);
+
+            if ($cursor->lt($dayStart)) {
+                $cursor = $dayStart;
+            }
+            if ($cursor->gte($dayEnd)) {
+                $cursor = $cursor->copy()->addDay()->setTime($startH, $startM, 0);
+                continue;
+            }
+
+            if ($hasBreak) {
+                $breakStart = $cursor->copy()->setTime($brkStartH, $brkStartM, 0);
+                $breakEnd   = $cursor->copy()->setTime($brkEndH, $brkEndM, 0);
+                if ($cursor->gte($breakStart) && $cursor->lt($breakEnd)) {
+                    $cursor = $breakEnd;
+                    continue;
+                }
+            }
+
+            // Usable segment today runs from $cursor to the next break start (if any) or day end
+            $segmentEnd = $dayEnd;
+            if ($hasBreak) {
+                $breakStart = $cursor->copy()->setTime($brkStartH, $brkStartM, 0);
+                if ($breakStart->gt($cursor) && $breakStart->lt($segmentEnd)) {
+                    $segmentEnd = $breakStart;
+                }
+            }
+
+            $availableMinutes = $cursor->diffInMinutes($segmentEnd);
+
+            if ($remainingMinutes <= $availableMinutes) {
+                return $cursor->copy()->addMinutes($remainingMinutes);
+            }
+
+            $remainingMinutes -= $availableMinutes;
+            $cursor = $segmentEnd;
+        }
+
+        Log::warning('SlaService@addWorkingHours: exceeded rollover safety bound', [
+            'from'      => $from->toDateTimeString(),
+            'hours'     => $hours,
+            'policy_id' => $policy->id,
+        ]);
+
+        return $cursor;
+    }
+
+    /**
+     * Response-due timestamp for display, computed live from sla_start_at + the currently
+     * attached policy's response_hours (working-hours-aware). Always reflects the policy's
+     * current configuration rather than whatever was frozen into the stored response_due_at
+     * column at attach/sync time.
+     */
+    public function responseDueAt(TicketSla $sla): ?Carbon
+    {
+        if (!$sla->sla_start_at || !$sla->policy) {
+            return null;
+        }
+
+        return $this->addWorkingHours($sla->sla_start_at, (float) $sla->policy->response_hours, $sla->policy);
+    }
+
+    /**
+     * Resolution-start timestamp for display ("Date & Time Start SLA Resolution"): copied
+     * from first_responded_at ("Date & Time Responded"), except —
+     * - Very High priority: copied as-is, no working-hours rollover (resolution starts
+     *   immediately regardless of office hours).
+     * - Any other priority: rolled forward to the next working day/hour if
+     *   first_responded_at falls outside the policy's work window (same rule as
+     *   resolveSlaStartAt, applied here to the response time instead of the received time).
+     */
+    public function resolutionStartAt(TicketSla $sla): ?Carbon
+    {
+        if (!$sla->first_responded_at) {
+            return null;
+        }
+
+        if ($sla->ticket?->ticket_priority === 'Very High') {
+            return $sla->first_responded_at->copy();
+        }
+
+        return $this->resolveSlaStartAt($sla->first_responded_at, $sla->policy);
+    }
+
+    /**
+     * Resolution-due timestamp for display ("SLA Resolution Due On"), computed live from
+     * resolutionStartAt() + the currently attached policy's resolution_hours —
+     * - Very High priority: plain calendar addHours (resolution SLA runs 24/7 for Very High,
+     *   matching resolutionStartAt()'s bypass).
+     * - Any other priority: working-hours-aware (addWorkingHours), consistent with the
+     *   "Working Day, 08:00-17:00 EXCEPT VERY HIGH" rule shown in the column header.
+     */
+    public function resolutionDueAt(TicketSla $sla): ?Carbon
+    {
+        $start = $this->resolutionStartAt($sla);
+        if (!$start || !$sla->policy) {
+            return null;
+        }
+
+        if ($sla->ticket?->ticket_priority === 'Very High') {
+            return $start->copy()->addHours((float) $sla->policy->resolution_hours);
+        }
+
+        return $this->addWorkingHours($start, (float) $sla->policy->resolution_hours, $sla->policy);
+    }
+
+    /**
+     * "First Resolved Date" for display: the timestamp of the first reply (from the ticket's
+     * chat/message history) that set the ticket status to waiting_on_customer — i.e. when the
+     * agent first considered it resolved and handed it back to the customer for confirmation.
+     * Sourced from TicketSlaEvent (one row per agent reply, event_at = message->created_at),
+     * not TicketSlaPause, since pauses only record the first reply of a burst and would miss
+     * status changes that don't reset the pause baseline.
+     * This is distinct from TicketSla::resolved_at, which marks when the ticket was actually
+     * closed (used for SLA met/breached math).
+     */
+    public function firstResolvedAt(TicketSla $sla): ?Carbon
+    {
+        if (!$sla->ticket_id) {
+            return null;
+        }
+
+        return TicketSlaEvent::where('ticket_id', $sla->ticket_id)
+            ->where('jarvis_status', 'waiting_on_customer')
+            ->orderBy('event_at')
+            ->value('event_at');
+    }
+
+    /**
+     * "Date of sending Resolution doc./mail" for display: the timestamp of the first time
+     * Helpdesk sent a deliverable (resolution document) to the customer — i.e. the earliest
+     * TicketDeliverable row for this ticket whose status is 'Sent'. A deliverable's status
+     * only ever transitions No Send → Sent once (edit/delete are blocked after sending, see
+     * TicketDeliverableController::send()), so updated_at at that point is the send timestamp.
+     */
+    public function resolutionDocSentAt(TicketSla $sla): ?Carbon
+    {
+        if (!$sla->ticket_id) {
+            return null;
+        }
+
+        return \App\Models\TicketDeliverable::where('ticket_id', $sla->ticket_id)
+            ->where('status', 'Sent')
+            ->orderBy('updated_at')
+            ->value('updated_at');
+    }
+
+    // ── 1b. Live duration recompute (self-heals historical data, no backfill needed) ──────
+
+    /**
+     * Response Duration for display, computed live from sla_start_at → first_responded_at
+     * with the current calcHours() formula. Unlike the stored validation_duration_hours
+     * column (frozen at response time, in whatever calcHours() looked like back then), this
+     * self-corrects automatically the moment calcHours()'s formula changes — no backfill
+     * needed for historical tickets after a deploy.
+     */
+    public function responseDurationHours(TicketSla $sla): ?float
+    {
+        if (!$sla->sla_start_at || !$sla->first_responded_at) {
+            return null;
+        }
+
+        $is24h = $sla->policy?->is_24_hours ?? false;
+
+        return $this->calcHours($sla->sla_start_at, $sla->first_responded_at, $is24h, $sla->policy);
+    }
+
+    /**
+     * Live response verdict — 'pending' until responded or until a policy is known (mirrors
+     * attachToTicket()'s deferred-verdict behaviour), then 'met'/'breached' against the
+     * current policy's response_hours target.
+     */
+    public function responseStatusLive(TicketSla $sla): string
+    {
+        $duration = $this->responseDurationHours($sla);
+        if ($duration === null || !$sla->policy) {
+            return 'pending';
+        }
+
+        return $duration <= (float) $sla->policy->response_hours ? 'met' : 'breached';
+    }
+
+    /**
+     * Live total waiting hours, recomputed from the ticket's ticket_sla_pauses rows instead
+     * of the stored total_waiting_hours column. The raw started_at/ended_at timestamps on
+     * each pause are unaffected by the calcHours() formula fix — only the duration derived
+     * from them was wrong — so summing them fresh with the current formula self-corrects
+     * historical tickets without a backfill. Pass $pauses (all pause rows for the ticket) to
+     * batch-fetch across a report page instead of querying per row.
+     */
+    public function liveTotalWaitingHours(TicketSla $sla, ?\Illuminate\Support\Collection $pauses = null): float
+    {
+        $policy = $sla->policy;
+        $is24h  = $policy?->is_24_hours ?? true;
+
+        $pauses ??= TicketSlaPause::where('ticket_id', $sla->ticket_id)->get();
+
+        $total = $pauses
+            ->filter(fn ($p) => $p->ended_at !== null)
+            ->sum(fn ($p) => $this->calcHours($p->started_at, $p->ended_at, $is24h, $policy));
+
+        if ($sla->ball_holder !== 'helpdesk' && $sla->sla_paused_at && !$sla->isClosed()) {
+            $total += $this->calcHours($sla->sla_paused_at, now(), $is24h, $policy);
+        }
+
+        return round($total, 2);
+    }
+
+    /**
+     * Live Resolution Duration (net hours) + verdict, for CLOSED tickets only — recomputed
+     * from resolved_at/first_responded_at/sla_start_at (raw timestamps, unaffected by the
+     * calcHours fix) minus the live-recomputed total waiting hours, instead of trusting the
+     * stored net_resolution_hours/resolution_status (frozen with the old formula at close
+     * time). Still-open tickets keep their stored ball-state-driven status (pending/paused)
+     * — that state was never wrong, since it's driven by ticket status transitions, not by
+     * calcHours().
+     *
+     * @return array{net_hours: ?float, status: string}
+     */
+    public function liveResolutionMetrics(TicketSla $sla, ?\Illuminate\Support\Collection $pauses = null): array
+    {
+        if (!$sla->isClosed() || !$sla->resolved_at) {
+            return ['net_hours' => null, 'status' => $sla->resolution_status];
+        }
+
+        $policy          = $sla->policy;
+        $is24h           = $policy?->is_24_hours ?? true;
+        $resolutionStart = $sla->first_responded_at ?? $sla->sla_start_at;
+
+        if (!$resolutionStart) {
+            return ['net_hours' => null, 'status' => $sla->resolution_status];
+        }
+
+        $gross = $this->calcHours($resolutionStart, $sla->resolved_at, $is24h, $policy);
+        $net   = max(0.0, $gross - $this->liveTotalWaitingHours($sla, $pauses));
+
+        $isCancelled = $sla->ticket?->status === 'cancelled';
+        $status      = ($isCancelled || !$policy || $sla->sla_mode === 'response_only')
+            ? 'met'
+            : ($net <= (float) $policy->resolution_hours ? 'met' : 'breached');
+
+        return ['net_hours' => round($net, 2), 'status' => $status];
     }
 
     // ── 2. attachToStaging ───────────────────────────────────────────────────
@@ -195,16 +567,18 @@ class SlaService
 
         $policy = SlaPolicy::findFor($deliverySupportId, $priority, $scale);
 
-        $slaStartAt  = $staging?->created_at ?? $ticket->created_at;
+        $receivedAt  = $staging?->created_at ?? $ticket->created_at;
         $respondedAt = $ticket->created_at;
 
-        if ($slaStartAt->gt($respondedAt)) {
-            $slaStartAt = $respondedAt;
+        if ($receivedAt->gt($respondedAt)) {
+            $receivedAt = $respondedAt;
         }
+
+        $slaStartAt = $this->resolveSlaStartAt($receivedAt, $policy);
 
         // Calculate validation hours; use business hours as default when policy not yet known
         $is24h           = $policy ? $policy->is_24_hours : false;
-        $validationHours = $this->calcHours($slaStartAt, $respondedAt, $is24h);
+        $validationHours = $this->calcHours($slaStartAt, $respondedAt, $is24h, $policy);
         $responseStatus  = $policy
             ? ($validationHours <= (float) $policy->response_hours ? 'met' : 'breached')
             : 'pending';
@@ -221,7 +595,7 @@ class SlaService
                 'sla_policy_id'             => $policy?->id,
                 'sla_mode'                  => 'full',
                 'sla_start_at'              => $slaStartAt,
-                'response_due_at'           => $policy ? $slaStartAt->copy()->addHours((float) $policy->response_hours) : null,
+                'response_due_at'           => $policy ? $this->addWorkingHours($slaStartAt, (float) $policy->response_hours, $policy) : null,
                 'resolution_due_at'         => $policy ? $respondedAt->copy()->addHours((float) $policy->resolution_hours) : null,
                 'first_responded_at'        => $respondedAt,
                 'validation_duration_hours' => $validationHours,
@@ -244,7 +618,7 @@ class SlaService
                 'sla_policy_id'             => $policy?->id,
                 'sla_mode'                  => 'full',
                 'sla_start_at'              => $slaStartAt,
-                'response_due_at'           => $policy ? $slaStartAt->copy()->addHours((float) $policy->response_hours) : null,
+                'response_due_at'           => $policy ? $this->addWorkingHours($slaStartAt, (float) $policy->response_hours, $policy) : null,
                 'resolution_due_at'         => $policy ? $respondedAt->copy()->addHours((float) $policy->resolution_hours) : null,
                 'first_responded_at'        => $respondedAt,
                 'validation_duration_hours' => $validationHours,
@@ -334,15 +708,26 @@ class SlaService
             return;
         }
 
-        $slaStartAt  = $sla->sla_start_at;
-        $respondedAt = $sla->first_responded_at ?? $sla->sla_start_at;
+        // Recompute from the true original received time (ticket/staging created_at),
+        // never from $sla->sla_start_at — that column gets overwritten with the resolved
+        // (already rolled-forward) value once a policy is applied, so re-running this after
+        // the policy's work-hour window changes must not use it as the "received" input again.
+        $staging    = $sla->stagingTicket;
+        $receivedAt = $staging?->created_at ?? $ticket->created_at;
+        if ($receivedAt->gt($ticket->created_at)) {
+            $receivedAt = $ticket->created_at;
+        }
 
-        $validationHours = $this->calcHours($slaStartAt, $respondedAt, $policy->is_24_hours);
+        $slaStartAt  = $this->resolveSlaStartAt($receivedAt, $policy);
+        $respondedAt = $sla->first_responded_at ?? $ticket->created_at;
+
+        $validationHours = $this->calcHours($slaStartAt, $respondedAt, $policy->is_24_hours, $policy);
         $responseStatus  = $validationHours <= (float) $policy->response_hours ? 'met' : 'breached';
 
         $sla->update([
             'sla_policy_id'             => $policy->id,
-            'response_due_at'           => $slaStartAt->copy()->addHours((float) $policy->response_hours),
+            'sla_start_at'              => $slaStartAt,
+            'response_due_at'           => $this->addWorkingHours($slaStartAt, (float) $policy->response_hours, $policy),
             'resolution_due_at'         => $respondedAt->copy()->addHours((float) $policy->resolution_hours),
             'validation_duration_hours' => $validationHours,
             'response_status'           => $responseStatus,
@@ -438,7 +823,7 @@ class SlaService
         $is24h = $sla->policy?->is_24_hours ?? true;
 
         if ($sla->ball_holder !== 'helpdesk' && $sla->sla_paused_at) {
-            $total += $this->calcHours($sla->sla_paused_at, now(), $is24h);
+            $total += $this->calcHours($sla->sla_paused_at, now(), $is24h, $sla->policy);
         }
 
         return round($total, 2);
@@ -460,7 +845,7 @@ class SlaService
         // Add any remaining waiting time if ball was not with helpdesk at close
         $finalWaiting = 0.0;
         if ($sla->ball_holder !== 'helpdesk' && $sla->sla_paused_at) {
-            $finalWaiting = $this->calcHours($sla->sla_paused_at, $closedAt, $is24h);
+            $finalWaiting = $this->calcHours($sla->sla_paused_at, $closedAt, $is24h, $policy);
         }
 
         $sla->refresh();
@@ -469,7 +854,7 @@ class SlaService
         // Resolution dimulai saat ticket divalidasi (first_responded_at), bukan saat email masuk.
         // Response SLA sudah mengukur email → validasi secara terpisah.
         $resolutionStart = $sla->first_responded_at ?? $sla->sla_start_at;
-        $grossHours      = $this->calcHours($resolutionStart, $closedAt, $is24h);
+        $grossHours      = $this->calcHours($resolutionStart, $closedAt, $is24h, $policy);
         $netHours        = max(0.0, $grossHours - $totalWaiting);
 
         if ($isCancelled) {
@@ -517,27 +902,58 @@ class SlaService
             ->whereNotNull('ticket_priority')
             ->get();
 
-        if ($missing->isEmpty()) {
-            return;
-        }
+        if ($missing->isNotEmpty()) {
+            $newIds = [];
+            foreach ($missing as $ticket) {
+                try {
+                    $staging = StagingTicket::where('ticket_id', $ticket->ticket_id)->first();
+                    $this->attachToTicket($ticket, $staging);
+                    $newIds[] = $ticket->ticket_id;
+                } catch (\Throwable $e) {
+                    Log::warning('SlaService@ensureTicketsHaveSla: failed to attach', [
+                        'ticket_id' => $ticket->ticket_id,
+                        'error'     => $e->getMessage(),
+                    ]);
+                }
+            }
 
-        $newIds = [];
-        foreach ($missing as $ticket) {
-            try {
-                $staging = $ticket->stagingTicket ?? null;
-                $this->attachToTicket($ticket, $staging);
-                $newIds[] = $ticket->ticket_id;
-            } catch (\Throwable $e) {
-                Log::warning('SlaService@ensureTicketsHaveSla: failed to attach', [
-                    'ticket_id' => $ticket->ticket_id,
-                    'error'     => $e->getMessage(),
-                ]);
+            if (!empty($newIds)) {
+                $this->backfillEventsForTickets($newIds);
+                $this->autoCloseSlaForClosedTickets($newIds);
             }
         }
 
-        if (!empty($newIds)) {
-            $this->backfillEventsForTickets($newIds);
-            $this->autoCloseSlaForClosedTickets($newIds);
+        $this->syncMissingPolicies();
+    }
+
+    /**
+     * Retry policy-matching for SLA records still without a policy.
+     *
+     * A ticket's SLA record can be left with sla_policy_id = null when its delivery
+     * support had no matching SlaPolicy at the time it was assigned. If that policy
+     * gets configured later (SLA Config is often filled in after tickets already
+     * exist), nothing re-triggers the match — so this re-attempts it on every report
+     * load. Safe to call repeatedly; syncPolicy() itself is a no-op when still no match.
+     */
+    private function syncMissingPolicies(): void
+    {
+        $slas = TicketSla::whereNotNull('ticket_id')
+            ->whereNull('sla_policy_id')
+            ->with('ticket')
+            ->get();
+
+        foreach ($slas as $sla) {
+            if (!$sla->ticket) {
+                continue;
+            }
+            try {
+                $this->syncPolicy($sla->ticket);
+            } catch (\Throwable $e) {
+                Log::warning('SlaService@syncMissingPolicies: failed', [
+                    'ticket_id' => $sla->ticket_id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
         }
     }
 
@@ -598,7 +1014,7 @@ class SlaService
         if (in_array($sla->ball_holder, ['customer', 'sap']) && $sla->sla_paused_at) {
             // Meeting hold tidak boleh diputus oleh chat — hold berlaku sampai meeting selesai
             if (!$this->hasMeetingHold($ticket->ticket_id)) {
-                $waitingH = $this->calcHours($sla->sla_paused_at, $message->created_at, $is24h);
+                $waitingH = $this->calcHours($sla->sla_paused_at, $message->created_at, $is24h, $sla->policy);
 
                 $sla->total_waiting_hours = (float) $sla->total_waiting_hours + $waitingH;
                 $sla->ball_holder         = 'helpdesk';
@@ -641,7 +1057,7 @@ class SlaService
     ): void {
         $is24h        = $sla->policy?->is_24_hours ?? true;
         $sessionStart = $sla->session_start_at ?? $sla->sla_start_at;
-        $resolutionH  = $this->calcHours($sessionStart, $message->created_at, $is24h);
+        $resolutionH  = $this->calcHours($sessionStart, $message->created_at, $is24h, $sla->policy);
 
         if (in_array($ticketStatus, self::STOP_STATUSES)) {
             $this->handleStop($sla, $ticket, $message, $ticketStatus, $resolutionH);
@@ -748,7 +1164,7 @@ class SlaService
         if ($sla->ball_holder !== 'helpdesk' && $sla->sla_paused_at) {
             // Meeting hold tidak boleh diputus oleh agent reply — hold berlaku sampai meeting selesai
             if (!$this->hasMeetingHold($ticket->ticket_id)) {
-                $waitingH = $this->calcHours($sla->sla_paused_at, $message->created_at, $is24h);
+                $waitingH = $this->calcHours($sla->sla_paused_at, $message->created_at, $is24h, $sla->policy);
                 $sla->total_waiting_hours = (float) $sla->total_waiting_hours + $waitingH;
                 $sla->ball_holder         = 'helpdesk';
                 $sla->sla_paused_at       = null;
@@ -802,7 +1218,7 @@ class SlaService
     {
         if ($sla->ball_holder !== 'helpdesk' && $sla->sla_paused_at) {
             $is24h    = $sla->policy?->is_24_hours ?? true;
-            $waitingH = $this->calcHours($sla->sla_paused_at, now(), $is24h);
+            $waitingH = $this->calcHours($sla->sla_paused_at, now(), $is24h, $sla->policy);
 
             $sla->total_waiting_hours = (float) $sla->total_waiting_hours + $waitingH;
             $sla->ball_holder         = 'helpdesk';
@@ -994,7 +1410,7 @@ class SlaService
                 // $waitingH is set so the meeting_ended event shows the meeting duration in the
                 // WAITING column, but it is NOT added to total_waiting_hours (the full customer
                 // wait window already includes this period, so adding it would double-count).
-                $waitingH = $this->calcHours($meetingPause->started_at, $at, $is24h);
+                $waitingH = $this->calcHours($meetingPause->started_at, $at, $is24h, $sla->policy);
                 $meetingPause->update([
                     'ended_at'       => $at,
                     'duration_hours' => $waitingH,
@@ -1002,7 +1418,7 @@ class SlaService
             } else {
                 // The meeting itself paused the SLA (ball moved from helpdesk to customer BY meeting).
                 // Resume the SLA clock now that the meeting is over.
-                $waitingH = $this->calcHours($sla->sla_paused_at, $at, $is24h);
+                $waitingH = $this->calcHours($sla->sla_paused_at, $at, $is24h, $sla->policy);
 
                 $sla->total_waiting_hours = (float) $sla->total_waiting_hours + $waitingH;
                 $sla->ball_holder         = 'helpdesk';

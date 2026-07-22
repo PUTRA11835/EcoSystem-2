@@ -35,6 +35,7 @@ use App\Http\Controllers\MandaysController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\LoginLogController;
 use App\Http\Controllers\AdminSessionController;
 use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
@@ -227,7 +228,7 @@ Route::middleware(['web'])->group(function () {
     // Main Customer endpoints
     Route::prefix('customers')->group(function () {
         Route::get('/', [CustomerController::class, 'getData']);
-        Route::post('/', [CustomerController::class, 'store']);
+        Route::post('/', [CustomerController::class, 'store'])->middleware('menu:master.customer.create');
         Route::get('/search', [CustomerController::class, 'search']);
         Route::get('/statistics', [CustomerController::class, 'statistics']);
         Route::get('/top-level', [CustomerController::class, 'topLevel']);
@@ -236,6 +237,11 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{id}', [CustomerController::class, 'show']);
         Route::get('/{id}/header', [CustomerController::class, 'headerData']);
         Route::get('/{id}/end-customers', [CustomerController::class, 'endCustomers']);
+        // CATATAN: menu 'master.customer.action' (Edit/Delete) belum ditegakkan di
+        // sini secara sengaja — saat ini semua role yang bisa membuka halaman
+        // Customer juga bisa mengedit. Menambahkan middleware di bawah akan
+        // mencabut kemampuan itu dari role yang belum dicentang, jadi biarkan
+        // sampai keputusan itu diambil eksplisit.
         Route::put('/{id}', [CustomerController::class, 'update']);
         Route::delete('/{id}', [CustomerController::class, 'destroy']);
         Route::post('/{id}/delete', [CustomerController::class, 'destroy']);
@@ -503,6 +509,10 @@ Route::middleware(['web'])->group(function () {
         Route::post('/close-period',     [\App\Http\Controllers\ReportingController::class, 'closePeriod']);
         Route::get('/md-recap',          [\App\Http\Controllers\ReportingController::class, 'mdRecap']);
         Route::get('/collection-outlook', [\App\Http\Controllers\ReportingController::class, 'collectionOutlook']);
+        // Ubah status penagihan TOP langsung dari matrix Collection Outlook.
+        // Pakai POST (bukan PUT) — verb PUT/DELETE pernah diblok edge/WAF di production.
+        Route::post('/collection-outlook/terms/{term}', [\App\Http\Controllers\ReportingController::class, 'collectionOutlookUpdateTerm'])
+            ->middleware('menu:reporting.collection-outlook.edit');
         Route::get('/ticketing-overview', [\App\Http\Controllers\ReportingController::class, 'ticketingOverview']);
         Route::get('/ticketing-overview/{customerId}', [\App\Http\Controllers\ReportingController::class, 'ticketingOverviewDetail']);
         Route::get('/ticket-by-module', [\App\Http\Controllers\ReportingController::class, 'ticketByModule']);
@@ -575,6 +585,7 @@ Route::middleware(['web'])->group(function () {
     // ==================== ADMIN ROUTES ====================
     Route::prefix('admin')->group(function () {
         Route::get('/activity-logs', [ActivityLogController::class, 'getData']);
+        Route::get('/login-logs', [LoginLogController::class, 'getData']);
 
         // Session Management
         Route::get('/sessions', [AdminSessionController::class, 'index']);

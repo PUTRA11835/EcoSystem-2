@@ -1380,7 +1380,7 @@ async function loadSlaPolicies() {
         renderSlaPolicies(_slaPolicies);
     } catch {
         tbody.innerHTML = `<tr><td colspan="${SLA_COL}" class="py-8 text-center text-red-400 text-xs">
-            <i class="fas fa-exclamation-triangle mr-1"></i>Gagal memuat SLA policies.</td></tr>`;
+            <i class="fas fa-exclamation-triangle mr-1"></i>Failed to load SLA policies.</td></tr>`;
     }
 }
 
@@ -1390,16 +1390,18 @@ function renderSlaPolicies(policies) {
         tbody.innerHTML = `<tr><td colspan="${SLA_COL}" class="py-10 text-center">
             <div class="flex flex-col items-center gap-2">
                 <i class="fas fa-file-contract text-gray-300 text-2xl mb-1"></i>
-                <p class="text-sm font-medium text-gray-400">Belum ada SLA policy</p>
-                ${SLA_CAN_MGMT ? `<p class="text-xs text-gray-300">Klik "Add Policy" untuk membuat policy pertama</p>` : ''}
+                <p class="text-sm font-medium text-gray-400">No SLA policy yet</p>
+                ${SLA_CAN_MGMT ? `<p class="text-xs text-gray-300">Click "Add Policy" to create the first policy</p>` : ''}
             </div></td></tr>`;
         return;
     }
     tbody.innerHTML = policies.map(p => {
         const pc  = SLA_PRIO_CFG[p.priority] || { bg:'bg-gray-100', text:'text-gray-600', dot:'bg-gray-400' };
+        const breakLabel = (p.break_start_time && p.break_end_time) ? ` (break ${p.break_start_time}-${p.break_end_time})` : '';
+        const workHoursLabel = (p.work_start_time && p.work_end_time) ? ` ${p.work_start_time}–${p.work_end_time}${breakLabel}` : '';
         const modeCell = p.is_24_hours
             ? `<span class="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full"><i class="fas fa-infinity text-[9px]"></i> 24/7</span>`
-            : `<span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Business</span>`;
+            : `<span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Business${workHoursLabel}</span>`;
         const statusCell = p.is_active
             ? `<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 px-2.5 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Active</span>`
             : `<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Inactive</span>`;
@@ -1435,6 +1437,7 @@ function renderSlaPolicies(policies) {
 function openSlaAddModal() {
     document.getElementById('slaAddForm').reset();
     document.getElementById('slaAddError').classList.add('hidden');
+    document.getElementById('slaAddWorkEnd').setCustomValidity('');
     slaUpdateAdd24h();
     document.getElementById('slaAddModal').classList.remove('hidden');
 }
@@ -1450,13 +1453,23 @@ function slaUpdateAdd24h() {
         el.checked = true; el.disabled = true;
         label.classList.add('opacity-75','cursor-not-allowed');
         label.classList.remove('cursor-pointer','hover:bg-gray-100');
-        note.textContent = 'Wajib 24/7 — priority Very High selalu menggunakan kalender penuh.';
+        note.textContent = 'Required 24/7 — Very High priority always uses full calendar hours.';
     } else {
         el.disabled = false;
         label.classList.remove('opacity-75','cursor-not-allowed');
         label.classList.add('cursor-pointer','hover:bg-gray-100');
-        note.textContent = 'Hitung semua jam; jika tidak, hanya jam kerja (Sen–Jum 09:00–18:00)';
+        note.textContent = 'Count all hours; otherwise, only business hours per the window below.';
     }
+}
+function slaValidateAddWindow() {
+    const start  = document.getElementById('slaAddWorkStart');
+    const end    = document.getElementById('slaAddWorkEnd');
+    const bStart = document.getElementById('slaAddBreakStart');
+    const bEnd   = document.getElementById('slaAddBreakEnd');
+    end.setCustomValidity((start.value && end.value && end.value <= start.value)
+        ? 'End time must be after start time.' : '');
+    bEnd.setCustomValidity((bStart.value && bEnd.value && bEnd.value <= bStart.value)
+        ? 'Break end must be after break start.' : '');
 }
 async function submitSlaAddPolicy(e) {
     e.preventDefault();
@@ -1470,6 +1483,10 @@ async function submitSlaAddPolicy(e) {
     fd.set('delivery_support_id', SLA_DS_ID);
     const payload = Object.fromEntries(fd.entries());
     payload.is_24_hours = form.querySelector('[name=is_24_hours]').checked;
+    payload.work_start_time  = payload.work_start_time || null;
+    payload.work_end_time    = payload.work_end_time || null;
+    payload.break_start_time = payload.break_start_time || null;
+    payload.break_end_time   = payload.break_end_time || null;
     try {
         const res  = await fetch('/api/admin/sla/policies', {
             method: 'POST',
@@ -1480,14 +1497,14 @@ async function submitSlaAddPolicy(e) {
         const json = await res.json();
         if (json.success) {
             closeSlaAddModal();
-            showToast('SLA policy berhasil ditambahkan!', 'success');
+            showToast('SLA policy added successfully!', 'success');
             loadSlaPolicies();
         } else {
-            errTxt.textContent = json.message || 'Gagal menyimpan policy.';
+            errTxt.textContent = json.message || 'Failed to save policy.';
             errDiv.classList.remove('hidden');
         }
     } catch {
-        errTxt.textContent = 'Terjadi kesalahan. Coba lagi.';
+        errTxt.textContent = 'An error occurred. Please try again.';
         errDiv.classList.remove('hidden');
     } finally {
         btn.disabled = false;
@@ -1502,8 +1519,14 @@ function openSlaEditModal(p) {
     document.getElementById('slaEditResponse').value   = p.response_hours;
     document.getElementById('slaEditResolution').value = p.resolution_hours;
     document.getElementById('slaEdit24h').checked      = p.is_24_hours;
+    document.getElementById('slaEditWorkStart').value  = p.work_start_time || '';
+    document.getElementById('slaEditWorkEnd').value    = p.work_end_time || '';
+    document.getElementById('slaEditBreakStart').value = p.break_start_time || '';
+    document.getElementById('slaEditBreakEnd').value   = p.break_end_time || '';
     document.getElementById('slaEditActive').checked   = p.is_active;
     document.getElementById('slaEditError').classList.add('hidden');
+    document.getElementById('slaEditWorkEnd').setCustomValidity('');
+    document.getElementById('slaEditBreakEnd').setCustomValidity('');
     slaUpdateEdit24h();
     document.getElementById('slaEditModal').classList.remove('hidden');
 }
@@ -1519,12 +1542,25 @@ function slaUpdateEdit24h() {
         el.checked = true; el.disabled = true;
         label.classList.add('opacity-75','cursor-not-allowed');
         label.classList.remove('cursor-pointer','hover:bg-gray-100');
-        note.textContent = 'Wajib 24/7 — priority Very High selalu menggunakan kalender penuh.';
+        note.textContent = 'Required 24/7 — Very High priority always uses full calendar hours.';
     } else {
         el.disabled = false;
         label.classList.remove('opacity-75','cursor-not-allowed');
         label.classList.add('cursor-pointer','hover:bg-gray-100');
-        note.textContent = 'Hitung semua jam; jika tidak, hanya jam kerja (Sen–Jum 09:00–18:00)';
+        note.textContent = 'Count all hours; otherwise, only business hours per the window below.';
+    }
+}
+function slaValidateEditWindow() {
+    const start  = document.getElementById('slaEditWorkStart');
+    const end    = document.getElementById('slaEditWorkEnd');
+    const bStart = document.getElementById('slaEditBreakStart');
+    const bEnd   = document.getElementById('slaEditBreakEnd');
+    bEnd.setCustomValidity((bStart.value && bEnd.value && bEnd.value <= bStart.value)
+        ? 'Break end must be after break start.' : '');
+    if (start.value && end.value && end.value <= start.value) {
+        end.setCustomValidity('End time must be after start time.');
+    } else {
+        end.setCustomValidity('');
     }
 }
 async function submitSlaEditPolicy(e) {
@@ -1541,6 +1577,10 @@ async function submitSlaEditPolicy(e) {
         response_hours:   document.getElementById('slaEditResponse').value,
         resolution_hours: document.getElementById('slaEditResolution').value,
         is_24_hours:      document.getElementById('slaEdit24h').checked,
+        work_start_time:  document.getElementById('slaEditWorkStart').value || null,
+        work_end_time:    document.getElementById('slaEditWorkEnd').value || null,
+        break_start_time: document.getElementById('slaEditBreakStart').value || null,
+        break_end_time:   document.getElementById('slaEditBreakEnd').value || null,
         is_active:        document.getElementById('slaEditActive').checked,
         delivery_support_id: SLA_DS_ID,
     };
@@ -1554,14 +1594,14 @@ async function submitSlaEditPolicy(e) {
         const json = await res.json();
         if (json.success) {
             closeSlaEditModal();
-            showToast('SLA policy berhasil diperbarui!', 'success');
+            showToast('SLA policy updated successfully!', 'success');
             loadSlaPolicies();
         } else {
-            errTxt.textContent = json.message || 'Gagal memperbarui policy.';
+            errTxt.textContent = json.message || 'Failed to update policy.';
             errDiv.classList.remove('hidden');
         }
     } catch {
-        errTxt.textContent = 'Terjadi kesalahan. Coba lagi.';
+        errTxt.textContent = 'An error occurred. Please try again.';
         errDiv.classList.remove('hidden');
     } finally {
         btn.disabled = false;
@@ -1569,7 +1609,7 @@ async function submitSlaEditPolicy(e) {
 }
 
 async function deleteSlaPolicy(id) {
-    if (!confirm('Hapus SLA policy ini?')) return;
+    if (!confirm('Delete this SLA policy?')) return;
     try {
         const res  = await fetch(`/api/admin/sla/policies/${id}/delete`, {
             method: 'POST',
@@ -1578,13 +1618,13 @@ async function deleteSlaPolicy(id) {
         });
         const json = await res.json();
         if (json.success) {
-            showToast('SLA policy dihapus.', 'success');
+            showToast('SLA policy deleted.', 'success');
             loadSlaPolicies();
         } else {
-            showToast(json.message || 'Gagal menghapus policy.', 'error');
+            showToast(json.message || 'Failed to delete policy.', 'error');
         }
     } catch {
-        showToast('Terjadi kesalahan.', 'error');
+        showToast('An error occurred.', 'error');
     }
 }
 
@@ -1633,23 +1673,47 @@ document.addEventListener('DOMContentLoaded', loadSlaPolicies);
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Jam) <span class="text-red-500">*</span></label>
-                        <input type="number" name="response_hours" step="0.5" min="0.5" required placeholder="mis. 4"
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Hours) <span class="text-red-500">*</span></label>
+                        <input type="number" name="response_hours" step="0.5" min="0.5" required placeholder="e.g. 4"
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Jam) <span class="text-red-500">*</span></label>
-                        <input type="number" name="resolution_hours" step="0.5" min="0.5" required placeholder="mis. 24"
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Hours) <span class="text-red-500">*</span></label>
+                        <input type="number" name="resolution_hours" step="0.5" min="0.5" required placeholder="e.g. 24"
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
                     </div>
                 </div>
                 <label id="slaAdd24hLabel" class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
-                    <input type="checkbox" name="is_24_hours" id="slaAdd24h" class="mt-0.5 w-4 h-4 rounded accent-red-700">
+                    <input type="checkbox" name="is_24_hours" id="slaAdd24h" onchange="slaUpdateAdd24h()" class="mt-0.5 w-4 h-4 rounded accent-red-700">
                     <div>
                         <p class="text-sm font-medium text-gray-700">24/7 Calendar Hours</p>
-                        <p class="text-xs text-gray-400 mt-0.5" id="slaAdd24hNote">Hitung semua jam; jika tidak, hanya jam kerja (Sen–Jum 09:00–18:00)</p>
+                        <p class="text-xs text-gray-400 mt-0.5" id="slaAdd24hNote">Count all hours; otherwise, only business hours per the window below.</p>
                     </div>
                 </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Work Start</label>
+                        <input type="time" name="work_start_time" id="slaAddWorkStart" oninput="slaValidateAddWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Work End</label>
+                        <input type="time" name="work_end_time" id="slaAddWorkEnd" oninput="slaValidateAddWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Break Start</label>
+                        <input type="time" name="break_start_time" id="slaAddBreakStart" oninput="slaValidateAddWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Break End</label>
+                        <input type="time" name="break_end_time" id="slaAddBreakEnd" oninput="slaValidateAddWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    </div>
+                </div>
                 <div id="slaAddError" class="hidden items-center gap-2 bg-red-50 rounded-xl px-4 py-3 border border-red-100">
                     <i class="fas fa-exclamation-circle text-red-500 flex-shrink-0 text-xs"></i>
                     <span id="slaAddErrorText" class="text-xs text-red-600"></span>
@@ -1706,28 +1770,52 @@ document.addEventListener('DOMContentLoaded', loadSlaPolicies);
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Jam)</label>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Hours)</label>
                         <input type="number" id="slaEditResponse" step="0.5" min="0.5" required
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Jam)</label>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Hours)</label>
                         <input type="number" id="slaEditResolution" step="0.5" min="0.5" required
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
                     </div>
                 </div>
                 <label id="slaEdit24hLabel" class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
-                    <input type="checkbox" id="slaEdit24h" class="mt-0.5 w-4 h-4 rounded accent-blue-600">
+                    <input type="checkbox" id="slaEdit24h" onchange="slaUpdateEdit24h()" class="mt-0.5 w-4 h-4 rounded accent-blue-600">
                     <div>
                         <p class="text-sm font-medium text-gray-700">24/7 Calendar Hours</p>
-                        <p class="text-xs text-gray-400 mt-0.5" id="slaEdit24hNote">Hitung semua jam; jika tidak, hanya jam kerja (Sen–Jum 09:00–18:00)</p>
+                        <p class="text-xs text-gray-400 mt-0.5" id="slaEdit24hNote">Count all hours; otherwise, only business hours per the window below.</p>
                     </div>
                 </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Work Start</label>
+                        <input type="time" id="slaEditWorkStart" oninput="slaValidateEditWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Work End</label>
+                        <input type="time" id="slaEditWorkEnd" oninput="slaValidateEditWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Break Start</label>
+                        <input type="time" id="slaEditBreakStart" oninput="slaValidateEditWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Break End</label>
+                        <input type="time" id="slaEditBreakEnd" oninput="slaValidateEditWindow()" lang="en-GB"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    </div>
+                </div>
                 <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
                     <input type="checkbox" id="slaEditActive" class="mt-0.5 w-4 h-4 rounded accent-green-600">
                     <div>
                         <p class="text-sm font-medium text-gray-700">Active</p>
-                        <p class="text-xs text-gray-400 mt-0.5">Policy aktif akan digunakan untuk penghitungan SLA tiket</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Active policies are used for ticket SLA calculation</p>
                     </div>
                 </label>
                 <div id="slaEditError" class="hidden items-center gap-2 bg-red-50 rounded-xl px-4 py-3 border border-red-100">
