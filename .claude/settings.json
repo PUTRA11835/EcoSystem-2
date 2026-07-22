@@ -112,7 +112,15 @@
       "Bash(node -c \"c:\\\\EcoSystem-2\\\\public\\\\js\\\\calendar-timesheets.js\")",
       "Bash(php -l \"c:\\\\EcoSystem-2\\\\resources\\\\views\\\\calendar\\\\timesheets.blade.php\")",
       "Bash(node -e ' *)",
-      "Bash(awk -F: '$1<711')"
+      "Bash(awk -F: '$1<711')",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Exports\\\\TicketExport.php\")",
+      "Bash(awk 'NR<=1474 && /public function/{line=NR; name=$0} END{print line\": \"name}' \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\TicketController.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Models\\\\CustomerMandays.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Http\\\\Controllers\\\\TimesheetController.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Exports\\\\TimesheetSupportExport.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Exports\\\\TimesheetProjectExport.php\")",
+      "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Exports\\\\TimesheetOfficeExport.php\")",
+      "Bash(awk 'NR<=331 && /Route::middleware|Route::group/{line=NR\" \"$0} END{print line}' \"c:\\\\EcoSystem-2\\\\routes\\\\api.php\")"
     ],
     "additionalDirectories": [
       "C:\\ecosystem-2\\database\\migrations",

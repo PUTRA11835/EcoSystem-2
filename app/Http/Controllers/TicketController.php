@@ -287,13 +287,14 @@ class TicketController extends Controller
                 ];
             });
 
-            // Batch load approved customer mandays (latest approved version per ticket)
+            // Batch load approved customer mandays (sum of every approved version per
+            // ticket — a ticket can have several independently-approved versions,
+            // e.g. an addendum proposed after the first one was already approved).
             $customerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $ticketIds)
                 ->where('status', 'approved')
-                ->orderBy('version', 'desc')
                 ->get()
                 ->groupBy('ticket_id')
-                ->map(fn($group) => $group->first()->total_mandays);
+                ->map(fn($group) => $group->sum('total_mandays'));
 
             // Batch-load semua pending confirmations sekaligus (hindari N+1)
             $confirmationMap = DB::table('ticket_confirmation')
@@ -492,12 +493,29 @@ class TicketController extends Controller
 
         $customerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $ticketIds)
             ->where('status', 'approved')
-            ->orderBy('version', 'desc')
             ->get()
             ->groupBy('ticket_id')
-            ->map(fn($g) => $g->first()->total_mandays);
+            ->map(fn($g) => $g->sum('total_mandays'));
 
-        $rows = $tickets->map(function ($ticket) use ($progressMap, $customerMandaysMap) {
+        // Same lookup used by myTickets() — a ticket's assigned Delivery Support
+        // (name + client), via delivery_support_activities.
+        $deliverySupportMap = \App\Models\DeliverySupportActivity::with(['deliverySupport.client.basicData'])
+            ->whereIn('ticket_id', $ticketIds)
+            ->whereNotNull('ticket_id')
+            ->get()
+            ->keyBy('ticket_id')
+            ->map(function ($activity) {
+                $ds = $activity->deliverySupport;
+                if (!$ds) {
+                    return null;
+                }
+                $clientName = $ds->client?->basicData?->name_1;
+                return trim($ds->name
+                    . ($clientName ? " ({$clientName})" : '')
+                    . ($ds->type ? ", {$ds->type}" : ''));
+            });
+
+        $rows = $tickets->map(function ($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap) {
             return [
                 'ticket_number'          => $ticket->ticket_number,
                 'description'            => $ticket->description,
@@ -514,6 +532,7 @@ class TicketController extends Controller
                 'customer_mandays'       => $customerMandaysMap[$ticket->ticket_id] ?? null,
                 'all_consultant_progress'=> $progressMap[$ticket->ticket_id] ?? (float)($ticket->progress_percentage ?? 0),
                 'end_date'               => $ticket->end_date,
+                'assign_delivery'        => $deliverySupportMap[$ticket->ticket_id] ?? null,
             ];
         });
 
@@ -1127,13 +1146,12 @@ class TicketController extends Controller
                     ->pluck('read_at', 'ticket_id')
                 : collect();
 
-            // Batch load approved customer mandays (latest approved version per ticket)
+            // Batch load approved customer mandays (sum of every approved version per ticket)
             $myCustomerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $myTicketIds)
                 ->where('status', 'approved')
-                ->orderBy('version', 'desc')
                 ->get()
                 ->groupBy('ticket_id')
-                ->map(fn($group) => $group->first()->total_mandays);
+                ->map(fn($group) => $group->sum('total_mandays'));
 
             // Batch load delivery support per ticket via delivery_support_activities
             $myDeliverySupportMap = \App\Models\DeliverySupportActivity::with(['deliverySupport.client.basicData'])
@@ -1454,10 +1472,9 @@ class TicketController extends Controller
 
             $customerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $ticketIds)
                 ->where('status', 'approved')
-                ->orderBy('version', 'desc')
                 ->get()
                 ->groupBy('ticket_id')
-                ->map(fn($group) => $group->first()->total_mandays);
+                ->map(fn($group) => $group->sum('total_mandays'));
 
             $deliverySupportMap = \App\Models\DeliverySupportActivity::with(['deliverySupport.client.basicData'])
                 ->whereIn('ticket_id', $ticketIds)
