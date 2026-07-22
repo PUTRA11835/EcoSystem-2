@@ -1254,7 +1254,7 @@
 
             let matchDate = true;
             if (fromMs !== null || toMs !== null) {
-                const ticketDate = ticket.start_date || ticket.created_at;
+                const ticketDate = ticket.created_at;
                 const startMs = ticketDate ? new Date(ticketDate).getTime() : NaN;
                 if (Number.isNaN(startMs)) {
                     matchDate = false;
@@ -1351,7 +1351,7 @@
 
     // Ticket closed → freeze "Day on Close" at the close timestamp instead of
     // letting it keep counting up to today. Dihitung sejak start_date
-    // (fallback ke created_at jika belum ada start_date), sama seperti kolom Date.
+    // (fallback ke created_at jika belum ada start_date).
     function dayOnCloseValue(ticket) {
         const start = ticket.start_date || ticket.created_at;
         if (!start) return null;
@@ -1365,7 +1365,7 @@
     function createTicketRow(ticket) {
         const customerName = ticket.customer?.customer_name || 'Unknown';
         const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
-        const startDate = new Date(ticket.start_date || ticket.created_at);
+        const createdDate = new Date(ticket.created_at);
         const endDate = ticket.end_date ? new Date(ticket.end_date) : null;
 
         const fmt = d => d.toLocaleDateString('en-GB', {
@@ -1386,7 +1386,7 @@
 
         const lastUpdateStr = relativeTime(lastActivity);
         const lastUpdateTitle = fmtDT(lastActivity);
-        const dateStr = fmt(startDate);
+        const dateStr = fmt(createdDate);
         const endDateStr = endDate ? fmt(endDate) : '—';
 
         const agentName = ticket.employee?.employee_name || '<span class="text-gray-400">Unassigned</span>';
@@ -2185,8 +2185,8 @@
                 va = extractNum(a);
                 vb = extractNum(b);
             } else if (key === 'date') {
-                va = new Date(a.start_date || a.created_at).getTime();
-                vb = new Date(b.start_date || b.created_at).getTime();
+                va = new Date(a.created_at).getTime();
+                vb = new Date(b.created_at).getTime();
             } else if (key === 'day_on_close') {
                 const daysOf = t => {
                     const v = dayOnCloseValue(t);
