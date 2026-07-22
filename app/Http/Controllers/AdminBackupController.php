@@ -659,15 +659,16 @@ class AdminBackupController extends Controller
 
             $eci = $get('eci');
 
-            // Pencocokan employee memakai FULL NAME (first + last), bukan ECI.
-            // Minimal salah satu nama wajib ada agar bisa dicocokkan.
+            // Pencocokan employee memakai ECI — identifier unik & stabil,
+            // sedangkan nama bisa berubah/duplikat antar employee.
+            if (!$eci) {
+                $errors[] = "Baris {$rowNum}: Kolom 'ECI' wajib diisi — dipakai untuk mencocokkan employee";
+                continue;
+            }
+
             $firstName = $get('first_name');
             $lastName  = $get('last_name');
             $fullName  = trim(($firstName ?? '') . ' ' . ($lastName ?? ''));
-            if ($fullName === '') {
-                $errors[] = "Baris {$rowNum}: Nama (First/Last Name) wajib diisi — dipakai untuk mencocokkan employee";
-                continue;
-            }
 
             // Kolom "role" bisa berisi BANYAK role dipisah koma
             // (mis. "EC Director, EC User, User System Registered"). Semua role
@@ -711,7 +712,7 @@ class AdminBackupController extends Controller
                 if (isset($homeBaseCanon[$key])) {
                     $homeBase = $homeBaseCanon[$key];
                 } else {
-                    $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): Home Base '{$homeBase}' tidak dikenali — tersimpan apa adanya";
+                    $errors[] = "[Peringatan] Baris {$rowNum} ({$eci}): Home Base '{$homeBase}' tidak dikenali — tersimpan apa adanya";
                 }
             }
 
@@ -747,22 +748,9 @@ class AdminBackupController extends Controller
             try {
                 DB::beginTransaction();
 
-                // Cocokkan berdasarkan FULL NAME (case-insensitive). Butuh basic_data,
-                // sehingga employee tanpa nama tidak akan ke-match (akan jadi baru).
-                $existing = DB::table('employee as e')
-                    ->join('employee_basic_data as b', 'e.employee_id', '=', 'b.employee_id')
-                    ->whereRaw("LOWER(TRIM(CONCAT(COALESCE(b.first_name,''), ' ', COALESCE(b.last_name,'')))) = ?", [mb_strtolower($fullName)])
-                    ->orderBy('e.employee_id') // deterministik bila ada nama kembar
-                    ->select('e.employee_id', 'e.eci')
-                    ->first();
-
-                // Fallback: kalau nama tak ketemu (mis. employee lama yang punya baris
-                // employee + ECI tapi belum punya basic_data), cocokkan via ECI agar
-                // tidak salah dianggap baru lalu kena guard "ECI sudah dipakai".
-                if (!$existing && $eci) {
-                    $existing = DB::table('employee')->where('eci', $eci)
-                        ->select('employee_id', 'eci')->first();
-                }
+                // Cocokkan berdasarkan ECI (identifier unik employee).
+                $existing = DB::table('employee')->where('eci', $eci)
+                    ->select('employee_id', 'eci')->first();
 
                 $email = $get('email');
 
@@ -780,24 +768,8 @@ class AdminBackupController extends Controller
                 }
 
                 if ($existing) {
-                    // ── UPDATE: full name sama → update field-fieldnya ──
+                    // ── UPDATE: ECI sama → update field-fieldnya ──
                     $empUpdate = ['is_active' => $isActive, 'updated_at' => now()];
-
-                    // ECI dari CSV adalah format terbaru & menjadi acuan ke depan →
-                    // timpa ECI lama bila berbeda. Username login (auth_users) ikut
-                    // disinkronkan di bawah. Skip + warn bila ECI sudah dipakai
-                    // employee LAIN (cegah pelanggaran unique).
-                    $syncEci = null;
-                    if ($eci && $eci !== $existing->eci) {
-                        $eciTaken = DB::table('employee')->where('eci', $eci)
-                            ->where('employee_id', '!=', $existing->employee_id)->exists();
-                        if ($eciTaken) {
-                            $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): ECI '{$eci}' sudah dipakai employee lain — ECI lama '{$existing->eci}' dipertahankan";
-                        } else {
-                            $empUpdate['eci'] = $eci;
-                            $syncEci = $eci;
-                        }
-                    }
 
                     DB::table('employee')->where('employee_id', $existing->employee_id)->update($empUpdate);
 
@@ -851,7 +823,7 @@ class AdminBackupController extends Controller
                         DB::table('auth_users')->insert([
                             'employee_id'   => $existing->employee_id,
                             'customer_id'   => null,
-                            'username'      => $syncEci ?? $existing->eci,
+                            'username'      => $existing->eci,
                             'email'         => $emailForAuth,
                             'phone'         => null,
                             'password'      => \Illuminate\Support\Facades\Hash::make(self::DEFAULT_IMPORT_PASSWORD, ['rounds' => 8]),
@@ -861,23 +833,12 @@ class AdminBackupController extends Controller
                             'updated_at'    => now(),
                         ]);
                         if ($emailConflict) {
-                            $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): email '{$email}' sudah dipakai akun lain — employee tetap dibuat tapi TANPA email, isi manual nanti";
+                            $errors[] = "[Peringatan] Baris {$rowNum} ({$eci}): email '{$email}' sudah dipakai akun lain — employee tetap dibuat tapi TANPA email, isi manual nanti";
                         }
                     } else {
                         $authUpdate = ['updated_at' => now()];
                         if ($emailForAuth && empty($authUser->email)) {
                             $authUpdate['email'] = $emailForAuth;
-                        }
-                        // Sinkronkan username login dgn ECI baru. Skip + warn bila
-                        // username sudah dipakai akun lain (cegah pelanggaran unique).
-                        if ($syncEci && $syncEci !== $authUser->username) {
-                            $usernameTaken = DB::table('auth_users')->where('username', $syncEci)
-                                ->where('id', '!=', $authUser->id)->exists();
-                            if ($usernameTaken) {
-                                $errors[] = "[Peringatan] Baris {$rowNum} ({$fullName}): username login '{$syncEci}' sudah dipakai akun lain — username lama '{$authUser->username}' dipertahankan";
-                            } else {
-                                $authUpdate['username'] = $syncEci;
-                            }
                         }
                         // Reset ke password default HANYA bila employee belum pernah
                         // set-password sendiri (is_already_cp=false). Jika sudah pernah,
@@ -891,20 +852,11 @@ class AdminBackupController extends Controller
                     DB::commit();
                     $updated++;
                 } else {
-                    // ── CREATE: employee baru ──
+                    // ── CREATE: employee baru ── (ECI sudah dipastikan ada & belum
+                    // dipakai employee lain lewat matching $existing di atas)
                     if (!$roleId) {
                         DB::rollBack();
-                        $errors[] = "Baris {$rowNum} ({$fullName}): employee baru tapi Role tidak valid — baris dilewati";
-                        continue;
-                    }
-                    if (!$eci) {
-                        DB::rollBack();
-                        $errors[] = "Baris {$rowNum} ({$fullName}): Kolom 'ECI' wajib diisi untuk employee baru";
-                        continue;
-                    }
-                    if (DB::table('employee')->where('eci', $eci)->exists()) {
-                        DB::rollBack();
-                        $errors[] = "Baris {$rowNum} ({$fullName}): ECI '{$eci}' sudah dipakai employee lain — baris dilewati";
+                        $errors[] = "Baris {$rowNum} ({$eci}): employee baru tapi Role tidak valid — baris dilewati";
                         continue;
                     }
                     // Email kosong di CSV → employee tetap dibuat, auth_users.email = null
@@ -944,7 +896,7 @@ class AdminBackupController extends Controller
                         'updated_at'    => now(),
                     ]);
                     if ($emailConflict) {
-                        $errors[] = "Baris {$rowNum} ({$fullName}): email '{$email}' sudah dipakai akun lain — akun dibuat TANPA email, isi manual nanti";
+                        $errors[] = "Baris {$rowNum} ({$eci}): email '{$email}' sudah dipakai akun lain — akun dibuat TANPA email, isi manual nanti";
                     }
 
                     if ($basicData) {
@@ -973,7 +925,7 @@ class AdminBackupController extends Controller
                 }
             } catch (\Exception $e) {
                 DB::rollBack();
-                $errors[] = "Baris {$rowNum} ({$fullName}): " . $e->getMessage();
+                $errors[] = "Baris {$rowNum} ({$eci}): " . $e->getMessage();
             }
         }
 

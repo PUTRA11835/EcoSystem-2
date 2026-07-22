@@ -120,7 +120,8 @@
       "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Exports\\\\TimesheetSupportExport.php\")",
       "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Exports\\\\TimesheetProjectExport.php\")",
       "Bash(php -l \"c:\\\\EcoSystem-2\\\\app\\\\Exports\\\\TimesheetOfficeExport.php\")",
-      "Bash(awk 'NR<=331 && /Route::middleware|Route::group/{line=NR\" \"$0} END{print line}' \"c:\\\\EcoSystem-2\\\\routes\\\\api.php\")"
+      "Bash(awk 'NR<=331 && /Route::middleware|Route::group/{line=NR\" \"$0} END{print line}' \"c:\\\\EcoSystem-2\\\\routes\\\\api.php\")",
+      "Bash(php \"C:\\\\Users\\\\HP\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--EcoSystem-2\\\\216c6e3d-5529-4b45-a968-566d6c0bf49a\\\\scratchpad\\\\check_import.php\")"
     ],
     "additionalDirectories": [
       "C:\\ecosystem-2\\database\\migrations",
