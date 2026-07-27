@@ -1350,10 +1350,10 @@
     }
 
     // Ticket closed → freeze "Day on Close" at the close timestamp instead of
-    // letting it keep counting up to today. Dihitung sejak start_date
-    // (fallback ke created_at jika belum ada start_date).
+    // letting it keep counting up to today. Dihitung sejak created_at,
+    // sama seperti kolom Date.
     function dayOnCloseValue(ticket) {
-        const start = ticket.start_date || ticket.created_at;
+        const start = ticket.created_at;
         if (!start) return null;
         const closedAt = ticket.status === 'closed'
             ? (ticket.sla?.resolved_at || ticket.updated_at)
