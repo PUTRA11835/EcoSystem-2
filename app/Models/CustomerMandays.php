@@ -25,6 +25,7 @@ class CustomerMandays extends Model
         'rejection_reason',
         'notes',
         'canceled_by_id',
+        'canceled_at',
         'total_mandays',
         'customer_response_at',
     ];
@@ -34,6 +35,7 @@ class CustomerMandays extends Model
         'submitted_to_customer_at' => 'datetime',
         'sent_to_chat_at'          => 'datetime',
         'customer_response_at'     => 'datetime',
+        'canceled_at'              => 'datetime',
         'total_mandays'            => 'decimal:2',
     ];
 

@@ -398,6 +398,7 @@
         $hdCanSendToCustomer  = $isHelpdesk && $can('ticket.review-mandays.send-to-customer');
         $hdCanApprove         = $isHelpdesk && $can('ticket.review-mandays.approve');
         $hdCanCancel          = $isHelpdesk && $can('ticket.review-mandays.cancel');
+        $hdCanCancelApproved  = $isHelpdesk && $can('ticket.review-mandays.cancel-approved');
         $mandaysBadge    = [
             'none'            => ['bg-gray-100 text-gray-500',   'None'],
             'pic_draft'       => ['bg-yellow-100 text-yellow-700','Draft'],
@@ -2041,6 +2042,16 @@
                     </table>
                 </div>
                 <div class="mt-3 text-xs text-gray-500 text-right">Total: <strong id="mvdTotal">0</strong> mandays</div>
+                {{-- Cancel confirm section (shown when clicking "Cancel This Version") --}}
+                <div id="mvdCancelConfirmWrap" class="hidden mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p class="text-xs font-semibold text-red-700 mb-2">Cancel This Version — Confirmation</p>
+                    <label class="text-xs font-medium text-red-700">Reason / Notes <span class="text-gray-500 font-normal">(optional)</span></label>
+                    <textarea id="mvdCancelNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-red-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="Explain why you are canceling this version..."></textarea>
+                    <div class="flex gap-2 mt-2 justify-end">
+                        <button type="button" onclick="mvdCancelAbort()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Back</button>
+                        <button type="button" onclick="mvdCancelConfirm()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Confirm Cancel</button>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
@@ -2057,6 +2068,12 @@
             @if($isHelpdeskMandays)
             <button id="mvdBtnHdReview" onclick="mvdOpenHdReview()" class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Review This Version
+            </button>
+            {{-- Cancel this specific version — including an older one already superseded
+                 by a newer version, which is always already-approved (gated by
+                 ticket.review-mandays.cancel-approved on top of the base cancel permission). --}}
+            <button id="mvdBtnCancel" onclick="mvdShowCancelConfirm()" class="hidden inline-flex items-center px-4 py-2 bg-white border border-red-300 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all duration-200">
+                Cancel This Version
             </button>
             @endif
         </div>
@@ -6212,6 +6229,7 @@
         document.getElementById('mandaysVersionDetailModal').classList.add('flex');
         document.getElementById('mvdLoading').classList.remove('hidden');
         document.getElementById('mvdContent').classList.add('hidden');
+        document.getElementById('mvdCancelConfirmWrap')?.classList.add('hidden');
 
         try {
             const res  = await fetch(MANDAYS_API(`version/${mandaysId}`), { headers: getHeaders(), credentials: 'same-origin' });
@@ -6283,7 +6301,7 @@
         let footHtml = '<tr class="bg-gray-50 font-bold"><td class="px-2 py-1.5 border border-gray-200 text-xs">Total</td>';
         modules.forEach(m => {
             const colTotal = Object.values(detailMap).reduce((s, row) => s + (parseFloat(row[m]) || 0), 0);
-            footHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs text-center">${colTotal > 0 ? colTotal.toFixed(1) : '—'}</td>`;
+            footHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs text-center">${colTotal > 0 ? colTotal.toFixed(2) : '—'}</td>`;
         });
         footHtml += '</tr>';
         document.getElementById('mvdTableFoot').innerHTML = footHtml;
@@ -6296,7 +6314,51 @@
         const btnHd = document.getElementById('mvdBtnHdReview');
         if (btnHd) btnHd.classList.toggle('hidden', !['pending_helpdesk', 'sent_to_chat'].includes(p.status));
 
+        // Cancel this specific version — a non-latest (superseded) version is always
+        // already 'approved', so both cases need the same permission check here.
+        const btnCancel = document.getElementById('mvdBtnCancel');
+        if (btnCancel) {
+            const cancelableStatuses = ['pending_helpdesk', 'sent_to_chat', 'approved'];
+            const needsApprovedPerm  = p.status === 'approved';
+            const canCancel = HD_CAN_CANCEL && cancelableStatuses.includes(p.status) && (!needsApprovedPerm || HD_CAN_CANCEL_APPROVED);
+            btnCancel.classList.toggle('hidden', !canCancel);
+        }
+
         document.getElementById('mvdContent').classList.remove('hidden');
+    }
+
+    function mvdShowCancelConfirm() {
+        const wrap = document.getElementById('mvdCancelConfirmWrap');
+        if (!wrap) return;
+        document.getElementById('mvdCancelNotes').value = '';
+        wrap.classList.remove('hidden');
+        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function mvdCancelAbort() {
+        document.getElementById('mvdCancelConfirmWrap')?.classList.add('hidden');
+    }
+
+    async function mvdCancelConfirm() {
+        if (!mandaysCurrentVersionId) return;
+        const notes = document.getElementById('mvdCancelNotes')?.value.trim() || null;
+
+        try {
+            const res = await fetch(MANDAYS_API('hd-draft/cancel'), {
+                method: 'POST', headers: getHeaders(), credentials: 'same-origin',
+                body: JSON.stringify({ mandays_id: mandaysCurrentVersionId, cancel_notes: notes }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Proposal version canceled.', 'success');
+                closeMandaysVersionDetail();
+                await loadMandaysVersionList();
+            } else {
+                showNotification(data.message || 'Failed to cancel', 'error');
+            }
+        } catch (e) {
+            showNotification('Error: ' + e.message, 'error');
+        }
     }
 
     function mvdOpenEditDraft() {
@@ -6484,10 +6546,10 @@
             colTotals[m] = (colTotals[m] || 0) + v;
             grand += v;
         });
-        document.getElementById('picTotalDisplay').textContent = grand.toFixed(1);
+        document.getElementById('picTotalDisplay').textContent = grand.toFixed(2);
         Object.entries(colTotals).forEach(([m, t]) => {
             const el = document.getElementById(`picColTotal_${m}`);
-            if (el) el.textContent = t.toFixed(1);
+            if (el) el.textContent = t.toFixed(2);
         });
     }
 
@@ -6928,6 +6990,7 @@
     const HD_CAN_SEND_TO_CUSTOMER= {{ ($hdCanSendToCustomer ?? false) ? 'true' : 'false' }};
     const HD_CAN_APPROVE         = {{ ($hdCanApprove        ?? false) ? 'true' : 'false' }};
     const HD_CAN_CANCEL          = {{ ($hdCanCancel         ?? false) ? 'true' : 'false' }};
+    const HD_CAN_CANCEL_APPROVED = {{ ($hdCanCancelApproved ?? false) ? 'true' : 'false' }};
 
     async function openHdMandaysModal() {
         const modal = document.getElementById('hdMandaysModal');
@@ -7076,11 +7139,12 @@
             if (isPicSubmitted) {
                 if (HD_CAN_SAVE_DRAFT)       document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
                 if (HD_CAN_SEND_TO_CUSTOMER) document.getElementById('hdBtnSendToChat')?.classList.remove('hidden');
+                if (HD_CAN_APPROVE)          document.getElementById('hdBtnApprove')?.classList.remove('hidden');
                 if (HD_CAN_CANCEL)           document.getElementById('hdBtnCancel')?.classList.remove('hidden');
-                // Show info banner: must send to chat before approving
+                // Sending to chat is optional here, not required — approve/cancel work directly.
                 banner.innerHTML = `<i class="fas fa-info-circle text-blue-500 text-sm mt-0.5 flex-shrink-0"></i>
-                    <div><p class="font-semibold text-blue-800">Send to Customer First</p>
-                    <p class="text-xs font-normal text-blue-700 mt-0.5">You must send this proposal to the customer chat before it can be approved.</p></div>`;
+                    <div><p class="font-semibold text-blue-800">Awaiting Review</p>
+                    <p class="text-xs font-normal text-blue-700 mt-0.5">You can approve or cancel this proposal directly, or send it to the customer chat first if you'd like their confirmation.</p></div>`;
                 banner.classList.remove('hidden');
                 banner.classList.add('flex', 'bg-blue-50', 'border', 'border-blue-200', 'text-blue-800');
             } else if (isCustomerRejected) {
@@ -7125,10 +7189,10 @@
         });
         Object.entries(colTotals).forEach(([m, t]) => {
             const el = document.getElementById(`hdColTotal_${m}`);
-            if (el) el.textContent = t.toFixed(1);
+            if (el) el.textContent = t.toFixed(2);
         });
         const totalEl = document.getElementById('hdTotalDisplay');
-        if (totalEl) totalEl.textContent = grand.toFixed(1);
+        if (totalEl) totalEl.textContent = grand.toFixed(2);
     }
 
     async function hdSaveAndAction(endpoint, method = 'POST', extraBody = {}) {
@@ -7434,7 +7498,7 @@
         document.getElementById('headResolutionTotal').textContent = grand.toFixed(1);
     }
 
-    async function headResolutionApprove() {
+    async function headResolutionApprove(confirmNegative = false) {
         const btn = document.getElementById('headBtnApprove');
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
@@ -7448,7 +7512,7 @@
 
             const res  = await fetch(MANDAYS_API('resolution/approve'), {
                 method: 'POST', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify({ approved_details: approvedDetails }),
+                body: JSON.stringify({ approved_details: approvedDetails, confirm_negative: confirmNegative }),
             });
             const data = await res.json();
             if (data.success) {
@@ -7456,7 +7520,19 @@
                 resolutionUpdateSidebarBadge?.(data.resolution_days_status);
                 closeHeadResolutionModal();
                 setTimeout(() => location.reload(), 800);
-            } else showNotification(data.message || 'Failed', 'error');
+                return;
+            }
+            if (data.requires_confirmation) {
+                const lines = (data.warnings || []).map(w => `- ${w.employee_name}: remaining would be ${w.remaining} MD`);
+                const proceed = confirm(`Some employees will go negative if you approve these numbers:\n\n${lines.join('\n')}\n\nApprove anyway?`);
+                if (proceed) {
+                    await headResolutionApprove(true);
+                } else {
+                    showNotification('Approval cancelled.', 'info');
+                }
+                return;
+            }
+            showNotification(data.message || 'Failed', 'error');
         } catch(e) { showNotification('Error: '+e.message,'error'); }
         finally { btn.disabled = false; btn.textContent = 'Save'; }
     }
@@ -7492,11 +7568,11 @@
                     bodyHtml += `<tr>
                         <td class="px-3 py-2 border border-gray-200 text-xs">${d.activity || '—'}</td>
                         <td class="px-3 py-2 border border-gray-200 text-xs">${d.module || '—'}</td>
-                        <td class="px-3 py-2 border border-gray-200 text-xs text-center font-semibold">${parseFloat(d.mandays || 0).toFixed(1)}</td>
+                        <td class="px-3 py-2 border border-gray-200 text-xs text-center font-semibold">${parseFloat(d.mandays || 0).toFixed(2)}</td>
                     </tr>`;
                 });
                 document.getElementById('headCustMandaysBody').innerHTML = bodyHtml;
-                document.getElementById('headCustMandaysTotal').textContent = total.toFixed(1);
+                document.getElementById('headCustMandaysTotal').textContent = total.toFixed(2);
 
                 if (proposal.notes) {
                     const nw = document.getElementById('headCustMandaysNotes');

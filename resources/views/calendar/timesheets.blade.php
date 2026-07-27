@@ -59,7 +59,7 @@
             </button>
             @endif
             @if($isHead || $isAdminMode)
-            <button onclick="openTsExportModal()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+            <button id="btnTsExportNow" onclick="runTsExportNow()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
                 <i class="fas fa-file-excel text-green-600 text-xs"></i>
                 Export Timesheet
             </button>
@@ -132,6 +132,20 @@
         </div>
     </div>
     @endif
+
+    <!-- Support MD Summary — shown only while the Support type filter is active.
+         Totals follow whatever is currently filtered in the table (search, status,
+         date range, etc.), recomputed in updateSupportMdSummary(). -->
+    <div id="supportMdSummary" class="hidden grid grid-cols-2 gap-3 mb-4">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Total Quota MD</p>
+            <p class="text-2xl font-bold text-gray-700 leading-none" id="statSupportQuotaMd">0.00</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Total MD Consumed</p>
+            <p class="text-2xl font-bold text-purple-700 leading-none" id="statSupportConsumedMd">0.00</p>
+        </div>
+    </div>
 
     <!-- Type Tabs — hidden when locked to a single type, otherwise show only allowed types -->
     @php
@@ -1383,108 +1397,56 @@ async function submitLateAccessRequest() {
 @endpush
 @endif
 
-{{-- ── Timesheet Export Modal (Head & above) ───────────────────────────── --}}
+{{-- ── Timesheet Export (Head & above) ──────────────────────────────────── --}}
+{{-- No modal/filter form — exports exactly what's currently on screen: whichever
+     type tab (All/Project/Support/Office) is active decides the column layout,
+     and every active filter (search, status, date range, sort) is already baked
+     into `filteredTimesheets`, so the export can't drift out of sync with the table. --}}
 @if($isHead || $isAdminMode)
-<div id="tsExportModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-            <h3 class="text-base font-bold text-gray-900">
-                <i class="fas fa-file-excel text-green-600 mr-1.5"></i>Export Timesheet
-            </h3>
-            <button onclick="closeTsExportModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
-                <i class="fas fa-times text-xs"></i>
-            </button>
-        </div>
-        <div class="p-6 flex flex-col gap-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1">Dari Tanggal</label>
-                    <input type="date" id="tsExportFrom" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1">Sampai Tanggal</label>
-                    <input type="date" id="tsExportTo" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400">
-                </div>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1">Status</label>
-                    <select id="tsExportStatus" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400">
-                        <option value="">Semua Status</option>
-                        <option value="draft">Draft</option>
-                        <option value="submitted">Submitted</option>
-                        <option value="approved">Approved</option>
-                        <option value="rejected">Rejected</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1">Tipe</label>
-                    <select id="tsExportType" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400">
-                        <option value="">Semua Tipe</option>
-                        <option value="support">Support</option>
-                        <option value="project">Project</option>
-                        <option value="office">Office</option>
-                    </select>
-                </div>
-            </div>
-            <p class="text-xs text-gray-400">Kosongkan filter untuk export semua data.</p>
-            <button onclick="runTsExport()" id="btnTsExport"
-                class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition">
-                <i class="fas fa-download text-xs"></i> Download Excel
-            </button>
-        </div>
-    </div>
-</div>
-
 @push('scripts')
 <script>
-function openTsExportModal() {
-    document.getElementById('tsExportModal').classList.remove('hidden');
-}
+async function runTsExportNow() {
+    if (!filteredTimesheets || filteredTimesheets.length === 0) {
+        if (window.showNotification) showNotification('No timesheets to export for the current filters.', 'error');
+        return;
+    }
 
-function closeTsExportModal() {
-    document.getElementById('tsExportModal').classList.add('hidden');
-}
+    const btn = document.getElementById('btnTsExportNow');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Menyiapkan...';
+    }
 
-function runTsExport() {
-    const from   = document.getElementById('tsExportFrom').value;
-    const to     = document.getElementById('tsExportTo').value;
-    const status = document.getElementById('tsExportStatus').value;
-    const type   = document.getElementById('tsExportType').value;
+    const typeFilter = currentFilters.type_filter || window.lockedType || '';
+    const ids = filteredTimesheets.map(t => t.id);
 
-    const params = new URLSearchParams();
-    if (from)   params.append('start_date',  from);
-    if (to)     params.append('end_date',    to);
-    if (status) params.append('status',      status);
-    if (type)   params.append('type_filter', type);
-
-    const btn = document.getElementById('btnTsExport');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Menyiapkan...';
-
-    const url = '/api/timesheets/export' + (params.toString() ? '?' + params.toString() : '');
-
-    fetch(url, { credentials: 'same-origin' })
-        .then(res => {
-            if (!res.ok) throw new Error('Export gagal');
-            return res.blob();
-        })
-        .then(blob => {
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'TIMESHEET_' + new Date().toLocaleDateString('id-ID').replace(/\//g, '') + '.xlsx';
-            a.click();
-            URL.revokeObjectURL(a.href);
-            closeTsExportModal();
-            if (window.showNotification) showNotification('Export berhasil diunduh.', 'success');
-        })
-        .catch(() => {
-            if (window.showNotification) showNotification('Export gagal.', 'error');
-        })
-        .finally(() => {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-download text-xs"></i> Download Excel';
+    try {
+        const res = await fetch('/api/timesheets/export', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ ids, type_filter: typeFilter }),
         });
+        if (!res.ok) throw new Error('Export gagal');
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'TIMESHEET_' + new Date().toLocaleDateString('id-ID').replace(/\//g, '') + '.xlsx';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        if (window.showNotification) showNotification('Export berhasil diunduh.', 'success');
+    } catch (e) {
+        if (window.showNotification) showNotification('Export gagal.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    }
 }
 </script>
 @endpush

@@ -399,8 +399,9 @@ class TicketMessageController extends Controller
                 $this->markTicketReadForSender($ticketId, $senderId);
 
                 // Fire mention notifications (non-fatal)
+                $mentionedNotifiedIds = [];
                 if (!empty($mentionedEmployeeIds) || !empty($mentionedRoleIds)) {
-                    $this->createMentionNotifications(
+                    $mentionedNotifiedIds = $this->createMentionNotifications(
                         $message,
                         $ticket,
                         $senderId,
@@ -410,12 +411,13 @@ class TicketMessageController extends Controller
                     );
                 }
 
-                // Notifikasi ke PIC + member aktif lain
+                // Notifikasi ke PIC + member aktif lain (skip yang sudah dapat notifikasi mention)
                 $notePreview = mb_substr(strip_tags($messageBody), 0, 100);
                 $this->notifyTicketParticipants(
                     $ticket, $message, $senderId, $senderName,
                     'ticket_internal_note',
-                    $senderName . ': ' . ($notePreview ?: '(internal note)')
+                    $senderName . ': ' . ($notePreview ?: '(internal note)'),
+                    $mentionedNotifiedIds
                 );
             }
 
@@ -698,7 +700,8 @@ class TicketMessageController extends Controller
         int           $senderId,
         string        $senderName,
         string        $type,    // 'ticket_internal_note' | 'ticket_reply'
-        string        $preview
+        string        $preview,
+        array         $excludeEmployeeIds = [] // already notified elsewhere for this message (e.g. mentions)
     ): void {
         // Kumpulkan PIC + member aktif, hapus duplikat dan pengirim sendiri
         $recipients = collect();
@@ -715,6 +718,7 @@ class TicketMessageController extends Controller
 
         $recipients->unique()
             ->reject(fn ($id) => $id === $senderId)
+            ->reject(fn ($id) => in_array($id, $excludeEmployeeIds, true))
             ->each(function ($empId) use ($senderId, $senderName, $type, $ticket, $message, $link, $preview) {
                 Notification::create([
                     'employee_id'      => $empId,
@@ -730,6 +734,9 @@ class TicketMessageController extends Controller
             });
     }
 
+    /**
+     * @return int[] Employee IDs actually notified (for de-duping downstream notifications).
+     */
     public function createMentionNotifications(
         TicketMessage $message,
         Ticket $ticket,
@@ -737,7 +744,7 @@ class TicketMessageController extends Controller
         string $senderName,
         array $mentionedEmployeeIds,
         array $mentionedRoleIds
-    ): void {
+    ): array {
         try {
             $ticketId  = $message->ticket_id;
             $ticketNum = $ticket->ticket_number ?? $ticketId;
@@ -760,6 +767,7 @@ class TicketMessageController extends Controller
             }
 
             $recipientIds = array_unique($recipientIds);
+            $notifiedIds  = [];
 
             foreach ($recipientIds as $recipientId) {
                 if ($recipientId === $senderId) {
@@ -777,12 +785,17 @@ class TicketMessageController extends Controller
                     'link'             => $link,
                     'is_read'          => false,
                 ]);
+                $notifiedIds[] = $recipientId;
             }
+
+            return $notifiedIds;
         } catch (\Exception $e) {
             Log::warning('createMentionNotifications: failed (non-fatal)', [
                 'message_id' => $message->id,
                 'error'      => $e->getMessage(),
             ]);
+
+            return [];
         }
     }
 
