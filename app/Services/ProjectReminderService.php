@@ -7,6 +7,7 @@ use App\Models\DeliveryProjectPaymentTerm;
 use App\Models\Employee;
 use App\Models\Notification;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -69,12 +70,14 @@ class ProjectReminderService
         // Done even when there are no recipients so stale rows never linger.
         Notification::whereIn('type', [self::TYPE_CONTRACT, self::TYPE_INVOICE])->delete();
 
-        if (empty($recipientIds)) {
-            return ['recipients' => 0, 'contract' => 0, 'invoice' => 0];
-        }
+        // Peta nama lengkap → employee_id (aktif) untuk me-resolve Account Executive
+        // internal sebuah project. Sales (AE) hanya dapat reminder untuk project-nya
+        // sendiri; Head/Admin di atas tetap dapat semua project. Tidak early-return
+        // meski Head/Admin kosong agar AE tetap dapat notifikasi project-nya.
+        $aeNameMap = $this->activeEmployeeNameMap();
 
-        $contract = $this->buildContractReminders($recipientIds, $today);
-        $invoice  = $this->buildInvoiceReminders($recipientIds, $today);
+        $contract = $this->buildContractReminders($recipientIds, $today, $aeNameMap);
+        $invoice  = $this->buildInvoiceReminders($recipientIds, $today, $aeNameMap);
 
         Log::info('Project deadline reminders synced', [
             'recipients' => count($recipientIds),
@@ -101,9 +104,10 @@ class ProjectReminderService
     /**
      * Condition 1 — contract end date within the window or overdue (project not Closed).
      *
-     * @param  array<int>  $recipientIds
+     * @param  array<int>            $recipientIds  global Head/Admin recipients
+     * @param  array<string,array>   $aeNameMap     lowercased full name → [employee_id]
      */
-    private function buildContractReminders(array $recipientIds, Carbon $today): int
+    private function buildContractReminders(array $recipientIds, Carbon $today, array $aeNameMap = []): int
     {
         $created = 0;
 
@@ -141,7 +145,10 @@ class ProjectReminderService
 
             $link = route('projects.show', $project->id, false);
 
-            foreach ($recipientIds as $empId) {
+            // Global Head/Admin + AE internal project ini (jika ada), deduped.
+            $recipients = $this->recipientsForProject($recipientIds, $project, $aeNameMap);
+
+            foreach ($recipients as $empId) {
                 Notification::create([
                     'employee_id' => $empId,
                     'type'        => self::TYPE_CONTRACT,
@@ -161,9 +168,10 @@ class ProjectReminderService
      * Condition 2 — payment term estimated_date reached (today or past) and
      * submit_invoice_date still empty. Applies regardless of project status.
      *
-     * @param  array<int>  $recipientIds
+     * @param  array<int>            $recipientIds  global Head/Admin recipients
+     * @param  array<string,array>   $aeNameMap     lowercased full name → [employee_id]
      */
-    private function buildInvoiceReminders(array $recipientIds, Carbon $today): int
+    private function buildInvoiceReminders(array $recipientIds, Carbon $today, array $aeNameMap = []): int
     {
         $created = 0;
 
@@ -195,7 +203,10 @@ class ProjectReminderService
             // Deep-link to the Delivery Info section where the TOP Plan table lives.
             $link = route('projects.show', $project->id, false) . '#delivery';
 
-            foreach ($recipientIds as $empId) {
+            // Global Head/Admin + AE internal project ini (jika ada), deduped.
+            $recipients = $this->recipientsForProject($recipientIds, $project, $aeNameMap);
+
+            foreach ($recipients as $empId) {
                 Notification::create([
                     'employee_id' => $empId,
                     'type'        => self::TYPE_INVOICE,
@@ -209,5 +220,66 @@ class ProjectReminderService
         }
 
         return $created;
+    }
+
+    /**
+     * Recipient list for a single project's reminders: the global Head/Admin list
+     * plus the project's own internal Account Executive (if resolvable & active),
+     * deduplicated. This is how "sales" get reminders scoped to their own projects.
+     *
+     * @param  array<int>          $globalIds
+     * @param  array<string,array> $aeNameMap
+     * @return array<int>
+     */
+    private function recipientsForProject(array $globalIds, DeliveryProject $project, array $aeNameMap): array
+    {
+        return array_values(array_unique(array_merge(
+            $globalIds,
+            $this->aeRecipientIds($project, $aeNameMap)
+        )));
+    }
+
+    /**
+     * Resolve the internal AE of a project to employee id(s). Only "Internal" AEs
+     * map to an employee (External AEs are free-text outsiders). Matched by the
+     * stored ae_name against the active-employee full-name map.
+     *
+     * @param  array<string,array> $aeNameMap
+     * @return array<int>
+     */
+    private function aeRecipientIds(DeliveryProject $project, array $aeNameMap): array
+    {
+        if (strcasecmp((string) $project->ae_type, 'Internal') !== 0) {
+            return [];
+        }
+        $name = strtolower(trim((string) $project->ae_name));
+        if ($name === '') {
+            return [];
+        }
+        return $aeNameMap[$name] ?? [];
+    }
+
+    /**
+     * Map of active employees keyed by lowercased full name → [employee_id].
+     * Full name mirrors EmployeeBasicData::getFullNameAttribute()
+     * (trim(first_name . ' ' . last_name)) so it lines up with the ae_name stored
+     * from the project form's employee dropdown.
+     *
+     * @return array<string,array<int>>
+     */
+    private function activeEmployeeNameMap(): array
+    {
+        return DB::table('employee')
+            ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+            ->where('employee.is_active', true)
+            ->select(
+                'employee.employee_id',
+                DB::raw("LOWER(TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''),' ',COALESCE(employee_basic_data.last_name,'')))) as full_name")
+            )
+            ->get()
+            ->filter(fn($r) => $r->full_name !== '')
+            ->groupBy('full_name')
+            ->map(fn($g) => $g->pluck('employee_id')->map(fn($id) => (int) $id)->all())
+            ->all();
     }
 }

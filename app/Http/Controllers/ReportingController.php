@@ -779,13 +779,18 @@ class ReportingController extends Controller
                 $guard++;
             }
 
+            // Filter opsional berdasarkan Account Executive (nama AE di project).
+            $filterAe = trim((string) $request->input('ae', ''));
+
             $terms = DB::table('delivery_project_payment_terms as pt')
                 ->join('delivery_projects as p', 'pt.delivery_projects_id', '=', 'p.id')
                 ->leftJoin('customer_basic_data as cbd', 'p.client_id', '=', 'cbd.customer_id')
+                ->when($filterAe !== '', fn($q) => $q->where('p.ae_name', $filterAe))
                 ->select(
                     'pt.*',
                     'p.name as project_name',
                     'p.io_number as io_number',
+                    'p.ae_name as ae_name',
                     'p.revenue as project_revenue',
                     DB::raw("COALESCE(cbd.name_1, '') as client_name")
                 )
@@ -807,6 +812,7 @@ class ReportingController extends Controller
                     'project_id'          => (int) $t->delivery_projects_id,
                     'project_name'        => $t->project_name ?? '-',
                     'io_number'           => $t->io_number,
+                    'ae_name'             => $t->ae_name,
                     'client_name'         => $t->client_name,
                     'term_id'             => (int) $t->id,
                     'term_number'         => (int) $t->term_number,
@@ -833,10 +839,21 @@ class ReportingController extends Controller
                 return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
             });
 
+            // Daftar AE untuk dropdown filter (semua AE bernama di delivery_projects,
+            // independen dari range bulan agar pilihan tetap stabil).
+            $aeOptions = DB::table('delivery_projects')
+                ->whereNotNull('ae_name')
+                ->where('ae_name', '!=', '')
+                ->distinct()
+                ->orderBy('ae_name')
+                ->pluck('ae_name')
+                ->values();
+
             return response()->json([
-                'success' => true,
-                'months'  => $months,
-                'rows'    => $rows,
+                'success'    => true,
+                'months'     => $months,
+                'rows'       => $rows,
+                'ae_options' => $aeOptions,
             ]);
 
         } catch (\Exception $e) {
@@ -907,6 +924,384 @@ class ReportingController extends Controller
         } catch (\Exception $e) {
             Log::error('collectionOutlookUpdateTerm error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to update payment status. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Collection Outlook — Excel export (list rincian per termin) ──────
+    //
+    // Satu baris per Term Of Payment dalam range bulan terpilih (placement =
+    // estimated_date → paid_date → submit_invoice_date, sama seperti tampilan).
+    // Menghormati filter AE yang sedang aktif di halaman.
+
+    public function exportCollectionOutlook(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.collection-outlook')) {
+                abort(403, 'Access denied.');
+            }
+
+            $fromMonth = min(max((int) $request->input('from_month', now()->month), 1), 12);
+            $fromYear  = (int) $request->input('from_year',  now()->year);
+            $toMonth   = min(max((int) $request->input('to_month',   now()->month), 1), 12);
+            $toYear    = (int) $request->input('to_year',    now()->year);
+            $filterAe  = trim((string) $request->input('ae', ''));
+
+            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
+            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
+            if ($start->gt($end)) {
+                [$start, $end] = [$end, $start];
+            }
+
+            $monthKeys = [];
+            $cursor    = $start->copy();
+            $guard     = 0;
+            while ($cursor->lte($end) && $guard < 36) {
+                $monthKeys[] = $cursor->format('Y-m');
+                $cursor->addMonth();
+                $guard++;
+            }
+
+            $terms = DB::table('delivery_project_payment_terms as pt')
+                ->join('delivery_projects as p', 'pt.delivery_projects_id', '=', 'p.id')
+                ->leftJoin('customer_basic_data as cbd', 'p.client_id', '=', 'cbd.customer_id')
+                ->when($filterAe !== '', fn($q) => $q->where('p.ae_name', $filterAe))
+                ->select(
+                    'pt.*',
+                    'p.name as project_name',
+                    'p.io_number as io_number',
+                    'p.ae_name as ae_name',
+                    'p.revenue as project_revenue',
+                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
+                )
+                ->get();
+
+            $rows = [];
+            foreach ($terms as $t) {
+                $placementRaw = $t->estimated_date ?: $t->paid_date ?: $t->submit_invoice_date;
+                if (!$placementRaw) {
+                    continue;
+                }
+                $key = Carbon::parse($placementRaw)->format('Y-m');
+                if (!in_array($key, $monthKeys, true)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'client_name'         => $t->client_name ?: '-',
+                    'project_name'        => $t->project_name ?: '-',
+                    'io_number'           => $t->io_number ?: '-',
+                    'ae_name'             => $t->ae_name ?: '-',
+                    'term_number'         => (int) $t->term_number,
+                    'payment_term'        => $t->payment_term ?: '-',
+                    'payment_percentage'  => (float) $t->payment_percentage,
+                    'amount'              => (float) $t->amount,
+                    'status'              => $t->status,
+                    'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : '',
+                    'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : '',
+                    'invoice_number'      => $t->invoice_number ?: '',
+                    'paid_date'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('d M Y') : '',
+                ];
+            }
+
+            usort($rows, function ($a, $b) {
+                $c = strcasecmp($a['project_name'], $b['project_name']);
+                return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
+            });
+
+            $filename = 'Collection_Outlook_' . $start->format('Ym') . '-' . $end->format('Ym') . '_' . now()->format('Ymd') . '.xlsx';
+
+            return Excel::download(new \App\Exports\CollectionOutlookExport(collect($rows)), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportCollectionOutlook error: ' . $e->getMessage());
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // =========================================================================
+    // COLLECTION OUTLOOK — DELIVERY SUPPORT
+    // Mirror halaman Collection Outlook (project) untuk sumber Term Of Payment
+    // milik Delivery Support. Filter memakai "Type" support (bukan Account
+    // Executive), dan tidak memanggil ProjectReminderService.
+    // =========================================================================
+
+    public function collectionOutlookSupportIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.collection-outlook-support', ['user' => session('user')]);
+    }
+
+    public function collectionOutlookSupport(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.collection-outlook-support')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $fromMonth = min(max((int) $request->input('from_month', now()->month), 1), 12);
+            $fromYear  = (int) $request->input('from_year',  now()->year);
+            $toMonth   = min(max((int) $request->input('to_month',   now()->month), 1), 12);
+            $toYear    = (int) $request->input('to_year',    now()->year);
+
+            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
+            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
+            if ($start->gt($end)) {
+                [$start, $end] = [$end, $start];
+            }
+
+            $months    = [];
+            $monthKeys = [];
+            $cursor    = $start->copy();
+            $guard     = 0;
+            while ($cursor->lte($end) && $guard < 36) {
+                $key         = $cursor->format('Y-m');
+                $months[]    = [
+                    'key'         => $key,
+                    'year'        => (int) $cursor->format('Y'),
+                    'month'       => (int) $cursor->format('n'),
+                    'label'       => $cursor->format('M Y'),
+                    'month_label' => $cursor->format('F'),
+                ];
+                $monthKeys[] = $key;
+                $cursor->addMonth();
+                $guard++;
+            }
+
+            // Filter opsional berdasarkan Type support (analog filter AE di project).
+            $filterType = trim((string) $request->input('type', ''));
+
+            $terms = DB::table('delivery_support_payment_terms as pt')
+                ->join('delivery_support as s', 'pt.delivery_support_id', '=', 's.id')
+                ->leftJoin('customer_basic_data as cbd', 's.client_id', '=', 'cbd.customer_id')
+                ->when($filterType !== '', fn($q) => $q->where('s.type', $filterType))
+                ->select(
+                    'pt.*',
+                    's.name as support_name',
+                    's.io_number as io_number',
+                    's.type as support_type',
+                    's.revenue as support_revenue',
+                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
+                )
+                ->get();
+
+            $rows = [];
+            foreach ($terms as $t) {
+                $placementRaw = $t->estimated_date ?: $t->paid_date ?: $t->submit_invoice_date;
+                if (!$placementRaw) {
+                    continue;
+                }
+                $key = Carbon::parse($placementRaw)->format('Y-m');
+                if (!in_array($key, $monthKeys, true)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'support_id'          => (int) $t->delivery_support_id,
+                    'support_name'        => $t->support_name ?? '-',
+                    'io_number'           => $t->io_number,
+                    'support_type'        => $t->support_type,
+                    'client_name'         => $t->client_name,
+                    'term_id'             => (int) $t->id,
+                    'term_number'         => (int) $t->term_number,
+                    'month_key'           => $key,
+                    'amount'              => (float) $t->amount,
+                    'status'              => $t->status,
+                    'payment_term'        => $t->payment_term,
+                    'payment_percentage'  => (float) $t->payment_percentage,
+                    'requirements'        => $t->requirements,
+                    'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : null,
+                    'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : null,
+                    'invoice_number'      => $t->invoice_number,
+                    'paid_date'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('d M Y') : null,
+                    'support_revenue'     => (float) $t->support_revenue,
+                    'submit_invoice_date_iso' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('Y-m-d') : null,
+                    'paid_date_iso'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('Y-m-d') : null,
+                ];
+            }
+
+            usort($rows, function ($a, $b) {
+                $c = strcasecmp($a['support_name'], $b['support_name']);
+                return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
+            });
+
+            $typeOptions = DB::table('delivery_support')
+                ->whereNotNull('type')
+                ->where('type', '!=', '')
+                ->distinct()
+                ->orderBy('type')
+                ->pluck('type')
+                ->values();
+
+            return response()->json([
+                'success'      => true,
+                'months'       => $months,
+                'rows'         => $rows,
+                'type_options' => $typeOptions,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('collectionOutlookSupport error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load collection outlook data. Please try again.'], 500);
+        }
+    }
+
+    public function collectionOutlookSupportUpdateTerm(Request $request, $term)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $paymentTerm = \App\Models\DeliverySupportPaymentTerm::find($term);
+            if (!$paymentTerm) {
+                return response()->json(['success' => false, 'message' => 'Payment term not found.'], 404);
+            }
+
+            $validated = $request->validate([
+                'status'              => 'required|string|in:Open,Paid,Delay',
+                'paid_date'           => 'nullable|required_if:status,Paid|date',
+                'submit_invoice_date' => 'nullable|date',
+                'invoice_number'      => 'nullable|required_with:submit_invoice_date|string|max:255',
+            ], [
+                'paid_date.required_if'        => 'Paid Date is required when Status is Paid.',
+                'invoice_number.required_with' => 'Invoice Number is required when Submit Invoice Date is filled.',
+            ]);
+
+            if ($validated['status'] !== 'Paid') {
+                $validated['paid_date'] = null;
+            }
+
+            $paymentTerm->update($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment status updated successfully.',
+                'term'    => [
+                    'term_id'             => $paymentTerm->id,
+                    'status'              => $paymentTerm->status,
+                    'paid_date'           => $paymentTerm->paid_date?->format('d M Y'),
+                    'submit_invoice_date' => $paymentTerm->submit_invoice_date?->format('d M Y'),
+                    'invoice_number'      => $paymentTerm->invoice_number,
+                ],
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first() ?? 'Invalid data.',
+                'errors'  => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('collectionOutlookSupportUpdateTerm error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to update payment status. Please try again.'], 500);
+        }
+    }
+
+    public function exportCollectionOutlookSupport(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.collection-outlook-support')) {
+                abort(403, 'Access denied.');
+            }
+
+            $fromMonth = min(max((int) $request->input('from_month', now()->month), 1), 12);
+            $fromYear  = (int) $request->input('from_year',  now()->year);
+            $toMonth   = min(max((int) $request->input('to_month',   now()->month), 1), 12);
+            $toYear    = (int) $request->input('to_year',    now()->year);
+            $filterType = trim((string) $request->input('type', ''));
+
+            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
+            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
+            if ($start->gt($end)) {
+                [$start, $end] = [$end, $start];
+            }
+
+            $monthKeys = [];
+            $cursor    = $start->copy();
+            $guard     = 0;
+            while ($cursor->lte($end) && $guard < 36) {
+                $monthKeys[] = $cursor->format('Y-m');
+                $cursor->addMonth();
+                $guard++;
+            }
+
+            $terms = DB::table('delivery_support_payment_terms as pt')
+                ->join('delivery_support as s', 'pt.delivery_support_id', '=', 's.id')
+                ->leftJoin('customer_basic_data as cbd', 's.client_id', '=', 'cbd.customer_id')
+                ->when($filterType !== '', fn($q) => $q->where('s.type', $filterType))
+                ->select(
+                    'pt.*',
+                    's.name as support_name',
+                    's.io_number as io_number',
+                    's.type as support_type',
+                    's.revenue as support_revenue',
+                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
+                )
+                ->get();
+
+            $rows = [];
+            foreach ($terms as $t) {
+                $placementRaw = $t->estimated_date ?: $t->paid_date ?: $t->submit_invoice_date;
+                if (!$placementRaw) {
+                    continue;
+                }
+                $key = Carbon::parse($placementRaw)->format('Y-m');
+                if (!in_array($key, $monthKeys, true)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'client_name'         => $t->client_name ?: '-',
+                    'support_name'        => $t->support_name ?: '-',
+                    'io_number'           => $t->io_number ?: '-',
+                    'support_type'        => $t->support_type ?: '-',
+                    'term_number'         => (int) $t->term_number,
+                    'payment_term'        => $t->payment_term ?: '-',
+                    'payment_percentage'  => (float) $t->payment_percentage,
+                    'amount'              => (float) $t->amount,
+                    'status'              => $t->status,
+                    'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : '',
+                    'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : '',
+                    'invoice_number'      => $t->invoice_number ?: '',
+                    'paid_date'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('d M Y') : '',
+                ];
+            }
+
+            usort($rows, function ($a, $b) {
+                $c = strcasecmp($a['support_name'], $b['support_name']);
+                return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
+            });
+
+            $filename = 'Collection_Outlook_Support_' . $start->format('Ym') . '-' . $end->format('Ym') . '_' . now()->format('Ymd') . '.xlsx';
+
+            return Excel::download(new \App\Exports\CollectionOutlookSupportExport(collect($rows)), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportCollectionOutlookSupport error: ' . $e->getMessage());
+            abort(500, $e->getMessage());
         }
     }
 

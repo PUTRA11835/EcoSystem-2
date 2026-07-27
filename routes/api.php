@@ -513,6 +513,10 @@ Route::middleware(['web'])->group(function () {
         // Pakai POST (bukan PUT) — verb PUT/DELETE pernah diblok edge/WAF di production.
         Route::post('/collection-outlook/terms/{term}', [\App\Http\Controllers\ReportingController::class, 'collectionOutlookUpdateTerm'])
             ->middleware('menu:reporting.collection-outlook.edit');
+        // Collection Outlook — Delivery Support (sumber TOP support)
+        Route::get('/collection-outlook-support', [\App\Http\Controllers\ReportingController::class, 'collectionOutlookSupport']);
+        Route::post('/collection-outlook-support/terms/{term}', [\App\Http\Controllers\ReportingController::class, 'collectionOutlookSupportUpdateTerm'])
+            ->middleware('menu:reporting.collection-outlook-support.edit');
         Route::get('/ticketing-overview', [\App\Http\Controllers\ReportingController::class, 'ticketingOverview']);
         Route::get('/ticketing-overview/{customerId}', [\App\Http\Controllers\ReportingController::class, 'ticketingOverviewDetail']);
         Route::get('/ticket-by-module', [\App\Http\Controllers\ReportingController::class, 'ticketByModule']);

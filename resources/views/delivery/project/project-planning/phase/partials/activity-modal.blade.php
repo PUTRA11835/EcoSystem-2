@@ -86,7 +86,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Weight (%)</label>
                                 <input type="number" id="activityWeight" required
-                                    min="0" max="100" step="0.1" value="10"
+                                    min="0" max="100" step="0.001" value="10"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                                     oninput="updatePhaseWeightDisplay()">
                             </div>
@@ -469,6 +469,12 @@ async function loadPhaseWeightInfo(phaseId, excludeActivityId = null) {
     }
 }
 
+// Weight bisa 3 desimal — tampilkan hingga 3 angka di belakang koma tanpa
+// nol berlebih (mis. 10.125, 10.5, 10).
+function fmtWeight(v) {
+    return parseFloat((Number(v) || 0).toFixed(3)).toString();
+}
+
 function updatePhaseWeightDisplay() {
     if (phaseWeightLimit <= 0) return;
 
@@ -476,9 +482,9 @@ function updatePhaseWeightDisplay() {
     const totalAfter = phaseWeightUsed + thisWeight;
     const pct        = v => (v / phaseWeightLimit * 100).toFixed(1);
 
-    document.getElementById('phaseUsedDisplay').textContent    = phaseWeightUsed.toFixed(1) + '%';
-    document.getElementById('phaseThisDisplay').textContent    = thisWeight.toFixed(1) + '%';
-    document.getElementById('phaseLimitDisplay').textContent   = phaseWeightLimit.toFixed(1) + '%';
+    document.getElementById('phaseUsedDisplay').textContent    = fmtWeight(phaseWeightUsed) + '%';
+    document.getElementById('phaseThisDisplay').textContent    = fmtWeight(thisWeight) + '%';
+    document.getElementById('phaseLimitDisplay').textContent   = fmtWeight(phaseWeightLimit) + '%';
 
     const usedPct = Math.min(100, pct(phaseWeightUsed));
     const newPct  = Math.min(100 - usedPct, pct(thisWeight));
@@ -498,7 +504,7 @@ function updatePhaseWeightDisplay() {
         barNew.className   = 'absolute top-0 h-2.5 bg-red-500 transition-all duration-300';
         warnEl.classList.remove('hidden');
     } else {
-        remEl.textContent = remaining.toFixed(1) + '%';
+        remEl.textContent = fmtWeight(remaining) + '%';
         remEl.className   = remaining < 5 ? 'text-amber-600 font-semibold' : 'text-green-700 font-semibold';
         barNew.className  = 'absolute top-0 h-2.5 bg-blue-600 transition-all duration-300';
         warnEl.classList.add('hidden');
@@ -901,13 +907,13 @@ function updateWeightInfo(stage) {
     const remainingWeight = 100 - totalWeight;
     
     if (remainingWeight > 0) {
-        weightInfoEl.innerHTML = `✅ Available weight: <strong>${remainingWeight.toFixed(1)}%</strong> of 100%`;
+        weightInfoEl.innerHTML = `✅ Available weight: <strong>${fmtWeight(remainingWeight)}%</strong> of 100%`;
         weightInfoEl.className = 'text-xs text-green-600 mt-1';
     } else if (remainingWeight === 0) {
         weightInfoEl.innerHTML = `✅ Stage weight is complete: <strong>100%</strong>`;
         weightInfoEl.className = 'text-xs text-green-600 mt-1';
     } else {
-        weightInfoEl.innerHTML = `⚠️ Weight exceeded by: <strong>${Math.abs(remainingWeight).toFixed(1)}%</strong>`;
+        weightInfoEl.innerHTML = `⚠️ Weight exceeded by: <strong>${fmtWeight(Math.abs(remainingWeight))}%</strong>`;
         weightInfoEl.className = 'text-xs text-red-600 mt-1 font-semibold';
     }
 }

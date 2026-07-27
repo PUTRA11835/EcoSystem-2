@@ -859,6 +859,9 @@
     </div>
 </div>
 
+{{-- Financial (Sales Data + IO Number) + Term Of Payment + Plan Cost --}}
+@include('delivery.support.list.partials.financial-plancost')
+
 <script>
 const supportId = {{ $support->id }};
 const csrfToken = '{{ csrf_token() }}';
@@ -2134,5 +2137,9 @@ document.getElementById('removeTicketModal').addEventListener('click', function(
 });
 </script>
 @endif
+
+{{-- Financial / TOP / Plan Cost — modals & scripts --}}
+@include('delivery.support.list.partials.financial-plancost-modals')
+@include('delivery.support.list.partials.financial-plancost-scripts')
 
 @endsection
