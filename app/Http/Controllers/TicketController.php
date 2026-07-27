@@ -18,6 +18,7 @@ use App\Services\SlaService;
 use App\Services\StagingTicketService;
 use App\Services\TicketNumberService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -1868,6 +1869,17 @@ class TicketController extends Controller
     }   
 
     /**
+     * Cek permission slug user saat ini (role-agnostic — sumbernya sama dengan $can() di Blade,
+     * lihat ShareMenuPermissions middleware). Dipakai controller API yang tidak punya akses ke $can().
+     */
+    private function sessionUserCan(array $sessionUser, string $slug): bool
+    {
+        $employee  = Employee::find($sessionUser['id']);
+        $permSlugs = $employee ? Cache::get("perm_slugs_{$sessionUser['id']}", fn() => $employee->allPermissionSlugs()) : [];
+        return in_array($slug, $permSlugs, true);
+    }
+
+    /**
      * Get available Ticket Leads (employees with DSM qualification) — for admin/helpdesk/head assign
      */
     public function getAvailableTicketLeads()
@@ -1877,12 +1889,7 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $roleIds = $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0];
-        $allowed = array_merge(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_SUPPORT_MANAGER->value],
-            RoleId::HELPDESK_GROUP
-        );
-        if (!array_intersect($roleIds, $allowed)) {
+        if (!$this->sessionUserCan($sessionUser, 'ticket.assign-pic')) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -1904,7 +1911,8 @@ class TicketController extends Controller
     }
 
     /**
-     * Assign Ticket Lead directly (Admin / Helpdesk / Head of Support only) — no confirmation needed
+     * Assign Ticket Lead directly — gated by the ticket.assign-pic permission (same as the
+     * "Assign Ticket Lead" button in the ticket detail sidebar).
      */
     public function assignTicketLead(Request $request, $id)
     {
@@ -1913,13 +1921,8 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $roleId = $sessionUser['role']['id'] ?? 0;
-        $allowed = array_merge(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_SUPPORT_MANAGER->value],
-            RoleId::HELPDESK_GROUP
-        );
-        if (!in_array($roleId, $allowed, true)) {
-            return response()->json(['success' => false, 'message' => 'Only Admin, Helpdesk, Head of Support, or Support Manager can assign a Ticket Lead'], 403);
+        if (!$this->sessionUserCan($sessionUser, 'ticket.assign-pic')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to assign a Ticket Lead'], 403);
         }
 
         $validator = Validator::make($request->all(), [

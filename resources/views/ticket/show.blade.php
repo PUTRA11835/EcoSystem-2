@@ -726,8 +726,8 @@
                 {{-- Team Members --}}
                 @php
                     $canManageMembers = $can('ui.ticket.manage-members') && (
-                            !$can('ticket.propose-mandays')               // non-DS-User roles: always OK
-                            || $ticket->ticket_lead_id == $user->id       // DS User: only if they are the lead
+                            !$user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value) // non-DS-User roles: always OK
+                            || $ticket->ticket_lead_id == $user->id                          // DS User: only if they are the lead
                         );
                     $allMemberIds = $ticket->allMembers->pluck('employee_id')->toArray();
                 @endphp
