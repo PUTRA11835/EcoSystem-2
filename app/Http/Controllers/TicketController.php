@@ -481,9 +481,13 @@ class TicketController extends Controller
         // Ticket Lead / PIC name (by first_name, exact match — sesuai frontend)
         if ($request->filled('pic')) {
             $picName = $request->pic;
-            $query->whereHas('ticketLead.basicData', function ($q) use ($picName) {
-                $q->whereRaw('LOWER(first_name) = LOWER(?)', [$picName]);
-            });
+            if ($picName === '__unassigned__') {
+                $query->whereNull('ticket_lead_id');
+            } else {
+                $query->whereHas('ticketLead.basicData', function ($q) use ($picName) {
+                    $q->whereRaw('LOWER(first_name) = LOWER(?)', [$picName]);
+                });
+            }
         }
 
         $tickets = $query->get();
