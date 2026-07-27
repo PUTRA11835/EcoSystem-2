@@ -43,7 +43,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                  mengirim value seperti <select> biasa. --}}
             <div>
                 <label class="block font-medium text-sm text-gray-700">Customer/Client <span class="text-red-500">*</span></label>
-                <div class="custom-dd relative mt-1" data-fixed="true">
+                <div class="custom-dd relative mt-1" data-fixed="true" data-onchange="refreshIoOptions">
                     @php $oldClient = old('client_id'); $oldClientLabel = ''; @endphp
                     @foreach($clients as $c)@if($oldClient == $c->customer_id)@php $oldClientLabel = $c->basicData->name_1 ?? $c->email ?? 'Unknown'; @endphp @endif @endforeach
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border {{ $errors->has('client_id') ? 'border-red-400' : 'border-gray-300' }} rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
@@ -87,7 +87,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
             </div>
             <div>
                 <label class="block font-medium text-sm text-gray-700">Project Type <span class="text-red-500">*</span></label>
-                <div class="custom-dd relative mt-1" data-fixed="true">
+                <div class="custom-dd relative mt-1" data-fixed="true" data-onchange="refreshIoOptions">
                     @php $oldPt = old('project_type', 'Implementation'); @endphp
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
                         <span class="custom-dd-label text-gray-700">{{ $oldPt }}</span>
@@ -95,7 +95,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                     </button>
                     <input type="hidden" name="project_type" id="project_type" value="{{ $oldPt }}" required>
                     <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                        @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF'] as $pt)
+                        @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF','Body Hire'] as $pt)
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pt }}">{{ $pt }}</button>
                         @endforeach
                     </div>
@@ -158,10 +158,17 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                 <input type="text"
                        name="io_number"
                        id="io_number"
+                       list="io_number_options"
+                       autocomplete="off"
                        class="mt-1 block w-full border {{ $errors->has('io_number') ? 'border-red-400 bg-red-50' : 'border-gray-300' }} rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
                        value="{{ old('io_number') }}"
                        placeholder="e.g. IO-2026-001"
                        required>
+                {{-- Opsi IO existing (khusus Body Hire) diisi oleh refreshIoOptions() sesuai company terpilih. --}}
+                <datalist id="io_number_options"></datalist>
+                <p id="io_number_hint" class="mt-1 text-xs text-blue-600 hidden">
+                    <i class="fas fa-info-circle mr-1"></i>Body Hire: pilih IO number yang sudah ada milik company terpilih, atau ketik IO number baru.
+                </p>
                 @error('io_number')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
             <div class="md:col-span-2">
@@ -301,7 +308,6 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                                     <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
                                 </div>
                             </div>
-                            <p class="mt-1 text-xs text-gray-500">Only employees with a Sales Operation role are listed.</p>
                         </div>
                         {{-- Text input untuk AE External --}}
                         <input type="text" name="{{ $isExternal ? 'ae_name' : '' }}" id="ae_name_input"
@@ -960,7 +966,33 @@ document.addEventListener('DOMContentLoaded', function() {
     @if(old('location_geographical'))
         updateRegions();
     @endif
+
+    // Populate IO options for the currently-selected client/type (Body Hire flow).
+    refreshIoOptions();
 });
+
+// ===== Body Hire: pilih IO existing (per company) atau ketik baru =====
+// IO number existing dikelompokkan per client_id. Untuk Body Hire, datalist
+// diisi HANYA dengan IO milik company (client) yang sedang dipilih.
+window.IOS_BY_CLIENT = @json($iosByClient ?? []);
+window.refreshIoOptions = function () {
+    const type   = document.getElementById('project_type')?.value || '';
+    const client = document.getElementById('client_id')?.value || '';
+    const dl     = document.getElementById('io_number_options');
+    const hint   = document.getElementById('io_number_hint');
+    if (!dl) return;
+
+    const isBodyHire = (type === 'Body Hire');
+    dl.innerHTML = '';
+    if (isBodyHire && client && window.IOS_BY_CLIENT[client]) {
+        window.IOS_BY_CLIENT[client].forEach(io => {
+            const opt = document.createElement('option');
+            opt.value = io;
+            dl.appendChild(opt);
+        });
+    }
+    if (hint) hint.classList.toggle('hidden', !isBodyHire);
+};
 </script>
 {{-- ===== Sales Financial: Thousand Separator + Auto-Calculation ===== --}}
 <script>

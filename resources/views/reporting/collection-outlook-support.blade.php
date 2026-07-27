@@ -1,7 +1,7 @@
 @extends('dashboard')
-@section('title', 'Collection Outlook')
-@section('page-title', 'Collection Outlook')
-@section('page-subtitle', 'Billing outlook (Term Of Payment) by project and month')
+@section('title', 'Collection Outlook (Support)')
+@section('page-title', 'Collection Outlook (Support)')
+@section('page-subtitle', 'Billing outlook (Term Of Payment) by support and month')
 
 @section('content')
 <div class="bg-white rounded-xl p-6 shadow-sm">
@@ -9,8 +9,8 @@
     {{-- ── Page Header ────────────────────────────────────────────────────── --}}
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-6 pb-4 border-b-2 border-gray-100">
         <div>
-            <h2 class="text-2xl font-bold text-gray-900">Collection Outlook</h2>
-            <p id="coRangeLabel" class="text-sm text-gray-500 mt-0.5">Planned billing based on each project's Term Of Payment</p>
+            <h2 class="text-2xl font-bold text-gray-900">Collection Outlook (Support)</h2>
+            <p id="coRangeLabel" class="text-sm text-gray-500 mt-0.5">Planned billing based on each support's Term Of Payment</p>
         </div>
 
         {{-- Month & year range --}}
@@ -46,9 +46,9 @@
                 </div>
             </div>
             <div>
-                <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Account Executive</label>
-                <select id="coAeFilter" class="co-select" style="min-width:11rem" onchange="loadOutlook()">
-                    <option value="">All AE</option>
+                <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Type</label>
+                <select id="coTypeFilter" class="co-select" style="min-width:11rem" onchange="loadOutlook()">
+                    <option value="">All Types</option>
                 </select>
             </div>
             <button onclick="loadOutlook()" id="coApplyBtn"
@@ -95,7 +95,7 @@
                 <thead class="sticky top-0 z-20 bg-gray-50">
                     <tr id="coHeadRow">
                         <th class="co-th co-sticky-cust text-left">Customer<div class="co-resizer" data-col="cust"></div></th>
-                        <th class="co-th co-sticky-proj text-left">Project Name<div class="co-resizer" data-col="proj"></div></th>
+                        <th class="co-th co-sticky-proj text-left">Support Name<div class="co-resizer" data-col="proj"></div></th>
                         <th class="co-th co-sticky-top text-center">TOP No.</th>
                         {{-- month columns injected by JS --}}
                     </tr>
@@ -136,7 +136,6 @@
 <div id="coDetailModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeCoDetail()"></div>
     <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col">
-        {{-- Modal header --}}
         <div id="coModalHeader" class="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
             <div>
                 <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Term Of Payment Details</p>
@@ -148,9 +147,7 @@
             </button>
         </div>
 
-        {{-- Modal body --}}
         <div class="px-8 py-6 overflow-y-auto space-y-6">
-            {{-- Amount highlight --}}
             <div class="rounded-xl bg-gray-50 border border-gray-100 p-4 flex items-center justify-between gap-4">
                 <div>
                     <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Billing Amount</p>
@@ -160,22 +157,20 @@
                 <span id="coDetStatus" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold">—</span>
             </div>
 
-            {{-- TOP detail --}}
             <div>
                 <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">TOP Information</p>
                 <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-4 text-sm">
-                    <div><dt class="text-xs text-gray-400">Project</dt><dd id="coDetProject" class="text-gray-800 font-medium">—</dd></div>
+                    <div><dt class="text-xs text-gray-400">Support</dt><dd id="coDetProject" class="text-gray-800 font-medium">—</dd></div>
                     <div><dt class="text-xs text-gray-400">Client</dt><dd id="coDetClient" class="text-gray-800 font-medium">—</dd></div>
                     <div><dt class="text-xs text-gray-400">IO Number</dt><dd id="coDetIo" class="text-gray-800 font-medium">—</dd></div>
                     <div><dt class="text-xs text-gray-400">Term No.</dt><dd id="coDetTermNo" class="text-gray-800 font-medium">—</dd></div>
                     <div class="sm:col-span-2"><dt class="text-xs text-gray-400">Term Name</dt><dd id="coDetTermName" class="text-gray-800 font-medium">—</dd></div>
                     <div><dt class="text-xs text-gray-400">Percentage</dt><dd id="coDetPctRow" class="text-gray-800 font-medium">—</dd></div>
-                    <div><dt class="text-xs text-gray-400">Project Revenue</dt><dd id="coDetRevenue" class="text-gray-800 font-medium">—</dd></div>
+                    <div><dt class="text-xs text-gray-400">Support Revenue</dt><dd id="coDetRevenue" class="text-gray-800 font-medium">—</dd></div>
                     <div class="sm:col-span-2"><dt class="text-xs text-gray-400">Requirements</dt><dd id="coDetReq" class="text-gray-800 whitespace-pre-line">—</dd></div>
                 </dl>
             </div>
 
-            {{-- Invoice detail (read view) --}}
             <div id="coDetailView">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Invoice Information</p>
                 <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-4 text-sm">
@@ -186,11 +181,7 @@
                 </dl>
             </div>
 
-            @if($can('reporting.collection-outlook.edit'))
-            {{-- Invoice detail (edit form) — hanya untuk role dengan izin
-                 "Edit Payment Status" pada Menu Access. Nominal & percentage
-                 sengaja tidak ada di sini; itu tetap dikelola dari Delivery
-                 Information project agar total termin terjaga ≤ revenue. --}}
+            @if($can('reporting.collection-outlook-support.edit'))
             <form id="coEditForm" class="hidden" onsubmit="event.preventDefault(); saveCoStatus();">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Edit Payment Status</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-4 text-sm">
@@ -220,9 +211,8 @@
             @endif
         </div>
 
-        {{-- Modal footer --}}
         <div class="px-6 py-3 border-t border-gray-100 flex justify-end gap-2">
-            @if($can('reporting.collection-outlook.edit'))
+            @if($can('reporting.collection-outlook-support.edit'))
             <button type="button" id="coEditBtn" onclick="startCoEdit()"
                     class="px-4 py-2 text-sm font-semibold text-white primary-bg rounded-lg hover:opacity-90 transition-opacity">
                 <i class="fas fa-pen text-xs mr-1"></i> Edit Status
@@ -252,7 +242,6 @@
     outline: none; cursor: pointer;
 }
 .co-select:focus { border-color: #9ca3af; }
-/* Frozen-column widths (adjustable at runtime via drag handles). */
 #coTable { --w-cust: 200px; --w-proj: 250px; --w-top: 74px; }
 .co-th {
     padding: 0.7rem 0.9rem; font-size: 11px; font-weight: 600;
@@ -264,8 +253,6 @@
     padding: 0.65rem 0.9rem; white-space: nowrap; border-bottom: 1px solid #e5e7eb;
     border-right: 1px solid #e5e7eb; vertical-align: middle;
 }
-/* Frozen columns: Customer + Project Name + TOP No. Widths come from CSS vars
-   so the sticky offsets stay aligned when a column is resized. */
 .co-sticky-cust, .co-sticky-proj, .co-sticky-top { position: sticky; z-index: 6; }
 .co-sticky-cust { left: 0; }
 .co-sticky-proj { left: var(--w-cust); }
@@ -273,22 +260,17 @@
 .co-sticky-cust { width: var(--w-cust); min-width: var(--w-cust); max-width: var(--w-cust); }
 .co-sticky-proj { width: var(--w-proj); min-width: var(--w-proj); max-width: var(--w-proj); }
 .co-sticky-top  { width: var(--w-top);  min-width: var(--w-top);  max-width: var(--w-top); }
-/* Vertical divider separating the frozen block from the scrolling months. */
 .co-sticky-top { box-shadow: 2px 0 5px -2px rgba(0,0,0,0.12); }
-/* Slightly darker shade so the frozen columns read as a distinct group. */
 thead .co-sticky-cust, thead .co-sticky-proj, thead .co-sticky-top { background: #e5e7eb; z-index: 26; }
 tbody .co-sticky-cust, tbody .co-sticky-proj, tbody .co-sticky-top { background: #f3f4f6; }
 tbody tr:hover .co-sticky-cust, tbody tr:hover .co-sticky-proj, tbody tr:hover .co-sticky-top { background: #e9ebef; }
-/* Truncate long text to the current column width (ellipsis; full text on hover). */
 .co-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .co-sticky-cust .co-name { max-width: calc(var(--w-cust) - 1.8rem); }
 .co-sticky-proj .co-name { max-width: calc(var(--w-proj) - 1.8rem); }
-/* Drag handle to resize a column. */
 .co-resizer { position: absolute; top: 0; right: 0; width: 9px; height: 100%; cursor: col-resize; user-select: none; z-index: 30; }
 .co-resizer::after { content: ''; position: absolute; top: 22%; right: 3px; width: 2px; height: 56%; background: #cbd5e1; border-radius: 1px; }
 .co-resizer:hover::after { background: var(--primary-color); }
 body.co-resizing { cursor: col-resize !important; user-select: none !important; }
-/* Amount cell button */
 .co-amount-btn {
     display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.5rem;
     border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: all .15s;
@@ -297,7 +279,6 @@ body.co-resizing { cursor: col-resize !important; user-select: none !important; 
 .co-amount-btn:hover { background: #f3f4f6; }
 .co-paid   { color: #15803d; }
 .co-paid:hover { background: #dcfce7; }
-/* Nominal yang belum dibayar (status != Paid) tampil merah. */
 .co-open   { color: #dc2626; }
 .co-open:hover { background: #fee2e2; }
 .co-delay  { color: #dc2626; }
@@ -308,13 +289,12 @@ body.co-resizing { cursor: col-resize !important; user-select: none !important; 
 @push('scripts')
 <script>
 const CO_MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const CO_CAN_EDIT  = @json($can('reporting.collection-outlook.edit'));
+const CO_CAN_EDIT  = @json($can('reporting.collection-outlook-support.edit'));
 let coRows      = [];
 let coMonths    = [];
-let coActiveRow = null;   // baris TOP yang sedang dibuka di modal detail
+let coActiveRow = null;
 
 document.addEventListener('DOMContentLoaded', function () {
-    // Default range: January to December of the current year
     const fm = document.getElementById('coFromMonth');
     const tm = document.getElementById('coToMonth');
     if (fm) fm.value = 1;
@@ -323,11 +303,8 @@ document.addEventListener('DOMContentLoaded', function () {
     loadOutlook();
 });
 
-// ── Resizable frozen columns (Customer / Project Name) ────────────────────────
-// Drag the handle on a header's right edge to widen or narrow that column so long
-// names can be read in full. Handlers are delegated so they survive header re-renders.
 function initColumnResizers() {
-    let active = null; // { table, varName, startX, startW }
+    let active = null;
 
     document.addEventListener('mousedown', function (e) {
         const handle = e.target.closest('.co-resizer');
@@ -343,7 +320,7 @@ function initColumnResizers() {
     document.addEventListener('mousemove', function (e) {
         if (!active) return;
         let w = active.startW + (e.clientX - active.startX);
-        w = Math.max(120, Math.min(640, w)); // clamp between 120px and 640px
+        w = Math.max(120, Math.min(640, w));
         active.table.style.setProperty(active.varName, w + 'px');
     });
 
@@ -360,14 +337,13 @@ function coParams() {
     p.append('from_year',  document.getElementById('coFromYear').value);
     p.append('to_month',   document.getElementById('coToMonth').value);
     p.append('to_year',    document.getElementById('coToYear').value);
-    const ae = document.getElementById('coAeFilter')?.value || '';
-    if (ae) p.append('ae', ae);
+    const type = document.getElementById('coTypeFilter')?.value || '';
+    if (type) p.append('type', type);
     return p;
 }
 
-// Isi dropdown AE sekali (pertahankan pilihan yang sedang aktif).
-function populateAeFilter(options) {
-    const sel = document.getElementById('coAeFilter');
+function populateTypeFilter(options) {
+    const sel = document.getElementById('coTypeFilter');
     if (!sel || sel.dataset.populated === '1') return;
     const current = sel.value;
     (options || []).forEach(name => {
@@ -381,7 +357,7 @@ function populateAeFilter(options) {
 }
 
 function exportOutlook() {
-    window.location.href = `/reporting/collection-outlook/export?${coParams().toString()}`;
+    window.location.href = `/reporting/collection-outlook-support/export?${coParams().toString()}`;
 }
 
 async function loadOutlook() {
@@ -397,7 +373,7 @@ async function loadOutlook() {
     </td></tr>`;
 
     try {
-        const res = await fetch(`/api/reporting/collection-outlook?${coParams().toString()}`, {
+        const res = await fetch(`/api/reporting/collection-outlook-support?${coParams().toString()}`, {
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             credentials: 'same-origin'
         });
@@ -406,7 +382,7 @@ async function loadOutlook() {
 
         coRows   = json.rows   || [];
         coMonths = json.months || [];
-        populateAeFilter(json.ae_options || []);
+        populateTypeFilter(json.type_options || []);
         renderOutlook();
     } catch (e) {
         console.error(e);
@@ -425,17 +401,15 @@ function renderOutlook() {
     const empty   = document.getElementById('coEmpty');
     const stats   = document.getElementById('coStats');
 
-    // Header: reset to the three frozen columns, then append month columns
     headRow.innerHTML =
         `<th class="co-th co-sticky-cust text-left">Customer<div class="co-resizer" data-col="cust"></div></th>
-         <th class="co-th co-sticky-proj text-left">Project Name<div class="co-resizer" data-col="proj"></div></th>
+         <th class="co-th co-sticky-proj text-left">Support Name<div class="co-resizer" data-col="proj"></div></th>
          <th class="co-th co-sticky-top text-center">TOP No.</th>` +
         coMonths.map(m => `<th class="co-th text-right" style="min-width:130px;">${escHtml(monthHeadLabel(m))}</th>`).join('');
 
-    // Range label
     document.getElementById('coRangeLabel').textContent = coMonths.length
         ? `Period ${monthHeadLabel(coMonths[0])} – ${monthHeadLabel(coMonths[coMonths.length - 1])} (${coMonths.length} ${coMonths.length === 1 ? 'month' : 'months'})`
-        : "Planned billing based on each project's Term Of Payment";
+        : "Planned billing based on each support's Term Of Payment";
 
     if (coRows.length === 0) {
         tbody.innerHTML = '';
@@ -453,7 +427,6 @@ function renderOutlook() {
         if (r.status === 'Paid') { totalPaid += r.amount; paidCount++; }
         else { totalUnpaid += r.amount; unpaidCount++; }
 
-        // Month cells
         let cells = '';
         coMonths.forEach(m => {
             if (m.key === r.month_key) {
@@ -466,7 +439,7 @@ function renderOutlook() {
         const clientName = r.client_name || '—';
         html += `<tr>
             <td class="co-td co-sticky-cust text-left text-gray-600"><span class="co-name" title="${escAttr(clientName)}">${escHtml(clientName)}</span></td>
-            <td class="co-td co-sticky-proj text-left font-medium text-gray-800"><span class="co-name" title="${escAttr(r.project_name)}">${escHtml(r.project_name)}</span></td>
+            <td class="co-td co-sticky-proj text-left font-medium text-gray-800"><span class="co-name" title="${escAttr(r.support_name)}">${escHtml(r.support_name)}</span></td>
             <td class="co-td co-sticky-top text-center text-gray-600">${r.term_number}</td>
             ${cells}
         </tr>`;
@@ -474,7 +447,6 @@ function renderOutlook() {
 
     tbody.innerHTML = html;
 
-    // Stats
     document.getElementById('coStatTotal').textContent  = formatShortIDR(totalAll);
     document.getElementById('coStatPaid').textContent   = formatShortIDR(totalPaid);
     document.getElementById('coStatUnpaid').textContent = formatShortIDR(totalUnpaid);
@@ -485,7 +457,6 @@ function renderOutlook() {
 }
 
 function monthHeadLabel(m) {
-    // m.month is 1-based; show short English month + year (e.g. "Jan 2026")
     return `${CO_MONTHS_EN[(m.month - 1)].slice(0, 3)} ${m.year}`;
 }
 
@@ -501,15 +472,14 @@ function amountCell(r) {
     return `<button type="button" onclick="openCoDetail(${r.term_id})" class="co-amount-btn ${cls}" title="${title}">${escHtml(val)}</button>`;
 }
 
-// ── Detail modal ──────────────────────────────────────────────────────────────
 function openCoDetail(termId) {
     const r = coRows.find(x => x.term_id === termId);
     if (!r) return;
 
     coActiveRow = r;
-    if (CO_CAN_EDIT) cancelCoEdit();   // selalu buka dalam mode baca
+    if (CO_CAN_EDIT) cancelCoEdit();
 
-    document.getElementById('coModalTitle').textContent = r.project_name || '—';
+    document.getElementById('coModalTitle').textContent = r.support_name || '—';
     document.getElementById('coModalSub').textContent   = `TOP #${r.term_number} · ${r.payment_term || '-'}`;
 
     document.getElementById('coDetAmount').textContent = formatFullIDR(r.amount);
@@ -519,13 +489,13 @@ function openCoDetail(termId) {
     st.textContent = r.status;
     st.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ' + statusClasses(r.status);
 
-    document.getElementById('coDetProject').textContent  = r.project_name || '—';
+    document.getElementById('coDetProject').textContent  = r.support_name || '—';
     document.getElementById('coDetClient').textContent   = r.client_name || '—';
     document.getElementById('coDetIo').textContent       = r.io_number || '—';
     document.getElementById('coDetTermNo').textContent   = r.term_number;
     document.getElementById('coDetTermName').textContent = r.payment_term || '—';
     document.getElementById('coDetPctRow').textContent   = `${fmtPct(r.payment_percentage)}%`;
-    document.getElementById('coDetRevenue').textContent  = formatFullIDR(r.project_revenue);
+    document.getElementById('coDetRevenue').textContent  = formatFullIDR(r.support_revenue);
     document.getElementById('coDetReq').textContent      = r.requirements || '—';
 
     document.getElementById('coDetEst').textContent    = r.estimated_date || '—';
@@ -542,10 +512,6 @@ function closeCoDetail() {
     document.body.style.overflow = '';
     coActiveRow = null;
 }
-
-// ── Edit payment status (izin: reporting.collection-outlook.edit) ─────────────
-// Hanya field pelunasan yang bisa diubah di sini. Nominal/percentage tetap milik
-// Delivery Information project supaya total termin tidak bisa melampaui revenue.
 
 function startCoEdit() {
     if (!coActiveRow) return;
@@ -576,14 +542,12 @@ function cancelCoEdit() {
     document.getElementById('coSaveBtn').classList.add('hidden');
 }
 
-// Paid Date wajib saat status Paid — cerminan aturan TOP Plan di Delivery Info.
 function toggleCoPaidDate() {
     const isPaid = document.getElementById('coEditStatus').value === 'Paid';
     document.getElementById('coPaidReq').classList.toggle('hidden', !isPaid);
     document.getElementById('coEditPaidDate').required = isPaid;
 }
 
-// Invoice Number wajib saat Submit Invoice Date terisi.
 function toggleCoInvoiceRequired() {
     const filled = !!document.getElementById('coEditSubmitDate').value;
     document.getElementById('coInvReq').classList.toggle('hidden', !filled);
@@ -623,7 +587,7 @@ async function saveCoStatus() {
     btn.textContent = 'Saving…';
 
     try {
-        const res = await fetch(`/api/reporting/collection-outlook/terms/${coActiveRow.term_id}`, {
+        const res = await fetch(`/api/reporting/collection-outlook-support/terms/${coActiveRow.term_id}`, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -641,8 +605,6 @@ async function saveCoStatus() {
         const json = await res.json();
         if (!res.ok || !json.success) throw new Error(json.message || 'Failed to save.');
 
-        // Perbarui baris di memori lalu render ulang matrix + stats, supaya
-        // pewarnaan hijau/kuning dan total Paid/Unpaid langsung ikut berubah.
         Object.assign(coActiveRow, {
             status:                  json.term.status,
             paid_date:               json.term.paid_date,
@@ -671,9 +633,6 @@ function statusClasses(status) {
     return 'bg-gray-100 text-gray-600';
 }
 
-// ── Formatters ────────────────────────────────────────────────────────────────
-// Short Indonesian-Rupiah style (matches the design spec): Rp5,42 M (Miliar / billion),
-// Rp800 Jt (Juta / million), Rp x Rb (Ribu / thousand), comma as decimal separator.
 function formatShortIDR(value) {
     const v = Number(value) || 0;
     if (v === 0) return 'Rp0';
@@ -686,7 +645,6 @@ function formatShortIDR(value) {
     return `${sign}Rp${Math.round(abs)}`;
 }
 
-// Whole number → no decimals (800); otherwise 2 decimals with comma (5,42 / 2,50)
 function trimNum(n) {
     if (Number.isInteger(n)) return String(n);
     return n.toFixed(2).replace('.', ',');

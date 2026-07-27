@@ -436,7 +436,7 @@
                         <input type="hidden" name="project_type" value="{{ $project->project_type }}">
                         <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Type --</button>
-                            @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF'] as $pt)
+                            @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF','Body Hire'] as $pt)
                                 <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pt }}">{{ $pt }}</button>
                             @endforeach
                         </div>
@@ -463,8 +463,17 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">IO/Number Order</label>
                     <input type="text" name="io_number" value="{{ $project->io_number }}"
+                           @if($project->project_type === 'Body Hire') list="io_number_options" autocomplete="off" @endif
                            class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
                            placeholder="e.g. IO-2026-001">
+                    @if($project->project_type === 'Body Hire')
+                        <datalist id="io_number_options">
+                            @foreach($sameCompanyIos as $io)<option value="{{ $io }}"></option>@endforeach
+                        </datalist>
+                        <p class="mt-1 text-xs text-blue-600">
+                            <i class="fas fa-info-circle mr-1"></i>Body Hire: pilih IO number yang sudah ada milik company ini, atau ketik IO number baru.
+                        </p>
+                    @endif
                 </div>
                 {{-- Category (read-only) --}}
                 <div>
@@ -592,7 +601,6 @@
                                 <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
                             </div>
                         </div>
-                        <p class="mt-1 text-xs text-gray-500">Only employees with a Sales Operation role are listed.</p>
                     </div>
                     {{-- Text input untuk AE External --}}
                     <input type="text" name="{{ $aeIsExternal ? 'ae_name' : '' }}" id="ae_name_input"

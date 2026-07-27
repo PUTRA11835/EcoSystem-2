@@ -8,6 +8,7 @@ use App\Models\DeliverySupport;
 use App\Models\DeliverySupportPhase;
 use App\Models\DeliverySupportPlanning;
 use App\Models\DeliverySupportActivity;
+use App\Models\DeliverySupportPaymentTerm;
 use App\Models\DeliverySupportViewConfiguration;
 use App\Models\DeliveryList;
 use App\Models\Customer;
@@ -20,6 +21,7 @@ use App\Services\OneDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class DeliverySupportController extends Controller
 {
@@ -352,6 +354,13 @@ class DeliverySupportController extends Controller
 
         $canManage = in_array(session('user.role.id'), [1, 5], true);
 
+        // Actual Cost = total of all leaf-level Plan Cost actual amounts (derived from
+        // expense details). Seeds the "Actual Cost / GP / %" fields in the Financial
+        // section on first paint; kept in sync afterwards by the Plan Cost JS.
+        $actualCost = \App\Models\DeliverySupportCost::where('delivery_support_id', $support->id)
+            ->whereDoesntHave('children')
+            ->sum('actual_amount');
+
         $sessionUser = session('user') ?? [];
         $roleIds     = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
         $isEcAdmin   = in_array(RoleId::EC_ADMINISTRATOR->value, $roleIds, true);
@@ -370,7 +379,7 @@ class DeliverySupportController extends Controller
                 ])
             : collect();
 
-        return view('delivery.support.list.show', compact('support', 'employees', 'clients', 'canManage', 'isEcAdmin', 'linkedTickets'));
+        return view('delivery.support.list.show', compact('support', 'employees', 'clients', 'canManage', 'isEcAdmin', 'linkedTickets', 'actualCost'));
     }
 
     /**
@@ -484,6 +493,63 @@ class DeliverySupportController extends Controller
                 'message' => 'Failed to update'
             ], 500);
         }
+    }
+
+    /**
+     * Update financial / sales data (IO Number + Revenue + Plan Cost + Gross Profit).
+     * Mirror dari DeliveryProject::updateFinancialInfo. IO Number wajib unik per
+     * delivery support (satu IO Number hanya boleh dipakai oleh satu support).
+     */
+    public function updateFinancialInfo(Request $request, DeliverySupport $support)
+    {
+        $validated = $request->validate([
+            'io_number' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('delivery_support', 'io_number')->ignore($support->id),
+            ],
+            'revenue'                 => 'nullable|numeric|min:0',
+            'plan_cost'               => 'nullable|numeric|min:0',
+            'gross_profit'            => 'nullable|numeric',
+            'gross_profit_percentage' => 'nullable|numeric|min:-100|max:100',
+        ], [
+            'io_number.unique' => 'IO Number ini sudah digunakan oleh delivery support lain.',
+        ]);
+
+        $support->update([
+            'io_number'               => $validated['io_number'] ?: null,
+            'revenue'                 => $validated['revenue'] ?? null,
+            'plan_cost'               => $validated['plan_cost'] ?? null,
+            'gross_profit'            => $validated['gross_profit'] ?? null,
+            'gross_profit_percentage' => $validated['gross_profit_percentage'] ?? null,
+        ]);
+
+        // Payment term amounts are derived (amount = revenue × % / 100). Resync on
+        // every save so terms that went stale from an earlier revenue edit are fixed.
+        $this->syncPaymentTermAmounts($support);
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Financial information updated successfully.']);
+        }
+        return back()->with('success', 'Financial information updated successfully.');
+    }
+
+    /**
+     * Keep derived TOP amounts in sync with the current support revenue.
+     */
+    private function syncPaymentTermAmounts(DeliverySupport $support): void
+    {
+        $revenue = (float) ($support->revenue ?? 0);
+
+        DeliverySupportPaymentTerm::where('delivery_support_id', $support->id)
+            ->get()
+            ->each(function (DeliverySupportPaymentTerm $term) use ($revenue) {
+                $amount = round($revenue * ((float) $term->payment_percentage) / 100, 2);
+                if (abs((float) $term->amount - $amount) > 0.001) {
+                    $term->update(['amount' => $amount]);
+                }
+            });
     }
 
     /**
