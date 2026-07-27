@@ -56,7 +56,7 @@ class TicketExport implements
                 'status'                   => $statusLabel,
                 'type'                     => $t['ticket_type'] ?? '-',
                 'module'                   => $t['module'] ?? '-',
-                'assign_delivery'          => '-',
+                'assign_delivery'          => $t['assign_delivery'] ?? '-',
                 'customer_mandays'         => $t['customer_mandays'] !== null
                     ? number_format((float) $t['customer_mandays'], 1)
                     : '-',
