@@ -87,7 +87,7 @@
     vertical-align: middle;
 }
 .ls-td-desc { white-space: normal; max-width: 420px; }
-.ls-td-msg { white-space: normal; max-width: 380px; }
+.ls-td-msg { white-space: pre-wrap; max-width: 380px; }
 </style>
 @endpush
 
