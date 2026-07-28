@@ -13,6 +13,7 @@ use App\Models\DeliveryProjectCost;
 class DeliveryProject extends Model
 {
     use HasFactory;
+    use \App\Models\Concerns\HasOneDriveShareLink;
 
     /**
      * The attributes that are mass assignable.
@@ -69,9 +70,14 @@ class DeliveryProject extends Model
         'location_valid_to',
         'onedrive_folder_id',
         'onedrive_folder_url',
+        'onedrive_link_scope',
+        'onedrive_link_expires_at',
+        'onedrive_link_checked_at',
     ];
 
     protected $casts = [
+        'onedrive_link_expires_at' => 'datetime',
+        'onedrive_link_checked_at' => 'datetime',
         'approval_date' => 'datetime',
         'is_closed' => 'boolean',
         'closed_at' => 'datetime',

@@ -1402,8 +1402,8 @@ class DeliveryProjectController extends Controller
 
             if ($project->onedrive_folder_id) {
                 // Folder already exists — just recreate the share link
-                $shareUrl = $oneDrive->createAnonymousLink($project->onedrive_folder_id);
-                $project->update(['onedrive_folder_url' => $shareUrl]);
+                $link = $oneDrive->createShareLink($project->onedrive_folder_id);
+                $project->applyOneDriveShareLink($link);
             } else {
                 // Hierarki: DELIVERY PROJECT > Customer > Project Folder
                 $project->load('client.basicData');
@@ -1415,17 +1415,22 @@ class DeliveryProjectController extends Controller
 
                 // Create project sub-folder inside customer folder
                 $folderId = $oneDrive->createSubFolder($customerFolderId, $folderName);
-                $shareUrl = $oneDrive->createAnonymousLink($folderId);
-                $project->update([
-                    'onedrive_folder_id'  => $folderId,
-                    'onedrive_folder_url' => $shareUrl,
-                ]);
+                $project->update(['onedrive_folder_id' => $folderId]);
+
+                $link = $oneDrive->createShareLink($folderId);
+                $project->applyOneDriveShareLink($link);
             }
 
             return response()->json([
-                'success'     => true,
-                'message'     => 'OneDrive folder ready.',
-                'folder_url'  => $shareUrl,
+                'success'          => true,
+                'message'          => 'OneDrive folder ready.',
+                'folder_url'       => $link['url'],
+                'link_scope'       => $link['scope'],
+                'link_scope_label' => $project->refresh()->onedrive_link_scope_label,
+                'link_expires_at'  => $link['expires_at']?->toIso8601String(),
+                // Ditampilkan sebagai peringatan di UI: link bukan "Anyone with the link",
+                // jadi customer di luar tenant tidak akan bisa membukanya.
+                'link_warning'     => $project->onedrive_link_warning,
             ]);
 
         } catch (\Exception $e) {
@@ -1609,7 +1614,13 @@ class DeliveryProjectController extends Controller
 
         try {
             (new OneDriveService())->deleteFolder($project->onedrive_folder_id);
-            $project->update(['onedrive_folder_id' => null, 'onedrive_folder_url' => null]);
+            $project->update([
+                'onedrive_folder_id'       => null,
+                'onedrive_folder_url'      => null,
+                'onedrive_link_scope'      => null,
+                'onedrive_link_expires_at' => null,
+                'onedrive_link_checked_at' => null,
+            ]);
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
             Log::error('OneDrive deleteFolder failed (project)', [

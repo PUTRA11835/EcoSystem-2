@@ -133,9 +133,21 @@ class TicketDeliverableController extends Controller
                     'onedrive_folder_id'             => $ticketFolderId,
                     'onedrive_deliverable_folder_id' => $deliverableFolderId,
                 ];
-                if (empty($ticket->onedrive_folder_url) || $ticket->onedrive_folder_id !== $ticketFolderId) {
+                // Link diperbarui bukan hanya saat kosong/pindah folder, tapi juga saat
+                // link tersimpan ternyata bukan share link, sudah kedaluwarsa, atau
+                // scope-nya bukan anonymous — kondisi yang bikin customer kena
+                // "Request access" padahal di EcoSystem terlihat normal.
+                $needsLink = empty($ticket->onedrive_folder_url)
+                    || $ticket->onedrive_folder_id !== $ticketFolderId
+                    || !$ticket->onedrive_link_is_public;
+
+                if ($needsLink) {
                     try {
-                        $update['onedrive_folder_url'] = $oneDrive->createAnonymousLink($ticketFolderId, 'edit');
+                        $link = $oneDrive->createShareLink($ticketFolderId, 'edit');
+                        $update['onedrive_folder_url']      = $link['url'];
+                        $update['onedrive_link_scope']      = $link['scope'];
+                        $update['onedrive_link_expires_at'] = $link['expires_at'];
+                        $update['onedrive_link_checked_at'] = now();
                     } catch (\Throwable $e) {
                         Log::warning('Deliverable folder share link failed', ['ticket_id' => $ticketId, 'error' => $e->getMessage()]);
                     }
@@ -148,9 +160,16 @@ class TicketDeliverableController extends Controller
                 // webUrl dari upload adalah path SharePoint langsung — butuh izin akun (Request access).
                 // Buat anonymous share link agar file bisa dibuka customer tanpa login.
                 try {
-                    $fileUrl = $oneDrive->createAnonymousLink($fileId, 'view');
+                    $fileUrl = $oneDrive->createShareLink($fileId, 'view')['url'];
                 } catch (\Throwable $e) {
-                    Log::warning('Deliverable file share link failed', ['ticket_id' => $ticketId, 'error' => $e->getMessage()]);
+                    // Fallback webUrl HANYA bisa dibuka akun yang punya izin item —
+                    // customer akan kena "Request access". Dicatat sebagai error supaya
+                    // ketahuan, dan `onedrive:audit-links --fix` bisa memperbaikinya nanti.
+                    Log::error('Deliverable file share link failed — falling back to direct webUrl (external users cannot open it)', [
+                        'ticket_id' => $ticketId,
+                        'file_id'   => $fileId,
+                        'error'     => $e->getMessage(),
+                    ]);
                     $fileUrl = $result['webUrl'] ?? $result['downloadUrl'] ?? null;
                 }
             } catch (\Throwable $e) {

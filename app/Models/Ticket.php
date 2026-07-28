@@ -9,6 +9,7 @@ use Laravel\Sanctum\HasApiTokens;
 class Ticket extends Model
 {
     use HasFactory;
+    use \App\Models\Concerns\HasOneDriveShareLink;
 
     protected $table = 'ticket';
     protected $primaryKey = 'ticket_id';
@@ -61,11 +62,16 @@ class Ticket extends Model
         'onedrive_folder_id',
         'onedrive_folder_url',
         'onedrive_deliverable_folder_id',
+        'onedrive_link_scope',
+        'onedrive_link_expires_at',
+        'onedrive_link_checked_at',
         // Visibility
         'is_hidden',
     ];
 
     protected $casts = [
+        'onedrive_link_expires_at' => 'datetime',
+        'onedrive_link_checked_at' => 'datetime',
         'start_date'             => 'date',
         'end_date'               => 'date',
         'man_days'               => 'decimal:2',

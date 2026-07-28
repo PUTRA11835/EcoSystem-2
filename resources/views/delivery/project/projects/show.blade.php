@@ -352,6 +352,19 @@
                 {{ $project->client->basicData->name_1 ?? 'N/A' }} •
                 <span class="font-semibold">{{ $project->project_type ?? 'N/A' }}</span>
             </p>
+            {{-- Status share link OneDrive: siapa yang sebenarnya bisa membuka "Open Folder". --}}
+            @if($project->onedrive_folder_url)
+            <p id="odrLinkBadgeWrap" class="mt-1.5">
+                <span id="odrLinkBadge"
+                      class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium
+                             {{ $project->onedrive_link_is_public ? 'bg-green-100 text-green-800' : ($project->onedrive_link_warning ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700') }}">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5m4.5-4.5l1.5-1.5a4 4 0 115.656 5.656l-3 3a4 4 0 01-5.656 0"/>
+                    </svg>
+                    <span id="odrLinkBadgeText">Folder link: {{ $project->onedrive_link_scope_label }}</span>
+                </span>
+            </p>
+            @endif
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
             @if($project->onedrive_folder_url)
@@ -405,6 +418,29 @@
             @endif
         </div>
     </div>
+</div>
+
+{{-- Banner peringatan share link OneDrive: muncul saat link tidak benar-benar publik
+     (scope internal, kedaluwarsa, atau yang tersimpan bukan share link) — inilah
+     kondisi yang membuat penerima kena "Request access". --}}
+<div id="odrLinkWarningBanner"
+     class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3 {{ $project->onedrive_link_warning ? '' : 'hidden' }}">
+    <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/>
+    </svg>
+    <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-amber-800">Folder link may not be accessible</p>
+        <p id="odrLinkWarningText" class="text-xs text-amber-700 mt-0.5">{{ $project->onedrive_link_warning }}</p>
+    </div>
+    @if($can('delivery-project.manage-documents'))
+    <button type="button" id="odrRefreshLinkBtn" onclick="refreshProjectFolderLink()"
+            class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 transition-all">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Refresh Link
+    </button>
+    @endif
 </div>
 
 @if($project->is_closed)
@@ -6194,7 +6230,12 @@ async function generateProjectFolder() {
 
         if (data.success) {
             _showOdrSuccess(data.folder_url);
-            showNotification('OneDrive folder created successfully!', 'success');
+            _applyOdrLinkStatus(data);
+            if (data.link_warning) {
+                showNotification(data.link_warning, 'error');
+            } else {
+                showNotification('OneDrive folder created successfully!', 'success');
+            }
         } else {
             showNotification(data.message || 'Failed to create folder.', 'error');
             label.textContent = 'Generate Folder';
@@ -6206,6 +6247,64 @@ async function generateProjectFolder() {
         btn.disabled = false;
         icon.classList.remove('hidden');
         spinner.classList.add('hidden');
+    }
+}
+
+// Perbarui badge + banner status link setelah folder dibuat / link di-refresh.
+function _applyOdrLinkStatus(data) {
+    const badge   = document.getElementById('odrLinkBadge');
+    const text    = document.getElementById('odrLinkBadgeText');
+    const banner  = document.getElementById('odrLinkWarningBanner');
+    const warnTxt = document.getElementById('odrLinkWarningText');
+
+    if (badge && text) {
+        text.textContent = 'Folder link: ' + (data.link_scope_label || 'Not verified');
+        badge.className  = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium '
+            + (data.link_warning ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800');
+    }
+
+    if (banner && warnTxt) {
+        warnTxt.textContent = data.link_warning || '';
+        banner.classList.toggle('hidden', !data.link_warning);
+    }
+}
+
+// Buat ulang share link folder (folder-nya sendiri tidak disentuh).
+async function refreshProjectFolderLink() {
+    const btn = document.getElementById('odrRefreshLinkBtn');
+    if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); }
+
+    try {
+        const res  = await fetch('/projects/{{ $project->id }}/generate-folder', {
+            method:  'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            },
+            body: JSON.stringify({}),
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            showNotification(data.message || 'Failed to refresh the folder link.', 'error');
+            return;
+        }
+
+        _applyOdrLinkStatus(data);
+
+        const headerBtn = document.getElementById('headerFolderBtn');
+        if (headerBtn && headerBtn.tagName === 'A') headerBtn.href = data.folder_url;
+
+        if (data.link_warning) {
+            showNotification(data.link_warning, 'error');
+        } else {
+            showNotification('Folder link refreshed — anyone with the link can open it.', 'success');
+        }
+    } catch (err) {
+        showNotification('Error: ' + err.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
     }
 }
 
