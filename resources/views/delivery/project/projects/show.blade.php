@@ -81,6 +81,13 @@
         background: #94a3b8;
     }
 
+    /* overflow-x:auto membuat overflow-y ikut jadi 'auto' (spec CSS); underline
+       tab aktif (::after bottom:-1px) meluber 1px → memunculkan scrollbar
+       vertikal yang tak perlu. Kunci overflow-y agar hanya scroll horizontal. */
+    #sectionNav nav {
+        overflow-y: hidden;
+    }
+
     /* Scrollbar untuk tab navigation */
     #sectionNav nav::-webkit-scrollbar {
         height: 4px;
@@ -267,6 +274,15 @@
     section {
         scroll-margin-top: 130px;
     }
+
+    /* Read-only saat project di-close: nonaktifkan seluruh kontrol form &
+       tombol di dalam section (termasuk yang dirender dinamis oleh JS).
+       Link <a> & scroll tetap berfungsi agar konten masih bisa dibaca. */
+    body.project-closed section.section-animate :is(input, select, textarea, button) {
+        pointer-events: none !important;
+        opacity: .55;
+        cursor: not-allowed;
+    }
 </style>
 @section('content')
 {{-- ✅ SCROLL PROGRESS INDICATOR --}}
@@ -355,6 +371,31 @@
                 Create Folder
             </button>
             @endif
+            @if($can('delivery-project.close-project'))
+                @if($project->is_closed)
+                <form id="reopenProjectForm" method="POST" action="{{ route('projects.reopen', $project->id) }}" class="contents">
+                    @csrf
+                    <button type="button" onclick="openProjectStateModal('reopen')"
+                            class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all duration-200">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                        </svg>
+                        Reopen Project
+                    </button>
+                </form>
+                @else
+                <form id="closeProjectForm" method="POST" action="{{ route('projects.close', $project->id) }}" class="contents">
+                    @csrf
+                    <button type="button" onclick="openProjectStateModal('close')"
+                            class="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-all duration-200">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                        Close Project
+                    </button>
+                </form>
+                @endif
+            @endif
             @if($can('delivery-project.delete-project'))
             <button type="button"
                     onclick="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')"
@@ -365,6 +406,26 @@
         </div>
     </div>
 </div>
+
+@if($project->is_closed)
+{{-- Banner read-only project yang sudah di-close --}}
+<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
+    <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+    </svg>
+    <div>
+        <p class="text-sm font-semibold text-amber-800">This project is closed — read-only</p>
+        <p class="text-xs text-amber-700 mt-0.5">
+            Closed{{ $project->closed_at ? ' on ' . $project->closed_at->format('d M Y, H:i') : '' }}@if($project->closedBy?->basicData?->full_name) by {{ $project->closedBy->basicData->full_name }}@endif.
+            @if($can('delivery-project.close-project')) Use <span class="font-semibold">Reopen Project</span> above to make changes. @endif
+        </p>
+    </div>
+</div>
+<script>
+    // Kunci tampilan (read-only) — CSS scoped ke body.project-closed.
+    document.body.classList.add('project-closed');
+</script>
+@endif
 
 {{-- General Information Section --}}
 <section id="general" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.edit-general-info') ? '1' : '0' }}">
@@ -4422,6 +4483,57 @@
         </div>
     </div>
 </div>
+
+@if($can('delivery-project.close-project'))
+{{-- Confirm modal untuk Close / Reopen Project (pengganti confirm() native) --}}
+<div id="projectStateModal" class="fixed inset-0 z-[9998] hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 z-[9998]" onclick="closeModal('projectStateModal')"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
+        <div class="modal-content bg-white rounded-lg shadow-xl max-w-md w-full relative">
+            <div class="p-6">
+                <h3 id="projectStateTitle" class="text-lg font-semibold text-gray-900 mb-2">Close Project?</h3>
+                <p id="projectStateMessage" class="text-sm text-gray-600">This project will become read-only until it is reopened.</p>
+            </div>
+            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                <button type="button" onclick="closeModal('projectStateModal')"
+                        class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                    Cancel
+                </button>
+                <button type="button" id="projectStateConfirmBtn"
+                        class="inline-flex items-center px-4 py-2 bg-gray-700 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-all duration-200">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    // Modal konfirmasi Close/Reopen — submit form tersembunyi saat dikonfirmasi.
+    let _projectStateForm = null;
+    function openProjectStateModal(mode) {
+        const title = document.getElementById('projectStateTitle');
+        const msg   = document.getElementById('projectStateMessage');
+        const btn   = document.getElementById('projectStateConfirmBtn');
+        if (mode === 'reopen') {
+            _projectStateForm = document.getElementById('reopenProjectForm');
+            title.textContent = 'Reopen Project?';
+            msg.textContent   = 'This project will become editable again. Its status will be recalculated from planning progress.';
+            btn.textContent   = 'Reopen Project';
+            btn.className      = 'inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all duration-200';
+        } else {
+            _projectStateForm = document.getElementById('closeProjectForm');
+            title.textContent = 'Close Project?';
+            msg.textContent   = 'This project will become read-only until it is reopened.';
+            btn.textContent   = 'Close Project';
+            btn.className      = 'inline-flex items-center px-4 py-2 bg-gray-700 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-all duration-200';
+        }
+        document.getElementById('projectStateModal').classList.remove('hidden');
+    }
+    document.getElementById('projectStateConfirmBtn')?.addEventListener('click', function () {
+        if (_projectStateForm) _projectStateForm.submit();
+    });
+</script>
+@endif
 
 {{-- ✅ LOAD SCRIPTS (IN CORRECT ORDER) --}}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>

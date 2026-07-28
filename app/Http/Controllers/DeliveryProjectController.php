@@ -182,6 +182,7 @@ class DeliveryProjectController extends Controller
             'deliveryOwner.basicData',
             'deliveryManager.basicData',
             'createdBy',
+            'closedBy.basicData',
             'documents',
             'teamMembers.basicData',
             'plannings.phase'
@@ -1017,6 +1018,50 @@ class DeliveryProjectController extends Controller
             return response()->json(['success' => true, 'message' => 'Team member updated successfully']);
         }
         return back()->with('success', 'Team member updated successfully.');
+    }
+
+    /**
+     * Close a project manually. Overrides the auto-derived category (kept 'Closed'
+     * regardless of planning progress) and locks the project read-only until it is
+     * reopened. Gated by menu:delivery-project.close-project.
+     */
+    public function close(Request $request, DeliveryProject $project)
+    {
+        if (!$project->is_closed) {
+            $project->update([
+                'is_closed' => true,
+                'closed_at' => now(),
+                'closed_by' => session('user.id'),
+                'category'  => 'Closed',
+            ]);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Project closed successfully.']);
+        }
+        return back()->with('success', 'Project closed successfully.');
+    }
+
+    /**
+     * Reopen a closed project. Clears the manual-close flag and lets the category
+     * be recomputed from planning progress. Gated by menu:delivery-project.close-project.
+     */
+    public function reopen(Request $request, DeliveryProject $project)
+    {
+        if ($project->is_closed) {
+            $project->is_closed = false;
+            $project->closed_at = null;
+            $project->closed_by = null;
+            $project->save();
+
+            // Category was pinned to 'Closed' while locked — recompute from planning now.
+            $project->updateFromPlanning();
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Project reopened successfully.']);
+        }
+        return back()->with('success', 'Project reopened successfully.');
     }
 
     public function destroy(Request $request, $project)
