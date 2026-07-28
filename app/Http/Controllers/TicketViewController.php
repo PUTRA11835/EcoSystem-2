@@ -173,11 +173,14 @@ class TicketViewController extends Controller
             })
             ->toArray();
 
-        // Approved customer mandays total (for Properties panel)
-        $approvedMandays = CustomerMandays::where('ticket_id', $ticket->ticket_id)
+        // Approved customer mandays total (for Properties panel) — sum of every
+        // approved version, same logic as the "Customer Mandays" column in the
+        // ticket list (a ticket can have several independently-approved versions,
+        // e.g. an addendum proposed after the first one was already approved).
+        $approvedMandaysRows = CustomerMandays::where('ticket_id', $ticket->ticket_id)
             ->where('status', 'approved')
-            ->orderBy('version', 'desc')
-            ->value('total_mandays');
+            ->get(['total_mandays']);
+        $approvedMandays = $approvedMandaysRows->isEmpty() ? null : $approvedMandaysRows->sum('total_mandays');
 
         // Resolve email tujuan reply (digunakan untuk tampilan "To:" di compose area)
         // Prioritas 1: submitted_by_email dari ticket itu sendiri (diisi saat import CSV)

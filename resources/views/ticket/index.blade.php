@@ -339,6 +339,7 @@
                                 <input type="hidden" id="colFilterPic" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:200px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="__unassigned__">Unassigned</button>
                                 </div>
                             </div>
                         </th>
@@ -1246,7 +1247,7 @@
 
         return getViewBase().filter(ticket => {
             const matchColCustomer = !colCustomer || (ticket.customer?.customer_name || '').toLowerCase() === colCustomer;
-            const matchColPic = !colPic || (ticket.employee?.employee_name || '').toLowerCase() === colPic;
+            const matchColPic = !colPic || (colPic === '__unassigned__' ? !ticket.employee : (ticket.employee?.employee_name || '').toLowerCase() === colPic);
             const matchColPriority = !colPriority.length || colPriority.includes(ticket.ticket_priority);
             const matchColScale = !colScale.length || colScale.includes(String(ticket.scale ?? ''));
             const matchColStatus = !colStatus.length || colStatus.includes(ticket.status);
@@ -1800,6 +1801,7 @@
 
         const fragment = document.createDocumentFragment();
         fragment.appendChild(makeItem('', 'All'));
+        fragment.appendChild(makeItem('__unassigned__', 'Unassigned'));
         names.forEach(name => fragment.appendChild(makeItem(name, name)));
 
         const emptyEl = panel._ddEmpty || null;
