@@ -143,6 +143,7 @@ class MenuSeeder extends Seeder
             // ── SLA ───────────────────────────────────────────────────────────────
             ['slug' => 'sla',                          'name' => 'SLA',                     'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-stopwatch',         'order_seq' => 13],
             ['slug' => 'sla.report',                   'name' => 'SLA Report',              'type' => 'page',     'parent_slug' => 'sla',         'route_name' => 'sla.report',                   'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'sla.config',                   'name' => 'SLA Config',              'type' => 'function', 'parent_slug' => 'sla',         'route_name' => null,                           'icon' => null,                   'order_seq' => 2],
 
             // ── RPMO ──────────────────────────────────────────────────────────────
             ['slug' => 'rpmo',                         'name' => 'RPMO',                    'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-building',          'order_seq' => 14],
@@ -319,6 +320,7 @@ class MenuSeeder extends Seeder
             // SLA
             'sla'                         => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
             'sla.report'                  => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
+            'sla.config'                  => [self::ADMIN=>$vced, self::HOS=>$vced],
             // RPMO
             'rpmo'                        => [self::ADMIN=>$v,    self::HOP=>$v,        self::HOS=>$v,      self::RPMO=>$v],
             'rpmo.overview'               => [self::ADMIN=>$v,    self::RPMO=>$v],
