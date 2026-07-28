@@ -13,6 +13,7 @@ use App\Models\DeliveryProjectCost;
 class DeliveryProject extends Model
 {
     use HasFactory;
+    use \App\Models\Concerns\HasOneDriveShareLink;
 
     /**
      * The attributes that are mass assignable.
@@ -29,6 +30,9 @@ class DeliveryProject extends Model
         'description',
         'category',
         'status',
+        'is_closed',
+        'closed_at',
+        'closed_by',
         'calculated_progress',
         'phase',
         'go_live_estimated',
@@ -66,10 +70,17 @@ class DeliveryProject extends Model
         'location_valid_to',
         'onedrive_folder_id',
         'onedrive_folder_url',
+        'onedrive_link_scope',
+        'onedrive_link_expires_at',
+        'onedrive_link_checked_at',
     ];
 
     protected $casts = [
+        'onedrive_link_expires_at' => 'datetime',
+        'onedrive_link_checked_at' => 'datetime',
         'approval_date' => 'datetime',
+        'is_closed' => 'boolean',
+        'closed_at' => 'datetime',
         'location_valid_from' => 'date',
         'location_valid_to' => 'date',
         'contract_start_date' => 'date',
@@ -137,6 +148,14 @@ class DeliveryProject extends Model
     public function createdBy()
     {
         return $this->belongsTo(AuthUser::class, 'created_by_id');
+    }
+
+    /**
+     * Employee yang meng-close project ini (null saat project masih terbuka).
+     */
+    public function closedBy()
+    {
+        return $this->belongsTo(Employee::class, 'closed_by', 'employee_id');
     }
 
     public function updateFromPlanning()
@@ -330,8 +349,12 @@ class DeliveryProject extends Model
             ->where('is_group', false)
             ->get();
 
-        // Category still reflects the raw planning lifecycle.
-        if ($plannings->isEmpty()) {
+        // Manual close overrides the auto-derived category: once a project is
+        // explicitly closed it stays Closed regardless of planning progress,
+        // until it is reopened.
+        if ($this->is_closed) {
+            $this->category = 'Closed';
+        } elseif ($plannings->isEmpty()) {
             $this->category = 'Open';
         } else {
             $allCompleted = $plannings->where('status', '!=', 'completed')->isEmpty();

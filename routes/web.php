@@ -239,21 +239,26 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::delete('/projects/{project}', [DeliveryProjectController::class, 'destroy'])->name('projects.destroy')->middleware('menu:delivery-project.delete-project');
     Route::post('/projects/{project}/delete', [DeliveryProjectController::class, 'destroy'])->name('projects.destroy.post')->middleware('menu:delivery-project.delete-project');
 
+    // Close / Reopen project (manual). Close mengunci project jadi read-only;
+    // Reopen membukanya lagi. Keduanya butuh izin delivery-project.close-project.
+    Route::post('/projects/{project}/close',  [DeliveryProjectController::class, 'close'])->name('projects.close')->middleware('menu:delivery-project.close-project');
+    Route::post('/projects/{project}/reopen', [DeliveryProjectController::class, 'reopen'])->name('projects.reopen')->middleware('menu:delivery-project.close-project');
+
     Route::get('/projects', [DeliveryProjectController::class, 'index'])->name('projects.index')->middleware('menu:delivery.project');
     Route::get('/projects/{project}', [DeliveryProjectController::class, 'show'])->name('projects.show')->middleware('menu:delivery.project');
 
     // Write endpoints per section — dipetakan ke function menu section-nya masing-masing
     // supaya sebuah role bisa dibatasi hanya boleh mengedit section tertentu.
-    Route::middleware('menu:delivery-project.edit-general-info')->group(function () {
+    Route::middleware(['menu:delivery-project.edit-general-info', 'project.editable'])->group(function () {
         Route::patch('/projects/{project}/general-info', [DeliveryProjectController::class, 'updateGeneralInfo'])->name('projects.updateGeneralInfo');
         Route::patch('/projects/{project}/update-field', [DeliveryProjectController::class, 'updateField'])->name('projects.updateField');
     });
 
-    Route::middleware('menu:delivery-project.edit-location-info')->group(function () {
+    Route::middleware(['menu:delivery-project.edit-location-info', 'project.editable'])->group(function () {
         Route::patch('/projects/{project}/location-info', [DeliveryProjectController::class, 'updateLocationInfo'])->name('projects.updateLocationInfo');
     });
 
-    Route::middleware('menu:delivery-project.manage-documents')->group(function () {
+    Route::middleware(['menu:delivery-project.manage-documents', 'project.editable'])->group(function () {
         Route::post('/projects/{project}/generate-folder', [DeliveryProjectController::class, 'generateFolder'])->name('projects.generateFolder');
         Route::delete('/projects/{project}/folder', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder');
         Route::post('/projects/{project}/folder/delete', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder.post');
@@ -261,7 +266,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // Delivery Information — termasuk Term Of Payment (TOP) Plan yang tampil di
     // dalam section yang sama pada halaman project detail.
-    Route::middleware('menu:delivery-project.edit-delivery-info')->group(function () {
+    Route::middleware(['menu:delivery-project.edit-delivery-info', 'project.editable'])->group(function () {
         Route::patch('/projects/{project}/delivery-info', [DeliveryProjectController::class, 'updateDeliveryInfo'])->name('projects.updateDeliveryInfo');
         Route::patch('/projects/{project}/delivery-data', [DeliveryProjectController::class, 'updateDeliveryData'])->name('projects.updateDeliveryData');
         Route::patch('/projects/{project}/financial-info', [DeliveryProjectController::class, 'updateFinancialInfo'])->name('projects.updateFinancialInfo');
@@ -277,7 +282,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // Risk Register routes
     Route::get('/projects/{project}/risks',          [DeliveryProjectRiskController::class, 'index'])->name('projects.risks.index');
-    Route::middleware('menu:delivery-project.manage-risk')->group(function () {
+    Route::middleware(['menu:delivery-project.manage-risk', 'project.editable'])->group(function () {
         Route::post('/projects/{project}/risks',         [DeliveryProjectRiskController::class, 'store'])->name('projects.risks.store');
         Route::put('/projects/{project}/risks/{risk}',   [DeliveryProjectRiskController::class, 'update'])->name('projects.risks.update');
         Route::delete('/projects/{project}/risks/{risk}',[DeliveryProjectRiskController::class, 'destroy'])->name('projects.risks.destroy');
@@ -287,7 +292,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // Plan Cost routes
     Route::get('/projects/{project}/costs',                                      [DeliveryProjectCostController::class, 'index'])->name('projects.costs.index');
     Route::get('/projects/{project}/costs/{cost}/items',                         [DeliveryProjectCostController::class, 'indexItems'])->name('projects.costs.items.index');
-    Route::middleware('menu:delivery-project.manage-plan-cost')->group(function () {
+    Route::middleware(['menu:delivery-project.manage-plan-cost', 'project.editable'])->group(function () {
         Route::post('/projects/{project}/costs',                                     [DeliveryProjectCostController::class, 'store'])->name('projects.costs.store');
         Route::post('/projects/{project}/costs/init',                                [DeliveryProjectCostController::class, 'init'])->name('projects.costs.init');
         Route::put('/projects/{project}/costs/{cost}',                               [DeliveryProjectCostController::class, 'update'])->name('projects.costs.update');
@@ -301,7 +306,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     });
 
     // Document management routes
-    Route::middleware('menu:delivery-project.manage-documents')->group(function () {
+    Route::middleware(['menu:delivery-project.manage-documents', 'project.editable'])->group(function () {
         Route::post('/projects/{project}/documents', [DeliveryProjectController::class, 'storeDocument'])->name('project.documents.store');
         Route::post('/projects/{project}/documents/upload', [DeliveryProjectController::class, 'uploadDocument'])->name('project.documents.upload');
         Route::post('/projects/{project}/documents/create-upload-session', [DeliveryProjectController::class, 'createDocumentUploadSession'])->name('project.documents.create-upload-session');
@@ -313,7 +318,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // Team member management routes
     Route::get('/projects/{project}/team-members', [DeliveryProjectController::class, 'getTeamMembers'])->name('projects.team.index');
-    Route::middleware('menu:delivery-project.manage-team')->group(function () {
+    Route::middleware(['menu:delivery-project.manage-team', 'project.editable'])->group(function () {
         Route::post('/projects/{project}/team-members', [DeliveryProjectController::class, 'storeTeamMember'])->name('projects.team.store');
         Route::put('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'updateTeamMember'])->name('projects.team.update');
         Route::delete('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy');
@@ -322,7 +327,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // Project updates/issues routes
     Route::get('/project-updates/{project_update}/edit', [DeliveryProjectUpdateController::class, 'edit'])->name('project.updates.edit');
-    Route::middleware('menu:delivery-project.manage-issue-log')->group(function () {
+    Route::middleware(['menu:delivery-project.manage-issue-log', 'project.editable'])->group(function () {
         Route::post('/projects/{project}/updates', [DeliveryProjectUpdateController::class, 'store'])->name('project.updates.store');
         Route::patch('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'update'])->name('project.updates.update');
         Route::delete('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'destroy'])->name('project.updates.destroy');
@@ -339,7 +344,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // Project Issue Log routes (AJAX CRUD on the project detail page)
     Route::get('/projects/{project}/issues',           [DeliveryProjectIssueController::class, 'apiIndex'])->name('projects.issues.index');
-    Route::middleware('menu:delivery-project.manage-issue-log')->group(function () {
+    Route::middleware(['menu:delivery-project.manage-issue-log', 'project.editable'])->group(function () {
         Route::post('/projects/{project}/issues',          [DeliveryProjectIssueController::class, 'store'])->name('projects.issues.store');
         Route::put('/projects/{project}/issues/{issue}',   [DeliveryProjectIssueController::class, 'update'])->name('projects.issues.update');
         Route::delete('/projects/{project}/issues/{issue}',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy');
@@ -366,7 +371,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // Indonesian holidays for date pickers (national + cuti bersama)
     Route::get('/api/holidays', [HolidayController::class, 'index'])->name('holidays.index');
 
-    Route::prefix('planning/{project}')->name('planning.')->group(function () {
+    Route::prefix('planning/{project}')->middleware('project.editable')->name('planning.')->group(function () {
 
         // Main planning page
         Route::get('/', [DeliveryProjectPlanningController::class, 'show'])->name('show');

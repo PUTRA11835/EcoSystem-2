@@ -182,6 +182,7 @@ class DeliveryProjectController extends Controller
             'deliveryOwner.basicData',
             'deliveryManager.basicData',
             'createdBy',
+            'closedBy.basicData',
             'documents',
             'teamMembers.basicData',
             'plannings.phase'
@@ -1019,6 +1020,50 @@ class DeliveryProjectController extends Controller
         return back()->with('success', 'Team member updated successfully.');
     }
 
+    /**
+     * Close a project manually. Overrides the auto-derived category (kept 'Closed'
+     * regardless of planning progress) and locks the project read-only until it is
+     * reopened. Gated by menu:delivery-project.close-project.
+     */
+    public function close(Request $request, DeliveryProject $project)
+    {
+        if (!$project->is_closed) {
+            $project->update([
+                'is_closed' => true,
+                'closed_at' => now(),
+                'closed_by' => session('user.id'),
+                'category'  => 'Closed',
+            ]);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Project closed successfully.']);
+        }
+        return back()->with('success', 'Project closed successfully.');
+    }
+
+    /**
+     * Reopen a closed project. Clears the manual-close flag and lets the category
+     * be recomputed from planning progress. Gated by menu:delivery-project.close-project.
+     */
+    public function reopen(Request $request, DeliveryProject $project)
+    {
+        if ($project->is_closed) {
+            $project->is_closed = false;
+            $project->closed_at = null;
+            $project->closed_by = null;
+            $project->save();
+
+            // Category was pinned to 'Closed' while locked — recompute from planning now.
+            $project->updateFromPlanning();
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Project reopened successfully.']);
+        }
+        return back()->with('success', 'Project reopened successfully.');
+    }
+
     public function destroy(Request $request, $project)
     {
         // NOTE: We resolve the model manually (instead of route-model binding) so
@@ -1357,8 +1402,8 @@ class DeliveryProjectController extends Controller
 
             if ($project->onedrive_folder_id) {
                 // Folder already exists — just recreate the share link
-                $shareUrl = $oneDrive->createAnonymousLink($project->onedrive_folder_id);
-                $project->update(['onedrive_folder_url' => $shareUrl]);
+                $link = $oneDrive->createShareLink($project->onedrive_folder_id);
+                $project->applyOneDriveShareLink($link);
             } else {
                 // Hierarki: DELIVERY PROJECT > Customer > Project Folder
                 $project->load('client.basicData');
@@ -1370,17 +1415,22 @@ class DeliveryProjectController extends Controller
 
                 // Create project sub-folder inside customer folder
                 $folderId = $oneDrive->createSubFolder($customerFolderId, $folderName);
-                $shareUrl = $oneDrive->createAnonymousLink($folderId);
-                $project->update([
-                    'onedrive_folder_id'  => $folderId,
-                    'onedrive_folder_url' => $shareUrl,
-                ]);
+                $project->update(['onedrive_folder_id' => $folderId]);
+
+                $link = $oneDrive->createShareLink($folderId);
+                $project->applyOneDriveShareLink($link);
             }
 
             return response()->json([
-                'success'     => true,
-                'message'     => 'OneDrive folder ready.',
-                'folder_url'  => $shareUrl,
+                'success'          => true,
+                'message'          => 'OneDrive folder ready.',
+                'folder_url'       => $link['url'],
+                'link_scope'       => $link['scope'],
+                'link_scope_label' => $project->refresh()->onedrive_link_scope_label,
+                'link_expires_at'  => $link['expires_at']?->toIso8601String(),
+                // Ditampilkan sebagai peringatan di UI: link bukan "Anyone with the link",
+                // jadi customer di luar tenant tidak akan bisa membukanya.
+                'link_warning'     => $project->onedrive_link_warning,
             ]);
 
         } catch (\Exception $e) {
@@ -1564,7 +1614,13 @@ class DeliveryProjectController extends Controller
 
         try {
             (new OneDriveService())->deleteFolder($project->onedrive_folder_id);
-            $project->update(['onedrive_folder_id' => null, 'onedrive_folder_url' => null]);
+            $project->update([
+                'onedrive_folder_id'       => null,
+                'onedrive_folder_url'      => null,
+                'onedrive_link_scope'      => null,
+                'onedrive_link_expires_at' => null,
+                'onedrive_link_checked_at' => null,
+            ]);
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
             Log::error('OneDrive deleteFolder failed (project)', [

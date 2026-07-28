@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class DeliverySupport extends Model
 {
     use HasFactory;
+    use \App\Models\Concerns\HasOneDriveShareLink;
 
     protected $table = 'delivery_support';
 
@@ -38,11 +39,16 @@ class DeliverySupport extends Model
         'onedrive_folder_url',
         'onedrive_deliverable_folder_id',
         'onedrive_deliverable_folder_url',
+        'onedrive_link_scope',
+        'onedrive_link_expires_at',
+        'onedrive_link_checked_at',
         'service_window_start',
         'service_window_end',
     ];
 
     protected $casts = [
+        'onedrive_link_expires_at' => 'datetime',
+        'onedrive_link_checked_at' => 'datetime',
         'start_date' => 'date',
         'end_date' => 'date',
         'resolution_estimated' => 'date',

@@ -963,22 +963,25 @@ class DeliverySupportController extends Controller
 
             if ($support->onedrive_folder_id) {
                 // Folder already exists — just recreate the share link (idempotent + upgrades to edit)
-                $shareUrl = $oneDrive->createAnonymousLink($support->onedrive_folder_id);
-                $support->update(['onedrive_folder_url' => $shareUrl]);
+                $link = $oneDrive->createShareLink($support->onedrive_folder_id);
+                $support->applyOneDriveShareLink($link);
             } else {
                 // First time — create folder then share link
                 $folderId = $oneDrive->createFolder($folderName);
-                $shareUrl = $oneDrive->createAnonymousLink($folderId);
-                $support->update([
-                    'onedrive_folder_id'  => $folderId,
-                    'onedrive_folder_url' => $shareUrl,
-                ]);
+                $support->update(['onedrive_folder_id' => $folderId]);
+
+                $link = $oneDrive->createShareLink($folderId);
+                $support->applyOneDriveShareLink($link);
             }
 
             return response()->json([
-                'success'    => true,
-                'message'    => 'OneDrive folder ready.',
-                'folder_url' => $shareUrl,
+                'success'          => true,
+                'message'          => 'OneDrive folder ready.',
+                'folder_url'       => $link['url'],
+                'link_scope'       => $link['scope'],
+                'link_scope_label' => $support->refresh()->onedrive_link_scope_label,
+                'link_expires_at'  => $link['expires_at']?->toIso8601String(),
+                'link_warning'     => $support->onedrive_link_warning,
             ]);
 
         } catch (\Exception $e) {
@@ -1001,7 +1004,13 @@ class DeliverySupportController extends Controller
 
         try {
             (new OneDriveService())->deleteFolder($support->onedrive_folder_id);
-            $support->update(['onedrive_folder_id' => null, 'onedrive_folder_url' => null]);
+            $support->update([
+                'onedrive_folder_id'       => null,
+                'onedrive_folder_url'      => null,
+                'onedrive_link_scope'      => null,
+                'onedrive_link_expires_at' => null,
+                'onedrive_link_checked_at' => null,
+            ]);
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
             Log::error('OneDrive deleteFolder failed (support)', [
@@ -1134,8 +1143,16 @@ class DeliverySupportController extends Controller
 
         try {
             $oneDrive = new OneDriveService();
-            $url      = $oneDrive->createAnonymousLink($request->input('folder_id'), 'edit');
-            return response()->json(['success' => true, 'url' => $url]);
+            $link     = $oneDrive->createShareLink($request->input('folder_id'), 'edit');
+
+            return response()->json([
+                'success'      => true,
+                'url'          => $link['url'],
+                'link_scope'   => $link['scope'],
+                'link_warning' => $link['scope'] === 'anonymous'
+                    ? null
+                    : 'This link only works for people inside Eclectic Consulting (scope: ' . $link['scope'] . '). Customers cannot open it.',
+            ]);
         } catch (\Throwable $e) {
             Log::error('getDeliverableShareLink failed', [
                 'support_id' => $support->id,
