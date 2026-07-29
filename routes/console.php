@@ -18,3 +18,10 @@ Schedule::command('activities:recompute-status')->dailyAt('00:05');
 // - contract end date dalam 30 hari / overdue (pertimbangan adendum)
 // - TOP invoice jatuh tempo (estimated_date) yang belum diisi Submit Invoice Date
 Schedule::command('notifications:project-reminders')->dailyAt('07:00');
+
+// Periksa & perbaiki share link OneDrive tiap hari 02:30 — link bisa mati sendiri
+// (kebijakan expiry "Anyone links", scope diturunkan tenant, izin dicabut manual)
+// dan tanpa ini kegagalannya baru ketahuan saat customer melapor tidak bisa akses.
+Schedule::command('onedrive:audit-links --fix')
+    ->dailyAt('02:30')
+    ->withoutOverlapping();

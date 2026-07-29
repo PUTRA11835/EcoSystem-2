@@ -56,10 +56,18 @@
                 @endif
             </div>
         </div>
-        {{-- Search Bar — selaras dengan style input pada Create form (rounded-lg + border eksplisit + padding seragam) --}}
-        <div class="p-4">
+        {{-- Distinct option lists for the per-column header filters (desktop) --}}
+        @php
+            $typeOptions     = $projects->pluck('project_type')->filter()->unique()->sort()->values();
+            $aeOptions       = $projects->pluck('ae_name')->filter()->unique()->sort()->values();
+            $ownerOptions    = $projects->pluck('project_owner')->filter()->unique()->sort()->values();
+            $customerOptions = $projects->map(fn($p) => $p->client->basicData->name_1 ?? null)->filter()->unique()->sort()->values();
+        @endphp
+        {{-- Mobile-only search. On desktop, filtering & sorting live in the table
+             header (like the Support Tickets list). --}}
+        <div class="p-4 lg:hidden">
             <input type="search" id="project-search"
-                placeholder="Search by customer, type, description, PIC, or status..."
+                placeholder="Search by IO, customer, type, project name, AE, or owner..."
                 class="block w-full border border-gray-300 rounded-lg shadow-sm primary-focus transition text-sm px-4 py-2.5">
         </div>
         {{-- MOBILE VIEW: Card Layout --}}
@@ -68,7 +76,12 @@
                 @forelse($projects as $project)
                     <div class="project-card bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                          onclick="window.location.href='{{ route('projects.show', $project->id) }}'"
-                         data-searchable-content="{{ strtolower(($project->client->basicData->name_1 ?? '') . ' ' . $project->project_type . ' ' . $project->description . ' ' . $project->project_owner . '' . $project->status . ' ' . $project->category) }}">
+                         data-type="{{ strtolower($project->project_type ?? '') }}"
+                         data-category="{{ strtolower($project->category ?? '') }}"
+                         data-status="{{ strtolower($project->status ?? '') }}"
+                         data-ae="{{ strtolower($project->ae_name ?? '') }}"
+                         data-customer="{{ strtolower($project->client->basicData->name_1 ?? '') }}"
+                         data-searchable-content="{{ strtolower(($project->io_number ?? '') . ' ' . ($project->client->basicData->name_1 ?? '') . ' ' . $project->project_type . ' ' . $project->name . ' ' . ($project->ae_name ?? '') . ' ' . $project->project_owner . ' ' . $project->status . ' ' . $project->category) }}">
                         {{-- Card Header --}}
                         <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <div class="flex justify-between items-start">
@@ -82,10 +95,20 @@
                         </div>
                         {{-- Card Body --}}
                         <div class="px-4 py-3 space-y-3">
-                            {{-- Project Description --}}
+                            {{-- IO Number --}}
                             <div>
-                                <p class="text-sm text-gray-500">Description:</p>
-                                <p class="text-sm font-medium text-gray-900 mt-1">{{ $project->description }}</p>
+                                <p class="text-sm text-gray-500">IO Number:</p>
+                                <p class="text-sm font-medium text-gray-900 mt-1">{{ $project->io_number ?? 'N/A' }}</p>
+                            </div>
+                            {{-- Project Name --}}
+                            <div>
+                                <p class="text-sm text-gray-500">Project Name:</p>
+                                <p class="text-sm font-medium text-gray-900 mt-1">{{ $project->name }}</p>
+                            </div>
+                            {{-- Account Executive --}}
+                            <div>
+                                <p class="text-sm text-gray-500">AE:</p>
+                                <p class="text-sm font-medium text-gray-900 mt-1">{{ $project->ae_name ?? 'N/A' }}</p>
                             </div>
                             {{-- Project Owner --}}
                             <div>
@@ -139,24 +162,147 @@
                  style="height: 500px; max-height: 500px; overflow-y: scroll; overflow-x: auto;">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50 sticky top-0 z-10">
-                        <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 border-b">
-                                Customer
+                        <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {{-- IO Number: sort + keyword filter --}}
+                            <th class="proj-th relative bg-gray-50 border-b">
+                                <button type="button" class="proj-th-btn" onclick="toggleProjPanel('proj-panel-io', this)">
+                                    <span>IO Number</span>
+                                    <span id="proj-sort-io" class="proj-sort-icon">⇅</span>
+                                    @include('delivery.project.projects.partials.proj-funnel', ['key' => 'io'])
+                                </button>
+                                <div id="proj-panel-io" class="proj-panel hidden">
+                                    @include('delivery.project.projects.partials.proj-sort-btns', ['key' => 'io'])
+                                    <label class="proj-panel-label">Search</label>
+                                    <input type="text" oninput="projSetFilter('io', this.value)" placeholder="Type IO number…" class="proj-panel-input">
+                                    @include('delivery.project.projects.partials.proj-clear', ['key' => 'io'])
+                                </div>
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 border-b">
-                                Project Type
+                            {{-- Customer: sort + select filter --}}
+                            <th class="proj-th relative bg-gray-50 border-b">
+                                <button type="button" class="proj-th-btn" onclick="toggleProjPanel('proj-panel-customer', this)">
+                                    <span>Customer</span>
+                                    <span id="proj-sort-customer" class="proj-sort-icon">⇅</span>
+                                    @include('delivery.project.projects.partials.proj-funnel', ['key' => 'customer'])
+                                </button>
+                                <div id="proj-panel-customer" class="proj-panel hidden">
+                                    @include('delivery.project.projects.partials.proj-sort-btns', ['key' => 'customer'])
+                                    <label class="proj-panel-label">Filter</label>
+                                    <select onchange="projSetFilter('customer', this.value)" class="proj-panel-input">
+                                        <option value="">All Customers</option>
+                                        @foreach($customerOptions as $c)<option value="{{ strtolower($c) }}">{{ $c }}</option>@endforeach
+                                    </select>
+                                    @include('delivery.project.projects.partials.proj-clear', ['key' => 'customer'])
+                                </div>
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 border-b">
-                                Description
+                            {{-- Project Type: sort + select filter --}}
+                            <th class="proj-th relative bg-gray-50 border-b">
+                                <button type="button" class="proj-th-btn" onclick="toggleProjPanel('proj-panel-type', this)">
+                                    <span>Project Type</span>
+                                    <span id="proj-sort-type" class="proj-sort-icon">⇅</span>
+                                    @include('delivery.project.projects.partials.proj-funnel', ['key' => 'type'])
+                                </button>
+                                <div id="proj-panel-type" class="proj-panel hidden">
+                                    @include('delivery.project.projects.partials.proj-sort-btns', ['key' => 'type'])
+                                    <label class="proj-panel-label">Filter</label>
+                                    <select onchange="projSetFilter('type', this.value)" class="proj-panel-input">
+                                        <option value="">All Types</option>
+                                        @foreach($typeOptions as $t)<option value="{{ strtolower($t) }}">{{ $t }}</option>@endforeach
+                                    </select>
+                                    @include('delivery.project.projects.partials.proj-clear', ['key' => 'type'])
+                                </div>
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 border-b">
-                                PIC/Project Manager
+                            {{-- Project Name: sort + keyword filter --}}
+                            <th class="proj-th relative bg-gray-50 border-b">
+                                <button type="button" class="proj-th-btn" onclick="toggleProjPanel('proj-panel-name', this)">
+                                    <span>Project Name</span>
+                                    <span id="proj-sort-name" class="proj-sort-icon">⇅</span>
+                                    @include('delivery.project.projects.partials.proj-funnel', ['key' => 'name'])
+                                </button>
+                                <div id="proj-panel-name" class="proj-panel hidden">
+                                    @include('delivery.project.projects.partials.proj-sort-btns', ['key' => 'name'])
+                                    <label class="proj-panel-label">Search</label>
+                                    <input type="text" oninput="projSetFilter('name', this.value)" placeholder="Type project name…" class="proj-panel-input">
+                                    @include('delivery.project.projects.partials.proj-clear', ['key' => 'name'])
+                                </div>
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 border-b">
-                                Project Status
+                            {{-- AE: sort + select filter --}}
+                            <th class="proj-th relative bg-gray-50 border-b">
+                                <button type="button" class="proj-th-btn" onclick="toggleProjPanel('proj-panel-ae', this)">
+                                    <span>AE</span>
+                                    <span id="proj-sort-ae" class="proj-sort-icon">⇅</span>
+                                    @include('delivery.project.projects.partials.proj-funnel', ['key' => 'ae'])
+                                </button>
+                                <div id="proj-panel-ae" class="proj-panel hidden">
+                                    @include('delivery.project.projects.partials.proj-sort-btns', ['key' => 'ae'])
+                                    <label class="proj-panel-label">Filter</label>
+                                    <select onchange="projSetFilter('ae', this.value)" class="proj-panel-input">
+                                        <option value="">All AE</option>
+                                        @foreach($aeOptions as $a)<option value="{{ strtolower($a) }}">{{ $a }}</option>@endforeach
+                                    </select>
+                                    @include('delivery.project.projects.partials.proj-clear', ['key' => 'ae'])
+                                </div>
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 border-b">
-                                Last Update Date
+                            {{-- Project Owner: sort + select filter --}}
+                            <th class="proj-th relative bg-gray-50 border-b">
+                                <button type="button" class="proj-th-btn" onclick="toggleProjPanel('proj-panel-owner', this)">
+                                    <span>Project Owner</span>
+                                    <span id="proj-sort-owner" class="proj-sort-icon">⇅</span>
+                                    @include('delivery.project.projects.partials.proj-funnel', ['key' => 'owner'])
+                                </button>
+                                <div id="proj-panel-owner" class="proj-panel hidden">
+                                    @include('delivery.project.projects.partials.proj-sort-btns', ['key' => 'owner'])
+                                    <label class="proj-panel-label">Filter</label>
+                                    <select onchange="projSetFilter('owner', this.value)" class="proj-panel-input">
+                                        <option value="">All Owners</option>
+                                        @foreach($ownerOptions as $o)<option value="{{ strtolower($o) }}">{{ $o }}</option>@endforeach
+                                    </select>
+                                    @include('delivery.project.projects.partials.proj-clear', ['key' => 'owner'])
+                                </div>
+                            </th>
+                            {{-- Category: sort + select filter --}}
+                            <th class="proj-th relative bg-gray-50 border-b">
+                                <button type="button" class="proj-th-btn" onclick="toggleProjPanel('proj-panel-category', this)">
+                                    <span>Category</span>
+                                    <span id="proj-sort-category" class="proj-sort-icon">⇅</span>
+                                    @include('delivery.project.projects.partials.proj-funnel', ['key' => 'category'])
+                                </button>
+                                <div id="proj-panel-category" class="proj-panel hidden">
+                                    @include('delivery.project.projects.partials.proj-sort-btns', ['key' => 'category'])
+                                    <label class="proj-panel-label">Filter</label>
+                                    <select onchange="projSetFilter('category', this.value)" class="proj-panel-input">
+                                        <option value="">All Categories</option>
+                                        <option value="open">Open</option>
+                                        <option value="in process">In Process</option>
+                                        <option value="closed">Closed</option>
+                                    </select>
+                                    @include('delivery.project.projects.partials.proj-clear', ['key' => 'category'])
+                                </div>
+                            </th>
+                            {{-- Project Status: sort + select filter --}}
+                            <th class="proj-th relative bg-gray-50 border-b">
+                                <button type="button" class="proj-th-btn" onclick="toggleProjPanel('proj-panel-status', this)">
+                                    <span>Project Status</span>
+                                    <span id="proj-sort-status" class="proj-sort-icon">⇅</span>
+                                    @include('delivery.project.projects.partials.proj-funnel', ['key' => 'status'])
+                                </button>
+                                <div id="proj-panel-status" class="proj-panel hidden">
+                                    @include('delivery.project.projects.partials.proj-sort-btns', ['key' => 'status'])
+                                    <label class="proj-panel-label">Filter</label>
+                                    <select onchange="projSetFilter('status', this.value)" class="proj-panel-input">
+                                        <option value="">All Statuses</option>
+                                        <option value="on track">On Track</option>
+                                        <option value="at risk">At Risk</option>
+                                        <option value="at critical">At Critical</option>
+                                    </select>
+                                    @include('delivery.project.projects.partials.proj-clear', ['key' => 'status'])
+                                </div>
+                            </th>
+                            {{-- Last Update Date: direct sort toggle --}}
+                            <th class="proj-th bg-gray-50 border-b">
+                                <button type="button" class="proj-th-btn" onclick="projToggleSort('updated')" title="Sort by Last Update">
+                                    <span>Last Update Date</span>
+                                    <span id="proj-sort-updated" class="proj-sort-icon">⇅</span>
+                                </button>
                             </th>
                         </tr>
                     </thead>
@@ -164,7 +310,19 @@
                             @forelse($projects as $project)
                                 <tr class="project-row hover:bg-gray-50 transition-colors cursor-pointer"
                                     onclick="window.location.href='{{ route('projects.show', $project->id) }}'"
-                                    data-searchable-content="{{ strtolower(($project->client->basicData->name_1 ?? '') . ' ' . $project->project_type . ' ' . $project->description . ' ' . $project->project_owner . '' . $project->status . ' ' . $project->category) }}">
+                                    data-io="{{ strtolower($project->io_number ?? '') }}"
+                                    data-name="{{ strtolower($project->name ?? '') }}"
+                                    data-type="{{ strtolower($project->project_type ?? '') }}"
+                                    data-category="{{ strtolower($project->category ?? '') }}"
+                                    data-status="{{ strtolower($project->status ?? '') }}"
+                                    data-ae="{{ strtolower($project->ae_name ?? '') }}"
+                                    data-owner="{{ strtolower($project->project_owner ?? '') }}"
+                                    data-customer="{{ strtolower($project->client->basicData->name_1 ?? '') }}"
+                                    data-updated="{{ optional($project->updated_at)->timestamp ?? 0 }}"
+                                    data-searchable-content="{{ strtolower(($project->io_number ?? '') . ' ' . ($project->client->basicData->name_1 ?? '') . ' ' . $project->project_type . ' ' . $project->name . ' ' . ($project->ae_name ?? '') . ' ' . $project->project_owner . ' ' . $project->status . ' ' . $project->category) }}">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ $project->io_number ?? 'N/A' }}
+                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm font-medium text-gray-900">
                                             {{ $project->client->basicData->name_1 ?? 'N/A' }}
@@ -174,28 +332,31 @@
                                         {{ $project->project_type }}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-500">
-                                        <div class="max-w-xs truncate" title="{{ $project->description }}">
-                                            {{ $project->description }}
+                                        <div class="max-w-xs truncate" title="{{ $project->name }}">
+                                            {{ $project->name }}
                                         </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ $project->ae_name ?? 'N/A' }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {{ $project->project_owner ?? 'N/A' }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <div class="flex flex-col space-y-1">
-                                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                                {{ $project->category === 'Open' ? 'bg-yellow-100 text-yellow-800' :
-                                                   ($project->category === 'In Process' ? 'bg-blue-100 text-blue-800' : 
-                                                   ($project->category === 'Closed' ? 'bg-green-100 text-green-800' :'bg-blue-100 text-blue-800')) }}">
-                                                {{ $project->category ?? 'N/A' }}
-                                            </span>
-                                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                                {{ $project->status === 'On Track' ? 'bg-green-100 text-green-800' :
-                                                   ($project->status === 'At Risk' ? 'bg-yellow-100 text-yellow-800' :
-                                                   ($project->status === 'At Critical' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800')) }}">
-                                                {{ $project->status ?? 'N/A' }}
-                                            </span>
-                                        </div>
+                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                            {{ $project->category === 'Open' ? 'bg-yellow-100 text-yellow-800' :
+                                               ($project->category === 'In Process' ? 'bg-blue-100 text-blue-800' :
+                                               ($project->category === 'Closed' ? 'bg-green-100 text-green-800' :'bg-blue-100 text-blue-800')) }}">
+                                            {{ $project->category ?? 'N/A' }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                            {{ $project->status === 'On Track' ? 'bg-green-100 text-green-800' :
+                                               ($project->status === 'At Risk' ? 'bg-yellow-100 text-yellow-800' :
+                                               ($project->status === 'At Critical' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800')) }}">
+                                            {{ $project->status ?? 'N/A' }}
+                                        </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {{ $project->updated_at->format('d M Y') }}
@@ -203,7 +364,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="px-6 py-12 text-center">
+                                    <td colspan="9" class="px-6 py-12 text-center">
                                         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                         </svg>
@@ -214,7 +375,7 @@
                             @endforelse
                             {{-- No Results Row --}}
                             <tr id="desktop-no-results-row" class="hidden">
-                                <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">
+                                <td colspan="9" class="px-6 py-4 text-center text-sm text-gray-500">
                                     No projects match your search.
                                 </td>
                             </tr>
@@ -328,6 +489,23 @@
             display: block !important;
             visibility: visible !important;
         }
+
+        /* ── Per-column header sort + filter (ticket-list style) ─────────────── */
+        .proj-th { padding: 0; }
+        .proj-th-btn { width: 100%; display: flex; align-items: center; gap: 0.375rem; padding: 0.75rem 1.5rem; cursor: pointer; background: transparent; text-align: left; }
+        .proj-th-btn:hover { background: #f3f4f6; }
+        .proj-sort-icon { color: #d1d5db; font-weight: 400; text-transform: none; letter-spacing: normal; font-size: 0.8rem; }
+        .proj-sort-icon.active { color: #ef4444; font-weight: 700; }
+        .proj-funnel { width: 0.8rem; height: 0.8rem; color: #d1d5db; margin-left: auto; flex-shrink: 0; }
+        .proj-funnel.active { color: #ef4444; }
+        .proj-panel { background: #fff; border: 1px solid #f3f4f6; border-radius: 0.75rem; box-shadow: 0 10px 25px rgba(0,0,0,0.15); padding: 0.75rem; min-width: 220px; text-transform: none; letter-spacing: normal; }
+        .proj-panel-label { display: block; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.25rem; }
+        .proj-panel-input { width: 100%; padding: 0.375rem 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; font-weight: 400; text-transform: none; color: #374151; background: #fff; }
+        .proj-panel-input:focus { outline: none; border-color: #f87171; box-shadow: 0 0 0 3px rgba(254,202,202,0.5); }
+        .proj-sort-btn { flex: 1; padding: 0.375rem 0.5rem; font-size: 0.75rem; color: #4b5563; border: 1px solid #e5e7eb; border-radius: 0.375rem; background: #fff; cursor: pointer; }
+        .proj-sort-btn:hover { background: #f9fafb; }
+        .proj-clear-btn { margin-top: 0.75rem; width: 100%; padding: 0.375rem 0.5rem; font-size: 0.75rem; color: #4b5563; border: 1px solid #e5e7eb; border-radius: 0.375rem; background: #fff; cursor: pointer; }
+        .proj-clear-btn:hover { background: #f9fafb; }
     </style>
 
     <script>
@@ -355,69 +533,26 @@
             adjustTableHeight();
             window.addEventListener('resize', adjustTableHeight);
 
-            // Search functionality for both mobile and desktop
-            searchInput.addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase().trim();
-                
-                // Mobile search
-                const mobileCards = document.querySelectorAll('.project-card');
-                const mobileNoResults = document.getElementById('mobile-no-results');
-                let mobileVisibleCards = 0;
-                
-                mobileCards.forEach(card => {
-                    const searchableContent = card.dataset.searchableContent;
-                    if (searchableContent.includes(searchTerm)) {
-                        card.style.display = '';
-                        mobileVisibleCards++;
-                    } else {
-                        card.style.display = 'none';
-                    }
+            // Mobile-only search (filters the cards). Desktop uses the per-column
+            // header sort/filter controls (see global functions below).
+            if (searchInput) {
+                const runMobileSearch = () => {
+                    const term = searchInput.value.toLowerCase().trim();
+                    const cards = document.querySelectorAll('.project-card');
+                    const noRes = document.getElementById('mobile-no-results');
+                    let visible = 0;
+                    cards.forEach(card => {
+                        const ok = (card.dataset.searchableContent || '').includes(term);
+                        card.style.display = ok ? '' : 'none';
+                        if (ok) visible++;
+                    });
+                    if (noRes) noRes.classList.toggle('hidden', !(visible === 0 && cards.length > 0));
+                };
+                searchInput.addEventListener('input', runMobileSearch);
+                searchInput.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') { searchInput.value = ''; runMobileSearch(); }
                 });
-                
-                if (mobileNoResults) {
-                    if (mobileVisibleCards === 0 && mobileCards.length > 0) {
-                        mobileNoResults.classList.remove('hidden');
-                    } else {
-                        mobileNoResults.classList.add('hidden');
-                    }
-                }
-                
-                // Desktop search
-                const desktopRows = document.querySelectorAll('#desktop-project-table-body tr.project-row');
-                const desktopNoResults = document.getElementById('desktop-no-results-row');
-                let desktopVisibleRows = 0;
-                
-                desktopRows.forEach(row => {
-                    const searchableContent = row.dataset.searchableContent;
-                    if (searchableContent.includes(searchTerm)) {
-                        row.style.display = '';
-                        desktopVisibleRows++;
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-                
-                if (desktopNoResults) {
-                    if (desktopVisibleRows === 0 && desktopRows.length > 0) {
-                        desktopNoResults.classList.remove('hidden');
-                    } else {
-                        desktopNoResults.classList.add('hidden');
-                    }
-                }
-
-                // Reset scroll position after search
-                if (tableContainer) {
-                    tableContainer.scrollTop = 0;
-                }
-            });
-            
-            // Clear search on ESC key
-            searchInput.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    this.value = '';
-                    this.dispatchEvent(new Event('input'));
-                }
-            });
+            }
             
             // Prevent double-tap zoom on mobile for buttons
             let lastTouchEnd = 0;
@@ -446,5 +581,97 @@
             if (tableContainer) {
             }
         });
+
+        // ── Desktop header: per-column sort + filter (Support-Tickets style) ──────
+        // Operates on the already-rendered rows. Functions are global because the
+        // header markup wires them via inline onclick/onchange handlers.
+        const PROJ_TEXT_FILTERS = ['io', 'name'];
+        const PROJ_SORT_KEYS    = ['io', 'customer', 'type', 'name', 'ae', 'owner', 'category', 'status', 'updated'];
+        const projState = { sortKey: null, sortDir: 'asc', filters: {} };
+
+        function applyProjectView() {
+            const tbody = document.getElementById('desktop-project-table-body');
+            if (!tbody) return;
+            const rows = Array.from(tbody.querySelectorAll('tr.project-row'));
+            const f = projState.filters;
+            const visible = [];
+
+            rows.forEach(row => {
+                let ok = true;
+                for (const key in f) {
+                    const val = f[key];
+                    if (!val) continue;
+                    const data = row.dataset[key] || '';
+                    if (PROJ_TEXT_FILTERS.includes(key)) { if (!data.includes(val)) { ok = false; break; } }
+                    else if (data !== val) { ok = false; break; }
+                }
+                row.style.display = ok ? '' : 'none';
+                if (ok) visible.push(row);
+            });
+
+            if (projState.sortKey) {
+                const k = projState.sortKey;
+                const dir = projState.sortDir === 'desc' ? -1 : 1;
+                visible.sort((a, b) => {
+                    if (k === 'updated') return ((Number(a.dataset.updated) || 0) - (Number(b.dataset.updated) || 0)) * dir;
+                    return (a.dataset[k] || '').localeCompare(b.dataset[k] || '', undefined, { numeric: true, sensitivity: 'base' }) * dir;
+                });
+                visible.forEach(r => tbody.appendChild(r));
+            }
+
+            const noRes = document.getElementById('desktop-no-results-row');
+            if (noRes) { tbody.appendChild(noRes); noRes.classList.toggle('hidden', !(visible.length === 0 && rows.length > 0)); }
+
+            updateProjIcons();
+            const tc = document.querySelector('.table-container');
+            if (tc) tc.scrollTop = 0;
+        }
+
+        function updateProjIcons() {
+            PROJ_SORT_KEYS.forEach(k => {
+                const el = document.getElementById('proj-sort-' + k);
+                if (!el) return;
+                if (projState.sortKey === k) { el.textContent = projState.sortDir === 'asc' ? '↑' : '↓'; el.classList.add('active'); }
+                else { el.textContent = '⇅'; el.classList.remove('active'); }
+            });
+            ['io', 'customer', 'type', 'name', 'ae', 'owner', 'category', 'status'].forEach(k => {
+                const fn = document.getElementById('proj-funnel-' + k);
+                if (fn) fn.classList.toggle('active', !!projState.filters[k]);
+            });
+        }
+
+        function projSort(key, dir) { projState.sortKey = key; projState.sortDir = dir; applyProjectView(); closeAllProjPanels(); }
+        function projToggleSort(key) {
+            if (projState.sortKey === key) projState.sortDir = (projState.sortDir === 'asc' ? 'desc' : 'asc');
+            else { projState.sortKey = key; projState.sortDir = 'asc'; }
+            applyProjectView();
+        }
+        function projSetFilter(key, value) { projState.filters[key] = (value || '').toLowerCase().trim(); applyProjectView(); }
+        function projClearFilter(key) {
+            projState.filters[key] = '';
+            const panel = document.getElementById('proj-panel-' + key);
+            if (panel) panel.querySelectorAll('input, select').forEach(el => { el.value = ''; });
+            applyProjectView();
+        }
+        // Fixed-position popovers so panels are never clipped by the scroll container.
+        function closeAllProjPanels() { document.querySelectorAll('.proj-panel').forEach(p => p.classList.add('hidden')); }
+        function toggleProjPanel(id, btn) {
+            const panel = document.getElementById(id);
+            if (!panel) return;
+            const isOpen = !panel.classList.contains('hidden');
+            closeAllProjPanels();
+            if (isOpen) return;
+            const r = btn.getBoundingClientRect();
+            panel.style.position = 'fixed';
+            panel.style.top = (r.bottom + 4) + 'px';
+            panel.style.left = Math.min(r.left, window.innerWidth - 250) + 'px';
+            panel.style.zIndex = 9999;
+            panel.classList.remove('hidden');
+        }
+        document.addEventListener('click', function (e) {
+            if (e.target.closest('.proj-th-btn') || e.target.closest('.proj-panel')) return;
+            closeAllProjPanels();
+        });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAllProjPanels(); });
     </script>
 @endsection

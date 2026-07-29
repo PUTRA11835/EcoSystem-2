@@ -8,6 +8,7 @@ use App\Models\DeliverySupport;
 use App\Models\DeliverySupportPhase;
 use App\Models\DeliverySupportPlanning;
 use App\Models\DeliverySupportActivity;
+use App\Models\DeliverySupportPaymentTerm;
 use App\Models\DeliverySupportViewConfiguration;
 use App\Models\DeliveryList;
 use App\Models\Customer;
@@ -20,6 +21,7 @@ use App\Services\OneDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class DeliverySupportController extends Controller
 {
@@ -350,7 +352,16 @@ class DeliverySupportController extends Controller
         // Get clients for modal form
         $clients = Customer::with('basicData')->get();
 
-        $canManage = in_array(session('user.role.id'), [1, 5], true);
+        // Diatur lewat Role Management (menu slug: sla.config), bukan role hardcode,
+        // supaya role apa pun bisa diberi/dicabut akses kelola SLA Policy dari UI Role Management.
+        $canManage = (bool) Employee::find(session('user.id'))?->hasPermission('sla.config');
+
+        // Actual Cost = total of all leaf-level Plan Cost actual amounts (derived from
+        // expense details). Seeds the "Actual Cost / GP / %" fields in the Financial
+        // section on first paint; kept in sync afterwards by the Plan Cost JS.
+        $actualCost = \App\Models\DeliverySupportCost::where('delivery_support_id', $support->id)
+            ->whereDoesntHave('children')
+            ->sum('actual_amount');
 
         $sessionUser = session('user') ?? [];
         $roleIds     = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
@@ -370,7 +381,7 @@ class DeliverySupportController extends Controller
                 ])
             : collect();
 
-        return view('delivery.support.list.show', compact('support', 'employees', 'clients', 'canManage', 'isEcAdmin', 'linkedTickets'));
+        return view('delivery.support.list.show', compact('support', 'employees', 'clients', 'canManage', 'isEcAdmin', 'linkedTickets', 'actualCost'));
     }
 
     /**
@@ -484,6 +495,63 @@ class DeliverySupportController extends Controller
                 'message' => 'Failed to update'
             ], 500);
         }
+    }
+
+    /**
+     * Update financial / sales data (IO Number + Revenue + Plan Cost + Gross Profit).
+     * Mirror dari DeliveryProject::updateFinancialInfo. IO Number wajib unik per
+     * delivery support (satu IO Number hanya boleh dipakai oleh satu support).
+     */
+    public function updateFinancialInfo(Request $request, DeliverySupport $support)
+    {
+        $validated = $request->validate([
+            'io_number' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('delivery_support', 'io_number')->ignore($support->id),
+            ],
+            'revenue'                 => 'nullable|numeric|min:0',
+            'plan_cost'               => 'nullable|numeric|min:0',
+            'gross_profit'            => 'nullable|numeric',
+            'gross_profit_percentage' => 'nullable|numeric|min:-100|max:100',
+        ], [
+            'io_number.unique' => 'IO Number ini sudah digunakan oleh delivery support lain.',
+        ]);
+
+        $support->update([
+            'io_number'               => $validated['io_number'] ?: null,
+            'revenue'                 => $validated['revenue'] ?? null,
+            'plan_cost'               => $validated['plan_cost'] ?? null,
+            'gross_profit'            => $validated['gross_profit'] ?? null,
+            'gross_profit_percentage' => $validated['gross_profit_percentage'] ?? null,
+        ]);
+
+        // Payment term amounts are derived (amount = revenue × % / 100). Resync on
+        // every save so terms that went stale from an earlier revenue edit are fixed.
+        $this->syncPaymentTermAmounts($support);
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Financial information updated successfully.']);
+        }
+        return back()->with('success', 'Financial information updated successfully.');
+    }
+
+    /**
+     * Keep derived TOP amounts in sync with the current support revenue.
+     */
+    private function syncPaymentTermAmounts(DeliverySupport $support): void
+    {
+        $revenue = (float) ($support->revenue ?? 0);
+
+        DeliverySupportPaymentTerm::where('delivery_support_id', $support->id)
+            ->get()
+            ->each(function (DeliverySupportPaymentTerm $term) use ($revenue) {
+                $amount = round($revenue * ((float) $term->payment_percentage) / 100, 2);
+                if (abs((float) $term->amount - $amount) > 0.001) {
+                    $term->update(['amount' => $amount]);
+                }
+            });
     }
 
     /**
@@ -897,22 +965,25 @@ class DeliverySupportController extends Controller
 
             if ($support->onedrive_folder_id) {
                 // Folder already exists — just recreate the share link (idempotent + upgrades to edit)
-                $shareUrl = $oneDrive->createAnonymousLink($support->onedrive_folder_id);
-                $support->update(['onedrive_folder_url' => $shareUrl]);
+                $link = $oneDrive->createShareLink($support->onedrive_folder_id);
+                $support->applyOneDriveShareLink($link);
             } else {
                 // First time — create folder then share link
                 $folderId = $oneDrive->createFolder($folderName);
-                $shareUrl = $oneDrive->createAnonymousLink($folderId);
-                $support->update([
-                    'onedrive_folder_id'  => $folderId,
-                    'onedrive_folder_url' => $shareUrl,
-                ]);
+                $support->update(['onedrive_folder_id' => $folderId]);
+
+                $link = $oneDrive->createShareLink($folderId);
+                $support->applyOneDriveShareLink($link);
             }
 
             return response()->json([
-                'success'    => true,
-                'message'    => 'OneDrive folder ready.',
-                'folder_url' => $shareUrl,
+                'success'          => true,
+                'message'          => 'OneDrive folder ready.',
+                'folder_url'       => $link['url'],
+                'link_scope'       => $link['scope'],
+                'link_scope_label' => $support->refresh()->onedrive_link_scope_label,
+                'link_expires_at'  => $link['expires_at']?->toIso8601String(),
+                'link_warning'     => $support->onedrive_link_warning,
             ]);
 
         } catch (\Exception $e) {
@@ -935,7 +1006,13 @@ class DeliverySupportController extends Controller
 
         try {
             (new OneDriveService())->deleteFolder($support->onedrive_folder_id);
-            $support->update(['onedrive_folder_id' => null, 'onedrive_folder_url' => null]);
+            $support->update([
+                'onedrive_folder_id'       => null,
+                'onedrive_folder_url'      => null,
+                'onedrive_link_scope'      => null,
+                'onedrive_link_expires_at' => null,
+                'onedrive_link_checked_at' => null,
+            ]);
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
             Log::error('OneDrive deleteFolder failed (support)', [
@@ -1068,8 +1145,16 @@ class DeliverySupportController extends Controller
 
         try {
             $oneDrive = new OneDriveService();
-            $url      = $oneDrive->createAnonymousLink($request->input('folder_id'), 'edit');
-            return response()->json(['success' => true, 'url' => $url]);
+            $link     = $oneDrive->createShareLink($request->input('folder_id'), 'edit');
+
+            return response()->json([
+                'success'      => true,
+                'url'          => $link['url'],
+                'link_scope'   => $link['scope'],
+                'link_warning' => $link['scope'] === 'anonymous'
+                    ? null
+                    : 'This link only works for people inside Eclectic Consulting (scope: ' . $link['scope'] . '). Customers cannot open it.',
+            ]);
         } catch (\Throwable $e) {
             Log::error('getDeliverableShareLink failed', [
                 'support_id' => $support->id,

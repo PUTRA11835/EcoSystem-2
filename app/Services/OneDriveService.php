@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -407,29 +408,175 @@ class OneDriveService
      * Create an anonymous share link for the given folder ID.
      * type='edit' grants upload + edit access to anyone with the link.
      * Returns the web URL of the share link.
+     *
+     * Backward-compatible thin wrapper around createShareLink(). Prefer
+     * createShareLink() when the caller needs to know the resulting scope /
+     * expiry (see the "link tidak bisa diakses" notes in that method).
      */
     public function createAnonymousLink(string $folderId, string $type = 'edit'): string
     {
-        $token = $this->getAccessToken();
+        return $this->createShareLink($folderId, $type)['url'];
+    }
 
-        $response = Http::withToken($token)->post(
-            "{$this->driveBase}/drive/items/{$folderId}/createLink",
-            [
-                'type'  => $type,
-                'scope' => 'anonymous',
-            ]
-        );
+    /**
+     * Create (or re-use) a sharing link and report exactly what Microsoft gave us.
+     *
+     * Kenapa tidak cukup mengembalikan webUrl saja: Graph TIDAK selalu menghormati
+     * scope=anonymous. Bila kebijakan tenant/OneDrive melarang "Anyone" links, Graph
+     * boleh (a) menolak permintaan, atau (b) mengembalikan link dengan scope lain
+     * (organization/users). Kalau hasilnya disimpan begitu saja, link terlihat
+     * normal di EcoSystem tapi meminta login/Request access di sisi penerima.
+     * Method ini karena itu:
+     *   - mendeteksi penurunan scope dan menandainya (`downgraded`),
+     *   - fallback otomatis ke scope organization bila anonymous ditolak, supaya
+     *     minimal orang internal tetap punya link yang valid (bukan gagal total),
+     *   - mengembalikan expiry link (tenant bisa memaksa "Anyone links expire in N days"),
+     *   - memvalidasi bahwa URL yang didapat benar-benar share link.
+     *
+     * @return array{url:string,scope:string,type:string,requested_scope:string,
+     *               downgraded:bool,has_password:bool,expires_at:?\Illuminate\Support\Carbon,
+     *               permission_id:?string}
+     */
+    public function createShareLink(string $itemId, string $type = 'edit', string $scope = 'anonymous'): array
+    {
+        $response = $this->postCreateLink($itemId, $type, $scope);
+
+        // Anonymous ditolak (kebijakan tenant/site) → coba scope organization agar
+        // pengguna internal tetap dapat link yang berfungsi; caller diberi tahu.
+        if (!$response->successful() && $scope === 'anonymous') {
+            Log::warning('OneDrive createLink anonymous rejected — falling back to organization scope', [
+                'item_id' => $itemId,
+                'type'    => $type,
+                'status'  => $response->status(),
+                'body'    => $response->body(),
+            ]);
+            $response = $this->postCreateLink($itemId, $type, 'organization');
+        }
 
         if (!$response->successful()) {
             Log::error('OneDrive createLink failed', [
-                'folder_id' => $folderId,
-                'type'      => $type,
-                'status'    => $response->status(),
-                'body'      => $response->body(),
+                'item_id' => $itemId,
+                'type'    => $type,
+                'scope'   => $scope,
+                'status'  => $response->status(),
+                'body'    => $response->body(),
             ]);
             throw new \RuntimeException('Failed to create OneDrive share link: ' . $response->body());
         }
 
-        return $response->json('link.webUrl');
+        $url = $response->json('link.webUrl');
+        if (!$url) {
+            throw new \RuntimeException('OneDrive returned a share permission without a webUrl.');
+        }
+
+        $actualScope = $response->json('link.scope') ?: $scope;
+        $expiresRaw  = $response->json('expirationDateTime');
+
+        if ($actualScope !== $scope) {
+            Log::warning('OneDrive share link scope downgraded by tenant policy', [
+                'item_id'         => $itemId,
+                'requested_scope' => $scope,
+                'actual_scope'    => $actualScope,
+            ]);
+        }
+
+        return [
+            'url'             => $url,
+            'scope'           => $actualScope,
+            'type'            => $response->json('link.type') ?: $type,
+            'requested_scope' => $scope,
+            'downgraded'      => $actualScope !== $scope,
+            'has_password'    => (bool) $response->json('hasPassword', false),
+            'expires_at'      => $expiresRaw ? Carbon::parse($expiresRaw) : null,
+            'permission_id'   => $response->json('id'),
+        ];
+    }
+
+    private function postCreateLink(string $itemId, string $type, string $scope)
+    {
+        return Http::withToken($this->getAccessToken())->post(
+            "{$this->driveBase}/drive/items/{$itemId}/createLink",
+            [
+                'type'  => $type,
+                'scope' => $scope,
+            ]
+        );
+    }
+
+    /**
+     * List every sharing permission currently attached to an item.
+     * Returns [] when the item no longer exists (404).
+     *
+     * @return array<int,array{id:?string,scope:?string,type:?string,url:?string,expires_at:?\Illuminate\Support\Carbon}>
+     */
+    public function listItemPermissions(string $itemId): array
+    {
+        $response = Http::withToken($this->getAccessToken())->get(
+            "{$this->driveBase}/drive/items/{$itemId}/permissions"
+        );
+
+        if ($response->status() === 404) {
+            return [];
+        }
+
+        if (!$response->successful()) {
+            Log::error('OneDrive listItemPermissions failed', [
+                'item_id' => $itemId,
+                'status'  => $response->status(),
+                'body'    => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to list OneDrive item permissions: ' . $response->body());
+        }
+
+        return collect($response->json('value', []))
+            ->filter(fn($p) => isset($p['link']))
+            ->map(fn($p) => [
+                'id'         => $p['id'] ?? null,
+                'scope'      => $p['link']['scope'] ?? null,
+                'type'       => $p['link']['type'] ?? null,
+                'url'        => $p['link']['webUrl'] ?? null,
+                'expires_at' => isset($p['expirationDateTime']) ? Carbon::parse($p['expirationDateTime']) : null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * True when the item still exists in the drive (cheap existence probe).
+     */
+    public function itemExists(string $itemId): bool
+    {
+        $response = Http::withToken($this->getAccessToken())->get(
+            "{$this->driveBase}/drive/items/{$itemId}",
+            ['$select' => 'id']
+        );
+
+        if ($response->status() === 404) {
+            return false;
+        }
+
+        if (!$response->successful()) {
+            throw new \RuntimeException('Failed to probe OneDrive item: ' . $response->body());
+        }
+
+        return true;
+    }
+
+    /**
+     * Bedakan share link (`/:f:/g/...`, `/:w:/g/...`) dari webUrl langsung
+     * (`.../Documents/...` atau `_layouts/15/onedrive.aspx?id=...`).
+     *
+     * webUrl langsung HANYA bisa dibuka akun yang punya izin item tersebut —
+     * kalau URL semacam itu tersimpan sebagai "share link", penerima eksternal
+     * pasti kena halaman "Request access".
+     */
+    public static function isShareLinkUrl(?string $url): bool
+    {
+        if (!$url) {
+            return false;
+        }
+
+        // Share link selalu memakai segmen ":<x>:/" (mis. /:f:/g/, /:b:/s/) setelah host.
+        return (bool) preg_match('~/:[a-z]:/~i', $url);
     }
 }

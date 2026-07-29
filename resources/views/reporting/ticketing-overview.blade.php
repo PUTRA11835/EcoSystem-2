@@ -577,7 +577,10 @@ function daysNotClosed(value) {
     if (!value) return 0;
     const created = new Date(value);
     if (isNaN(created)) return 0;
-    return Math.max(0, Math.ceil((Date.now() - created.getTime()) / 86400000));
+    const createdDate = new Date(created.getFullYear(), created.getMonth(), created.getDate());
+    const today = new Date();
+    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return Math.max(0, Math.round((todayDate - createdDate) / 86400000));
 }
 
 function ticketShowUrl(id) {

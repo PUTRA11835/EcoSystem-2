@@ -81,6 +81,13 @@
         background: #94a3b8;
     }
 
+    /* overflow-x:auto membuat overflow-y ikut jadi 'auto' (spec CSS); underline
+       tab aktif (::after bottom:-1px) meluber 1px → memunculkan scrollbar
+       vertikal yang tak perlu. Kunci overflow-y agar hanya scroll horizontal. */
+    #sectionNav nav {
+        overflow-y: hidden;
+    }
+
     /* Scrollbar untuk tab navigation */
     #sectionNav nav::-webkit-scrollbar {
         height: 4px;
@@ -267,6 +274,15 @@
     section {
         scroll-margin-top: 130px;
     }
+
+    /* Read-only saat project di-close: nonaktifkan seluruh kontrol form &
+       tombol di dalam section (termasuk yang dirender dinamis oleh JS).
+       Link <a> & scroll tetap berfungsi agar konten masih bisa dibaca. */
+    body.project-closed section.section-animate :is(input, select, textarea, button) {
+        pointer-events: none !important;
+        opacity: .55;
+        cursor: not-allowed;
+    }
 </style>
 @section('content')
 {{-- ✅ SCROLL PROGRESS INDICATOR --}}
@@ -336,6 +352,19 @@
                 {{ $project->client->basicData->name_1 ?? 'N/A' }} •
                 <span class="font-semibold">{{ $project->project_type ?? 'N/A' }}</span>
             </p>
+            {{-- Status share link OneDrive: siapa yang sebenarnya bisa membuka "Open Folder". --}}
+            @if($project->onedrive_folder_url)
+            <p id="odrLinkBadgeWrap" class="mt-1.5">
+                <span id="odrLinkBadge"
+                      class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium
+                             {{ $project->onedrive_link_is_public ? 'bg-green-100 text-green-800' : ($project->onedrive_link_warning ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700') }}">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5m4.5-4.5l1.5-1.5a4 4 0 115.656 5.656l-3 3a4 4 0 01-5.656 0"/>
+                    </svg>
+                    <span id="odrLinkBadgeText">Folder link: {{ $project->onedrive_link_scope_label }}</span>
+                </span>
+            </p>
+            @endif
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
             @if($project->onedrive_folder_url)
@@ -355,6 +384,31 @@
                 Create Folder
             </button>
             @endif
+            @if($can('delivery-project.close-project'))
+                @if($project->is_closed)
+                <form id="reopenProjectForm" method="POST" action="{{ route('projects.reopen', $project->id) }}" class="contents">
+                    @csrf
+                    <button type="button" onclick="openProjectStateModal('reopen')"
+                            class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all duration-200">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                        </svg>
+                        Reopen Project
+                    </button>
+                </form>
+                @else
+                <form id="closeProjectForm" method="POST" action="{{ route('projects.close', $project->id) }}" class="contents">
+                    @csrf
+                    <button type="button" onclick="openProjectStateModal('close')"
+                            class="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-all duration-200">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                        Close Project
+                    </button>
+                </form>
+                @endif
+            @endif
             @if($can('delivery-project.delete-project'))
             <button type="button"
                     onclick="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')"
@@ -365,6 +419,49 @@
         </div>
     </div>
 </div>
+
+{{-- Banner peringatan share link OneDrive: muncul saat link tidak benar-benar publik
+     (scope internal, kedaluwarsa, atau yang tersimpan bukan share link) — inilah
+     kondisi yang membuat penerima kena "Request access". --}}
+<div id="odrLinkWarningBanner"
+     class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3 {{ $project->onedrive_link_warning ? '' : 'hidden' }}">
+    <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/>
+    </svg>
+    <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-amber-800">Folder link may not be accessible</p>
+        <p id="odrLinkWarningText" class="text-xs text-amber-700 mt-0.5">{{ $project->onedrive_link_warning }}</p>
+    </div>
+    @if($can('delivery-project.manage-documents'))
+    <button type="button" id="odrRefreshLinkBtn" onclick="refreshProjectFolderLink()"
+            class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 transition-all">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Refresh Link
+    </button>
+    @endif
+</div>
+
+@if($project->is_closed)
+{{-- Banner read-only project yang sudah di-close --}}
+<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
+    <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+    </svg>
+    <div>
+        <p class="text-sm font-semibold text-amber-800">This project is closed — read-only</p>
+        <p class="text-xs text-amber-700 mt-0.5">
+            Closed{{ $project->closed_at ? ' on ' . $project->closed_at->format('d M Y, H:i') : '' }}@if($project->closedBy?->basicData?->full_name) by {{ $project->closedBy->basicData->full_name }}@endif.
+            @if($can('delivery-project.close-project')) Use <span class="font-semibold">Reopen Project</span> above to make changes. @endif
+        </p>
+    </div>
+</div>
+<script>
+    // Kunci tampilan (read-only) — CSS scoped ke body.project-closed.
+    document.body.classList.add('project-closed');
+</script>
+@endif
 
 {{-- General Information Section --}}
 <section id="general" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.edit-general-info') ? '1' : '0' }}">
@@ -436,7 +533,7 @@
                         <input type="hidden" name="project_type" value="{{ $project->project_type }}">
                         <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Type --</button>
-                            @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF'] as $pt)
+                            @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF','Body Hire'] as $pt)
                                 <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pt }}">{{ $pt }}</button>
                             @endforeach
                         </div>
@@ -463,8 +560,17 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">IO/Number Order</label>
                     <input type="text" name="io_number" value="{{ $project->io_number }}"
+                           @if($project->project_type === 'Body Hire') list="io_number_options" autocomplete="off" @endif
                            class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
                            placeholder="e.g. IO-2026-001">
+                    @if($project->project_type === 'Body Hire')
+                        <datalist id="io_number_options">
+                            @foreach($sameCompanyIos as $io)<option value="{{ $io }}"></option>@endforeach
+                        </datalist>
+                        <p class="mt-1 text-xs text-blue-600">
+                            <i class="fas fa-info-circle mr-1"></i>Body Hire: pilih IO number yang sudah ada milik company ini, atau ketik IO number baru.
+                        </p>
+                    @endif
                 </div>
                 {{-- Category (read-only) --}}
                 <div>
@@ -592,7 +698,6 @@
                                 <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
                             </div>
                         </div>
-                        <p class="mt-1 text-xs text-gray-500">Only employees with a Sales Operation role are listed.</p>
                     </div>
                     {{-- Text input untuk AE External --}}
                     <input type="text" name="{{ $aeIsExternal ? 'ae_name' : '' }}" id="ae_name_input"
@@ -4415,6 +4520,57 @@
     </div>
 </div>
 
+@if($can('delivery-project.close-project'))
+{{-- Confirm modal untuk Close / Reopen Project (pengganti confirm() native) --}}
+<div id="projectStateModal" class="fixed inset-0 z-[9998] hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 z-[9998]" onclick="closeModal('projectStateModal')"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
+        <div class="modal-content bg-white rounded-lg shadow-xl max-w-md w-full relative">
+            <div class="p-6">
+                <h3 id="projectStateTitle" class="text-lg font-semibold text-gray-900 mb-2">Close Project?</h3>
+                <p id="projectStateMessage" class="text-sm text-gray-600">This project will become read-only until it is reopened.</p>
+            </div>
+            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                <button type="button" onclick="closeModal('projectStateModal')"
+                        class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                    Cancel
+                </button>
+                <button type="button" id="projectStateConfirmBtn"
+                        class="inline-flex items-center px-4 py-2 bg-gray-700 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-all duration-200">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    // Modal konfirmasi Close/Reopen — submit form tersembunyi saat dikonfirmasi.
+    let _projectStateForm = null;
+    function openProjectStateModal(mode) {
+        const title = document.getElementById('projectStateTitle');
+        const msg   = document.getElementById('projectStateMessage');
+        const btn   = document.getElementById('projectStateConfirmBtn');
+        if (mode === 'reopen') {
+            _projectStateForm = document.getElementById('reopenProjectForm');
+            title.textContent = 'Reopen Project?';
+            msg.textContent   = 'This project will become editable again. Its status will be recalculated from planning progress.';
+            btn.textContent   = 'Reopen Project';
+            btn.className      = 'inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all duration-200';
+        } else {
+            _projectStateForm = document.getElementById('closeProjectForm');
+            title.textContent = 'Close Project?';
+            msg.textContent   = 'This project will become read-only until it is reopened.';
+            btn.textContent   = 'Close Project';
+            btn.className      = 'inline-flex items-center px-4 py-2 bg-gray-700 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-all duration-200';
+        }
+        document.getElementById('projectStateModal').classList.remove('hidden');
+    }
+    document.getElementById('projectStateConfirmBtn')?.addEventListener('click', function () {
+        if (_projectStateForm) _projectStateForm.submit();
+    });
+</script>
+@endif
+
 {{-- ✅ LOAD SCRIPTS (IN CORRECT ORDER) --}}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
@@ -6074,7 +6230,12 @@ async function generateProjectFolder() {
 
         if (data.success) {
             _showOdrSuccess(data.folder_url);
-            showNotification('OneDrive folder created successfully!', 'success');
+            _applyOdrLinkStatus(data);
+            if (data.link_warning) {
+                showNotification(data.link_warning, 'error');
+            } else {
+                showNotification('OneDrive folder created successfully!', 'success');
+            }
         } else {
             showNotification(data.message || 'Failed to create folder.', 'error');
             label.textContent = 'Generate Folder';
@@ -6086,6 +6247,64 @@ async function generateProjectFolder() {
         btn.disabled = false;
         icon.classList.remove('hidden');
         spinner.classList.add('hidden');
+    }
+}
+
+// Perbarui badge + banner status link setelah folder dibuat / link di-refresh.
+function _applyOdrLinkStatus(data) {
+    const badge   = document.getElementById('odrLinkBadge');
+    const text    = document.getElementById('odrLinkBadgeText');
+    const banner  = document.getElementById('odrLinkWarningBanner');
+    const warnTxt = document.getElementById('odrLinkWarningText');
+
+    if (badge && text) {
+        text.textContent = 'Folder link: ' + (data.link_scope_label || 'Not verified');
+        badge.className  = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium '
+            + (data.link_warning ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800');
+    }
+
+    if (banner && warnTxt) {
+        warnTxt.textContent = data.link_warning || '';
+        banner.classList.toggle('hidden', !data.link_warning);
+    }
+}
+
+// Buat ulang share link folder (folder-nya sendiri tidak disentuh).
+async function refreshProjectFolderLink() {
+    const btn = document.getElementById('odrRefreshLinkBtn');
+    if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); }
+
+    try {
+        const res  = await fetch('/projects/{{ $project->id }}/generate-folder', {
+            method:  'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            },
+            body: JSON.stringify({}),
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            showNotification(data.message || 'Failed to refresh the folder link.', 'error');
+            return;
+        }
+
+        _applyOdrLinkStatus(data);
+
+        const headerBtn = document.getElementById('headerFolderBtn');
+        if (headerBtn && headerBtn.tagName === 'A') headerBtn.href = data.folder_url;
+
+        if (data.link_warning) {
+            showNotification(data.link_warning, 'error');
+        } else {
+            showNotification('Folder link refreshed — anyone with the link can open it.', 'success');
+        }
+    } catch (err) {
+        showNotification('Error: ' + err.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
     }
 }
 

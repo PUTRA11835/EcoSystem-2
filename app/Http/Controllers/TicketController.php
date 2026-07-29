@@ -482,9 +482,13 @@ class TicketController extends Controller
         // Ticket Lead / PIC name (by first_name, exact match — sesuai frontend)
         if ($request->filled('pic')) {
             $picName = $request->pic;
-            $query->whereHas('ticketLead.basicData', function ($q) use ($picName) {
-                $q->whereRaw('LOWER(first_name) = LOWER(?)', [$picName]);
-            });
+            if ($picName === '__unassigned__') {
+                $query->whereNull('ticket_lead_id');
+            } else {
+                $query->whereHas('ticketLead.basicData', function ($q) use ($picName) {
+                    $q->whereRaw('LOWER(first_name) = LOWER(?)', [$picName]);
+                });
+            }
         }
 
         $tickets = $query->get();
@@ -2492,6 +2496,45 @@ class TicketController extends Controller
     }
 
     /**
+     * Resolve email PELAPOR tiket dari berbagai sumber (urutan prioritas):
+     * 1. ticket.submitted_by_email          — diisi saat tiket dibuat via email (initiateEmail) / import CSV
+     * 2. staging_tickets.submitted_by_email — dari Jarvies / email masuk yang sudah diapprove
+     * 3. ticket_message.sender_email        — pesan pertama customer (fallback tiket email)
+     * 4. customer.email                     — Company Email (fallback terakhir)
+     *
+     * Sinkron dengan TicketMessageController::resolveCustomerEmail().
+     */
+    private function resolveCustomerEmail(Ticket $ticket): ?string
+    {
+        if (!empty($ticket->submitted_by_email)) {
+            return $ticket->submitted_by_email;
+        }
+
+        $submittedEmail = DB::table('staging_tickets')
+            ->where('ticket_id', $ticket->ticket_id)
+            ->whereNotNull('submitted_by_email')
+            ->value('submitted_by_email');
+        if ($submittedEmail) {
+            return $submittedEmail;
+        }
+
+        $firstMsg = TicketMessage::where('ticket_id', $ticket->ticket_id)
+            ->where('sender_type', 'customer')
+            ->whereNotNull('sender_email')
+            ->orderBy('created_at', 'asc')
+            ->first();
+        if ($firstMsg?->sender_email) {
+            return $firstMsg->sender_email;
+        }
+
+        if ($ticket->customer_id) {
+            return Customer::find($ticket->customer_id)?->email;
+        }
+
+        return null;
+    }
+
+    /**
      * Update ticket status — unified single field
      * Admin / Helpdesk only
      */
@@ -2575,8 +2618,9 @@ class TicketController extends Controller
                     'updated_at'  => now(),
                 ]);
 
-                $customerEmail = $ticket->customer?->email
-                    ?? Customer::find($ticket->customer_id)?->email;
+                // Kirim ke PELAPOR (submitted_by_email dari Jarvies / email masuk),
+                // bukan ke Company Email. Company email hanya fallback terakhir.
+                $customerEmail = $this->resolveCustomerEmail($ticket);
 
                 if ($customerEmail) {
                     $ticketNum    = $ticket->ticket_number ?? $ticket->ticket_id;

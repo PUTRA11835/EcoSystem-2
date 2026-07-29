@@ -859,6 +859,9 @@
     </div>
 </div>
 
+{{-- Financial (Sales Data + IO Number) + Term Of Payment + Plan Cost --}}
+@include('delivery.support.list.partials.financial-plancost')
+
 <script>
 const supportId = {{ $support->id }};
 const csrfToken = '{{ csrf_token() }}';
@@ -1210,6 +1213,9 @@ async function openDeliverableLink(folderId, row) {
         if (data.success && data.url) {
             if (tab) { tab.location.href = data.url; }
             else { window.open(data.url, '_blank', 'noopener'); }
+            // Link bisa saja diturunkan ke scope internal oleh kebijakan tenant —
+            // beri tahu sekarang, jangan sampai baru ketahuan dari keluhan customer.
+            if (data.link_warning) showToast(data.link_warning, 'error');
         } else {
             throw new Error(data.message || 'Failed to get link');
         }
@@ -1265,7 +1271,11 @@ async function copyDeliverableLink(folderId, row) {
             document.body.removeChild(ta);
         }
 
-        if (copied) {
+        if (data.link_warning) {
+            // Jangan klaim "anyone with this link" kalau scope-nya ternyata internal.
+            if (!copied) window.prompt('Copy this link:', data.url);
+            showToast(data.link_warning, 'error');
+        } else if (copied) {
             showToast('Shareable link copied — anyone with this link can open the folder.', 'success');
         } else {
             window.prompt('Copy this shareable link:', data.url);
@@ -2134,5 +2144,9 @@ document.getElementById('removeTicketModal').addEventListener('click', function(
 });
 </script>
 @endif
+
+{{-- Financial / TOP / Plan Cost — modals & scripts --}}
+@include('delivery.support.list.partials.financial-plancost-modals')
+@include('delivery.support.list.partials.financial-plancost-scripts')
 
 @endsection

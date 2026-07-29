@@ -43,7 +43,9 @@ class MenuSeeder extends Seeder
             ['slug' => 'reporting.md-recap',           'name' => 'MD Recap',                'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.md-recap',           'icon' => null,                   'order_seq' => 2],
             ['slug' => 'reporting.collection-outlook', 'name' => 'Collection Outlook',      'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.collection-outlook', 'icon' => null,                   'order_seq' => 3],
             ['slug' => 'reporting.collection-outlook.edit', 'name' => 'Edit Payment Status', 'type' => 'function', 'parent_slug' => 'reporting.collection-outlook', 'route_name' => null,           'icon' => null,                   'order_seq' => 1],
-            ['slug' => 'reporting.ticketing-overview', 'name' => 'Ticketing Overview',      'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.ticketing-overview', 'icon' => null,                   'order_seq' => 4],
+            ['slug' => 'reporting.collection-outlook-support', 'name' => 'Collection Outlook (Support)', 'type' => 'page', 'parent_slug' => 'reporting', 'route_name' => 'reporting.collection-outlook-support', 'icon' => null, 'order_seq' => 4],
+            ['slug' => 'reporting.collection-outlook-support.edit', 'name' => 'Edit Payment Status', 'type' => 'function', 'parent_slug' => 'reporting.collection-outlook-support', 'route_name' => null, 'icon' => null, 'order_seq' => 1],
+            ['slug' => 'reporting.ticketing-overview', 'name' => 'Ticketing Overview',      'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.ticketing-overview', 'icon' => null,                   'order_seq' => 5],
             ['slug' => 'reporting.ticket-by-module',   'name' => 'Ticket by Modul',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.ticket-by-module',   'icon' => null,                   'order_seq' => 5],
             ['slug' => 'reporting.log-shifting',       'name' => 'Log Shifting',            'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.log-shifting',       'icon' => null,                   'order_seq' => 6],
             ['slug' => 'reporting.resolution-days',    'name' => 'Resolution Days',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.resolution-days',    'icon' => null,                   'order_seq' => 7],
@@ -123,6 +125,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'delivery-project.manage-planning',    'name' => 'Manage Planning',           'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 9],
             ['slug' => 'delivery-project.manage-plan-cost',   'name' => 'Manage Plan Cost',          'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 10],
             ['slug' => 'delivery-project.delete-project',     'name' => 'Delete Project',            'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 11],
+            ['slug' => 'delivery-project.close-project',      'name' => 'Close / Reopen Project',    'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 12],
             ['slug' => 'delivery.support',             'name' => 'Support',                 'type' => 'page',     'parent_slug' => 'delivery',    'route_name' => 'delivery.support.index',       'icon' => null,                   'order_seq' => 2],
             ['slug' => 'delivery-support.add-new',     'name' => 'Add Delivery Support',    'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                     'icon' => null,                   'order_seq' => 1],
             ['slug' => 'delivery-support.edit-type',   'name' => 'Edit Field Type',         'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                     'icon' => null,                   'order_seq' => 2],
@@ -140,6 +143,7 @@ class MenuSeeder extends Seeder
             // ── SLA ───────────────────────────────────────────────────────────────
             ['slug' => 'sla',                          'name' => 'SLA',                     'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-stopwatch',         'order_seq' => 13],
             ['slug' => 'sla.report',                   'name' => 'SLA Report',              'type' => 'page',     'parent_slug' => 'sla',         'route_name' => 'sla.report',                   'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'sla.config',                   'name' => 'SLA Config',              'type' => 'function', 'parent_slug' => 'sla',         'route_name' => null,                           'icon' => null,                   'order_seq' => 2],
 
             // ── RPMO ──────────────────────────────────────────────────────────────
             ['slug' => 'rpmo',                         'name' => 'RPMO',                    'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-building',          'order_seq' => 14],
@@ -233,6 +237,8 @@ class MenuSeeder extends Seeder
             'reporting.md-recap'          => [self::ADMIN=>$vced, self::HOS=>$vce],
             'reporting.collection-outlook' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'reporting.collection-outlook.edit' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
+            'reporting.collection-outlook-support' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
+            'reporting.collection-outlook-support.edit' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'reporting.ticketing-overview' => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'reporting.ticket-by-module'   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'reporting.log-shifting'       => [self::ADMIN=>$vced, self::HOS=>$vce, self::HELPDESK=>$vce, self::RPMO=>$vce],
@@ -298,6 +304,7 @@ class MenuSeeder extends Seeder
             'delivery-project.manage-planning'    => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'delivery-project.manage-plan-cost'   => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'delivery-project.delete-project'     => [self::ADMIN=>$v, self::RPMO=>$v],
+            'delivery-project.close-project'      => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'delivery.support'            => [self::ADMIN=>$vced, self::HOS=>$vce,      self::HELPDESK=>$v, self::RPMO=>$vced],
             'delivery-support.add-new'    => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
             'delivery-support.edit-type'  => [self::ADMIN=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
@@ -313,6 +320,7 @@ class MenuSeeder extends Seeder
             // SLA
             'sla'                         => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
             'sla.report'                  => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
+            'sla.config'                  => [self::ADMIN=>$vced, self::HOS=>$vced],
             // RPMO
             'rpmo'                        => [self::ADMIN=>$v,    self::HOP=>$v,        self::HOS=>$v,      self::RPMO=>$v],
             'rpmo.overview'               => [self::ADMIN=>$v,    self::RPMO=>$v],

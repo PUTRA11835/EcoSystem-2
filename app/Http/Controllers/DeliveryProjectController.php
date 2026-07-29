@@ -39,11 +39,24 @@ class DeliveryProjectController extends Controller
         // selain "Sales Operation User" (lihat salesRoleEmployees()).
         $aeEmployees = $this->salesRoleEmployees();
 
-        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees', 'aeEmployees'));
+        // IO number existing per company (client) — dipakai form Body Hire untuk
+        // memilih IO yang sudah ada; hanya IO milik company yang sama yang muncul.
+        $iosByClient = $this->existingIosByClient();
+
+        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees', 'aeEmployees', 'iosByClient'));
     }
 
     public function store(Request $request)
     {
+        // Body Hire boleh berbagi satu IO number lintas delivery — tapi HANYA dalam
+        // company yang sama. Type lain tetap wajib unik global.
+        $ioNumberRule = ['required', 'string', 'max:255'];
+        if ($request->input('project_type') === 'Body Hire') {
+            $ioNumberRule[] = $this->sameCompanyIoRule($request->input('client_id'));
+        } else {
+            $ioNumberRule[] = Rule::unique('delivery_projects', 'io_number');
+        }
+
         $request->validate([
             'client_id' => 'required|exists:customer,customer_id',
             'project_owner' => 'required|string|max:255',
@@ -53,7 +66,7 @@ class DeliveryProjectController extends Controller
             'high_level_risk' => 'nullable|in:Low,Moderate,High',
             'contract_start_date' => 'required|date',
             'contract_end_date' => 'required|date|after_or_equal:contract_start_date',
-            'io_number' => 'required|string|max:255|unique:delivery_projects,io_number',
+            'io_number' => $ioNumberRule,
             'ae_type' => 'nullable|in:Internal,External',
             'ae_name' => 'nullable|string',
             'ae_phone' => 'nullable|string',
@@ -169,6 +182,7 @@ class DeliveryProjectController extends Controller
             'deliveryOwner.basicData',
             'deliveryManager.basicData',
             'createdBy',
+            'closedBy.basicData',
             'documents',
             'teamMembers.basicData',
             'plannings.phase'
@@ -231,6 +245,16 @@ class DeliveryProjectController extends Controller
 
         $clients = Customer::with('basicData')->get()->sortBy(fn($c) => strtolower($c->basicData->name_1 ?? ''))->values();
 
+        // IO number existing milik company yang sama (untuk pilihan Body Hire).
+        $sameCompanyIos = DeliveryProject::where('client_id', $project->client_id)
+            ->where('id', '!=', $project->id)
+            ->whereNotNull('io_number')
+            ->where('io_number', '!=', '')
+            ->pluck('io_number')
+            ->filter()
+            ->unique()
+            ->values();
+
         $hasPlanning = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)->exists();
 
         $phases = collect();
@@ -292,7 +316,8 @@ class DeliveryProjectController extends Controller
             'deliveryActivities',
             'finalPhaseWeights',
             'teamPivotRows',
-            'actualCost'
+            'actualCost',
+            'sameCompanyIos'
         ));
     }
 
@@ -313,13 +338,19 @@ class DeliveryProjectController extends Controller
         } elseif ($field === 'high_level_risk') {
             $rules['value'] = ['nullable', Rule::in(['Low', 'Moderate', 'High'])];
         } elseif ($field === 'io_number') {
-            $rules['value'] = ['required', 'string', 'max:255', Rule::unique('delivery_projects', 'io_number')->ignore($project->id)];
+            // Body Hire: IO boleh dipakai ulang dalam company yang sama; type lain unik.
+            $rules['value'] = ['required', 'string', 'max:255'];
+            if ($project->project_type === 'Body Hire') {
+                $rules['value'][] = $this->sameCompanyIoRule($project->client_id, $project->id);
+            } else {
+                $rules['value'][] = Rule::unique('delivery_projects', 'io_number')->ignore($project->id);
+            }
         } elseif ($field === 'description') {
             $rules['value'] = 'nullable|string|max:5000';
         } elseif ($field === 'name') {
             $rules['value'] = 'required|string|max:255';
         } elseif ($field === 'project_type') {
-            $rules['value'] = ['nullable', Rule::in(['Implementation', 'Roll Out', 'Migration', 'Upgrade', 'WRICEF'])];
+            $rules['value'] = ['nullable', Rule::in(['Implementation', 'Roll Out', 'Migration', 'Upgrade', 'WRICEF', 'Body Hire'])];
         } elseif ($field === 'client_id') {
             $rules['value'] = 'nullable|exists:customer,customer_id';
         } else {
@@ -361,15 +392,26 @@ class DeliveryProjectController extends Controller
 
     public function updateGeneralInfo(Request $request, DeliveryProject $project)
     {
+        // Body Hire: IO boleh dipakai ulang dalam company yang sama; type lain unik.
+        // Pakai type/client yang dikirim; fallback ke nilai project saat ini.
+        $incomingType   = $request->input('project_type', $project->project_type);
+        $incomingClient = $request->input('client_id', $project->client_id);
+        $ioNumberRule   = ['required', 'string', 'max:255'];
+        if ($incomingType === 'Body Hire') {
+            $ioNumberRule[] = $this->sameCompanyIoRule($incomingClient, $project->id);
+        } else {
+            $ioNumberRule[] = Rule::unique('delivery_projects', 'io_number')->ignore($project->id);
+        }
+
         $validated = $request->validate([
             'client_id'           => 'nullable|exists:customer,customer_id',
             'name'                => 'required|string|max:255',
             'project_owner'       => 'nullable|string|max:255',
-            'project_type'        => ['nullable', Rule::in(['Implementation','Roll Out','Migration','Upgrade','WRICEF'])],
+            'project_type'        => ['nullable', Rule::in(['Implementation','Roll Out','Migration','Upgrade','WRICEF','Body Hire'])],
             'high_level_risk'     => ['nullable', Rule::in(['Low','Moderate','High'])],
             'contract_start_date' => 'required|date',
             'contract_end_date'   => 'required|date|after_or_equal:contract_start_date',
-            'io_number'           => ['required', 'string', 'max:255', Rule::unique('delivery_projects', 'io_number')->ignore($project->id)],
+            'io_number'           => $ioNumberRule,
             'description'         => 'nullable|string|max:5000',
         ]);
 
@@ -535,6 +577,40 @@ class DeliveryProjectController extends Controller
      * lain tetap muncul. Diurutkan berdasarkan nama lengkap agar konsisten
      * dengan daftar karyawan lain di form.
      */
+    /**
+     * IO number yang sudah ada, dikelompokkan per company (client_id):
+     * [client_id => ['IO-1', 'IO-2', ...]]. Dipakai form Body Hire agar user
+     * bisa memilih IO existing milik company yang sama.
+     */
+    private function existingIosByClient(): array
+    {
+        return DeliveryProject::whereNotNull('io_number')
+            ->where('io_number', '!=', '')
+            ->get(['io_number', 'client_id'])
+            ->groupBy('client_id')
+            ->map(fn($g) => $g->pluck('io_number')->filter()->unique()->values()->all())
+            ->all();
+    }
+
+    /**
+     * Rule IO number untuk project Body Hire: IO boleh dipakai ulang, TETAPI hanya
+     * dalam company (client) yang sama. Gagal bila IO yang sama sudah dipakai oleh
+     * project company lain. $ignoreId mengecualikan project yang sedang diedit.
+     */
+    private function sameCompanyIoRule($clientId, $ignoreId = null): \Closure
+    {
+        return function ($attribute, $value, $fail) use ($clientId, $ignoreId) {
+            $query = DeliveryProject::where('io_number', $value)
+                ->where('client_id', '!=', $clientId);
+            if ($ignoreId) {
+                $query->where('id', '!=', $ignoreId);
+            }
+            if ($query->exists()) {
+                $fail('IO Number tersebut sudah digunakan company lain. Untuk Body Hire, IO Number hanya boleh dipakai ulang dalam company yang sama.');
+            }
+        };
+    }
+
     private function salesRoleEmployees()
     {
         return Employee::with('basicData')
@@ -944,6 +1020,50 @@ class DeliveryProjectController extends Controller
         return back()->with('success', 'Team member updated successfully.');
     }
 
+    /**
+     * Close a project manually. Overrides the auto-derived category (kept 'Closed'
+     * regardless of planning progress) and locks the project read-only until it is
+     * reopened. Gated by menu:delivery-project.close-project.
+     */
+    public function close(Request $request, DeliveryProject $project)
+    {
+        if (!$project->is_closed) {
+            $project->update([
+                'is_closed' => true,
+                'closed_at' => now(),
+                'closed_by' => session('user.id'),
+                'category'  => 'Closed',
+            ]);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Project closed successfully.']);
+        }
+        return back()->with('success', 'Project closed successfully.');
+    }
+
+    /**
+     * Reopen a closed project. Clears the manual-close flag and lets the category
+     * be recomputed from planning progress. Gated by menu:delivery-project.close-project.
+     */
+    public function reopen(Request $request, DeliveryProject $project)
+    {
+        if ($project->is_closed) {
+            $project->is_closed = false;
+            $project->closed_at = null;
+            $project->closed_by = null;
+            $project->save();
+
+            // Category was pinned to 'Closed' while locked — recompute from planning now.
+            $project->updateFromPlanning();
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Project reopened successfully.']);
+        }
+        return back()->with('success', 'Project reopened successfully.');
+    }
+
     public function destroy(Request $request, $project)
     {
         // NOTE: We resolve the model manually (instead of route-model binding) so
@@ -1282,8 +1402,8 @@ class DeliveryProjectController extends Controller
 
             if ($project->onedrive_folder_id) {
                 // Folder already exists — just recreate the share link
-                $shareUrl = $oneDrive->createAnonymousLink($project->onedrive_folder_id);
-                $project->update(['onedrive_folder_url' => $shareUrl]);
+                $link = $oneDrive->createShareLink($project->onedrive_folder_id);
+                $project->applyOneDriveShareLink($link);
             } else {
                 // Hierarki: DELIVERY PROJECT > Customer > Project Folder
                 $project->load('client.basicData');
@@ -1295,17 +1415,22 @@ class DeliveryProjectController extends Controller
 
                 // Create project sub-folder inside customer folder
                 $folderId = $oneDrive->createSubFolder($customerFolderId, $folderName);
-                $shareUrl = $oneDrive->createAnonymousLink($folderId);
-                $project->update([
-                    'onedrive_folder_id'  => $folderId,
-                    'onedrive_folder_url' => $shareUrl,
-                ]);
+                $project->update(['onedrive_folder_id' => $folderId]);
+
+                $link = $oneDrive->createShareLink($folderId);
+                $project->applyOneDriveShareLink($link);
             }
 
             return response()->json([
-                'success'     => true,
-                'message'     => 'OneDrive folder ready.',
-                'folder_url'  => $shareUrl,
+                'success'          => true,
+                'message'          => 'OneDrive folder ready.',
+                'folder_url'       => $link['url'],
+                'link_scope'       => $link['scope'],
+                'link_scope_label' => $project->refresh()->onedrive_link_scope_label,
+                'link_expires_at'  => $link['expires_at']?->toIso8601String(),
+                // Ditampilkan sebagai peringatan di UI: link bukan "Anyone with the link",
+                // jadi customer di luar tenant tidak akan bisa membukanya.
+                'link_warning'     => $project->onedrive_link_warning,
             ]);
 
         } catch (\Exception $e) {
@@ -1489,7 +1614,13 @@ class DeliveryProjectController extends Controller
 
         try {
             (new OneDriveService())->deleteFolder($project->onedrive_folder_id);
-            $project->update(['onedrive_folder_id' => null, 'onedrive_folder_url' => null]);
+            $project->update([
+                'onedrive_folder_id'       => null,
+                'onedrive_folder_url'      => null,
+                'onedrive_link_scope'      => null,
+                'onedrive_link_expires_at' => null,
+                'onedrive_link_checked_at' => null,
+            ]);
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
             Log::error('OneDrive deleteFolder failed (project)', [

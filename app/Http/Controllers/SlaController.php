@@ -34,10 +34,12 @@ class SlaController extends Controller
         return (bool) $employee?->hasPermission('sla.report');
     }
 
-    // Admin + Delivery Support Head (can create/edit/delete policies)
+    // Diatur lewat Role Management (menu slug: sla.config), bukan role hardcode,
+    // supaya role apa pun bisa diberi/dicabut akses kelola SLA Policy dari UI Role Management.
     private function canManagePolicies(): bool
     {
-        return in_array(session('user.role.id'), [1, 5], true);
+        $employee = Employee::find(session('user.id'));
+        return (bool) $employee?->hasPermission('sla.config');
     }
 
     // Diatur lewat Role Management (menu slug: ticket.meeting), bukan role hardcode,

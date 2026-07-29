@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class DeliverySupport extends Model
 {
     use HasFactory;
+    use \App\Models\Concerns\HasOneDriveShareLink;
 
     protected $table = 'delivery_support';
 
@@ -26,6 +27,11 @@ class DeliverySupport extends Model
         'sales_id',
         'support_method',
         'total_mandays',
+        'io_number',
+        'revenue',
+        'plan_cost',
+        'gross_profit',
+        'gross_profit_percentage',
         'created_by_id',
         'approval_date',
         'approval_name',
@@ -33,16 +39,25 @@ class DeliverySupport extends Model
         'onedrive_folder_url',
         'onedrive_deliverable_folder_id',
         'onedrive_deliverable_folder_url',
+        'onedrive_link_scope',
+        'onedrive_link_expires_at',
+        'onedrive_link_checked_at',
         'service_window_start',
         'service_window_end',
     ];
 
     protected $casts = [
+        'onedrive_link_expires_at' => 'datetime',
+        'onedrive_link_checked_at' => 'datetime',
         'start_date' => 'date',
         'end_date' => 'date',
         'resolution_estimated' => 'date',
         'approval_date' => 'date',
         'calculated_progress' => 'decimal:2',
+        'revenue' => 'decimal:2',
+        'plan_cost' => 'decimal:2',
+        'gross_profit' => 'decimal:2',
+        'gross_profit_percentage' => 'decimal:2',
     ];
 
     // ========================================
@@ -114,6 +129,25 @@ class DeliverySupport extends Model
     public function viewConfiguration()
     {
         return $this->hasOne(DeliverySupportViewConfiguration::class, 'delivery_support_id');
+    }
+
+    /**
+     * Term Of Payment (TOP) plan entries — mirror of DeliveryProject::paymentTerms.
+     */
+    public function paymentTerms()
+    {
+        return $this->hasMany(DeliverySupportPaymentTerm::class, 'delivery_support_id')
+            ->orderBy('term_number');
+    }
+
+    /**
+     * Plan Cost tree (top-level rows only) — mirror of DeliveryProject::costs.
+     */
+    public function costs()
+    {
+        return $this->hasMany(DeliverySupportCost::class, 'delivery_support_id')
+            ->whereNull('parent_id')
+            ->orderBy('order_sequence');
     }
 
     public function planning()

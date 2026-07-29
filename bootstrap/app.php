@@ -51,6 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'external.api_key'  => \App\Http\Middleware\CheckExternalApiKey::class,
             'menu'              => \App\Http\Middleware\CheckMenuAccess::class,
             'lite.auth'         => \App\Http\Middleware\LiteApiAuth::class,
+            'project.editable'  => \App\Http\Middleware\EnsureProjectNotClosed::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

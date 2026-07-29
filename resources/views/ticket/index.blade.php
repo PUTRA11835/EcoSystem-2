@@ -339,6 +339,7 @@
                                 <input type="hidden" id="colFilterPic" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:200px;">
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="__unassigned__">Unassigned</button>
                                 </div>
                             </div>
                         </th>
@@ -1246,7 +1247,7 @@
 
         return getViewBase().filter(ticket => {
             const matchColCustomer = !colCustomer || (ticket.customer?.customer_name || '').toLowerCase() === colCustomer;
-            const matchColPic = !colPic || (ticket.employee?.employee_name || '').toLowerCase() === colPic;
+            const matchColPic = !colPic || (colPic === '__unassigned__' ? !ticket.employee : (ticket.employee?.employee_name || '').toLowerCase() === colPic);
             const matchColPriority = !colPriority.length || colPriority.includes(ticket.ticket_priority);
             const matchColScale = !colScale.length || colScale.includes(String(ticket.scale ?? ''));
             const matchColStatus = !colStatus.length || colStatus.includes(ticket.status);
@@ -1254,7 +1255,7 @@
 
             let matchDate = true;
             if (fromMs !== null || toMs !== null) {
-                const ticketDate = ticket.start_date || ticket.created_at;
+                const ticketDate = ticket.created_at;
                 const startMs = ticketDate ? new Date(ticketDate).getTime() : NaN;
                 if (Number.isNaN(startMs)) {
                     matchDate = false;
@@ -1350,10 +1351,10 @@
     }
 
     // Ticket closed → freeze "Day on Close" at the close timestamp instead of
-    // letting it keep counting up to today. Dihitung sejak start_date
-    // (fallback ke created_at jika belum ada start_date), sama seperti kolom Date.
+    // letting it keep counting up to today. Dihitung sejak created_at,
+    // sama seperti kolom Date.
     function dayOnCloseValue(ticket) {
-        const start = ticket.start_date || ticket.created_at;
+        const start = ticket.created_at;
         if (!start) return null;
         const closedAt = ticket.status === 'closed'
             ? (ticket.sla?.resolved_at || ticket.updated_at)
@@ -1365,7 +1366,7 @@
     function createTicketRow(ticket) {
         const customerName = ticket.customer?.customer_name || 'Unknown';
         const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
-        const startDate = new Date(ticket.start_date || ticket.created_at);
+        const createdDate = new Date(ticket.created_at);
         const endDate = ticket.end_date ? new Date(ticket.end_date) : null;
 
         const fmt = d => d.toLocaleDateString('en-GB', {
@@ -1386,7 +1387,7 @@
 
         const lastUpdateStr = relativeTime(lastActivity);
         const lastUpdateTitle = fmtDT(lastActivity);
-        const dateStr = fmt(startDate);
+        const dateStr = fmt(createdDate);
         const endDateStr = endDate ? fmt(endDate) : '—';
 
         const agentName = ticket.employee?.employee_name || '<span class="text-gray-400">Unassigned</span>';
@@ -1800,6 +1801,7 @@
 
         const fragment = document.createDocumentFragment();
         fragment.appendChild(makeItem('', 'All'));
+        fragment.appendChild(makeItem('__unassigned__', 'Unassigned'));
         names.forEach(name => fragment.appendChild(makeItem(name, name)));
 
         const emptyEl = panel._ddEmpty || null;
@@ -2185,8 +2187,8 @@
                 va = extractNum(a);
                 vb = extractNum(b);
             } else if (key === 'date') {
-                va = new Date(a.start_date || a.created_at).getTime();
-                vb = new Date(b.start_date || b.created_at).getTime();
+                va = new Date(a.created_at).getTime();
+                vb = new Date(b.created_at).getTime();
             } else if (key === 'day_on_close') {
                 const daysOf = t => {
                     const v = dayOnCloseValue(t);

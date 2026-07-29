@@ -7,6 +7,8 @@ use App\Http\Controllers\Delivery\DeliverySupportPhaseController;
 use App\Http\Controllers\Delivery\DeliverySupportActivityController;
 use App\Http\Controllers\Delivery\DeliverySupportStageController;
 use App\Http\Controllers\Delivery\DeliverySupportDataController;
+use App\Http\Controllers\DeliverySupportPaymentTermController;
+use App\Http\Controllers\DeliverySupportCostController;
 use App\Http\Middleware\CheckAuthToken;
 
 /**
@@ -227,6 +229,36 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
         Route::get('/client-contacts', [DeliverySupportController::class, 'getClientContacts'])->name('client-contacts');
         Route::get('/customer-pics', [DeliverySupportController::class, 'getCustomerPics'])->name('customer-pics.index');
         Route::post('/customer-pics', [DeliverySupportController::class, 'syncCustomerPics'])->name('customer-pics.sync');
+
+        // =====================================================================
+        // FINANCIAL / SALES DATA (IO Number, Revenue, Plan Cost, Gross Profit)
+        // =====================================================================
+        Route::patch('/financial-info', [DeliverySupportController::class, 'updateFinancialInfo'])->name('financial-info.update');
+
+        // =====================================================================
+        // TERM OF PAYMENT (TOP) PLAN
+        // =====================================================================
+        Route::get('/payment-terms',                [DeliverySupportPaymentTermController::class, 'index'])->name('paymentTerms.index');
+        Route::post('/payment-terms',               [DeliverySupportPaymentTermController::class, 'store'])->name('paymentTerms.store');
+        Route::put('/payment-terms/{term}',         [DeliverySupportPaymentTermController::class, 'update'])->name('paymentTerms.update');
+        Route::delete('/payment-terms/{term}',      [DeliverySupportPaymentTermController::class, 'destroy'])->name('paymentTerms.destroy');
+        Route::post('/payment-terms/{term}/delete', [DeliverySupportPaymentTermController::class, 'destroy'])->name('paymentTerms.destroy-post');
+
+        // =====================================================================
+        // PLAN COST
+        // =====================================================================
+        Route::get('/costs',                              [DeliverySupportCostController::class, 'index'])->name('costs.index');
+        Route::post('/costs',                             [DeliverySupportCostController::class, 'store'])->name('costs.store');
+        Route::post('/costs/init',                        [DeliverySupportCostController::class, 'init'])->name('costs.init');
+        Route::put('/costs/{cost}',                       [DeliverySupportCostController::class, 'update'])->name('costs.update');
+        Route::delete('/costs/{cost}',                    [DeliverySupportCostController::class, 'destroy'])->name('costs.destroy');
+        Route::post('/costs/{cost}/delete',               [DeliverySupportCostController::class, 'destroy'])->name('costs.destroy-post');
+        // Expense line-items
+        Route::get('/costs/{cost}/items',                 [DeliverySupportCostController::class, 'indexItems'])->name('costs.items.index');
+        Route::post('/costs/{cost}/items',                [DeliverySupportCostController::class, 'storeItem'])->name('costs.items.store');
+        Route::put('/costs/{cost}/items/{item}',          [DeliverySupportCostController::class, 'updateItem'])->name('costs.items.update');
+        Route::delete('/costs/{cost}/items/{item}',       [DeliverySupportCostController::class, 'destroyItem'])->name('costs.items.destroy');
+        Route::post('/costs/{cost}/items/{item}/delete',  [DeliverySupportCostController::class, 'destroyItem'])->name('costs.items.destroy-post');
     });
 });
 
