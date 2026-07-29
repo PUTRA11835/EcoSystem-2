@@ -18,6 +18,83 @@ class MenuSeeder extends Seeder
     const RPMO     = 7; // Delivery RPMO Head
     const MANAGER  = 14; // Delivery Support Manager
 
+    /**
+     * Section halaman detail Delivery Project / Delivery Support beserta aksi
+     * yang tersedia. Slug final = "<base>.<aksi>":
+     *
+     *   .view    → section tampil (tanpa ini section disembunyikan)
+     *   .edit    → boleh mengubah data yang sudah ada
+     *   .manage  → boleh menambah & menghapus data
+     *
+     * Section yang hanya punya form edit sengaja TIDAK diberi `.manage`.
+     * HARUS sinkron dengan migration 2026_07_29_000001.
+     */
+    const PROJECT_SECTIONS = [
+        ['base' => 'delivery-project.general',       'name' => 'General Information',        'actions' => ['view', 'edit']],
+        ['base' => 'delivery-project.delivery-data', 'name' => 'Delivery Data',              'actions' => ['view', 'edit']],
+        ['base' => 'delivery-project.delivery-info', 'name' => 'Delivery Information & TOP', 'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-project.team',          'name' => 'Team Members',               'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-project.documents',     'name' => 'Documents',                  'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-project.issue-log',     'name' => 'Issue Log',                  'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-project.risk',          'name' => 'Risk Register',              'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-project.location',      'name' => 'Location Information',       'actions' => ['view', 'edit']],
+        ['base' => 'delivery-project.planning',      'name' => 'Planning',                   'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-project.plan-cost',     'name' => 'Plan Cost',                  'actions' => ['view', 'edit', 'manage']],
+    ];
+
+    const SUPPORT_SECTIONS = [
+        ['base' => 'delivery-support.general',      'name' => 'Support Information',         'actions' => ['view', 'edit']],
+        ['base' => 'delivery-support.approval',     'name' => 'Approval Information',        'actions' => ['view', 'edit']],
+        ['base' => 'delivery-support.financial',    'name' => 'Financial Information & TOP', 'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-support.team',         'name' => 'Team',                        'actions' => ['view', 'manage']],
+        ['base' => 'delivery-support.customer-pic', 'name' => 'Customer PIC',                'actions' => ['view', 'edit']],
+        ['base' => 'delivery-support.activities',   'name' => 'Activities & Planning',       'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-support.sla',          'name' => 'SLA Configuration',           'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-support.plan-cost',    'name' => 'Plan Cost',                   'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-support.documents',    'name' => 'Documents & Folder',          'actions' => ['view', 'edit', 'manage']],
+    ];
+
+    const ACTION_LABEL = ['view' => 'View', 'edit' => 'Edit', 'manage' => 'Create / Delete'];
+
+    /** Baris $menus untuk seluruh slug section granular. */
+    private static function sectionMenus(): array
+    {
+        $rows = [];
+
+        foreach ([['delivery.project', self::PROJECT_SECTIONS], ['delivery.support', self::SUPPORT_SECTIONS]] as [$parent, $sections]) {
+            $seq = 20;
+            foreach ($sections as $section) {
+                foreach ($section['actions'] as $action) {
+                    $rows[] = [
+                        'slug'        => $section['base'] . '.' . $action,
+                        'name'        => $section['name'] . ' — ' . self::ACTION_LABEL[$action],
+                        'type'        => 'function',
+                        'parent_slug' => $parent,
+                        'route_name'  => null,
+                        'icon'        => null,
+                        'order_seq'   => $seq++,
+                    ];
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /** Semua slug section granular sebuah modul, opsional difilter per aksi. */
+    private static function sectionSlugs(array $sections, ?array $only = null): array
+    {
+        $slugs = [];
+        foreach ($sections as $section) {
+            foreach ($section['actions'] as $action) {
+                if ($only === null || in_array($action, $only, true)) {
+                    $slugs[] = $section['base'] . '.' . $action;
+                }
+            }
+        }
+        return $slugs;
+    }
+
     public function run(): void
     {
         $now = Carbon::now();
@@ -113,22 +190,12 @@ class MenuSeeder extends Seeder
             ['slug' => 'delivery',                     'name' => 'Delivery',                'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-briefcase',         'order_seq' => 11],
             ['slug' => 'delivery.project',             'name' => 'Project',                 'type' => 'page',     'parent_slug' => 'delivery',    'route_name' => 'projects.index',               'icon' => null,                   'order_seq' => 1],
             ['slug' => 'delivery-project.add-new',     'name' => 'Add New Project',         'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,                     'icon' => null,                   'order_seq' => 1],
-            // Satu function per section halaman project detail. Section tanpa izin
-            // tetap terlihat, tapi seluruh input/tombolnya dinonaktifkan (read-only).
-            ['slug' => 'delivery-project.edit-general-info',  'name' => 'Edit General Information',  'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 2],
-            ['slug' => 'delivery-project.edit-delivery-info', 'name' => 'Edit Delivery Information', 'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 3],
-            ['slug' => 'delivery-project.manage-team',        'name' => 'Manage Team Members',       'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 4],
-            ['slug' => 'delivery-project.manage-documents',   'name' => 'Manage Documents',          'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 5],
-            ['slug' => 'delivery-project.manage-issue-log',   'name' => 'Manage Issue Log',          'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 6],
-            ['slug' => 'delivery-project.manage-risk',        'name' => 'Manage Risk Register',      'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 7],
-            ['slug' => 'delivery-project.edit-location-info', 'name' => 'Edit Location Information', 'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 8],
-            ['slug' => 'delivery-project.manage-planning',    'name' => 'Manage Planning',           'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 9],
-            ['slug' => 'delivery-project.manage-plan-cost',   'name' => 'Manage Plan Cost',          'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 10],
             ['slug' => 'delivery-project.delete-project',     'name' => 'Delete Project',            'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 11],
             ['slug' => 'delivery-project.close-project',      'name' => 'Close / Reopen Project',    'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 12],
             ['slug' => 'delivery.support',             'name' => 'Support',                 'type' => 'page',     'parent_slug' => 'delivery',    'route_name' => 'delivery.support.index',       'icon' => null,                   'order_seq' => 2],
             ['slug' => 'delivery-support.add-new',     'name' => 'Add Delivery Support',    'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                     'icon' => null,                   'order_seq' => 1],
             ['slug' => 'delivery-support.edit-type',   'name' => 'Edit Field Type',         'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                     'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'delivery-support.delete-support', 'name' => 'Delete Delivery Support', 'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                  'icon' => null,                   'order_seq' => 10],
 
             // ── Control Center (Admin) ────────────────────────────────────────────
             ['slug' => 'control-center',               'name' => 'Control Center',          'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-server',            'order_seq' => 12],
@@ -171,6 +238,11 @@ class MenuSeeder extends Seeder
             ['slug' => 'management.employee.payment',           'name' => 'Payment',                 'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.payment.index',     'icon' => null,             'order_seq' => 9],
             ['slug' => 'management.employee.attachment',        'name' => 'Attachment',              'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.attachment.index',  'icon' => null,             'order_seq' => 10],
         ];
+
+        // Function menu granular per section Delivery Project / Delivery Support.
+        // Di-generate agar tidak ada ~60 baris manual yang gampang melenceng dari
+        // migration-nya. Aman ditaruh di akhir: menu induknya sudah ada di atas.
+        $menus = array_merge($menus, self::sectionMenus());
 
         // ── Upsert menus (idempotent) ────────────────────────────────────────────
         $inserted = [];
@@ -294,20 +366,12 @@ class MenuSeeder extends Seeder
             'delivery'                    => [self::ADMIN=>$vced, self::HOP=>$vce,      self::HOS=>$vce,    self::HELPDESK=>$v,   self::RPMO=>$vced],
             'delivery.project'            => [self::ADMIN=>$vced, self::HOP=>$vce,      self::RPMO=>$vced],
             'delivery-project.add-new'    => [self::ADMIN=>$v,    self::HOP=>$v,        self::RPMO=>$v],
-            'delivery-project.edit-general-info'  => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
-            'delivery-project.edit-delivery-info' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
-            'delivery-project.manage-team'        => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
-            'delivery-project.manage-documents'   => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
-            'delivery-project.manage-issue-log'   => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
-            'delivery-project.manage-risk'        => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
-            'delivery-project.edit-location-info' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
-            'delivery-project.manage-planning'    => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
-            'delivery-project.manage-plan-cost'   => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'delivery-project.delete-project'     => [self::ADMIN=>$v, self::RPMO=>$v],
             'delivery-project.close-project'      => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'delivery.support'            => [self::ADMIN=>$vced, self::HOS=>$vce,      self::HELPDESK=>$v, self::RPMO=>$vced],
             'delivery-support.add-new'    => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
             'delivery-support.edit-type'  => [self::ADMIN=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
+            'delivery-support.delete-support' => [self::ADMIN=>$v, self::HOS=>$v,       self::RPMO=>$v],
             // Control Center
             'control-center'              => [self::ADMIN=>$v],
             'control-center.overview'     => [self::ADMIN=>$v],
@@ -345,6 +409,19 @@ class MenuSeeder extends Seeder
             'management.employee.payment'           => [self::ADMIN=>$vced],
             'management.employee.attachment'        => [self::ADMIN=>$vced],
         ];
+
+        // Grant default slug section granular. Sengaja disamakan dengan role yang
+        // boleh membuka halaman induknya, supaya seed baru berperilaku sama seperti
+        // sebelum gating per-section ada; penyempitan dilakukan lewat Menu Access.
+        $projectSectionRoles = [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v];
+        $supportSectionRoles = [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v];
+
+        foreach (self::sectionSlugs(self::PROJECT_SECTIONS) as $slug) {
+            $matrix[$slug] = $projectSectionRoles;
+        }
+        foreach (self::sectionSlugs(self::SUPPORT_SECTIONS) as $slug) {
+            $matrix[$slug] = $supportSectionRoles;
+        }
 
         foreach ($matrix as $slug => $rolePerms) {
             $menuId = $inserted[$slug] ?? null;
