@@ -352,7 +352,9 @@ class DeliverySupportController extends Controller
         // Get clients for modal form
         $clients = Customer::with('basicData')->get();
 
-        $canManage = in_array(session('user.role.id'), [1, 5], true);
+        // Diatur lewat Role Management (menu slug: sla.config), bukan role hardcode,
+        // supaya role apa pun bisa diberi/dicabut akses kelola SLA Policy dari UI Role Management.
+        $canManage = (bool) Employee::find(session('user.id'))?->hasPermission('sla.config');
 
         // Actual Cost = total of all leaf-level Plan Cost actual amounts (derived from
         // expense details). Seeds the "Actual Cost / GP / %" fields in the Financial

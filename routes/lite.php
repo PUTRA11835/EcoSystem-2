@@ -76,7 +76,10 @@ Route::middleware(['web'])->prefix('lite')->group(function () {
             Route::put('/read-all',        [LiteNotificationController::class, 'markAllRead'])->name('read-all');
             Route::put('/{id}/read',       [LiteNotificationController::class, 'markRead'])->name('read');
             Route::delete('/bulk-delete',  [LiteNotificationController::class, 'bulkDelete'])->name('bulk-delete');
+            // POST alias untuk server yang memblokir method DELETE (ikuti pola /members/.../remove)
+            Route::post('/bulk-delete',    [LiteNotificationController::class, 'bulkDelete']);
             Route::delete('/{id}',         [LiteNotificationController::class, 'deleteOne'])->name('delete');
+            Route::post('/{id}/delete',    [LiteNotificationController::class, 'deleteOne']);
         });
 
         // Web Push subscriptions (untuk notifikasi saat PWA tertutup/layar terkunci)
