@@ -1893,7 +1893,7 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
-        $pics = Employee::withAnyRole([RoleId::DELIVERY_SUPPORT_USER->value])
+        $pics = Employee::withMenuPermission('ticket.eligible-ticket-lead')
             ->where('is_active', true)
             ->with('basicData:employee_id,first_name,last_name')
             ->get()

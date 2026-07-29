@@ -66,6 +66,18 @@ class Employee extends Model
         return $query->whereHas('roles', fn($q) => $q->whereIn('employee_role.id', $roleIds));
     }
 
+    /**
+     * Scope: filter employee yang salah satu role-nya diberi izin (can_view) atas menu slug
+     * tertentu — dipakai untuk eligibility dropdown (mis. siapa saja yang boleh muncul sebagai
+     * pilihan Ticket Lead / Ticket Member), bukan hardcode role_id.
+     */
+    public function scopeWithMenuPermission(\Illuminate\Database\Eloquent\Builder $query, string $slug): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->whereHas('roles.menus', function ($q) use ($slug) {
+            $q->where('menu.slug', $slug)->where('role_menu.can_view', true);
+        });
+    }
+
     /** Semua menu yang dapat diakses (union dari semua role) */
     public function accessibleMenus()
     {
