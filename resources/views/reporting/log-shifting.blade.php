@@ -14,8 +14,8 @@
     </div>
 
     {{-- Summary bar --}}
-    <div id="lsSummary" class="flex items-center justify-between gap-3 mb-4 text-sm text-gray-500">
-        <span id="lsSummaryText">Loading...</span>
+    <div id="lsSummary" class="mb-4">
+        <span id="lsSummaryText" class="text-sm text-gray-500">Loading...</span>
     </div>
 
     {{-- Table --}}
@@ -23,9 +23,86 @@
         <table class="w-full">
             <thead>
                 <tr>
-                    <th class="ls-th text-left">No Tiket</th>
-                    <th class="ls-th text-left">Description</th>
-                    <th class="ls-th text-left">Created At</th>
+                    <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50">
+                        <button type="button" id="lsColBtn-ticket" onclick="lsToggleColFilter('ticket', event)"
+                            class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                            <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">No Tiket</span>
+                            <svg id="lsColIcon-ticket" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div id="lsColPanel-ticket" class="hidden bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket number</label>
+                            <input type="text" id="lsColInput-ticket" placeholder="e.g. 8000004211…"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                oninput="lsOnColFilterInput('ticket')">
+                            <div class="flex justify-end gap-2 mt-3">
+                                <button type="button" onclick="lsClearColFilter('ticket')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                            </div>
+                        </div>
+                    </th>
+                    <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50">
+                        <button type="button" id="lsColBtn-desc" onclick="lsToggleColFilter('desc', event)"
+                            class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                            <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Description</span>
+                            <svg id="lsColIcon-desc" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div id="lsColPanel-desc" class="hidden bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:260px;">
+                            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search description</label>
+                            <input type="text" id="lsColInput-desc" placeholder="Type keyword (case-insensitive)…"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                oninput="lsOnColFilterInput('desc')">
+                            <div class="flex justify-end gap-2 mt-3">
+                                <button type="button" onclick="lsClearColFilter('desc')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                            </div>
+                        </div>
+                    </th>
+                    <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50">
+                        <button type="button" id="lsColBtn-pic" onclick="lsToggleColFilter('pic', event)"
+                            class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                            <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">PIC</span>
+                            <svg id="lsColIcon-pic" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div id="lsColPanel-pic" class="hidden bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search PIC</label>
+                            <input type="text" id="lsColInput-pic" placeholder="Type a name…"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                oninput="lsOnColFilterInput('pic')">
+                            <div class="flex justify-end gap-2 mt-3">
+                                <button type="button" onclick="lsClearColFilter('pic')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                            </div>
+                        </div>
+                    </th>
+                    <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50">
+                        <button type="button" id="lsColBtn-date" onclick="lsToggleColFilter('date', event)"
+                            class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                            <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Created At</span>
+                            <svg id="lsColIcon-date" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div id="lsColPanel-date" class="hidden bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                            <div class="space-y-2">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+                                    <input type="date" id="lsDateFrom" onchange="lsOnColFilterInput('date')"
+                                        class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
+                                    <input type="date" id="lsDateTo" onchange="lsOnColFilterInput('date')"
+                                        class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-2 mt-3">
+                                <button type="button" onclick="lsClearColFilter('date')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                            </div>
+                        </div>
+                    </th>
                 </tr>
             </thead>
             <tbody id="lsTableBody">
@@ -95,6 +172,8 @@
 <script>
 document.addEventListener('DOMContentLoaded', loadLogShifting);
 
+let lsAllTickets = [];
+
 async function loadLogShifting() {
     const body    = document.getElementById('lsTableBody');
     const empty   = document.getElementById('lsEmpty');
@@ -109,17 +188,121 @@ async function loadLogShifting() {
         const json = await res.json();
         if (!json.success) throw new Error(json.message || 'Failed to load data');
 
-        renderLogShifting(json.data || []);
+        lsAllTickets = json.data || [];
+        renderLogShifting(lsAllTickets);
     } catch (e) {
         console.error(e);
         summary.textContent = 'Failed to load data.';
-        body.innerHTML = `<tr><td colspan="3" class="text-center py-10 text-red-500 text-sm">
+        body.innerHTML = `<tr><td colspan="4" class="text-center py-10 text-red-500 text-sm">
             <i class="fas fa-exclamation-circle text-xl block mb-2"></i>${escHtml(e.message)}
         </td></tr>`;
     }
 }
 
-function renderLogShifting(tickets) {
+// ── Per-column header filters (ticket number / description / PIC / date range) ──
+const lsFilters = { ticket: '', desc: '', pic: '', dateFrom: '', dateTo: '' };
+let _lsFilterTimer = null;
+const LS_COLS = ['ticket', 'desc', 'pic', 'date'];
+
+function lsToggleColFilter(col, ev) {
+    ev?.stopPropagation();
+    const panel = document.getElementById(`lsColPanel-${col}`);
+    const btn   = document.getElementById(`lsColBtn-${col}`);
+    const open  = panel.dataset.open === '1';
+
+    LS_COLS.forEach(c => lsClosePanel(c));
+    if (open) return;
+
+    if (panel.parentElement !== document.body) document.body.appendChild(panel);
+    const rect = btn.getBoundingClientRect();
+    panel.style.position = 'fixed';
+    panel.style.top  = (rect.bottom + 4) + 'px';
+    panel.style.left = rect.left + 'px';
+    panel.classList.remove('hidden');
+    panel.dataset.open = '1';
+    document.getElementById(`lsColInput-${col}`)?.focus();
+}
+
+function lsClosePanel(col) {
+    const panel = document.getElementById(`lsColPanel-${col}`);
+    if (panel) {
+        panel.classList.add('hidden');
+        panel.dataset.open = '0';
+    }
+}
+
+document.addEventListener('click', (e) => {
+    LS_COLS.forEach(col => {
+        const panel = document.getElementById(`lsColPanel-${col}`);
+        const btn   = document.getElementById(`lsColBtn-${col}`);
+        if (panel && panel.dataset.open === '1' && !panel.contains(e.target) && !btn.contains(e.target)) {
+            lsClosePanel(col);
+        }
+    });
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') LS_COLS.forEach(col => lsClosePanel(col));
+});
+
+function lsOnColFilterInput(col) {
+    clearTimeout(_lsFilterTimer);
+    _lsFilterTimer = setTimeout(() => lsApplyFilters(), 200);
+}
+
+function lsClearColFilter(col) {
+    if (col === 'date') {
+        document.getElementById('lsDateFrom').value = '';
+        document.getElementById('lsDateTo').value = '';
+    } else {
+        const input = document.getElementById(`lsColInput-${col}`);
+        if (input) input.value = '';
+    }
+    lsApplyFilters();
+}
+
+function lsUpdateColIndicators() {
+    const active = {
+        ticket: lsFilters.ticket !== '',
+        desc:   lsFilters.desc !== '',
+        pic:    lsFilters.pic !== '',
+        date:   lsFilters.dateFrom !== '' || lsFilters.dateTo !== '',
+    };
+    LS_COLS.forEach(col => {
+        const icon = document.getElementById(`lsColIcon-${col}`);
+        if (!icon) return;
+        icon.classList.toggle('text-red-500', active[col]);
+        icon.classList.toggle('text-gray-300', !active[col]);
+    });
+}
+
+function lsApplyFilters() {
+    lsFilters.ticket   = (document.getElementById('lsColInput-ticket')?.value || '').trim().toLowerCase();
+    lsFilters.desc     = (document.getElementById('lsColInput-desc')?.value || '').trim().toLowerCase();
+    lsFilters.pic      = (document.getElementById('lsColInput-pic')?.value || '').trim().toLowerCase();
+    lsFilters.dateFrom = document.getElementById('lsDateFrom')?.value || '';
+    lsFilters.dateTo   = document.getElementById('lsDateTo')?.value || '';
+    lsUpdateColIndicators();
+
+    const hasFilter = lsFilters.ticket || lsFilters.desc || lsFilters.pic || lsFilters.dateFrom || lsFilters.dateTo;
+
+    const filtered = lsAllTickets.filter(t => {
+        if (lsFilters.ticket && !(t.ticket_number || '').toLowerCase().includes(lsFilters.ticket)) return false;
+        if (lsFilters.desc && !(t.description || '').toLowerCase().includes(lsFilters.desc)) return false;
+        if (lsFilters.pic && !((t.pic || 'unknown').toLowerCase().includes(lsFilters.pic))) return false;
+        if (t.created_at) {
+            const d = t.created_at.slice(0, 10); // YYYY-MM-DD
+            if (lsFilters.dateFrom && d < lsFilters.dateFrom) return false;
+            if (lsFilters.dateTo && d > lsFilters.dateTo) return false;
+        } else if (lsFilters.dateFrom || lsFilters.dateTo) {
+            return false;
+        }
+        return true;
+    });
+
+    renderLogShifting(filtered, hasFilter);
+}
+
+function renderLogShifting(tickets, searchActive) {
     const body    = document.getElementById('lsTableBody');
     const empty   = document.getElementById('lsEmpty');
     const summary = document.getElementById('lsSummaryText');
@@ -127,11 +310,12 @@ function renderLogShifting(tickets) {
     if (!tickets.length) {
         body.innerHTML = '';
         empty.classList.remove('hidden');
-        summary.textContent = 'No tickets found.';
+        summary.textContent = searchActive ? 'No tickets match your filters.' : 'No tickets found.';
         return;
     }
     empty.classList.add('hidden');
-    summary.textContent = `${tickets.length} ticket${tickets.length !== 1 ? 's' : ''}`;
+    summary.textContent = `${tickets.length} ticket${tickets.length !== 1 ? 's' : ''}`
+        + (searchActive ? ` (filtered from ${lsAllTickets.length})` : '');
 
     body.innerHTML = tickets.map(t => {
         const dateStr = t.created_at
@@ -141,6 +325,7 @@ function renderLogShifting(tickets) {
         <tr class="cursor-pointer hover:bg-gray-50" onclick="openLsDetailModal(${t.ticket_id})">
             <td class="ls-td text-sm font-semibold text-gray-700">${escHtml(t.ticket_number || '—')}</td>
             <td class="ls-td ls-td-desc text-sm text-gray-700">${escHtml(t.description || '—')}</td>
+            <td class="ls-td text-sm text-gray-700">${t.pic ? escHtml(t.pic) : '<span class="text-gray-300 italic">Unknown</span>'}</td>
             <td class="ls-td text-xs text-gray-500">${dateStr}</td>
         </tr>`;
     }).join('');
