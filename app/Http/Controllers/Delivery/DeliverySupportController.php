@@ -392,6 +392,28 @@ class DeliverySupportController extends Controller
         $section = $request->input('section');
         $data = $request->input('data', []);
 
+        // Satu endpoint melayani beberapa section, jadi izinnya tidak bisa
+        // ditentukan lewat middleware `menu:` di route — dicek per section di sini.
+        // Team hanya punya aksi tambah/hapus, sehingga dipetakan ke `.manage`.
+        $requiredSlug = [
+            'support-info'  => 'delivery-support.general.edit',
+            'approval-info' => 'delivery-support.approval.edit',
+            'team-info'     => 'delivery-support.team.manage',
+        ][$section] ?? null;
+
+        if (!$requiredSlug) {
+            return response()->json(['success' => false, 'message' => 'Invalid section specified'], 400);
+        }
+
+        $userId   = session('user.id');
+        $employee = $userId ? Employee::find($userId) : null;
+        if (!$employee || !$employee->canAccessMenu($requiredSlug)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Role Anda tidak memiliki izin untuk mengubah bagian ini.',
+            ], 403);
+        }
+
         try {
             switch ($section) {
                 case 'support-info':
@@ -1235,9 +1257,11 @@ class DeliverySupportController extends Controller
      */
     public function syncCustomerPics(Request $request, DeliverySupport $support)
     {
+        // Izin utamanya ditegakkan oleh middleware `menu:` pada route; cek di sini
+        // dipertahankan sebagai lapis kedua (endpoint ini dipanggil dari beberapa tempat).
         $userId   = session('user.id');
         $employee = $userId ? Employee::find($userId) : null;
-        if (!$employee || !$employee->canAccessMenu('delivery-support.manage-customer-pic')) {
+        if (!$employee || !$employee->canAccessMenu('delivery-support.customer-pic.edit')) {
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 

@@ -5,6 +5,24 @@
 @push('styles')
 <style>
     .primary-focus:focus { border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important; outline: none !important; }
+
+    /* Summary tiles — clickable, men-drive filter tabel yang sama dengan header kolom */
+    .stat-tile {
+        display: block; width: 100%; text-align: left;
+        padding: 0.875rem 1rem;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+        cursor: pointer;
+    }
+    .stat-tile:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-1px); }
+    .stat-tile.is-active { border-color: var(--primary-color); box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.18); }
+    .stat-icon {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 2rem; height: 2rem; border-radius: 0.5rem; font-size: 0.875rem;
+    }
 </style>
 @endpush
 
@@ -40,6 +58,125 @@
     @if(session('error'))
         <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('error')),'error'));</script>
     @endif
+    {{-- ── Summary ──────────────────────────────────────────────────────────────
+         Dihitung dari koleksi $projects yang memang sudah dimuat penuh untuk
+         tabel, jadi tidak ada query tambahan. Setiap tile mengklik filter yang
+         sama dengan filter header kolom (projSetFilter), supaya angka dan isi
+         tabel tidak pernah bercerita beda. --}}
+    @php
+        $today     = \Illuminate\Support\Carbon::today();
+        $soonLimit = $today->copy()->addDays(30);
+
+        $statTotal      = $projects->count();
+        $statOpen       = $projects->where('category', 'Open')->count();
+        $statInProcess  = $projects->where('category', 'In Process')->count();
+        $statClosed     = $projects->where('category', 'Closed')->count();
+        $statOnTrack    = $projects->where('status', 'On Track')->count();
+        $statAtRisk     = $projects->where('status', 'At Risk')->count();
+        $statAtCritical = $projects->where('status', 'At Critical')->count();
+        $statCustomers  = $projects->map(fn($p) => $p->client->basicData->name_1 ?? null)->filter()->unique()->count();
+
+        // Deadline kontrak — hanya untuk project yang belum Closed.
+        $statEndingSoon = $projects->filter(fn($p) => ($p->category ?? '') !== 'Closed' && $p->contract_end_date
+                            && $p->contract_end_date->gte($today) && $p->contract_end_date->lte($soonLimit))->count();
+        $statOverdue    = $projects->filter(fn($p) => ($p->category ?? '') !== 'Closed' && $p->contract_end_date
+                            && $p->contract_end_date->lt($today))->count();
+
+        $statPct = fn($n) => $statTotal > 0 ? round($n / $statTotal * 100) : 0;
+
+        // Dipakai baris tabel & card mobile sebagai data-deadline, supaya tile
+        // "Ending <= 30 days" bisa memakai mesin filter generik yang sama.
+        $projectDeadlineFlag = function ($p) use ($today, $soonLimit) {
+            if (($p->category ?? '') === 'Closed' || !$p->contract_end_date) return '';
+            if ($p->contract_end_date->lt($today)) return 'overdue';
+            return $p->contract_end_date->lte($soonLimit) ? 'soon' : '';
+        };
+    @endphp
+    <div class="mb-6">
+        <div class="flex items-baseline justify-between mb-3">
+            <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Summary</h3>
+            <span class="text-xs text-gray-400 hidden sm:inline">Click a card to filter the list</span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {{-- Total --}}
+            <button type="button" class="stat-tile" data-stat-key="__all__" data-stat-value=""
+                    title="Show all projects">
+                <div class="flex items-center justify-between">
+                    <span class="stat-icon bg-gray-100 text-gray-600"><i class="fas fa-project-diagram"></i></span>
+                    <span class="text-2xl font-bold text-gray-900">{{ $statTotal }}</span>
+                </div>
+                <p class="mt-2 text-sm font-medium text-gray-700">Total Projects</p>
+                <p class="text-xs text-gray-400">{{ $statCustomers }} customers</p>
+            </button>
+            {{-- Category: Open --}}
+            <button type="button" class="stat-tile" data-stat-key="category" data-stat-value="open">
+                <div class="flex items-center justify-between">
+                    <span class="stat-icon bg-yellow-100 text-yellow-700"><i class="fas fa-folder-open"></i></span>
+                    <span class="text-2xl font-bold text-gray-900">{{ $statOpen }}</span>
+                </div>
+                <p class="mt-2 text-sm font-medium text-gray-700">Open</p>
+                <p class="text-xs text-gray-400">{{ $statPct($statOpen) }}% of total</p>
+            </button>
+            {{-- Category: In Process --}}
+            <button type="button" class="stat-tile" data-stat-key="category" data-stat-value="in process">
+                <div class="flex items-center justify-between">
+                    <span class="stat-icon bg-blue-100 text-blue-700"><i class="fas fa-spinner"></i></span>
+                    <span class="text-2xl font-bold text-gray-900">{{ $statInProcess }}</span>
+                </div>
+                <p class="mt-2 text-sm font-medium text-gray-700">In Process</p>
+                <p class="text-xs text-gray-400">{{ $statPct($statInProcess) }}% of total</p>
+            </button>
+            {{-- Category: Closed --}}
+            <button type="button" class="stat-tile" data-stat-key="category" data-stat-value="closed">
+                <div class="flex items-center justify-between">
+                    <span class="stat-icon bg-green-100 text-green-700"><i class="fas fa-check-circle"></i></span>
+                    <span class="text-2xl font-bold text-gray-900">{{ $statClosed }}</span>
+                </div>
+                <p class="mt-2 text-sm font-medium text-gray-700">Closed</p>
+                <p class="text-xs text-gray-400">{{ $statTotal - $statClosed }} still active</p>
+            </button>
+            {{-- Status (SPI): On Track --}}
+            <button type="button" class="stat-tile" data-stat-key="status" data-stat-value="on track">
+                <div class="flex items-center justify-between">
+                    <span class="stat-icon bg-green-100 text-green-700"><i class="fas fa-thumbs-up"></i></span>
+                    <span class="text-2xl font-bold text-gray-900">{{ $statOnTrack }}</span>
+                </div>
+                <p class="mt-2 text-sm font-medium text-gray-700">On Track</p>
+                <p class="text-xs text-gray-400">{{ $statPct($statOnTrack) }}% of total</p>
+            </button>
+            {{-- Status (SPI): At Risk --}}
+            <button type="button" class="stat-tile" data-stat-key="status" data-stat-value="at risk">
+                <div class="flex items-center justify-between">
+                    <span class="stat-icon bg-yellow-100 text-yellow-700"><i class="fas fa-exclamation-triangle"></i></span>
+                    <span class="text-2xl font-bold text-gray-900">{{ $statAtRisk }}</span>
+                </div>
+                <p class="mt-2 text-sm font-medium text-gray-700">At Risk</p>
+                <p class="text-xs text-gray-400">{{ $statPct($statAtRisk) }}% of total</p>
+            </button>
+            {{-- Status (SPI): At Critical --}}
+            <button type="button" class="stat-tile" data-stat-key="status" data-stat-value="at critical">
+                <div class="flex items-center justify-between">
+                    <span class="stat-icon bg-red-100 text-red-700"><i class="fas fa-fire"></i></span>
+                    <span class="text-2xl font-bold text-gray-900">{{ $statAtCritical }}</span>
+                </div>
+                <p class="mt-2 text-sm font-medium text-gray-700">At Critical</p>
+                <p class="text-xs text-gray-400">{{ $statPct($statAtCritical) }}% of total</p>
+            </button>
+            {{-- Deadline kontrak --}}
+            <button type="button" class="stat-tile" data-stat-key="deadline" data-stat-value="soon"
+                    title="Contract ends within 30 days (excluding Closed)">
+                <div class="flex items-center justify-between">
+                    <span class="stat-icon bg-orange-100 text-orange-700"><i class="fas fa-hourglass-half"></i></span>
+                    <span class="text-2xl font-bold text-gray-900">{{ $statEndingSoon }}</span>
+                </div>
+                <p class="mt-2 text-sm font-medium text-gray-700">Ending &le; 30 days</p>
+                <p class="text-xs {{ $statOverdue > 0 ? 'text-red-600 font-medium' : 'text-gray-400' }}">
+                    {{ $statOverdue }} past contract end
+                </p>
+            </button>
+        </div>
+    </div>
+
     <div class="bg-white shadow-sm rounded-lg overflow-hidden">
         {{-- Card Header --}}
         <div class="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
@@ -74,11 +211,13 @@
         <div class="block lg:hidden px-4 pb-4">
             <div id="mobile-project-list" class="space-y-4">
                 @forelse($projects as $project)
+                    @php $deadlineFlag = $projectDeadlineFlag($project); @endphp
                     <div class="project-card bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                          onclick="window.location.href='{{ route('projects.show', $project->id) }}'"
                          data-type="{{ strtolower($project->project_type ?? '') }}"
                          data-category="{{ strtolower($project->category ?? '') }}"
                          data-status="{{ strtolower($project->status ?? '') }}"
+                         data-deadline="{{ $deadlineFlag }}"
                          data-ae="{{ strtolower($project->ae_name ?? '') }}"
                          data-customer="{{ strtolower($project->client->basicData->name_1 ?? '') }}"
                          data-searchable-content="{{ strtolower(($project->io_number ?? '') . ' ' . ($project->client->basicData->name_1 ?? '') . ' ' . $project->project_type . ' ' . $project->name . ' ' . ($project->ae_name ?? '') . ' ' . $project->project_owner . ' ' . $project->status . ' ' . $project->category) }}">
@@ -187,7 +326,8 @@
                                 <div id="proj-panel-customer" class="proj-panel hidden">
                                     @include('delivery.project.projects.partials.proj-sort-btns', ['key' => 'customer'])
                                     <label class="proj-panel-label">Filter</label>
-                                    <select onchange="projSetFilter('customer', this.value)" class="proj-panel-input">
+                                    <select onchange="projSetFilter('customer', this.value)" class="proj-panel-input"
+                                            data-searchable="true" data-search-placeholder="Search customer...">
                                         <option value="">All Customers</option>
                                         @foreach($customerOptions as $c)<option value="{{ strtolower($c) }}">{{ $c }}</option>@endforeach
                                     </select>
@@ -308,8 +448,10 @@
                     </thead>
                         <tbody id="desktop-project-table-body" class="bg-white divide-y divide-gray-200">
                             @forelse($projects as $project)
+                                @php $deadlineFlag = $projectDeadlineFlag($project); @endphp
                                 <tr class="project-row hover:bg-gray-50 transition-colors cursor-pointer"
                                     onclick="window.location.href='{{ route('projects.show', $project->id) }}'"
+                                    data-deadline="{{ $deadlineFlag }}"
                                     data-io="{{ strtolower($project->io_number ?? '') }}"
                                     data-name="{{ strtolower($project->name ?? '') }}"
                                     data-type="{{ strtolower($project->project_type ?? '') }}"
@@ -536,21 +678,9 @@
             // Mobile-only search (filters the cards). Desktop uses the per-column
             // header sort/filter controls (see global functions below).
             if (searchInput) {
-                const runMobileSearch = () => {
-                    const term = searchInput.value.toLowerCase().trim();
-                    const cards = document.querySelectorAll('.project-card');
-                    const noRes = document.getElementById('mobile-no-results');
-                    let visible = 0;
-                    cards.forEach(card => {
-                        const ok = (card.dataset.searchableContent || '').includes(term);
-                        card.style.display = ok ? '' : 'none';
-                        if (ok) visible++;
-                    });
-                    if (noRes) noRes.classList.toggle('hidden', !(visible === 0 && cards.length > 0));
-                };
-                searchInput.addEventListener('input', runMobileSearch);
+                searchInput.addEventListener('input', applyMobileView);
                 searchInput.addEventListener('keydown', function (e) {
-                    if (e.key === 'Escape') { searchInput.value = ''; runMobileSearch(); }
+                    if (e.key === 'Escape') { searchInput.value = ''; applyMobileView(); }
                 });
             }
             
@@ -623,9 +753,83 @@
             if (noRes) { tbody.appendChild(noRes); noRes.classList.toggle('hidden', !(visible.length === 0 && rows.length > 0)); }
 
             updateProjIcons();
+            updateStatTiles();
+            applyMobileView();
             const tc = document.querySelector('.table-container');
             if (tc) tc.scrollTop = 0;
         }
+
+        // Card mobile memakai state filter yang sama + kotak search mobile, supaya
+        // klik summary tile ikut berlaku di layar kecil.
+        function applyMobileView() {
+            const cards = document.querySelectorAll('.project-card');
+            if (!cards.length) return;
+            const input = document.getElementById('project-search');
+            const term  = input ? input.value.toLowerCase().trim() : '';
+            const f = projState.filters;
+            let visible = 0;
+
+            cards.forEach(card => {
+                let ok = (card.dataset.searchableContent || '').includes(term);
+                if (ok) {
+                    for (const key in f) {
+                        const val = f[key];
+                        // Card mobile tidak membawa semua data-* milik baris desktop
+                        // (mis. io/name/owner) — filter untuk key yang tidak ada
+                        // diabaikan, bukan dianggap tidak cocok.
+                        if (!val || !(key in card.dataset)) continue;
+                        const data = card.dataset[key] || '';
+                        if (PROJ_TEXT_FILTERS.includes(key)) { if (!data.includes(val)) { ok = false; break; } }
+                        else if (data !== val) { ok = false; break; }
+                    }
+                }
+                card.style.display = ok ? '' : 'none';
+                if (ok) visible++;
+            });
+
+            const noRes = document.getElementById('mobile-no-results');
+            if (noRes) noRes.classList.toggle('hidden', !(visible === 0 && cards.length > 0));
+        }
+
+        // ── Summary tiles ────────────────────────────────────────────────────────
+        function updateStatTiles() {
+            document.querySelectorAll('.stat-tile').forEach(tile => {
+                const key = tile.dataset.statKey;
+                const val = tile.dataset.statValue || '';
+                const active = key === '__all__'
+                    ? Object.values(projState.filters).every(v => !v)
+                    : projState.filters[key] === val;
+                tile.classList.toggle('is-active', !!active);
+            });
+        }
+
+        function projStatTileClick(tile) {
+            const key = tile.dataset.statKey;
+            const val = tile.dataset.statValue || '';
+            if (key === '__all__') {
+                Object.keys(projState.filters).forEach(k => projClearFilter(k));
+                applyProjectView();
+                return;
+            }
+            // Klik ulang tile yang sedang aktif = lepas filter-nya.
+            const next = projState.filters[key] === val ? '' : val;
+            projState.filters[key] = next;
+            // Samakan select di panel header supaya angka tile dan kontrol kolom
+            // tidak menampilkan dua kebenaran berbeda.
+            const panel = document.getElementById('proj-panel-' + key);
+            if (panel) panel.querySelectorAll('select').forEach(sel => {
+                sel.value = next;
+                sel.dispatchEvent(new Event('change', { bubbles: false }));
+            });
+            applyProjectView();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.stat-tile').forEach(tile => {
+                tile.addEventListener('click', () => projStatTileClick(tile));
+            });
+            updateStatTiles();
+        });
 
         function updateProjIcons() {
             PROJ_SORT_KEYS.forEach(k => {
@@ -650,7 +854,12 @@
         function projClearFilter(key) {
             projState.filters[key] = '';
             const panel = document.getElementById('proj-panel-' + key);
-            if (panel) panel.querySelectorAll('input, select').forEach(el => { el.value = ''; });
+            if (panel) panel.querySelectorAll('input, select').forEach(el => {
+                el.value = '';
+                // select-enhance.js merender label tombolnya dari event 'change';
+                // tanpa dispatch ini label tetap memperlihatkan pilihan lama.
+                if (el.tagName === 'SELECT') el.dispatchEvent(new Event('change', { bubbles: false }));
+            });
             applyProjectView();
         }
         // Fixed-position popovers so panels are never clipped by the scroll container.
@@ -669,7 +878,11 @@
             panel.classList.remove('hidden');
         }
         document.addEventListener('click', function (e) {
-            if (e.target.closest('.proj-th-btn') || e.target.closest('.proj-panel')) return;
+            // .se-panel / .se-wrap: dropdown hasil select-enhance.js. Panel-nya
+            // di-detach ke <body> (mode fixed) sehingga bukan lagi turunan
+            // .proj-panel — tanpa guard ini, klik di dalamnya menutup panel filter.
+            if (e.target.closest('.proj-th-btn') || e.target.closest('.proj-panel')
+                || e.target.closest('.se-panel') || e.target.closest('.se-wrap')) return;
             closeAllProjPanels();
         });
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAllProjPanels(); });
