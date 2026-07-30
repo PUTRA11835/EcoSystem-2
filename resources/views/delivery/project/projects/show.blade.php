@@ -151,6 +151,20 @@
         transition: width 0.1s ease;
     }
 
+    /* Nilai read-only pada section (editing pindah ke modal). Bentuknya sengaja
+       menyerupai input agar tata letak section tidak berubah dari versi form. */
+    .display-box {
+        display: block; width: 100%;
+        padding: 0.625rem 0.75rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.375rem;
+        background: #f9fafb;
+        font-size: 0.875rem;
+        color: #111827;
+        min-height: 2.625rem;
+    }
+    .edit-btn:hover { color: var(--primary-color) !important; background-color: rgba(var(--primary-rgb), 0.08) !important; }
+
     .primary-tab-active { color: var(--primary-color) !important; border-color: var(--primary-color) !important; }
     .primary-text { color: var(--primary-color) !important; }
     .primary-link { color: var(--primary-color); }
@@ -288,44 +302,66 @@
 {{-- ✅ SCROLL PROGRESS INDICATOR --}}
 <div class="scroll-indicator" id="scrollIndicator"></div>
 {{-- ✅ Sticky Navigation Tabs - PALING ATAS --}}
+{{-- Tiap tab ikut izin `.view` section tujuannya, supaya tidak ada tab yang
+     mengarah ke section yang tidak dirender untuk role tersebut. --}}
 <div class="bg-white" id="sectionNav">
     <nav class="flex overflow-x-auto scrollbar-hide border-b border-gray-200">
+        @if($can('delivery-project.general.view'))
         <button onclick="scrollToSection('general')" data-section="general" class="section-tab active text-sm font-medium text-gray-600 whitespace-nowrap">
             General
         </button>
-        <button onclick="scrollToSection('delivery')" data-section="delivery" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
+        @endif
+        {{-- Tab ini menaungi dua section: Delivery Data (di atas) + Delivery
+             Information. Klik diarahkan ke section pertama yang boleh dilihat. --}}
+        @if($can('delivery-project.delivery-data.view') || $can('delivery-project.delivery-info.view'))
+        <button onclick="scrollToSection('{{ $can('delivery-project.delivery-data.view') ? 'delivery-data' : 'delivery' }}')" data-section="delivery" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Delivery Info
         </button>
+        @endif
+        @if($can('delivery-project.team.view'))
         <button onclick="scrollToSection('team')" data-section="team" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Team
         </button>
+        @endif
+        @if($can('delivery-project.documents.view'))
         <button onclick="scrollToSection('documents')" data-section="documents" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Documents
         </button>
+        @endif
+        @if($can('delivery-project.issue-log.view'))
         <button onclick="scrollToSection('issues')" data-section="issues" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Issues
         </button>
+        @endif
+        @if($can('delivery-project.risk.view'))
         <button onclick="scrollToSection('risks')" data-section="risks" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
             </svg>
             Risks
         </button>
+        @endif
+        @if($can('delivery-project.location.view'))
         <button onclick="scrollToSection('location')" data-section="location" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Location
         </button>
+        @endif
+        @if($can('delivery-project.planning.view'))
         <button onclick="scrollToSection('planning')" data-section="planning" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
             </svg>
             Planning
         </button>
+        @endif
+        @if($can('delivery-project.plan-cost.view'))
         <button onclick="scrollToSection('plancost')" data-section="plancost" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
             Plan Cost
         </button>
+        @endif
     </nav>
 </div>
 
@@ -375,7 +411,7 @@
                 </svg>
                 Open Folder
             </a>
-            @elseif($can('delivery-project.manage-documents'))
+            @elseif($can('delivery-project.documents.manage'))
             <button type="button" id="headerFolderBtn" onclick="openOneDriveModal()"
                     class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -432,7 +468,7 @@
         <p class="text-sm font-semibold text-amber-800">Folder link may not be accessible</p>
         <p id="odrLinkWarningText" class="text-xs text-amber-700 mt-0.5">{{ $project->onedrive_link_warning }}</p>
     </div>
-    @if($can('delivery-project.manage-documents'))
+    @if($can('delivery-project.documents.manage'))
     <button type="button" id="odrRefreshLinkBtn" onclick="refreshProjectFolderLink()"
             class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 transition-all">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -464,118 +500,61 @@
 @endif
 
 {{-- General Information Section --}}
-<section id="general" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.edit-general-info') ? '1' : '0' }}">
+@if($can('delivery-project.general.view'))
+<section id="general" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.general.edit') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
-        <div class="p-6 border-b border-gray-200">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-700">General Information</h2>
+            @if($can('delivery-project.general.edit'))
+            <button type="button" onclick="openModal('generalInfoModal')" title="Edit General Information"
+                    class="p-2 text-gray-400 edit-btn rounded-lg transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            @endif
         </div>
-        <form id="generalInfoForm" action="{{ route('projects.updateGeneralInfo', $project->id) }}" method="POST" class="p-6">
-            @csrf @method('PATCH')
-            @php $clientLabel = $project->client->basicData->name_1 ?? ''; @endphp
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {{-- Customer --}}
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Customer</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $clientLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $clientLabel ?: '-- Select Client --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="client_id" value="{{ $project->client_id }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search client…" autocomplete="off" spellcheck="false">
-                            </div>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Client --</button>
-                            @foreach($clients as $client)
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $client->customer_id }}">{{ $client->basicData->name_1 ?? $client->email ?? 'Unknown' }}</button>
-                            @endforeach
-                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                        </div>
-                    </div>
+                    <div class="display-box">{{ $project->client->basicData->name_1 ?? '—' }}</div>
                 </div>
-                {{-- Project Name --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Project Name</label>
-                    <input type="text" name="name" value="{{ $project->name }}" required
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                           placeholder="Enter project name">
+                    <div class="display-box font-semibold">{{ $project->name ?: '—' }}</div>
                 </div>
-                {{-- Project Owner --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Project Owner</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->project_owner ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->project_owner ?: '-- Select Project Owner --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="project_owner" value="{{ $project->project_owner }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
-                            </div>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Project Owner --</button>
-                            @foreach($employees as $employee)
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
-                            @endforeach
-                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                        </div>
-                    </div>
+                    <div class="display-box">{{ $project->project_owner ?: '—' }}</div>
                 </div>
-                {{-- Project Type --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Project Type</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->project_type ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->project_type ?: '-- Select Type --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="project_type" value="{{ $project->project_type }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Type --</button>
-                            @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF','Body Hire'] as $pt)
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pt }}">{{ $pt }}</button>
-                            @endforeach
-                        </div>
-                    </div>
+                    <div class="display-box">{{ $project->project_type ?: '—' }}</div>
                 </div>
-                {{-- High Level Risk --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">High Level Risk</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->high_level_risk ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->high_level_risk ?: '-- Select Risk Level --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="high_level_risk" value="{{ $project->high_level_risk }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Risk Level --</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Low">Low</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Moderate">Moderate</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="High">High</button>
-                        </div>
+                    <div class="display-box">
+                        @if($project->high_level_risk)
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                @if($project->high_level_risk === 'Low') bg-green-100 text-green-800
+                                @elseif($project->high_level_risk === 'Moderate') bg-yellow-100 text-yellow-800
+                                @else bg-red-100 text-red-800 @endif">
+                                {{ $project->high_level_risk }}
+                            </span>
+                        @else
+                            <span class="text-gray-400">—</span>
+                        @endif
                     </div>
                 </div>
-                {{-- IO/Number Order --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">IO/Number Order</label>
-                    <input type="text" name="io_number" value="{{ $project->io_number }}"
-                           @if($project->project_type === 'Body Hire') list="io_number_options" autocomplete="off" @endif
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                           placeholder="e.g. IO-2026-001">
-                    @if($project->project_type === 'Body Hire')
-                        <datalist id="io_number_options">
-                            @foreach($sameCompanyIos as $io)<option value="{{ $io }}"></option>@endforeach
-                        </datalist>
-                        <p class="mt-1 text-xs text-blue-600">
-                            <i class="fas fa-info-circle mr-1"></i>Body Hire: pilih IO number yang sudah ada milik company ini, atau ketik IO number baru.
-                        </p>
-                    @endif
+                    <div class="display-box">{{ $project->io_number ?: '—' }}</div>
                 </div>
-                {{-- Category (read-only) --}}
+                {{-- Category (auto dari Project Planning) --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Category</label>
-                    <div class="block w-full py-2.5 px-3 border border-gray-200 rounded-md bg-gray-50 shadow-sm text-sm">
+                    <div class="display-box">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                             @if($project->category == 'Open') bg-yellow-100 text-yellow-800
                             @elseif($project->category == 'In Process') bg-blue-100 text-blue-800
@@ -586,225 +565,157 @@
                     </div>
                     <p class="mt-1 text-xs text-amber-600">*Auto-filled from Project Planning</p>
                 </div>
-                {{-- Phase (read-only) --}}
+                {{-- Phase (auto dari Project Planning) --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Phase</label>
-                    <div class="block w-full py-2.5 px-3 border border-gray-200 rounded-md bg-gray-50 shadow-sm text-sm">
+                    <div class="display-box">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                             {{ $project->phase ?? 'N/A' }}
                         </span>
                     </div>
                     <p class="mt-1 text-xs text-amber-600">*Auto-filled from Project Planning</p>
                 </div>
-                {{-- Contract Start Date --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Contract Start Date <span class="text-red-500">*</span></label>
-                    <input type="text" name="contract_start_date" id="contract_start_date" autocomplete="off" readonly required
-                           value="{{ $project->contract_start_date ? \Carbon\Carbon::parse($project->contract_start_date)->format('Y-m-d') : '' }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus bg-white cursor-pointer"
-                           placeholder="dd-mon-yyyy">
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Contract Start Date</label>
+                    <div class="display-box">{{ $project->contract_start_date ? \Carbon\Carbon::parse($project->contract_start_date)->format('d M Y') : '—' }}</div>
                 </div>
-                {{-- Contract End Date --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Contract End Date <span class="text-red-500">*</span></label>
-                    <input type="text" name="contract_end_date" id="contract_end_date" autocomplete="off" readonly required
-                           value="{{ $project->contract_end_date ? \Carbon\Carbon::parse($project->contract_end_date)->format('Y-m-d') : '' }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus bg-white cursor-pointer"
-                           placeholder="dd-mon-yyyy">
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Contract End Date</label>
+                    <div class="display-box">{{ $project->contract_end_date ? \Carbon\Carbon::parse($project->contract_end_date)->format('d M Y') : '—' }}</div>
                 </div>
-                {{-- Go Live Estimated (read-only) --}}
+                {{-- Go Live Estimated (auto dari activity Go-Live) --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Go Live Estimated</label>
-                    <div class="block w-full py-2.5 px-3 border border-gray-200 rounded-md bg-gray-50 shadow-sm text-sm text-gray-700">
-                        {{ $project->go_live_estimated ? \Carbon\Carbon::parse($project->go_live_estimated)->format('d M Y') : 'N/A' }}
-                    </div>
+                    <div class="display-box">{{ $project->go_live_estimated ? \Carbon\Carbon::parse($project->go_live_estimated)->format('d M Y') : 'N/A' }}</div>
                     <p class="mt-1 text-xs text-amber-600">*Derived from the Planned Start Date of the activity marked as 'Go-Live'</p>
                 </div>
-                {{-- Description (full width) --}}
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-900 mb-1">Description</label>
-                    <textarea name="description" rows="4"
-                              class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                              placeholder="Enter project description">{{ $project->description }}</textarea>
+                    <div class="display-box whitespace-pre-line min-h-[5rem]">{{ $project->description ?: '—' }}</div>
                 </div>
             </div>
-            <div class="mt-6 text-right">
-                <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                    Update Information
-                </button>
-            </div>
-        </form>
+        </div>
     </div>
 </section>
+@endif
+
+{{-- Delivery Data — sengaja ditempatkan SEBELUM Delivery Information; keduanya
+     berbagi tab "Delivery Info" dan izin `edit-delivery-info`. --}}
+@if($can('delivery-project.delivery-data.view'))
+<section id="delivery-data" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.delivery-data.edit') ? '1' : '0' }}">
+    <div class="bg-white shadow-md rounded-lg">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-700">Delivery Data</h2>
+                <p class="mt-1 text-sm text-gray-600">Delivery method, warranty, and mandays</p>
+            </div>
+            @if($can('delivery-project.delivery-data.edit'))
+            <button type="button" onclick="openModal('deliveryDataModal')" title="Edit Delivery Data"
+                    class="p-2 text-gray-400 edit-btn rounded-lg transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            @endif
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Warranty Period <span class="text-gray-400 font-normal">(months)</span></label>
+                    <div class="display-box">{{ $project->warranty_period !== null && $project->warranty_period !== '' ? $project->warranty_period . ' months' : '—' }}</div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Method</label>
+                    <div class="display-box">{{ $project->delivery_method ?: '—' }}</div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Total Mandays</label>
+                    <div class="display-box">{{ $project->total_mandays !== null && $project->total_mandays !== '' ? $project->total_mandays . ' days' : '—' }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+@endif
 
 {{-- Delivery Information Section --}}
-<section id="delivery" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.edit-delivery-info') ? '1' : '0' }}">
+@if($can('delivery-project.delivery-info.view'))
+<section id="delivery" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.delivery-info.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.delivery-info.manage') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
-        <div class="p-6 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-700">Delivery Information</h2>
-            <p class="mt-1 text-sm text-gray-600">Delivery and sales information</p>
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-700">Delivery Information</h2>
+                <p class="mt-1 text-sm text-gray-600">Delivery and sales information</p>
+            </div>
+            @if($can('delivery-project.delivery-info.edit'))
+            <button type="button" onclick="openModal('deliveryInfoModal')" title="Edit Delivery Information"
+                    class="p-2 text-gray-400 edit-btn rounded-lg transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            @endif
         </div>
-        <form id="deliveryInfoForm" action="{{ route('projects.updateDeliveryInfo', $project->id) }}" method="POST" class="p-6">
-            @csrf @method('PATCH')
-
-            {{-- Sales Data Sub-section --}}
-            <div class="mb-6">
+        <div class="p-6">
+            {{-- Sales Data (read-only; editing lewat modal Edit Delivery Information) --}}
+            @php
+                $dispRev    = (float) ($project->revenue ?? 0);
+                $dispPc     = (float) ($project->plan_cost ?? 0);
+                $dispGp     = (float) ($project->gross_profit ?? 0);
+                $dispGpPct  = $project->gross_profit_percentage;
+                $dispAc     = (float) ($actualCost ?? 0);
+                $dispAgp    = $dispRev - $dispAc;
+                $dispAgpPct = $dispRev > 0 ? ($dispAgp / $dispRev) * 100 : 0;
+                $rp         = fn($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
+                $pct        = fn($v) => number_format((float) $v, 2, ',', '.') . '%';
+            @endphp
             <h4 class="text-lg font-medium text-gray-900 mb-4">Sales Data</h4>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Account Executive Type</label>
-                    <div class="custom-dd relative" data-fixed="true" data-onchange="toggleAEFields">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->ae_type ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->ae_type ?: '-- Select --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="ae_type" id="ae_type" value="{{ $project->ae_type }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Internal">Internal</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="External">External</button>
-                        </div>
-                    </div>
+                    <div class="display-box">{{ $project->ae_type ?: '—' }}</div>
                 </div>
-                <div id="ae_name_container">
+                <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Account Executive Name</label>
-                    @php
-                        $aeName       = $project->ae_name;
-                        $aeIsInternal = ($project->ae_type === 'Internal');
-                        $aeIsExternal = ($project->ae_type === 'External');
-                        $aeHasType    = ($aeIsInternal || $aeIsExternal);
-                    @endphp
-                    {{-- Placeholder ter-disable: tampil sampai Account Executive Type dipilih --}}
-                    <input type="text" id="ae_name_placeholder" disabled
-                           placeholder="-- Select type first --"
-                           style="{{ $aeHasType ? 'display:none;' : '' }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm bg-gray-100 text-gray-400 cursor-not-allowed">
-                    {{-- Custom-dd dengan search untuk AE Internal (konsisten dengan halaman create) --}}
-                    <div id="ae_employee_dd_wrapper" style="{{ $aeIsInternal ? '' : 'display:none;' }}">
-                        <div class="custom-dd relative" data-fixed="true" data-onchange="fillAEContactInfo">
-                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between py-2.5 px-3 bg-white border border-gray-300 rounded-md shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                                <span class="custom-dd-label {{ ($aeIsInternal && $aeName) ? 'text-gray-700' : 'text-gray-500' }}">{{ ($aeIsInternal && $aeName) ? $aeName : '-- Select Employee --' }}</span>
-                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                            </button>
-                            <input type="hidden" name="{{ $aeIsInternal ? 'ae_name' : '' }}" id="ae_employee_hidden" value="{{ $aeIsInternal ? $aeName : '' }}">
-                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                                <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                    <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
-                                </div>
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                                @foreach($aeEmployees as $employee)
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
-                                @endforeach
-                                <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                            </div>
-                        </div>
-                    </div>
-                    {{-- Text input untuk AE External --}}
-                    <input type="text" name="{{ $aeIsExternal ? 'ae_name' : '' }}" id="ae_name_input"
-                           value="{{ $aeIsExternal ? $aeName : '' }}"
-                           style="{{ $aeIsExternal ? '' : 'display:none;' }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                    <div class="display-box">{{ $project->ae_name ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">AE Phone</label>
-                    <input type="text" name="ae_phone" value="{{ $project->ae_phone }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                           placeholder="e.g. +6281234567890">
+                    <div class="display-box">{{ $project->ae_phone ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">AE Email</label>
-                    <input type="email" name="ae_email" value="{{ $project->ae_email }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                           placeholder="e.g. ae@example.com">
+                    <div class="display-box break-all">{{ $project->ae_email ?: '—' }}</div>
                 </div>
-                {{-- Revenue --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Revenue</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
-                        <input type="text" id="sfin_rev_disp" inputmode="numeric" autocomplete="off"
-                               class="block w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-md shadow-sm text-sm primary-focus text-right"
-                               placeholder="0">
-                        <input type="hidden" name="revenue" id="sfin_rev_val" value="{{ $project->revenue }}">
-                    </div>
+                    <div class="display-box text-right">{{ $rp($dispRev) }}</div>
                 </div>
-                {{-- Plan Cost --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Plan Cost</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
-                        <input type="text" id="sfin_pc_disp" inputmode="numeric" autocomplete="off"
-                               class="block w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-md shadow-sm text-sm primary-focus text-right"
-                               placeholder="0">
-                        <input type="hidden" name="plan_cost" id="sfin_pc_val" value="{{ $project->plan_cost }}">
-                    </div>
+                    <div class="display-box text-right">{{ $rp($dispPc) }}</div>
                 </div>
-                {{-- Gross Profit (auto-calc: Revenue - Plan Cost) --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">
-                        Gross Profit
-                    </label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
-                        <input type="text" id="sfin_gp_disp" readonly tabindex="-1"
-                               class="block w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-md bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
-                               placeholder="0">
-                        <input type="hidden" name="gross_profit" id="sfin_gp_val" value="{{ $project->gross_profit }}">
-                    </div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Gross Profit</label>
+                    <div class="display-box text-right">{{ $rp($dispGp) }}</div>
                 </div>
-                {{-- % Gross Profit (auto-calc: GP / Revenue × 100) --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">
-                        % Gross Profit
-                    </label>
-                    <div class="relative">
-                        <input type="text" id="sfin_pct_disp" readonly tabindex="-1"
-                               class="block w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-md bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
-                               placeholder="0,00">
-                        <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-gray-500 pointer-events-none">%</span>
-                        <input type="hidden" name="gross_profit_percentage" id="sfin_pct_val" value="{{ $project->gross_profit_percentage }}">
-                    </div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">% Gross Profit</label>
+                    <div class="display-box text-right">{{ $dispGpPct === null ? '—' : $pct($dispGpPct) }}</div>
                 </div>
-                {{-- Actual Cost (auto: Total Actual dari expense detail Plan Cost).
-                     lg:col-start-2 → sejajar tepat di bawah Plan Cost, sehingga
-                     baris Actual berpasangan dengan baris Plan di atasnya. --}}
+                {{-- Baris Actual: lg:col-start-2 agar sejajar di bawah Plan Cost, sama
+                     seperti tata letak form lamanya. --}}
                 <div class="lg:col-start-2">
-                    <label class="block text-sm font-medium text-gray-900 mb-1">
-                        Actual Cost
-                    </label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
-                        <input type="text" id="sfin_ac_disp" readonly tabindex="-1"
-                               class="block w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-md bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
-                               placeholder="0">
-                        <input type="hidden" id="sfin_ac_val" value="{{ $actualCost }}">
-                    </div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Actual Cost</label>
+                    <div class="display-box text-right">{{ $rp($dispAc) }}</div>
                 </div>
-                {{-- Actual Gross Profit (auto-calc: Revenue − Actual Cost) --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">
-                        Actual Gross Profit
-                    </label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
-                        <input type="text" id="sfin_agp_disp" readonly tabindex="-1"
-                               class="block w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-md bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
-                               placeholder="0">
-                        <input type="hidden" id="sfin_agp_val" value="">
-                    </div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Actual Gross Profit</label>
+                    <div class="display-box text-right">{{ $rp($dispAgp) }}</div>
                 </div>
-                {{-- % Actual Gross Profit (auto-calc: Actual GP / Revenue × 100) --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">
-                        % Actual Gross Profit
-                    </label>
-                    <div class="relative">
-                        <input type="text" id="sfin_apct_disp" readonly tabindex="-1"
-                               class="block w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-md bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
-                               placeholder="0,00">
-                        <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-gray-500 pointer-events-none">%</span>
-                        <input type="hidden" id="sfin_apct_val" value="">
-                    </div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">% Actual Gross Profit</label>
+                    <div class="display-box text-right">{{ $pct($dispAgpPct) }}</div>
                 </div>
             </div>
 
@@ -862,76 +773,22 @@
                     </table>
                 </div>
             </div>
-            </div>{{-- /Sales Data --}}
-
-            {{-- Tombol simpan Delivery Information: diletakkan tepat di bawah tabel
-                 Term Of Payment agar jelas cakupannya (Sales Data + TOP), tidak lagi
-                 rancu dengan Delivery Data yang kini jadi section tersendiri. --}}
-            <div class="mt-6 text-right">
-                <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                    Update Information
-                </button>
-            </div>
-        </form>
-    </div>
-</section>
-
-{{-- Delivery Data — section terpisah dengan tombol simpannya sendiri --}}
-<section id="delivery-data" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.edit-delivery-info') ? '1' : '0' }}">
-    <div class="bg-white shadow-md rounded-lg">
-        <div class="p-6 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-700">Delivery Data</h2>
-            <p class="mt-1 text-sm text-gray-600">Delivery method, warranty, and mandays</p>
         </div>
-        <form id="deliveryDataForm" action="{{ route('projects.updateDeliveryData', $project->id) }}" method="POST" class="p-6">
-            @csrf @method('PATCH')
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Warranty Period <span class="text-gray-400 font-normal">(months)</span></label>
-                    <input type="number" name="warranty_period" value="{{ $project->warranty_period }}"
-                           min="0"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                           placeholder="e.g. 12">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Method</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->delivery_method ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->delivery_method ?: '-- Select --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="delivery_method" value="{{ $project->delivery_method }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Onsite">Onsite</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Hybrid">Hybrid</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="WFH">WFH</button>
-                        </div>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Total Mandays</label>
-                    <input type="number" name="total_mandays" value="{{ $project->total_mandays }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
-                </div>
-            </div>
-            <div class="mt-6 text-right">
-                <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                    Update Information
-                </button>
-            </div>
-        </form>
     </div>
 </section>
+@endif
 
 {{-- Team Section WITH CHECKBOX SELECTION --}}
-<section id="team" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-team') ? '1' : '0' }}">
+@if($can('delivery-project.team.view'))
+<section id="team" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.team.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.team.manage') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-700">Team Members</h2>
+            @if($can('delivery-project.team.manage'))
             <button onclick="openModal('teamModal')" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Add Team Member
             </button>
+            @endif
         </div>
         <div class="p-6">
             @php
@@ -1087,9 +944,11 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- Documents Section WITH CHECKBOX SELECTION --}}
-<section id="documents" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-documents') ? '1' : '0' }}">
+@if($can('delivery-project.documents.view'))
+<section id="documents" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.documents.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.documents.manage') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <div>
@@ -1098,6 +957,7 @@
                     <p class="text-xs text-amber-600 mt-0.5">Please create an OneDrive folder before uploading documents.</p>
                 @endif
             </div>
+            @if($can('delivery-project.documents.manage'))
             <button onclick="openUploadDocumentModal()"
                     class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1105,6 +965,7 @@
                 </svg>
                 Upload Document
             </button>
+            @endif
         </div>
         <div class="p-6">
             {{-- Empty state: shown when no documents --}}
@@ -1171,9 +1032,11 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- Issues Section WITH CHECKBOX SELECTION --}}
-<section id="issues" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-issue-log') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
+@if($can('delivery-project.issue-log.view'))
+<section id="issues" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.issue-log.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.issue-log.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
 
         {{-- ── Header ─────────────────────────────────────────────── --}}
@@ -1188,6 +1051,7 @@
                     </h2>
                     <p class="text-xs text-gray-500 mt-1">Project Issue Log</p>
                 </div>
+                @if($can('delivery-project.issue-log.manage'))
                 <button type="button" onclick="IssueLog.openAdd()"
                         class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1195,6 +1059,7 @@
                     </svg>
                     Add Issue
                 </button>
+                @endif
             </div>
         </div>
 
@@ -1239,11 +1104,13 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- PROJECT RISK REGISTER SECTION                                 --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
-<section id="risks" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-risk') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
+@if($can('delivery-project.risk.view'))
+<section id="risks" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.risk.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.risk.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
 
         {{-- ── Header ─────────────────────────────────────────────── --}}
@@ -1266,6 +1133,7 @@
                         </svg>
                         Risk Dashboard
                     </button>
+                    @if($can('delivery-project.risk.manage'))
                     <button type="button" onclick="RiskRegister.openAdd()"
                             class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1273,6 +1141,7 @@
                         </svg>
                         Add Risk
                     </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -1320,6 +1189,7 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- Selection Toolbar (Floating Action Bar) --}}
 <div id="selectionToolbar" class="selection-toolbar">
@@ -1349,106 +1219,63 @@
 </div>
 
 {{-- Location Section --}}
-<section id="location" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.edit-location-info') ? '1' : '0' }}">
+@if($can('delivery-project.location.view'))
+<section id="location" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.location.edit') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
-        <div class="p-6 border-b border-gray-200">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-700">Location Information</h2>
+            @if($can('delivery-project.location.edit'))
+            <button type="button" onclick="openModal('locationInfoModal')" title="Edit Location Information"
+                    class="p-2 text-gray-400 edit-btn rounded-lg transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            @endif
         </div>
-        <form id="locationInfoForm" action="{{ route('projects.updateLocationInfo', $project->id) }}" method="POST" class="p-6">
-            @csrf @method('PATCH')
+        <div class="p-6">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Location Name</label>
-                    <input type="text" name="location_name" value="{{ $project->location_name }}"
-                           placeholder="Enter Location Name"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                    <div class="display-box">{{ $project->location_name ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Type of Address</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->location_type ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->location_type ?: '-- Select --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="location_type" value="{{ $project->location_type }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Head Office">Head Office</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Plant">Plant</button>
-                        </div>
-                    </div>
+                    <div class="display-box">{{ $project->location_type ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Country</label>
-                    <input type="text" value="Indonesia" readonly
-                           class="block w-full py-2.5 px-3 border border-gray-200 rounded-md shadow-sm text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
+                    <div class="display-box">{{ $project->location_country ?: 'Indonesia' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Geographical</label>
-                    @php $locGeo = $project->location_geographical; @endphp
-                    <div class="custom-dd relative" data-onchange="locUpdateRegions" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $locGeo ? 'text-gray-700' : 'text-gray-500' }}">{{ $locGeo ?: '-- Select Geographical --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="location_geographical" id="loc_geographical" value="{{ $locGeo }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Geographical --</button>
-                            @foreach(['Jawa','Sumatera','Bali & N.Tenggara','Kalimantan','Sulawesi','Maluku','Papua'] as $g)
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $g }}">{{ $g }}</button>
-                            @endforeach
-                        </div>
-                    </div>
+                    <div class="display-box">{{ $project->location_geographical ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Region / Province</label>
-                    <select name="location_region" id="loc_region"
-                            data-no-enhance
-                            data-selected="{{ $project->location_region }}"
-                            class="block w-full py-2.5 px-3 pr-10 border border-gray-300 rounded-md shadow-sm text-sm appearance-none bg-white hover:border-gray-400 transition-all"
-                            style="background-image: url(&quot;data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-position: right 0.625rem center; background-size: 1rem;"
-                            onchange="locUpdateCities()">
-                        <option value="">-- Select Region --</option>
-                    </select>
+                    <div class="display-box">{{ $project->location_region ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">City</label>
-                    <select name="location_city" id="loc_city"
-                            data-no-enhance
-                            data-selected="{{ $project->location_city }}"
-                            class="block w-full py-2.5 px-3 pr-10 border border-gray-300 rounded-md shadow-sm text-sm appearance-none bg-white hover:border-gray-400 transition-all"
-                            style="background-image: url(&quot;data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-position: right 0.625rem center; background-size: 1rem;">
-                        <option value="">-- Select City --</option>
-                    </select>
+                    <div class="display-box">{{ $project->location_city ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Valid From</label>
-                    <input type="text" name="location_valid_from" id="loc_valid_from" readonly
-                           value="{{ $project->location_valid_from ? \Carbon\Carbon::parse($project->location_valid_from)->format('Y-m-d') : '' }}"
-                           placeholder="Select Valid From Date"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus cursor-pointer">
+                    <div class="display-box">{{ $project->location_valid_from ? \Carbon\Carbon::parse($project->location_valid_from)->format('d M Y') : '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Valid To</label>
-                    <input type="text" name="location_valid_to" id="loc_valid_to" readonly
-                           value="{{ $project->location_valid_to ? \Carbon\Carbon::parse($project->location_valid_to)->format('Y-m-d') : '' }}"
-                           placeholder="Select Valid To Date"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus cursor-pointer">
+                    <div class="display-box">{{ $project->location_valid_to ? \Carbon\Carbon::parse($project->location_valid_to)->format('d M Y') : '—' }}</div>
                 </div>
                 <div class="md:col-span-2 lg:col-span-3">
                     <label class="block text-sm font-medium text-gray-900 mb-1">Street Address</label>
-                    <textarea name="location_street" rows="2"
-                              class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">{{ $project->location_street }}</textarea>
+                    <div class="display-box whitespace-pre-line">{{ $project->location_street ?: '—' }}</div>
                 </div>
             </div>
-            <div class="mt-6 text-right">
-                <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                    Update Location
-                </button>
-            </div>
-        </form>
+        </div>
     </div>
 </section>
+@endif
 
 {{-- Location Information — cascading Geographical → Region → City dropdowns.
      Sumber data & pola identik dengan form create (projects/create.blade.php)
@@ -1570,7 +1397,8 @@
 </script>
 
 {{-- ✅✅✅ PROJECT PLANNING SECTION (INTEGRATED) ✅✅✅ --}}
-<section id="planning" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-planning') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
+@if($can('delivery-project.planning.view'))
+<section id="planning" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.planning.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.planning.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200">
             <div class="flex justify-between items-center flex-wrap gap-4">
@@ -1727,11 +1555,13 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- PLAN COST SECTION                                             --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
-<section id="plancost" class="mb-6 card-hover section-animate" data-perm-granted="{{ $can('delivery-project.manage-plan-cost') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
+@if($can('delivery-project.plan-cost.view'))
+<section id="plancost" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.plan-cost.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.plan-cost.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
 
         {{-- ── Header ─────────────────────────────────────────────── --}}
@@ -1746,6 +1576,7 @@
                     </h2>
                     <p class="text-xs text-gray-500 mt-1">Project cost recapitulation: Indirect Cost &amp; Direct Cost</p>
                 </div>
+                @if($can('delivery-project.plan-cost.manage'))
                 <button type="button" onclick="PlanCost.openAddParentModal()"
                         class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1753,6 +1584,7 @@
                     </svg>
                     Add Cost Item
                 </button>
+                @endif
             </div>
         </div>
 
@@ -1802,6 +1634,7 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- PLAN COST — MODALS                                            --}}
@@ -3644,6 +3477,28 @@
 
 {{-- ALL MODALS --}}
 
+{{-- ── Section edit modals ───────────────────────────────────────────────────
+     Section General / Delivery Information / Delivery Data / Location kini
+     read-only; formnya pindah ke modal ini (klik pensil → isi → Save →
+     notifikasi), mengikuti pola Delivery Support.
+
+     Modal hanya dirender bila role-nya berhak. Ini penting: lapisan read-only
+     `data-perm-edit` hanya mengunci field DI DALAM <section>, sedangkan modal
+     berada di luar section — tanpa @if di bawah, form-nya jadi tak terkunci
+     sama sekali. --}}
+@if($can('delivery-project.general.edit'))
+    @include('delivery.project.projects.partials.modal-general-info')
+@endif
+@if($can('delivery-project.delivery-info.edit'))
+    @include('delivery.project.projects.partials.modal-delivery-info')
+@endif
+@if($can('delivery-project.delivery-data.edit'))
+    @include('delivery.project.projects.partials.modal-delivery-data')
+@endif
+@if($can('delivery-project.location.edit'))
+    @include('delivery.project.projects.partials.modal-location-info')
+@endif
+
 {{-- Team Modal --}}
 <div id="teamModal" class="fixed inset-0 z-50 hidden">
     <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('teamModal')"></div>
@@ -4718,6 +4573,10 @@ function scrollToSection(sectionId) {
 
 // ✅ Update Active Tab
 function updateActiveTab(sectionId) {
+    // Delivery Data section tersendiri tapi berbagi tab "Delivery Info", jadi
+    // dinormalkan di sini — berlaku baik saat dipanggil scrollToSection maupun
+    // scroll-spy.
+    if (sectionId === 'delivery-data') sectionId = 'delivery';
     document.querySelectorAll('.section-tab').forEach(tab => {
         const tabSection = tab.getAttribute('data-section');
         if (tabSection === sectionId) {
@@ -5653,7 +5512,8 @@ async function executeProjectDelete(projectId) {
 // Close modal on ESC key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        const modals = ['teamModal', 'editTeamModal', 'roleModal', 'documentModal', 'issueModal', 'issueDeleteModal', 'deleteModal', 'editDocumentModal', 'deleteFolderConfirmModal', 'noFolderWarningModal'];
+        const modals = ['teamModal', 'editTeamModal', 'roleModal', 'documentModal', 'issueModal', 'issueDeleteModal', 'deleteModal', 'editDocumentModal', 'deleteFolderConfirmModal', 'noFolderWarningModal',
+                        'generalInfoModal', 'deliveryInfoModal', 'deliveryDataModal', 'locationInfoModal'];
         modals.forEach(modalId => closeModal(modalId));
     }
 });
@@ -5703,6 +5563,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const data = await res.json();
                 if (res.ok && data.success) {
+                    // Form section kini hidup di dalam modal: tutup dulu supaya
+                    // notifikasi & warning modal tidak tertimbun di belakangnya.
+                    const host = form.closest('.fixed.inset-0');
+                    if (host) { host.classList.add('hidden'); document.body.style.overflow = ''; }
                     showNotification(data.message || fallbackSuccess, 'success');
                     // A clear, acknowledged warning when the save left planning outside the
                     // contract window — shown in a styled modal (consistent with the rest of
@@ -7556,96 +7420,4 @@ window.PaymentTermPlan = (function () {
 </script>
 @endsection
 
-{{-- ══════════════════════════════════════════════════════════════ --}}
-{{-- SECTION-LEVEL READ-ONLY (Menu Access)                          --}}
-{{-- ══════════════════════════════════════════════════════════════ --}}
-{{--
-    Setiap <section> di halaman ini menandai izinnya lewat data-perm-granted
-    ("1" = boleh edit, "0" = read-only). Section tanpa izin tetap TERLIHAT,
-    tapi seluruh field dikunci dan tombol aksi tulis disembunyikan, sehingga
-    sebuah role bisa dibatasi mis. "hanya boleh edit Delivery Information".
-
-    Ini murni lapisan UI — penegakan sebenarnya ada di middleware `menu:` pada
-    route tulis masing-masing section (lihat routes/web.php).
---}}
-@push('styles')
-<style>
-.perm-readonly input:not([type="hidden"]),
-.perm-readonly select,
-.perm-readonly textarea {
-    background-color: #f9fafb !important;
-    color: #6b7280 !important;
-    cursor: not-allowed !important;
-    pointer-events: none !important;
-}
-.perm-readonly .perm-hidden { display: none !important; }
-.perm-readonly-badge {
-    display: inline-flex; align-items: center; gap: 0.35rem;
-    padding: 0.15rem 0.55rem; margin-left: 0.6rem;
-    border-radius: 9999px; background: #f3f4f6; color: #6b7280;
-    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-    vertical-align: middle;
-}
-</style>
-@endpush
-
-@push('scripts')
-<script>
-(function () {
-    'use strict';
-
-    // Tombol yang dianggap aksi tulis. Tombol lain (collapse, tab, export,
-    // pindah view) sengaja dibiarkan agar section tetap bisa dibaca penuh.
-    const WRITE_LABEL = /\b(add|new|create|save|update|edit|delete|remove|upload|import|assign|generate|submit|confirm)\b/i;
-
-    function isWriteAction(el) {
-        if (el.hasAttribute('data-perm-keep')) return false;          // opt-out manual
-        if (el.type === 'submit') return true;
-        const label = (el.textContent || '') + ' ' + (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '');
-        return WRITE_LABEL.test(label);
-    }
-
-    function lockSection(section) {
-        section.querySelectorAll('input, select, textarea').forEach(function (f) {
-            if (f.type === 'hidden') return;
-            f.disabled = true;
-        });
-
-        section.querySelectorAll('button, a[role="button"], input[type="submit"]').forEach(function (b) {
-            if (!isWriteAction(b)) return;
-            b.classList.add('perm-hidden');
-            b.disabled = true;
-        });
-
-        section.querySelectorAll('form').forEach(function (f) {
-            if (f.dataset.permBlocked) return;   // lockSection dipanggil ulang oleh observer
-            f.dataset.permBlocked = '1';
-            f.addEventListener('submit', function (e) { e.preventDefault(); e.stopImmediatePropagation(); }, true);
-        });
-    }
-
-    function badge(section) {
-        const heading = section.querySelector('h2');
-        if (!heading || heading.querySelector('.perm-readonly-badge')) return;
-        const span = document.createElement('span');
-        span.className = 'perm-readonly-badge';
-        span.title = 'Your role does not have permission to edit this section';
-        span.textContent = 'Read only';
-        heading.appendChild(span);
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('section[data-perm-granted="0"]').forEach(function (section) {
-            section.classList.add('perm-readonly');
-            badge(section);
-            lockSection(section);
-
-            // Sebagian besar tabel section ini dirender ulang oleh JS setelah
-            // data di-fetch, jadi penguncian harus diulang tiap kali DOM berubah.
-            new MutationObserver(function () { lockSection(section); })
-                .observe(section, { childList: true, subtree: true });
-        });
-    });
-})();
-</script>
-@endpush
+@include('delivery.partials.section-permissions')

@@ -36,6 +36,45 @@ class OneDriveService
         return $clean !== '' ? $clean : $fallback;
     }
 
+    /**
+     * Bersihkan nama file untuk OneDrive/SharePoint dengan mempertahankan ekstensi.
+     *
+     * WAJIB dipakai sebelum menyentuh Graph. Selain karakter ilegal ( \ / : * ? " < > | )
+     * ditolak SharePoint, karakter ":" juga MERUSAK path-addressing Graph
+     * (`/drive/items/{id}:/{nama}:/content`) — request jadi diarahkan ke entitas
+     * driveItem, dan Graph menjawab dengan error yang menyesatkan:
+     *   "Entity only allows writes with a JSON Content-Type header"  (PUT /content)
+     *   "invalidRequest / Invalid request"                            (createUploadSession)
+     * Keduanya sebetulnya berarti: nama file tidak valid.
+     */
+    public static function sanitizeFileName(string $fileName, string $fallback = 'file'): string
+    {
+        // Buang komponen path yang mungkin ikut terbawa dari client.
+        $name = basename(str_replace('\\', '/', $fileName));
+
+        $name = preg_replace('~[\\\\/:*?"<>|]~', ' ', $name);   // karakter ilegal SharePoint
+        $name = preg_replace('~[\x00-\x1F\x7F]~', '', $name);   // karakter kontrol
+        $name = trim(preg_replace('~\s+~', ' ', $name));
+        $name = ltrim($name, '~');                              // "~$xxx" = file lock Office
+        $name = trim($name, ". \t");                            // titik/spasi di ujung ditolak
+
+        if ($name === '') {
+            return $fallback;
+        }
+
+        // Batasi panjang tanpa membuang ekstensi (batas nama OneDrive 255 karakter;
+        // 180 menyisakan ruang untuk path folder yang panjang).
+        $maxLength = 180;
+        if (mb_strlen($name) > $maxLength) {
+            $extension = pathinfo($name, PATHINFO_EXTENSION);
+            $base      = pathinfo($name, PATHINFO_FILENAME);
+            $suffix    = $extension !== '' ? '.' . $extension : '';
+            $name      = mb_substr($base, 0, $maxLength - mb_strlen($suffix)) . $suffix;
+        }
+
+        return $name;
+    }
+
     private function getAccessToken(): string
     {
         $tenantId = config('services.microsoft_graph.tenant_id');
@@ -293,8 +332,9 @@ class OneDriveService
      */
     public function uploadFile(string $folderId, string $fileName, string $fileContent, string $mimeType = 'application/octet-stream'): array
     {
-        $token   = $this->getAccessToken();
-        $encoded = rawurlencode($fileName);
+        $token    = $this->getAccessToken();
+        $fileName = self::sanitizeFileName($fileName);
+        $encoded  = rawurlencode($fileName);
 
         $response = Http::withToken($token)
             ->withBody($fileContent, $mimeType)
@@ -312,6 +352,9 @@ class OneDriveService
 
         return [
             'id'          => $response->json('id'),
+            // Nama final di OneDrive — bisa berbeda dari nama asli (disanitasi, atau
+            // di-rename otomatis saat bentrok). Caller sebaiknya menyimpan ini.
+            'name'        => $response->json('name', $fileName),
             'webUrl'      => $response->json('webUrl'),
             'downloadUrl' => $response->json('@microsoft.graph.downloadUrl'),
         ];
@@ -378,8 +421,9 @@ class OneDriveService
      */
     public function createUploadSession(string $folderId, string $fileName): string
     {
-        $token   = $this->getAccessToken();
-        $encoded = rawurlencode($fileName);
+        $token    = $this->getAccessToken();
+        $fileName = self::sanitizeFileName($fileName);
+        $encoded  = rawurlencode($fileName);
 
         $response = Http::withToken($token)->post(
             "{$this->driveBase}/drive/items/{$folderId}:/{$encoded}:/createUploadSession",

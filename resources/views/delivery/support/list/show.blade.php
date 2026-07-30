@@ -9,314 +9,419 @@
     .primary-link:hover { opacity: 0.75; }
     .edit-btn:hover { color: var(--primary-color) !important; background-color: rgba(var(--primary-rgb), 0.08) !important; }
     .primary-focus:focus { border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important; outline: none !important; }
+    .primary-tab-active { color: var(--primary-color) !important; border-color: var(--primary-color) !important; }
+    .primary-text { color: var(--primary-color) !important; }
+
+    html { scroll-behavior: smooth; }
+
+    /* ── Sticky section nav — pola identik dengan Delivery Project detail ────── */
+    #sectionNav {
+        position: fixed;
+        top: 90px;            /* tepat di bawah header */
+        left: 256px;          /* w-64 sidebar */
+        right: 0;
+        z-index: 35;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(10px) saturate(180%);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        padding: 0 2rem;
+        border-bottom: 1px solid #e5e7eb;
+        box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+        transition: box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    /* Spacer cukup untuk nav (~52px) + sedikit breathing room di atas konten */
+    .nav-spacer { height: 64px; }
+
+    .section-tab {
+        position: relative;
+        transition: color 0.18s ease, background-color 0.18s ease;
+        padding: 0.875rem 1.25rem;
+    }
+    .section-tab:hover { background-color: #f9fafb; color: #1f2937; }
+    .section-tab.active { font-weight: 600; color: #991b1b; }
+
+    /* Indikator underline aktif — bar primary-color tebal sehingga mudah dilihat */
+    .section-tab.active::after {
+        content: '';
+        position: absolute;
+        left: 1rem;
+        right: 1rem;
+        bottom: -1px;          /* overlap border-bottom #sectionNav */
+        height: 3px;
+        background: linear-gradient(to right, #991b1b, #b91c1c);
+        border-radius: 3px 3px 0 0;
+    }
+
+    /* overflow-x:auto membuat overflow-y ikut jadi 'auto' (spec CSS); underline
+       tab aktif (::after bottom:-1px) meluber 1px → memunculkan scrollbar
+       vertikal yang tak perlu. Kunci overflow-y agar hanya scroll horizontal. */
+    #sectionNav nav { overflow-y: hidden; }
+    #sectionNav nav::-webkit-scrollbar { height: 4px; }
+    #sectionNav nav::-webkit-scrollbar-track { background: #f1f5f9; }
+    #sectionNav nav::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+    /* Section scroll margin - account for header + sticky nav height */
+    section[id] { scroll-margin-top: 130px; }
+
+    /* Responsive fixed nav */
+    @media (max-width: 768px) {
+        #sectionNav { top: 65px; left: 0; }  /* No sidebar on mobile */
+        section[id] { scroll-margin-top: 125px; }
+    }
+
+    /* Ketika sidebar collapsed (w-20 = 80px) */
+    body.sidebar-collapsed #sectionNav { left: 80px; }
+
+    .section-animate { animation: fadeInUp 0.5s ease-out; }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .scroll-indicator {
+        position: fixed;
+        top: 64px;            /* Di bawah header */
+        left: 0;
+        width: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%);
+        z-index: 15;
+        transition: width 0.1s ease;
+    }
+
+    .card-hover { transition: box-shadow 0.3s ease, transform 0.3s ease; }
+    .card-hover:hover { box-shadow: 0 10px 25px rgba(0,0,0,0.1); transform: translateY(-2px); }
+
+    .support-header { min-height: 80px; display: flex; align-items: center; }
+    .support-title { word-break: break-word; line-height: 1.3; }
+
+    /* Nilai read-only ditampilkan dalam kotak bergaya input agar sebangun dengan
+       form inline milik Delivery Project (editing tetap lewat modal). */
+    .display-box {
+        display: block; width: 100%;
+        padding: 0.625rem 0.75rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.375rem;
+        background: #f9fafb;
+        font-size: 0.875rem;
+        color: #111827;
+        min-height: 2.625rem;
+    }
 </style>
 @endpush
 
 @section('content')
-<div class="min-h-screen bg-gray-50">
-    {{-- Breadcrumb --}}
-    <div class="mb-6">
-        <nav class="flex" aria-label="Breadcrumb">
-            <ol class="inline-flex items-center space-x-1 md:space-x-3">
-                <li class="inline-flex items-center">
-                    <a href="{{ route('delivery.support.index') }}" class="text-gray-600 hover:primary-link text-sm font-medium transition-colors">
-                        <i class="fas fa-headset mr-2"></i>Support
-                    </a>
-                </li>
-                <li>
-                    <div class="flex items-center">
-                        <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
-                        </svg>
-                        <span class="ml-1 text-sm font-medium text-gray-500">{{ $support->name ?? 'Support #' . $support->id }}</span>
-                    </div>
-                </li>
-            </ol>
-        </nav>
-    </div>
+@php
+    $progress      = $support->calculated_progress ?? 0;
+    $progressColor = $progress >= 100 ? '#10b981' : ($progress > 50 ? '#3b82f6' : ($progress > 0 ? '#f59e0b' : '#9ca3af'));
+    $progressLabel = $progress >= 100 ? 'Completed' : ($progress > 0 ? 'In Progress' : 'Not Started');
+@endphp
 
-    {{-- Action Buttons --}}
-    <div class="flex justify-end gap-3 mb-6">
-        <a href="{{ route('delivery.support.edit', $support->id) }}"
-           class="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+{{-- SCROLL PROGRESS INDICATOR --}}
+<div class="scroll-indicator" id="scrollIndicator"></div>
+
+{{-- Sticky Navigation Tabs - PALING ATAS --}}
+{{-- Tiap tab ikut izin `.view` section tujuannya, supaya tidak ada tab yang
+     mengarah ke section yang tidak dirender untuk role tersebut. --}}
+<div class="bg-white" id="sectionNav">
+    <nav class="flex overflow-x-auto scrollbar-hide border-b border-gray-200">
+        @if($can('delivery-support.general.view'))
+        <button onclick="scrollToSection('general')" data-section="general" class="section-tab active text-sm font-medium text-gray-600 whitespace-nowrap">
+            General
+        </button>
+        @endif
+        @if($can('delivery-support.approval.view'))
+        <button onclick="scrollToSection('approval')" data-section="approval" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
+            Approval
+        </button>
+        @endif
+        @if($can('delivery-support.financial.view'))
+        <button onclick="scrollToSection('financial')" data-section="financial" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
+            Financial
+        </button>
+        @endif
+        @if($can('delivery-support.team.view'))
+        <button onclick="scrollToSection('team')" data-section="team" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
+            Team
+        </button>
+        @endif
+        @if($can('delivery-support.customer-pic.view'))
+        <button onclick="scrollToSection('customer-pic')" data-section="customer-pic" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
+            Customer PIC
+        </button>
+        @endif
+        @if($can('delivery-support.activities.view'))
+        <button onclick="scrollToSection('activities')" data-section="activities" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
             </svg>
-            Edit Support
-        </a>
-        <a href="{{ route('delivery.support.planning.index', $support->id) }}"
-           class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-            Open Planning
-        </a>
+            Activities
+        </button>
+        @endif
+        @if($can('delivery-support.sla.view'))
+        <button onclick="scrollToSection('sla')" data-section="sla" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            SLA
+        </button>
+        @endif
+        @if($can('delivery-support.plan-cost.view'))
+        <button onclick="scrollToSection('plancost')" data-section="plancost" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Plan Cost
+        </button>
+        @endif
+    </nav>
+</div>
 
-        {{-- Customer Deliverable Folder Dropdown --}}
-        <div class="relative" id="dlvDropdownContainer">
-            <button type="button" id="dlvDropdownBtn" onclick="toggleDeliverableDropdown()"
-                    class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-all duration-200">
+{{-- Spacer untuk fixed navigation --}}
+<div class="nav-spacer"></div>
+
+{{-- Back Button --}}
+<div class="mb-4">
+    <a href="{{ route('delivery.support.index') }}"
+        class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Back
+    </a>
+</div>
+
+{{-- Support Title & Actions --}}
+<div class="bg-white shadow-md rounded-lg mb-4">
+    <div class="support-header p-4 sm:p-6 flex justify-between items-start flex-wrap gap-4">
+        <div class="flex-1 min-w-0">
+            <h1 class="support-title text-2xl font-bold text-gray-800 mb-1">{{ $support->name ?? 'Support #' . $support->id }}</h1>
+            <p class="text-sm text-gray-600">
+                {{ $support->client->basicData->name_1 ?? 'N/A' }} •
+                <span class="font-semibold">{{ $support->type ?? 'N/A' }}</span>
+            </p>
+            <p class="mt-1.5">
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
+                      style="background-color: {{ $progressColor }}1a; color: {{ $progressColor }};">
+                    {{ $progressLabel }} • {{ number_format($progress, 1) }}%
+                </span>
+            </p>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+            @if($can('delivery-support.general.edit'))
+            <a href="{{ route('delivery.support.edit', $support->id) }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                 </svg>
-                Deliverable Folder
-                <svg id="dlvDropdownChevron" class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                Edit Support
+            </a>
+            @endif
+            @if($can('delivery-support.activities.view'))
+            <a href="{{ route('delivery.support.planning.index', $support->id) }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
                 </svg>
-            </button>
+                Open Planning
+            </a>
+            @endif
 
-            {{-- Dropdown Panel --}}
-            <div id="dlvDropdownMenu"
-                 class="hidden absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-40 overflow-hidden">
-
-                {{-- Loading --}}
-                <div id="dlvDdLoading" class="flex items-center gap-2 px-4 py-3 text-sm text-gray-400">
-                    <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            {{-- Customer Deliverable Folder Dropdown --}}
+            @if($can('delivery-support.documents.view'))
+            <div class="relative" id="dlvDropdownContainer">
+                <button type="button" id="dlvDropdownBtn" onclick="toggleDeliverableDropdown()"
+                        class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-all duration-200">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
                     </svg>
-                    Loading sub-folders…
-                </div>
+                    Deliverable Folder
+                    <svg id="dlvDropdownChevron" class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
 
-                {{-- Content --}}
-                <div id="dlvDdContent" class="hidden">
-                    {{-- Header --}}
-                    <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sub-folders</p>
-                        <p id="dlvDdCustomerName" class="text-xs text-gray-400 mt-0.5 truncate"></p>
-                    </div>
+                {{-- Dropdown Panel --}}
+                <div id="dlvDropdownMenu"
+                     class="hidden absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-40 overflow-hidden">
 
-                    {{-- Sub-folder list --}}
-                    <div id="dlvDdList" class="max-h-56 overflow-y-auto divide-y divide-gray-50">
-                        {{-- filled by JS --}}
-                    </div>
-
-                    {{-- Empty state (shown when no sub-folders) --}}
-                    <div id="dlvDdEmpty" class="hidden px-4 py-4 text-sm text-gray-400 text-center">
-                        <svg class="w-8 h-8 mx-auto mb-1 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                    {{-- Loading --}}
+                    <div id="dlvDdLoading" class="flex items-center gap-2 px-4 py-3 text-sm text-gray-400">
+                        <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                         </svg>
-                        No sub-folders yet
+                        Loading sub-folders…
                     </div>
 
-                    {{-- Create new --}}
-                    <div class="border-t border-gray-100">
-                        <button type="button"
-                                onclick="closeDeliverableDropdown(); openDeliverableModal()"
-                                class="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    {{-- Content --}}
+                    <div id="dlvDdContent" class="hidden">
+                        {{-- Header --}}
+                        <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sub-folders</p>
+                            <p id="dlvDdCustomerName" class="text-xs text-gray-400 mt-0.5 truncate"></p>
+                        </div>
+
+                        {{-- Sub-folder list --}}
+                        <div id="dlvDdList" class="max-h-56 overflow-y-auto divide-y divide-gray-50">
+                            {{-- filled by JS --}}
+                        </div>
+
+                        {{-- Empty state (shown when no sub-folders) --}}
+                        <div id="dlvDdEmpty" class="hidden px-4 py-4 text-sm text-gray-400 text-center">
+                            <svg class="w-8 h-8 mx-auto mb-1 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
                             </svg>
-                            Create New Sub-folder
-                        </button>
-                    </div>
-                </div>
+                            No sub-folders yet
+                        </div>
 
-                {{-- Error state --}}
-                <div id="dlvDdError" class="hidden px-4 py-3 text-sm text-red-500">
-                    <span id="dlvDdErrorMsg">Failed to load sub-folders.</span>
+                        {{-- Create new --}}
+                        @if($can('delivery-support.documents.manage'))
+                        <div class="border-t border-gray-100">
+                            <button type="button"
+                                    onclick="closeDeliverableDropdown(); openDeliverableModal()"
+                                    class="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                </svg>
+                                Create New Sub-folder
+                            </button>
+                        </div>
+                        @endif
+                    </div>
+
+                    {{-- Error state --}}
+                    <div id="dlvDdError" class="hidden px-4 py-3 text-sm text-red-500">
+                        <span id="dlvDdErrorMsg">Failed to load sub-folders.</span>
+                    </div>
                 </div>
             </div>
+            @endif
+
+            {{-- Documents & Updates — handler-nya masih stub (lihat openDocumentsModal/openUpdatesModal) --}}
+            @if($can('delivery-support.documents.view'))
+            <button type="button" onclick="openDocumentsModal()"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                Documents
+                <span class="text-xs text-gray-500">{{ $support->documents->count() ?? 0 }}</span>
+            </button>
+            @endif
+            @if($can('delivery-support.activities.view'))
+            <button type="button" onclick="openUpdatesModal()"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                Updates &amp; Notes
+                <span class="text-xs text-gray-500">{{ $support->updates->count() ?? 0 }}</span>
+            </button>
+            @endif
+
+            @if($isEcAdmin)
+            <button type="button" onclick="openRemoveTicketModal()"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 text-sm font-semibold rounded-lg hover:bg-orange-200 transition-all duration-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                </svg>
+                Remove Ticket
+                @if($linkedTickets->count() > 0)
+                <span class="text-xs bg-orange-200 text-orange-800 font-semibold px-1.5 py-0.5 rounded-full">{{ $linkedTickets->count() }}</span>
+                @endif
+            </button>
+            @endif
+
+            @if($can('delivery-support.delete-support'))
+            <form id="deleteSupportForm" action="{{ route('delivery.support.destroy', $support->id, false) }}" method="POST" class="contents">
+                @csrf
+                @method('DELETE')
+                <button type="button" onclick="confirmDeleteSupport()"
+                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Delete Support
+                </button>
+            </form>
+            @endif
         </div>
-
     </div>
+</div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {{-- Main Info --}}
-        <div class="lg:col-span-2 space-y-6">
-            {{-- Support Information --}}
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-lg font-semibold text-gray-900">Support Information</h3>
-                    <button type="button" onclick="openEditModal('support-info')"
-                            class="p-2 text-gray-400 edit-btn rounded-lg transition"
-                            title="Edit Support Information">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="p-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- GENERAL — Support Information + Overall Progress                           --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-support.general.view'))
+<section id="general" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-support.general.edit') ? '1' : '0' }}">
+    <div class="bg-white shadow-md rounded-lg">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-700">Support Information</h2>
+            @if($can('delivery-support.general.edit'))
+            <button type="button" onclick="openEditModal('support-info')"
+                    class="p-2 text-gray-400 edit-btn rounded-lg transition"
+                    title="Edit Support Information">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            @endif
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {{-- Field grid --}}
+                <div class="lg:col-span-2">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Support Name</label>
-                            <p class="text-base font-semibold text-gray-900" id="display-name">{{ $support->name ?? 'N/A' }}</p>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Support Name</label>
+                            <div class="display-box font-semibold" id="display-name">{{ $support->name ?? 'N/A' }}</div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Client</label>
-                            <p class="text-base text-gray-900" id="display-client">{{ $support->client->basicData->name_1 ?? 'N/A' }}</p>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Client</label>
+                            <div class="display-box" id="display-client">{{ $support->client->basicData->name_1 ?? 'N/A' }}</div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Type</label>
-                            @if($support->type)
-                                <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-blue-100 text-blue-800" id="display-type">
-                                    {{ $support->type }}
-                                </span>
-                            @else
-                                <p class="text-gray-400" id="display-type">No type set</p>
-                            @endif
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Type</label>
+                            <div class="display-box">
+                                @if($support->type)
+                                    <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-blue-100 text-blue-800" id="display-type">
+                                        {{ $support->type }}
+                                    </span>
+                                @else
+                                    <span class="text-gray-400" id="display-type">No type set</span>
+                                @endif
+                            </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Support Method</label>
-                            <p class="text-base text-gray-900" id="display-support_method">{{ $support->support_method ?? 'N/A' }}</p>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Support Method</label>
+                            <div class="display-box" id="display-support_method">{{ $support->support_method ?? 'N/A' }}</div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Start Date</label>
-                            <p class="text-base text-gray-900" id="display-start_date">{{ $support->start_date ? $support->start_date->format('d F Y') : 'N/A' }}</p>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Start Date</label>
+                            <div class="display-box" id="display-start_date">{{ $support->start_date ? $support->start_date->format('d F Y') : 'N/A' }}</div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">End Date</label>
-                            <p class="text-base text-gray-900" id="display-end_date">{{ $support->end_date ? $support->end_date->format('d F Y') : 'N/A' }}</p>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">End Date</label>
+                            <div class="display-box" id="display-end_date">{{ $support->end_date ? $support->end_date->format('d F Y') : 'N/A' }}</div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Resolution Estimated</label>
-                            <p class="text-base text-gray-900" id="display-resolution_estimated">{{ $support->resolution_estimated ? $support->resolution_estimated->format('d F Y') : 'N/A' }}</p>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Resolution Estimated</label>
+                            <div class="display-box" id="display-resolution_estimated">{{ $support->resolution_estimated ? $support->resolution_estimated->format('d F Y') : 'N/A' }}</div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Total Mandays</label>
-                            <p class="text-base text-gray-900" id="display-total_mandays">{{ $support->total_mandays ?? '0' }} days</p>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Total Mandays</label>
+                            <div class="display-box" id="display-total_mandays">{{ $support->total_mandays ?? '0' }} days</div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Service Window</label>
-                            <p class="text-base text-gray-900" id="display-service_window">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Service Window</label>
+                            <div class="display-box" id="display-service_window">
                                 @if($support->service_window_start && $support->service_window_end)
                                     {{ \Illuminate\Support\Str::substr($support->service_window_start, 0, 5) }} – {{ \Illuminate\Support\Str::substr($support->service_window_end, 0, 5) }}
                                 @else
                                     N/A
                                 @endif
-                            </p>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {{-- Approval Information --}}
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-lg font-semibold text-gray-900">Approval Information</h3>
-                    <button type="button" onclick="openEditModal('approval-info')"
-                            class="p-2 text-gray-400 edit-btn rounded-lg transition"
-                            title="Edit Approval Information">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="p-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Approval Date</label>
-                            <p class="text-base text-gray-900" id="display-approval_date">{{ $support->approval_date ? $support->approval_date->format('d F Y') : 'Not approved yet' }}</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Approved By</label>
-                            <p class="text-base text-gray-900" id="display-approval_name">{{ $support->approval_name ?? 'N/A' }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Activities Summary --}}
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-lg font-semibold text-gray-900">Activities</h3>
-                    <a href="{{ route('delivery.support.planning.index', $support->id) }}" class="text-sm primary-link">
-                        View all <i class="fas fa-arrow-right ml-1"></i>
-                    </a>
-                </div>
-                <div class="p-6">
-                    @if($support->activities && $support->activities->count() > 0)
-                        <div class="space-y-3">
-                            @foreach($support->activities->take(5) as $activity)
-                                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <div class="flex items-center space-x-3">
-                                        <div class="w-2 h-2 rounded-full {{ $activity->status === 'completed' ? 'bg-green-500' : ($activity->status === 'in_progress' ? 'bg-blue-500' : 'bg-gray-300') }}"></div>
-                                        <span class="text-sm font-medium text-gray-900">{{ $activity->name }}</span>
-                                    </div>
-                                    <div class="flex items-center space-x-3">
-                                        <div class="w-16 bg-gray-200 rounded-full h-1.5">
-                                            <div class="h-1.5 rounded-full bg-blue-500" style="width: {{ $activity->progress_percentage }}%;"></div>
-                                        </div>
-                                        <span class="text-xs text-gray-500">{{ number_format($activity->progress_percentage, 0) }}%</span>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                        @if($support->activities->count() > 5)
-                            <p class="mt-3 text-sm text-gray-500 text-center">
-                                + {{ $support->activities->count() - 5 }} more activities
-                            </p>
-                        @endif
-                    @else
-                        <div class="text-center py-6">
-                            <p class="text-gray-500">No activities yet</p>
-                            <a href="{{ route('delivery.support.planning.index', $support->id) }}" class="inline-flex items-center mt-2 text-sm primary-link">
-                                <i class="fas fa-plus mr-1"></i>
-                                Add activities
-                            </a>
-                        </div>
-                    @endif
-                </div>
-            </div>
-            {{-- SLA Configuration --}}
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                    <div class="flex items-center gap-3">
-                        <div class="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center">
-                            <i class="fas fa-stopwatch text-red-600 text-xs"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-base font-semibold text-gray-900">SLA Configuration</h3>
-                            <p class="text-xs text-gray-400">Response &amp; resolution targets untuk delivery ini</p>
-                        </div>
-                    </div>
-                    @if($canManage)
-                    <button onclick="openSlaAddModal()"
-                        class="inline-flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
-                        <i class="fas fa-plus text-xs"></i> Add Policy
-                    </button>
-                    @endif
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="bg-gray-50 border-b border-gray-200">
-                                <th class="text-left px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Priority</th>
-                                <th class="text-left px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Scale</th>
-                                <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Response (h)</th>
-                                <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Resolution (h)</th>
-                                <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Mode</th>
-                                <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                                @if($canManage)
-                                <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
-                                @endif
-                            </tr>
-                        </thead>
-                        <tbody id="slaPolicyTableBody">
-                            <tr>
-                                <td colspan="{{ $canManage ? 7 : 6 }}" class="py-10 text-center">
-                                    <div class="flex flex-col items-center gap-2 text-gray-300">
-                                        <i class="fas fa-spinner fa-spin text-2xl"></i>
-                                        <p class="text-xs">Loading policies...</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        {{-- Sidebar --}}
-        <div class="space-y-6">
-            {{-- Progress Card --}}
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                    <h3 class="text-lg font-semibold text-gray-900">Overall Progress</h3>
-                </div>
-                <div class="p-6">
-                    @php
-                        $progress = $support->calculated_progress ?? 0;
-                        $progressColor = $progress >= 100 ? '#10b981' : ($progress > 50 ? '#3b82f6' : ($progress > 0 ? '#f59e0b' : '#9ca3af'));
-                    @endphp
-                    <div class="flex flex-col items-center">
+                {{-- Overall Progress --}}
+                <div class="lg:col-span-1">
+                    <div class="h-full border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50">
+                        <p class="text-sm font-medium text-gray-500 mb-4">Overall Progress</p>
                         <div class="relative w-32 h-32 mb-4">
                             <svg class="w-32 h-32 transform -rotate-90" viewBox="0 0 100 100">
                                 <circle cx="50" cy="50" r="45" fill="transparent" stroke="#e5e7eb" stroke-width="8"/>
@@ -330,154 +435,271 @@
                                 <span class="text-3xl font-bold" style="color: {{ $progressColor }}">{{ number_format($progress, 0) }}%</span>
                             </div>
                         </div>
-                        <p class="text-sm text-gray-500">
-                            @if($progress >= 100)
-                                Completed
-                            @elseif($progress > 0)
-                                In Progress
-                            @else
-                                Not Started
-                            @endif
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Team Members --}}
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-lg font-semibold text-gray-900">Team</h3>
-                    <button type="button" onclick="openEditModal('team-info')"
-                            class="p-2 text-gray-400 edit-btn rounded-lg transition"
-                            title="Edit Team">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="p-6">
-                    <div class="space-y-3">
-                        <div class="flex items-center space-x-3" id="team-delivery-owner">
-                            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                                DO
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-900">Delivery Owner</p>
-                                <p class="text-xs text-gray-500" id="display-delivery_owner">{{ $support->deliveryOwner->basicData->full_name ?? 'Not assigned' }}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-3" id="team-support-manager">
-                            <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                                SM
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-900">Support Manager</p>
-                                <p class="text-xs text-gray-500" id="display-support_manager">{{ $support->supportManagers->pluck('basicData.full_name')->filter()->join(', ') ?: 'Not assigned' }}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-3" id="team-co-pm">
-                            <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                                CP
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-900">Co PM</p>
-                                <p class="text-xs text-gray-500" id="display-co_pm">{{ $support->coPm->basicData->full_name ?? 'Not assigned' }}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-3" id="team-support-admin">
-                            <div class="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                                SA
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-900">Support Admin</p>
-                                <p class="text-xs text-gray-500" id="display-support_admin">{{ $support->supportAdmin->basicData->full_name ?? 'Not assigned' }}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-3" id="team-sales">
-                            <div class="w-8 h-8 bg-pink-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                                SL
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-900">Sales</p>
-                                <p class="text-xs text-gray-500" id="display-sales">{{ $support->sales->basicData->full_name ?? 'Not assigned' }}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Customer PIC --}}
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-lg font-semibold text-gray-900">Customer PIC</h3>
-                    @if($can('delivery-support.manage-customer-pic'))
-                    <button type="button" onclick="openCustomerPicModal()"
-                            class="p-2 text-gray-400 edit-btn rounded-lg transition"
-                            title="Manage Customer PIC">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                        </svg>
-                    </button>
-                    @endif
-                </div>
-                <div class="p-6" id="customerPicPanel">
-                    <div id="customerPicList" class="space-y-2">
-                        <p class="text-xs text-gray-400 italic">Loading...</p>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Quick Actions --}}
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                    <h3 class="text-lg font-semibold text-gray-900">Quick Actions</h3>
-                </div>
-                <div class="p-4 space-y-2">
-                    <a href="{{ route('delivery.support.planning.index', $support->id) }}"
-                       class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition">
-                        <span class="text-sm font-medium text-gray-700">View Planning</span>
-                        <i class="fas fa-chevron-right text-gray-400"></i>
-                    </a>
-                    <button type="button" onclick="openDocumentsModal()"
-                            class="w-full flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition text-left">
-                        <span class="text-sm font-medium text-gray-700">Documents</span>
-                        <span class="text-xs text-gray-500">{{ $support->documents->count() ?? 0 }}</span>
-                    </button>
-                    <button type="button" onclick="openUpdatesModal()"
-                            class="w-full flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition text-left">
-                        <span class="text-sm font-medium text-gray-700">Updates & Notes</span>
-                        <span class="text-xs text-gray-500">{{ $support->updates->count() ?? 0 }}</span>
-                    </button>
-                    @if($isEcAdmin)
-                    <div class="border-t border-gray-100 mt-1 pt-1">
-                        <button type="button" onclick="openRemoveTicketModal()"
-                                class="w-full flex items-center justify-between p-3 rounded-lg hover:bg-orange-50 transition text-left text-orange-600">
-                            <span class="text-sm font-medium">Remove Ticket from DS</span>
-                            <span class="flex items-center gap-1.5">
-                                @if($linkedTickets->count() > 0)
-                                <span class="text-xs bg-orange-100 text-orange-700 font-semibold px-1.5 py-0.5 rounded-full">{{ $linkedTickets->count() }}</span>
-                                @endif
-                                <i class="fas fa-unlink text-sm"></i>
-                            </span>
-                        </button>
-                    </div>
-                    @endif
-                    <div class="border-t border-gray-100 mt-1 pt-1">
-                        <form id="deleteSupportForm" action="{{ route('delivery.support.destroy', $support->id, false) }}" method="POST">
-                            @csrf
-                            @method('DELETE')
-                            <button type="button" onclick="confirmDeleteSupport()"
-                                    class="w-full flex items-center justify-between p-3 rounded-lg hover:bg-red-50 transition text-left text-red-600">
-                                <span class="text-sm font-medium">Delete Support</span>
-                                <i class="fas fa-trash text-sm"></i>
-                            </button>
-                        </form>
+                        <p class="text-sm text-gray-500">{{ $progressLabel }}</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
+</section>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- APPROVAL INFORMATION                                                       --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-support.approval.view'))
+<section id="approval" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-support.approval.edit') ? '1' : '0' }}">
+    <div class="bg-white shadow-md rounded-lg">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-700">Approval Information</h2>
+            @if($can('delivery-support.approval.edit'))
+            <button type="button" onclick="openEditModal('approval-info')"
+                    class="p-2 text-gray-400 edit-btn rounded-lg transition"
+                    title="Edit Approval Information">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            @endif
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Approval Date</label>
+                    <div class="display-box" id="display-approval_date">{{ $support->approval_date ? $support->approval_date->format('d F Y') : 'Not approved yet' }}</div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Approved By</label>
+                    <div class="display-box" id="display-approval_name">{{ $support->approval_name ?? 'N/A' }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- FINANCIAL — Sales Data + IO Number + Term Of Payment Plan                  --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-support.financial.view'))
+<section id="financial" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-support.financial.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-support.financial.manage') ? '1' : '0' }}">
+    @include('delivery.support.list.partials.financial-info')
+</section>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- TEAM                                                                       --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-support.team.view'))
+<section id="team" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-support.team.manage') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-support.team.manage') ? '1' : '0' }}">
+    <div class="bg-white shadow-md rounded-lg">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-700">Team</h2>
+            @if($can('delivery-support.team.manage'))
+            <button type="button" onclick="openEditModal('team-info')"
+                    class="p-2 text-gray-400 edit-btn rounded-lg transition"
+                    title="Edit Team">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            @endif
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div class="flex items-center space-x-3 border border-gray-200 rounded-lg p-4" id="team-delivery-owner">
+                    <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        DO
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-gray-900">Delivery Owner</p>
+                        <p class="text-xs text-gray-500 break-words" id="display-delivery_owner">{{ $support->deliveryOwner->basicData->full_name ?? 'Not assigned' }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 border border-gray-200 rounded-lg p-4" id="team-support-manager">
+                    <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        SM
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-gray-900">Support Manager</p>
+                        <p class="text-xs text-gray-500 break-words" id="display-support_manager">{{ $support->supportManagers->pluck('basicData.full_name')->filter()->join(', ') ?: 'Not assigned' }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 border border-gray-200 rounded-lg p-4" id="team-co-pm">
+                    <div class="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        CP
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-gray-900">Co PM</p>
+                        <p class="text-xs text-gray-500 break-words" id="display-co_pm">{{ $support->coPm->basicData->full_name ?? 'Not assigned' }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 border border-gray-200 rounded-lg p-4" id="team-support-admin">
+                    <div class="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        SA
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-gray-900">Support Admin</p>
+                        <p class="text-xs text-gray-500 break-words" id="display-support_admin">{{ $support->supportAdmin->basicData->full_name ?? 'Not assigned' }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 border border-gray-200 rounded-lg p-4" id="team-sales">
+                    <div class="w-10 h-10 bg-pink-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        SL
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-gray-900">Sales</p>
+                        <p class="text-xs text-gray-500 break-words" id="display-sales">{{ $support->sales->basicData->full_name ?? 'Not assigned' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- CUSTOMER PIC                                                               --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-support.customer-pic.view'))
+<section id="customer-pic" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-support.customer-pic.edit') ? '1' : '0' }}">
+    <div class="bg-white shadow-md rounded-lg">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-700">Customer PIC</h2>
+            @if($can('delivery-support.customer-pic.edit'))
+            <button type="button" onclick="openCustomerPicModal()"
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                Manage Customer PIC
+            </button>
+            @endif
+        </div>
+        <div class="p-6" id="customerPicPanel">
+            <div id="customerPicList" class="space-y-2">
+                <p class="text-xs text-gray-400 italic">Loading...</p>
+            </div>
+        </div>
+    </div>
+</section>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- ACTIVITIES                                                                 --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-support.activities.view'))
+<section id="activities" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-support.activities.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-support.activities.manage') ? '1' : '0' }}">
+    <div class="bg-white shadow-md rounded-lg">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-700 flex items-center">
+                <svg class="w-5 h-5 mr-2 primary-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                </svg>
+                Activities
+            </h2>
+            <a href="{{ route('delivery.support.planning.index', $support->id) }}" class="text-sm primary-link">
+                View all <i class="fas fa-arrow-right ml-1"></i>
+            </a>
+        </div>
+        <div class="p-6">
+            @if($support->activities && $support->activities->count() > 0)
+                <div class="space-y-3">
+                    @foreach($support->activities->take(5) as $activity)
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center space-x-3 min-w-0">
+                                <div class="w-2 h-2 rounded-full flex-shrink-0 {{ $activity->status === 'completed' ? 'bg-green-500' : ($activity->status === 'in_progress' ? 'bg-blue-500' : 'bg-gray-300') }}"></div>
+                                <span class="text-sm font-medium text-gray-900 truncate">{{ $activity->name }}</span>
+                            </div>
+                            <div class="flex items-center space-x-3 flex-shrink-0">
+                                <div class="w-16 bg-gray-200 rounded-full h-1.5">
+                                    <div class="h-1.5 rounded-full bg-blue-500" style="width: {{ $activity->progress_percentage }}%;"></div>
+                                </div>
+                                <span class="text-xs text-gray-500">{{ number_format($activity->progress_percentage, 0) }}%</span>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+                @if($support->activities->count() > 5)
+                    <p class="mt-3 text-sm text-gray-500 text-center">
+                        + {{ $support->activities->count() - 5 }} more activities
+                    </p>
+                @endif
+            @else
+                <div class="text-center py-6">
+                    <p class="text-gray-500">No activities yet</p>
+                    <a href="{{ route('delivery.support.planning.index', $support->id) }}" class="inline-flex items-center mt-2 text-sm primary-link">
+                        <i class="fas fa-plus mr-1"></i>
+                        Add activities
+                    </a>
+                </div>
+            @endif
+        </div>
+    </div>
+</section>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- SLA CONFIGURATION                                                          --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-support.sla.view'))
+<section id="sla" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-support.sla.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-support.sla.manage') ? '1' : '0' }}">
+    <div class="bg-white shadow-md rounded-lg">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center flex-wrap gap-4">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-700 flex items-center">
+                    <svg class="w-5 h-5 mr-2 primary-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    SLA Configuration
+                </h2>
+                <p class="text-xs text-gray-500 mt-1">Response &amp; resolution targets untuk delivery ini</p>
+            </div>
+            @if($canManage && $can('delivery-support.sla.manage'))
+            <button onclick="openSlaAddModal()"
+                class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                <i class="fas fa-plus text-xs"></i> Add Policy
+            </button>
+            @endif
+        </div>
+        <div class="px-6 pb-6 pt-5">
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200">
+                            <th class="text-left px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Priority</th>
+                            <th class="text-left px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Scale</th>
+                            <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Response (h)</th>
+                            <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Resolution (h)</th>
+                            <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Mode</th>
+                            <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                            @if($canManage && $can('delivery-support.sla.manage'))
+                            <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                            @endif
+                        </tr>
+                    </thead>
+                    <tbody id="slaPolicyTableBody">
+                        <tr>
+                            <td colspan="{{ ($canManage && $can('delivery-support.sla.manage')) ? 7 : 6 }}" class="py-10 text-center">
+                                <div class="flex flex-col items-center gap-2 text-gray-300">
+                                    <i class="fas fa-spinner fa-spin text-2xl"></i>
+                                    <p class="text-xs">Loading policies...</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- PLAN COST                                                                  --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-support.plan-cost.view'))
+<section id="plancost" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-support.plan-cost.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-support.plan-cost.manage') ? '1' : '0' }}">
+    @include('delivery.support.list.partials.plancost')
+</section>
+@endif
 
 {{-- ============================================================================ --}}
 {{-- ONEDRIVE MODAL --}}
@@ -858,9 +1080,6 @@
         </div>
     </div>
 </div>
-
-{{-- Financial (Sales Data + IO Number) + Term Of Payment + Plan Cost --}}
-@include('delivery.support.list.partials.financial-plancost')
 
 <script>
 const supportId = {{ $support->id }};
@@ -1362,7 +1581,7 @@ async function generateDeliverableFolder() {
 // ── SLA Policies (scoped to this delivery support) ───────────────────────────
 
 const SLA_DS_ID    = {{ $support->id }};
-const SLA_CAN_MGMT = {{ $canManage ? 'true' : 'false' }};
+const SLA_CAN_MGMT = {{ ($canManage && $can('delivery-support.sla.manage')) ? 'true' : 'false' }};
 const SLA_COL      = SLA_CAN_MGMT ? 7 : 6;
 
 const SLA_PRIO_NUM   = { 'Very High': 1, 'High': 2, 'Medium': 3, 'Low': 4 };
@@ -2149,4 +2368,72 @@ document.getElementById('removeTicketModal').addEventListener('click', function(
 @include('delivery.support.list.partials.financial-plancost-modals')
 @include('delivery.support.list.partials.financial-plancost-scripts')
 
+<script>
+// ============================================================================
+// SMOOTH SCROLL & STICKY SECTION NAV
+// Pola identik dengan Delivery Project detail supaya perilaku tab konsisten.
+// ============================================================================
+
+// Scroll Progress Indicator
+window.addEventListener('scroll', function () {
+    const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+    const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    const scrolled = height > 0 ? (winScroll / height) * 100 : 0;
+    const indicator = document.getElementById('scrollIndicator');
+    if (indicator) indicator.style.width = scrolled + '%';
+});
+
+// Smooth Scroll to Section
+function scrollToSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+
+    // Offset = navbar utama + sticky section nav + sedikit ruang
+    const mainNavHeight     = 73;
+    const sectionNavHeight  = 50;
+    const extraPadding      = 15;
+    const totalOffset       = mainNavHeight + sectionNavHeight + extraPadding;
+
+    window.scrollTo({ top: section.offsetTop - totalOffset, behavior: 'smooth' });
+    updateActiveTab(sectionId);
+}
+
+// Update Active Tab
+function updateActiveTab(sectionId) {
+    document.querySelectorAll('.section-tab').forEach(tab => {
+        if (tab.getAttribute('data-section') === sectionId) {
+            tab.classList.remove('text-gray-600', 'border-transparent');
+            tab.classList.add('primary-tab-active', 'active');
+        } else {
+            tab.classList.remove('primary-tab-active', 'active');
+            tab.classList.add('text-gray-600', 'border-transparent');
+        }
+    });
+}
+
+const supSectionObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) updateActiveTab(entry.target.id);
+    });
+}, { root: null, rootMargin: '-140px 0px -60% 0px', threshold: 0 });
+
+document.querySelectorAll('section[id]').forEach(section => supSectionObserver.observe(section));
+
+// Sticky nav mengikuti lebar sidebar (docked / collapsed)
+function syncNavWithSidebar() {
+    const sidebar    = document.getElementById('sidebar');
+    const sectionNav = document.getElementById('sectionNav');
+    if (!sidebar || !sectionNav) return;
+    sectionNav.style.left = sidebar.classList.contains('w-20') ? '80px' : '256px';
+}
+
+const supSidebarEl = document.getElementById('sidebar');
+if (supSidebarEl) {
+    new MutationObserver(syncNavWithSidebar).observe(supSidebarEl, { attributes: true, attributeFilter: ['class'] });
+}
+syncNavWithSidebar();
+</script>
+
 @endsection
+
+@include('delivery.partials.section-permissions')
