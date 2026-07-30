@@ -2107,14 +2107,15 @@
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14" title="Days — working days">Days</th>
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Days proposed by PIC">Add.</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Enter approved days for each employee (out of the proposed Days)">Approved Days</th>
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Enter approved additional for each employee">Approve Add.</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Days + Approved Additional">Total Days</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Approved Days + Approved Additional">Total Days</th>
                         </tr>
                     </thead>
                     <tbody id="headresolutionBody"></tbody>
                     <tfoot>
                         <tr class="bg-gray-50 font-bold">
-                            <td colspan="5" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                            <td colspan="6" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
                             <td class="px-3 py-2 border border-gray-200 text-center" id="headResolutionTotal">0</td>
                         </tr>
                     </tfoot>
@@ -2124,7 +2125,7 @@
             </div>
         </div>
         <div id="headResolutionFooter" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
-            <p class="text-xs text-gray-400">Edit the "Approve Add." column then save to approve additional days.</p>
+            <p class="text-xs text-gray-400">Edit "Approved Days" / "Approve Add." then save to approve.</p>
             <button id="headBtnApprove" onclick="headResolutionApprove()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
                 Save Approval
@@ -6771,13 +6772,14 @@
             (resolutionPicData?.details || []).forEach(d => {
                 valueMap[d.employee_id] = {
                     mandays:             (valueMap[d.employee_id]?.mandays || 0) + d.mandays,
+                    approved_mandays:    (valueMap[d.employee_id]?.approved_mandays || 0) + (d.approved_mandays || 0),
                     additional_mandays:  (valueMap[d.employee_id]?.additional_mandays || 0) + (d.additional_mandays || 0),
                     approved_additional: (valueMap[d.employee_id]?.approved_additional || 0) + (d.approved_additional || 0),
                     notes:               d.notes || valueMap[d.employee_id]?.notes || '',
                 };
             });
 
-            resolutionPicRenderRows(valueMap);
+            resolutionPicRenderRows(valueMap, status);
         } catch(e) {
             console.error(e);
             showNotification('Failed to load resolution days', 'error');
@@ -6786,14 +6788,20 @@
         }
     }
 
-    function resolutionPicRenderRows(valueMap) {
+    function resolutionPicRenderRows(valueMap, status) {
         let html = '';
         resolutionPicPeople.forEach(person => {
             const existing = valueMap[person.employee_id] || {};
             const md  = existing.mandays || 0;
             const add = existing.additional_mandays || 0;
             const appAdd = existing.approved_additional || 0;
-            const totalMd = md + appAdd;
+            // Inputs always show what was proposed (md/add), unchanged — so the consultant
+            // can see exactly what they asked for. But while the proposal is still approved
+            // as-is (not yet re-edited), the Total shown reflects what Head actually approved
+            // (approved_mandays + approved_additional), not the raw proposed amount — so the
+            // consultant can see what was NOT approved. Once they start typing a revision,
+            // resolutionUpdateRowTotal() takes over and previews the new draft instead.
+            const totalMd = status === 'approved' ? ((existing.approved_mandays || 0) + appAdd) : (md + appAdd);
             const mdVal  = md  > 0 ? md  : '';
             const addVal = add > 0 ? add : '';
             const apprAddDisplay = appAdd > 0 ? appAdd.toFixed(1) : '—';
@@ -7409,19 +7417,21 @@
             const empMap = {};
             (proposal.details || []).forEach(d => {
                 const eid = d.employee_id;
-                if (!empMap[eid]) empMap[eid] = { name: d.employee_name || '—', mandays: 0, additional_mandays: 0, approved_additional: 0, notes: '' };
+                if (!empMap[eid]) empMap[eid] = { name: d.employee_name || '—', mandays: 0, approved_mandays: 0, additional_mandays: 0, approved_additional: 0, notes: '' };
                 empMap[eid].mandays            += parseFloat(d.mandays || 0);
+                empMap[eid].approved_mandays   += parseFloat(d.approved_mandays || 0);
                 empMap[eid].additional_mandays += parseFloat(d.additional_mandays || 0);
                 empMap[eid].approved_additional+= parseFloat(d.approved_additional || 0);
                 if (d.notes) empMap[eid].notes = d.notes;
             });
 
-            // Additional MD always editable by head of support
+            // Approved Days + Approved Additional both editable by head of support
             let bodyHtml = '';
             let grandTotal = 0;
             Object.entries(empMap).forEach(([eid, emp]) => {
-                const currentApprAdd = emp.approved_additional;
-                const rowTotal = emp.mandays + currentApprAdd;
+                const currentApprDays = emp.approved_mandays;
+                const currentApprAdd  = emp.approved_additional;
+                const rowTotal = currentApprDays + currentApprAdd;
                 grandTotal += rowTotal;
                 bodyHtml += `<tr>
                     <td class="px-3 py-2 border border-gray-200 text-xs font-medium">${emp.name}</td>
@@ -7430,8 +7440,15 @@
                     <td class="px-3 py-2 border border-gray-200 text-xs text-gray-500">${emp.notes || ''}</td>
                     <td class="border border-gray-200 p-0">
                         <input type="number" min="0" step="0.5"
+                            class="head-approve-days w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
+                            data-employee="${eid}"
+                            value="${currentApprDays > 0 ? currentApprDays : ''}"
+                            oninput="headUpdateRowTotal(this)">
+                    </td>
+                    <td class="border border-gray-200 p-0">
+                        <input type="number" min="0" step="0.5"
                             class="head-approve-add w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
-                            data-employee="${eid}" data-mandays="${emp.mandays}"
+                            data-employee="${eid}"
                             value="${currentApprAdd > 0 ? currentApprAdd : ''}"
                             oninput="headUpdateRowTotal(this)">
                     </td>
@@ -7486,9 +7503,9 @@
 
     function headUpdateRowTotal(inp) {
         const row      = inp.closest('tr');
-        const md       = parseFloat(inp.dataset.mandays) || 0;
-        const apprAdd  = parseFloat(inp.value) || 0;
-        const total    = md + apprAdd;
+        const apprDays = parseFloat(row.querySelector('.head-approve-days')?.value) || 0;
+        const apprAdd  = parseFloat(row.querySelector('.head-approve-add')?.value) || 0;
+        const total    = apprDays + apprAdd;
         const empId    = inp.dataset.employee;
         const cell     = row.querySelector(`[data-head-total="${empId}"]`);
         if (cell) cell.textContent = total > 0 ? total.toFixed(1) : '—';
@@ -7503,10 +7520,12 @@
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
             const approvedDetails = [];
-            document.querySelectorAll('.head-approve-add').forEach(inp => {
+            document.querySelectorAll('.head-approve-days').forEach(inp => {
+                const row = inp.closest('tr');
                 approvedDetails.push({
                     employee_id:         parseInt(inp.dataset.employee),
-                    approved_additional: parseFloat(inp.value) || 0,
+                    approved_mandays:    parseFloat(inp.value) || 0,
+                    approved_additional: parseFloat(row.querySelector('.head-approve-add')?.value) || 0,
                 });
             });
 

@@ -269,6 +269,7 @@ class ConsultantWorkloadController extends Controller
                 'e.eci',
                 'eq.qualification_modules',
                 'cmd.mandays',
+                'cmd.approved_mandays',
                 'cmd.approved_additional',
                 'cmd.progress_percentage as consultant_progress',
                 'cmd.progress_note as consultant_progress_note',
@@ -284,7 +285,7 @@ class ConsultantWorkloadController extends Controller
 
             // Sebelum Head approve, MD yang ditampilkan tetap placeholder (1 MD, tanpa
             // additional) — biar tidak ikut berubah begitu PIC edit draft proposal-nya.
-            $mandays     = $isApproved ? (float) $row->mandays : 1.0;
+            $mandays     = $isApproved ? (float) ($row->approved_mandays ?? 0) : 1.0;
             $additional  = $isApproved ? (float) $row->approved_additional : 0.0;
             $effectiveMd = $mandays + $additional;
             $consultantPct = (float) ($row->consultant_progress ?? 0);
@@ -351,6 +352,7 @@ class ConsultantWorkloadController extends Controller
                     'e.eci',
                     'cmd.module',
                     'cmd.mandays',
+                    'cmd.approved_mandays',
                     'cmd.approved_additional',
                     'cmd.progress_percentage',
                     'cmd.progress_note',
@@ -365,7 +367,7 @@ class ConsultantWorkloadController extends Controller
                     'module'             => $d->module ?? '—',
                     // Sebelum Head approve, tampilkan placeholder 1 MD — bukan angka draft
                     // yang mungkin sedang diedit PIC — supaya konsisten dengan sub-tabel.
-                    'mandays'            => $cm->status === 'approved' ? (float) $d->mandays : 1.0,
+                    'mandays'            => $cm->status === 'approved' ? (float) ($d->approved_mandays ?? 0) : 1.0,
                     'progress_percentage' => (float) ($d->progress_percentage ?? 0),
                     'progress_note'      => $d->progress_note,
                     'progress_updated_at' => $d->progress_updated_at,

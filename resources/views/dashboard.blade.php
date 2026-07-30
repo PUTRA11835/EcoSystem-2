@@ -2111,19 +2111,17 @@
         }
 
         /* ---- fire-and-forget mark-as-read (called on click, navigation proceeds normally) ----
-           Only marks the notification read so it leaves the bell (unread-only) but stays
-           visible on the full /notifications page. */
+           Marks this notification read; the backend also marks every other unread
+           notification for the same ticket read in one go, so the badge can drop by more
+           than 1 — re-fetch the real count instead of guessing with a client-side decrement.
+           Still visible (as read) on the full /notifications page. */
         function markNotifReadBell(id) {
-            var badge = document.getElementById('bellBadge');
-            if (badge && !badge.classList.contains('hidden')) {
-                var count = parseInt(badge.textContent || '0') - 1;
-                if (count <= 0) badge.classList.add('hidden');
-                else badge.textContent = count;
-            }
             fetch('/api/notifications/' + id + '/read', {
                 method: 'PUT',
                 credentials: 'same-origin',
                 headers: { 'X-CSRF-TOKEN': csrf }
+            }).then(function () {
+                fetchUnreadCount();
             }).catch(function () {});
         }
 
