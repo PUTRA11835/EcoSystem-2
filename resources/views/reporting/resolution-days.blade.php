@@ -158,14 +158,15 @@
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14" title="Days — working days">Days</th>
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Days proposed by PIC">Add.</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Enter approved days for each employee (out of the proposed Days)">Approved Days</th>
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Enter approved additional for each employee">Approve Add.</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Days + Approved Additional">Total Days</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Approved Days + Approved Additional">Total Days</th>
                         </tr>
                     </thead>
                     <tbody id="rdReviewBody"></tbody>
                     <tfoot>
                         <tr class="bg-gray-50 font-bold">
-                            <td colspan="5" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                            <td colspan="6" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
                             <td class="px-3 py-2 border border-gray-200 text-center" id="rdReviewTotal">0</td>
                         </tr>
                     </tfoot>
@@ -175,7 +176,7 @@
             </div>
         </div>
         <div id="rdReviewFooter" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
-            <p class="text-xs text-gray-400">Edit the "Approve Add." column then save to approve additional days.</p>
+            <p class="text-xs text-gray-400">Edit "Approved Days" / "Approve Add." then save to approve.</p>
             <div class="flex items-center gap-2">
                 <a id="rdReviewOpenTicket" href="#" class="inline-flex items-center gap-1.5 px-3 py-2 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 border border-gray-300 transition-all duration-200">
                     Open Ticket
@@ -454,8 +455,9 @@ async function openRdReviewModal(ticketId, ticketLabel) {
         const empMap = {};
         (proposal.details || []).forEach(d => {
             const eid = d.employee_id;
-            if (!empMap[eid]) empMap[eid] = { name: d.employee_name || '—', mandays: 0, additional_mandays: 0, approved_additional: 0, notes: '' };
+            if (!empMap[eid]) empMap[eid] = { name: d.employee_name || '—', mandays: 0, approved_mandays: 0, additional_mandays: 0, approved_additional: 0, notes: '' };
             empMap[eid].mandays            += parseFloat(d.mandays || 0);
+            empMap[eid].approved_mandays   += parseFloat(d.approved_mandays || 0);
             empMap[eid].additional_mandays += parseFloat(d.additional_mandays || 0);
             empMap[eid].approved_additional+= parseFloat(d.approved_additional || 0);
             if (d.notes) empMap[eid].notes = d.notes;
@@ -464,8 +466,9 @@ async function openRdReviewModal(ticketId, ticketLabel) {
         let bodyHtml = '';
         let grandTotal = 0;
         Object.entries(empMap).forEach(([eid, emp]) => {
-            const currentApprAdd = emp.approved_additional;
-            const rowTotal = emp.mandays + currentApprAdd;
+            const currentApprDays = emp.approved_mandays;
+            const currentApprAdd  = emp.approved_additional;
+            const rowTotal = currentApprDays + currentApprAdd;
             grandTotal += rowTotal;
             bodyHtml += `<tr>
                 <td class="px-3 py-2 border border-gray-200 text-xs font-medium">${escHtml(emp.name)}</td>
@@ -474,8 +477,15 @@ async function openRdReviewModal(ticketId, ticketLabel) {
                 <td class="px-3 py-2 border border-gray-200 text-xs text-gray-500">${escHtml(emp.notes || '')}</td>
                 <td class="border border-gray-200 p-0">
                     <input type="number" min="0" step="0.5"
+                        class="rd-approve-days w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
+                        data-employee="${eid}"
+                        value="${currentApprDays > 0 ? currentApprDays : ''}"
+                        oninput="rdUpdateRowTotal(this)">
+                </td>
+                <td class="border border-gray-200 p-0">
+                    <input type="number" min="0" step="0.5"
                         class="rd-approve-add w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
-                        data-employee="${eid}" data-mandays="${emp.mandays}"
+                        data-employee="${eid}"
                         value="${currentApprAdd > 0 ? currentApprAdd : ''}"
                         oninput="rdUpdateRowTotal(this)">
                 </td>
@@ -530,10 +540,10 @@ function closeRdReviewModal() {
 }
 
 function rdUpdateRowTotal(inp) {
-    const row     = inp.closest('tr');
-    const md      = parseFloat(inp.dataset.mandays) || 0;
-    const apprAdd = parseFloat(inp.value) || 0;
-    const total   = md + apprAdd;
+    const row      = inp.closest('tr');
+    const apprDays = parseFloat(row.querySelector('.rd-approve-days')?.value) || 0;
+    const apprAdd  = parseFloat(row.querySelector('.rd-approve-add')?.value) || 0;
+    const total    = apprDays + apprAdd;
     const empId   = inp.dataset.employee;
     const cell    = row.querySelector(`[data-rd-total="${empId}"]`);
     if (cell) cell.textContent = total > 0 ? total.toFixed(1) : '—';
@@ -548,10 +558,12 @@ async function rdReviewApprove(confirmNegative = false) {
     btn.disabled = true;
     try {
         const approvedDetails = [];
-        document.querySelectorAll('.rd-approve-add').forEach(inp => {
+        document.querySelectorAll('.rd-approve-days').forEach(inp => {
+            const row = inp.closest('tr');
             approvedDetails.push({
                 employee_id:         parseInt(inp.dataset.employee),
-                approved_additional: parseFloat(inp.value) || 0,
+                approved_mandays:    parseFloat(inp.value) || 0,
+                approved_additional: parseFloat(row.querySelector('.rd-approve-add')?.value) || 0,
             });
         });
 

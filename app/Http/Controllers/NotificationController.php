@@ -49,12 +49,14 @@ class NotificationController extends Controller
 
         $employeeId = $sessionUser['id'];
 
-        // Bell dropdown menampilkan 20 notifikasi terbaru (read + unread), termasuk
-        // ticket_reply / ticket_internal_note — badge memakai unread_count di bawah.
+        // Bell dropdown menampilkan 20 notifikasi UNREAD terbaru saja — begitu dibaca
+        // (satuan atau lewat batch per-ticket di markRead()), notifikasi itu hilang dari
+        // dropdown. Riwayat lengkap (read + unread) tetap ada di halaman /notifications.
         $notifications = DB::table('notifications as n')
             ->leftJoin('ticket as t', 't.ticket_id', '=', 'n.ticket_id')
             ->leftJoin('customer as c', 'c.customer_id', '=', 't.customer_id')
             ->where('n.employee_id', $employeeId)
+            ->where('n.is_read', false)
             ->orderBy('n.created_at', 'desc')
             ->limit(20)
             ->select([
@@ -125,7 +127,10 @@ class NotificationController extends Controller
 
     /**
      * PUT /api/notifications/{id}/read
-     * Mark a single notification as read.
+     * Mark a notification as read. If it's tied to a ticket, every other unread
+     * notification this employee has for that same ticket is marked read too —
+     * clicking into a ticket means you've seen everything pending on it, not just
+     * the one item you happened to click.
      */
     public function markRead($id)
     {
@@ -134,11 +139,20 @@ class NotificationController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
+        $employeeId   = $sessionUser['id'];
         $notification = Notification::where('id', $id)
-            ->where('employee_id', $sessionUser['id'])
+            ->where('employee_id', $employeeId)
             ->firstOrFail();
 
-        $notification->update(['is_read' => true, 'read_at' => now()]);
+        $now = now();
+        $notification->update(['is_read' => true, 'read_at' => $now]);
+
+        if ($notification->ticket_id) {
+            Notification::where('employee_id', $employeeId)
+                ->where('ticket_id', $notification->ticket_id)
+                ->where('is_read', false)
+                ->update(['is_read' => true, 'read_at' => $now]);
+        }
 
         return response()->json(['success' => true]);
     }
