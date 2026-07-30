@@ -32,7 +32,7 @@ class AuditOneDriveShareLinks extends Command
 {
     protected $signature = 'onedrive:audit-links
                             {--fix : Recreate links that are broken or not publicly accessible}
-                            {--target=all : all|projects|supports|tickets|deliverables}
+                            {--target=all : all|projects|supports|tickets|deliverables|expenses}
                             {--offline : Judge from stored metadata only (no Microsoft Graph calls)}
                             {--limit=0 : Only inspect the first N rows per target (0 = no limit)}';
 
@@ -56,8 +56,8 @@ class AuditOneDriveShareLinks extends Command
         $target         = (string) $this->option('target');
         $limit          = (int) $this->option('limit');
 
-        if (!in_array($target, ['all', 'projects', 'supports', 'tickets', 'deliverables'], true)) {
-            $this->error("Unknown --target={$target}. Use: all, projects, supports, tickets, deliverables.");
+        if (!in_array($target, ['all', 'projects', 'supports', 'tickets', 'deliverables', 'expenses'], true)) {
+            $this->error("Unknown --target={$target}. Use: all, projects, supports, tickets, deliverables, expenses.");
             return self::FAILURE;
         }
 
@@ -90,6 +90,10 @@ class AuditOneDriveShareLinks extends Command
 
         if ($target === 'all' || $target === 'deliverables') {
             $this->auditDeliverableFiles($limit);
+        }
+
+        if ($target === 'all' || $target === 'expenses') {
+            $this->auditExpenseDocuments($limit);
         }
 
         return $this->report();
@@ -282,6 +286,148 @@ class AuditOneDriveShareLinks extends Command
 
             $this->recordProblem('Deliverable', $name, $issues, $outcome);
         }
+    }
+
+    /**
+     * Supporting document expense (Plan Cost) di Delivery Project & Support.
+     *
+     * Baris lama menyimpan `webUrl` hasil upload — path SharePoint langsung yang
+     * selalu meminta login / "Request access". Baris lama juga belum menyimpan
+     * item ID, jadi ID-nya dipulihkan dulu dengan mencari file bernama sama di
+     * subfolder "Plan Cost" milik project/support tersebut.
+     */
+    private function auditExpenseDocuments(int $limit): void
+    {
+        $sources = [
+            [
+                'label'      => 'Project Expense',
+                'rows'       => \App\Models\DeliveryProjectCostItem::whereNotNull('document_url')
+                                    ->with('costItem.project')
+                                    ->orderBy('id')
+                                    ->when($limit > 0, fn($q) => $q->limit($limit))
+                                    ->get(),
+                'folder'     => fn($item) => $item->costItem?->project?->onedrive_folder_id,
+            ],
+            [
+                'label'      => 'Support Expense',
+                'rows'       => \App\Models\DeliverySupportCostItem::whereNotNull('document_url')
+                                    ->with('costItem.support')
+                                    ->orderBy('id')
+                                    ->when($limit > 0, fn($q) => $q->limit($limit))
+                                    ->get(),
+                'folder'     => fn($item) => $item->costItem?->support?->onedrive_folder_id,
+            ],
+        ];
+
+        foreach ($sources as $source) {
+            $rows = $source['rows'];
+            $this->components->info("{$source['label']} document ({$rows->count()} file)");
+
+            foreach ($rows as $item) {
+                $this->totals['checked']++;
+                $name   = '#' . $item->id . ' ' . ($item->document_name ?: '(no name)');
+                $issues = [];
+
+                if (!OneDriveService::isShareLinkUrl($item->document_url)) {
+                    $issues[] = 'stored URL is a direct path, not a share link';
+                }
+                if (!$item->document_file_id) {
+                    $issues[] = 'no OneDrive item ID stored (cannot delete/replace the file)';
+                }
+
+                if (!$issues && !$this->offline) {
+                    $issues = array_merge($issues, $this->verifyFileLink($item->document_file_id, $item->document_url));
+                }
+
+                if (!$issues) {
+                    $this->totals['healthy']++;
+                    continue;
+                }
+
+                $outcome = 'reported';
+                if ($this->fix) {
+                    $outcome = $this->repairExpenseDocument($item, ($source['folder'])($item), $name);
+                }
+
+                $this->recordProblem($source['label'], $name, $issues, $outcome);
+            }
+        }
+    }
+
+    /** @return array<int,string> */
+    private function verifyFileLink(string $fileId, ?string $storedUrl): array
+    {
+        try {
+            $stored = collect($this->oneDrive->listItemPermissions($fileId))->firstWhere('url', $storedUrl);
+        } catch (\Throwable $e) {
+            return ['could not verify via Graph: ' . $e->getMessage()];
+        }
+
+        if (!$stored) {
+            return ['the stored link no longer exists on the file (revoked or replaced)'];
+        }
+
+        $issues = [];
+        if ($stored['scope'] !== 'anonymous') {
+            $issues[] = 'scope is ' . ($stored['scope'] ?: 'unknown') . ' (internal only)';
+        }
+        if ($stored['expires_at'] && $stored['expires_at']->isPast()) {
+            $issues[] = 'link expired ' . $stored['expires_at']->format('d M Y');
+        }
+
+        return $issues;
+    }
+
+    private function repairExpenseDocument($item, ?string $parentFolderId, string $name): string
+    {
+        try {
+            $fileId = $item->document_file_id;
+
+            // Baris lama: item ID belum pernah disimpan → cari di folder "Plan Cost".
+            if (!$fileId) {
+                if (!$parentFolderId) {
+                    $this->totals['failed']++;
+                    return 'FIX FAILED: owner has no OneDrive folder';
+                }
+
+                $planCost = collect($this->oneDrive->listSubFoldersByParentId($parentFolderId))
+                    ->first(fn($f) => mb_strtolower($f['name']) === 'plan cost');
+
+                if (!$planCost) {
+                    $this->totals['failed']++;
+                    return 'FIX FAILED: "Plan Cost" folder not found';
+                }
+
+                $file = $this->oneDrive->findFileInFolderByName($planCost['id'], (string) $item->document_name);
+
+                if (!$file) {
+                    $this->totals['failed']++;
+                    return 'FIX FAILED: file not found in "Plan Cost" folder';
+                }
+
+                $fileId = $file['id'];
+            }
+
+            $link = $this->oneDrive->createShareLink($fileId, 'view');
+
+            $item->update([
+                'document_file_id' => $fileId,
+                'document_url'     => $link['url'],
+            ]);
+        } catch (\Throwable $e) {
+            $this->totals['failed']++;
+            Log::error('onedrive:audit-links — expense document repair failed', [
+                'item'  => $name,
+                'error' => $e->getMessage(),
+            ]);
+            return 'FIX FAILED: ' . $e->getMessage();
+        }
+
+        $this->totals['fixed']++;
+
+        return $link['scope'] === 'anonymous'
+            ? 'fixed (anyone with the link)'
+            : 'fixed but still ' . $link['scope'] . ' — check M365 sharing policy';
     }
 
     /** @param array<int,string> $issues */

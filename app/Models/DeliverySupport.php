@@ -15,6 +15,7 @@ class DeliverySupport extends Model
     protected $fillable = [
         'id_delivery_list',
         'client_id',
+        'vendor_id',
         'start_date',
         'end_date',
         'resolution_estimated',
@@ -72,6 +73,14 @@ class DeliverySupport extends Model
     public function client()
     {
         return $this->belongsTo(Customer::class, 'client_id', 'customer_id');
+    }
+
+    /**
+     * Vendor (opsional) — Business Partner bertipe Vendor di master `customer`.
+     */
+    public function vendor()
+    {
+        return $this->belongsTo(Customer::class, 'vendor_id', 'customer_id');
     }
 
     /**

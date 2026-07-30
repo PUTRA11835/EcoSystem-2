@@ -132,8 +132,8 @@ class MenuSeeder extends Seeder
             ['slug' => 'master.employee',              'name' => 'Employee',                'type' => 'page',     'parent_slug' => 'master',      'route_name' => 'master.employee.index',        'icon' => null,                   'order_seq' => 1],
             ['slug' => 'master.employee.create',       'name' => 'Create Employee',         'type' => 'function', 'parent_slug' => 'master.employee', 'route_name' => null,                      'icon' => null,                   'order_seq' => 1],
             ['slug' => 'master.employee.action',       'name' => 'Actions (Edit/Delete)',   'type' => 'function', 'parent_slug' => 'master.employee', 'route_name' => null,                      'icon' => null,                   'order_seq' => 2],
-            ['slug' => 'master.customer',              'name' => 'Customer',                'type' => 'page',     'parent_slug' => 'master',      'route_name' => 'master.customer.index',        'icon' => null,                   'order_seq' => 2],
-            ['slug' => 'master.customer.create',       'name' => 'Create Customer',         'type' => 'function', 'parent_slug' => 'master.customer', 'route_name' => null,                      'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'master.customer',              'name' => 'Business Partner',        'type' => 'page',     'parent_slug' => 'master',      'route_name' => 'master.customer.index',        'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'master.customer.create',       'name' => 'Create Business Partner', 'type' => 'function', 'parent_slug' => 'master.customer', 'route_name' => null,                      'icon' => null,                   'order_seq' => 1],
             ['slug' => 'master.customer.action',       'name' => 'Actions (Edit/Delete)',   'type' => 'function', 'parent_slug' => 'master.customer', 'route_name' => null,                      'icon' => null,                   'order_seq' => 2],
 
             // ── Finance ───────────────────────────────────────────────────────────

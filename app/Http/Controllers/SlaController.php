@@ -61,7 +61,7 @@ class SlaController extends Controller
 
     public function reportPage()
     {
-        $customers = \App\Models\Customer::with('basicData')->where('is_active', true)->get();
+        $customers = \App\Models\Customer::with('basicData')->customers()->where('is_active', true)->get();
         return view('admin.sla.report', compact('customers'));
     }
 

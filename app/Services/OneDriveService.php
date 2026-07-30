@@ -361,6 +361,66 @@ class OneDriveService
     }
 
     /**
+     * Permanently delete any drive item (file OR folder) by its item ID.
+     * Sudah hilang (404) dianggap sukses — pemanggil hanya peduli "tidak ada lagi".
+     */
+    public function deleteItem(string $itemId): void
+    {
+        $response = Http::withToken($this->getAccessToken())->delete(
+            "{$this->driveBase}/drive/items/{$itemId}"
+        );
+
+        if (!$response->successful() && $response->status() !== 404) {
+            Log::error('OneDrive deleteItem failed', [
+                'item_id' => $itemId,
+                'status'  => $response->status(),
+                'body'    => $response->body(),
+            ]);
+            throw new \RuntimeException('Failed to delete OneDrive item: ' . $response->body());
+        }
+    }
+
+    /**
+     * Cari file (bukan folder) di dalam sebuah folder berdasarkan nama.
+     * Dipakai untuk memulihkan item ID baris lama yang hanya menyimpan URL.
+     * Nama dicocokkan case-insensitive setelah disanitasi seperti saat upload.
+     *
+     * @return array{id:string,name:string,webUrl:?string}|null
+     */
+    public function findFileInFolderByName(string $parentFolderId, string $fileName): ?array
+    {
+        $response = Http::withToken($this->getAccessToken())->get(
+            "{$this->driveBase}/drive/items/{$parentFolderId}/children",
+            ['$select' => 'id,name,file,webUrl', '$top' => 200]
+        );
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        if (!$response->successful()) {
+            throw new \RuntimeException('Failed to list OneDrive folder children: ' . $response->body());
+        }
+
+        $needle = mb_strtolower(self::sanitizeFileName($fileName));
+
+        foreach ($response->json('value', []) as $child) {
+            if (!isset($child['file'])) {
+                continue;
+            }
+            if (mb_strtolower($child['name'] ?? '') === $needle) {
+                return [
+                    'id'     => $child['id'],
+                    'name'   => $child['name'],
+                    'webUrl' => $child['webUrl'] ?? null,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * List immediate children (folders only) of a folder specified by its item ID.
      * Returns an array of ['id' => ..., 'name' => ...] for each child folder.
      */

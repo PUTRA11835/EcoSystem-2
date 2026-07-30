@@ -31,7 +31,7 @@ class LiteDashboardController extends Controller
             // ── Statistik global (semua role) ───────────────────────────────
             $dashboardData = [
                 'employee'        => DB::table('employee')->where('is_active', true)->count(),
-                'customers'       => DB::table('customer')->where('is_active', true)->count(),
+                'customers'       => DB::table('customer')->where('is_active', true)->where('type', \App\Models\Customer::TYPE_CUSTOMER)->count(),
                 'active_projects' => DB::table('delivery_projects')
                     ->whereNotIn('status', ['completed', 'closed', 'cancel'])
                     ->count(),

@@ -46,12 +46,8 @@
 
 @section('content')
 <div class="min-h-screen bg-gray-50">
-    @if(session('success'))
-        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('success')),'success'));</script>
-    @endif
-    @if(session('error'))
-        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('error')),'error'));</script>
-    @endif
+    {{-- Flash success/error toast sudah ditampilkan layout dashboard.blade.php.
+         Jangan diulang di sini: toast jadi dobel. --}}
 
     @if($errors->any())
         <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json($errors->first()),'error'));</script>

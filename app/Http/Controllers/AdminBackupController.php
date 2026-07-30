@@ -1182,13 +1182,18 @@ class AdminBackupController extends Controller
             ], fn($v) => $v !== null);
 
             try {
-                // Cari existing: prioritas customer_code, fallback ke email
+                // Cari existing: prioritas customer_code, fallback ke email.
+                // Dibatasi tipe Customer supaya baris vendor tidak pernah ditimpa
+                // oleh import ini (kode/email vendor yang bentrok akan jatuh ke
+                // pengecekan "sudah dipakai" di bawah dan dilaporkan sebagai error).
                 $existing = null;
                 if ($customerCode) {
-                    $existing = DB::table('customer')->where('customer_code', $customerCode)->first();
+                    $existing = DB::table('customer')->where('customer_code', $customerCode)
+                        ->where('type', \App\Models\Customer::TYPE_CUSTOMER)->first();
                 }
                 if (!$existing && $email) {
-                    $existing = DB::table('customer')->where('email', $email)->first();
+                    $existing = DB::table('customer')->where('email', $email)
+                        ->where('type', \App\Models\Customer::TYPE_CUSTOMER)->first();
                 }
 
                 if ($existing) {
@@ -1247,6 +1252,9 @@ class AdminBackupController extends Controller
 
                     $customerId = DB::table('customer')->insertGetId([
                         'customer_code'     => $customerCode,
+                        // Import CSV ini khusus data customer; vendor dibuat manual
+                        // dari halaman Master Business Partner.
+                        'type'              => \App\Models\Customer::TYPE_CUSTOMER,
                         'email'             => $email,
                         'is_active'         => $isActive,
                         'customer_group_id' => $groupId,

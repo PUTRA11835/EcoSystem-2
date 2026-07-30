@@ -29,7 +29,8 @@ class DeliveryProjectController extends Controller
 
     public function create()
     {
-        $clients = Customer::with('basicData')->get()->sortBy(function($client) {
+        // Hanya Business Partner bertipe Customer yang bisa dipilih sebagai client.
+        $clients = Customer::with('basicData')->customers()->get()->sortBy(function($client) {
             return $client->basicData->name_1 ?? '';
         });
         $clientPicMap = $clients->pluck('pic', 'customer_id');
@@ -58,7 +59,7 @@ class DeliveryProjectController extends Controller
         }
 
         $request->validate([
-            'client_id' => 'required|exists:customer,customer_id',
+            'client_id' => ['required', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
             'project_owner' => 'required|string|max:255',
             'name' => 'required|string|max:255',
             'description' => 'required|string',
@@ -243,7 +244,7 @@ class DeliveryProjectController extends Controller
         // AE dropdown: karyawan aktif ber-role "Sales Operation" (lihat salesRoleEmployees()).
         $aeEmployees = $this->salesRoleEmployees();
 
-        $clients = Customer::with('basicData')->get()->sortBy(fn($c) => strtolower($c->basicData->name_1 ?? ''))->values();
+        $clients = Customer::with('basicData')->customers()->get()->sortBy(fn($c) => strtolower($c->basicData->name_1 ?? ''))->values();
 
         // IO number existing milik company yang sama (untuk pilihan Body Hire).
         $sameCompanyIos = DeliveryProject::where('client_id', $project->client_id)
@@ -352,7 +353,7 @@ class DeliveryProjectController extends Controller
         } elseif ($field === 'project_type') {
             $rules['value'] = ['nullable', Rule::in(['Implementation', 'Roll Out', 'Migration', 'Upgrade', 'WRICEF', 'Body Hire'])];
         } elseif ($field === 'client_id') {
-            $rules['value'] = 'nullable|exists:customer,customer_id';
+            $rules['value'] = ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)];
         } else {
             $rules['value'] = 'nullable|string|max:255';
         }
@@ -404,7 +405,7 @@ class DeliveryProjectController extends Controller
         }
 
         $validated = $request->validate([
-            'client_id'           => 'nullable|exists:customer,customer_id',
+            'client_id'           => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
             'name'                => 'required|string|max:255',
             'project_owner'       => 'nullable|string|max:255',
             'project_type'        => ['nullable', Rule::in(['Implementation','Roll Out','Migration','Upgrade','WRICEF','Body Hire'])],

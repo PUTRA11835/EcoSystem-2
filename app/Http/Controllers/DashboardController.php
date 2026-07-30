@@ -34,6 +34,7 @@ class DashboardController extends Controller
                 ->count();
             $totalCustomers = DB::table('customer')
                 ->where('is_active', true)
+                ->where('type', \App\Models\Customer::TYPE_CUSTOMER)
                 ->count();
             $activeProjects = DB::table('delivery_projects')
                 ->whereNotIn('status', ['completed', 'closed', 'cancel'])

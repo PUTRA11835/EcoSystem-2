@@ -163,6 +163,7 @@ class CustomerGroupController extends Controller
     {
         try {
             $customers = Customer::with('basicData')
+                ->customers() // Customer Group hanya untuk business partner bertipe Customer
                 ->whereNull('customer_group_id')
                 ->get()
                 ->map(fn ($c) => [
@@ -203,6 +204,14 @@ class CustomerGroupController extends Controller
         $customer = Customer::find($request->customer_id);
         if (!$customer) {
             return response()->json(['success' => false, 'message' => 'Customer not found'], 404);
+        }
+
+        // Grup ini murni pengelompokan sisi customer — vendor tidak boleh masuk.
+        if (($customer->type ?? Customer::TYPE_CUSTOMER) !== Customer::TYPE_CUSTOMER) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only business partners with type Customer can be added to a customer group.',
+            ], 422);
         }
 
         if ($customer->customer_group_id && (int) $customer->customer_group_id !== (int) $id) {

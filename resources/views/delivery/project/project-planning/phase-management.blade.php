@@ -9,7 +9,9 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 
 @section('content')
-<div class="phase-mgmt-page min-h-screen bg-gray-50 pb-20 sm:pb-6" data-project-id="{{ $project->id }}">
+{{-- data-closed-lock-root: seluruh halaman ini dikunci read-only saat project
+     sudah di-close (lihat delivery/partials/project-closed-lock). --}}
+<div class="phase-mgmt-page min-h-screen bg-gray-50 pb-20 sm:pb-6" data-closed-lock-root data-project-id="{{ $project->id }}">
     <script>
         window.currentProjectId = {{ $project->id }};
         // Contract window — used to constrain planning (activity) date pickers.
@@ -1091,3 +1093,5 @@ button, a {
 </style>
 
 @endsection
+
+@include('delivery.partials.project-closed-lock', ['project' => $project])

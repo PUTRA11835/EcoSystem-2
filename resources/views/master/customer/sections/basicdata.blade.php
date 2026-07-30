@@ -20,6 +20,18 @@
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent uppercase">
             </div>
 
+            <!-- Type Business Partner (customer.type) — Customer / Vendor.
+                 Menentukan data ini muncul sebagai klien atau sebagai vendor
+                 di modul lain (mis. dropdown Vendor di Delivery Support). -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-600">*</span></label>
+                <select id="partnerType"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                    <option value="Customer" {{ ($customer->type ?? 'Customer') === 'Customer' ? 'selected' : '' }}>Customer</option>
+                    <option value="Vendor" {{ ($customer->type ?? '') === 'Vendor' ? 'selected' : '' }}>Vendor</option>
+                </select>
+            </div>
+
             <!-- Company Email (customer.email — kontak perusahaan; tampil di list & header).
                  id sengaja 'companyEmail' (BUKAN 'email') agar tidak bentrok dengan
                  field Email di section Address yang berbagi halaman. -->

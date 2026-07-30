@@ -798,7 +798,10 @@ class EmailController extends Controller
                     // field `domain` di master customer (mis. "@apta.co.id") agar SEMUA email dari
                     // domain tsb (charli@apta.co.id, akbar@apta.co.id, dll) otomatis dikenali
                     // sebagai milik customer ybs dan masuk ke staging ticket validation.
-                    $customer = Customer::where('email', $fromEmail)->first();
+                    // Semua pencocokan dibatasi business partner bertipe Customer —
+                    // kalau email/domain juga terdaftar sebagai Vendor, rantai lanjut
+                    // ke strategi berikutnya alih-alih berhenti di vendor.
+                    $customer = Customer::customers()->where('email', $fromEmail)->first();
                     if (!$customer && $fromEmail) {
                         $authCustomerId = \DB::table('auth_users')
                             ->whereRaw('LOWER(email) = LOWER(?)', [$fromEmail])
@@ -835,7 +838,8 @@ class EmailController extends Controller
                         if ($emailDomain) {
                             // Prefer top-level customer (parent_customer_id null) jika ada
                             // subsidiary yang share domain yang sama (parent + child).
-                            $customer = Customer::whereRaw('LOWER(domain) = ?', [$emailDomain])
+                            $customer = Customer::customers()
+                                ->whereRaw('LOWER(domain) = ?', [$emailDomain])
                                 ->where('is_active', true)
                                 ->orderByRaw('parent_customer_id IS NULL DESC')
                                 ->orderBy('customer_id', 'asc')
@@ -848,6 +852,19 @@ class EmailController extends Controller
                                 ]);
                             }
                         }
+                    }
+
+                    // Master `customer` kini menampung dua tipe business partner.
+                    // Tiket/staging hanya berlaku untuk tipe Customer — kalau rantai
+                    // pencocokan di atas mendarat di Vendor, perlakukan sebagai
+                    // pengirim tak dikenal (email tetap diproses tanpa customer).
+                    if ($customer && ($customer->type ?? Customer::TYPE_CUSTOMER) !== Customer::TYPE_CUSTOMER) {
+                        Log::info('EmailController@processInbox: matched business partner is not a Customer, ignoring match', [
+                            'from'        => $fromEmail,
+                            'customer_id' => $customer->customer_id,
+                            'type'        => $customer->type,
+                        ]);
+                        $customer = null;
                     }
 
                     if ($ticket) {

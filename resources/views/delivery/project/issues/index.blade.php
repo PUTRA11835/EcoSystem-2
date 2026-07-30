@@ -34,13 +34,8 @@
         </nav>
     </div>
 
-    {{-- Flash Notifications --}}
-    @if(session('success'))
-        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('success')),'success'));</script>
-    @endif
-    @if(session('error'))
-        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('error')),'error'));</script>
-    @endif
+    {{-- Flash success/error toast sudah ditampilkan layout dashboard.blade.php.
+         Jangan diulang di sini: toast jadi dobel. --}}
 
     <div class="bg-white shadow-sm rounded-lg overflow-hidden">
         <div class="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">

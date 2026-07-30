@@ -16,6 +16,7 @@ class DeliverySupportCostItem extends Model
         'description',
         'amount',
         'document_name',
+        'document_file_id',
         'document_url',
     ];
 

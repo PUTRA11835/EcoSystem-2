@@ -83,7 +83,7 @@ class DeliverySupportController extends Controller
         }
 
         $supports = $query->orderBy('created_at', 'desc')->get();
-        $clients = Customer::with('basicData')->get();
+        $clients = Customer::with('basicData')->customers()->get();
 
         return view('delivery.support.list.index', compact('supports', 'clients'));
     }
@@ -138,10 +138,24 @@ class DeliverySupportController extends Controller
      */
     public function create()
     {
-        $clients = Customer::with('basicData')->get();
+        $clients = Customer::with('basicData')->customers()->get();
+        $vendors = $this->vendorOptions();
         $employees = Employee::with('basicData')->where('is_active', true)->get();
 
-        return view('delivery.support.list.create', compact('clients', 'employees'));
+        return view('delivery.support.list.create', compact('clients', 'vendors', 'employees'));
+    }
+
+    /**
+     * Business Partner bertipe Vendor untuk dropdown "Vendor" (create/edit/show).
+     * Master-nya sama dengan customer (tabel `customer`), dibedakan kolom `type`.
+     */
+    private function vendorOptions()
+    {
+        return Customer::with('basicData')
+            ->vendors()
+            ->get()
+            ->sortBy(fn($v) => strtolower($v->basicData->name_1 ?? $v->customer_code ?? 'zzz'))
+            ->values();
     }
 
     /**
@@ -151,7 +165,9 @@ class DeliverySupportController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'client_id' => 'required|exists:customer,customer_id',
+            'client_id' => ['required', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
+            'vendor_id' => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_VENDOR)],
+            'io_number' => ['nullable', 'string', 'max:255', Rule::unique('delivery_support', 'io_number')],
             'type' => 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -167,6 +183,8 @@ class DeliverySupportController extends Controller
             'approval_name' => 'nullable|string|max:255',
             'service_window_start' => 'nullable|date_format:H:i',
             'service_window_end' => 'nullable|date_format:H:i|after_or_equal:service_window_start',
+        ], [
+            'io_number.unique' => 'IO Number ini sudah digunakan oleh delivery support lain.',
         ]);
 
         DB::beginTransaction();
@@ -178,6 +196,8 @@ class DeliverySupportController extends Controller
             $support = DeliverySupport::create([
                 'id_delivery_list' => $deliveryList->id,
                 'client_id' => $validated['client_id'],
+                'vendor_id' => ($validated['vendor_id'] ?? null) ?: null,
+                'io_number' => ($validated['io_number'] ?? null) ?: null,
                 'name' => $validated['name'],
                 'type' => $validated['type'],
                 'start_date' => $validated['start_date'] ?? null,
@@ -240,10 +260,11 @@ class DeliverySupportController extends Controller
             'sales.basicData',
         ]);
 
-        $clients   = Customer::with('basicData')->get();
+        $clients   = Customer::with('basicData')->customers()->get();
+        $vendors   = $this->vendorOptions();
         $employees = Employee::with('basicData')->where('is_active', true)->get();
 
-        return view('delivery.support.list.edit', compact('support', 'clients', 'employees'));
+        return view('delivery.support.list.edit', compact('support', 'clients', 'vendors', 'employees'));
     }
 
     /**
@@ -258,7 +279,9 @@ class DeliverySupportController extends Controller
 
         $rules = [
             'name'                 => 'required|string|max:255',
-            'client_id'            => 'required|exists:customer,customer_id',
+            'client_id'            => ['required', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
+            'vendor_id'            => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_VENDOR)],
+            'io_number'            => ['nullable', 'string', 'max:255', Rule::unique('delivery_support', 'io_number')->ignore($support->id)],
             'start_date'           => 'nullable|date',
             'end_date'             => 'nullable|date|after_or_equal:start_date',
             'resolution_estimated' => 'nullable|date',
@@ -278,12 +301,16 @@ class DeliverySupportController extends Controller
             $rules['type'] = 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal';
         }
 
-        $validated = $request->validate($rules);
+        $validated = $request->validate($rules, [
+            'io_number.unique' => 'IO Number ini sudah digunakan oleh delivery support lain.',
+        ]);
 
         try {
             $updateData = [
                 'name'                 => $validated['name'],
                 'client_id'            => $validated['client_id'],
+                'vendor_id'            => ($validated['vendor_id'] ?? null) ?: null,
+                'io_number'            => ($validated['io_number'] ?? null) ?: null,
                 'start_date'           => $validated['start_date']           ?? null,
                 'end_date'             => $validated['end_date']             ?? null,
                 'resolution_estimated' => $validated['resolution_estimated'] ?? null,
@@ -329,6 +356,7 @@ class DeliverySupportController extends Controller
     {
         $support->load([
             'client.basicData',
+            'vendor.basicData',
             'deliveryOwner.basicData',
             'supportManagers.basicData',
             'coPm.basicData',
@@ -349,8 +377,11 @@ class DeliverySupportController extends Controller
             ->where('is_active', true)
             ->get();
 
-        // Get clients for modal form
-        $clients = Customer::with('basicData')->get();
+        // Get clients for modal form (Business Partner bertipe Customer saja)
+        $clients = Customer::with('basicData')->customers()->get();
+
+        // Business Partner bertipe Vendor untuk dropdown Vendor di Financial section
+        $vendors = $this->vendorOptions();
 
         // Diatur lewat Role Management (menu slug: sla.config), bukan role hardcode,
         // supaya role apa pun bisa diberi/dicabut akses kelola SLA Policy dari UI Role Management.
@@ -381,7 +412,7 @@ class DeliverySupportController extends Controller
                 ])
             : collect();
 
-        return view('delivery.support.list.show', compact('support', 'employees', 'clients', 'canManage', 'isEcAdmin', 'linkedTickets', 'actualCost'));
+        return view('delivery.support.list.show', compact('support', 'employees', 'clients', 'vendors', 'canManage', 'isEcAdmin', 'linkedTickets', 'actualCost'));
     }
 
     /**
@@ -423,7 +454,7 @@ class DeliverySupportController extends Controller
 
                     $rules = [
                         'name' => 'required|string|max:255',
-                        'client_id' => 'required|exists:customer,customer_id',
+                        'client_id' => ['required', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
                         'support_method' => 'nullable|string|max:100',
                         'start_date' => 'nullable|date',
                         'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -533,6 +564,7 @@ class DeliverySupportController extends Controller
                 'max:255',
                 Rule::unique('delivery_support', 'io_number')->ignore($support->id),
             ],
+            'vendor_id'               => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_VENDOR)],
             'revenue'                 => 'nullable|numeric|min:0',
             'plan_cost'               => 'nullable|numeric|min:0',
             'gross_profit'            => 'nullable|numeric',
@@ -543,6 +575,7 @@ class DeliverySupportController extends Controller
 
         $support->update([
             'io_number'               => $validated['io_number'] ?: null,
+            'vendor_id'               => ($validated['vendor_id'] ?? null) ?: null,
             'revenue'                 => $validated['revenue'] ?? null,
             'plan_cost'               => $validated['plan_cost'] ?? null,
             'gross_profit'            => $validated['gross_profit'] ?? null,
