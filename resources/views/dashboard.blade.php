@@ -867,7 +867,7 @@
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-user-tie text-xs"></i>
                             </span>
-                            <span class="nav-text text-sm">Customer</span>
+                            <span class="nav-text text-sm">Business Partner</span>
                         </a>
                         @endif
                     </div>

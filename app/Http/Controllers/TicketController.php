@@ -557,7 +557,7 @@ class TicketController extends Controller
                 'description'     => 'required|string',
                 'ticket_priority' => 'required|in:Very High,High,Medium,Low',
                 'ticket_type'     => 'required|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
-                'customer_id'     => 'required|exists:customer,customer_id',
+                'customer_id'     => ['required', \Illuminate\Validation\Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
                 'scale'           => 'nullable|string|in:Simple,Medium,Complex',
                 'name'            => 'nullable|string|max:255',
                 'no_hp'           => 'nullable|string|max:255',
@@ -756,7 +756,8 @@ class TicketController extends Controller
         }
 
         $validated = $request->validate([
-            'customer_id'     => 'required|exists:customer,customer_id',
+            // Tiket hanya boleh milik business partner bertipe Customer (bukan Vendor)
+            'customer_id'     => ['required', \Illuminate\Validation\Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
             'to_email'        => 'nullable|string|max:2000',
             'cc_emails'       => 'nullable|string|max:2000',
             'description'     => 'required|string|max:1000',
@@ -951,8 +952,8 @@ class TicketController extends Controller
         $validator = Validator::make($payload, [
             'description' => 'required|string',
             'ticket_priority' => 'nullable|in:Very High,High,Medium,Low',
-            'customer_id' => 'required_without_all:customer_code,external_number|exists:customer,customer_id',
-            'customer_code' => 'required_without_all:customer_id,external_number|exists:customer,customer_code',
+            'customer_id' => ['required_without_all:customer_code,external_number', \Illuminate\Validation\Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
+            'customer_code' => ['required_without_all:customer_id,external_number', \Illuminate\Validation\Rule::exists('customer', 'customer_code')->where('type', Customer::TYPE_CUSTOMER)],
             'external_number' => 'nullable|customer_id,customer_code|exists:customer_basic_data,external_number',
         ]);
 
@@ -970,6 +971,7 @@ class TicketController extends Controller
             if (!$customerId && !empty($payload['customer_code'])) {
                 $customerId = DB::table('customer')
                     ->where('customer_code', $payload['customer_code'])
+                    ->where('type', Customer::TYPE_CUSTOMER)
                     ->value('customer_id');
             }
 

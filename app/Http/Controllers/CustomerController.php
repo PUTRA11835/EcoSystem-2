@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 class CustomerController extends Controller
 {
     /**
@@ -100,9 +101,12 @@ class CustomerController extends Controller
             $customerGroups = \App\Models\CustomerGroup::orderBy('name')
                 ->get(['id', 'name']);
 
-            // Kandidat parent: top-level customers (tanpa parent) selain diri sendiri
+            // Kandidat parent: top-level business partner (tanpa parent) selain diri
+            // sendiri, DAN bertipe sama — hierarki parent–child tidak boleh
+            // menyilang antara Customer dan Vendor.
             $parentOptions = Customer::topLevel()
                 ->with('basicData')
+                ->ofType($customer->type ?? Customer::TYPE_CUSTOMER)
                 ->where('customer_id', '!=', $id)
                 ->where('is_active', true)
                 ->get()
@@ -152,6 +156,7 @@ class CustomerController extends Controller
                 'status' => $request->get('status'), // Untuk compatibility dengan code lama
                 'customer_group' => $request->get('customer_group'),
                 'customer_category' => $request->get('customer_category'),
+                'type' => $request->get('type'), // Business Partner type: Customer / Vendor
                 'active_only' => $request->get('active_only', false),
                 'sort_field' => $request->get('sort_field', 'created_at'),
                 'sort_order' => $request->get('sort_order', 'desc'),
@@ -174,6 +179,7 @@ class CustomerController extends Controller
                 return [
                     'id' => $customer->customer_id,
                     'email' => $customer->email,
+                    'type' => $customer->type ?? Customer::TYPE_CUSTOMER,
                     'is_active' => $customer->is_active,
                     'name_1' => $customer->basicData->name_1 ?? null,
                     'customer_group' => $customer->basicData->customer_group ?? null,
@@ -263,6 +269,7 @@ class CustomerController extends Controller
                     'name_1'            => $customer->basicData->name_1 ?? '',
                     'name_2'            => $customer->basicData->name_2 ?? '',
                     'customer_code'     => $customer->customer_code ?? '',
+                    'type'              => $customer->type ?? Customer::TYPE_CUSTOMER,
                     'email'             => $customer->email ?? '',
                     'phone'             => $customer->basicData->telephone ?? $customer->basicData->cell_phone ?? '',
                     'customer_group'    => $customer->basicData->customer_group ?? '',
@@ -294,6 +301,7 @@ class CustomerController extends Controller
     {
         try {
             $parents = Customer::topLevel()
+                ->customers()
                 ->with(['basicData', 'endCustomers.basicData'])
                 ->withCount('endCustomers')
                 ->having('end_customers_count', '>', 0)
@@ -323,13 +331,19 @@ class CustomerController extends Controller
     }
 
     /**
-     * Get top-level customers (no parent) for dropdown selection (API)
+     * Get top-level business partners (no parent) for dropdown selection (API).
+     * Difilter per `type` (default 'Customer') karena hierarki parent–child tidak
+     * boleh menyilang antara Customer dan Vendor.
      */
     public function topLevel(Request $request)
     {
         try {
+            $type = $request->get('type');
+            $type = in_array($type, Customer::TYPES, true) ? $type : Customer::TYPE_CUSTOMER;
+
             $customers = Customer::topLevel()
                 ->with('basicData')
+                ->ofType($type)
                 ->where('is_active', true)
                 ->get()
                 ->map(fn($c) => [
@@ -412,6 +426,7 @@ class CustomerController extends Controller
 
         $validator = Validator::make($request->all(), [
             'customer_code' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/', 'unique:customer,customer_code'],
+            'type'          => ['required', Rule::in(Customer::TYPES)],
             'email'         => 'nullable|email|unique:customer,email|max:255',
             'domain'        => 'nullable|string|max:255',
             'name_1'        => 'required|string|max:255',
@@ -423,6 +438,8 @@ class CustomerController extends Controller
             'customer_code.required' => 'Customer code is required.',
             'customer_code.regex'    => 'Customer code may only contain letters and numbers.',
             'customer_code.unique'   => 'This customer code is already in use.',
+            'type.required'          => 'Type is required (Customer or Vendor).',
+            'type.in'                => 'Type must be either Customer or Vendor.',
         ]);
 
         if ($validator->fails()) {
@@ -445,6 +462,7 @@ class CustomerController extends Controller
             // Prepare customer data (company record only — no login here)
             $customerData = [
                 'customer_code'      => strtoupper($request->customer_code),
+                'type'               => $request->type,
                 'email'              => $request->email ?: null,
                 'domain'             => $request->domain ?: null,
                 'is_active'          => 1,
@@ -550,6 +568,7 @@ class CustomerController extends Controller
 
         $validator = Validator::make($request->all(), [
             'customer_code' => ['sometimes', 'required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/', 'unique:customer,customer_code,' . $id . ',customer_id'],
+            'type'          => ['sometimes', 'required', Rule::in(Customer::TYPES)],
             'email'         => 'nullable|email|max:255|unique:customer,email,' . $id . ',customer_id',
             'domain'        => 'nullable|string|max:255',
             'name_1'        => 'required|string|max:255',
@@ -594,6 +613,9 @@ class CustomerController extends Controller
             }
             if ($request->filled('customer_code')) {
                 $updateData['customer_code'] = strtoupper($request->customer_code);
+            }
+            if ($request->filled('type')) {
+                $updateData['type'] = $request->type;
             }
             // Parent & group dapat ditambah/dihapus saat edit (kirim string kosong = hapus)
             if ($request->has('parent_customer_id')) {
@@ -807,7 +829,10 @@ class CustomerController extends Controller
                 'search' => $search
             ]);
 
+            // Konsumen endpoint ini (mis. picker customer di Jarvies) hanya butuh
+            // business partner bertipe Customer.
             $customers = Customer::with('basicData')
+                ->customers()
                 ->search($search)
                 ->limit(20)
                 ->get();

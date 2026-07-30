@@ -100,6 +100,21 @@
                         <input type="hidden" id="sfin_apct_val" value="">
                     </div>
                 </div>
+                {{-- Vendor (opsional) — Business Partner bertipe Vendor di Master
+                     Business Partner. Sengaja di kolom yang sama dengan IO Number. --}}
+                <div class="lg:col-start-1">
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Vendor</label>
+                    <select name="vendor_id" id="sfin_vendor" data-searchable="true"
+                            class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus bg-white">
+                        <option value="">— No vendor —</option>
+                        @foreach($vendors ?? [] as $vendor)
+                            <option value="{{ $vendor->customer_id }}" {{ (int) $support->vendor_id === (int) $vendor->customer_id ? 'selected' : '' }}>
+                                {{ $vendor->basicData->name_1 ?? $vendor->customer_code }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Optional. Business partners with type Vendor only.</p>
+                </div>
             </div>
         </div>
 

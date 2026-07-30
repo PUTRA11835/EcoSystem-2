@@ -40,6 +40,7 @@ class TicketViewController extends Controller
         $employee = \App\Models\Employee::find($user->id);
         if ($employee && in_array('ui.ticket.btn-create', $employee->allPermissionSlugs())) {
             $customers = Customer::with('basicData')
+                ->customers() // tiket hanya untuk business partner bertipe Customer
                 ->where('is_active', true)
                 ->get()
                 ->map(function ($customer) {

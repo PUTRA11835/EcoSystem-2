@@ -192,6 +192,7 @@ class DeliveryProjectCostController extends Controller
         ]);
 
         $docName = null;
+        $docFile = null;
         $docUrl  = null;
 
         if ($request->hasFile('document')) {
@@ -201,23 +202,11 @@ class DeliveryProjectCostController extends Controller
                 ], 422);
             }
 
-            $file    = $request->file('document');
-            $docName = $file->getClientOriginalName();
-
             try {
-                $oneDrive    = new OneDriveService();
-                // Get or create "Plan Cost" subfolder inside the project's OneDrive folder
-                $planCostFolderId = $oneDrive->findOrCreateSubFolderById(
-                    $project->onedrive_folder_id,
-                    'Plan Cost'
-                );
-                $result  = $oneDrive->uploadFile(
-                    $planCostFolderId,
-                    $docName,
-                    file_get_contents($file->getRealPath()),
-                    $file->getMimeType() ?: 'application/octet-stream'
-                );
-                $docUrl = $result['webUrl'];
+                $upload  = $this->uploadDocument($project, $request->file('document'));
+                $docName = $upload['name'];
+                $docFile = $upload['file_id'];
+                $docUrl  = $upload['url'];
             } catch (\Throwable $e) {
                 Log::error('Plan Cost OneDrive upload failed', ['error' => $e->getMessage()]);
                 return response()->json([
@@ -231,6 +220,7 @@ class DeliveryProjectCostController extends Controller
             'description'              => $validated['description'],
             'amount'                   => $validated['amount'],
             'document_name'            => $docName,
+            'document_file_id'         => $docFile,
             'document_url'             => $docUrl,
         ]);
 
@@ -272,7 +262,9 @@ class DeliveryProjectCostController extends Controller
 
         // Keep current document unless the user replaces or removes it.
         $docName = $item->document_name;
+        $docFile = $item->document_file_id;
         $docUrl  = $item->document_url;
+        $oldFile = $item->document_file_id;
 
         if ($request->hasFile('document')) {
             if (!$project->onedrive_folder_id) {
@@ -281,38 +273,36 @@ class DeliveryProjectCostController extends Controller
                 ], 422);
             }
 
-            $file    = $request->file('document');
-            $docName = $file->getClientOriginalName();
-
             try {
-                $oneDrive = new OneDriveService();
-                $planCostFolderId = $oneDrive->findOrCreateSubFolderById(
-                    $project->onedrive_folder_id,
-                    'Plan Cost'
-                );
-                $result  = $oneDrive->uploadFile(
-                    $planCostFolderId,
-                    $docName,
-                    file_get_contents($file->getRealPath()),
-                    $file->getMimeType() ?: 'application/octet-stream'
-                );
-                $docUrl = $result['webUrl'];
+                $upload  = $this->uploadDocument($project, $request->file('document'));
+                $docName = $upload['name'];
+                $docFile = $upload['file_id'];
+                $docUrl  = $upload['url'];
             } catch (\Throwable $e) {
                 Log::error('Plan Cost OneDrive upload failed', ['error' => $e->getMessage()]);
                 return response()->json([
                     'message' => 'Failed to upload document to OneDrive: ' . $e->getMessage(),
                 ], 500);
             }
+
+            // File pengganti bisa saja file yang sama (nama identik ditimpa di
+            // tempat) — jangan hapus item yang baru saja diunggah.
+            if ($oldFile && $oldFile !== $docFile) {
+                $this->deleteOneDriveFile($oldFile);
+            }
         } elseif ($request->boolean('remove_document')) {
+            $this->deleteOneDriveFile($oldFile);
             $docName = null;
+            $docFile = null;
             $docUrl  = null;
         }
 
         $item->update([
-            'description'   => $validated['description'],
-            'amount'        => $validated['amount'],
-            'document_name' => $docName,
-            'document_url'  => $docUrl,
+            'description'      => $validated['description'],
+            'amount'           => $validated['amount'],
+            'document_name'    => $docName,
+            'document_file_id' => $docFile,
+            'document_url'     => $docUrl,
         ]);
 
         // Actual amount = sum of all expense items (single source of truth).
@@ -339,8 +329,10 @@ class DeliveryProjectCostController extends Controller
             return response()->json(['message' => 'Not found.'], 404);
         }
 
-        // File lives on OneDrive — we only remove the DB record.
-        // (OneDrive cleanup can be done manually from the folder if needed.)
+        // Supporting document ikut dihapus dari OneDrive supaya tidak ada file
+        // yatim yang link-nya masih beredar setelah datanya hilang di aplikasi.
+        $this->deleteOneDriveFile($item->document_file_id);
+
         $item->delete();
 
         // Recompute actual amount from remaining expense items.
@@ -350,6 +342,73 @@ class DeliveryProjectCostController extends Controller
             'message' => 'Expense item deleted.',
             'total'   => $total,
         ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Helper: upload supporting document ke subfolder "Plan Cost" milik
+    // project, lalu buat share link ANONIM.
+    //
+    // PENTING: yang disimpan HARUS share link (createShareLink), bukan
+    // `webUrl` hasil upload. webUrl adalah path SharePoint langsung — hanya
+    // bisa dibuka akun yang punya izin item tersebut, sehingga siapa pun yang
+    // lain akan dihadang halaman login / "Request access".
+    //
+    // @return array{name:string,file_id:string,url:string}
+    // ──────────────────────────────────────────────────────────────
+    private function uploadDocument(DeliveryProject $project, $file): array
+    {
+        $oneDrive = new OneDriveService();
+
+        $planCostFolderId = $oneDrive->findOrCreateSubFolderById(
+            $project->onedrive_folder_id,
+            'Plan Cost'
+        );
+
+        $result = $oneDrive->uploadFile(
+            $planCostFolderId,
+            $file->getClientOriginalName(),
+            file_get_contents($file->getRealPath()),
+            $file->getMimeType() ?: 'application/octet-stream'
+        );
+
+        $link = $oneDrive->createShareLink($result['id'], 'view');
+
+        if ($link['scope'] !== 'anonymous') {
+            // Bukan error aplikasi: kebijakan sharing tenant menolak "Anyone".
+            // Dicatat agar admin M365 bisa menindaklanjuti.
+            Log::warning('Plan Cost document share link is not anonymous', [
+                'project_id' => $project->id,
+                'file_id'    => $result['id'],
+                'scope'      => $link['scope'],
+            ]);
+        }
+
+        return [
+            // Nama final di OneDrive (bisa disanitasi / di-rename saat bentrok).
+            'name'    => $result['name'],
+            'file_id' => $result['id'],
+            'url'     => $link['url'],
+        ];
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Helper: hapus file OneDrive tanpa menggagalkan aksi utama.
+    // Baris lama belum punya document_file_id → tidak ada yang bisa dihapus.
+    // ──────────────────────────────────────────────────────────────
+    private function deleteOneDriveFile(?string $fileId): void
+    {
+        if (!$fileId) {
+            return;
+        }
+
+        try {
+            (new OneDriveService())->deleteItem($fileId);
+        } catch (\Throwable $e) {
+            Log::warning('Plan Cost OneDrive file delete failed', [
+                'file_id' => $fileId,
+                'error'   => $e->getMessage(),
+            ]);
+        }
     }
 
     // ──────────────────────────────────────────────────────────────

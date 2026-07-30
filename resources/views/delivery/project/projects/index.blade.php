@@ -51,13 +51,8 @@
         </nav>
     </div>
 
-    {{-- Flash Notifications --}}
-    @if(session('success'))
-        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('success')),'success'));</script>
-    @endif
-    @if(session('error'))
-        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('error')),'error'));</script>
-    @endif
+    {{-- Flash success/error toast sudah ditampilkan layout dashboard.blade.php.
+         Jangan diulang di sini: toast jadi dobel. --}}
     {{-- ── Summary ──────────────────────────────────────────────────────────────
          Dihitung dari koleksi $projects yang memang sudah dimuat penuh untuk
          tabel, jadi tidak ada query tambahan. Setiap tile mengklik filter yang

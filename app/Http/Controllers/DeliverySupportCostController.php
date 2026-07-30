@@ -178,6 +178,7 @@ class DeliverySupportCostController extends Controller
         ]);
 
         $docName = null;
+        $docFile = null;
         $docUrl  = null;
 
         if ($request->hasFile('document')) {
@@ -187,22 +188,11 @@ class DeliverySupportCostController extends Controller
                 ], 422);
             }
 
-            $file    = $request->file('document');
-            $docName = $file->getClientOriginalName();
-
             try {
-                $oneDrive         = new OneDriveService();
-                $planCostFolderId = $oneDrive->findOrCreateSubFolderById(
-                    $support->onedrive_folder_id,
-                    'Plan Cost'
-                );
-                $result = $oneDrive->uploadFile(
-                    $planCostFolderId,
-                    $docName,
-                    file_get_contents($file->getRealPath()),
-                    $file->getMimeType() ?: 'application/octet-stream'
-                );
-                $docUrl = $result['webUrl'];
+                $upload  = $this->uploadDocument($support, $request->file('document'));
+                $docName = $upload['name'];
+                $docFile = $upload['file_id'];
+                $docUrl  = $upload['url'];
             } catch (\Throwable $e) {
                 Log::error('Plan Cost OneDrive upload failed (support)', ['error' => $e->getMessage()]);
                 return response()->json([
@@ -216,6 +206,7 @@ class DeliverySupportCostController extends Controller
             'description'              => $validated['description'],
             'amount'                   => $validated['amount'],
             'document_name'            => $docName,
+            'document_file_id'         => $docFile,
             'document_url'             => $docUrl,
         ]);
 
@@ -251,7 +242,9 @@ class DeliverySupportCostController extends Controller
         ]);
 
         $docName = $item->document_name;
+        $docFile = $item->document_file_id;
         $docUrl  = $item->document_url;
+        $oldFile = $item->document_file_id;
 
         if ($request->hasFile('document')) {
             if (!$support->onedrive_folder_id) {
@@ -260,38 +253,35 @@ class DeliverySupportCostController extends Controller
                 ], 422);
             }
 
-            $file    = $request->file('document');
-            $docName = $file->getClientOriginalName();
-
             try {
-                $oneDrive         = new OneDriveService();
-                $planCostFolderId = $oneDrive->findOrCreateSubFolderById(
-                    $support->onedrive_folder_id,
-                    'Plan Cost'
-                );
-                $result = $oneDrive->uploadFile(
-                    $planCostFolderId,
-                    $docName,
-                    file_get_contents($file->getRealPath()),
-                    $file->getMimeType() ?: 'application/octet-stream'
-                );
-                $docUrl = $result['webUrl'];
+                $upload  = $this->uploadDocument($support, $request->file('document'));
+                $docName = $upload['name'];
+                $docFile = $upload['file_id'];
+                $docUrl  = $upload['url'];
             } catch (\Throwable $e) {
                 Log::error('Plan Cost OneDrive upload failed (support)', ['error' => $e->getMessage()]);
                 return response()->json([
                     'message' => 'Failed to upload document to OneDrive: ' . $e->getMessage(),
                 ], 500);
             }
+
+            // Nama identik → file lama ditimpa di tempat (ID sama); jangan hapus.
+            if ($oldFile && $oldFile !== $docFile) {
+                $this->deleteOneDriveFile($oldFile);
+            }
         } elseif ($request->boolean('remove_document')) {
+            $this->deleteOneDriveFile($oldFile);
             $docName = null;
+            $docFile = null;
             $docUrl  = null;
         }
 
         $item->update([
-            'description'   => $validated['description'],
-            'amount'        => $validated['amount'],
-            'document_name' => $docName,
-            'document_url'  => $docUrl,
+            'description'      => $validated['description'],
+            'amount'           => $validated['amount'],
+            'document_name'    => $docName,
+            'document_file_id' => $docFile,
+            'document_url'     => $docUrl,
         ]);
 
         $total = $this->syncActualFromItems($cost);
@@ -316,6 +306,10 @@ class DeliverySupportCostController extends Controller
             return response()->json(['message' => 'Not found.'], 404);
         }
 
+        // Supporting document ikut dihapus dari OneDrive supaya tidak ada file
+        // yatim yang link-nya masih beredar setelah datanya hilang di aplikasi.
+        $this->deleteOneDriveFile($item->document_file_id);
+
         $item->delete();
 
         $total = $this->syncActualFromItems($cost);
@@ -324,6 +318,71 @@ class DeliverySupportCostController extends Controller
             'message' => 'Expense item deleted.',
             'total'   => $total,
         ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Helper: upload supporting document ke subfolder "Plan Cost" milik
+    // support, lalu buat share link ANONIM.
+    //
+    // PENTING: yang disimpan HARUS share link (createShareLink), bukan
+    // `webUrl` hasil upload. webUrl adalah path SharePoint langsung — hanya
+    // bisa dibuka akun yang punya izin item tersebut, sehingga siapa pun yang
+    // lain akan dihadang halaman login / "Request access".
+    //
+    // @return array{name:string,file_id:string,url:string}
+    // ──────────────────────────────────────────────────────────────
+    private function uploadDocument(DeliverySupport $support, $file): array
+    {
+        $oneDrive = new OneDriveService();
+
+        $planCostFolderId = $oneDrive->findOrCreateSubFolderById(
+            $support->onedrive_folder_id,
+            'Plan Cost'
+        );
+
+        $result = $oneDrive->uploadFile(
+            $planCostFolderId,
+            $file->getClientOriginalName(),
+            file_get_contents($file->getRealPath()),
+            $file->getMimeType() ?: 'application/octet-stream'
+        );
+
+        $link = $oneDrive->createShareLink($result['id'], 'view');
+
+        if ($link['scope'] !== 'anonymous') {
+            // Bukan error aplikasi: kebijakan sharing tenant menolak "Anyone".
+            Log::warning('Plan Cost document share link is not anonymous (support)', [
+                'support_id' => $support->id,
+                'file_id'    => $result['id'],
+                'scope'      => $link['scope'],
+            ]);
+        }
+
+        return [
+            'name'    => $result['name'],
+            'file_id' => $result['id'],
+            'url'     => $link['url'],
+        ];
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Helper: hapus file OneDrive tanpa menggagalkan aksi utama.
+    // Baris lama belum punya document_file_id → tidak ada yang bisa dihapus.
+    // ──────────────────────────────────────────────────────────────
+    private function deleteOneDriveFile(?string $fileId): void
+    {
+        if (!$fileId) {
+            return;
+        }
+
+        try {
+            (new OneDriveService())->deleteItem($fileId);
+        } catch (\Throwable $e) {
+            Log::warning('Plan Cost OneDrive file delete failed (support)', [
+                'file_id' => $fileId,
+                'error'   => $e->getMessage(),
+            ]);
+        }
     }
 
     // ──────────────────────────────────────────────────────────────

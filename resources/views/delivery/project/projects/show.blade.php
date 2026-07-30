@@ -493,10 +493,8 @@
         </p>
     </div>
 </div>
-<script>
-    // Kunci tampilan (read-only) — CSS scoped ke body.project-closed.
-    document.body.classList.add('project-closed');
-</script>
+{{-- Kunci tampilan + pagar request: delivery/partials/project-closed-lock.blade.php
+     (di-include di akhir file; ia yang memasang class body.project-closed). --}}
 @endif
 
 {{-- General Information Section --}}
@@ -2021,8 +2019,10 @@
                     </div>
                 </div>
 
-                {{-- Form tambah pengeluaran --}}
-                <div class="border border-dashed border-gray-300 rounded-xl p-4 bg-gray-50/60">
+                {{-- Form tambah pengeluaran.
+                     data-closed-hide: seluruh blok disembunyikan saat project
+                     closed (lihat delivery/partials/project-closed-lock). --}}
+                <div data-closed-hide class="border border-dashed border-gray-300 rounded-xl p-4 bg-gray-50/60">
                     <h4 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
                         <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -4377,7 +4377,9 @@
 
 @if($can('delivery-project.close-project'))
 {{-- Confirm modal untuk Close / Reopen Project (pengganti confirm() native) --}}
-<div id="projectStateModal" class="fixed inset-0 z-[9998] hidden">
+{{-- data-lock-exempt: satu-satunya modal yang harus tetap aktif saat project
+     closed — dari sinilah project di-Reopen. --}}
+<div id="projectStateModal" data-lock-exempt class="fixed inset-0 z-[9998] hidden">
     <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 z-[9998]" onclick="closeModal('projectStateModal')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
         <div class="modal-content bg-white rounded-lg shadow-xl max-w-md w-full relative">
@@ -5520,14 +5522,13 @@ document.addEventListener('keydown', function(e) {
 
 // ============================================
 // FLASH NOTIFICATIONS (DOMContentLoaded agar showNotification sudah terdefinisi)
+//
+// JANGAN tampilkan session('success')/('error')/('warning') di sini — layout
+// dashboard.blade.php SUDAH memunculkannya untuk semua halaman. Menambahkannya
+// lagi membuat toast dobel (mis. "Project closed successfully." muncul 2x).
+// Yang tersisa di bawah adalah $errors (validasi), yang tidak ditangani layout.
 // ============================================
 document.addEventListener('DOMContentLoaded', function() {
-    @if(session('success'))
-    showNotification({!! json_encode(session('success')) !!}, 'success');
-    @endif
-    @if(session('error'))
-    showNotification({!! json_encode(session('error')) !!}, 'error');
-    @endif
     @if($errors->has('error'))
     showNotification({!! json_encode($errors->first('error')) !!}, 'error');
     @endif
@@ -7421,3 +7422,4 @@ window.PaymentTermPlan = (function () {
 @endsection
 
 @include('delivery.partials.section-permissions')
+@include('delivery.partials.project-closed-lock', ['project' => $project])
