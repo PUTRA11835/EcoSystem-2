@@ -1580,15 +1580,30 @@ class ReportingController extends Controller
                 ->whereHas('messages', function ($q) {
                     $q->whereNotNull('sla_message')->where('sla_message', '!=', '');
                 })
+                ->with(['messages' => function ($q) {
+                    $q->whereNotNull('sla_message')
+                        ->where('sla_message', '!=', '')
+                        ->with('slaMessageBy.basicData')
+                        ->reorder('sla_message_at', 'desc');
+                }])
                 ->orderByDesc('created_at')
                 ->get(['ticket_id', 'ticket_number', 'description', 'created_at']);
 
-            $data = $tickets->map(fn (Ticket $ticket) => [
-                'ticket_id'     => $ticket->ticket_id,
-                'ticket_number' => $ticket->ticket_number,
-                'description'   => $ticket->description,
-                'created_at'    => $ticket->created_at,
-            ])->values();
+            $data = $tickets->map(function (Ticket $ticket) {
+                $lastMessage = $ticket->messages->first();
+                $lastEditor  = $lastMessage?->slaMessageBy;
+                $pic = $lastEditor
+                    ? (trim(($lastEditor->basicData->first_name ?? '') . ' ' . ($lastEditor->basicData->last_name ?? '')) ?: ($lastEditor->eci ?? null))
+                    : null;
+
+                return [
+                    'ticket_id'     => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'description'   => $ticket->description,
+                    'created_at'    => $ticket->created_at,
+                    'pic'           => $pic,
+                ];
+            })->values();
 
             return response()->json(['success' => true, 'data' => $data]);
 

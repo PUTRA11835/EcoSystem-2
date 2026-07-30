@@ -3356,7 +3356,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
                 <tr class="border-b border-gray-100">
                     <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">${dateStr}</td>
                     <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">${timeStr}</td>
-                    <td class="px-3 py-2.5 text-gray-700">${lstEsc(m.sla_message || '—')}</td>
+                    <td class="px-3 py-2.5 text-gray-700 whitespace-pre-wrap">${lstEsc(m.sla_message || '—')}</td>
                     <td class="px-3 py-2.5 text-gray-700 whitespace-nowrap">${m.sla_message_by ? lstEsc(m.sla_message_by) : '<span class="text-gray-300 italic">Unknown</span>'}</td>
                 </tr>`;
             }).join('');

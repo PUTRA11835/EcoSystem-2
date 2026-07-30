@@ -169,6 +169,8 @@ class MenuSeeder extends Seeder
             ['slug' => 'ticket.propose-mandays-customer',   'name' => 'Propose Mandays Customer', 'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 20],
             ['slug' => 'ticket.propose-mandays-resolution', 'name' => 'Propose Resolution Days',  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 21],
             ['slug' => 'ticket.approve-resolution-days',    'name' => 'Approve Resolution Days',  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 22],
+            ['slug' => 'ticket.eligible-ticket-lead',       'name' => 'Eligible as Ticket Lead',  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 23],
+            ['slug' => 'ticket.eligible-ticket-member',     'name' => 'Eligible as Ticket Member','type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 24],
 
             // ── Room Chat (ticket detail sidebar toggles) ───────────────────────────
             ['slug' => 'room-chat',                    'name' => 'Room Chat',               'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-comments',          'order_seq' => 8],
@@ -350,6 +352,8 @@ class MenuSeeder extends Seeder
             'ticket.propose-mandays-customer'   => [self::EMPLOYEE=>$v],
             'ticket.propose-mandays-resolution' => [self::EMPLOYEE=>$v],
             'ticket.approve-resolution-days'    => [self::ADMIN=>$v, self::HOS=>$v],
+            'ticket.eligible-ticket-lead'       => [self::EMPLOYEE=>$v],
+            'ticket.eligible-ticket-member'     => [self::EMPLOYEE=>$v],
             // Room Chat
             'room-chat'                   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'room-chat.tab-all-ticket'    => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],

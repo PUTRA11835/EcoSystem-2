@@ -11,6 +11,7 @@ use App\Models\Timesheet;
 use App\Support\SessionUser;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
+use App\Models\CustomerMandays;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectActivity;
 use App\Models\DeliverySupportActivity;
@@ -907,6 +908,20 @@ class TimesheetController extends Controller
             if ($timesheet->ticket_id) {
                 $empId    = $timesheet->employee_id;
                 $ticketId = $timesheet->ticket_id;
+
+                // Latest Customer Mandays version for this ticket must be approved before
+                // any timesheet can be submitted — an older approved version doesn't count
+                // if a newer draft/revision superseded it.
+                $latestCustomerMandays = CustomerMandays::where('ticket_id', $ticketId)
+                    ->orderBy('version', 'desc')
+                    ->first();
+
+                if (!$latestCustomerMandays || $latestCustomerMandays->status !== 'approved') {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Customer Mandays status is not approved yet, cannot submit timesheet.',
+                    ], 422);
+                }
 
                 $latestApproved = ConsultantMandays::where('ticket_id', $ticketId)
                     ->where('status', 'approved')

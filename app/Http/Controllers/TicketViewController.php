@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\Customer;
@@ -155,22 +156,19 @@ class TicketViewController extends Controller
             })
             ->toArray();
 
-        // Get all active employees for member dropdown
-        $employees = DB::table('employee')
-            ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-            ->where('employee.is_active', 1)
-            ->select(
-                'employee.employee_id',
-                DB::raw("CONCAT(employee_basic_data.first_name, ' ', COALESCE(employee_basic_data.last_name, '')) as name")
-            )
-            ->orderBy('employee_basic_data.first_name')
+        // Get employees eligible for the member dropdown (role-based, configurable via
+        // Management > Permissions — see ticket.eligible-ticket-member)
+        $employees = Employee::withMenuPermission('ticket.eligible-ticket-member')
+            ->where('is_active', 1)
+            ->with('basicData:employee_id,first_name,last_name')
             ->get()
-            ->map(function ($item) {
-                return [
-                    'employee_id' => $item->employee_id,
-                    'name'        => trim($item->name),
-                ];
-            })
+            ->map(fn ($e) => [
+                'employee_id' => $e->employee_id,
+                'name'        => trim(($e->basicData->first_name ?? '') . ' ' . ($e->basicData->last_name ?? '')),
+            ])
+            ->filter(fn ($e) => $e['name'] !== '')
+            ->sortBy('name')
+            ->values()
             ->toArray();
 
         // Approved customer mandays total (for Properties panel) — sum of every
