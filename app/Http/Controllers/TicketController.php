@@ -1366,14 +1366,14 @@ class TicketController extends Controller
 
             $cmIdToTicketId = $latestApprovedByTicket->mapWithKeys(fn ($cm) => [$cm->id => $cm->ticket_id]);
 
-            // This employee's quota (mandays + approved_additional) per ticket
+            // This employee's quota (approved_mandays + approved_additional) per ticket
             $quotaByTicket = ConsultantMandaysDetail::whereIn('consultant_mandays_id', $cmIdToTicketId->keys())
                 ->where('employee_id', $employeeId)
                 ->get()
                 ->reduce(function ($carry, $detail) use ($cmIdToTicketId) {
                     $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
                     if ($ticketId) {
-                        $carry[$ticketId] = round((float) $detail->mandays + (float) ($detail->approved_additional ?? 0), 2);
+                        $carry[$ticketId] = round((float) ($detail->approved_mandays ?? 0) + (float) ($detail->approved_additional ?? 0), 2);
                     }
                     return $carry;
                 }, []);

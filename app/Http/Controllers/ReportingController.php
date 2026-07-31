@@ -176,7 +176,7 @@ class ReportingController extends Controller
                         $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
                         if ($ticketId) {
                             $jatahMap[$ticketId . '_' . $detail->employee_id] =
-                                round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                                round((float)($detail->approved_mandays ?? 0) + (float)($detail->approved_additional ?? 0), 2);
                         }
                     });
             }
@@ -326,7 +326,7 @@ class ReportingController extends Controller
                         $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
                         if ($ticketId) {
                             $jatahMap[$ticketId . '_' . $detail->employee_id] =
-                                round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                                round((float)($detail->approved_mandays ?? 0) + (float)($detail->approved_additional ?? 0), 2);
                         }
                     });
             }
@@ -588,24 +588,37 @@ class ReportingController extends Controller
                     'employee.eci as employee_eci',
                     DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''), ' ', COALESCE(ebd.last_name,''))) as full_name"),
                     'cmd.mandays',
+                    'cmd.approved_mandays',
                     'cmd.additional_mandays',
                     'cmd.notes',
-                    'cmd.approved_additional'
+                    'cmd.approved_additional',
+                    'cm.status as proposal_status'
                 )
                 ->orderBy('ticket.ticket_number')
                 ->orderBy('employee.eci')
                 ->get();
 
-            $exportRows = $rows->map(fn($r) => [
-                'ticket_number'   => $r->ticket_number,
-                'employee_eci'    => $r->employee_eci,
-                'name'            => trim($r->full_name),
-                'resolution_days' => (float) $r->mandays,
-                'additional_days' => (float) $r->additional_mandays,
-                'note'            => $r->notes ?? '',
-                'approve_add'     => (float) $r->approved_additional,
-                'total'           => round((float) $r->mandays + (float) $r->approved_additional, 2),
-            ]);
+            $exportRows = $rows->map(function ($r) {
+                $isApproved = $r->proposal_status === 'approved';
+                // Before Head approval there's nothing "approved" yet — fall back to the
+                // raw proposed numbers so pending rows keep showing what they always showed,
+                // instead of suddenly reading as 0.
+                $total = $isApproved
+                    ? round((float) ($r->approved_mandays ?? 0) + (float) $r->approved_additional, 2)
+                    : round((float) $r->mandays + (float) $r->additional_mandays, 2);
+
+                return [
+                    'ticket_number'   => $r->ticket_number,
+                    'employee_eci'    => $r->employee_eci,
+                    'name'            => trim($r->full_name),
+                    'resolution_days' => (float) $r->mandays,
+                    'additional_days' => (float) $r->additional_mandays,
+                    'note'            => $r->notes ?? '',
+                    'approved_days'   => (float) ($r->approved_mandays ?? 0),
+                    'approve_add'     => (float) $r->approved_additional,
+                    'total'           => $total,
+                ];
+            });
 
             if ($filterMonth && $filterYear) {
                 $periodSuffix = '_' . $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT);

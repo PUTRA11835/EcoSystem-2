@@ -93,7 +93,7 @@ class TimesheetController extends Controller
                         $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
                         if ($ticketId) {
                             $key = $ticketId . '_' . $detail->employee_id;
-                            $jatahMap[$key] = round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                            $jatahMap[$key] = round((float)($detail->approved_mandays ?? 0) + (float)($detail->approved_additional ?? 0), 2);
                         }
                     });
             }
@@ -210,7 +210,7 @@ class TimesheetController extends Controller
                         $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
                         if ($ticketId) {
                             $key = $ticketId . '_' . $detail->employee_id;
-                            $jatahMap[$key] = round((float) $detail->mandays + (float) ($detail->approved_additional ?? 0), 2);
+                            $jatahMap[$key] = round((float) ($detail->approved_mandays ?? 0) + (float) ($detail->approved_additional ?? 0), 2);
                         }
                     });
             }
@@ -271,9 +271,9 @@ class TimesheetController extends Controller
                 ->first()
             : null;
 
-        // Quota = employee's base mandays + any approved additional granted by Head.
+        // Quota = employee's Head-approved days + any approved additional granted by Head.
         $quota = $quotaDetail
-            ? round((float) $quotaDetail->mandays + (float) ($quotaDetail->approved_additional ?? 0), 2)
+            ? round((float) ($quotaDetail->approved_mandays ?? 0) + (float) ($quotaDetail->approved_additional ?? 0), 2)
             : null;
 
         // Total MD consumed by this employee for this ticket.
@@ -496,7 +496,7 @@ class TimesheetController extends Controller
                         $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
                         if ($ticketId) {
                             $key = $ticketId . '_' . $detail->employee_id;
-                            $approvedMandaysMap[$key] = round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                            $approvedMandaysMap[$key] = round((float)($detail->approved_mandays ?? 0) + (float)($detail->approved_additional ?? 0), 2);
                         }
                     });
             }
@@ -946,7 +946,7 @@ class TimesheetController extends Controller
                     ], 422);
                 }
 
-                $quota    = round((float) $quotaDetail->mandays + (float) ($quotaDetail->approved_additional ?? 0), 2);
+                $quota    = round((float) ($quotaDetail->approved_mandays ?? 0) + (float) ($quotaDetail->approved_additional ?? 0), 2);
                 $consumed = (float) Timesheet::where('ticket_id', $ticketId)
                     ->where('employee_id', $empId)
                     ->whereIn('status', ['draft', 'submitted', 'approved'])
@@ -1403,7 +1403,7 @@ class TimesheetController extends Controller
             return null;
         }
 
-        $quota = round((float) $quotaDetail->mandays + (float) ($quotaDetail->approved_additional ?? 0), 2);
+        $quota = round((float) ($quotaDetail->approved_mandays ?? 0) + (float) ($quotaDetail->approved_additional ?? 0), 2);
 
         $consumed = (float) Timesheet::where('ticket_id', $ticketId)
             ->where('employee_id', $employeeId)

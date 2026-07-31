@@ -969,7 +969,7 @@ async function onSupportTicketSelected() {
         if (!data?.success) return;
         const d = data.data;
 
-        // Quota MD — per-user allocation (mandays + approved_additional for this employee)
+        // Quota MD — per-user allocation (approved_mandays + approved_additional for this employee)
         setText(jatahMdEl, d.quota !== null ? formatMdTrim(d.quota) : '—');
 
         // Remaining MD

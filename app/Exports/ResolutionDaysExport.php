@@ -29,6 +29,7 @@ class ResolutionDaysExport implements FromCollection, WithHeadings, WithStyles, 
             'resolution_days'    => $r['resolution_days'],
             'additional_days'    => $r['additional_days'],
             'note'               => $r['note'],
+            'approved_days'      => $r['approved_days'],
             'approve_add'        => $r['approve_add'],
             'total'              => $r['total'],
         ]);
@@ -36,13 +37,13 @@ class ResolutionDaysExport implements FromCollection, WithHeadings, WithStyles, 
 
     public function headings(): array
     {
-        return ['Ticket Number', 'Employee ECI', 'Name', 'Resolution Days', 'Additional Days', 'Note', 'Approve Add', 'Total'];
+        return ['Ticket Number', 'Employee ECI', 'Name', 'Resolution Days', 'Additional Days', 'Note', 'Approved Days', 'Approve Add', 'Total'];
     }
 
     public function styles(Worksheet $sheet): array
     {
         $lastRow = $this->rows->count() + 1;
-        $lastCol = 'H';
+        $lastCol = 'I';
 
         $styles = [
             1 => [
@@ -57,7 +58,7 @@ class ResolutionDaysExport implements FromCollection, WithHeadings, WithStyles, 
             $styles["A{$i}:{$lastCol}{$i}"] = [
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => $argb]],
             ];
-            foreach (['D', 'E', 'G', 'H'] as $col) {
+            foreach (['D', 'E', 'G', 'H', 'I'] as $col) {
                 $styles["{$col}{$i}"] = ['alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]];
             }
         }

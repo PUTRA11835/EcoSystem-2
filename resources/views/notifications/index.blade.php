@@ -66,7 +66,7 @@
             $iconColor  = $notif->is_read ? 'text-gray-400' : ($leColor ? $leColor['icon'] : 'text-red-600');
             $iconClass  = $leInfo ? $leInfo['icon'] : ($notif->type === 'timesheet_submitted' ? 'fa-file-alt' : 'fa-at');
         @endphp
-        <div class="flex gap-4 px-5 py-4 {{ !$notif->is_read ? 'bg-red-50' : '' }} hover:bg-gray-50 transition-colors group" id="notif-{{ $notif->id }}">
+        <div class="flex gap-4 px-5 py-4 {{ !$notif->is_read ? 'bg-red-50' : '' }} hover:bg-gray-50 transition-colors group" id="notif-{{ $notif->id }}" data-ticket-id="{{ $notif->ticket_id }}">
             <div class="w-9 h-9 rounded-full {{ $iconBg }} flex items-center justify-center shrink-0 mt-0.5">
                 <i class="fas {{ $iconClass }} {{ $iconColor }} text-sm"></i>
             </div>
@@ -146,16 +146,27 @@
 <script>
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-// Mark a single notification as read (it STAYS on the page, just shown as read).
+// Mark a notification as read (it STAYS on the page, just shown as read). The backend
+// also marks every other unread notification for the same ticket read in one go, so
+// mirror that here — update every row sharing this ticket_id, not just the one clicked.
+function markReadRow(el) {
+    if (!el) return;
+    el.classList.remove('bg-red-50');
+    const dot = el.querySelector('.js-unread-dot');
+    if (dot) dot.remove();
+    const btn = el.querySelector('.js-mark-read-btn');
+    if (btn) btn.remove();
+}
+
 function markRead(id) {
     const el = document.getElementById('notif-' + id);
-    if (el) {
-        el.classList.remove('bg-red-50');
-        const dot = el.querySelector('.js-unread-dot');
-        if (dot) dot.remove();
-        const btn = el.querySelector('.js-mark-read-btn');
-        if (btn) btn.remove();
+    markReadRow(el);
+
+    const ticketId = el?.dataset.ticketId;
+    if (ticketId) {
+        document.querySelectorAll(`[data-ticket-id="${ticketId}"]`).forEach(markReadRow);
     }
+
     fetch(`/api/notifications/${id}/read`, {
         method: 'PUT',
         credentials: 'same-origin',

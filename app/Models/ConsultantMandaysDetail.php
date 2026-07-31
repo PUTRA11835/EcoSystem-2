@@ -16,6 +16,7 @@ class ConsultantMandaysDetail extends Model
         'employee_id',
         'module',
         'mandays',
+        'approved_mandays',
         'additional_mandays',
         'approved_additional',
         'notes',
@@ -27,6 +28,7 @@ class ConsultantMandaysDetail extends Model
 
     protected $casts = [
         'mandays'              => 'decimal:2',
+        'approved_mandays'     => 'decimal:2',
         'additional_mandays'   => 'decimal:2',
         'approved_additional'  => 'decimal:2',
         'progress_percentage'  => 'decimal:2',

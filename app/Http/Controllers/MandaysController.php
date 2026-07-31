@@ -933,6 +933,7 @@ class MandaysController extends Controller
         $request->validate([
             'approved_details'                      => 'nullable|array',
             'approved_details.*.employee_id'        => 'required|integer',
+            'approved_details.*.approved_mandays'   => 'required|numeric|min:0',
             'approved_details.*.approved_additional'=> 'required|numeric|min:0',
             'confirm_negative'                      => 'sometimes|boolean',
         ]);
@@ -966,17 +967,24 @@ class MandaysController extends Controller
 
         DB::beginTransaction();
         try {
-            // Update approved_additional per employee
+            // Update approved_mandays + approved_additional per employee
             if (!empty($request->approved_details)) {
                 foreach ($request->approved_details as $ad) {
                     $proposal->details()
                         ->where('employee_id', $ad['employee_id'])
-                        ->update(['approved_additional' => $ad['approved_additional']]);
+                        ->update([
+                            'approved_mandays'    => $ad['approved_mandays'],
+                            'approved_additional' => $ad['approved_additional'],
+                        ]);
                 }
             }
 
-            // Recalculate total_mandays = sum(mandays + approved_additional)
-            $total = $proposal->details()->get()->sum(fn($d) => $d->mandays + $d->approved_additional);
+            // Recalculate total_mandays = sum(approved_mandays + approved_additional).
+            // Note: this total_mandays / ticket.man_days reflects what Head actually approved
+            // here. It intentionally does NOT feed the MD-quota checks used elsewhere (e.g.
+            // TimesheetController submit validation), which still read the raw `mandays`
+            // column directly and are unaffected by this value.
+            $total = $proposal->details()->get()->sum(fn($d) => (float) ($d->approved_mandays ?? 0) + $d->approved_additional);
 
             $proposal->update([
                 'status'              => 'approved',
@@ -1006,8 +1014,8 @@ class MandaysController extends Controller
 
     /**
      * Per employee in the proposal being approved, compare the quota that would take
-     * effect (mandays + the approved_additional Head is about to save) against what
-     * they've already logged (draft/submitted/approved timesheets on this ticket).
+     * effect (the approved_mandays + approved_additional Head is about to save) against
+     * what they've already logged (draft/submitted/approved timesheets on this ticket).
      * Returns one entry per employee whose remaining would go negative.
      */
     private function findNegativeRemainingWarnings(Ticket $ticket, ConsultantMandays $proposal, array $approvedDetails): array
@@ -1017,8 +1025,10 @@ class MandaysController extends Controller
 
         $warnings = [];
         foreach ($details as $detail) {
-            $approvedAdditional = (float) ($approvedAdditionalMap->get($detail->employee_id)['approved_additional'] ?? $detail->approved_additional ?? 0);
-            $quota = round((float) $detail->mandays + $approvedAdditional, 2);
+            $incoming            = $approvedAdditionalMap->get($detail->employee_id);
+            $approvedMandays     = (float) ($incoming['approved_mandays'] ?? $detail->approved_mandays ?? 0);
+            $approvedAdditional  = (float) ($incoming['approved_additional'] ?? $detail->approved_additional ?? 0);
+            $quota = round($approvedMandays + $approvedAdditional, 2);
 
             $consumed = (float) Timesheet::where('ticket_id', $ticket->ticket_id)
                 ->where('employee_id', $detail->employee_id)
@@ -1338,6 +1348,7 @@ class MandaysController extends Controller
                 'employee_name'       => $d->employee?->basicData?->first_name . ' ' . $d->employee?->basicData?->last_name,
                 'module'              => $d->module,
                 'mandays'             => (float) $d->mandays,
+                'approved_mandays'    => (float) ($d->approved_mandays ?? 0),
                 'additional_mandays'  => (float) ($d->additional_mandays ?? 0),
                 'approved_additional' => (float) ($d->approved_additional ?? 0),
                 'notes'               => $d->notes,
