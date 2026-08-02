@@ -24,6 +24,7 @@ use App\Http\Controllers\DeliveryProjectDataController;
 use App\Http\Controllers\DeliveryProjectStageManagementController;
 use App\Http\Controllers\DeliveryProjectPlanningExportController;
 use App\Http\Controllers\DeliveryProjectPlanningImportController;
+use App\Http\Controllers\DeliveryProjectPlanningResetController;
 use App\Http\Controllers\DeliveryProjectRiskController;
 use App\Http\Controllers\DeliveryProjectPaymentTermController;
 use App\Http\Controllers\AttachmentController;
@@ -493,6 +494,13 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::prefix('import')->name('import.')->group(function () {
             Route::get('/template', [DeliveryProjectPlanningImportController::class, 'template'])->name('template');
             Route::post('/', [DeliveryProjectPlanningImportController::class, 'import'])->name('store')->middleware('menu:delivery-project.planning.manage');
+        });
+
+        // Reset — wipe the whole planning structure (bad import / major restructure).
+        // POST rather than DELETE: the production edge blocks the DELETE verb.
+        Route::prefix('reset')->name('reset.')->middleware('menu:delivery-project.planning.manage')->group(function () {
+            Route::get('/preview', [DeliveryProjectPlanningResetController::class, 'preview'])->name('preview');
+            Route::post('/', [DeliveryProjectPlanningResetController::class, 'destroyAll'])->name('destroy-all');
         });
     });
 

@@ -115,6 +115,7 @@ class DeliveryProjectPlanningImportController extends Controller
             fclose($handle);
             return response()->json(['success' => false, 'message' => 'File CSV kosong atau tidak valid'], 422);
         }
+        $rawHeaders = array_map(fn($h) => $this->toUtf8($h), $rawHeaders);
 
         // Build colIndex: canonical_field => column index in CSV
         $colIndex = [];
@@ -138,7 +139,9 @@ class DeliveryProjectPlanningImportController extends Controller
         $row = []; // referenced in closure
         $get = function (string $field) use ($colIndex, &$row): ?string {
             if (!isset($colIndex[$field])) return null;
-            $val = trim($row[$colIndex[$field]] ?? '');
+            // Excel exports are frequently Windows-1252, not UTF-8. Normalise here
+            // so bad bytes never reach the database or the JSON response.
+            $val = trim($this->toUtf8($row[$colIndex[$field]] ?? ''));
             return $val !== '' ? $val : null;
         };
 
@@ -263,6 +266,11 @@ class DeliveryProjectPlanningImportController extends Controller
         }
 
         fclose($handle);
+
+        // Safety net: an exception message may still carry bytes from elsewhere
+        // (e.g. legacy rows already stored malformed). Never let that 500 a run
+        // whose data changes were already committed.
+        $errors = array_map(fn($e) => $this->toUtf8($e), $errors);
 
         Log::info('PlanningImport completed', [
             'project_id'         => $project->id,
@@ -506,6 +514,28 @@ class DeliveryProjectPlanningImportController extends Controller
     }
 
     // ── Helpers (mirrored from ActivityManagementController) ───────────────────
+
+    /**
+     * Coerce a raw CSV cell to valid UTF-8. Spreadsheets exported from Excel are
+     * often Windows-1252, whose high bytes (en dash, curly quotes, °, é …) are not
+     * legal UTF-8 — they would otherwise be written to the database and later make
+     * response()->json() throw "Malformed UTF-8 characters".
+     */
+    private function toUtf8(?string $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+        if (!mb_check_encoding($value, 'UTF-8')) {
+            $value = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
+        }
+
+        // Collapse non-breaking spaces to plain ones. Excel/Word smuggle U+00A0
+        // into pasted cells where trim() cannot see it — leaving it in would make
+        // "Kickoff Meeting" (NBSP) fail to match the stored "Kickoff Meeting",
+        // silently creating a duplicate activity on every re-import.
+        return str_replace(["\u{00A0}", "\u{200B}", "\u{FEFF}"], [' ', '', ''], $value);
+    }
 
     /** Parse a date from DD/MM/YYYY or any standard format. */
     private function parseDate($dateString): ?Carbon

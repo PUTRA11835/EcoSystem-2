@@ -57,6 +57,7 @@ class DeliverySupportController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('type', 'like', "%{$search}%")
+                    ->orWhere('io_number', 'like', "%{$search}%")
                     ->orWhereHas('client', function ($cq) use ($search) {
                         $cq->whereHas('basicData', function ($bq) use ($search) {
                             $bq->where('name_1', 'like', "%{$search}%");
