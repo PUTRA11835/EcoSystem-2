@@ -241,10 +241,11 @@
                          onclick="window.location.href='{{ route('delivery.support.show', $support->id) }}'"
                          data-client="{{ strtolower($support->client->basicData->name_1 ?? '') }}"
                          data-type="{{ strtolower($support->type ?? '') }}"
+                         data-io="{{ strtolower($support->io_number ?? '') }}"
                          data-method="{{ strtolower($support->support_method ?? '') }}"
                          data-bucket="{{ $bucketOf($support) }}"
                          data-timeline="{{ $timelineOf($support) }}"
-                         data-searchable="{{ strtolower(($support->client->basicData->name_1 ?? '') . ' ' . ($support->type ?? '') . ' ' . ($support->name ?? '')) }}">
+                         data-searchable="{{ strtolower(($support->client->basicData->name_1 ?? '') . ' ' . ($support->type ?? '') . ' ' . ($support->name ?? '') . ' ' . ($support->io_number ?? '')) }}">
                         <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <div class="flex justify-between items-start">
                                 <div class="flex-1">
@@ -261,6 +262,12 @@
                             </div>
                         </div>
                         <div class="px-4 py-3 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-500">IO Number</span>
+                                <span class="text-sm font-medium {{ $support->io_number ? 'text-gray-900' : 'text-gray-400' }}">
+                                    {{ $support->io_number ?: '-' }}
+                                </span>
+                            </div>
                             <div class="flex items-center justify-between">
                                 <span class="text-sm text-gray-500">Progress</span>
                                 <div class="flex items-center space-x-3">
@@ -312,7 +319,7 @@
                             {{-- Client: sort + searchable select filter --}}
                             <th class="sup-th relative bg-gray-50 border-b">
                                 <button type="button" class="sup-th-btn" onclick="toggleSupPanel('sup-panel-client', this)">
-                                    <span>Client</span>
+                                    <span>Customer</span>
                                     <span id="sup-sort-client" class="sup-sort-icon">⇅</span>
                                     @include('delivery.support.list.partials.sup-funnel', ['key' => 'client'])
                                 </button>
@@ -320,8 +327,8 @@
                                     @include('delivery.support.list.partials.sup-sort-btns', ['key' => 'client'])
                                     <label class="sup-panel-label">Filter</label>
                                     <select onchange="supSetFilter('client', this.value)" class="sup-panel-input"
-                                            data-searchable="true" data-search-placeholder="Search client...">
-                                        <option value="">All Clients</option>
+                                            data-searchable="true" data-search-placeholder="Search customer...">
+                                        <option value="">All Customers</option>
                                         @foreach($clientOptions as $c)<option value="{{ strtolower($c) }}">{{ $c }}</option>@endforeach
                                     </select>
                                     @include('delivery.support.list.partials.sup-clear', ['key' => 'client'])
@@ -344,7 +351,7 @@
                             {{-- Type: sort + select filter --}}
                             <th class="sup-th relative bg-gray-50 border-b">
                                 <button type="button" class="sup-th-btn" onclick="toggleSupPanel('sup-panel-type', this)">
-                                    <span>Type</span>
+                                    <span>Support Type</span>
                                     <span id="sup-sort-type" class="sup-sort-icon">⇅</span>
                                     @include('delivery.support.list.partials.sup-funnel', ['key' => 'type'])
                                 </button>
@@ -352,10 +359,24 @@
                                     @include('delivery.support.list.partials.sup-sort-btns', ['key' => 'type'])
                                     <label class="sup-panel-label">Filter</label>
                                     <select onchange="supSetFilter('type', this.value)" class="sup-panel-input">
-                                        <option value="">All Types</option>
+                                        <option value="">All Support Types</option>
                                         @foreach($typeOptions as $t)<option value="{{ strtolower($t) }}">{{ $t }}</option>@endforeach
                                     </select>
                                     @include('delivery.support.list.partials.sup-clear', ['key' => 'type'])
+                                </div>
+                            </th>
+                            {{-- IO Number: sort + keyword filter --}}
+                            <th class="sup-th relative bg-gray-50 border-b">
+                                <button type="button" class="sup-th-btn" onclick="toggleSupPanel('sup-panel-io', this)">
+                                    <span>IO Number</span>
+                                    <span id="sup-sort-io" class="sup-sort-icon">⇅</span>
+                                    @include('delivery.support.list.partials.sup-funnel', ['key' => 'io'])
+                                </button>
+                                <div id="sup-panel-io" class="sup-panel hidden">
+                                    @include('delivery.support.list.partials.sup-sort-btns', ['key' => 'io'])
+                                    <label class="sup-panel-label">Search</label>
+                                    <input type="text" oninput="supSetFilter('io', this.value)" placeholder="Type IO number..." class="sup-panel-input">
+                                    @include('delivery.support.list.partials.sup-clear', ['key' => 'io'])
                                 </div>
                             </th>
                             {{-- Progress: sort (numerik) + filter bucket --}}
@@ -428,12 +449,13 @@
                                 data-client="{{ strtolower($support->client->basicData->name_1 ?? '') }}"
                                 data-name="{{ strtolower($support->name ?? '') }}"
                                 data-type="{{ strtolower($support->type ?? '') }}"
+                                data-io="{{ strtolower($support->io_number ?? '') }}"
                                 data-method="{{ strtolower($support->support_method ?? '') }}"
                                 data-bucket="{{ $bucketOf($support) }}"
                                 data-timeline="{{ $timelineOf($support) }}"
                                 data-progress="{{ $progress }}"
                                 data-end="{{ optional($support->end_date)->timestamp ?? 0 }}"
-                                data-searchable="{{ strtolower(($support->client->basicData->name_1 ?? '') . ' ' . ($support->type ?? '') . ' ' . ($support->name ?? '')) }}">
+                                data-searchable="{{ strtolower(($support->client->basicData->name_1 ?? '') . ' ' . ($support->type ?? '') . ' ' . ($support->name ?? '') . ' ' . ($support->io_number ?? '')) }}">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm font-medium text-gray-900">{{ $support->client->basicData->name_1 ?? 'N/A' }}</div>
                                 </td>
@@ -445,6 +467,13 @@
                                         <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
                                             {{ $support->type }}
                                         </span>
+                                    @else
+                                        <span class="text-gray-400">-</span>
+                                    @endif
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    @if($support->io_number)
+                                        <span class="font-medium text-gray-900">{{ $support->io_number }}</span>
                                     @else
                                         <span class="text-gray-400">-</span>
                                     @endif
@@ -466,7 +495,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-12 text-center">
+                                <td colspan="7" class="px-6 py-12 text-center">
                                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                     </svg>
@@ -476,7 +505,7 @@
                             </tr>
                         @endforelse
                         <tr id="desktop-no-results-row" class="hidden">
-                            <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">
+                            <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">
                                 No support items match your search.
                             </td>
                         </tr>
@@ -491,8 +520,8 @@
     // ── Desktop header: per-column sort + filter, summary tiles, dan search bar
     // berbagi satu state. Fungsi-fungsi ini global karena markup header memakai
     // inline onclick/onchange (pola yang sama dengan Delivery Project list).
-    const SUP_TEXT_FILTERS = ['name'];
-    const SUP_SORT_KEYS    = ['client', 'name', 'type', 'progress', 'timeline', 'method'];
+    const SUP_TEXT_FILTERS = ['name', 'io'];
+    const SUP_SORT_KEYS    = ['client', 'name', 'type', 'io', 'progress', 'timeline', 'method'];
     const supState = { sortKey: null, sortDir: 'asc', filters: {} };
 
     function supSearchTerm() {
@@ -570,7 +599,7 @@
             if (supState.sortKey === k) { el.textContent = supState.sortDir === 'asc' ? '↑' : '↓'; el.classList.add('active'); }
             else { el.textContent = '⇅'; el.classList.remove('active'); }
         });
-        ['client', 'name', 'type', 'bucket', 'timeline', 'method'].forEach(k => {
+        ['client', 'name', 'type', 'io', 'bucket', 'timeline', 'method'].forEach(k => {
             const fn = document.getElementById('sup-funnel-' + k);
             if (fn) fn.classList.toggle('active', !!supState.filters[k]);
         });
