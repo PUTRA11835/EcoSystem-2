@@ -652,6 +652,10 @@ class TicketController extends Controller
                         'submitted_by_email' => $toEmail !== '' ? $toEmail : null,
                         'to_emails'          => !empty($toList) ? $toList : null,
                         'cc_emails'          => !empty($ccList) ? $ccList : null,
+                        // Tiket internal (dibuat dari EcoSystem) — tidak ditampilkan
+                        // ke customer di JARVIES. Tiket dari JARVIES/email masuk lewat
+                        // staging dan tetap memakai default `true`.
+                        'visible_to_customer' => false,
                     ]);
                 });
 
@@ -868,6 +872,10 @@ class TicketController extends Controller
                     'cc_emails'          => !empty($ccList) ? $ccList : null,
                     'last_message_at'    => now(),
                     'last_agent_reply_at'=> now(),
+                    // Tiket internal (dibuat dari EcoSystem) — tidak ditampilkan
+                    // ke customer di JARVIES. Tiket dari JARVIES/email masuk lewat
+                    // staging dan tetap memakai default `true`.
+                    'visible_to_customer' => false,
                 ]);
 
                 if (!empty($validated['body'])) {
@@ -995,6 +1003,9 @@ class TicketController extends Controller
                     'ticket_priority' => null,
                     'status'          => 'inprocess',
                     'ticket_number'   => $this->ticketNumbers->generate(),
+                    // Tiket internal (dibuat di luar alur staging) — tidak ditampilkan
+                    // ke customer di JARVIES.
+                    'visible_to_customer' => false,
                 ]);
             });
 
