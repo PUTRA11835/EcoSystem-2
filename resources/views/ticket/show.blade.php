@@ -837,6 +837,16 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
+                {{-- Penanda tiket internal: dibuat dari EcoSystem, tidak tampil di Jarvies --}}
+                @if(!$ticket->visible_to_customer)
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Visibility</label>
+                    <p class="text-xs text-amber-800 px-2.5 py-1.5 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-1.5">
+                        <i class="fas fa-user-slash text-xs mt-0.5"></i>
+                        <span>Tiket internal — tidak ditampilkan ke customer di Jarvies.</span>
+                    </p>
+                </div>
+                @endif
                 {{-- Hide / Unhide Ticket --}}
                 @if($can('ticket.hide'))
                 <div class="pt-3 border-t border-gray-200">

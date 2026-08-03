@@ -159,7 +159,9 @@
       "Bash(not exist *)",
       "Bash(php /Users/tiopramudya/Documents/EC/EcoSystem-2/artisan tinker '--execute= *)",
       "Bash(grep -A 20 'protected $middleware' /Users/tiopramudya/Documents/EC/EcoSystem-2/app/Http/Kernel.php)",
-      "Bash(php artisan tinker '--execute= *)"
+      "Bash(php artisan tinker '--execute= *)",
+      "Read(//d/Magang/PT Eclectic Consulting Yogyakarta/Project/JARVIES-main/**)",
+      "Bash(DB_DATABASE=ecosystem5 php artisan tinker '--execute= *)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",
