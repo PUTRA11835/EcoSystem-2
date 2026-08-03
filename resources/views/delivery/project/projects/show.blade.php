@@ -354,6 +354,14 @@
             Planning
         </button>
         @endif
+        @if($can('delivery-project.wricef.view'))
+        <button onclick="scrollToSection('wricef')" data-section="wricef" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+            </svg>
+            WRICEF
+        </button>
+        @endif
         @if($can('delivery-project.plan-cost.view'))
         <button onclick="scrollToSection('plancost')" data-section="plancost" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1550,6 +1558,105 @@
                     <div id="ganttChartPlanning"></div>
                 </div>
             </div>
+        </div>
+    </div>
+</section>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- WRICEF LOG SECTION                                            --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-project.wricef.view'))
+<section id="wricef" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.wricef.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.wricef.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
+    <div class="bg-white shadow-md rounded-lg">
+
+        {{-- ── Header ─────────────────────────────────────────────── --}}
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex justify-between items-center flex-wrap gap-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 flex items-center">
+                        <svg class="w-5 h-5 mr-2 primary-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                        </svg>
+                        WRICEF Log
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-1">Workflow, Report, Interface, Conversion, Enhancement &amp; Form objects — FSD → Development → Testing</p>
+                </div>
+                @if($can('delivery-project.wricef.manage'))
+                <button type="button" onclick="WricefLog.openAdd()"
+                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Add WRICEF
+                </button>
+                @endif
+            </div>
+        </div>
+
+        {{-- ── Table ───────────────────────────────────────────────── --}}
+        {{-- Header dua baris: baris pertama mengelompokkan tahapan
+             (FSD / Development / Testing) persis seperti WRICEF Log sheet. --}}
+        <div class="p-6">
+            <div class="overflow-x-auto overflow-y-auto max-h-[560px] rounded-lg border border-gray-200 risk-scroll">
+                <table class="min-w-full text-sm border-collapse" id="wricefTable">
+                    <thead class="sticky top-0 z-10">
+                        <tr class="bg-gray-800 text-white">
+                            <th colspan="14" class="px-3 py-2 text-left font-semibold whitespace-nowrap border-r border-gray-600">WRICEF Log</th>
+                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-gray-600">FSD</th>
+                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-gray-600">Development</th>
+                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-gray-600">Testing</th>
+                            <th rowspan="2" class="px-3 py-2 text-center font-semibold whitespace-nowrap w-[80px] bg-gray-700">Action</th>
+                        </tr>
+                        <tr class="bg-gray-700 text-white">
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[140px]">Company</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[90px]">SAP Module</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Category</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[90px]">Obj ID</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Obj Name</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Capability</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[90px]">TCode</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Priority</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">Requestor</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Request Date</th>
+                            <th class="px-3 py-3 text-right font-semibold whitespace-nowrap min-w-[110px]">Effort (Mandays)</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Approved By</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Approved Date</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[110px] border-r border-gray-600">Status</th>
+
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">PIC</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">Start</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">End</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px]">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] border-r border-gray-600">Remarks</th>
+
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">PIC</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">Start</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">End</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[130px]">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] border-r border-gray-600">Remarks</th>
+
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">PIC</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">Start</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">End</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px]">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] border-r border-gray-600">Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody id="wricefTableBody" class="divide-y divide-gray-100 bg-white">
+                        <tr>
+                            <td colspan="30" class="text-center py-10">
+                                <svg class="animate-spin h-6 w-6 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                </svg>
+                                <p class="text-gray-500 text-xs">Loading WRICEF log…</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Obj ID dibuat otomatis dari SAP Module + Category (contoh: MM + Report → MMR001). Company mengikuti customer project.</p>
         </div>
     </div>
 </section>
@@ -4046,6 +4153,342 @@
     </div>
 </div>
 
+@if($can('delivery-project.wricef.view'))
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- WRICEF LOG — DELETE CONFIRMATION MODAL                         --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="wricefDeleteModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="WricefLog.closeDeleteModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-gray-900 mb-1">Delete <span id="wricefDeleteLabel"></span>?</h3>
+                <p class="text-sm text-gray-500 mb-5">This WRICEF object will be permanently deleted.</p>
+                <input type="hidden" id="wricefDeleteId" value="">
+                <div class="flex gap-3 justify-center">
+                    <button type="button" onclick="WricefLog.closeDeleteModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" id="wricefDeleteConfirmBtn" onclick="WricefLog.confirmDelete()"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
+                        Yes, Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- WRICEF LOG — ADD / EDIT MODAL                                  --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- PITFALL: modal dirender DI LUAR <section>, jadi lapisan izin
+     `data-perm-*` tidak menjangkaunya. Kontrol tulis di sini harus
+     dipagari @if($can(...)) sendiri (lihat delivery/partials/section-permissions). --}}
+@php
+    // Team Members section hanya dirender bila punya izin `.view`, sedangkan
+    // $teamPeople didefinisikan di dalamnya — jaga-jaga bila izin itu dicabut.
+    $wricefPeople  = $teamPeople ?? collect();
+    $wricefCompany = $project->client->basicData->name_1 ?? '—';
+@endphp
+<div id="wricefModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="WricefLog.closeModal()"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+
+            {{-- Header --}}
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900" id="wricefModalTitle">Add WRICEF</h3>
+                <button type="button" onclick="WricefLog.closeModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Body --}}
+            <div class="p-6 overflow-y-auto space-y-5">
+                <input type="hidden" id="wricefModalMode" value="create">
+                <input type="hidden" id="wricefModalId" value="">
+
+                {{-- ── Blok 1: identitas objek ─────────────────────────── --}}
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Object</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {{-- Company — mengikuti customer project, tidak disimpan per baris --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                            <input type="text" value="{{ $wricefCompany }}" readonly
+                                   class="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg text-sm cursor-not-allowed">
+                        </div>
+
+                        {{-- SAP Module --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">SAP Module <span class="text-red-500">*</span></label>
+                            <select id="wricef_sap_module" onchange="WricefLog.onObjIdSourceChange()"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select Module --</option>
+                                @foreach(\App\Models\DeliveryProjectWricef::SAP_MODULES as $mod)
+                                    <option value="{{ $mod }}">{{ $mod }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Category --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Category <span class="text-red-500">*</span></label>
+                            <select id="wricef_category" onchange="WricefLog.onObjIdSourceChange()"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select Category --</option>
+                                @foreach(array_keys(\App\Models\DeliveryProjectWricef::CATEGORY_LETTERS) as $cat)
+                                    <option value="{{ $cat }}">{{ $cat }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Obj ID — dibuat otomatis oleh server --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Obj ID</label>
+                            <input type="text" id="wricef_obj_id_preview" readonly
+                                   class="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg text-sm font-mono cursor-not-allowed"
+                                   placeholder="Auto">
+                            <p class="text-[11px] text-gray-400 mt-1">Otomatis dari Module + Category.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Obj Name <span class="text-red-500">*</span></label>
+                            <input type="text" id="wricef_obj_name" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. Sinkronisasi data master ke aplikasi eksternal">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">TCode</label>
+                            <input type="text" id="wricef_tcode" maxlength="100"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. ZXX001">
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Capability</label>
+                        <textarea id="wricef_capability" rows="3"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Satu kemampuan per baris, mis.&#10;Otomatis membuat dokumen A&#10;Otomatis memperbarui status B"></textarea>
+                    </div>
+                </div>
+
+                {{-- ── Blok 2: request & approval ──────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Request &amp; Approval</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Priority <span class="text-red-500">*</span></label>
+                            <select id="wricef_priority" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="High">High</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Requestor</label>
+                            <input type="text" id="wricef_requestor" maxlength="150"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. Budi Santoso">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Request Date</label>
+                            <input type="text" id="wricef_request_date" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Effort (Mandays)</label>
+                            <input type="number" id="wricef_effort_mandays" min="0" step="0.5"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. 3">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Approved By</label>
+                            <select id="wricef_approved_by" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach($wricefPeople as $person)
+                                    <option value="{{ $person }}">{{ $person }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Approved Date</label>
+                            <input type="text" id="wricef_approved_date" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
+                            <select id="wricef_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="Open" selected>Open</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Closed">Closed</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Blok 3: FSD ─────────────────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">FSD</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">PIC</label>
+                            <select id="wricef_fsd_pic" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select PIC --</option>
+                                @foreach($wricefPeople as $person)
+                                    <option value="{{ $person }}">{{ $person }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                            <input type="text" id="wricef_fsd_start" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">End</label>
+                            <input type="text" id="wricef_fsd_end" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <select id="wricef_fsd_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Not Started --</option>
+                                @foreach(\App\Models\DeliveryProjectWricef::FSD_STATUSES as $st)
+                                    <option value="{{ $st }}">{{ $st }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                        <textarea id="wricef_fsd_remarks" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Catatan tahap FSD…"></textarea>
+                    </div>
+                </div>
+
+                {{-- ── Blok 4: Development ─────────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Development</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">PIC</label>
+                            <select id="wricef_dev_pic" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select PIC --</option>
+                                @foreach($wricefPeople as $person)
+                                    <option value="{{ $person }}">{{ $person }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                            <input type="text" id="wricef_dev_start" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">End</label>
+                            <input type="text" id="wricef_dev_end" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <select id="wricef_dev_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Not Started --</option>
+                                @foreach(\App\Models\DeliveryProjectWricef::DEV_STATUSES as $st)
+                                    <option value="{{ $st }}">{{ $st }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                        <textarea id="wricef_dev_remarks" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Catatan tahap Development…"></textarea>
+                    </div>
+                </div>
+
+                {{-- ── Blok 5: Testing ─────────────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Testing</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">PIC</label>
+                            <select id="wricef_test_pic" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select PIC --</option>
+                                @foreach($wricefPeople as $person)
+                                    <option value="{{ $person }}">{{ $person }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                            <input type="text" id="wricef_test_start" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">End</label>
+                            <input type="text" id="wricef_test_end" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <select id="wricef_test_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Not Started --</option>
+                                @foreach(\App\Models\DeliveryProjectWricef::TEST_STATUSES as $st)
+                                    <option value="{{ $st }}">{{ $st }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                        <textarea id="wricef_test_remarks" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Catatan tahap Testing…"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Footer --}}
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="WricefLog.closeModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                @if($can('delivery-project.wricef.edit') || $can('delivery-project.wricef.manage'))
+                <button type="button" id="wricefModalSaveBtn" onclick="WricefLog.save()"
+                        class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    Save
+                </button>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- Edit Document Modal --}}
 <div id="editDocumentModal" class="fixed inset-0 z-50 hidden">
     <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('editDocumentModal')"></div>
@@ -5515,7 +5958,8 @@ async function executeProjectDelete(projectId) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         const modals = ['teamModal', 'editTeamModal', 'roleModal', 'documentModal', 'issueModal', 'issueDeleteModal', 'deleteModal', 'editDocumentModal', 'deleteFolderConfirmModal', 'noFolderWarningModal',
-                        'generalInfoModal', 'deliveryInfoModal', 'deliveryDataModal', 'locationInfoModal'];
+                        'generalInfoModal', 'deliveryInfoModal', 'deliveryDataModal', 'locationInfoModal',
+                        'wricefModal', 'wricefDeleteModal'];
         modals.forEach(modalId => closeModal(modalId));
     }
 });
@@ -6284,6 +6728,19 @@ document.addEventListener('DOMContentLoaded', function () {
         window._fpIssueIdentified = HolidayCalendar.initPicker(document.getElementById('issue_date_identified'));
         window._fpIssueEstClosed  = HolidayCalendar.initPicker(document.getElementById('issue_estimated_closed'));
         window._fpIssueClosed     = HolidayCalendar.initPicker(document.getElementById('issue_closed_date'));
+
+        // WRICEF modal — Request/Approved + Start & End tiap tahap.
+        // Disimpan dalam satu map supaya reset/isi ulang bisa di-loop.
+        window._fpWricef = {};
+        [
+            'request_date', 'approved_date',
+            'fsd_start', 'fsd_end',
+            'dev_start', 'dev_end',
+            'test_start', 'test_end',
+        ].forEach(function (key) {
+            const el = document.getElementById('wricef_' + key);
+            if (el) window._fpWricef[key] = HolidayCalendar.initPicker(el);
+        });
 
         // Location Information — Valid From / Valid To
         window._fpLocFrom = HolidayCalendar.initPicker(document.getElementById('loc_valid_from'));
@@ -7090,6 +7547,415 @@ window.IssueLog = (function () {
     return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, onStatusChange };
 })();
 </script>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- WRICEF LOG — JAVASCRIPT                                        --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-project.wricef.view'))
+<script>
+window.WricefLog = (function () {
+    'use strict';
+
+    const PROJECT_ID = {{ $project->id }};
+    const BASE_URL   = `/projects/${PROJECT_ID}/wricefs`;
+
+    // Huruf Obj_Id per kategori — harus sama dengan
+    // App\Models\DeliveryProjectWricef::CATEGORY_LETTERS (server tetap yang
+    // menentukan nilai final; ini cuma pratinjau prefix di modal).
+    const CATEGORY_LETTERS = @json(\App\Models\DeliveryProjectWricef::CATEGORY_LETTERS);
+
+    // Field teks/select sederhana: id elemen = 'wricef_' + key, key = nama kolom.
+    const TEXT_FIELDS = [
+        'sap_module', 'category', 'obj_name', 'capability', 'tcode',
+        'priority', 'requestor', 'effort_mandays', 'approved_by', 'status',
+        'fsd_pic', 'fsd_status', 'fsd_remarks',
+        'dev_pic', 'dev_status', 'dev_remarks',
+        'test_pic', 'test_status', 'test_remarks',
+    ];
+
+    const DATE_FIELDS = [
+        'request_date', 'approved_date',
+        'fsd_start', 'fsd_end',
+        'dev_start', 'dev_end',
+        'test_start', 'test_end',
+    ];
+
+    let _rows    = [];
+    let _company = '';
+
+    function getCsrf() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }
+
+    function esc(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function el(key) {
+        return document.getElementById('wricef_' + key);
+    }
+
+    // Set nilai <select>, menyisipkan opsi bila nilainya tidak ada lagi di
+    // daftar (mis. PIC yang sudah dikeluarkan dari Project Team).
+    function setSelectValue(sel, val) {
+        if (!sel) return;
+        const v = val ?? '';
+        if (v && !Array.from(sel.options).some(o => o.value === v)) {
+            sel.add(new Option(v, v));
+        }
+        sel.value = v;
+    }
+
+    // ── Badges ────────────────────────────────────────────────────
+    function statusBadge(status) {
+        const map = {
+            'Open':        'bg-yellow-100 text-yellow-800',
+            'In Progress': 'bg-blue-100 text-blue-800',
+            'Closed':      'bg-green-100 text-green-800',
+        };
+        if (!status) return '—';
+        const cls = map[status] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(status)}</span>`;
+    }
+
+    // Warna dipakai bersama tiga tahap; label "Done" selalu hijau, "Revisi"
+    // selalu merah, sisanya netral/biru supaya mudah dipindai per kolom.
+    function stageBadge(status) {
+        const map = {
+            'Done':             'bg-green-100 text-green-800',
+            'Revisi':           'bg-red-100 text-red-700',
+            'Review':           'bg-purple-100 text-purple-700',
+            'Testing':          'bg-blue-100 text-blue-800',
+            'Develop':          'bg-amber-100 text-amber-800',
+            'Develop Scenario': 'bg-amber-100 text-amber-800',
+        };
+        if (!status) return '<span class="text-gray-300">—</span>';
+        const cls = map[status] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${cls}">${esc(status)}</span>`;
+    }
+
+    function priorityBadge(priority) {
+        const map = {
+            'High':   'bg-red-100 text-red-700',
+            'Medium': 'bg-orange-100 text-orange-700',
+            'Low':    'bg-green-100 text-green-700',
+        };
+        if (!priority) return '—';
+        const cls = map[priority] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-bold ${cls}">${esc(priority)}</span>`;
+    }
+
+    function fmtMandays(v) {
+        if (v === null || v === undefined || v === '') return '—';
+        const num = Number(v);
+        if (isNaN(num)) return '—';
+        return Number.isInteger(num) ? String(num) : num.toFixed(2).replace('.', ',');
+    }
+
+    // Capability boleh multi-baris (lihat contoh CSV) — pertahankan barisnya.
+    function multiline(text) {
+        if (!text) return '—';
+        return esc(text).replace(/\r?\n/g, '<br>');
+    }
+
+    // ── Load & render ─────────────────────────────────────────────
+    async function load() {
+        try {
+            const res = await axios.get(BASE_URL);
+            _rows    = res.data.wricefs ?? [];
+            _company = res.data.company ?? '';
+            renderTable();
+        } catch (e) {
+            const tbody = document.getElementById('wricefTableBody');
+            if (tbody) tbody.innerHTML =
+                `<tr><td colspan="30" class="text-center py-8 text-red-500 text-sm">Failed to load data. Please refresh.</td></tr>`;
+        }
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('wricefTableBody');
+        if (!tbody) return;
+
+        if (!_rows.length) {
+            tbody.innerHTML = `<tr><td colspan="30" class="text-center py-10 text-gray-400 text-sm">No WRICEF objects yet. Click "Add WRICEF" to get started.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = _rows.map(w => rowHtml(w)).join('');
+    }
+
+    function rowHtml(w) {
+        return `<tr class="hover:bg-gray-50 align-top">
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.company) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-center font-semibold text-gray-700 whitespace-nowrap">${esc(w.sap_module)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.category)}</td>
+            <td class="px-3 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">${esc(w.obj_id)}</td>
+            <td class="px-3 py-3 text-xs text-gray-800 max-w-[240px]"><div class="line-clamp-3">${esc(w.obj_name)}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[240px]"><div class="line-clamp-4">${multiline(w.capability)}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.tcode) || '—'}</td>
+            <td class="px-3 py-3 text-center">${priorityBadge(w.priority)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.requestor) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.request_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-right text-gray-700 whitespace-nowrap">${fmtMandays(w.effort_mandays)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.approved_by) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.approved_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-center border-r border-gray-200">${statusBadge(w.status)}</td>
+
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.fsd_pic) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.fsd_start_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.fsd_end_label) || '—'}</td>
+            <td class="px-3 py-3 text-center">${stageBadge(w.fsd_status)}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[180px] border-r border-gray-200"><div class="line-clamp-3">${esc(w.fsd_remarks) || '—'}</div></td>
+
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.dev_pic) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.dev_start_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.dev_end_label) || '—'}</td>
+            <td class="px-3 py-3 text-center">${stageBadge(w.dev_status)}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[180px] border-r border-gray-200"><div class="line-clamp-3">${esc(w.dev_remarks) || '—'}</div></td>
+
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.test_pic) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.test_start_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.test_end_label) || '—'}</td>
+            <td class="px-3 py-3 text-center">${stageBadge(w.test_status)}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[180px] border-r border-gray-200"><div class="line-clamp-3">${esc(w.test_remarks) || '—'}</div></td>
+
+            <td class="px-3 py-3 text-center whitespace-nowrap">
+                <button onclick="WricefLog.openEdit(${w.id})"
+                        class="inline-flex items-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition" title="Edit">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                </button>
+                <button onclick="WricefLog.openDeleteModal(${w.id}, '${esc(w.obj_id)}')"
+                        class="inline-flex items-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition" title="Delete">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </button>
+            </td>
+        </tr>`;
+    }
+
+    // ── Obj ID preview ────────────────────────────────────────────
+    // Nilai final tetap dari server. Saat menambah, nomor urutnya belum
+    // diketahui sehingga hanya prefix yang ditampilkan; saat mengedit, Obj ID
+    // lama dipertahankan selama modul & kategorinya tidak berubah.
+    function onObjIdSourceChange() {
+        const preview = document.getElementById('wricef_obj_id_preview');
+        if (!preview) return;
+
+        const mod = el('sap_module')?.value || '';
+        const cat = el('category')?.value || '';
+        const id  = document.getElementById('wricefModalId').value;
+
+        if (id) {
+            const current = _rows.find(x => String(x.id) === String(id));
+            if (current && current.sap_module === mod && current.category === cat) {
+                preview.value = current.obj_id;
+                return;
+            }
+        }
+
+        if (!mod || !cat) {
+            preview.value = '';
+            return;
+        }
+        preview.value = mod + (CATEGORY_LETTERS[cat] ?? cat.charAt(0).toUpperCase()) + '###';
+    }
+
+    // ── Modal helpers ─────────────────────────────────────────────
+    function resetForm() {
+        TEXT_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (node) node.value = '';
+        });
+        // Nilai default yang tidak boleh kosong.
+        if (el('priority')) el('priority').value = 'Medium';
+        if (el('status'))   el('status').value   = 'Open';
+
+        DATE_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (node) node.value = '';
+            if (window._fpWricef && window._fpWricef[key]) window._fpWricef[key].clear();
+        });
+
+        const preview = document.getElementById('wricef_obj_id_preview');
+        if (preview) preview.value = '';
+    }
+
+    function openAdd() {
+        document.getElementById('wricefModalMode').value = 'create';
+        document.getElementById('wricefModalId').value   = '';
+        resetForm();
+        document.getElementById('wricefModalTitle').textContent = 'Add WRICEF';
+        onObjIdSourceChange();
+        document.getElementById('wricefModal').classList.remove('hidden');
+    }
+
+    function openEdit(id) {
+        const w = _rows.find(x => x.id === id);
+        if (!w) return;
+
+        document.getElementById('wricefModalMode').value = 'edit';
+        document.getElementById('wricefModalId').value   = id;
+        resetForm();
+        document.getElementById('wricefModalTitle').textContent = `Edit WRICEF — ${w.obj_id}`;
+
+        TEXT_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (!node) return;
+            const val = w[key] ?? '';
+            if (node.tagName === 'SELECT') {
+                setSelectValue(node, val === null ? '' : String(val));
+            } else {
+                node.value = val === null ? '' : val;
+            }
+        });
+
+        DATE_FIELDS.forEach(function (key) {
+            if (w[key] && window._fpWricef && window._fpWricef[key]) {
+                window._fpWricef[key].setDate(w[key], false, 'Y-m-d');
+            }
+        });
+
+        onObjIdSourceChange();
+        document.getElementById('wricefModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('wricefModal').classList.add('hidden');
+    }
+
+    // ── Save (create / update) ────────────────────────────────────
+    async function save() {
+        const mode = document.getElementById('wricefModalMode').value;
+
+        const val = key => (el(key)?.value ?? '').trim();
+
+        const sapModule = val('sap_module');
+        const category  = val('category');
+        const objName   = val('obj_name');
+
+        if (!sapModule) { showNotification('SAP Module is required.', 'error'); return; }
+        if (!category)  { showNotification('Category is required.', 'error'); return; }
+        if (!objName)   { showNotification('Obj Name is required.', 'error'); return; }
+
+        const effort = val('effort_mandays');
+
+        const payload = {
+            sap_module:     sapModule,
+            category:       category,
+            obj_name:       objName,
+            capability:     val('capability') || null,
+            tcode:          val('tcode') || null,
+            priority:       val('priority') || 'Medium',
+            requestor:      val('requestor') || null,
+            request_date:   val('request_date') || null,
+            effort_mandays: effort === '' ? null : Number(effort),
+            approved_by:    val('approved_by') || null,
+            approved_date:  val('approved_date') || null,
+            status:         val('status') || 'Open',
+
+            fsd_pic:     val('fsd_pic') || null,
+            fsd_start:   val('fsd_start') || null,
+            fsd_end:     val('fsd_end') || null,
+            fsd_status:  val('fsd_status') || null,
+            fsd_remarks: val('fsd_remarks') || null,
+
+            dev_pic:     val('dev_pic') || null,
+            dev_start:   val('dev_start') || null,
+            dev_end:     val('dev_end') || null,
+            dev_status:  val('dev_status') || null,
+            dev_remarks: val('dev_remarks') || null,
+
+            test_pic:     val('test_pic') || null,
+            test_start:   val('test_start') || null,
+            test_end:     val('test_end') || null,
+            test_status:  val('test_status') || null,
+            test_remarks: val('test_remarks') || null,
+
+            _token: getCsrf(),
+        };
+
+        const btn = document.getElementById('wricefModalSaveBtn');
+        if (!btn) return;
+        const orig = btn.innerHTML;
+        btn.disabled  = true;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>';
+
+        try {
+            let res;
+            if (mode === 'create') {
+                res = await axios.post(BASE_URL, payload);
+            } else {
+                const id = document.getElementById('wricefModalId').value;
+                res = await axios.put(`${BASE_URL}/${id}`, payload);
+            }
+            showNotification(res.data.message ?? 'Saved.', 'success');
+            closeModal();
+            await load();
+        } catch (e) {
+            let msg = 'Something went wrong. Please try again.';
+            if (e.response?.data?.errors) {
+                const first = Object.values(e.response.data.errors)[0];
+                msg = Array.isArray(first) ? first[0] : String(first);
+            } else if (e.response?.data?.message) {
+                msg = e.response.data.message;
+            }
+            showNotification(msg, 'error');
+        } finally {
+            btn.disabled  = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Delete ────────────────────────────────────────────────────
+    function openDeleteModal(id, label) {
+        document.getElementById('wricefDeleteId').value        = id;
+        document.getElementById('wricefDeleteLabel').textContent = label ?? '';
+        document.getElementById('wricefDeleteModal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('wricefDeleteModal').classList.add('hidden');
+    }
+
+    async function confirmDelete() {
+        const id = document.getElementById('wricefDeleteId').value;
+        if (!id) return;
+
+        const btn  = document.getElementById('wricefDeleteConfirmBtn');
+        const orig = btn.innerHTML;
+        btn.disabled  = true;
+        btn.innerHTML = 'Deleting…';
+
+        try {
+            // Lewat POST: verb DELETE diblokir edge/WAF di production.
+            const res = await axios.post(`${BASE_URL}/${id}/delete`, {}, {
+                headers: { 'X-CSRF-TOKEN': getCsrf() },
+            });
+            closeDeleteModal();
+            showNotification(res.data.message ?? 'Deleted.', 'success');
+            await load();
+        } catch (e) {
+            showNotification(e.response?.data?.message ?? 'Failed to delete.', 'error');
+        } finally {
+            btn.disabled  = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Auto-load on page ready ───────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () { load(); });
+
+    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, onObjIdSourceChange };
+})();
+</script>
+@endif
 
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- TERM OF PAYMENT (TOP) PLAN — JAVASCRIPT                        --}}
