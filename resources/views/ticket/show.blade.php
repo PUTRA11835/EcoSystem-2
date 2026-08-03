@@ -428,8 +428,13 @@
         $canTakeTicket     = $can('ticket.take') && !$ticketAssigned;
         $canAssignPic      = $can('ticket.assign-pic');
         $canAssignDelivery = $can('ticket.assign-delivery-support');
+        // Change Request tickets: only the ticket's team lead (not other members) may
+        // propose Customer Mandays. Head-level permission bypasses this restriction.
+        $isChangeRequestTicket  = $ticket->ticket_type === 'Change Request';
+        $isTicketTeamLead       = (int) $ticket->ticket_lead_id === (int) $user->id;
+        $canProposeCrMandays    = !$isChangeRequestTicket || $isTicketTeamLead || $isHead;
         // Mandays buttons only visible when ticket has a PIC
-        $isPicCustomerMandays   = $isPicCustomer   && $ticketAssigned;
+        $isPicCustomerMandays   = $isPicCustomer   && $ticketAssigned && $canProposeCrMandays;
         $isPicResolutionDays    = $isPicResolution && $ticketAssigned;
         $isHelpdeskMandays      = $isHelpdesk && $ticketAssigned;
         $isHeadMandays          = $isHead     && $ticketAssigned;
@@ -1696,9 +1701,12 @@
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
             <div class="text-xs text-gray-500">Total: <strong id="resolutionTotalDisplay">0</strong> days</div>
-            <div class="flex gap-2">
-                <button id="resolutionBtnSave" onclick="resolutionPicSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save</button>
-                <button id="resolutionBtnSubmit" onclick="resolutionPicSubmit()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Submit to Head</button>
+            <div class="flex flex-col items-end gap-1">
+                <p id="resolutionSubmitGateNote" class="hidden text-xs text-amber-600 text-right max-w-xs">Must fill &amp; submit Customer Mandays proposal (approved by Helpdesk) before submitting Resolution Days.</p>
+                <div class="flex gap-2">
+                    <button id="resolutionBtnSave" onclick="resolutionPicSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save</button>
+                    <button id="resolutionBtnSubmit" onclick="resolutionPicSubmit()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">Submit to Head</button>
+                </div>
             </div>
         </div>
     </div>
@@ -2125,8 +2133,8 @@
             </div>
         </div>
         <div id="headResolutionFooter" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
-            <p class="text-xs text-gray-400">Edit "Approved Days" / "Approve Add." then save to approve.</p>
-            <button id="headBtnApprove" onclick="headResolutionApprove()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+            <p id="headResolutionFooterHint" class="text-xs text-gray-400">Edit "Approved Days" / "Approve Add." then save to approve.</p>
+            <button id="headBtnApprove" onclick="headResolutionApprove()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
                 <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
                 Save Approval
             </button>
@@ -6741,8 +6749,20 @@
             resolutionPicData    = data.data;
             resolutionPicPeople  = data.people || [];
             const status       = data.resolution_days_status || 'none';
+            const customerMandaysStatus = data.customer_mandays_status || 'none';
 
             resolutionPicReadOnly = false; // consultant can always edit
+
+            // On Change Request tickets only: submitting to Head requires the Customer
+            // Mandays proposal to already be approved by Helpdesk — drafting/saving
+            // Resolution Days itself stays unrestricted. Other ticket types keep the
+            // original unrestricted submit flow.
+            const isChangeRequestTicket = document.getElementById('detailType')?.value === 'Change Request';
+            const submitBtn = document.getElementById('resolutionBtnSubmit');
+            const gateNote  = document.getElementById('resolutionSubmitGateNote');
+            const canSubmit = !isChangeRequestTicket || customerMandaysStatus === 'approved';
+            submitBtn.disabled = !canSubmit;
+            gateNote.classList.toggle('hidden', canSubmit);
 
             document.getElementById('resolutionNotes').value = resolutionPicData?.notes || '';
             document.getElementById('resolutionNotes').readOnly = false;
@@ -7485,7 +7505,22 @@
             }
 
             // Always show Save button when proposal exists (editable at any status)
-            document.getElementById('headBtnApprove').classList.remove('hidden');
+            const headApproveBtn = document.getElementById('headBtnApprove');
+            headApproveBtn.classList.remove('hidden');
+
+            // On Change Request tickets only: Head can only approve once the customer
+            // (not just Helpdesk) has approved the Customer Mandays proposal.
+            const isChangeRequestTicket = document.getElementById('detailType')?.value === 'Change Request';
+            const hintEl = document.getElementById('headResolutionFooterHint');
+            if (isChangeRequestTicket && !data.customer_mandays_customer_approved) {
+                headApproveBtn.disabled = true;
+                hintEl.textContent = 'Customer must approve the Customer Mandays proposal before Resolution Days can be approved.';
+                hintEl.className = 'text-xs text-amber-600';
+            } else {
+                headApproveBtn.disabled = false;
+                hintEl.textContent = 'Edit "Approved Days" / "Approve Add." then save to approve.';
+                hintEl.className = 'text-xs text-gray-400';
+            }
 
             document.getElementById('headResolutionContent').classList.remove('hidden');
         } catch(e) {

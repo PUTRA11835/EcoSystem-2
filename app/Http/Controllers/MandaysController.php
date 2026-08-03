@@ -61,6 +61,29 @@ class MandaysController extends Controller
         return null;
     }
 
+    /**
+     * For Change Request tickets, only the ticket's team lead (not other members) may
+     * propose Customer Mandays. Head-level permission bypasses this check.
+     */
+    private function denyUnlessTeamLeadForChangeRequest(Ticket $ticket): ?\Illuminate\Http\JsonResponse
+    {
+        if ($ticket->ticket_type !== 'Change Request') return null;
+
+        $empId = session('user')['id'] ?? null;
+        $employee = Employee::find($empId);
+
+        if ($employee?->canAccessMenu('ticket.head-mandays')) return null;
+
+        if ((int) $ticket->ticket_lead_id !== (int) $empId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'For Change Request tickets, only the team lead can propose customer mandays.',
+            ], 403);
+        }
+
+        return null;
+    }
+
     /** Return 403 if session user is neither a ticket participant nor has head-level mandays permission. */
     private function denyUnlessParticipantOrHead(Ticket $ticket, string $msg = 'You do not have access to this proposal.'): ?\Illuminate\Http\JsonResponse
     {
@@ -150,6 +173,10 @@ class MandaysController extends Controller
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
         if ($deny = $this->denyUnlessParticipant($ticket, 'Only the ticket PIC or a member can edit the customer mandays draft.')) {
+            return $deny;
+        }
+
+        if ($deny = $this->denyUnlessTeamLeadForChangeRequest($ticket)) {
             return $deny;
         }
 
@@ -247,6 +274,10 @@ class MandaysController extends Controller
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
         if ($deny = $this->denyUnlessParticipant($ticket, 'Only the ticket PIC or a member can submit the customer mandays proposal.')) {
+            return $deny;
+        }
+
+        if ($deny = $this->denyUnlessTeamLeadForChangeRequest($ticket)) {
             return $deny;
         }
 
@@ -692,11 +723,18 @@ class MandaysController extends Controller
 
         $internalStatus = $ticket->resolution_days_status ?? 'none';
 
+        $customerProposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+
         return response()->json([
-            'success'                 => true,
-            'data'                    => $proposal ? $this->formatResolutionProposal($proposal) : null,
-            'resolution_days_status' => $internalStatus,
-            'people'                  => $people,
+            'success'                            => true,
+            'data'                               => $proposal ? $this->formatResolutionProposal($proposal) : null,
+            'resolution_days_status'            => $internalStatus,
+            'customer_mandays_status'            => $ticket->mandays_proposal_status ?? 'none',
+            // Distinguishes Helpdesk-approved (status=approved, customer_response_at null) from
+            // actually customer-approved (customer_response_at set) — CR tickets require the
+            // latter before Head can approve Resolution Days.
+            'customer_mandays_customer_approved' => (bool) ($customerProposal && $customerProposal->status === 'approved' && $customerProposal->customer_response_at),
+            'people'                              => $people,
         ]);
     }
 
@@ -889,6 +927,20 @@ class MandaysController extends Controller
             return $deny;
         }
 
+        // Resolution Days can be drafted freely, but on Change Request tickets, submitting
+        // to Head requires the Customer Mandays proposal to already be approved by Helpdesk
+        // first — customer's own approval is not required at this point, only Helpdesk's.
+        // Other ticket types keep the original unrestricted flow.
+        if ($ticket->ticket_type === 'Change Request') {
+            $customerProposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+            if (!$customerProposal || $customerProposal->status !== 'approved') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Customer Mandays proposal must be approved by Helpdesk before submitting Resolution Days.',
+                ], 422);
+            }
+        }
+
         $proposal = ConsultantMandays::where('ticket_id', $ticketId)->latestPerTicket()->first();
 
         if (!$proposal || !in_array($proposal->status, ['draft', 'needs_revision', 'rejected', 'approved'])) {
@@ -947,6 +999,21 @@ class MandaysController extends Controller
         $saveable = ['draft', 'pending_approval', 'needs_revision', 'approved'];
         if (!$proposal || !in_array($proposal->status, $saveable)) {
             return response()->json(['success' => false, 'message' => 'No proposal to save.'], 422);
+        }
+
+        // On Change Request tickets only: Head can only approve Resolution Days once the
+        // Customer Mandays proposal has been approved by the CUSTOMER themselves (not just
+        // Helpdesk) — distinguished by customer_response_at being set. Team lead can keep
+        // editing the resolution proposal freely up until this point (saveResolutionProposal
+        // has no status gate), this only blocks the final Head approval action.
+        if ($ticket->ticket_type === 'Change Request') {
+            $customerProposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+            if (!$customerProposal || $customerProposal->status !== 'approved' || !$customerProposal->customer_response_at) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Customer Mandays proposal must be approved by the customer before Resolution Days can be approved.',
+                ], 422);
+            }
         }
 
         // PIC can keep editing this proposal right up until approval (see
