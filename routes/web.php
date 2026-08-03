@@ -8,6 +8,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\DeliveryProjectIssueController;
+use App\Http\Controllers\DeliveryProjectWricefController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\DeliveryProjectController;
@@ -378,6 +379,18 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::post('/projects/{project}/issues',          [DeliveryProjectIssueController::class, 'store'])->name('projects.issues.store');
         Route::delete('/projects/{project}/issues/{issue}',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy');
         Route::post('/projects/{project}/issues/{issue}/delete',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy.post');
+    });
+
+    // WRICEF Log routes (AJAX CRUD on the project detail page)
+    Route::get('/projects/{project}/wricefs',            [DeliveryProjectWricefController::class, 'apiIndex'])->name('projects.wricefs.index')->middleware('menu:delivery-project.wricef.view');
+    Route::middleware(['menu:delivery-project.wricef.edit', 'project.editable'])->group(function () {
+        Route::put('/projects/{project}/wricefs/{wricef}', [DeliveryProjectWricefController::class, 'update'])->name('projects.wricefs.update');
+    });
+    Route::middleware(['menu:delivery-project.wricef.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/wricefs',                  [DeliveryProjectWricefController::class, 'store'])->name('projects.wricefs.store');
+        Route::delete('/projects/{project}/wricefs/{wricef}',       [DeliveryProjectWricefController::class, 'destroy'])->name('projects.wricefs.destroy');
+        // Verb DELETE diblokir edge/WAF di production — sediakan jalur POST.
+        Route::post('/projects/{project}/wricefs/{wricef}/delete',  [DeliveryProjectWricefController::class, 'destroy'])->name('projects.wricefs.destroy.post');
     });
 
     // Profile routes

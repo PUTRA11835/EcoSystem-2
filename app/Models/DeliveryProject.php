@@ -102,6 +102,11 @@ class DeliveryProject extends Model
                     ->orderBy('issue_number');
     }
 
+    public function wricefs() {
+        return $this->hasMany(DeliveryProjectWricef::class, 'delivery_projects_id')
+                    ->orderBy('obj_id');
+    }
+
     public function activities() {
         return $this->hasMany(DeliveryProjectActivity::class, 'delivery_projects_id');
     }
