@@ -67,6 +67,8 @@ class Ticket extends Model
         'onedrive_link_checked_at',
         // Visibility
         'is_hidden',
+        // false = tiket internal EcoSystem, tidak ditampilkan ke customer di JARVIES
+        'visible_to_customer',
     ];
 
     protected $casts = [
@@ -84,6 +86,7 @@ class Ticket extends Model
         'last_internal_note_sender_id' => 'integer',
         'cc_emails'                    => 'array',
         'to_emails'                    => 'array',
+        'visible_to_customer'          => 'boolean',
     ];
 
     public function customer()

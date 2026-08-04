@@ -8,6 +8,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\DeliveryProjectIssueController;
+use App\Http\Controllers\DeliveryProjectWricefController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\DeliveryProjectController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\DeliveryProjectDataController;
 use App\Http\Controllers\DeliveryProjectStageManagementController;
 use App\Http\Controllers\DeliveryProjectPlanningExportController;
 use App\Http\Controllers\DeliveryProjectPlanningImportController;
+use App\Http\Controllers\DeliveryProjectPlanningResetController;
 use App\Http\Controllers\DeliveryProjectRiskController;
 use App\Http\Controllers\DeliveryProjectPaymentTermController;
 use App\Http\Controllers\AttachmentController;
@@ -379,6 +381,18 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::post('/projects/{project}/issues/{issue}/delete',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy.post');
     });
 
+    // WRICEF Log routes (AJAX CRUD on the project detail page)
+    Route::get('/projects/{project}/wricefs',            [DeliveryProjectWricefController::class, 'apiIndex'])->name('projects.wricefs.index')->middleware('menu:delivery-project.wricef.view');
+    Route::middleware(['menu:delivery-project.wricef.edit', 'project.editable'])->group(function () {
+        Route::put('/projects/{project}/wricefs/{wricef}', [DeliveryProjectWricefController::class, 'update'])->name('projects.wricefs.update');
+    });
+    Route::middleware(['menu:delivery-project.wricef.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/wricefs',                  [DeliveryProjectWricefController::class, 'store'])->name('projects.wricefs.store');
+        Route::delete('/projects/{project}/wricefs/{wricef}',       [DeliveryProjectWricefController::class, 'destroy'])->name('projects.wricefs.destroy');
+        // Verb DELETE diblokir edge/WAF di production — sediakan jalur POST.
+        Route::post('/projects/{project}/wricefs/{wricef}/delete',  [DeliveryProjectWricefController::class, 'destroy'])->name('projects.wricefs.destroy.post');
+    });
+
     // Profile routes
     Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index')->middleware('menu:tickets.staging');
     Route::get('/staging-tickets/rejected', [StagingTicketController::class, 'viewRejected'])->name('staging.rejected');
@@ -493,6 +507,13 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::prefix('import')->name('import.')->group(function () {
             Route::get('/template', [DeliveryProjectPlanningImportController::class, 'template'])->name('template');
             Route::post('/', [DeliveryProjectPlanningImportController::class, 'import'])->name('store')->middleware('menu:delivery-project.planning.manage');
+        });
+
+        // Reset — wipe the whole planning structure (bad import / major restructure).
+        // POST rather than DELETE: the production edge blocks the DELETE verb.
+        Route::prefix('reset')->name('reset.')->middleware('menu:delivery-project.planning.manage')->group(function () {
+            Route::get('/preview', [DeliveryProjectPlanningResetController::class, 'preview'])->name('preview');
+            Route::post('/', [DeliveryProjectPlanningResetController::class, 'destroyAll'])->name('destroy-all');
         });
     });
 

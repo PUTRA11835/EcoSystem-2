@@ -423,6 +423,17 @@ class CustomerContactController extends Controller
         DB::beginTransaction();
         try {
             $customer = DB::table('customer')->where('customer_id', $customerId)->first();
+
+            // Jarvies adalah portal sisi customer — contact person milik business
+            // partner bertipe Vendor tidak boleh diberi akses login.
+            if ($customer && ($customer->type ?? \App\Models\Customer::TYPE_CUSTOMER) !== \App\Models\Customer::TYPE_CUSTOMER) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Login access is only available for business partners with type Customer.',
+                ], 422);
+            }
+
             $customerCode = $customer->customer_code ?? 'CP';
             $namePart = Str::slug($contact->full_name ?? $contactId, '');
             $username = strtolower($customerCode . '_' . $namePart);

@@ -1,8 +1,8 @@
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- FINANCIAL + PLAN COST + TOP — SCRIPTS (mirror Delivery Project) --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+{{-- Flatpickr + HolidayCalendar (header bulan statis, weekend/libur disabled) --}}
+@include('delivery.partials.holiday-flatpickr')
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
 {{-- ── Financial (Sales Data) auto-calc ─────────────────────────── --}}
@@ -1197,14 +1197,16 @@ window.SupportPaymentTermPlan = (function () {
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        // Flatpickr date pickers (Y-m-d value, friendly display)
-        if (window.flatpickr) {
-            const cfg = { dateFormat: 'Y-m-d', altInput: true, altFormat: 'd M Y', allowInput: true };
-            window._fpSupPtEstimated     = flatpickr(document.getElementById('pt_estimated_date'), cfg);
-            window._fpSupPtSubmitInvoice = flatpickr(document.getElementById('pt_submit_invoice_date'), Object.assign({}, cfg, {
-                onChange: toggleInvoiceRequired,
-            }));
-            window._fpSupPtPaid          = flatpickr(document.getElementById('pt_paid_date'), cfg);
+        // Date pickers — pakai HolidayCalendar (sama dengan Delivery Project):
+        // header bulan statis, weekend + libur nasional merah & non-selectable.
+        if (window.HolidayCalendar) {
+            window.HolidayCalendar.load().then(function () {
+                window._fpSupPtEstimated     = HolidayCalendar.initPicker(document.getElementById('pt_estimated_date'));
+                window._fpSupPtSubmitInvoice = HolidayCalendar.initPicker(document.getElementById('pt_submit_invoice_date'), {
+                    onChange: toggleInvoiceRequired,
+                });
+                window._fpSupPtPaid          = HolidayCalendar.initPicker(document.getElementById('pt_paid_date'));
+            });
         }
         load();
     });

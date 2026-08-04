@@ -34,6 +34,15 @@ class SlaController extends Controller
         return (bool) $employee?->hasPermission('sla.report');
     }
 
+    // Akses SLA Log per-tiket: dari halaman SLA Report (sla.report) ATAU dari tombol
+    // "Log SLA" di room chat tiket (ticket.sla-log) — dua menu terpisah di Role
+    // Management supaya bisa diatur independen.
+    private function assertSlaLogAccess(): bool
+    {
+        $employee = Employee::find(session('user.id'));
+        return (bool) ($employee?->hasPermission('sla.report') || $employee?->hasPermission('ticket.sla-log'));
+    }
+
     // Diatur lewat Role Management (menu slug: sla.config), bukan role hardcode,
     // supaya role apa pun bisa diberi/dicabut akses kelola SLA Policy dari UI Role Management.
     private function canManagePolicies(): bool
@@ -61,7 +70,7 @@ class SlaController extends Controller
 
     public function reportPage()
     {
-        $customers = \App\Models\Customer::with('basicData')->where('is_active', true)->get();
+        $customers = \App\Models\Customer::with('basicData')->customers()->where('is_active', true)->get();
         return view('admin.sla.report', compact('customers'));
     }
 
@@ -206,6 +215,10 @@ class SlaController extends Controller
 
     public function getTicketSla($id)
     {
+        if (!$this->assertSlaLogAccess()) {
+            abort(403);
+        }
+
         $ticket = Ticket::with([
             'sla.policy',
             'sla.events' => fn ($q) => $q->orderBy('event_at'),
@@ -658,7 +671,7 @@ class SlaController extends Controller
 
     public function downloadLogPdf($id)
     {
-        if (!$this->assertSlaAccess()) {
+        if (!$this->assertSlaLogAccess()) {
             abort(403);
         }
 

@@ -13,13 +13,8 @@
         window.currentSupportId = {{ $support->id }};
     </script>
 
-    {{-- Flash Notifications --}}
-    @if(session('success'))
-        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('success')),'success'));</script>
-    @endif
-    @if(session('error'))
-        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('error')),'error'));</script>
-    @endif
+    {{-- Flash success/error toast sudah ditampilkan layout dashboard.blade.php.
+         Jangan diulang di sini: toast jadi dobel. --}}
 
     {{-- Tab Navigation --}}
     <div class="mb-6 bg-white rounded-lg shadow-sm border border-gray-200">

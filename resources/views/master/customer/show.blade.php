@@ -1,7 +1,7 @@
 @extends('dashboard')
 
-@section('title', 'Customer Detail')
-@section('page-title', 'Customer Detail - ' . ($customer->basicData->name_1 ?? 'N/A'))
+@section('title', 'Business Partner Detail')
+@section('page-title', 'Business Partner Detail - ' . ($customer->basicData->name_1 ?? 'N/A'))
 
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -64,6 +64,10 @@
                     <div>
                         <p class="text-gray-500">Customer Code</p>
                         <p id="headerCustomerCode" class="font-semibold text-gray-900">{{ $customer->customer_code ?? 'N/A' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">Type</p>
+                        <p id="headerType" class="font-semibold text-gray-900">{{ $customer->type ?? 'Customer' }}</p>
                     </div>
                     <div>
                         <p class="text-gray-500">Email</p>
@@ -274,6 +278,7 @@
             badge.textContent = d.status_label;
             badge.className   = 'inline-block px-4 py-2 text-sm font-semibold rounded-full ' + d.status_class;
             document.getElementById('headerCustomerCode').textContent     = d.customer_code     || 'N/A';
+            document.getElementById('headerType').textContent             = d.type             || 'Customer';
             document.getElementById('headerEmail').textContent            = d.email             || 'N/A';
             document.getElementById('headerPhone').textContent            = d.phone             || 'N/A';
             document.getElementById('headerCustomerGroup').textContent    = d.customer_group    || 'N/A';
@@ -306,6 +311,7 @@
                 // basicData by the show() endpoint. setValue is no-op if id absent.
                 setValue('customerDomain', basicData.domain);
                 setValue('companyEmail', basicData.email);
+                setSelect('partnerType', basicData.type || 'Customer');
 
                 // General Information
                 setValue('title', basicData.title);
@@ -355,6 +361,7 @@
     async function saveCustomerBasicData(customerId) {
         const basicData = {
             customer_code: getValue('customerCode').toUpperCase(),
+            type: getValue('partnerType') || 'Customer',
             domain: getValue('customerDomain'),
             email: getValue('companyEmail'),
             title: getValue('title'),

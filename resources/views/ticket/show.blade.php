@@ -175,6 +175,13 @@
                 Credential
             </button>
             @endif
+            @if($can('ticket.sla-log'))
+            <button onclick="openSlaLogModal()"
+                title="Log SLA"
+                class="ml-2 flex-shrink-0 h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
+                <i class="fas fa-history text-xs"></i> Log SLA
+            </button>
+            @endif
             {{-- Toggle right panel --}}
             <button id="toggleRightPanelBtn" onclick="toggleRightPanel()" title="Toggle Properties Panel"
                 class="ml-2 flex-shrink-0 w-9 h-9 hidden xl:flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
@@ -428,8 +435,13 @@
         $canTakeTicket     = $can('ticket.take') && !$ticketAssigned;
         $canAssignPic      = $can('ticket.assign-pic');
         $canAssignDelivery = $can('ticket.assign-delivery-support');
+        // Change Request tickets: only the ticket's team lead (not other members) may
+        // propose Customer Mandays. Head-level permission bypasses this restriction.
+        $isChangeRequestTicket  = $ticket->ticket_type === 'Change Request';
+        $isTicketTeamLead       = (int) $ticket->ticket_lead_id === (int) $user->id;
+        $canProposeCrMandays    = !$isChangeRequestTicket || $isTicketTeamLead || $isHead;
         // Mandays buttons only visible when ticket has a PIC
-        $isPicCustomerMandays   = $isPicCustomer   && $ticketAssigned;
+        $isPicCustomerMandays   = $isPicCustomer   && $ticketAssigned && $canProposeCrMandays;
         $isPicResolutionDays    = $isPicResolution && $ticketAssigned;
         $isHelpdeskMandays      = $isHelpdesk && $ticketAssigned;
         $isHeadMandays          = $isHead     && $ticketAssigned;
@@ -837,6 +849,16 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
+                {{-- Penanda tiket internal: dibuat dari EcoSystem, tidak tampil di Jarvies --}}
+                @if(!$ticket->visible_to_customer)
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Visibility</label>
+                    <p class="text-xs text-amber-800 px-2.5 py-1.5 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-1.5">
+                        <i class="fas fa-user-slash text-xs mt-0.5"></i>
+                        <span>Tiket internal — tidak ditampilkan ke customer di Jarvies.</span>
+                    </p>
+                </div>
+                @endif
                 {{-- Hide / Unhide Ticket --}}
                 @if($can('ticket.hide'))
                 <div class="pt-3 border-t border-gray-200">
@@ -1696,9 +1718,12 @@
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
             <div class="text-xs text-gray-500">Total: <strong id="resolutionTotalDisplay">0</strong> days</div>
-            <div class="flex gap-2">
-                <button id="resolutionBtnSave" onclick="resolutionPicSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save</button>
-                <button id="resolutionBtnSubmit" onclick="resolutionPicSubmit()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Submit to Head</button>
+            <div class="flex flex-col items-end gap-1">
+                <p id="resolutionSubmitGateNote" class="hidden text-xs text-amber-600 text-right max-w-xs">Must fill &amp; submit Customer Mandays proposal (approved by Helpdesk) before submitting Resolution Days.</p>
+                <div class="flex gap-2">
+                    <button id="resolutionBtnSave" onclick="resolutionPicSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save</button>
+                    <button id="resolutionBtnSubmit" onclick="resolutionPicSubmit()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">Submit to Head</button>
+                </div>
             </div>
         </div>
     </div>
@@ -2125,8 +2150,8 @@
             </div>
         </div>
         <div id="headResolutionFooter" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
-            <p class="text-xs text-gray-400">Edit "Approved Days" / "Approve Add." then save to approve.</p>
-            <button id="headBtnApprove" onclick="headResolutionApprove()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+            <p id="headResolutionFooterHint" class="text-xs text-gray-400">Edit "Approved Days" / "Approve Add." then save to approve.</p>
+            <button id="headBtnApprove" onclick="headResolutionApprove()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
                 <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
                 Save Approval
             </button>
@@ -6741,8 +6766,20 @@
             resolutionPicData    = data.data;
             resolutionPicPeople  = data.people || [];
             const status       = data.resolution_days_status || 'none';
+            const customerMandaysStatus = data.customer_mandays_status || 'none';
 
             resolutionPicReadOnly = false; // consultant can always edit
+
+            // On Change Request tickets only: submitting to Head requires the Customer
+            // Mandays proposal to already be approved by Helpdesk — drafting/saving
+            // Resolution Days itself stays unrestricted. Other ticket types keep the
+            // original unrestricted submit flow.
+            const isChangeRequestTicket = document.getElementById('detailType')?.value === 'Change Request';
+            const submitBtn = document.getElementById('resolutionBtnSubmit');
+            const gateNote  = document.getElementById('resolutionSubmitGateNote');
+            const canSubmit = !isChangeRequestTicket || customerMandaysStatus === 'approved';
+            submitBtn.disabled = !canSubmit;
+            gateNote.classList.toggle('hidden', canSubmit);
 
             document.getElementById('resolutionNotes').value = resolutionPicData?.notes || '';
             document.getElementById('resolutionNotes').readOnly = false;
@@ -7485,7 +7522,22 @@
             }
 
             // Always show Save button when proposal exists (editable at any status)
-            document.getElementById('headBtnApprove').classList.remove('hidden');
+            const headApproveBtn = document.getElementById('headBtnApprove');
+            headApproveBtn.classList.remove('hidden');
+
+            // On Change Request tickets only: Head can only approve once the customer
+            // (not just Helpdesk) has approved the Customer Mandays proposal.
+            const isChangeRequestTicket = document.getElementById('detailType')?.value === 'Change Request';
+            const hintEl = document.getElementById('headResolutionFooterHint');
+            if (isChangeRequestTicket && !data.customer_mandays_customer_approved) {
+                headApproveBtn.disabled = true;
+                hintEl.textContent = 'Customer must approve the Customer Mandays proposal before Resolution Days can be approved.';
+                hintEl.className = 'text-xs text-amber-600';
+            } else {
+                headApproveBtn.disabled = false;
+                hintEl.textContent = 'Edit "Approved Days" / "Approve Add." then save to approve.';
+                hintEl.className = 'text-xs text-gray-400';
+            }
 
             document.getElementById('headResolutionContent').classList.remove('hidden');
         } catch(e) {
@@ -7938,6 +7990,251 @@
         </div>
     </div>
 </div>
+
+@if($can('ticket.sla-log'))
+{{-- ==================== SLA LOG MODAL ==================== --}}
+<div id="slaLogModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4" onclick="if(event.target===this)closeSlaLogModal()">
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+        <div class="flex-shrink-0 bg-white border-b border-gray-100">
+            <div class="flex items-center justify-between px-6 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                        <i class="fas fa-history text-gray-500 text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800">SLA Log</h3>
+                        <p class="text-xs text-gray-400 mt-0.5">Ticket <span class="font-mono font-semibold text-gray-600">{{ $ticket->ticket_number }}</span></p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="refreshSlaLogModal()" title="Refresh SLA Log"
+                        class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 bg-white px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                        <i class="fas fa-sync-alt text-xs" id="slaLogRefreshIcon"></i> Refresh
+                    </button>
+                    <a href="{{ route('sla.ticket.log-pdf', $ticket->ticket_id) }}" target="_blank" title="Download SLA Log PDF"
+                        class="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                        <i class="fas fa-file-pdf text-xs"></i> Download PDF
+                    </a>
+                    <button onclick="closeSlaLogModal()"
+                        class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
+                        <i class="fas fa-times text-sm"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="slaLogStatsBar" class="hidden px-6 pb-4">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                        <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Response</p>
+                        <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaLogStatResponseVal">—</p>
+                        <p class="text-[10px] mt-0.5" id="slaLogStatResponseStatus"></p>
+                    </div>
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                        <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Resolution</p>
+                        <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaLogStatResolutionVal">—</p>
+                        <p class="text-[10px] mt-0.5" id="slaLogStatResolutionStatus"></p>
+                    </div>
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                        <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Waiting</p>
+                        <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaLogStatWaitingVal">—</p>
+                        <p class="text-[10px] text-gray-400 mt-0.5">total pause time</p>
+                    </div>
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                        <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Ball Holder</p>
+                        <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaLogStatBallHolder">—</p>
+                        <p class="text-[10px] text-gray-400 mt-0.5" id="slaLogStatBallHolderSub"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="slaLogContent" class="overflow-auto flex-1 bg-gray-50/30">
+            <div class="flex items-center justify-center h-32 text-gray-300">
+                <i class="fas fa-spinner fa-spin text-3xl"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const SLA_LOG_STATUS_CFG = {
+    'pending_validation': { label:'Pending Val.' },
+    'pending':            { label:'Active' },
+    'paused':             { label:'Paused' },
+    'met':                { label:'Terpenuhi' },
+    'breached':           { label:'Dilanggar' },
+};
+const SLA_LOG_EVENT_CFG = {
+    'email_received':       { icon:'fa-envelope',             color:'text-indigo-500', bg:'bg-indigo-50'  },
+    'ticket_validated':     { icon:'fa-check-circle',         color:'text-green-500',  bg:'bg-green-50'   },
+    'agent_replied':        { icon:'fa-comment-dots',         color:'text-blue-500',   bg:'bg-blue-50'    },
+    'customer_replied':     { icon:'fa-reply',                color:'text-orange-500', bg:'bg-orange-50'  },
+    'sla_warning':          { icon:'fa-exclamation-triangle', color:'text-yellow-500', bg:'bg-yellow-50'  },
+    'sla_breached':         { icon:'fa-times-circle',         color:'text-red-500',    bg:'bg-red-50'     },
+    'ticket_closed':        { icon:'fa-check-double',         color:'text-gray-500',   bg:'bg-gray-100'   },
+    'meeting_started':      { icon:'fa-video',                color:'text-violet-500', bg:'bg-violet-50'  },
+    'meeting_ended':        { icon:'fa-video-slash',          color:'text-gray-400',   bg:'bg-gray-50'    },
+    'escalated_to_sap':     { icon:'fa-arrow-circle-up',      color:'text-purple-500', bg:'bg-purple-50'  },
+    'escalated_to_support': { icon:'fa-undo',                 color:'text-teal-500',   bg:'bg-teal-50'    },
+};
+
+function slaLogFmtDT(dt) {
+    if (!dt) return '—';
+    return dt.substring(0, 16).replace('T', ' ');
+}
+function slaLogFmtHHMM(h) {
+    if (h === null || h === undefined) return '—';
+    const totalMins = Math.round(parseFloat(h) * 60);
+    const hh = Math.floor(totalMins / 60);
+    const mm = totalMins % 60;
+    return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+}
+function slaLogEscHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+}
+
+function openSlaLogModal() {
+    document.getElementById('slaLogStatsBar').classList.add('hidden');
+    document.getElementById('slaLogContent').innerHTML =
+        '<div class="flex items-center justify-center h-32 text-gray-300"><i class="fas fa-spinner fa-spin text-3xl"></i></div>';
+    const modal = document.getElementById('slaLogModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    _loadSlaLogData();
+}
+
+function closeSlaLogModal() {
+    const modal = document.getElementById('slaLogModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+}
+
+async function refreshSlaLogModal() {
+    const icon = document.getElementById('slaLogRefreshIcon');
+    icon?.classList.add('fa-spin');
+    await _loadSlaLogData();
+    icon?.classList.remove('fa-spin');
+}
+
+async function _loadSlaLogData() {
+    try {
+        const res  = await fetch(`/api/tickets/${ticketId}/sla`, { credentials: 'include' });
+        const json = await res.json();
+        if (!json.success || !json.data) {
+            document.getElementById('slaLogContent').innerHTML =
+                '<p class="text-center text-gray-400 text-sm p-8">Tidak ada data SLA untuk tiket ini.</p>';
+            return;
+        }
+
+        const d     = json.data;
+        const resp  = d.response;
+        const resol = d.resolution;
+
+        if (resp) {
+            const rStat  = resp.status;
+            const rColor = rStat === 'met' ? 'text-green-600' : rStat === 'breached' ? 'text-red-600' : 'text-blue-600';
+            document.getElementById('slaLogStatResponseVal').innerHTML =
+                `<span class="${rColor}">${resp.actual_hours !== null ? slaLogFmtHHMM(resp.actual_hours) : '—'}</span>`;
+            document.getElementById('slaLogStatResponseStatus').textContent =
+                `${SLA_LOG_STATUS_CFG[rStat]?.label || rStat} / ${resp.target_hours ?? '—'} jam target`;
+            document.getElementById('slaLogStatResponseStatus').className = `text-[10px] mt-0.5 ${rColor}`;
+        }
+        if (resol) {
+            const sStat  = resol.status;
+            const sColor = sStat === 'met' ? 'text-green-600' : sStat === 'breached' ? 'text-red-600' : 'text-blue-600';
+            document.getElementById('slaLogStatResolutionVal').innerHTML =
+                `<span class="${sColor}">${resol.actual_hours !== null ? slaLogFmtHHMM(resol.actual_hours) : '—'}</span>`;
+            document.getElementById('slaLogStatResolutionStatus').textContent =
+                `${SLA_LOG_STATUS_CFG[sStat]?.label || sStat} / ${resol.target_hours ?? '—'} jam target`;
+            document.getElementById('slaLogStatResolutionStatus').className = `text-[10px] mt-0.5 ${sColor}`;
+        }
+        document.getElementById('slaLogStatWaitingVal').textContent =
+            resol?.waiting_hours != null ? slaLogFmtHHMM(resol.waiting_hours) : '—';
+
+        const ballCfg = {
+            helpdesk: { label:'Helpdesk',        sub:'Waiting for agent'   },
+            customer: { label:'Customer',        sub:'Waiting for customer'},
+            sap:      { label:'SAP / 3rd Party', sub:'Escalated'           },
+            meeting:  { label:'Meeting',         sub:'On hold - meeting'   },
+        };
+        const bc = ballCfg[d.ball_holder] || { label: d.ball_holder, sub: '' };
+        document.getElementById('slaLogStatBallHolder').textContent    = bc.label;
+        document.getElementById('slaLogStatBallHolderSub').textContent = bc.sub;
+        document.getElementById('slaLogStatsBar').classList.remove('hidden');
+
+        const events = d.events || [];
+        if (!events.length) {
+            document.getElementById('slaLogContent').innerHTML =
+                '<p class="text-center text-gray-400 text-sm p-8">Belum ada event SLA tercatat.</p>';
+            return;
+        }
+
+        const rows = events.map(ev => {
+            const cfg = SLA_LOG_EVENT_CFG[ev.event_type] || { icon:'fa-circle', color:'text-gray-400', bg:'bg-gray-100' };
+            const waitBadge = ev.waiting_hours != null
+                ? `<span class="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full ml-1">${slaLogFmtHHMM(ev.waiting_hours)} wait</span>`
+                : '';
+            const respBadge = ev.response_hours != null
+                ? `<span class="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full ml-1">${slaLogFmtHHMM(ev.response_hours)} resp</span>`
+                : '';
+            const resBadge = ev.resolution_hours != null
+                ? `<span class="text-[10px] font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full ml-1">${slaLogFmtHHMM(ev.resolution_hours)} res</span>`
+                : '';
+            const preview = ev.message_preview
+                ? `<p class="text-[10px] text-gray-400 mt-1 italic truncate max-w-xs">"${slaLogEscHtml(ev.message_preview)}"</p>`
+                : '';
+            const ball = ev.ball_after
+                ? `<span class="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded ml-1">→ ${slaLogEscHtml(ev.ball_after)}</span>`
+                : '';
+
+            return `<tr class="border-b border-gray-50 hover:bg-gray-50/50">
+                <td class="px-4 py-3 text-[10px] text-gray-400 whitespace-nowrap">${slaLogFmtDT(ev.event_at)}</td>
+                <td class="px-4 py-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full ${cfg.bg} flex items-center justify-center flex-shrink-0">
+                            <i class="fas ${cfg.icon} text-[9px] ${cfg.color}"></i>
+                        </span>
+                        <div>
+                            <p class="text-xs font-medium text-gray-700">${slaLogEscHtml(ev.label || ev.event_type)}${ball}</p>
+                            ${ev.sender_name ? `<p class="text-[10px] text-gray-400">${slaLogEscHtml(ev.sender_name)}</p>` : ''}
+                            ${preview}
+                        </div>
+                    </div>
+                </td>
+                <td class="px-4 py-3 text-[10px] text-gray-500">${ev.jarvis_status ? `<span class="bg-gray-100 px-2 py-0.5 rounded font-mono">${slaLogEscHtml(ev.jarvis_status)}</span>` : '—'}</td>
+                <td class="px-4 py-3">${waitBadge || '—'}</td>
+                <td class="px-4 py-3">${respBadge || '—'}</td>
+                <td class="px-4 py-3">${resBadge || '—'}</td>
+                <td class="px-4 py-3 text-[10px] text-gray-400 max-w-[180px] truncate">${ev.notes ? slaLogEscHtml(ev.notes) : '—'}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('slaLogContent').innerHTML = `
+            <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead>
+                    <tr class="border-b border-gray-100 bg-gray-50/80 sticky top-0">
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Waktu</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Event</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Status Jarvis</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Waiting</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Response</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Resolution</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+            </div>`;
+    } catch (e) {
+        document.getElementById('slaLogContent').innerHTML =
+            '<p class="text-center text-red-400 text-sm p-8">Gagal memuat data SLA.</p>';
+    }
+}
+</script>
+@endif
 
 {{-- ==================== DELIVERABLE MODAL ==================== --}}
 <div id="deliverableModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

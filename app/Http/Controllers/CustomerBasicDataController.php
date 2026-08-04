@@ -35,7 +35,7 @@ class CustomerBasicDataController extends Controller
             // save tanpa harus full reload.
             $customerCols = DB::table('customer')
                 ->where('customer_id', $customerId)
-                ->select('customer_code', 'domain', 'email', 'customer_group_id', 'parent_customer_id')
+                ->select('customer_code', 'type', 'domain', 'email', 'customer_group_id', 'parent_customer_id')
                 ->first();
 
             if (!$basicData) {
@@ -45,6 +45,7 @@ class CustomerBasicDataController extends Controller
                     'message' => 'No basic data found',
                     'data'    => $customerCols ? (object) [
                         'customer_code'      => $customerCols->customer_code,
+                        'type'               => $customerCols->type,
                         'domain'             => $customerCols->domain,
                         'email'              => $customerCols->email,
                         'customer_group_id'  => $customerCols->customer_group_id,
@@ -57,6 +58,7 @@ class CustomerBasicDataController extends Controller
             // setValue('customerDomain', basicData.domain) tanpa join terpisah.
             if ($customerCols) {
                 $basicData->customer_code      = $customerCols->customer_code;
+                $basicData->type               = $customerCols->type;
                 $basicData->domain             = $customerCols->domain;
                 $basicData->email              = $customerCols->email;
                 $basicData->customer_group_id  = $customerCols->customer_group_id;
@@ -99,6 +101,7 @@ class CustomerBasicDataController extends Controller
 
         $validator = Validator::make($request->all(), [
             'customer_code'        => ['sometimes', 'required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/', 'unique:customer,customer_code,' . $customerId . ',customer_id'],
+            'type'                 => ['sometimes', 'required', \Illuminate\Validation\Rule::in(\App\Models\Customer::TYPES)],
             'email'                => 'nullable|email|max:255|unique:customer,email,' . $customerId . ',customer_id',
             'domain'               => 'nullable|string|max:255',
             'name_1'               => 'required|string|max:255',
@@ -121,6 +124,7 @@ class CustomerBasicDataController extends Controller
         ], [
             'customer_code.regex' => 'Customer code may only contain letters and numbers.',
             'customer_code.unique'=> 'This customer code is already in use.',
+            'type.in'             => 'Type must be either Customer or Vendor.',
         ]);
 
         if ($validator->fails()) {
@@ -149,6 +153,13 @@ class CustomerBasicDataController extends Controller
                 DB::table('customer')
                     ->where('customer_id', $customerId)
                     ->update(['customer_code' => strtoupper($request->customer_code)]);
+            }
+
+            // Business Partner type (Customer / Vendor) — kolom di tabel `customer`.
+            if ($request->filled('type')) {
+                DB::table('customer')
+                    ->where('customer_id', $customerId)
+                    ->update(['type' => $request->type]);
             }
 
             // Update domain on the customer table if the field was sent

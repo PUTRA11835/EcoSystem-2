@@ -1,18 +1,18 @@
 ﻿@extends('dashboard')
 
-@section('title', 'Master Customer')
-@section('page-title', 'Customer Management')
+@section('title', 'Master Business Partner')
+@section('page-title', 'Business Partner Management')
 
 @section('content')
 <div class="bg-white rounded-xl p-6 shadow-sm">
     <!-- Page Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-gray-100">
-        <h2 class="text-2xl font-bold text-gray-900">Customer Management</h2>
+        <h2 class="text-2xl font-bold text-gray-900">Business Partner Management</h2>
     </div>
 
     <!-- Filter Section -->
     <div class="bg-gray-50 rounded-lg p-5 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Status</label>
                 {{-- Markup custom-dd disamakan persis dengan Employee Management
@@ -31,8 +31,25 @@
                     </div>
                 </div>
             </div>
+            {{-- Filter Type (Business Partner: Customer / Vendor). Markup custom-dd
+                 disamakan dengan filter Status di atas. --}}
             <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Customer</label>
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Type</label>
+                <div class="custom-dd relative" data-onchange="applyFilters">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">All Type</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="filterType" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Type</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Customer">Customer</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Vendor">Vendor</button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-col">
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Business Partner</label>
                 <input type="text" id="filterCustomer" placeholder="Search by email or company name..." oninput="debouncedApplyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
             </div>
             <div class="flex flex-col">
@@ -53,7 +70,7 @@
     <!-- Table Section -->
     <div class="mt-6">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">Customer List</h3>
+            <h3 class="text-lg font-semibold text-gray-900">Business Partner List</h3>
             <div class="flex items-center gap-2">
                 <a href="{{ route('master.customer.grouping') }}" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1.5">
@@ -63,7 +80,7 @@
                 </a>
                 @if($can('master.customer.create'))
                 <button onclick="openCreateModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                    Create Customer
+                    Create Business Partner
                 </button>
                 @endif
             </div>
@@ -75,6 +92,7 @@
                     <tr>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Email</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Company Name</th>
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Type</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Customer Group</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Customer Category</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Industry Sector</th>
@@ -93,12 +111,12 @@
     </div>
 </div>
 
-<!-- SIMPLIFIED Modal Create Customer - Only Essential Fields -->
+<!-- SIMPLIFIED Modal Create Business Partner - Only Essential Fields -->
 <div id="customerModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         <!-- Modal Header -->
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
-            <h3 id="modalTitle" class="text-xl font-bold text-gray-900">Create Customer</h3>
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-900">Create Business Partner</h3>
             <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -122,6 +140,24 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                             </svg>
                             <span>Login access is managed per <strong>Contact Person</strong> — go to the Contact tab after saving to grant Jarvies access.</span>
+                        </div>
+
+                        {{-- Type Business Partner. Wajib: menentukan data ini muncul
+                             sebagai Customer (klien) atau Vendor di modul lain. --}}
+                        <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Type <span class="text-red-600">*</span></label>
+                            <div class="custom-dd relative" id="ddPartnerType" data-fixed="true" data-onchange="onPartnerTypeChange">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-600">Customer</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="partnerType" value="Customer" required>
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="Customer">Customer</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="Vendor">Vendor</button>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-400 mt-1">Vendors are selectable as the Vendor of a delivery support; customers as the client.</span>
                         </div>
 
                         <div class="flex flex-col">
@@ -340,8 +376,8 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                 </svg>
             </div>
-            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Delete Customer</h3>
-            <p class="text-sm text-gray-600 text-center mb-6">Are you sure you want to delete this customer? This action cannot be undone.</p>
+            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Delete Business Partner</h3>
+            <p class="text-sm text-gray-600 text-center mb-6">Are you sure you want to delete this business partner? This action cannot be undone.</p>
             <div class="flex gap-3">
                 <button onclick="closeConfirmDelete()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
                 <button onclick="confirmDelete()" class="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Delete</button>
@@ -468,7 +504,7 @@
         const { total, per_page, current_page, last_page, from, to } = paginationMeta;
 
         if (last_page <= 1) {
-            el.innerHTML = `<span class="text-xs text-gray-500">Showing ${total} customer${total !== 1 ? 's' : ''}</span>`;
+            el.innerHTML = `<span class="text-xs text-gray-500">Showing ${total} business partner${total !== 1 ? 's' : ''}</span>`;
             return;
         }
 
@@ -505,7 +541,7 @@
         ).join('');
 
         el.innerHTML = `
-            <span class="text-xs text-gray-500">Showing ${from}–${to} of ${total} customers</span>
+            <span class="text-xs text-gray-500">Showing ${from}–${to} of ${total} business partners</span>
             <div class="flex items-center gap-1">
                 ${btn('&lsaquo;', current_page - 1, current_page === 1)}
                 ${pageButtons}
@@ -536,12 +572,12 @@
         if (data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="px-4 py-16 text-center">
+                    <td colspan="8" class="px-4 py-16 text-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
                         </svg>
-                        <p class="text-base font-medium text-gray-900 mb-2">No customers found</p>
-                        <small class="text-sm text-gray-500">Click "Create Customer" to add a new customer</small>
+                        <p class="text-base font-medium text-gray-900 mb-2">No business partners found</p>
+                        <small class="text-sm text-gray-500">Click "Create Business Partner" to add a new customer or vendor</small>
                     </td>
                 </tr>
             `;
@@ -550,6 +586,7 @@
 
         tbody.innerHTML = data.map(cust => {
             const statusInfo = getStatusInfo(cust);
+            const typeInfo   = getTypeInfo(cust);
             const parentTag = cust.parent_name
                 ? `<span class="block text-xs text-gray-400 mt-0.5">&#8627; ${cust.parent_name}</span>`
                 : '';
@@ -558,6 +595,11 @@
             <tr class="customer-row" onclick="navigateToDetail(${cust.id}, event)">
                 <td class="px-4 py-3.5 text-sm"><strong class="font-semibold text-gray-900">${cust.email || '-'}</strong></td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${cust.name_1 || '-'}${parentTag}</td>
+                <td class="px-4 py-3.5 text-sm">
+                    <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full ${typeInfo.class}">
+                        ${typeInfo.label}
+                    </span>
+                </td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${cust.customer_group || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${cust.customer_category || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${cust.industry_sector || '-'}</td>
@@ -578,6 +620,13 @@
             </tr>
         `;
         }).join('');
+    }
+
+    // Badge Type (Business Partner): Customer = biru, Vendor = ungu.
+    function getTypeInfo(cust) {
+        return cust.type === 'Vendor'
+            ? { label: 'Vendor',   class: 'bg-purple-100 text-purple-800' }
+            : { label: 'Customer', class: 'bg-blue-100 text-blue-800' };
     }
 
     function getStatusInfo(cust) {
@@ -687,9 +736,16 @@
     }
 
     function openCreateModal() {
-        document.getElementById('modalTitle').textContent = 'Create Customer';
+        document.getElementById('modalTitle').textContent = 'Create Business Partner';
         document.getElementById('customerForm').reset();
         document.getElementById('customerId').value = '';
+
+        // Type default 'Customer' (form.reset() tidak menyentuh hidden input custom-dd)
+        if (typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('partnerType', 'Customer');
+        } else {
+            document.getElementById('partnerType').value = 'Customer';
+        }
 
         // Set default values + reset rantai dropdown wilayah (kosong).
         document.getElementById('country').value = 'Indonesia';
@@ -720,9 +776,23 @@
         document.getElementById('customerModal').classList.add('flex');
     }
 
-    async function loadTopLevelCustomers() {
+    // Type diganti di modal Create → kosongkan pilihan parent lama & muat ulang
+    // kandidat parent sesuai tipe yang baru.
+    function onPartnerTypeChange() {
+        if (typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('parentCustomerId', '');
+        } else {
+            document.getElementById('parentCustomerId').value = '';
+        }
+        loadTopLevelCustomers();
+    }
+
+    // Parent hanya boleh business partner bertipe SAMA, jadi daftar ini dimuat
+    // ulang setiap Type diganti (lihat onPartnerTypeChange).
+    async function loadTopLevelCustomers(type) {
+        const partnerType = type || document.getElementById('partnerType')?.value || 'Customer';
         try {
-            const res = await fetch('/api/customers/top-level', {
+            const res = await fetch(`/api/customers/top-level?type=${encodeURIComponent(partnerType)}`, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             });
@@ -912,6 +982,7 @@
 
         const customerData = {
             customer_code: document.getElementById('customerCode').value.toUpperCase(),
+            type: document.getElementById('partnerType').value || 'Customer',
             email: document.getElementById('email').value || null,
             domain: document.getElementById('customerDomain').value || null,
             title: document.getElementById('title').value,
@@ -953,11 +1024,11 @@
             const data = await response.json();
             
             if (data.success) {
-                showNotification('Customer created successfully!', 'success');
+                showNotification('Business partner created successfully!', 'success');
                 closeModal();
                 fetchCustomers();
             } else {
-                showNotification('Failed to save customer: ' + (data.message || 'Unknown error'), 'error');
+                showNotification('Failed to save business partner: ' + (data.message || 'Unknown error'), 'error');
                 if (data.errors) {
                     console.error('Validation errors:', data.errors);
                 }
@@ -997,11 +1068,11 @@
             const data = await response.json();
             
             if (data.success) {
-                showNotification('Customer deleted successfully!', 'success');
+                showNotification('Business partner deleted successfully!', 'success');
                 closeConfirmDelete();
                 fetchCustomers();
             } else {
-                showNotification('Failed to delete customer: ' + (data.message || 'Unknown error'), 'error');
+                showNotification('Failed to delete business partner: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
             console.error('Error deleting customer:', error);
@@ -1012,6 +1083,7 @@
     function getCurrentFilters() {
         return {
             status: document.getElementById('filterStatus').value,
+            type: document.getElementById('filterType').value,
             customer: document.getElementById('filterCustomer').value,
             customer_group: document.getElementById('filterCustomerGroup').value,
         };
@@ -1031,8 +1103,10 @@
     function resetFilters() {
         if (typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('filterStatus', '');
+            setCustomDropdownValue('filterType', '');
         } else {
             document.getElementById('filterStatus').value = '';
+            document.getElementById('filterType').value = '';
         }
         document.getElementById('filterCustomer').value = '';
         document.getElementById('filterCustomerGroup').value = '';
