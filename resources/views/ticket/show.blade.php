@@ -175,7 +175,7 @@
                 Credential
             </button>
             @endif
-            @if($can('ticket.sla-log'))
+            @if($can('ticket.sla-log') && $ticket->ticket_type === 'Incident')
             <button onclick="openSlaLogModal()"
                 title="Log SLA"
                 class="ml-2 flex-shrink-0 h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
