@@ -146,6 +146,7 @@
                             'EWA'             => 'bg-orange-100 text-orange-700',
                             'RISE'            => 'bg-violet-100 text-violet-700',
                             'Consult'         => 'bg-teal-100 text-teal-700',
+                            'Internal'        => 'bg-slate-200 text-slate-700',
                         ];
                     @endphp
                     <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $typeColors[$ticket->ticket_type] ?? 'bg-gray-100 text-gray-600' }}">
@@ -681,6 +682,8 @@
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="EWA">EWA</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="RISE">RISE</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Consult">Consult</button>
+                            {{-- Internal: tiket ini TIDAK ditampilkan ke customer di Jarvies --}}
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Internal">Internal</button>
                         </div>
                     </div>
                     @else
@@ -849,8 +852,8 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
-                {{-- Penanda tiket internal: dibuat dari EcoSystem, tidak tampil di Jarvies --}}
-                @if(!$ticket->visible_to_customer)
+                {{-- Penanda tiket internal: type "Internal" tidak tampil di Jarvies --}}
+                @if($ticket->isInternal())
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Visibility</label>
                     <p class="text-xs text-amber-800 px-2.5 py-1.5 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-1.5">

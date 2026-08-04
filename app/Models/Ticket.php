@@ -67,8 +67,6 @@ class Ticket extends Model
         'onedrive_link_checked_at',
         // Visibility
         'is_hidden',
-        // false = tiket internal EcoSystem, tidak ditampilkan ke customer di JARVIES
-        'visible_to_customer',
     ];
 
     protected $casts = [
@@ -86,8 +84,36 @@ class Ticket extends Model
         'last_internal_note_sender_id' => 'integer',
         'cc_emails'                    => 'array',
         'to_emails'                    => 'array',
-        'visible_to_customer'          => 'boolean',
     ];
+
+    // ── Ticket type ──────────────────────────────────────────────────────────
+
+    /**
+     * Tiket yang murni urusan internal Eclectic — TIDAK ditampilkan ke customer
+     * di JARVIES (tabel `ticket` dipakai bersama kedua aplikasi).
+     *
+     * Ini satu-satunya pembeda visibilitas: tiket buatan EcoSystem dengan type
+     * lain (Incident, Change Request, dst.) tetap terlihat customer.
+     */
+    public const TYPE_INTERNAL = 'Internal';
+
+    public static function types(): array
+    {
+        return [
+            'Incident',
+            'Change Request',
+            'Service Request',
+            'EWA',
+            'RISE',
+            'Consult',
+            self::TYPE_INTERNAL,
+        ];
+    }
+
+    public function isInternal(): bool
+    {
+        return $this->ticket_type === self::TYPE_INTERNAL;
+    }
 
     public function customer()
     {
@@ -396,7 +422,9 @@ class Ticket extends Model
 
     public function isSlaEligible(): bool
     {
-        return $this->ticket_type !== null
+        // Tiket internal tidak punya komitmen SLA ke customer.
+        return !$this->isInternal()
+            && $this->ticket_type !== null
             && $this->ticket_priority !== null
             && $this->scale !== null;
     }
