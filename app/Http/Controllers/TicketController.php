@@ -556,7 +556,7 @@ class TicketController extends Controller
             $validated = $request->validate([
                 'description'     => 'required|string',
                 'ticket_priority' => 'required|in:Very High,High,Medium,Low',
-                'ticket_type'     => 'required|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
+                'ticket_type'     => 'required|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult,Internal',
                 'customer_id'     => ['required', \Illuminate\Validation\Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
                 'scale'           => 'nullable|string|in:Simple,Medium,Complex',
                 'name'            => 'nullable|string|max:255',
@@ -652,10 +652,6 @@ class TicketController extends Controller
                         'submitted_by_email' => $toEmail !== '' ? $toEmail : null,
                         'to_emails'          => !empty($toList) ? $toList : null,
                         'cc_emails'          => !empty($ccList) ? $ccList : null,
-                        // Tiket internal (dibuat dari EcoSystem) — tidak ditampilkan
-                        // ke customer di JARVIES. Tiket dari JARVIES/email masuk lewat
-                        // staging dan tetap memakai default `true`.
-                        'visible_to_customer' => false,
                     ]);
                 });
 
@@ -766,7 +762,7 @@ class TicketController extends Controller
             'cc_emails'       => 'nullable|string|max:2000',
             'description'     => 'required|string|max:1000',
             'ticket_priority' => 'required|in:Very High,High,Medium,Low',
-            'ticket_type'     => 'required|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
+            'ticket_type'     => 'required|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult,Internal',
             'scale'           => 'nullable|string|in:Simple,Medium,Complex',
             'name'            => 'nullable|string|max:255',
             'no_hp'           => 'nullable|string|max:255',
@@ -872,10 +868,6 @@ class TicketController extends Controller
                     'cc_emails'          => !empty($ccList) ? $ccList : null,
                     'last_message_at'    => now(),
                     'last_agent_reply_at'=> now(),
-                    // Tiket internal (dibuat dari EcoSystem) — tidak ditampilkan
-                    // ke customer di JARVIES. Tiket dari JARVIES/email masuk lewat
-                    // staging dan tetap memakai default `true`.
-                    'visible_to_customer' => false,
                 ]);
 
                 if (!empty($validated['body'])) {
@@ -1003,9 +995,6 @@ class TicketController extends Controller
                     'ticket_priority' => null,
                     'status'          => 'inprocess',
                     'ticket_number'   => $this->ticketNumbers->generate(),
-                    // Tiket internal (dibuat di luar alur staging) — tidak ditampilkan
-                    // ke customer di JARVIES.
-                    'visible_to_customer' => false,
                 ]);
             });
 
@@ -2312,7 +2301,7 @@ class TicketController extends Controller
 
         $validator = Validator::make($request->all(), [
             'ticket_priority' => 'sometimes|string|in:Very High,High,Medium,Low',
-            'ticket_type'    => 'sometimes|nullable|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
+            'ticket_type'    => 'sometimes|nullable|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult,Internal',
             'scale'          => 'sometimes|nullable|string|in:Simple,Medium,Complex',
             'ticket_lead_id' => 'sometimes|nullable|exists:employee,employee_id',
             'man_days'       => 'sometimes|nullable|numeric|min:0|max:9999.99',

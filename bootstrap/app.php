@@ -50,6 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'jarvies.api_key'   => CheckJarviesApiKey::class,
             'external.api_key'  => \App\Http\Middleware\CheckExternalApiKey::class,
             'menu'              => \App\Http\Middleware\CheckMenuAccess::class,
+            'menu.owner'        => \App\Http\Middleware\CheckMenuOrProjectOwner::class,
             'lite.auth'         => \App\Http\Middleware\LiteApiAuth::class,
             'project.editable'  => \App\Http\Middleware\EnsureProjectNotClosed::class,
         ]);

@@ -145,6 +145,35 @@ class DeliveryProject extends Model
         return $this->belongsTo(Employee::class, 'delivery_owner_id', 'employee_id');
     }
 
+    /**
+     * Apakah employee ini adalah Project Owner dari project ini?
+     *
+     * PENTING: kolom `project_owner` menyimpan NAMA (EmployeeBasicData::$full_name),
+     * bukan foreign key — dropdown "Project Owner" di form Add/Edit Project mengirim
+     * full_name sebagai value. Jadi pencocokan terpaksa dilakukan by nama
+     * (trim + case-insensitive). Konsekuensinya: kalau ada dua employee dengan
+     * full_name identik, keduanya dianggap owner.
+     *
+     * Catatan: `full_name` adalah ACCESSOR (first_name + last_name), bukan kolom —
+     * jadi tidak bisa di-query lewat where/value(), harus dibaca dari model.
+     */
+    public function isOwnedByEmployee($employeeId): bool
+    {
+        $owner = trim((string) $this->project_owner);
+
+        if ($owner === '' || empty($employeeId)) {
+            return false;
+        }
+
+        $basic = EmployeeBasicData::where('employee_id', $employeeId)->first();
+
+        if (!$basic) {
+            return false;
+        }
+
+        return mb_strtolower(trim($basic->full_name)) === mb_strtolower($owner);
+    }
+
     public function deliveryManager()
     {
         return $this->belongsTo(Employee::class, 'delivery_manager_id', 'employee_id');
