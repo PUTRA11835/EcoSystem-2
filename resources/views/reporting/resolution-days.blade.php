@@ -171,6 +171,28 @@
                         </tr>
                     </tfoot>
                 </table>
+                <div id="rdReviewSummaryPanel" class="hidden mb-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                        <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Days Proposed</p>
+                        <p class="text-base font-bold text-gray-700" id="rdSummaryDaysProposed">0</p>
+                    </div>
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                        <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Add. Proposed</p>
+                        <p class="text-base font-bold text-gray-700" id="rdSummaryAddProposed">0</p>
+                    </div>
+                    <div class="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                        <p class="text-[10px] font-semibold text-green-600 uppercase tracking-wide">Days Approved</p>
+                        <p class="text-base font-bold text-green-700" id="rdSummaryDaysApproved">0</p>
+                    </div>
+                    <div class="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                        <p class="text-[10px] font-semibold text-green-600 uppercase tracking-wide">Add. Approved</p>
+                        <p class="text-base font-bold text-green-700" id="rdSummaryAddApproved">0</p>
+                    </div>
+                    <div class="bg-green-100 border border-green-300 rounded-lg px-3 py-2">
+                        <p class="text-[10px] font-semibold text-green-700 uppercase tracking-wide">Total Approved</p>
+                        <p class="text-base font-bold text-green-800" id="rdSummaryGrandApproved">0</p>
+                    </div>
+                </div>
                 <div id="rdReviewProposedBy" class="text-xs text-gray-500 mb-1"></div>
                 <div id="rdReviewNoteWrap" class="hidden p-3 bg-gray-50 rounded-lg text-xs text-gray-600 mb-3"></div>
             </div>
@@ -495,6 +517,17 @@ async function openRdReviewModal(ticketId, ticketLabel) {
         document.getElementById('rdReviewBody').innerHTML = bodyHtml;
         document.getElementById('rdReviewTotal').textContent = grandTotal.toFixed(1);
 
+        const summaryPanel = document.getElementById('rdReviewSummaryPanel');
+        if (summaryPanel) {
+            const rows = Object.values(empMap);
+            document.getElementById('rdSummaryDaysProposed').textContent =
+                rows.reduce((acc, r) => acc + (r.mandays || 0), 0).toFixed(1);
+            document.getElementById('rdSummaryAddProposed').textContent =
+                rows.reduce((acc, r) => acc + (r.additional_mandays || 0), 0).toFixed(1);
+            summaryPanel.classList.toggle('hidden', rows.length === 0);
+        }
+        rdRecalcApprovedSummary();
+
         const proposedByEl = document.getElementById('rdReviewProposedBy');
         proposedByEl.textContent = proposal.proposed_by ? ('Proposed by: ' + proposal.proposed_by) : '';
 
@@ -550,6 +583,21 @@ function rdUpdateRowTotal(inp) {
     let grand = 0;
     document.querySelectorAll('[data-rd-total]').forEach(c => grand += parseFloat(c.textContent) || 0);
     document.getElementById('rdReviewTotal').textContent = grand.toFixed(1);
+    rdRecalcApprovedSummary();
+}
+
+// Sums the currently-typed Approved Days / Approve Add. inputs across all rows —
+// called on every keystroke (rdUpdateRowTotal) and once at initial render.
+function rdRecalcApprovedSummary() {
+    let daysApproved = 0, addApproved = 0;
+    document.querySelectorAll('.rd-approve-days').forEach(inp => { daysApproved += parseFloat(inp.value) || 0; });
+    document.querySelectorAll('.rd-approve-add').forEach(inp => { addApproved += parseFloat(inp.value) || 0; });
+    const daysEl  = document.getElementById('rdSummaryDaysApproved');
+    const addEl   = document.getElementById('rdSummaryAddApproved');
+    const grandEl = document.getElementById('rdSummaryGrandApproved');
+    if (daysEl)  daysEl.textContent  = daysApproved.toFixed(1);
+    if (addEl)   addEl.textContent   = addApproved.toFixed(1);
+    if (grandEl) grandEl.textContent = (daysApproved + addApproved).toFixed(1);
 }
 
 async function rdReviewApprove(confirmNegative = false) {
