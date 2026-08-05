@@ -176,7 +176,7 @@
                 Credential
             </button>
             @endif
-            @if($can('ticket.sla-log'))
+            @if($can('ticket.sla-log') && $ticket->ticket_type === 'Incident')
             <button onclick="openSlaLogModal()"
                 title="Log SLA"
                 class="ml-2 flex-shrink-0 h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
@@ -1709,7 +1709,11 @@
                 <tbody id="resolutionBody"></tbody>
                 <tfoot>
                     <tr class="bg-gray-50 font-bold">
-                        <td colspan="5" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                        <td class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterDays">0</td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterAdd">0</td>
+                        <td class="px-3 py-2 border border-gray-200"></td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterApprAdd">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resolutionFooterTotal">0</td>
                     </tr>
                 </tfoot>
@@ -2143,7 +2147,12 @@
                     <tbody id="headresolutionBody"></tbody>
                     <tfoot>
                         <tr class="bg-gray-50 font-bold">
-                            <td colspan="6" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                            <td class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterDays">0</td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterAdd">0</td>
+                            <td class="px-3 py-2 border border-gray-200"></td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterApprovedDays">0</td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterApproveAdd">0</td>
                             <td class="px-3 py-2 border border-gray-200 text-center" id="headResolutionTotal">0</td>
                         </tr>
                     </tfoot>
@@ -6897,6 +6906,14 @@
         document.getElementById('resolutionTotalDisplay').textContent = total.toFixed(1);
         const footer = document.getElementById('resolutionFooterTotal');
         if (footer) footer.textContent = total.toFixed(1);
+
+        let days = 0, add = 0, apprAdd = 0;
+        document.querySelectorAll('.internal-md-cell').forEach(inp => { days += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('.internal-add-cell').forEach(inp => { add += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('[data-emp-appr]').forEach(cell => { apprAdd += parseFloat(cell.textContent) || 0; });
+        document.getElementById('resFooterDays').textContent    = days.toFixed(1);
+        document.getElementById('resFooterAdd').textContent     = add.toFixed(1);
+        document.getElementById('resFooterApprAdd').textContent = apprAdd.toFixed(1);
     }
 
     function resolutionPicGetPayload() {
@@ -7468,11 +7485,14 @@
             // Approved Days + Approved Additional both editable by head of support
             let bodyHtml = '';
             let grandTotal = 0;
+            let daysTotal = 0, addTotal = 0;
             Object.entries(empMap).forEach(([eid, emp]) => {
                 const currentApprDays = emp.approved_mandays;
                 const currentApprAdd  = emp.approved_additional;
                 const rowTotal = currentApprDays + currentApprAdd;
                 grandTotal += rowTotal;
+                daysTotal += emp.mandays;
+                addTotal  += emp.additional_mandays;
                 bodyHtml += `<tr>
                     <td class="px-3 py-2 border border-gray-200 text-xs font-medium">${emp.name}</td>
                     <td class="px-3 py-2 border border-gray-200 text-xs text-center">${emp.mandays > 0 ? emp.mandays.toFixed(1) : '—'}</td>
@@ -7497,6 +7517,9 @@
             });
             document.getElementById('headresolutionBody').innerHTML = bodyHtml;
             document.getElementById('headResolutionTotal').textContent = grandTotal.toFixed(1);
+            document.getElementById('headFooterDays').textContent = daysTotal.toFixed(1);
+            document.getElementById('headFooterAdd').textContent  = addTotal.toFixed(1);
+            headRecalcApprovedFooter();
 
             if (proposal.proposed_by) {
                 document.getElementById('headProposedBy').textContent = 'Proposed by: ' + proposal.proposed_by;
@@ -7568,6 +7591,15 @@
         let grand = 0;
         document.querySelectorAll('[data-head-total]').forEach(c => grand += parseFloat(c.textContent) || 0);
         document.getElementById('headResolutionTotal').textContent = grand.toFixed(1);
+        headRecalcApprovedFooter();
+    }
+
+    function headRecalcApprovedFooter() {
+        let daysApproved = 0, addApproved = 0;
+        document.querySelectorAll('.head-approve-days').forEach(inp => { daysApproved += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('.head-approve-add').forEach(inp => { addApproved += parseFloat(inp.value) || 0; });
+        document.getElementById('headFooterApprovedDays').textContent = daysApproved.toFixed(1);
+        document.getElementById('headFooterApproveAdd').textContent   = addApproved.toFixed(1);
     }
 
     async function headResolutionApprove(confirmNegative = false) {

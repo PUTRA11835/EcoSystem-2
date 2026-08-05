@@ -85,7 +85,7 @@
 </div>
 
 {{-- ── Status Cards ────────────────────────────────────────────────────────── --}}
-<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
     <div id="filterAll" onclick="filterTickets('all')"
         class="stat-card active-filter bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300">
         <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Total</p>
@@ -130,6 +130,14 @@
             <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Wait Confirm</p>
         </div>
         <p class="text-2xl font-bold text-teal-600 leading-none" id="waitingConfirmCount">0</p>
+    </div>
+    <div id="filterHold" onclick="filterTickets('hold')"
+        class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-orange-200">
+        <div class="flex items-center gap-1.5 mb-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Hold</p>
+        </div>
+        <p class="text-2xl font-bold text-orange-600 leading-none" id="holdCount">0</p>
     </div>
     <div id="filterClosed" onclick="filterTickets('closed')"
         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-green-200">
@@ -1286,6 +1294,7 @@
         document.getElementById('waitingCustomerCount').textContent = base.filter(t => t.status === 'waiting_on_customer').length;
         document.getElementById('waiting3rdCount').textContent = base.filter(t => t.status === 'waiting_on_3rd_party').length;
         document.getElementById('waitingConfirmCount').textContent = base.filter(t => t.status === 'waiting_to_confirmation').length;
+        document.getElementById('holdCount').textContent = base.filter(t => t.status === 'hold').length;
         document.getElementById('closedCount').textContent = base.filter(t => t.status === 'closed').length;
     }
 
@@ -1710,7 +1719,7 @@
 
     function filterTickets(status) {
         currentFilter = status;
-        ['filterAll', 'filterOpen', 'filterInprocess', 'filterWaitingCustomer', 'filterWaiting3rd', 'filterWaitingConfirm', 'filterClosed'].forEach(id => {
+        ['filterAll', 'filterOpen', 'filterInprocess', 'filterWaitingCustomer', 'filterWaiting3rd', 'filterWaitingConfirm', 'filterHold', 'filterClosed'].forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
             el.classList.remove('active-filter', 'border-red-600', 'shadow-md', 'border-2');
@@ -1724,6 +1733,7 @@
             'waiting_on_customer': 'filterWaitingCustomer',
             'waiting_on_3rd_party': 'filterWaiting3rd',
             'waiting_to_confirmation': 'filterWaitingConfirm',
+            'hold': 'filterHold',
             'closed': 'filterClosed',
         };
         if (filterMap[status]) {

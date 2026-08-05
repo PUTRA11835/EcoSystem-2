@@ -1458,9 +1458,14 @@ class MandaysController extends Controller
             $pastIds = ConsultantMandaysDetail::where('consultant_mandays_id', $proposal->id)
                 ->pluck('employee_id')
                 ->unique();
-            foreach ($pastIds as $empId) {
-                if (!isset($people[$empId])) {
-                    $emp = Employee::with(['basicData', 'qualifications'])->find($empId);
+            $missingIds = $pastIds->reject(fn($empId) => isset($people[$empId]));
+            if ($missingIds->isNotEmpty()) {
+                $pastEmployees = Employee::with(['basicData', 'qualifications'])
+                    ->whereIn('employee_id', $missingIds)
+                    ->get()
+                    ->keyBy('employee_id');
+                foreach ($missingIds as $empId) {
+                    $emp = $pastEmployees->get($empId);
                     if ($emp) {
                         $people[$empId] = [
                             'employee_id' => $empId,
