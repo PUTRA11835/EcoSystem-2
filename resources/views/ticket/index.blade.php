@@ -471,6 +471,9 @@
                                     <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Consult"><span class="custom-dd-item-text">Consult</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
                                         </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Internal"><span class="custom-dd-item-text">Internal</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
                                 </div>
                             </div>
                         </th>
@@ -624,6 +627,8 @@
                             <option value="EWA">EWA</option>
                             <option value="RISE">RISE</option>
                             <option value="Consult">Consult</option>
+                            {{-- Internal: tiket ini TIDAK ditampilkan ke customer di Jarvies --}}
+                            <option value="Internal">Internal</option>
                         </select>
                     </div>
                 </div>
@@ -1451,6 +1456,7 @@
             'EWA': 'bg-orange-50 text-orange-600',
             'RISE': 'bg-violet-50 text-violet-600',
             'Consult': 'bg-teal-50 text-teal-600',
+            'Internal': 'bg-slate-100 text-slate-600',
         };
 
         const scaleColors = {

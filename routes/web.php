@@ -297,11 +297,16 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/projects/{project}/payment-terms',         [DeliveryProjectPaymentTermController::class, 'index'])->name('projects.paymentTerms.index')->middleware('menu:delivery-project.delivery-info.view');
 
     // Risk Register routes
-    Route::get('/projects/{project}/risks',          [DeliveryProjectRiskController::class, 'index'])->name('projects.risks.index')->middleware('menu:delivery-project.risk.view');
-    Route::middleware(['menu:delivery-project.risk.edit', 'project.editable'])->group(function () {
+    //
+    // Pakai `menu.owner:` (bukan `menu:`) — Project Owner dari project ybs boleh
+    // isi/edit/hapus risk meski role-nya tidak punya slug risk.*. Grant ini
+    // TIDAK lintas project: hanya berlaku di project tempat ia jadi owner.
+    // Lock project closed (`project.editable`) tetap berlaku untuk semua.
+    Route::get('/projects/{project}/risks',          [DeliveryProjectRiskController::class, 'index'])->name('projects.risks.index')->middleware('menu.owner:delivery-project.risk.view');
+    Route::middleware(['menu.owner:delivery-project.risk.edit', 'project.editable'])->group(function () {
         Route::put('/projects/{project}/risks/{risk}',   [DeliveryProjectRiskController::class, 'update'])->name('projects.risks.update');
     });
-    Route::middleware(['menu:delivery-project.risk.manage', 'project.editable'])->group(function () {
+    Route::middleware(['menu.owner:delivery-project.risk.manage', 'project.editable'])->group(function () {
         Route::post('/projects/{project}/risks',         [DeliveryProjectRiskController::class, 'store'])->name('projects.risks.store');
         Route::delete('/projects/{project}/risks/{risk}',[DeliveryProjectRiskController::class, 'destroy'])->name('projects.risks.destroy');
         Route::post('/projects/{project}/risks/{risk}/delete',[DeliveryProjectRiskController::class, 'destroy'])->name('projects.risks.destroy.post');

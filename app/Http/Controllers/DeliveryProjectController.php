@@ -307,6 +307,11 @@ class DeliveryProjectController extends Controller
         $actualCost = (float) DeliveryProjectCost::where('delivery_projects_id', $project->id)
             ->sum('actual_amount');
 
+        // Project Owner project ini dapat izin tambahan pada section tertentu
+        // (mis. Risk Register) walau role-nya tidak punya slug-nya. Grant ini
+        // hanya berlaku di project ini — lihat CheckMenuOrProjectOwner.
+        $isProjectOwner = $project->isOwnedByEmployee(session('user.id'));
+
         return view('delivery.project.projects.show', compact(
             'project',
             'employees',
@@ -318,7 +323,8 @@ class DeliveryProjectController extends Controller
             'finalPhaseWeights',
             'teamPivotRows',
             'actualCost',
-            'sameCompanyIos'
+            'sameCompanyIos',
+            'isProjectOwner'
         ));
     }
 

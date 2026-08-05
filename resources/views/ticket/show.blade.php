@@ -146,6 +146,7 @@
                             'EWA'             => 'bg-orange-100 text-orange-700',
                             'RISE'            => 'bg-violet-100 text-violet-700',
                             'Consult'         => 'bg-teal-100 text-teal-700',
+                            'Internal'        => 'bg-slate-200 text-slate-700',
                         ];
                     @endphp
                     <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $typeColors[$ticket->ticket_type] ?? 'bg-gray-100 text-gray-600' }}">
@@ -175,7 +176,7 @@
                 Credential
             </button>
             @endif
-            @if($can('ticket.sla-log'))
+            @if($can('ticket.sla-log') && $ticket->ticket_type === 'Incident')
             <button onclick="openSlaLogModal()"
                 title="Log SLA"
                 class="ml-2 flex-shrink-0 h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
@@ -681,6 +682,8 @@
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="EWA">EWA</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="RISE">RISE</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Consult">Consult</button>
+                            {{-- Internal: tiket ini TIDAK ditampilkan ke customer di Jarvies --}}
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Internal">Internal</button>
                         </div>
                     </div>
                     @else
@@ -849,8 +852,8 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
-                {{-- Penanda tiket internal: dibuat dari EcoSystem, tidak tampil di Jarvies --}}
-                @if(!$ticket->visible_to_customer)
+                {{-- Penanda tiket internal: type "Internal" tidak tampil di Jarvies --}}
+                @if($ticket->isInternal())
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Visibility</label>
                     <p class="text-xs text-amber-800 px-2.5 py-1.5 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-1.5">
@@ -1706,33 +1709,15 @@
                 <tbody id="resolutionBody"></tbody>
                 <tfoot>
                     <tr class="bg-gray-50 font-bold">
-                        <td colspan="5" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                        <td class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterDays">0</td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterAdd">0</td>
+                        <td class="px-3 py-2 border border-gray-200"></td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterApprAdd">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resolutionFooterTotal">0</td>
                     </tr>
                 </tfoot>
             </table>
-            <div id="resolutionSummaryPanel" class="hidden mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
-                <div class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Days Proposed</p>
-                    <p class="text-base font-bold text-gray-700" id="resSummaryDaysProposed">0</p>
-                </div>
-                <div class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Add. Proposed</p>
-                    <p class="text-base font-bold text-gray-700" id="resSummaryAddProposed">0</p>
-                </div>
-                <div class="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                    <p class="text-[10px] font-semibold text-green-600 uppercase tracking-wide">Days Approved</p>
-                    <p class="text-base font-bold text-green-700" id="resSummaryDaysApproved">0</p>
-                </div>
-                <div class="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                    <p class="text-[10px] font-semibold text-green-600 uppercase tracking-wide">Add. Approved</p>
-                    <p class="text-base font-bold text-green-700" id="resSummaryAddApproved">0</p>
-                </div>
-                <div class="bg-green-100 border border-green-300 rounded-lg px-3 py-2">
-                    <p class="text-[10px] font-semibold text-green-700 uppercase tracking-wide">Total Approved</p>
-                    <p class="text-base font-bold text-green-800" id="resSummaryGrandApproved">0</p>
-                </div>
-            </div>
             <div class="mt-4">
                 <label class="text-xs font-semibold text-gray-600">Notes for Delivery Support Head</label>
                 <textarea id="resolutionNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus" placeholder="Optional notes..."></textarea>
@@ -2162,33 +2147,16 @@
                     <tbody id="headresolutionBody"></tbody>
                     <tfoot>
                         <tr class="bg-gray-50 font-bold">
-                            <td colspan="6" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                            <td class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterDays">0</td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterAdd">0</td>
+                            <td class="px-3 py-2 border border-gray-200"></td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterApprovedDays">0</td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterApproveAdd">0</td>
                             <td class="px-3 py-2 border border-gray-200 text-center" id="headResolutionTotal">0</td>
                         </tr>
                     </tfoot>
                 </table>
-                <div id="headResolutionSummaryPanel" class="hidden mb-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                        <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Days Proposed</p>
-                        <p class="text-base font-bold text-gray-700" id="headSummaryDaysProposed">0</p>
-                    </div>
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                        <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Add. Proposed</p>
-                        <p class="text-base font-bold text-gray-700" id="headSummaryAddProposed">0</p>
-                    </div>
-                    <div class="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                        <p class="text-[10px] font-semibold text-green-600 uppercase tracking-wide">Days Approved</p>
-                        <p class="text-base font-bold text-green-700" id="headSummaryDaysApproved">0</p>
-                    </div>
-                    <div class="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                        <p class="text-[10px] font-semibold text-green-600 uppercase tracking-wide">Add. Approved</p>
-                        <p class="text-base font-bold text-green-700" id="headSummaryAddApproved">0</p>
-                    </div>
-                    <div class="bg-green-100 border border-green-300 rounded-lg px-3 py-2">
-                        <p class="text-[10px] font-semibold text-green-700 uppercase tracking-wide">Total Approved</p>
-                        <p class="text-base font-bold text-green-800" id="headSummaryGrandApproved">0</p>
-                    </div>
-                </div>
                 <div id="headProposedBy" class="text-xs text-gray-500 mb-1"></div>
                 <div id="headResolutionNoteWrap" class="hidden p-3 bg-gray-50 rounded-lg text-xs text-gray-600 mb-3"></div>
             </div>
@@ -6799,7 +6767,6 @@
         document.getElementById('resolutionLoading').classList.remove('hidden');
         document.getElementById('resolutionTable').classList.add('hidden');
         document.getElementById('resolutionRejectionInfo').classList.add('hidden');
-        document.getElementById('resolutionSummaryPanel')?.classList.add('hidden');
 
         try {
             const res    = await fetch(MANDAYS_API('resolution'), { headers: getHeaders(), credentials: 'same-origin' });
@@ -6862,36 +6829,12 @@
             });
 
             resolutionPicRenderRows(valueMap, status);
-            resolutionUpdateSummaryPanel(valueMap);
         } catch(e) {
             console.error(e);
             showNotification('Failed to load resolution days', 'error');
         } finally {
             document.getElementById('resolutionLoading').classList.add('hidden');
         }
-    }
-
-    // Aggregate view: what was proposed vs what Head actually approved, across all
-    // employees on this proposal. Snapshot at load time (not live-recalculated while
-    // typing) — this is a summary of the saved/approved state, not a draft preview.
-    function resolutionUpdateSummaryPanel(valueMap) {
-        const panel = document.getElementById('resolutionSummaryPanel');
-        if (!panel) return;
-        const rows = Object.values(valueMap || {});
-        if (!rows.length) { panel.classList.add('hidden'); return; }
-
-        const sum = key => rows.reduce((acc, r) => acc + (r[key] || 0), 0);
-        const daysProposed  = sum('mandays');
-        const addProposed   = sum('additional_mandays');
-        const daysApproved  = sum('approved_mandays');
-        const addApproved   = sum('approved_additional');
-
-        document.getElementById('resSummaryDaysProposed').textContent  = daysProposed.toFixed(1);
-        document.getElementById('resSummaryAddProposed').textContent   = addProposed.toFixed(1);
-        document.getElementById('resSummaryDaysApproved').textContent  = daysApproved.toFixed(1);
-        document.getElementById('resSummaryAddApproved').textContent   = addApproved.toFixed(1);
-        document.getElementById('resSummaryGrandApproved').textContent = (daysApproved + addApproved).toFixed(1);
-        panel.classList.remove('hidden');
     }
 
     function resolutionPicRenderRows(valueMap, status) {
@@ -6963,6 +6906,14 @@
         document.getElementById('resolutionTotalDisplay').textContent = total.toFixed(1);
         const footer = document.getElementById('resolutionFooterTotal');
         if (footer) footer.textContent = total.toFixed(1);
+
+        let days = 0, add = 0, apprAdd = 0;
+        document.querySelectorAll('.internal-md-cell').forEach(inp => { days += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('.internal-add-cell').forEach(inp => { add += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('[data-emp-appr]').forEach(cell => { apprAdd += parseFloat(cell.textContent) || 0; });
+        document.getElementById('resFooterDays').textContent    = days.toFixed(1);
+        document.getElementById('resFooterAdd').textContent     = add.toFixed(1);
+        document.getElementById('resFooterApprAdd').textContent = apprAdd.toFixed(1);
     }
 
     function resolutionPicGetPayload() {
@@ -7534,11 +7485,14 @@
             // Approved Days + Approved Additional both editable by head of support
             let bodyHtml = '';
             let grandTotal = 0;
+            let daysTotal = 0, addTotal = 0;
             Object.entries(empMap).forEach(([eid, emp]) => {
                 const currentApprDays = emp.approved_mandays;
                 const currentApprAdd  = emp.approved_additional;
                 const rowTotal = currentApprDays + currentApprAdd;
                 grandTotal += rowTotal;
+                daysTotal += emp.mandays;
+                addTotal  += emp.additional_mandays;
                 bodyHtml += `<tr>
                     <td class="px-3 py-2 border border-gray-200 text-xs font-medium">${emp.name}</td>
                     <td class="px-3 py-2 border border-gray-200 text-xs text-center">${emp.mandays > 0 ? emp.mandays.toFixed(1) : '—'}</td>
@@ -7563,20 +7517,9 @@
             });
             document.getElementById('headresolutionBody').innerHTML = bodyHtml;
             document.getElementById('headResolutionTotal').textContent = grandTotal.toFixed(1);
-
-            // Proposed totals never change here (Days/Add. columns are read-only in this
-            // modal) — set once from empMap. Approved totals are live (recalculated as
-            // Head edits the Approved Days / Approve Add. inputs — see headUpdateRowTotal).
-            const summaryPanel = document.getElementById('headResolutionSummaryPanel');
-            if (summaryPanel) {
-                const rows = Object.values(empMap);
-                document.getElementById('headSummaryDaysProposed').textContent =
-                    rows.reduce((acc, r) => acc + (r.mandays || 0), 0).toFixed(1);
-                document.getElementById('headSummaryAddProposed').textContent =
-                    rows.reduce((acc, r) => acc + (r.additional_mandays || 0), 0).toFixed(1);
-                summaryPanel.classList.toggle('hidden', rows.length === 0);
-            }
-            headRecalcApprovedSummary();
+            document.getElementById('headFooterDays').textContent = daysTotal.toFixed(1);
+            document.getElementById('headFooterAdd').textContent  = addTotal.toFixed(1);
+            headRecalcApprovedFooter();
 
             if (proposal.proposed_by) {
                 document.getElementById('headProposedBy').textContent = 'Proposed by: ' + proposal.proposed_by;
@@ -7648,21 +7591,15 @@
         let grand = 0;
         document.querySelectorAll('[data-head-total]').forEach(c => grand += parseFloat(c.textContent) || 0);
         document.getElementById('headResolutionTotal').textContent = grand.toFixed(1);
-        headRecalcApprovedSummary();
+        headRecalcApprovedFooter();
     }
 
-    // Sums the currently-typed Approved Days / Approve Add. inputs across all rows —
-    // called on every keystroke (headUpdateRowTotal) and once at initial render.
-    function headRecalcApprovedSummary() {
+    function headRecalcApprovedFooter() {
         let daysApproved = 0, addApproved = 0;
         document.querySelectorAll('.head-approve-days').forEach(inp => { daysApproved += parseFloat(inp.value) || 0; });
         document.querySelectorAll('.head-approve-add').forEach(inp => { addApproved += parseFloat(inp.value) || 0; });
-        const daysEl = document.getElementById('headSummaryDaysApproved');
-        const addEl  = document.getElementById('headSummaryAddApproved');
-        const grandEl = document.getElementById('headSummaryGrandApproved');
-        if (daysEl)  daysEl.textContent  = daysApproved.toFixed(1);
-        if (addEl)   addEl.textContent   = addApproved.toFixed(1);
-        if (grandEl) grandEl.textContent = (daysApproved + addApproved).toFixed(1);
+        document.getElementById('headFooterApprovedDays').textContent = daysApproved.toFixed(1);
+        document.getElementById('headFooterApproveAdd').textContent   = addApproved.toFixed(1);
     }
 
     async function headResolutionApprove(confirmNegative = false) {

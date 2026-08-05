@@ -2,6 +2,15 @@
 @section('title', 'Project Detail')
 @section('page-title', 'Project Detail')
 @section('page-subtitle', e($project->name))
+@php
+    // Project Owner project ini boleh CRUD Risk Register meski role-nya tidak
+    // punya slug risk.*. Grant hanya berlaku di project ini (bukan lintas
+    // project) — sisi server dijaga middleware `menu.owner:`.
+    $isProjectOwner = $isProjectOwner ?? false;
+    $canRiskView    = $can('delivery-project.risk.view')   || $isProjectOwner;
+    $canRiskEdit    = $can('delivery-project.risk.edit')   || $isProjectOwner;
+    $canRiskManage  = $can('delivery-project.risk.manage') || $isProjectOwner;
+@endphp
 {{-- ✅ LOAD GANTT LIBRARIES --}}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
@@ -333,7 +342,7 @@
             Issues
         </button>
         @endif
-        @if($can('delivery-project.risk.view'))
+        @if($canRiskView)
         <button onclick="scrollToSection('risks')" data-section="risks" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
@@ -1115,8 +1124,8 @@
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- PROJECT RISK REGISTER SECTION                                 --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
-@if($can('delivery-project.risk.view'))
-<section id="risks" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.risk.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.risk.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
+@if($canRiskView)
+<section id="risks" class="mb-6 card-hover section-animate" data-perm-edit="{{ $canRiskEdit ? '1' : '0' }}" data-perm-manage="{{ $canRiskManage ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
 
         {{-- ── Header ─────────────────────────────────────────────── --}}
@@ -1139,7 +1148,7 @@
                         </svg>
                         Risk Dashboard
                     </button>
-                    @if($can('delivery-project.risk.manage'))
+                    @if($canRiskManage)
                     <button type="button" onclick="RiskRegister.openAdd()"
                             class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
