@@ -982,8 +982,11 @@ class MandaysController extends Controller
             return response()->json(['success' => false, 'message' => 'Only Head of Support or Admin can approve resolution days proposals.'], 403);
         }
 
+        // approved_details is required (not just nullable) — Approved Days is a per-employee
+        // judgment call the Head must actually make, so approval can't go through with no
+        // numbers submitted at all (mirrors the "must be filled" check on the review modal).
         $request->validate([
-            'approved_details'                      => 'nullable|array',
+            'approved_details'                      => 'required|array|min:1',
             'approved_details.*.employee_id'        => 'required|integer',
             'approved_details.*.approved_mandays'   => 'required|numeric|min:0',
             'approved_details.*.approved_additional'=> 'required|numeric|min:0',
