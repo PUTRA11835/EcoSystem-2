@@ -428,12 +428,20 @@ class SlaService
      * — that state was never wrong, since it's driven by ticket status transitions, not by
      * calcHours().
      *
-     * @return array{net_hours: ?float, status: string}
+     * @param bool $includeOngoing When true and the ticket isn't closed yet, compute the
+     *     running net hours so far (up to now()) instead of returning null — used by the
+     *     admin SLA report's "Resolution Duration" column so it shows progress on
+     *     still-open tickets, tagged via the `is_final` flag, rather than staying blank
+     *     until the ticket closes. Defaults to false so every other caller (ticket list,
+     *     SLA Log panel, PDF exports, Lite API) keeps its original null-until-closed behavior.
+     * @return array{net_hours: ?float, status: string, is_final: bool}
      */
-    public function liveResolutionMetrics(TicketSla $sla, ?\Illuminate\Support\Collection $pauses = null): array
+    public function liveResolutionMetrics(TicketSla $sla, ?\Illuminate\Support\Collection $pauses = null, bool $includeOngoing = false): array
     {
-        if (!$sla->isClosed() || !$sla->resolved_at) {
-            return ['net_hours' => null, 'status' => $sla->resolution_status];
+        $isFinal = $sla->isClosed() && $sla->resolved_at;
+
+        if (!$isFinal && !$includeOngoing) {
+            return ['net_hours' => null, 'status' => $sla->resolution_status, 'is_final' => false];
         }
 
         $policy          = $sla->policy;
@@ -441,18 +449,22 @@ class SlaService
         $resolutionStart = $sla->first_responded_at ?? $sla->sla_start_at;
 
         if (!$resolutionStart) {
-            return ['net_hours' => null, 'status' => $sla->resolution_status];
+            return ['net_hours' => null, 'status' => $sla->resolution_status, 'is_final' => false];
         }
 
-        $gross = $this->calcHours($resolutionStart, $sla->resolved_at, $is24h, $policy);
+        $gross = $this->calcHours($resolutionStart, $isFinal ? $sla->resolved_at : now(), $is24h, $policy);
         $net   = max(0.0, $gross - $this->liveTotalWaitingHours($sla, $pauses));
+
+        if (!$isFinal) {
+            return ['net_hours' => round($net, 2), 'status' => $sla->resolution_status, 'is_final' => false];
+        }
 
         $isCancelled = $sla->ticket?->status === 'cancelled';
         $status      = ($isCancelled || !$policy || $sla->sla_mode === 'response_only')
             ? 'met'
             : ($net <= (float) $policy->resolution_hours ? 'met' : 'breached');
 
-        return ['net_hours' => round($net, 2), 'status' => $status];
+        return ['net_hours' => round($net, 2), 'status' => $status, 'is_final' => true];
     }
 
     // ── 2. attachToStaging ───────────────────────────────────────────────────
