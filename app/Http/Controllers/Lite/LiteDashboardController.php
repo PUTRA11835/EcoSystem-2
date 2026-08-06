@@ -346,8 +346,8 @@ class LiteDashboardController extends Controller
         $start30 = now()->subDays(29)->format('Y-m-d');
         $byDay   = DB::table('ticket')
             ->whereNull('deleted_at')->whereNull('is_hidden')
-            ->where('start_date', '>=', $start30)
-            ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
+            ->where('created_at', '>=', $start30)
+            ->select(DB::raw('DATE(created_at) as day'), DB::raw('COUNT(*) as cnt'))
             ->groupBy('day')
             ->pluck('cnt', 'day')
             ->toArray();
@@ -368,8 +368,8 @@ class LiteDashboardController extends Controller
     {
         $start30 = now()->subDays(29)->format('Y-m-d');
         $byDay   = (clone $base)
-            ->where('start_date', '>=', $start30)
-            ->select(DB::raw('DATE(start_date) as day'), DB::raw('COUNT(*) as cnt'))
+            ->where('created_at', '>=', $start30)
+            ->select(DB::raw('DATE(created_at) as day'), DB::raw('COUNT(*) as cnt'))
             ->groupBy('day')
             ->pluck('cnt', 'day')
             ->toArray();

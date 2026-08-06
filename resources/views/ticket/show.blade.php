@@ -7580,6 +7580,9 @@
     }
 
     function headUpdateRowTotal(inp) {
+        if (inp.classList.contains('head-approve-days') && inp.value.trim() !== '') {
+            inp.classList.remove('ring-2', 'ring-red-500', 'bg-red-50');
+        }
         const row      = inp.closest('tr');
         const apprDays = parseFloat(row.querySelector('.head-approve-days')?.value) || 0;
         const apprAdd  = parseFloat(row.querySelector('.head-approve-add')?.value) || 0;
@@ -7603,6 +7606,19 @@
     }
 
     async function headResolutionApprove(confirmNegative = false) {
+        // Approved Days is a required judgment call per employee — a blank field silently
+        // became 0 before this check existed, so a Head could approve without actually
+        // reviewing someone's days. Block the save and flag every empty field instead.
+        const emptyDaysInputs = Array.from(document.querySelectorAll('.head-approve-days'))
+            .filter(inp => inp.value.trim() === '');
+        document.querySelectorAll('.head-approve-days').forEach(inp => inp.classList.remove('ring-2', 'ring-red-500', 'bg-red-50'));
+        if (emptyDaysInputs.length > 0) {
+            emptyDaysInputs.forEach(inp => inp.classList.add('ring-2', 'ring-red-500', 'bg-red-50'));
+            showNotification('Approved Days must be filled for every employee before saving.', 'error');
+            emptyDaysInputs[0].focus();
+            return;
+        }
+
         const btn = document.getElementById('headBtnApprove');
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
