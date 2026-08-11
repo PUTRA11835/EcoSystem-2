@@ -183,6 +183,15 @@
                 <i class="fas fa-history text-xs"></i> Log SLA
             </button>
             @endif
+            @if($can('ticket.shifting-log'))
+            {{-- Shortcut ke modal Log Shifting (data sama dengan klik-kanan di list ticket).
+                 Berlaku untuk SEMUA ticket type, tidak hanya Incident seperti Log SLA. --}}
+            <button onclick="openLogShiftingTicketModal()"
+                title="Log Shifting"
+                class="ml-2 flex-shrink-0 h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
+                <i class="fas fa-exchange-alt text-xs"></i> Log Shifting
+            </button>
+            @endif
             {{-- Toggle right panel --}}
             <button id="toggleRightPanelBtn" onclick="toggleRightPanel()" title="Toggle Properties Panel"
                 class="ml-2 flex-shrink-0 w-9 h-9 hidden xl:flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
@@ -8282,6 +8291,117 @@ async function _loadSlaLogData() {
     } catch (e) {
         document.getElementById('slaLogContent').innerHTML =
             '<p class="text-center text-red-400 text-sm p-8">Gagal memuat data SLA.</p>';
+    }
+}
+</script>
+@endif
+
+@if($can('ticket.shifting-log'))
+{{-- ==================== LOG SHIFTING MODAL ====================
+     Shortcut dari room chat — sumber data sama dengan Reporting > Log Shifting
+     dan modal klik-kanan di list ticket (GET /api/reporting/log-shifting/{id}). --}}
+<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4" onclick="if(event.target===this)closeLogShiftingTicketModal()">
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                    <i class="fas fa-exchange-alt text-gray-500 text-sm"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Log Shifting</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Ticket <span class="font-mono font-semibold text-gray-600">{{ $ticket->ticket_number }}</span></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="refreshLogShiftingTicketModal()" title="Refresh Log Shifting"
+                    class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 bg-white px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                    <i class="fas fa-sync-alt text-xs" id="lstRefreshIcon"></i> Refresh
+                </button>
+                <button onclick="closeLogShiftingTicketModal()"
+                    class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-auto">
+            <table class="w-full text-xs border-collapse">
+                <thead class="sticky top-0 bg-gray-50 z-10">
+                    <tr>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Date</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Time</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">SLA Message</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">PIC</th>
+                    </tr>
+                </thead>
+                <tbody id="lstModalBody">
+                    <tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function lstEsc(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+}
+
+function openLogShiftingTicketModal() {
+    const modal = document.getElementById('logShiftingTicketModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    _loadLogShiftingData();
+}
+
+function closeLogShiftingTicketModal() {
+    const modal = document.getElementById('logShiftingTicketModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+}
+
+async function refreshLogShiftingTicketModal() {
+    const icon = document.getElementById('lstRefreshIcon');
+    icon?.classList.add('fa-spin');
+    await _loadLogShiftingData();
+    icon?.classList.remove('fa-spin');
+}
+
+async function _loadLogShiftingData() {
+    const body = document.getElementById('lstModalBody');
+    body.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>';
+
+    try {
+        const res = await fetch(`/api/reporting/log-shifting/{{ $ticket->ticket_id }}`, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+        const messages = json.data.messages || [];
+        if (!messages.length) {
+            body.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">No SLA messages found for this ticket.</td></tr>';
+            return;
+        }
+
+        body.innerHTML = messages.map(m => {
+            const bubble  = m.bubble_date ? new Date(m.bubble_date) : null;
+            const dateStr = bubble ? bubble.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+            const timeStr = bubble ? bubble.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' WIB' : '—';
+            return `
+            <tr class="border-b border-gray-100">
+                <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">${dateStr}</td>
+                <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">${timeStr}</td>
+                <td class="px-3 py-2.5 text-gray-700 whitespace-pre-wrap">${lstEsc(m.sla_message || '—')}</td>
+                <td class="px-3 py-2.5 text-gray-700 whitespace-nowrap">${m.sla_message_by ? lstEsc(m.sla_message_by) : '<span class="text-gray-300 italic">Unknown</span>'}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        body.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-red-500">${lstEsc(e.message)}</td></tr>`;
     }
 }
 </script>
