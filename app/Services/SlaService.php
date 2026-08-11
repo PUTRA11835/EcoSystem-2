@@ -20,7 +20,7 @@ class SlaService
 
     // ── Status-to-SLA effect mapping (ticket.status values) ──────────────────
 
-    const FULL_SLA_TYPES = ['Incident', 'Service Request'];
+    const FULL_SLA_TYPES = ['Incident', 'Change Request', 'Consult'];
 
     // Statuses that stop the SLA clock and move the ball to customer or SAP
     const STOP_STATUSES = [
@@ -537,7 +537,7 @@ class SlaService
     /**
      * Promosikan SLA record staging → ticket saat divalidasi.
      *
-     * Jika ticket_type BUKAN Incident / Service Request → hapus record staging
+     * Jika ticket_type BUKAN Incident / Change Request / Consult → hapus record staging
      * (tidak masuk SLA report sama sekali).
      *
      * Jika ticket_type valid → update record staging yang sudah ada dengan

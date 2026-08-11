@@ -88,37 +88,45 @@
                         </div>
                     </div>
 
-                    {{-- Month --}}
-                    @php $curMonth = (int) date('n'); @endphp
-                    <div class="custom-dd relative" data-onchange="loadReport" data-fixed="true" style="min-width:115px">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all text-left gap-2">
-                            <span class="custom-dd-label">All Months</span>
-                            <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    {{-- Date range --}}
+                    <div class="relative">
+                        <button type="button" id="dateFilterBtn" onclick="toggleDateFilter(event)"
+                            class="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all">
+                            <i id="dateFilterCalIcon" class="fas fa-calendar-alt text-[11px] text-gray-400"></i>
+                            <span id="dateFilterLabel">All Dates</span>
+                            <svg class="w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>
-                        <input type="hidden" id="filterMonth" value="">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px; min-width:140px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Months</button>
-                            @foreach(range(1,12) as $m)
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm {{ $m == $curMonth ? 'font-medium text-gray-900' : 'text-gray-600' }} hover:bg-gray-50 transition-colors" data-value="{{ $m }}">
-                                {{ \Carbon\Carbon::create((int) date('Y'), $m, 1)->isoFormat('MMMM') }}
-                            </button>
-                            @endforeach
-                        </div>
-                    </div>
-
-                    {{-- Year --}}
-                    @php $curYear = (int) date('Y'); @endphp
-                    <div class="custom-dd relative" data-onchange="loadReport" data-fixed="true" style="min-width:100px">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all text-left gap-2">
-                            <span class="custom-dd-label">All Years</span>
-                            <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" id="filterYear" value="">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px; min-width:100px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Years</button>
-                            @foreach(range($curYear, $curYear - 3) as $y)
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $y }}">{{ $y }}</button>
-                            @endforeach
+                        <div id="dateFilterPanel" class="hidden bg-white rounded-xl shadow-2xl border border-gray-100 z-50 p-3" style="min-width:230px;">
+                            <div class="space-y-2">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+                                    <input type="date" id="filterDateFrom"
+                                        class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
+                                    <input type="date" id="filterDateTo"
+                                        class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                </div>
+                                <p id="dateFilterError" class="hidden text-xs text-red-500">"To" must be on/after "From".</p>
+                            </div>
+                            <div class="border-t border-gray-100 mt-3 pt-3">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Sort</label>
+                                <div class="flex gap-2">
+                                    <button type="button" id="sort-btn-date-asc" onclick="sortByDate('asc')"
+                                        class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                        Ascending
+                                    </button>
+                                    <button type="button" id="sort-btn-date-desc" onclick="sortByDate('desc')"
+                                        class="sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">
+                                        Descending
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-2 mt-3">
+                                <button type="button" onclick="clearDateFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                <button type="button" onclick="applyDateFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
+                            </div>
                         </div>
                     </div>
 
@@ -166,7 +174,7 @@
                         <input type="hidden" id="filterTicketType" value="">
                         <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px; min-width:160px;">
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Types</button>
-                            @foreach(['Incident','Change Request','Service Request'] as $tt)
+                            @foreach(['Incident','Change Request','Consult'] as $tt)
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $tt }}">{{ $tt }}</button>
                             @endforeach
                         </div>
@@ -383,6 +391,7 @@ const STATUS_CFG = {
 };
 let _allTickets = [];
 let _filteredTickets = [];
+let currentSort = { key: 'sla_start_at', dir: 'desc' };
 
 // "2026-08-06T12:21:00" → "08/06/2026 12:21" (MM/DD/YYYY HH:MM)
 function toMDY(dt) {
@@ -429,30 +438,122 @@ function fmtHHMM(h) {
 
 function clearFilters() {
     setCustomDropdownValue('filterCustomer', '');
-    setCustomDropdownValue('filterMonth', '');
-    setCustomDropdownValue('filterYear', '');
     setCustomDropdownValue('filterStatus', '');
     setCustomDropdownValue('filterTypeOfService', '');
     setCustomDropdownValue('filterTicketType', '');
     const searchInput = document.getElementById('cfInput-ticket');
     if (searchInput) searchInput.value = '';
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
+    document.getElementById('dateFilterError').classList.add('hidden');
+    updateDateFilterLabel();
     updateClearBtn();
     loadReport();
 }
 
 function updateClearBtn() {
-    const c   = document.getElementById('filterCustomer').value;
-    const m   = document.getElementById('filterMonth').value;
-    const y   = document.getElementById('filterYear').value;
-    const s   = document.getElementById('filterStatus').value;
-    const tos = document.getElementById('filterTypeOfService').value;
-    const tt  = document.getElementById('filterTicketType').value;
-    const q   = (document.getElementById('cfInput-ticket')?.value || '').trim();
-    const defaultMonth = '';
-    const defaultYear  = '';
-    const hasFilter = c || s || tos || tt || q || m !== defaultMonth || y !== defaultYear;
+    const c    = document.getElementById('filterCustomer').value;
+    const from = document.getElementById('filterDateFrom').value;
+    const to   = document.getElementById('filterDateTo').value;
+    const s    = document.getElementById('filterStatus').value;
+    const tos  = document.getElementById('filterTypeOfService').value;
+    const tt   = document.getElementById('filterTicketType').value;
+    const q    = (document.getElementById('cfInput-ticket')?.value || '').trim();
+    const hasFilter = c || s || tos || tt || q || from || to;
     document.getElementById('clearBtn')?.classList.toggle('hidden', !hasFilter);
 }
+
+// ── Date Range Filter ───────────────────────────────────────────────────
+function toggleDateFilter(ev) {
+    ev?.stopPropagation();
+    const panel = document.getElementById('dateFilterPanel');
+    const btn = document.getElementById('dateFilterBtn');
+    const isOpen = !panel.classList.contains('hidden');
+    panel.classList.add('hidden');
+    if (!isOpen) {
+        const rect = btn.getBoundingClientRect();
+        panel.style.position = 'fixed';
+        panel.style.top = (rect.bottom + 6) + 'px';
+        panel.style.left = rect.left + 'px';
+        panel.classList.remove('hidden');
+    }
+}
+
+function applyDateFilter() {
+    const from = document.getElementById('filterDateFrom').value;
+    const to = document.getElementById('filterDateTo').value;
+    const errEl = document.getElementById('dateFilterError');
+    if (from && to && to < from) {
+        errEl.classList.remove('hidden');
+        return;
+    }
+    errEl.classList.add('hidden');
+    document.getElementById('dateFilterPanel').classList.add('hidden');
+    updateDateFilterLabel();
+    loadReport();
+}
+
+function clearDateFilter() {
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
+    document.getElementById('dateFilterError').classList.add('hidden');
+    document.getElementById('dateFilterPanel').classList.add('hidden');
+    updateDateFilterLabel();
+    loadReport();
+}
+
+function updateDateFilterLabel() {
+    const from = document.getElementById('filterDateFrom').value;
+    const to = document.getElementById('filterDateTo').value;
+    const label = document.getElementById('dateFilterLabel');
+    const btn = document.getElementById('dateFilterBtn');
+    const active = !!(from || to);
+    if (!from && !to) {
+        label.textContent = 'All Dates';
+    } else if (from && to) {
+        label.textContent = `${from} → ${to}`;
+    } else {
+        label.textContent = from ? `From ${from}` : `Until ${to}`;
+    }
+    btn.classList.toggle('bg-red-50', active);
+    btn.classList.toggle('border-red-300', active);
+    btn.classList.toggle('text-red-700', active);
+    btn.classList.toggle('bg-white', !active);
+    btn.classList.toggle('border-gray-200', !active);
+    btn.classList.toggle('text-gray-500', !active);
+    document.getElementById('dateFilterCalIcon')?.classList.toggle('text-red-500', active);
+    document.getElementById('dateFilterCalIcon')?.classList.toggle('text-gray-400', !active);
+}
+
+// ── Sort (by Date & Time Start SLA Response) ────────────────────────────
+function sortByDate(dir) {
+    currentSort = { key: 'sla_start_at', dir };
+    document.getElementById('dateFilterPanel').classList.add('hidden');
+    updateSortButtons();
+    applyReportFilters();
+}
+
+function updateSortButtons() {
+    const activeBase = 'sort-dir-btn flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors';
+    const activeCls = 'bg-red-50 border-red-300 text-red-700';
+    const inactiveCls = 'text-gray-600 border-gray-200 hover:bg-gray-50';
+    ['asc', 'desc'].forEach(dir => {
+        const btn = document.getElementById(`sort-btn-date-${dir}`);
+        if (!btn) return;
+        const isActive = currentSort.key === 'sla_start_at' && currentSort.dir === dir;
+        btn.className = `${activeBase} ${isActive ? activeCls : inactiveCls}`;
+    });
+}
+
+document.addEventListener('click', (e) => {
+    const panel = document.getElementById('dateFilterPanel');
+    const btn = document.getElementById('dateFilterBtn');
+    if (panel && !panel.classList.contains('hidden') && !panel.contains(e.target) && !btn.contains(e.target)) {
+        panel.classList.add('hidden');
+    }
+});
+window.addEventListener('scroll', () => document.getElementById('dateFilterPanel')?.classList.add('hidden'), true);
+window.addEventListener('resize', () => document.getElementById('dateFilterPanel')?.classList.add('hidden'));
 
 function exportToExcel() {
     const tickets = _filteredTickets;
@@ -566,9 +667,9 @@ function exportToExcel() {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'SLA Report');
 
-        const month = document.getElementById('filterMonth').value;
-        const year  = document.getElementById('filterYear').value;
-        const dateSuffix = [year, month ? month.padStart(2, '0') : 'all'].filter(Boolean).join('-');
+        const from = document.getElementById('filterDateFrom').value;
+        const to   = document.getElementById('filterDateTo').value;
+        const dateSuffix = (from || to) ? [from || 'all', to || 'all'].join('_to_') : 'all';
         const filename = `SLA_Report_${dateSuffix}.xlsx`;
 
         XLSX.writeFile(wb, filename);
@@ -581,11 +682,11 @@ function exportToExcel() {
 async function loadReport() {
     const params = new URLSearchParams();
     const c = document.getElementById('filterCustomer').value;
-    const m = document.getElementById('filterMonth').value;
-    const y = document.getElementById('filterYear').value;
+    const from = document.getElementById('filterDateFrom').value;
+    const to = document.getElementById('filterDateTo').value;
     if (c) params.set('customer_id', c);
-    if (m) params.set('month', m);
-    if (y) params.set('year', y);
+    if (from) params.set('start_date', from);
+    if (to) params.set('end_date', to);
 
     updateClearBtn();
     const icon = document.getElementById('refreshIcon');
@@ -625,6 +726,15 @@ function applyReportFilters() {
                     && !(t.customer_name || '').toLowerCase().includes(ticketQ)
                     && !(t.description  || '').toLowerCase().includes(ticketQ)) return false;
         return true;
+    });
+
+    filtered.sort((a, b) => {
+        const av = a.sla_start_at || '';
+        const bv = b.sla_start_at || '';
+        if (!av && !bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        return currentSort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
 
     _filteredTickets = filtered;
@@ -997,9 +1107,14 @@ function closeNotesModal() {
 }
 
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') { closeDetailModal(); closeNotesModal(); }
+    if (e.key === 'Escape') {
+        closeDetailModal();
+        closeNotesModal();
+        document.getElementById('dateFilterPanel')?.classList.add('hidden');
+    }
 });
 
+updateSortButtons();
 loadReport();
 setInterval(loadReport, 60000);
 </script>

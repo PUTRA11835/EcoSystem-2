@@ -555,17 +555,21 @@ class SlaController extends Controller
             'stagingTicket',
             'policy',
         ])
-            ->whereNotNull('ticket_id');
+            ->whereNotNull('ticket_id')
+            // Hanya tipe tiket yang SLA-eligible (lihat SlaService::FULL_SLA_TYPES) — tiket
+            // Service Request lama yang sudah punya record SLA tetap ada di DB, tapi tidak
+            // lagi ditampilkan di report sejak Service Request dikeluarkan dari SLA scope.
+            ->whereHas('ticket', fn ($q) => $q->whereIn('ticket_type', SlaService::FULL_SLA_TYPES));
 
         if ($request->filled('customer_id')) {
             $query->whereHas('ticket', fn ($q) => $q->where('customer_id', $request->customer_id));
         }
 
-        if ($request->filled('month') && $request->filled('year')) {
-            $query->whereMonth('sla_start_at', $request->month)
-                  ->whereYear('sla_start_at', $request->year);
-        } elseif ($request->filled('year')) {
-            $query->whereYear('sla_start_at', $request->year);
+        if ($request->filled('start_date')) {
+            $query->whereDate('sla_start_at', '>=', $request->start_date);
+        }
+        if ($request->filled('end_date')) {
+            $query->whereDate('sla_start_at', '<=', $request->end_date);
         }
 
         // 'pending'/'paused' are ball-holder-state-driven (set directly by ticket status
