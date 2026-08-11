@@ -21,7 +21,14 @@ class DeliverySupportPaymentTermController extends Controller
         $terms = DeliverySupportPaymentTerm::where('delivery_support_id', $support->id)
             ->orderBy('term_number')
             ->get()
-            ->map(fn($t) => $this->format($t));
+            ->map(function (DeliverySupportPaymentTerm $t) use ($support) {
+                // Amount adalah nilai TURUNAN (revenue × % / 100) yang ikut disimpan.
+                // Term yang dibuat saat revenue masih kosong akan tersimpan 0; kalau
+                // revenue diisi belakangan lewat jalur apa pun, nilai lama jadi basi.
+                // Self-heal saat dibaca supaya tabel tak pernah menampilkan angka basi.
+                $this->resyncAmount($support, $t);
+                return $this->format($t);
+            });
 
         return response()->json([
             'payment_terms'   => $terms,
@@ -151,6 +158,23 @@ class DeliverySupportPaymentTermController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Perbarui amount tersimpan bila sudah tidak sesuai revenue support saat ini.
+     * Tidak menyentuh timestamps agar audit trail term tidak berubah hanya karena
+     * halaman dibuka.
+     */
+    private function resyncAmount(DeliverySupport $support, DeliverySupportPaymentTerm $term): void
+    {
+        $amount = $this->computeAmount($support, $term->payment_percentage);
+
+        if (abs((float) $term->amount - $amount) > 0.001) {
+            $term->amount = $amount;
+            $term->timestamps = false;
+            $term->save();
+            $term->timestamps = true;
+        }
     }
 
     private function computeAmount(DeliverySupport $support, $percentage): float

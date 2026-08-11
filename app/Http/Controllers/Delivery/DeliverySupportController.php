@@ -568,19 +568,40 @@ class DeliverySupportController extends Controller
             'vendor_id'               => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_VENDOR)],
             'revenue'                 => 'nullable|numeric|min:0',
             'plan_cost'               => 'nullable|numeric|min:0',
-            'gross_profit'            => 'nullable|numeric',
-            'gross_profit_percentage' => 'nullable|numeric|min:-100|max:100',
+            // gross_profit & gross_profit_percentage sengaja TIDAK divalidasi/dipakai
+            // dari request: keduanya nilai turunan yang dihitung ulang di server
+            // (lihat di bawah). Selain menjaga konsistensi kalau JS gagal jalan,
+            // ini juga menghilangkan 422 palsu saat Plan Cost > Revenue — dulu
+            // persentase minus besar ditolak aturan `min:-100`.
         ], [
             'io_number.unique' => 'IO Number ini sudah digunakan oleh delivery support lain.',
         ]);
 
+        $revenue  = $validated['revenue']   ?? null;
+        $planCost = $validated['plan_cost'] ?? null;
+
+        // Gross Profit = Revenue − Plan Cost; % = GP / Revenue × 100.
+        // Keduanya NULL kalau dua-duanya kosong supaya field tetap tampil kosong.
+        $grossProfit    = ($revenue === null && $planCost === null)
+            ? null
+            : (float) $revenue - (float) $planCost;
+        $grossProfitPct = $grossProfit === null
+            ? null
+            : (((float) $revenue) != 0.0 ? round($grossProfit / (float) $revenue * 100, 2) : 0);
+
+        // Kolom decimal(8,2) → clamp supaya rasio ekstrem (plan cost ≫ revenue)
+        // tidak menggagalkan simpan dengan error DB.
+        if ($grossProfitPct !== null) {
+            $grossProfitPct = max(-999999.99, min(999999.99, $grossProfitPct));
+        }
+
         $support->update([
             'io_number'               => $validated['io_number'] ?: null,
             'vendor_id'               => ($validated['vendor_id'] ?? null) ?: null,
-            'revenue'                 => $validated['revenue'] ?? null,
-            'plan_cost'               => $validated['plan_cost'] ?? null,
-            'gross_profit'            => $validated['gross_profit'] ?? null,
-            'gross_profit_percentage' => $validated['gross_profit_percentage'] ?? null,
+            'revenue'                 => $revenue,
+            'plan_cost'               => $planCost,
+            'gross_profit'            => $grossProfit,
+            'gross_profit_percentage' => $grossProfitPct,
         ]);
 
         // Payment term amounts are derived (amount = revenue × % / 100). Resync on

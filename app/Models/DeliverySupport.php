@@ -278,6 +278,12 @@ class DeliverySupport extends Model
 
     public function updateCalculatedProgress()
     {
+        // Relasi phase bisa sudah ter-load sebelum phase-nya diubah pada request
+        // yang sama (mis. batch update phase). Buang cache relasinya dulu supaya
+        // perhitungan memakai data terbaru, bukan snapshot lama.
+        $this->unsetRelation('visiblePhases');
+        $this->unsetRelation('phases');
+
         $this->calculated_progress = $this->calculateProgress();
         $this->save();
     }
