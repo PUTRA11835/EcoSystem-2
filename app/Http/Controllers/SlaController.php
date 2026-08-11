@@ -1044,9 +1044,17 @@ class SlaController extends Controller
         $responseActualHours   = $this->sla->responseDurationHours($s);
         $responseStatus        = $this->sla->responseStatusLive($s);
 
-        $resolutionMetrics     = $this->sla->liveResolutionMetrics($s, $pauses);
-        $resolutionActualHours = $resolutionMetrics['net_hours'];
-        $resolutionStatus      = $resolutionMetrics['status'];
+        // "Resolution Duration (STOP-GO)" stays blank until the ticket closes (net_hours
+        // is only meaningful as a final, stop-go figure). The separate "SLA Resolution
+        // Time" column needs the running total too, so it's fetched via includeOngoing —
+        // same underlying net_hours, just also computed (and tagged not-final) pre-close.
+        $resolutionMetricsFinal = $this->sla->liveResolutionMetrics($s, $pauses);
+        $resolutionActualHours  = $resolutionMetricsFinal['net_hours'];
+        $resolutionStatus       = $resolutionMetricsFinal['status'];
+
+        $resolutionMetricsLive = $this->sla->liveResolutionMetrics($s, $pauses, true);
+        $resolutionLiveHours   = $resolutionMetricsLive['net_hours'];
+        $resolutionIsFinal     = $resolutionMetricsLive['is_final'];
 
         // Convert hours to days (8 working hours per day)
         $toWorkingDays = fn (?float $h) => $h !== null ? round($h / 8, 2) : null;
@@ -1055,6 +1063,16 @@ class SlaController extends Controller
         $closedAt    = ($t && in_array($t->status, $endStatuses))
                        ? $t->updated_at?->toDateTimeString()
                        : null;
+
+        // "SLA Resolution Status" (Achieved/Not Achieved) — Type of Service = CR is exempt
+        // (change requests aren't held to the resolution SLA), and it's only meaningful once
+        // the ticket is actually Closed (Resolution Duration (STOP-GO) is a final figure).
+        $resolutionTimeStatus = $this->slaResolutionAchievement(
+            $deliverySupportType,
+            $t?->status,
+            $resolutionActualHours,
+            $resolutionTargetHours
+        );
 
         return [
             'ticket_id'              => $t?->ticket_id,
@@ -1091,12 +1109,15 @@ class SlaController extends Controller
                 'status'        => $resolutionStatus,
                 'actual_hours'  => $resolutionActualHours,
                 'actual_days'   => $toWorkingDays($resolutionActualHours),
+                'live_hours'    => $resolutionLiveHours,
+                'is_final'      => $resolutionIsFinal,
                 'target_hours'  => $resolutionTargetHours,
                 'target_days'   => $toWorkingDays($resolutionTargetHours),
                 'start_at'      => $this->sla->resolutionStartAt($s)?->toDateTimeString(),
                 'due_at'        => $this->sla->resolutionDueAt($s)?->toDateTimeString(),
                 'resolved_at'   => ($firstResolvedAt ?? $this->sla->firstResolvedAt($s))?->toDateTimeString(),
                 'doc_sent_at'   => ($docSentAt ?? $this->sla->resolutionDocSentAt($s))?->toDateTimeString(),
+                'time_status'   => $resolutionTimeStatus,
                 'met'           => in_array($resolutionStatus, ['met', 'pending_validation']),
             ],
             'waiting_hours'          => $this->sla->liveTotalWaitingHours($s, $pauses),
@@ -1107,6 +1128,36 @@ class SlaController extends Controller
                 'text' => $this->stripLeadingTimestamp($m->sla_message),
             ])->values(),
         ];
+    }
+
+    /**
+     * "SLA Resolution Status" column (Achieved / Not Achieved / N/A) — mirrors the report's
+     * Excel template: compare Resolution Duration (STOP-GO) against the SLA Resolution
+     * (HOUR) target, except:
+     *   - Type of Service = 'CR' tickets are exempt (change requests aren't held to the
+     *     resolution SLA) → N/A.
+     *   - Only meaningful once the ticket is actually Closed — Resolution Duration
+     *     (STOP-GO) is a final, stop-go figure that isn't settled before then → N/A.
+     */
+    private function slaResolutionAchievement(
+        ?string $deliverySupportType,
+        ?string $ticketStatus,
+        ?float $actualHours,
+        ?float $targetHours
+    ): string {
+        if ($deliverySupportType === 'CR') {
+            return 'N/A';
+        }
+
+        if ($ticketStatus !== 'closed') {
+            return 'N/A';
+        }
+
+        if ($actualHours === null || $targetHours === null) {
+            return 'N/A';
+        }
+
+        return $actualHours <= $targetHours ? 'Achieved' : 'Not Achieved';
     }
 
     /**

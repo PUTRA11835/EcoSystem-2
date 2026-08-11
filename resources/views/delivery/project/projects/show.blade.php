@@ -90,6 +90,31 @@
         background: #94a3b8;
     }
 
+    /* Scrollbar horizontal yang selalu terlihat.
+       Dipakai pada tabel di dalam modal (mis. Actual Expense Details): default
+       macOS/Windows menyembunyikan overlay scrollbar sampai user men-scroll,
+       sehingga user tidak tahu ada isi yang terpotong ke kanan. */
+    .tbl-scroll {
+        scrollbar-width: thin;                 /* Firefox */
+        scrollbar-color: #cbd5e1 #f1f5f9;
+    }
+    .tbl-scroll::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    .tbl-scroll::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 5px;
+    }
+    .tbl-scroll::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 5px;
+        border: 2px solid #f1f5f9;
+    }
+    .tbl-scroll::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
     /* overflow-x:auto membuat overflow-y ikut jadi 'auto' (spec CSS); underline
        tab aktif (::after bottom:-1px) meluber 1px → memunculkan scrollbar
        vertikal yang tak perlu. Kunci overflow-y agar hanya scroll horizontal. */
@@ -793,6 +818,73 @@
 </section>
 @endif
 
+@php
+    // ──────────────────────────────────────────────────────────────────
+    // Daftar orang yang dipakai bersama beberapa dropdown di halaman ini.
+    //
+    // Sengaja dihitung DI LUAR section Team Members: dropdown pemakainya
+    // (Risk Register, Issue Log, WRICEF) berada di balik izin masing-masing,
+    // jadi kalau perhitungan ini ikut terkunci izin `delivery-project.team.view`
+    // dropdown-dropdown itu ikut kosong / error saat izin tim dicabut.
+    //
+    // $teamPivotRows & $employees dikirim controller, selalu tersedia.
+    // ──────────────────────────────────────────────────────────────────
+
+    // Semua employee_id yang punya baris pivot — penentu FK-fallback di bawah.
+    $pivotEmpIds = $teamPivotRows->pluck('employee_id')->unique()->toArray();
+
+    // FK-fallback rows: kolom FK PM/Co PM/PA lama hanya ditampilkan bila
+    // employee-nya TIDAK punya baris pivot sama sekali (project era pra-pivot).
+    $fkFallbacks = [];
+    foreach ([
+        ['id' => $project->project_manager_id, 'role' => 'Project Manager'],
+        ['id' => $project->co_pm_id,            'role' => 'Co Project Manager'],
+        ['id' => $project->project_admin_id,    'role' => 'Project Admin'],
+    ] as $fk) {
+        if ($fk['id'] && !in_array($fk['id'], $pivotEmpIds)) {
+            $fbEmp = $employees->firstWhere('employee_id', $fk['id']);
+            if ($fbEmp) {
+                $fkFallbacks[] = ['emp' => $fbEmp, 'role' => $fk['role']];
+            }
+        }
+    }
+
+    $hasAnyTeam = $teamPivotRows->isNotEmpty() || !empty($fkFallbacks);
+
+    // $teamPeople = persis nama-nama yang tampil di tabel Team Members
+    // (FK-fallback PM/Co PM/Project Admin + seluruh anggota pivot) ditambah
+    // delivery owner & manager. Dipakai dropdown PIC WRICEF.
+    $teamPeople = collect();
+    if ($project->deliveryOwner && $project->deliveryOwner->basicData) {
+        $teamPeople->push($project->deliveryOwner->basicData->full_name);
+    }
+    if ($project->deliveryManager && $project->deliveryManager->basicData) {
+        $teamPeople->push($project->deliveryManager->basicData->full_name);
+    }
+    foreach ($fkFallbacks as $fb) {
+        $teamPeople->push($fb['emp']->basicData->full_name ?? null);
+    }
+    foreach ($teamPivotRows as $tpRow) {
+        $tpEmp = $employees->firstWhere('employee_id', $tpRow->employee_id);
+        $teamPeople->push($tpEmp?->basicData->full_name);
+    }
+    $teamPeople = $teamPeople->filter()->unique()->sort()->values();
+
+    // $projectPeople = $teamPeople + AE + Project Owner. Dipakai dropdown yang
+    // boleh menunjuk orang di luar tim inti: Risk Owner (Risk Register) dan
+    // Originator/Owner (Issue Log).
+    //
+    // Catatan kolom: `ae_name` dan `project_owner` menyimpan NAMA (string),
+    // bukan foreign key — jadi cukup digabung apa adanya, hanya di-trim.
+    $projectPeople = $teamPeople
+        ->merge([$project->ae_name, $project->project_owner])
+        ->map(fn ($n) => trim((string) $n))
+        ->filter()
+        ->unique()
+        ->sort()
+        ->values();
+@endphp
+
 {{-- Team Section WITH CHECKBOX SELECTION --}}
 @if($can('delivery-project.team.view'))
 <section id="team" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.team.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.team.manage') ? '1' : '0' }}">
@@ -806,49 +898,8 @@
             @endif
         </div>
         <div class="p-6">
-            @php
-                // Collect all pivot employee IDs so we know which FK-only fallbacks to show
-                $pivotEmpIds = $teamPivotRows->pluck('employee_id')->unique()->toArray();
-
-                // FK-fallback rows: show legacy PM/Co PM/PA FK columns only when the
-                // employee has NO pivot entry at all (e.g. project created before pivot flow)
-                $fkFallbacks = [];
-                foreach ([
-                    ['id' => $project->project_manager_id, 'role' => 'Project Manager'],
-                    ['id' => $project->co_pm_id,            'role' => 'Co Project Manager'],
-                    ['id' => $project->project_admin_id,    'role' => 'Project Admin'],
-                ] as $fk) {
-                    if ($fk['id'] && !in_array($fk['id'], $pivotEmpIds)) {
-                        $fbEmp = $employees->firstWhere('employee_id', $fk['id']);
-                        if ($fbEmp) {
-                            $fkFallbacks[] = ['emp' => $fbEmp, 'role' => $fk['role']];
-                        }
-                    }
-                }
-
-                $hasAnyTeam = $teamPivotRows->isNotEmpty() || !empty($fkFallbacks);
-
-                // People list shared by the Owner / Originator (Issue Log) and
-                // Risk Owner (Risk Register) dropdowns. Mirrors exactly the names
-                // shown in the Team Members table (FK-fallback PM/Co PM/Project
-                // Admin + every pivot member/lead) plus the project delivery
-                // owner & manager.
-                $teamPeople = collect();
-                if ($project->deliveryOwner && $project->deliveryOwner->basicData) {
-                    $teamPeople->push($project->deliveryOwner->basicData->full_name);
-                }
-                if ($project->deliveryManager && $project->deliveryManager->basicData) {
-                    $teamPeople->push($project->deliveryManager->basicData->full_name);
-                }
-                foreach ($fkFallbacks as $fb) {
-                    $teamPeople->push($fb['emp']->basicData->full_name ?? null);
-                }
-                foreach ($teamPivotRows as $tpRow) {
-                    $tpEmp = $employees->firstWhere('employee_id', $tpRow->employee_id);
-                    $teamPeople->push($tpEmp?->basicData->full_name);
-                }
-                $teamPeople = $teamPeople->filter()->unique()->sort()->values();
-            @endphp
+            {{-- $fkFallbacks / $hasAnyTeam / $teamPeople dihitung di blok PHP
+                 tepat sebelum section ini (di luar pagar izin). --}}
 
             {{-- Team Members Table --}}
             <div>
@@ -1610,11 +1661,16 @@
             <div class="overflow-x-auto overflow-y-auto max-h-[560px] rounded-lg border border-gray-200 risk-scroll">
                 <table class="min-w-full text-sm border-collapse" id="wricefTable">
                     <thead class="sticky top-0 z-10">
+                        {{-- Tiap tahap punya warna sendiri (FSD merah, Development biru,
+                             Testing oren) supaya batas antar tahap langsung terlihat
+                             pada tabel yang sangat lebar ini. Warna diterapkan pada
+                             baris grup DAN sub-header agar tetap terbaca saat di-scroll
+                             horizontal dan judul grupnya keluar dari layar. --}}
                         <tr class="bg-gray-800 text-white">
                             <th colspan="14" class="px-3 py-2 text-left font-semibold whitespace-nowrap border-r border-gray-600">WRICEF Log</th>
-                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-gray-600">FSD</th>
-                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-gray-600">Development</th>
-                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-gray-600">Testing</th>
+                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-red-900 bg-red-700">FSD</th>
+                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-blue-900 bg-blue-700">Development</th>
+                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-orange-800 bg-orange-600">Testing</th>
                             <th rowspan="2" class="px-3 py-2 text-center font-semibold whitespace-nowrap w-[80px] bg-gray-700">Action</th>
                         </tr>
                         <tr class="bg-gray-700 text-white">
@@ -1633,23 +1689,26 @@
                             <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Approved Date</th>
                             <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[110px] border-r border-gray-600">Status</th>
 
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">PIC</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">Start</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">End</th>
-                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px]">Status</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] border-r border-gray-600">Remarks</th>
+                            {{-- FSD --}}
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px] bg-red-600">PIC</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-red-600">Start</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-red-600">End</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px] bg-red-600">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] bg-red-600 border-r border-red-900">Remarks</th>
 
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">PIC</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">Start</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">End</th>
-                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[130px]">Status</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] border-r border-gray-600">Remarks</th>
+                            {{-- Development --}}
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px] bg-blue-600">PIC</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-blue-600">Start</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-blue-600">End</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[130px] bg-blue-600">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] bg-blue-600 border-r border-blue-900">Remarks</th>
 
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">PIC</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">Start</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px]">End</th>
-                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px]">Status</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] border-r border-gray-600">Remarks</th>
+                            {{-- Testing --}}
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px] bg-orange-500">PIC</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-orange-500">Start</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-orange-500">End</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px] bg-orange-500">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] bg-orange-500 border-r border-orange-800">Remarks</th>
                         </tr>
                     </thead>
                     <tbody id="wricefTableBody" class="divide-y divide-gray-100 bg-white">
@@ -1663,6 +1722,16 @@
                             </td>
                         </tr>
                     </tbody>
+                    {{-- Total Mandays — akumulasi kolom Effort (Mandays) seluruh baris,
+                         mengikuti pola footer Total pada Term Of Payment Plan.
+                         colspan 10 + 1 kolom Effort + 19 kolom sisanya = 30 kolom. --}}
+                    <tfoot class="sticky bottom-0 z-10 bg-gray-50 border-t-2 border-gray-300">
+                        <tr id="wricefFooter" class="font-semibold text-gray-700">
+                            <td class="px-3 py-3 text-right text-xs whitespace-nowrap" colspan="10">Total Mandays</td>
+                            <td class="px-3 py-3 text-right text-xs whitespace-nowrap" id="wricefTotalMandays">0</td>
+                            <td class="px-3 py-3" colspan="19"></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
             <p class="text-xs text-gray-400 mt-2">Obj ID dibuat otomatis dari SAP Module + Category (contoh: MM + Report → MMR001). Company mengikuti customer project.</p>
@@ -2102,15 +2171,26 @@
                 {{-- Table rincian pengeluaran --}}
                 <div>
                     <h4 class="text-sm font-semibold text-gray-700 mb-2">Expense List</h4>
-                    <div class="overflow-x-auto rounded-lg border border-gray-200">
-                        <table class="min-w-full text-sm">
+                    {{-- table-fixed + colgroup: lebar kolom ditentukan di sini, bukan
+                         oleh isi sel. Tanpa ini nama dokumen yang panjang (nowrap)
+                         merebut hampir seluruh lebar tabel dan Expense Name terjepit
+                         jadi kolom sempit yang sulit dibaca. --}}
+                    <div class="overflow-x-auto rounded-lg border border-gray-200 tbl-scroll">
+                        <table class="min-w-[720px] w-full text-sm table-fixed">
+                            <colgroup>
+                                <col class="w-10">   {{-- #        --}}
+                                <col>                {{-- Expense Name: sisa lebar --}}
+                                <col class="w-36">   {{-- Amount   --}}
+                                <col class="w-44">   {{-- Document --}}
+                                <col class="w-20">   {{-- Action   --}}
+                            </colgroup>
                             <thead class="bg-gray-50 text-gray-600">
                                 <tr>
                                     <th class="px-4 py-2.5 text-left font-medium">#</th>
                                     <th class="px-4 py-2.5 text-left font-medium">Expense Name</th>
                                     <th class="px-4 py-2.5 text-right font-medium">Amount</th>
                                     <th class="px-4 py-2.5 text-center font-medium">Document</th>
-                                    <th class="px-4 py-2.5 text-center font-medium w-24">Action</th>
+                                    <th class="px-4 py-2.5 text-center font-medium">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="actualDetailTableBody" class="divide-y divide-gray-100">
@@ -2497,9 +2577,10 @@
                     {{-- Risk Owner --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Risk Owner <span class="text-red-500">*</span></label>
+                        {{-- $projectPeople = Project Team + AE + Project Owner. --}}
                         <select id="risk_owner" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
                             <option value="">-- Select Risk Owner --</option>
-                            @foreach($teamPeople as $person)
+                            @foreach($projectPeople as $person)
                                 <option value="{{ $person }}">{{ $person }}</option>
                             @endforeach
                         </select>
@@ -3492,11 +3573,11 @@
         tr.dataset.docName = item.document_name ?? '';
         tr.dataset.docUrl  = item.document_url ?? '';
         tr.innerHTML = `
-            <td class="px-4 py-2.5 text-gray-400 text-xs">${no}</td>
-            <td class="px-4 py-2.5 text-gray-700 text-sm">${_esc(item.description)}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-sm text-blue-700 font-medium whitespace-nowrap">${fmtRp(item.amount)}</td>
-            <td class="px-4 py-2.5 text-center whitespace-nowrap">${docCell}</td>
-            <td class="px-4 py-2.5 text-center whitespace-nowrap">
+            <td class="px-4 py-2.5 text-gray-400 text-xs align-top">${no}</td>
+            <td class="px-4 py-2.5 text-gray-700 text-sm align-top break-words">${_esc(item.description)}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-sm text-blue-700 font-medium whitespace-nowrap align-top">${fmtRp(item.amount)}</td>
+            <td class="px-4 py-2.5 text-center align-top">${docCell}</td>
+            <td class="px-4 py-2.5 text-center whitespace-nowrap align-top">
                 <div class="inline-flex items-center gap-0.5">
                     <button type="button" title="Edit"
                             onclick="PlanCost.openEditExpenseModal(${item.id}, this.closest('tr'))"
@@ -3518,14 +3599,19 @@
         tfoot.classList.remove('hidden');
     }
 
+    // Nama dokumen bisa sangat panjang. Kolomnya sempit & fixed-width, jadi
+    // teksnya dipotong dengan ellipsis; nama lengkapnya tetap terbaca lewat
+    // tooltip (title) dan tetap bisa diklik untuk membuka file.
     function _adDocCellHtml(item) {
+        const name = item.document_name ?? 'View';
         return item.document_url
             ? `<a href="${item.document_url}" target="_blank" rel="noopener"
-                  class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  title="${_esc(name)}"
+                  class="flex items-center gap-1 text-xs text-blue-600 hover:underline min-w-0">
+                   <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
                    </svg>
-                   ${_esc(item.document_name ?? 'View')}
+                   <span class="truncate">${_esc(name)}</span>
                </a>`
             : `<span class="text-gray-300 text-xs">—</span>`;
     }
@@ -4068,9 +4154,10 @@
                     {{-- Originator --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Originator <span class="text-red-500">*</span></label>
+                        {{-- $projectPeople = Project Team + AE + Project Owner. --}}
                         <select id="issue_originator" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
                             <option value="">-- Select Originator --</option>
-                            @foreach($teamPeople as $person)
+                            @foreach($projectPeople as $person)
                                 <option value="{{ $person }}">{{ $person }}</option>
                             @endforeach
                         </select>
@@ -4081,7 +4168,7 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">Owner <span class="text-red-500">*</span></label>
                         <select id="issue_owner" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
                             <option value="">-- Select Owner --</option>
-                            @foreach($teamPeople as $person)
+                            @foreach($projectPeople as $person)
                                 <option value="{{ $person }}">{{ $person }}</option>
                             @endforeach
                         </select>
@@ -4201,9 +4288,9 @@
      `data-perm-*` tidak menjangkaunya. Kontrol tulis di sini harus
      dipagari @if($can(...)) sendiri (lihat delivery/partials/section-permissions). --}}
 @php
-    // Team Members section hanya dirender bila punya izin `.view`, sedangkan
-    // $teamPeople didefinisikan di dalamnya — jaga-jaga bila izin itu dicabut.
-    $wricefPeople  = $teamPeople ?? collect();
+    // PIC tiap tahap harus anggota tim yang mengerjakan, jadi sengaja memakai
+    // $teamPeople (tanpa AE & Project Owner — itu $projectPeople).
+    $wricefPeople  = $teamPeople;
     $wricefCompany = $project->client->basicData->name_1 ?? '—';
 @endphp
 <div id="wricefModal" class="fixed inset-0 z-50 hidden">
@@ -4326,12 +4413,11 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Approved By</label>
-                            <select id="wricef_approved_by" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
-                                <option value="">-- Select --</option>
-                                @foreach($wricefPeople as $person)
-                                    <option value="{{ $person }}">{{ $person }}</option>
-                                @endforeach
-                            </select>
+                            {{-- Diketik manual (bukan dropdown Project Team): approver
+                                 sering pihak di luar tim project, mis. dari sisi customer. --}}
+                            <input type="text" id="wricef_approved_by" maxlength="150"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. Budi Santoso">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Approved Date</label>
@@ -7692,9 +7778,27 @@ window.WricefLog = (function () {
 
         if (!_rows.length) {
             tbody.innerHTML = `<tr><td colspan="30" class="text-center py-10 text-gray-400 text-sm">No WRICEF objects yet. Click "Add WRICEF" to get started.</td></tr>`;
+            renderTotals();
             return;
         }
         tbody.innerHTML = _rows.map(w => rowHtml(w)).join('');
+        renderTotals();
+    }
+
+    // Total Mandays = jumlah effort_mandays semua baris; baris tanpa nilai
+    // dihitung 0 (bukan membatalkan total).
+    function renderTotals() {
+        const cell = document.getElementById('wricefTotalMandays');
+        if (!cell) return;
+
+        const total = _rows.reduce(function (sum, w) {
+            const num = Number(w.effort_mandays);
+            return sum + (isNaN(num) ? 0 : num);
+        }, 0);
+
+        cell.textContent = Number.isInteger(total)
+            ? String(total)
+            : total.toFixed(2).replace('.', ',');
     }
 
     function rowHtml(w) {

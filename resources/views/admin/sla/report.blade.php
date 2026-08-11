@@ -89,17 +89,17 @@
                     </div>
 
                     {{-- Month --}}
-                    @php $curMonth = (int) date('n'); $curMonthName = \Carbon\Carbon::now()->isoFormat('MMMM'); @endphp
+                    @php $curMonth = (int) date('n'); @endphp
                     <div class="custom-dd relative" data-onchange="loadReport" data-fixed="true" style="min-width:115px">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-gray-400 transition-all text-left gap-2">
-                            <span class="custom-dd-label">{{ $curMonthName }}</span>
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all text-left gap-2">
+                            <span class="custom-dd-label">All Months</span>
                             <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>
-                        <input type="hidden" id="filterMonth" value="{{ $curMonth }}">
+                        <input type="hidden" id="filterMonth" value="">
                         <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px; min-width:140px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Months</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Months</button>
                             @foreach(range(1,12) as $m)
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm {{ $m == $curMonth ? 'font-medium text-gray-900 bg-gray-50' : 'text-gray-600' }} hover:bg-gray-50 transition-colors" data-value="{{ $m }}">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm {{ $m == $curMonth ? 'font-medium text-gray-900' : 'text-gray-600' }} hover:bg-gray-50 transition-colors" data-value="{{ $m }}">
                                 {{ \Carbon\Carbon::create((int) date('Y'), $m, 1)->isoFormat('MMMM') }}
                             </button>
                             @endforeach
@@ -108,32 +108,67 @@
 
                     {{-- Year --}}
                     @php $curYear = (int) date('Y'); @endphp
-                    <div class="custom-dd relative" data-onchange="loadReport" data-fixed="true" style="min-width:80px">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-gray-400 transition-all text-left gap-2">
-                            <span class="custom-dd-label">{{ $curYear }}</span>
+                    <div class="custom-dd relative" data-onchange="loadReport" data-fixed="true" style="min-width:100px">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all text-left gap-2">
+                            <span class="custom-dd-label">All Years</span>
                             <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>
-                        <input type="hidden" id="filterYear" value="{{ $curYear }}">
+                        <input type="hidden" id="filterYear" value="">
                         <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px; min-width:100px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Years</button>
                             @foreach(range($curYear, $curYear - 3) as $y)
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm {{ $y == $curYear ? 'font-medium text-gray-900 bg-gray-50' : 'text-gray-600' }} hover:bg-gray-50 transition-colors" data-value="{{ $y }}">{{ $y }}</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $y }}">{{ $y }}</button>
                             @endforeach
                         </div>
                     </div>
 
-                    {{-- Status --}}
-                    <div class="custom-dd relative" data-onchange="loadReport" data-fixed="true" style="min-width:120px">
+                    {{-- Status (matches ticket.status — same values as the Status column here & on the Ticket page) --}}
+                    <div class="custom-dd relative" data-onchange="applyReportFilters" data-fixed="true" style="min-width:150px">
                         <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all text-left gap-2">
                             <span class="custom-dd-label">All Statuses</span>
                             <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>
                         <input type="hidden" id="filterStatus" value="">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px; min-width:140px;">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px; min-width:190px;">
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Statuses</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="pending">Active</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="paused">Paused</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="met">Met</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="breached">Breached</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="open">Open</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="inprocess">Inprocess</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="waiting_on_customer">Waiting on Customer</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="waiting_on_3rd_party">Waiting on 3rd Party</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="waiting_to_confirmation">Waiting to Confirmation</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="hold">Hold</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="cancelled">Cancelled</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="closed">Closed</button>
+                        </div>
+                    </div>
+
+                    {{-- Type of Service --}}
+                    <div class="custom-dd relative" data-onchange="applyReportFilters" data-fixed="true" style="min-width:130px">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all text-left gap-2">
+                            <span class="custom-dd-label">All Type of Service</span>
+                            <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="filterTypeOfService" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px; min-width:160px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Type of Service</button>
+                            @foreach(['AMS','MO','ATS','CR','RISE','CLOUD','POSTPAID','Project','Internal'] as $tos)
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $tos }}">{{ $tos }}</button>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    {{-- Type --}}
+                    <div class="custom-dd relative" data-onchange="applyReportFilters" data-fixed="true" style="min-width:130px">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all text-left gap-2">
+                            <span class="custom-dd-label">All Types</span>
+                            <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="filterTicketType" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px; min-width:160px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Types</button>
+                            @foreach(['Incident','Change Request','Service Request'] as $tt)
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $tt }}">{{ $tt }}</button>
+                            @endforeach
                         </div>
                     </div>
 
@@ -175,7 +210,7 @@
                         <th colspan="4"  class="sc sc-last px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider grp-info" style="left:0;">Informasi Tiket</th>
                         <th colspan="9"  class="px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider border-r border-gray-200 grp-info"></th>
                         <th colspan="7"  class="px-3 py-2 text-center text-[10px] font-bold text-blue-700 uppercase tracking-wider border-r border-gray-200 grp-resp">SLA Response</th>
-                        <th colspan="8" class="px-3 py-2 text-center text-[10px] font-bold text-green-700 uppercase tracking-wider border-r border-gray-200 grp-res">SLA Resolution</th>
+                        <th colspan="10" class="px-3 py-2 text-center text-[10px] font-bold text-green-700 uppercase tracking-wider border-r border-gray-200 grp-res">SLA Resolution</th>
                         <th colspan="1"  class="px-3 py-2 text-center text-[10px] font-bold text-gray-500 uppercase tracking-wider grp-info">Aksi</th>
                     </tr>
                     {{-- Column header row (sc = sticky column, left = cumulative px offset) --}}
@@ -213,6 +248,8 @@
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">First<br>Resolved Date</th>
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">Date of sending<br>Resolution doc./mail</th>
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:80px">Resolution<br>Duration<br>(STOP-GO)</th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:80px">SLA<br>Resolution<br>Time</th>
+                        <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:80px">SLA<br>Resolution<br>Status</th>
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res" style="min-width:130px">Closed Date</th>
                         <th class="text-center px-2 py-2 font-semibold text-green-600 uppercase tracking-wider grp-res border-r border-gray-200" style="min-width:70px">Notes</th>
                         {{-- Actions --}}
@@ -221,7 +258,7 @@
                 </thead>
                 <tbody id="reportTableBody">
                     <tr>
-                        <td colspan="29" class="py-16 text-center">
+                        <td colspan="31" class="py-16 text-center">
                             <div class="flex flex-col items-center gap-2 text-gray-300">
                                 <i class="fas fa-spinner fa-spin text-3xl"></i>
                                 <p class="text-sm">Loading report...</p>
@@ -347,16 +384,21 @@ const STATUS_CFG = {
 let _allTickets = [];
 let _filteredTickets = [];
 
-function fmtDT(dt) {
-    if (!dt) return '—';
-    return dt.substring(0, 16).replace('T', ' ');
+// "2026-08-06T12:21:00" → "08/06/2026 12:21" (MM/DD/YYYY HH:MM)
+function toMDY(dt) {
+    const y = dt.substring(0, 4), m = dt.substring(5, 7), d = dt.substring(8, 10), hm = dt.substring(11, 16);
+    return `${m}/${d}/${y} ${hm}`;
 }
 
-// "2026-07-07 12:21:00" → "07.07.2026 12:21" (Notes column log format)
+function fmtDT(dt) {
+    if (!dt) return '—';
+    return toMDY(dt);
+}
+
+// Notes column log-line timestamp — same MM/DD/YYYY HH:MM format as the rest of the report.
 function fmtNoteDT(dt) {
     if (!dt) return '';
-    const [y, m, d] = dt.substring(0, 10).split('-');
-    return `${d}.${m}.${y} ${dt.substring(11, 16)}`;
+    return toMDY(dt);
 }
 
 function escHtml(s) {
@@ -387,9 +429,11 @@ function fmtHHMM(h) {
 
 function clearFilters() {
     setCustomDropdownValue('filterCustomer', '');
-    setCustomDropdownValue('filterMonth', '{{ $curMonth }}');
-    setCustomDropdownValue('filterYear', '{{ $curYear }}');
+    setCustomDropdownValue('filterMonth', '');
+    setCustomDropdownValue('filterYear', '');
     setCustomDropdownValue('filterStatus', '');
+    setCustomDropdownValue('filterTypeOfService', '');
+    setCustomDropdownValue('filterTicketType', '');
     const searchInput = document.getElementById('cfInput-ticket');
     if (searchInput) searchInput.value = '';
     updateClearBtn();
@@ -397,14 +441,16 @@ function clearFilters() {
 }
 
 function updateClearBtn() {
-    const c = document.getElementById('filterCustomer').value;
-    const m = document.getElementById('filterMonth').value;
-    const y = document.getElementById('filterYear').value;
-    const s = document.getElementById('filterStatus').value;
-    const q = (document.getElementById('cfInput-ticket')?.value || '').trim();
-    const defaultMonth = '{{ $curMonth }}';
-    const defaultYear  = '{{ $curYear }}';
-    const hasFilter = c || s || q || m !== defaultMonth || y !== defaultYear;
+    const c   = document.getElementById('filterCustomer').value;
+    const m   = document.getElementById('filterMonth').value;
+    const y   = document.getElementById('filterYear').value;
+    const s   = document.getElementById('filterStatus').value;
+    const tos = document.getElementById('filterTypeOfService').value;
+    const tt  = document.getElementById('filterTicketType').value;
+    const q   = (document.getElementById('cfInput-ticket')?.value || '').trim();
+    const defaultMonth = '';
+    const defaultYear  = '';
+    const hasFilter = c || s || tos || tt || q || m !== defaultMonth || y !== defaultYear;
     document.getElementById('clearBtn')?.classList.toggle('hidden', !hasFilter);
 }
 
@@ -452,6 +498,8 @@ function exportToExcel() {
                     'First Resolved Date': '',
                     'Date Sending Resolution Doc': '',
                     'Resolution Duration (STOP-GO)': '',
+                    'SLA Resolution Time': '',
+                    'SLA Resolution Status': '',
                     'Closed Date': '',
                     'Notes': '',
                 };
@@ -481,21 +529,25 @@ function exportToExcel() {
                 'Type': t.ticket_type || '',
                 'Status': (t.ticket_status || '').replace(/_/g, ' '),
                 // SLA Response
-                'Date & Time Received': t.received_at ? t.received_at.substring(0, 16).replace('T', ' ') : '',
-                'Date & Time Start SLA Response': t.sla_start_at ? t.sla_start_at.substring(0, 16).replace('T', ' ') : '',
+                'Date & Time Received': t.received_at ? toMDY(t.received_at) : '',
+                'Date & Time Start SLA Response': t.sla_start_at ? toMDY(t.sla_start_at) : '',
                 'SLA Response Time (Jam)': t.response?.target_hours ?? '',
-                'SLA Response Due On': t.response?.due_at ? t.response.due_at.substring(0, 16).replace('T', ' ') : '',
-                'Date & Time Responded': t.response?.responded_at ? t.response.responded_at.substring(0, 16).replace('T', ' ') : '',
+                'SLA Response Due On': t.response?.due_at ? toMDY(t.response.due_at) : '',
+                'Date & Time Responded': t.response?.responded_at ? toMDY(t.response.responded_at) : '',
                 'Response Duration': t.response?.actual_hours != null ? fmtHHMM(t.response.actual_hours) : '',
                 'SLA Response Status': respStatusLabel,
                 // SLA Resolution
                 'SLA Resolution (Hour)': t.resolution?.target_hours ?? '',
-                'Date & Time Start SLA Resolution': t.resolution?.start_at ? t.resolution.start_at.substring(0, 16).replace('T', ' ') : '',
-                'SLA Resolution Due On': t.resolution?.due_at ? t.resolution.due_at.substring(0, 16).replace('T', ' ') : '',
-                'First Resolved Date': t.resolution?.resolved_at ? t.resolution.resolved_at.substring(0, 16).replace('T', ' ') : '',
-                'Date Sending Resolution Doc': t.resolution?.doc_sent_at ? t.resolution.doc_sent_at.substring(0, 16).replace('T', ' ') : '',
+                'Date & Time Start SLA Resolution': t.resolution?.start_at ? toMDY(t.resolution.start_at) : '',
+                'SLA Resolution Due On': t.resolution?.due_at ? toMDY(t.resolution.due_at) : '',
+                'First Resolved Date': t.resolution?.resolved_at ? toMDY(t.resolution.resolved_at) : '',
+                'Date Sending Resolution Doc': t.resolution?.doc_sent_at ? toMDY(t.resolution.doc_sent_at) : '',
                 'Resolution Duration (STOP-GO)': t.resolution?.actual_hours != null ? fmtHHMM(t.resolution.actual_hours) : '',
-                'Closed Date': t.closed_at ? t.closed_at.substring(0, 16).replace('T', ' ') : '',
+                'SLA Resolution Time': t.resolution?.live_hours != null
+                    ? fmtHHMM(t.resolution.live_hours) + (t.resolution?.is_final === false ? ' (berjalan)' : '')
+                    : '',
+                'SLA Resolution Status': t.resolution?.time_status || '',
+                'Closed Date': t.closed_at ? toMDY(t.closed_at) : '',
                 'Notes': buildNotesLog(t).join('\n'),
             };
         });
@@ -531,11 +583,9 @@ async function loadReport() {
     const c = document.getElementById('filterCustomer').value;
     const m = document.getElementById('filterMonth').value;
     const y = document.getElementById('filterYear').value;
-    const s = document.getElementById('filterStatus').value;
     if (c) params.set('customer_id', c);
     if (m) params.set('month', m);
     if (y) params.set('year', y);
-    if (s) params.set('resolution_status', s);
 
     updateClearBtn();
     const icon = document.getElementById('refreshIcon');
@@ -550,7 +600,7 @@ async function loadReport() {
         applyReportFilters();
     } catch (e) {
         document.getElementById('reportTableBody').innerHTML = `
-            <tr><td colspan="29" class="py-12 text-center">
+            <tr><td colspan="31" class="py-12 text-center">
                 <div class="flex flex-col items-center gap-2 text-red-400">
                     <i class="fas fa-exclamation-triangle text-3xl"></i>
                     <p class="text-sm">Failed to load report.</p>
@@ -563,8 +613,14 @@ async function loadReport() {
 
 function applyReportFilters() {
     const ticketQ = (document.getElementById('cfInput-ticket')?.value || '').toLowerCase().trim();
+    const tosF    = document.getElementById('filterTypeOfService')?.value || '';
+    const ttF     = document.getElementById('filterTicketType')?.value || '';
+    const stF     = document.getElementById('filterStatus')?.value || '';
 
     const filtered = _allTickets.filter(t => {
+        if (tosF && t.delivery_support_type !== tosF) return false;
+        if (ttF && t.ticket_type !== ttF) return false;
+        if (stF && t.ticket_status !== stF) return false;
         if (ticketQ && !(t.ticket_number || '').toLowerCase().includes(ticketQ)
                     && !(t.customer_name || '').toLowerCase().includes(ticketQ)
                     && !(t.description  || '').toLowerCase().includes(ticketQ)) return false;
@@ -583,7 +639,7 @@ function renderTable(tickets) {
     if (!tickets.length) {
         footer.classList.add('hidden');
         tbody.innerHTML = `
-            <tr><td colspan="29" class="py-16 text-center">
+            <tr><td colspan="31" class="py-16 text-center">
                 <div class="flex flex-col items-center gap-2 text-gray-300">
                     <i class="fas fa-search text-4xl"></i>
                     <p class="text-sm font-medium text-gray-400 mt-1">Tidak ada tiket ditemukan</p>
@@ -615,12 +671,23 @@ function renderTable(tickets) {
                 <td class="px-2 py-2 text-center text-amber-600" colspan="9">
                     <span class="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Menunggu Validasi</span>
                 </td>
-                <td class="px-2 py-2 text-gray-400" colspan="15">—</td>
+                <td class="px-2 py-2 text-gray-400" colspan="17">—</td>
                 <td class="px-2 py-2 text-center text-gray-400 italic text-[10px]">Validasi dulu</td>
             </tr>`;
         }
 
-        const resStatusColor  = t.resolution?.status === 'met' ? 'text-green-600' : t.resolution?.status === 'breached' ? 'text-red-600' : 'text-gray-400';
+        const resStatusColor = t.resolution?.status === 'met' ? 'text-green-600' : t.resolution?.status === 'breached' ? 'text-red-600' : 'text-gray-400';
+
+        // SLA Resolution Time — live/running duration column (separate from Resolution
+        // Duration (STOP-GO), which stays blank until the ticket closes). Shows progress
+        // on still-open tickets, tagged amber + clock icon since it's not final yet.
+        const resTimeIsOngoing = t.resolution?.live_hours != null && t.resolution?.is_final === false;
+        const resTimeColor     = resTimeIsOngoing ? 'text-amber-600' : resStatusColor;
+
+        // SLA Resolution Status — Achieved/Not Achieved/N/A verdict computed server-side
+        // (SlaController::slaResolutionAchievement).
+        const resAchieveColor = t.resolution?.time_status === 'Achieved' ? 'text-green-600'
+            : t.resolution?.time_status === 'Not Achieved' ? 'text-red-600' : 'text-gray-400';
 
         // SLA Response Time (achieved) — Achieved if Response Duration <= SLA Response Time (Hour), else Not Achieved.
         // If not yet responded, fall back to the raw status label (e.g. Active).
@@ -712,6 +779,14 @@ function renderTable(tickets) {
             <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.resolution?.doc_sent_at)}</td>
             <td class="px-2 py-2 text-center bg-green-50/20">
                 <span class="text-[10px] font-semibold ${resStatusColor}">${fmtHHMM(t.resolution?.actual_hours)}</span>
+            </td>
+            <td class="px-2 py-2 text-center bg-green-50/20">
+                <span class="text-[10px] font-semibold ${resTimeColor}" ${resTimeIsOngoing ? `title="Tiket masih berjalan — durasi ini belum final, akan berubah sampai tiket closed"` : ''}>
+                    ${fmtHHMM(t.resolution?.live_hours)}${resTimeIsOngoing ? ' <i class="fas fa-spinner text-[9px]"></i>' : ''}
+                </span>
+            </td>
+            <td class="px-2 py-2 text-center bg-green-50/20">
+                <span class="text-[10px] font-semibold ${resAchieveColor}">${t.resolution?.time_status || '—'}</span>
             </td>
             <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.closed_at)}</td>
             <td class="px-2 py-2 text-center bg-green-50/20 border-r border-gray-200">${notesCell}</td>
