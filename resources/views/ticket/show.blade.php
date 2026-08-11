@@ -1669,6 +1669,7 @@
                 </button>
             </div>
             <div class="flex gap-2">
+                <button id="picBtnDeleteDraft" onclick="picDeleteDraft()" class="hidden inline-flex items-center px-4 py-2 bg-white text-red-600 text-xs font-semibold rounded-lg border border-red-300 hover:bg-red-50 transition-all duration-200">Delete Draft</button>
                 <button id="picBtnSaveDraft" onclick="picSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save Draft</button>
                 <button id="picBtnSubmit" onclick="picSubmitDraft()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Submit to Helpdesk</button>
             </div>
@@ -6571,6 +6572,8 @@
         document.getElementById('picAddRowWrap').classList.toggle('hidden', picReadOnly);
         document.getElementById('picBtnSaveDraft').classList.toggle('hidden', picReadOnly);
         document.getElementById('picBtnSubmit').classList.toggle('hidden', picReadOnly);
+        // Delete only makes sense for an already-saved draft (not a brand-new unsaved version)
+        document.getElementById('picBtnDeleteDraft').classList.toggle('hidden', picReadOnly || !picDraftData || picDraftData?.status !== 'draft');
 
         picUpdateTotal();
     }
@@ -6733,6 +6736,27 @@
             }
         } catch(e) { showNotification('Error: ' + e.message, 'error'); }
         finally { btn.disabled = false; btn.textContent = 'Submit to Helpdesk'; }
+    }
+
+    async function picDeleteDraft() {
+        if (!picDraftData || picDraftData.status !== 'draft') return;
+        if (!confirm('Delete this draft? This cannot be undone.')) return;
+        const btn = document.getElementById('picBtnDeleteDraft');
+        btn.disabled = true; btn.textContent = 'Deleting...';
+        try {
+            const res = await fetch(MANDAYS_API('pic-draft'), {
+                method: 'DELETE', headers: getHeaders(), credentials: 'same-origin',
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Draft deleted.', 'success');
+                picMandaysUpdateSidebarBadge(data.ticket_mandays_status);
+                closePicMandaysModal();
+            } else {
+                showNotification(data.message || 'Failed to delete', 'error');
+            }
+        } catch(e) { showNotification('Error: ' + e.message, 'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Delete Draft'; }
     }
 
     function picMandaysUpdateSidebarBadge(status) {
@@ -7502,6 +7526,7 @@
                         <input type="number" min="0" step="0.5"
                             class="head-approve-days w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
                             data-employee="${eid}"
+                            data-mandays="${emp.mandays}"
                             value="${currentApprDays > 0 ? currentApprDays : ''}"
                             oninput="headUpdateRowTotal(this)">
                     </td>
@@ -7551,13 +7576,14 @@
             const headApproveBtn = document.getElementById('headBtnApprove');
             headApproveBtn.classList.remove('hidden');
 
-            // On Change Request tickets only: Head can only approve once the customer
-            // (not just Helpdesk) has approved the Customer Mandays proposal.
+            // On Change Request tickets only: Head can only approve once the Customer
+            // Mandays proposal has been approved (by the customer via chat, or directly
+            // by Helpdesk).
             const isChangeRequestTicket = document.getElementById('detailType')?.value === 'Change Request';
             const hintEl = document.getElementById('headResolutionFooterHint');
-            if (isChangeRequestTicket && !data.customer_mandays_customer_approved) {
+            if (isChangeRequestTicket && data.customer_mandays_status !== 'approved') {
                 headApproveBtn.disabled = true;
-                hintEl.textContent = 'Customer must approve the Customer Mandays proposal before Resolution Days can be approved.';
+                hintEl.textContent = 'Customer Mandays proposal must be approved before Resolution Days can be approved.';
                 hintEl.className = 'text-xs text-amber-600';
             } else {
                 headApproveBtn.disabled = false;
@@ -7608,9 +7634,11 @@
     async function headResolutionApprove(confirmNegative = false) {
         // Approved Days is a required judgment call per employee — a blank field silently
         // became 0 before this check existed, so a Head could approve without actually
-        // reviewing someone's days. Block the save and flag every empty field instead.
+        // reviewing someone's days. Block the save and flag every empty field instead —
+        // except rows where the PIC never proposed any Days for that employee (Days
+        // column shows "—"/0), since there's nothing there to make a judgment call on.
         const emptyDaysInputs = Array.from(document.querySelectorAll('.head-approve-days'))
-            .filter(inp => inp.value.trim() === '');
+            .filter(inp => inp.value.trim() === '' && parseFloat(inp.dataset.mandays) > 0);
         document.querySelectorAll('.head-approve-days').forEach(inp => inp.classList.remove('ring-2', 'ring-red-500', 'bg-red-50'));
         if (emptyDaysInputs.length > 0) {
             emptyDaysInputs.forEach(inp => inp.classList.add('ring-2', 'ring-red-500', 'bg-red-50'));
