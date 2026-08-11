@@ -129,7 +129,13 @@
       "Bash(php -l database/migrations/2026_07_29_000002_add_approved_mandays_to_consultant_mandays_detail.php)",
       "Bash(php -l app/Exports/ResolutionDaysExport.php)",
       "Bash(php -l app/Http/Controllers/ConsultantWorkloadController.php)",
-      "Bash(php -l app/Http/Controllers/NotificationController.php)"
+      "Bash(php -l app/Http/Controllers/NotificationController.php)",
+      "Bash(php -l app/Http/Controllers/AdminSessionController.php)",
+      "Bash(git check-ignore *)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(php -l /c/EcoSystem-2/app/Http/Controllers/MandaysController.php)",
+      "Bash(php -l /c/EcoSystem-2/resources/views/ticket/index.blade.php)",
+      "Bash(php -l /c/EcoSystem-2/app/Services/HolidayService.php)"
     ],
     "additionalDirectories": [
       "C:\\ecosystem-2\\database\\migrations",

@@ -443,6 +443,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{ticketId}/mandays/pic-draft', [MandaysController::class, 'getCustomerDraft']);
         Route::post('/{ticketId}/mandays/pic-draft', [MandaysController::class, 'saveCustomerDraft']);
         Route::post('/{ticketId}/mandays/pic-draft/submit', [MandaysController::class, 'submitCustomerDraft']);
+        Route::delete('/{ticketId}/mandays/pic-draft', [MandaysController::class, 'deleteCustomerDraft']);
 
         // Customer Mandays — Helpdesk
         Route::get('/{ticketId}/mandays/hd-draft', [MandaysController::class, 'getHelpdeskDraft']);
