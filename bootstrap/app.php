@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\CheckAuthToken;
 use App\Http\Middleware\CheckJarviesApiKey;
+use App\Http\Middleware\CompressJsonResponse;
 use App\Http\Middleware\ShareMenuPermissions;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -43,6 +44,10 @@ return Application::configure(basePath: dirname(__DIR__))
         
         $middleware->web(append: [
             ShareMenuPermissions::class,
+        ]);
+
+        $middleware->api(append: [
+            CompressJsonResponse::class,
         ]);
 
         $middleware->alias([

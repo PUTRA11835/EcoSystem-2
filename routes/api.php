@@ -372,6 +372,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/unassigned', [TicketController::class, 'unassignedTickets']);
         Route::get('/hidden', [TicketController::class, 'hiddenIndex']);
         Route::get('/latest-update', [TicketController::class, 'latestUpdate']);
+        Route::get('/filter-options', [TicketController::class, 'filterOptions']);
         Route::get('/statistics', [TicketController::class, 'statistics']);
         Route::get('/pending-confirmations', [TicketController::class, 'pendingConfirmations']);
         Route::get('/pending-member-changes', [TicketController::class, 'pendingMemberChanges']);
