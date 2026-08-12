@@ -85,7 +85,7 @@
 </div>
 
 {{-- ── Status Cards ────────────────────────────────────────────────────────── --}}
-<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2 mb-4">
     <div id="filterAll" onclick="filterTickets('all')"
         class="stat-card active-filter bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300">
         <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Total</p>
@@ -138,6 +138,14 @@
             <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Hold</p>
         </div>
         <p class="text-2xl font-bold text-orange-600 leading-none" id="holdCount">0</p>
+    </div>
+    <div id="filterCancelled" onclick="filterTickets('cancelled')"
+        class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300">
+        <div class="flex items-center gap-1.5 mb-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Cancelled</p>
+        </div>
+        <p class="text-2xl font-bold text-gray-500 leading-none" id="cancelledCount">0</p>
     </div>
     <div id="filterClosed" onclick="filterTickets('closed')"
         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-green-200">
@@ -251,7 +259,7 @@
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
                             <button type="button" id="dateFilterBtn" onclick="toggleDateFilter(event)"
                                 class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Date</span>
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Start Date</span>
                                 <span id="sort-icon-date" class="sort-icon text-gray-300 font-normal normal-case tracking-normal text-xs">⇅</span>
                                 <svg id="dateFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
@@ -292,6 +300,10 @@
                                     <button type="button" onclick="applyDateFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
                                 </div>
                             </div>
+                        </th>
+                        {{-- CLOSE DATE --}}
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
+                            Close Date
                         </th>
                         {{-- DAY ON CLOSE: sort filter (highest/lowest) --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px;">
@@ -1295,6 +1307,7 @@
         document.getElementById('waiting3rdCount').textContent = base.filter(t => t.status === 'waiting_on_3rd_party').length;
         document.getElementById('waitingConfirmCount').textContent = base.filter(t => t.status === 'waiting_to_confirmation').length;
         document.getElementById('holdCount').textContent = base.filter(t => t.status === 'hold').length;
+        document.getElementById('cancelledCount').textContent = base.filter(t => t.status === 'cancelled').length;
         document.getElementById('closedCount').textContent = base.filter(t => t.status === 'closed').length;
     }
 
@@ -1381,7 +1394,12 @@
         const customerName = ticket.customer?.customer_name || 'Unknown';
         const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
         const createdDate = new Date(ticket.created_at);
-        const endDate = ticket.end_date ? new Date(ticket.end_date) : null;
+        // ticket.end_date is now set when a ticket's status changes to closed (see
+        // TicketController::updateTicketStatus). Tickets closed before that fix never got
+        // it set, so fall back to the same source "Day on Close" uses (resolved_at, then
+        // updated_at) for those older rows.
+        const closedAtRaw = ticket.end_date || (ticket.status === 'closed' ? (ticket.sla?.resolved_at || ticket.updated_at) : null);
+        const endDate = closedAtRaw ? new Date(closedAtRaw) : null;
 
         const fmt = d => d.toLocaleDateString('en-GB', {
             timeZone: 'Asia/Jakarta',
@@ -1558,9 +1576,13 @@
                 <span class="block truncate text-gray-700 ${ticket.is_read ? 'font-normal' : 'font-bold'} leading-snug"
                       title="${(ticket.description||'').replace(/"/g,'&quot;')}">${ticket.description || '—'}</span>
             </td>
-            {{-- Date --}}
+            {{-- Start Date --}}
             <td class="px-3 py-3 whitespace-nowrap">
                 <span class="text-xs text-gray-500">${dateStr}</span>
+            </td>
+            {{-- Close Date --}}
+            <td class="px-3 py-3 whitespace-nowrap">
+                <span class="text-xs text-gray-500">${endDateStr}</span>
             </td>
             {{-- Day on Close --}}
             <td class="px-3 py-3 whitespace-nowrap">
@@ -1719,7 +1741,7 @@
 
     function filterTickets(status) {
         currentFilter = status;
-        ['filterAll', 'filterOpen', 'filterInprocess', 'filterWaitingCustomer', 'filterWaiting3rd', 'filterWaitingConfirm', 'filterHold', 'filterClosed'].forEach(id => {
+        ['filterAll', 'filterOpen', 'filterInprocess', 'filterWaitingCustomer', 'filterWaiting3rd', 'filterWaitingConfirm', 'filterHold', 'filterCancelled', 'filterClosed'].forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
             el.classList.remove('active-filter', 'border-red-600', 'shadow-md', 'border-2');
@@ -1734,6 +1756,7 @@
             'waiting_on_3rd_party': 'filterWaiting3rd',
             'waiting_to_confirmation': 'filterWaitingConfirm',
             'hold': 'filterHold',
+            'cancelled': 'filterCancelled',
             'closed': 'filterClosed',
         };
         if (filterMap[status]) {

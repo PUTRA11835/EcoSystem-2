@@ -313,6 +313,53 @@ class MandaysController extends Controller
         ]);
     }
 
+    /**
+     * DELETE /api/tickets/{ticketId}/mandays/pic-draft
+     * PIC hapus draft (hanya boleh selama status masih draft, belum disubmit).
+     */
+    public function deleteCustomerDraft($ticketId)
+    {
+        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+
+        if ($deny = $this->denyUnlessParticipant($ticket, 'Only the ticket PIC or a member can delete the customer mandays draft.')) {
+            return $deny;
+        }
+
+        if ($deny = $this->denyUnlessTeamLeadForChangeRequest($ticket)) {
+            return $deny;
+        }
+
+        $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+
+        if (!$proposal || $proposal->status !== 'draft') {
+            return response()->json(['success' => false, 'message' => 'No draft to delete.'], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $proposal->details()->delete();
+            $proposal->delete();
+
+            // If an earlier (canceled/approved) version still exists, that version
+            // becomes latest again — reflect its status instead of wiping history.
+            $previous = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+            $newStatus = $previous ? ($previous->status === 'draft' ? 'pic_draft' : $previous->status) : 'none';
+            $ticket->update(['mandays_proposal_status' => $newStatus]);
+
+            DB::commit();
+
+            return response()->json([
+                'success'               => true,
+                'message'               => 'Draft deleted.',
+                'ticket_mandays_status' => $newStatus,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('deleteCustomerDraft error', ['e' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to delete the customer mandays draft. Please try again.'], 500);
+        }
+    }
+
     // =========================================================================
     // CUSTOMER MANDAYS — HELPDESK ENDPOINTS
     // =========================================================================
@@ -723,18 +770,12 @@ class MandaysController extends Controller
 
         $internalStatus = $ticket->resolution_days_status ?? 'none';
 
-        $customerProposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
-
         return response()->json([
-            'success'                            => true,
-            'data'                               => $proposal ? $this->formatResolutionProposal($proposal) : null,
-            'resolution_days_status'            => $internalStatus,
-            'customer_mandays_status'            => $ticket->mandays_proposal_status ?? 'none',
-            // Distinguishes Helpdesk-approved (status=approved, customer_response_at null) from
-            // actually customer-approved (customer_response_at set) — CR tickets require the
-            // latter before Head can approve Resolution Days.
-            'customer_mandays_customer_approved' => (bool) ($customerProposal && $customerProposal->status === 'approved' && $customerProposal->customer_response_at),
-            'people'                              => $people,
+            'success'                 => true,
+            'data'                    => $proposal ? $this->formatResolutionProposal($proposal) : null,
+            'resolution_days_status' => $internalStatus,
+            'customer_mandays_status' => $ticket->mandays_proposal_status ?? 'none',
+            'people'                  => $people,
         ]);
     }
 
@@ -1005,16 +1046,16 @@ class MandaysController extends Controller
         }
 
         // On Change Request tickets only: Head can only approve Resolution Days once the
-        // Customer Mandays proposal has been approved by the CUSTOMER themselves (not just
-        // Helpdesk) — distinguished by customer_response_at being set. Team lead can keep
-        // editing the resolution proposal freely up until this point (saveResolutionProposal
-        // has no status gate), this only blocks the final Head approval action.
+        // Customer Mandays proposal has been approved — either by the customer via chat,
+        // or directly by Helpdesk. Team lead can keep editing the resolution proposal
+        // freely up until this point (saveResolutionProposal has no status gate), this
+        // only blocks the final Head approval action.
         if ($ticket->ticket_type === 'Change Request') {
             $customerProposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
-            if (!$customerProposal || $customerProposal->status !== 'approved' || !$customerProposal->customer_response_at) {
+            if (!$customerProposal || $customerProposal->status !== 'approved') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Customer Mandays proposal must be approved by the customer before Resolution Days can be approved.',
+                    'message' => 'Customer Mandays proposal must be approved before Resolution Days can be approved.',
                 ], 422);
             }
         }

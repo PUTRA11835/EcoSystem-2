@@ -2569,8 +2569,12 @@ class TicketController extends Controller
         try {
             $ticket = Ticket::findOrFail($id);
 
+            // Track when the ticket actually closed — needed for the "Close Date" column
+            // (independent of updated_at, which changes on any later edit, not just closing).
+            // Cleared on reopen so a stale close date doesn't linger.
             $ticket->update([
-                'status' => $request->status
+                'status'   => $request->status,
+                'end_date' => $request->status === 'closed' ? now() : ($ticket->status === 'closed' ? null : $ticket->end_date),
             ]);
 
             // Notifikasi bell Jarvies — status berubah
