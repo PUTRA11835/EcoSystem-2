@@ -14,6 +14,20 @@ class Ticket extends Model
     protected $table = 'ticket';
     protected $primaryKey = 'ticket_id';
 
+    protected static function booted(): void
+    {
+        // Ticket list endpoints sort by last_message_at directly (not
+        // COALESCE(last_message_at, created_at)) so the index on that column
+        // stays usable. Any creation path that forgets to set it (e.g. bulk
+        // import) would otherwise sort to the bottom instead of falling back
+        // to created_at.
+        static::creating(function (Ticket $ticket) {
+            if (!$ticket->last_message_at) {
+                $ticket->last_message_at = $ticket->created_at ?? now();
+            }
+        });
+    }
+
     protected $fillable = [
         'ticket_number',
         'customer_id',
