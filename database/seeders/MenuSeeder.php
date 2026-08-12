@@ -172,6 +172,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'ticket.eligible-ticket-lead',       'name' => 'Eligible as Ticket Lead',  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 23],
             ['slug' => 'ticket.eligible-ticket-member',     'name' => 'Eligible as Ticket Member','type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 24],
             ['slug' => 'ticket.sla-log',                    'name' => 'Log SLA',                  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 25],
+            ['slug' => 'ticket.shifting-log',                'name' => 'Log Shifting',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 26],
 
             // ── Room Chat (ticket detail sidebar toggles) ───────────────────────────
             ['slug' => 'room-chat',                    'name' => 'Room Chat',               'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-comments',          'order_seq' => 8],
@@ -355,7 +356,9 @@ class MenuSeeder extends Seeder
             'ticket.approve-resolution-days'    => [self::ADMIN=>$v, self::HOS=>$v],
             'ticket.eligible-ticket-lead'       => [self::EMPLOYEE=>$v],
             'ticket.eligible-ticket-member'     => [self::EMPLOYEE=>$v],
-            'ticket.sla-log'                    => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v],
+            // Tombol shortcut di headbar room chat — Helpdesk saja (+ Admin).
+            'ticket.sla-log'                    => [self::ADMIN=>$v, self::HELPDESK=>$v],
+            'ticket.shifting-log'               => [self::ADMIN=>$v, self::HELPDESK=>$v],
             // Room Chat
             'room-chat'                   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'room-chat.tab-all-ticket'    => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],

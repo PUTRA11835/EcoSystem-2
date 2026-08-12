@@ -112,6 +112,11 @@ class DeliverySupportPhaseController extends Controller
                 'name' => $phase->name
             ]);
 
+            // Progress support = rata-rata TERBOBOT antar phase, jadi menambah phase
+            // ikut mengubah total weight → harus dihitung ulang, kalau tidak nilai
+            // tersimpan (badge + filter status di index) jadi basi.
+            $support->updateCalculatedProgress();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Phase created successfully',
@@ -204,6 +209,9 @@ class DeliverySupportPhaseController extends Controller
 
             Log::info('Support phase updated', ['phase_id' => $phase->id]);
 
+            // Weight phase berubah → bobot progress ikut berubah.
+            $support->updateCalculatedProgress();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Phase updated successfully',
@@ -237,6 +245,8 @@ class DeliverySupportPhaseController extends Controller
             $phase->delete();
 
             Log::info('Support phase deleted', ['phase_id' => $phase->id]);
+
+            $support->updateCalculatedProgress();
 
             return response()->json([
                 'success' => true,
@@ -296,6 +306,9 @@ class DeliverySupportPhaseController extends Controller
         try {
             $phase->is_visible = !$phase->is_visible;
             $phase->save();
+
+            // calculateProgress() hanya menghitung phase yang visible.
+            $support->updateCalculatedProgress();
 
             return response()->json([
                 'success' => true,
@@ -382,6 +395,10 @@ class DeliverySupportPhaseController extends Controller
                         $result['created']++;
                     }
                 }
+
+                // Batch bisa membuat/menghapus/mengubah weight sekaligus → hitung
+                // ulang sekali di akhir, setelah semua perubahan phase tersimpan.
+                $support->updateCalculatedProgress();
 
                 return response()->json([
                     'success' => true,

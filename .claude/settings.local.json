@@ -165,7 +165,7 @@
       "PowerShell(php artisan tinker --execute=\"require 'C:/Users/Asus/AppData/Local/Temp/claude/d--Magang-PT-Eclectic-Consulting-Yogyakarta-Project-Master-EcoSystem-main/0e5d1d61-af1b-4ec6-a493-ccd4cf74b165/scratchpad/q.php';\")",
       "PowerShell(php artisan tinker --execute=\"require 'C:/Users/Asus/AppData/Local/Temp/claude/d--Magang-PT-Eclectic-Consulting-Yogyakarta-Project-Master-EcoSystem-main/0e5d1d61-af1b-4ec6-a493-ccd4cf74b165/scratchpad/q2.php';\")",
       "Bash(grep -n '@if\\($can\\(\\\\|^<section\\\\|^@endif' resources/views/delivery/project/projects/show.blade.php)",
-      "Bash(awk -F: '$1>780 && $1<900')"
+      "Bash(awk -F: '$1>780 && $1<900')",
       "Bash(php -l app/Http/Controllers/Lite/LiteDashboardController.php)",
       "Bash(php -l app/Http/Controllers/MandaysController.php)"
     ],

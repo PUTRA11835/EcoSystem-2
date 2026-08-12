@@ -17,7 +17,13 @@ class DeliveryProjectPaymentTermController extends Controller
         $terms = DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
             ->orderBy('term_number')
             ->get()
-            ->map(fn($t) => $this->format($t));
+            ->map(function (DeliveryProjectPaymentTerm $t) use ($project) {
+                // Amount = nilai turunan (revenue × % / 100). Term yang dibuat saat
+                // revenue masih kosong tersimpan 0 dan tetap basi sampai form
+                // Financial di-save ulang → self-heal saat dibaca.
+                $this->resyncAmount($project, $t);
+                return $this->format($t);
+            });
 
         return response()->json([
             'payment_terms'  => $terms,
@@ -158,6 +164,23 @@ class DeliveryProjectPaymentTermController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Perbarui amount tersimpan bila tidak lagi sesuai revenue project saat ini.
+     * Timestamps sengaja dimatikan agar audit trail term tidak berubah hanya
+     * karena halaman dibuka.
+     */
+    private function resyncAmount(DeliveryProject $project, DeliveryProjectPaymentTerm $term): void
+    {
+        $amount = $this->computeAmount($project, $term->payment_percentage);
+
+        if (abs((float) $term->amount - $amount) > 0.001) {
+            $term->amount = $amount;
+            $term->timestamps = false;
+            $term->save();
+            $term->timestamps = true;
+        }
     }
 
     private function computeAmount(DeliveryProject $project, $percentage): float
