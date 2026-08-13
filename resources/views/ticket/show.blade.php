@@ -169,7 +169,7 @@
                     || $ticket->ticket_lead_id == $user->id
                     || $ticket->members->contains('employee_id', $user->id);
             @endphp
-            @if($canViewCredential && $ticket->customer_id)
+            @if($canViewCredential && ($ticket->end_customer_id || $ticket->customer_id))
             <button onclick="openCredentialModal()"
                 title="Customer Credential"
                 class="ml-4 flex-shrink-0 h-9 px-3 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
@@ -722,7 +722,7 @@
                         $picOptions[] = ['name' => $leadName, 'label' => $leadName . ' (Ticket Lead)'];
                     }
                     foreach ($ticket->allMembers as $m) {
-                        if ($m->pivot->is_active && $m->basicData) {
+                        if ($m->pivot->is_active && $m->basicData && $m->employee_id != $ticket->ticket_lead_id) {
                             $mName = trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? ''));
                             $picOptions[] = ['name' => $mName, 'label' => $mName];
                         }
@@ -757,8 +757,14 @@
                 @endphp
                 <div class="pt-3 border-t border-gray-200">
                     <label class="text-xs font-semibold text-gray-500 mb-2 block">Team Members</label>
+                    @php
+                        // Ticket lead sudah ditampilkan terpisah sebagai PIC — jangan tampilkan
+                        // lagi row ticket_member miliknya (aktif/nonaktif) di sini, karena tombol
+                        // aktifkan-kembali untuk row itu selalu gagal (PIC tidak boleh jadi member).
+                        $visibleMembers = $ticket->allMembers->where('employee_id', '!=', $ticket->ticket_lead_id);
+                    @endphp
                     <div id="membersList" class="space-y-1 mb-2">
-                        @forelse($ticket->allMembers as $member)
+                        @forelse($visibleMembers as $member)
                             @php
                                 $mName    = trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? ''));
                                 $mActive  = (bool) $member->pivot->is_active;
@@ -1712,8 +1718,9 @@
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Days — working days">Days</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Days proposed by PIC">Add.</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Approved Days — base days approved by Head">Appr. Days</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Approved Additional — extra days approved by Head">Appr. Add.</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Days + Approved Additional">Total Days</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Approved Days + Approved Additional">Total Days</th>
                     </tr>
                 </thead>
                 <tbody id="resolutionBody"></tbody>
@@ -1723,6 +1730,7 @@
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterDays">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterAdd">0</td>
                         <td class="px-3 py-2 border border-gray-200"></td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterApprovedDays">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterApprAdd">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resolutionFooterTotal">0</td>
                     </tr>
@@ -5152,6 +5160,8 @@
     // ==================== TEAM MEMBERS ====================
     const allEmployees  = @json($employees);
     const canManageMembers = {{ $canManageMembers ? 'true' : 'false' }};
+    const ticketLeadId   = {{ $ticket->ticket_lead_id ?? 'null' }};
+    const ticketLeadName = @json($ticket->ticketLead && $ticket->ticketLead->basicData ? trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : null);
 
     function escHtmlMember(str) {
         const d = document.createElement('div');
@@ -5165,10 +5175,16 @@
 
         // All member IDs (active + inactive) — excluded from "add" dropdown
         const allMemberIds = new Set(members.map(m => m.employee_id));
-        if (members.length === 0) {
+
+        // Ticket lead sudah ditampilkan terpisah sebagai PIC — jangan tampilkan lagi
+        // row ticket_member miliknya di sini (tombol aktifkan-kembali untuk row itu
+        // selalu gagal karena PIC tidak boleh jadi member).
+        const visibleMembers = members.filter(m => m.employee_id != ticketLeadId);
+
+        if (visibleMembers.length === 0) {
             list.innerHTML = '<p class="text-xs text-gray-400 italic" id="noMembersText">No members assigned.</p>';
         } else {
-            list.innerHTML = members.map(m => {
+            list.innerHTML = visibleMembers.map(m => {
                 const isActive = m.is_active;
                 const chipBg   = isActive ? 'bg-blue-50' : 'bg-gray-100';
                 const nameCls  = isActive ? 'text-xs text-blue-700 font-medium truncate' : 'text-xs text-gray-400 font-medium truncate line-through';
@@ -5201,7 +5217,7 @@
             const itemCls = 'custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors';
             let itemsHtml = `<button type="button" class="${itemCls}" data-value="">-- Add member --</button>`;
             allEmployees.forEach(emp => {
-                if (!allMemberIds.has(emp.employee_id) && emp.employee_id != {{ $ticket->ticket_lead_id ?? 'null' }}) {
+                if (!allMemberIds.has(emp.employee_id) && emp.employee_id != ticketLeadId) {
                     itemsHtml += `<button type="button" class="${itemCls}" data-value="${escAttr(emp.employee_id)}">${escTxt(emp.name)}</button>`;
                 }
             });
@@ -5218,6 +5234,41 @@
                 label.className   = 'custom-dd-label text-gray-500 truncate';
             }
         }
+
+        rebuildPicDropdown(members);
+    }
+
+    // PIC (In Charge) dropdown options harus ikut berubah begitu member
+    // dinonaktifkan/diaktifkan-kembali — tanpa ini opsi PIC jadi basi sampai
+    // halaman di-refresh manual (member yang sudah di-remove masih bisa dipilih
+    // jadi PIC, dan member yang baru direaktivasi belum muncul sbg opsi).
+    function rebuildPicDropdown(members) {
+        const picPanel = document.querySelector('[data-onchange="onPicDropdownChange"] .custom-dd-panel');
+        if (!picPanel) return;
+
+        // Panel bisa sudah auto-inject search bar (kalau opsi > 7 saat init) —
+        // pertahankan node itu, jangan sampai innerHTML replace bikin referensi
+        // panel._ddSearch/_ddEmpty jadi stale.
+        const searchWrap = picPanel.querySelector('.custom-dd-search-wrap');
+        const emptyEl    = picPanel.querySelector('.custom-dd-empty');
+
+        const currentPic = document.getElementById('picSelectHidden')?.value || '';
+        const escAttr = (s) => String(s).replace(/"/g, '&quot;');
+        const escTxt  = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const itemCls = (name) => `custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 ${currentPic === name ? 'bg-gray-50 font-medium text-gray-900' : ''}`;
+
+        let itemsHtml = '';
+        if (ticketLeadName) {
+            itemsHtml += `<button type="button" class="${itemCls(ticketLeadName)}" data-value="${escAttr(ticketLeadName)}">${escTxt(ticketLeadName)} (Ticket Lead)</button>`;
+        }
+        members.filter(m => m.is_active).forEach(m => {
+            itemsHtml += `<button type="button" class="${itemCls(m.name)}" data-value="${escAttr(m.name)}">${escTxt(m.name)}</button>`;
+        });
+
+        picPanel.innerHTML = '';
+        if (searchWrap) picPanel.appendChild(searchWrap);
+        picPanel.insertAdjacentHTML('beforeend', itemsHtml);
+        if (emptyEl) picPanel.appendChild(emptyEl);
     }
 
     async function addMemberBtn() {
@@ -6876,6 +6927,7 @@
             const existing = valueMap[person.employee_id] || {};
             const md  = existing.mandays || 0;
             const add = existing.additional_mandays || 0;
+            const apprDays = existing.approved_mandays || 0;
             const appAdd = existing.approved_additional || 0;
             // Inputs always show what was proposed (md/add), unchanged — so the consultant
             // can see exactly what they asked for. But while the proposal is still approved
@@ -6883,9 +6935,10 @@
             // (approved_mandays + approved_additional), not the raw proposed amount — so the
             // consultant can see what was NOT approved. Once they start typing a revision,
             // resolutionUpdateRowTotal() takes over and previews the new draft instead.
-            const totalMd = status === 'approved' ? ((existing.approved_mandays || 0) + appAdd) : (md + appAdd);
+            const totalMd = status === 'approved' ? (apprDays + appAdd) : (md + appAdd);
             const mdVal  = md  > 0 ? md  : '';
             const addVal = add > 0 ? add : '';
+            const apprDaysDisplay = apprDays > 0 ? apprDays.toFixed(1) : '—';
             const apprAddDisplay = appAdd > 0 ? appAdd.toFixed(1) : '—';
             html += `<tr>
                 <td class="px-3 py-2 border border-gray-200 font-medium text-gray-700">${person.name}</td>
@@ -6908,6 +6961,7 @@
                         placeholder="notes..."
                         oninput="internalClearNoteHighlight(this)">
                 </td>
+                <td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50 text-gray-500" data-emp-apprdays="${person.employee_id}">${apprDaysDisplay}</td>
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50 text-gray-500" data-emp-appr="${person.employee_id}">${apprAddDisplay}</td>
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center font-semibold bg-gray-50" data-emp-total="${person.employee_id}">${totalMd > 0 ? totalMd.toFixed(1) : '—'}</td>
             </tr>`;
@@ -6940,13 +6994,15 @@
         const footer = document.getElementById('resolutionFooterTotal');
         if (footer) footer.textContent = total.toFixed(1);
 
-        let days = 0, add = 0, apprAdd = 0;
+        let days = 0, add = 0, apprDays = 0, apprAdd = 0;
         document.querySelectorAll('.internal-md-cell').forEach(inp => { days += parseFloat(inp.value) || 0; });
         document.querySelectorAll('.internal-add-cell').forEach(inp => { add += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('[data-emp-apprdays]').forEach(cell => { apprDays += parseFloat(cell.textContent) || 0; });
         document.querySelectorAll('[data-emp-appr]').forEach(cell => { apprAdd += parseFloat(cell.textContent) || 0; });
-        document.getElementById('resFooterDays').textContent    = days.toFixed(1);
-        document.getElementById('resFooterAdd').textContent     = add.toFixed(1);
-        document.getElementById('resFooterApprAdd').textContent = apprAdd.toFixed(1);
+        document.getElementById('resFooterDays').textContent        = days.toFixed(1);
+        document.getElementById('resFooterAdd').textContent         = add.toFixed(1);
+        document.getElementById('resFooterApprovedDays').textContent = apprDays.toFixed(1);
+        document.getElementById('resFooterApprAdd').textContent     = apprAdd.toFixed(1);
     }
 
     function resolutionPicGetPayload() {
@@ -7757,7 +7813,10 @@
 
     // ==================== CUSTOMER CREDENTIAL MODAL ====================
     @if($canViewCredential ?? false)
-    const _credentialCustomerId = {{ $ticket->customer_id ?? 'null' }};
+    // Prioritas end_customer_id (anak) di atas customer_id (induk) — ticket bisa
+    // ditujukan ke anak perusahaan spesifik dalam grup, dan credential-nya berbeda
+    // per entitas walau induknya sama.
+    const _credentialCustomerId = {{ $ticket->end_customer_id ?? $ticket->customer_id ?? 'null' }};
 
     async function openCredentialModal() {
         if (!_credentialCustomerId) return;
@@ -7989,7 +8048,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-500">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                 </svg>
-                <h3 class="text-base font-bold text-gray-900">Customer Credential — {{ $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</h3>
+                <h3 class="text-base font-bold text-gray-900">Customer Credential — {{ $ticket->endCustomer?->basicData?->name_1 ?? $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</h3>
             </div>
             <button onclick="closeCredentialModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
