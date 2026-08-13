@@ -135,7 +135,11 @@
       "Bash(echo \"exit:$?\")",
       "Bash(php -l /c/EcoSystem-2/app/Http/Controllers/MandaysController.php)",
       "Bash(php -l /c/EcoSystem-2/resources/views/ticket/index.blade.php)",
-      "Bash(php -l /c/EcoSystem-2/app/Services/HolidayService.php)"
+      "Bash(php -l /c/EcoSystem-2/app/Services/HolidayService.php)",
+      "Bash(grep -rn '$can\\(' resources/views/master/employee/show.blade.php resources/views/master/employee/sections/)",
+      "Bash(grep -oE \"'[a-z0-9._-]+'\\\\s*$\")",
+      "Bash(sed 's/ *$//')",
+      "Read(//tmp/**)"
     ],
     "additionalDirectories": [
       "C:\\ecosystem-2\\database\\migrations",

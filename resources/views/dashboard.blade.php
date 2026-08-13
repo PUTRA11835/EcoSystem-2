@@ -839,6 +839,14 @@
                             <span class="nav-text text-sm">Resolution Days</span>
                         </a>
                         @endif
+                        @if($can('reporting.consultant-assignment'))
+                        <a href="{{ route('reporting.consultant-assignment') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/consultant-assignment*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-users text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Consultant Assignment</span>
+                        </a>
+                        @endif
                     </div>
                 </div>
                 @endif

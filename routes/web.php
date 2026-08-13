@@ -119,21 +119,23 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/log-shifting',               [\App\Http\Controllers\ReportingController::class, 'logShiftingIndex'])->name('reporting.log-shifting')->middleware('menu:reporting.log-shifting');
     Route::get('/reporting/ticket-by-module/export',    [\App\Http\Controllers\ReportingController::class, 'exportTicketByModule'])->name('reporting.ticket-by-module.export')->middleware('menu:reporting.ticket-by-module');
     Route::get('/reporting/resolution-days',             [\App\Http\Controllers\ReportingController::class, 'resolutionDaysIndex'])->name('reporting.resolution-days')->middleware('menu:reporting.resolution-days');
+    Route::get('/reporting/consultant-assignment',        [\App\Http\Controllers\ReportingController::class, 'consultantAssignmentIndex'])->name('reporting.consultant-assignment')->middleware('menu:reporting.consultant-assignment');
+    Route::get('/reporting/consultant-assignment/export', [\App\Http\Controllers\ReportingController::class, 'exportConsultantAssignment'])->name('reporting.consultant-assignment.export')->middleware('menu:reporting.consultant-assignment');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
         // Employee routes
         Route::prefix('employee')->name('employee.')->group(function () {
             Route::get('/', [EmployeeController::class, 'index'])->name('index')->middleware('menu:master.employee');
-            Route::get('/export', [EmployeeController::class, 'exportToExcel'])->name('export');
-            Route::get('/{id}', [EmployeeController::class, 'show'])->name('detail');
+            Route::get('/export', [EmployeeController::class, 'exportToExcel'])->name('export')->middleware('menu:master.employee');
+            Route::get('/{id}', [EmployeeController::class, 'show'])->name('detail')->middleware('menu:master.employee');
         });
         
         // Customer routes
         Route::prefix('customer')->name('customer.')->group(function () {
             Route::get('/', [CustomerController::class, 'index'])->name('index')->middleware('menu:master.customer');
-            Route::get('/grouping', [CustomerController::class, 'grouping'])->name('grouping');
-            Route::get('/{id}', [CustomerController::class, 'show'])->name('detail');
+            Route::get('/grouping', [CustomerController::class, 'grouping'])->name('grouping')->middleware('menu:master.customer');
+            Route::get('/{id}', [CustomerController::class, 'show'])->name('detail')->middleware('menu:master.customer');
         });
     });
 
