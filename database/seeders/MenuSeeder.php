@@ -126,6 +126,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'reporting.ticket-by-module',   'name' => 'Ticket by Modul',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.ticket-by-module',   'icon' => null,                   'order_seq' => 5],
             ['slug' => 'reporting.log-shifting',       'name' => 'Log Shifting',            'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.log-shifting',       'icon' => null,                   'order_seq' => 6],
             ['slug' => 'reporting.resolution-days',    'name' => 'Resolution Days',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.resolution-days',    'icon' => null,                   'order_seq' => 7],
+            ['slug' => 'reporting.consultant-assignment', 'name' => 'Consultant Assignment', 'type' => 'page',   'parent_slug' => 'reporting',   'route_name' => 'reporting.consultant-assignment', 'icon' => null,                'order_seq' => 8],
 
             // ── Master ────────────────────────────────────────────────────────────
             ['slug' => 'master',                       'name' => 'Master',                  'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-database',          'order_seq' => 4],
@@ -153,12 +154,10 @@ class MenuSeeder extends Seeder
             ['slug' => 'ticket.all-tickets',            'name' => 'All Tickets',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 4],
             ['slug' => 'ticket.unassigned',             'name' => 'Unassigned Ticket',       'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 5],
             ['slug' => 'ticket.assign-pic',            'name' => 'Assign PIC',              'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 6],
-            ['slug' => 'ticket.confirm-assignment',    'name' => 'Confirm Assignment',      'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 7],
             ['slug' => 'ticket.take',                  'name' => 'Take Ticket',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 8],
             ['slug' => 'ui.ticket.edit-fields',        'name' => 'Edit Status/Priority/Type','type' => 'function','parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 9],
             ['slug' => 'ui.ticket.edit-additional-info','name' => 'Edit Additional Info',    'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 19],
             ['slug' => 'ui.ticket.manage-members',     'name' => 'Manage Members',          'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 10],
-            ['slug' => 'ui.ticket.internal-notes',     'name' => 'Internal Notes',          'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 11],
             ['slug' => 'ticket.assign-delivery-support', 'name' => 'Assign to Delivery Support', 'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                    'icon' => null,                   'order_seq' => 12],
             ['slug' => 'ticket.review-mandays',   'name' => 'Review Mandays Proposal',   'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 14],
             ['slug' => 'ticket.head-mandays',     'name' => 'Head Mandays & Resolution', 'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 15],
@@ -198,7 +197,6 @@ class MenuSeeder extends Seeder
             ['slug' => 'delivery-project.close-project',      'name' => 'Close / Reopen Project',    'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 12],
             ['slug' => 'delivery.support',             'name' => 'Support',                 'type' => 'page',     'parent_slug' => 'delivery',    'route_name' => 'delivery.support.index',       'icon' => null,                   'order_seq' => 2],
             ['slug' => 'delivery-support.add-new',     'name' => 'Add Delivery Support',    'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                     'icon' => null,                   'order_seq' => 1],
-            ['slug' => 'delivery-support.edit-type',   'name' => 'Edit Field Type',         'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                     'icon' => null,                   'order_seq' => 2],
             ['slug' => 'delivery-support.delete-support', 'name' => 'Delete Delivery Support', 'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                  'icon' => null,                   'order_seq' => 10],
 
             // ── Control Center (Admin) ────────────────────────────────────────────
@@ -319,6 +317,9 @@ class MenuSeeder extends Seeder
             'reporting.ticket-by-module'   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'reporting.log-shifting'       => [self::ADMIN=>$vced, self::HOS=>$vce, self::HELPDESK=>$vce, self::RPMO=>$vce],
             'reporting.resolution-days'    => [self::ADMIN=>$vced, self::HOS=>$vce],
+            // Menu baru → hanya EC Administrator. Role lain menyusul dari
+            // Control Center → Menu Access kalau pemilik sistem memutuskan begitu.
+            'reporting.consultant-assignment' => [self::ADMIN=>$v],
             // Master
             'master'                      => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$v],
             'master.employee'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$ve,  self::HOP=>$v,      self::HOS=>$v],
@@ -339,11 +340,9 @@ class MenuSeeder extends Seeder
             'ticket.all-tickets'           => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v, self::MANAGER=>$v],
             'ticket.unassigned'            => [self::HELPDESK=>$v],
             'ticket.assign-pic'           => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v, self::MANAGER=>$v],
-            'ticket.confirm-assignment'   => [self::ADMIN=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'ticket.take'                 => [self::EMPLOYEE=>$v],
             'ui.ticket.edit-fields'       => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
             'ui.ticket.manage-members'    => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HOS=>$v,    self::HELPDESK=>$v, self::RPMO=>$v],
-            'ui.ticket.internal-notes'    => [self::ADMIN=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'ticket.assign-delivery-support' => [self::ADMIN=>$v, self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
             'ticket.review-mandays'   => [self::HELPDESK=>$v, self::RPMO=>$v],
             'ticket.head-mandays'     => [self::HOS=>$v],
@@ -379,7 +378,6 @@ class MenuSeeder extends Seeder
             'delivery-project.close-project'      => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'delivery.support'            => [self::ADMIN=>$vced, self::HOS=>$vce,      self::HELPDESK=>$v, self::RPMO=>$vced],
             'delivery-support.add-new'    => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
-            'delivery-support.edit-type'  => [self::ADMIN=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'delivery-support.delete-support' => [self::ADMIN=>$v, self::HOS=>$v,       self::RPMO=>$v],
             // Control Center
             'control-center'              => [self::ADMIN=>$v],

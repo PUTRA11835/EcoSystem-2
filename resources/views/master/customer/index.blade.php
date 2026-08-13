@@ -4,6 +4,11 @@
 @section('page-title', 'Business Partner Management')
 
 @section('content')
+<script>
+// Menu 'Actions (Edit/Delete)' di bawah Master > Business Partner.
+// Mirror canEmployeeAction di master/employee/index.blade.php.
+const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }};
+</script>
 <div class="bg-white rounded-xl p-6 shadow-sm">
     <!-- Page Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-gray-100">
@@ -404,6 +409,7 @@
 </div>
 
 {{-- Floating action menu (fixed position to avoid table stacking context) --}}
+@if($can('master.customer.action'))
 <div id="floatingCustMenu" class="hidden fixed z-[9999] w-40 bg-white border border-gray-200 rounded-lg shadow-xl py-1" onclick="event.stopPropagation()">
     <button onclick="custMenuDelete()" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-all">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
@@ -412,6 +418,7 @@
         Delete
     </button>
 </div>
+@endif
 
 @endsection
 
@@ -609,13 +616,13 @@
                     </span>
                 </td>
                 <td class="px-4 py-3.5 text-sm">
-                    <div class="action-buttons" onclick="event.stopPropagation()">
+                    ${canCustomerAction ? `<div class="action-buttons" onclick="event.stopPropagation()">
                         <button onclick="openCustMenu(event, ${cust.id})" class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 transition-all">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
                             </svg>
                         </button>
-                    </div>
+                    </div>` : ''}
                 </td>
             </tr>
         `;
@@ -1142,6 +1149,8 @@
         event.stopPropagation();
         _custMenuId = id;
         const menu = document.getElementById('floatingCustMenu');
+        // Menu tidak dirender bila role tidak punya master.customer.action.
+        if (!menu) return;
         const btn  = event.currentTarget;
         const rect = btn.getBoundingClientRect();
         menu.classList.remove('hidden');
@@ -1151,7 +1160,8 @@
     }
 
     function closeCustMenu() {
-        document.getElementById('floatingCustMenu').classList.add('hidden');
+        // Dipanggil pada setiap klik dokumen — elemennya bisa saja tidak ada.
+        document.getElementById('floatingCustMenu')?.classList.add('hidden');
     }
 
     function custMenuDelete() {

@@ -56,6 +56,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'external.api_key'  => \App\Http\Middleware\CheckExternalApiKey::class,
             'menu'              => \App\Http\Middleware\CheckMenuAccess::class,
             'menu.owner'        => \App\Http\Middleware\CheckMenuOrProjectOwner::class,
+            'employee.section'  => \App\Http\Middleware\CheckEmployeeSectionAccess::class,
+            'customer.section'  => \App\Http\Middleware\CheckCustomerSectionAccess::class,
             'lite.auth'         => \App\Http\Middleware\LiteApiAuth::class,
             'project.editable'  => \App\Http\Middleware\EnsureProjectNotClosed::class,
         ]);

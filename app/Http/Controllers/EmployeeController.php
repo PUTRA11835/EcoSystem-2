@@ -153,9 +153,26 @@ class EmployeeController extends Controller
                 'eci' => $employee->eci ?? null
             ]);
 
+            // Section mana yang boleh dilihat / diubah oleh pembuka halaman.
+            // Slug employee.section.* ini dulu hanya berupa baris menu tanpa
+            // pemakai — akibatnya halaman detail selalu bisa diedit penuh
+            // walaupun checkbox-nya dimatikan di Control Center.
+            // Padanan untuk halaman /profile ada di ProfileController.
+            $viewer   = Employee::find($user['id'] ?? null);
+            $hidden   = [];
+            $readonly = [];
+            foreach (array_keys(SettingsController::PROFILE_SECTIONS) as $key) {
+                $canView   = (bool) $viewer?->canAccessMenu("employee.section.{$key}.view");
+                $canUpdate = (bool) $viewer?->canAccessMenu("employee.section.{$key}.update");
+                $hidden[$key]   = !$canView;
+                $readonly[$key] = $canView && !$canUpdate;
+            }
+
             return view('master.employee.show', [
-                'employee' => $employee,
-                'user' => $user
+                'employee'               => $employee,
+                'user'                   => $user,
+                'profileSectionHidden'   => $hidden,
+                'profileSectionReadonly' => $readonly,
             ]);
 
         } catch (\Exception $e) {
