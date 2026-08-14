@@ -3112,14 +3112,21 @@ class TicketController extends Controller
         }
     }
 
-    /** Format allMembers collection untuk response JSON */
+    /**
+     * Format allMembers collection untuk response JSON.
+     * Ticket lead ditampilkan terpisah sebagai PIC — row ticket_member miliknya
+     * (kalau ada, aktif/nonaktif) tidak diikutkan agar UI tidak menampilkan tombol
+     * "aktifkan kembali" yang pasti gagal karena PIC tidak boleh jadi member.
+     */
     private function formatAllMembers(Ticket $ticket): array
     {
-        return $ticket->allMembers->map(fn ($m) => [
-            'employee_id' => $m->employee_id,
-            'name'        => trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? '')),
-            'is_active'   => (bool) $m->pivot->is_active,
-        ])->values()->toArray();
+        return $ticket->allMembers
+            ->filter(fn ($m) => $m->employee_id != $ticket->ticket_lead_id)
+            ->map(fn ($m) => [
+                'employee_id' => $m->employee_id,
+                'name'        => trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? '')),
+                'is_active'   => (bool) $m->pivot->is_active,
+            ])->values()->toArray();
     }
 
     /**

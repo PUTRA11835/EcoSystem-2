@@ -2555,13 +2555,14 @@ function closeBulkSubmitModal() {
 
 async function confirmBulkSubmit() {
     const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
-    
+
     let successCount = 0;
     let failCount = 0;
-    
+    const failReasons = new Set();
+
     for (const checkbox of checkboxes) {
         const id = checkbox.getAttribute('data-id');
-        
+
         try {
             const response = await fetch(`/api/timesheets/${id}/submit`, {
                 method: 'POST',
@@ -2570,27 +2571,34 @@ async function confirmBulkSubmit() {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                 }
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 successCount++;
             } else {
                 failCount++;
+                failReasons.add(data.message || 'Unknown reason');
             }
         } catch (error) {
             failCount++;
+            failReasons.add('A network error occurred');
         }
     }
-    
+
     closeBulkSubmitModal();
     await loadTimesheets();
     await loadStatistics();
-    
+
     if (successCount > 0) {
         showNotification(`Submitted ${successCount} timesheet(s) successfully${failCount > 0 ? `, ${failCount} failed` : ''}!`, 'success');
-    } else {
-        showNotification('Failed to submit timesheets', 'error');
+    }
+    if (failCount > 0) {
+        // Surface the actual backend reason(s) instead of a blank generic message —
+        // e.g. "Customer Mandays status is not approved yet" — so users know what to
+        // fix instead of just seeing a dead-end failure.
+        const reasonText = Array.from(failReasons).join(' — ');
+        showNotification(`Failed to submit ${failCount} timesheet(s): ${reasonText}`, 'error');
     }
 }
 
