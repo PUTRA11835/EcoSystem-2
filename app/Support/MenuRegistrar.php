@@ -134,6 +134,66 @@ class MenuRegistrar
     }
 
     /**
+     * Set grant sebuah slug menjadi TEPAT: EC Administrator + role yang disebut.
+     *
+     * Berbeda dari grantToAdminOnly(), method ini dipakai saat pemilik sistem
+     * SUDAH memutuskan role mana yang boleh — jadi keputusan itu ikut tercatat
+     * di migrasi, bukan cuma diklik manual di Control Center. Sama seperti
+     * grantToAdminOnly(), sifatnya menimpa: role di luar daftar dicabut, dan
+     * menjalankannya ulang selalu mengembalikan slug ke keadaan ini.
+     *
+     * Role diresolve lewat NAMA (bukan ID) karena `migrate:fresh` bisa
+     * menghasilkan ID role yang berbeda dari DB produksi.
+     *
+     * @param  string[]  $slugs
+     * @param  string[]  $roleNames  nama di employee_role.name
+     */
+    public static function grantToAdminAndRoles(array $slugs, array $roleNames): void
+    {
+        $menuIds = DB::table('menu')->whereIn('slug', $slugs)->pluck('id');
+        if ($menuIds->isEmpty()) {
+            return;
+        }
+
+        $roleIds = DB::table('employee_role')
+            ->whereIn('name', $roleNames)
+            ->pluck('id')
+            ->push(self::adminRoleId())
+            ->unique()
+            ->values();
+
+        // Role yang cache izinnya perlu dibuang: yang kehilangan grant + yang menerima.
+        $affected = DB::table('role_menu')
+            ->whereIn('menu_id', $menuIds)
+            ->pluck('role_id')
+            ->concat($roleIds)
+            ->unique();
+
+        DB::table('role_menu')->whereIn('menu_id', $menuIds)->delete();
+
+        $now  = now();
+        $rows = [];
+        foreach ($menuIds as $menuId) {
+            foreach ($roleIds as $roleId) {
+                $rows[] = [
+                    'role_id'    => $roleId,
+                    'menu_id'    => $menuId,
+                    'can_view'   => true,
+                    'can_create' => false,
+                    'can_edit'   => false,
+                    'can_delete' => false,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+        }
+
+        DB::table('role_menu')->insert($rows);
+
+        self::flushPermCache($affected);
+    }
+
+    /**
      * ID role EC Administrator.
      *
      * Diresolve lewat NAMA lebih dulu, karena `migrate:fresh` bisa menghasilkan

@@ -90,35 +90,38 @@ Route::middleware(['web'])->group(function () {
     // Main Employee endpoints
     Route::prefix('employees')->group(function () {
         Route::get('/', [EmployeeController::class, 'getData']);
-        Route::post('/', [EmployeeController::class, 'store']);
+        Route::post('/', [EmployeeController::class, 'store'])->middleware('menu:master.employee.create');
         Route::get('/roles', [EmployeeController::class, 'getRoles']);
         Route::get('/mentionable', [EmployeeController::class, 'getMentionable']);
         Route::get('/{id}', [EmployeeController::class, 'getDetail']);
         Route::get('/{id}/header', [EmployeeController::class, 'headerData']);
-        Route::put('/{id}', [EmployeeController::class, 'update']);
-        Route::delete('/{id}', [EmployeeController::class, 'destroy']);
-        Route::post('/{id}/delete', [EmployeeController::class, 'destroy']);
-        Route::patch('/{id}/change-password', [EmployeeController::class, 'changePassword']);
-        Route::patch('/{id}/change-role', [EmployeeController::class, 'changeRole']);
+
+        // Aksi terhadap record employee-nya sendiri (bukan section) — hanya
+        // dari halaman Master > Employee, tidak pernah dari My Profile.
+        Route::put('/{id}', [EmployeeController::class, 'update'])->middleware('menu:master.employee.action');
+        Route::delete('/{id}', [EmployeeController::class, 'destroy'])->middleware('menu:master.employee.action');
+        Route::post('/{id}/delete', [EmployeeController::class, 'destroy'])->middleware('menu:master.employee.action');
+        Route::patch('/{id}/change-password', [EmployeeController::class, 'changePassword'])->middleware('menu:master.employee.action');
+        Route::patch('/{id}/change-role', [EmployeeController::class, 'changeRole'])->middleware('menu:master.employee.action');
     });
 
     // Employee Basic Data endpoints
     Route::prefix('employees/{employeeId}')->group(function () {
         Route::get('/basic-data', [EmployeeBasicDataController::class, 'show']);
-        Route::post('/basic-data', [EmployeeBasicDataController::class, 'store']);
-        Route::delete('/basic-data', [EmployeeBasicDataController::class, 'destroy']);
-        Route::post('/basic-data/delete', [EmployeeBasicDataController::class, 'destroy']);
+        Route::post('/basic-data', [EmployeeBasicDataController::class, 'store'])->middleware('employee.section:basic_data');
+        Route::delete('/basic-data', [EmployeeBasicDataController::class, 'destroy'])->middleware('employee.section:basic_data');
+        Route::post('/basic-data/delete', [EmployeeBasicDataController::class, 'destroy'])->middleware('employee.section:basic_data');
     });
 
     // Employee Address endpoints
     Route::middleware(['auth.session'])->group(function () {
         Route::get('/employees/{employeeId}/addresses', [EmployeeAddressController::class, 'index']);
         Route::get('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'show']);
-        Route::post('/employees/{employeeId}/addresses', [EmployeeAddressController::class, 'store']);
-        Route::put('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'update']);
-        Route::delete('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'destroy']);
-        Route::post('/employees/{employeeId}/addresses/{addressId}/delete', [EmployeeAddressController::class, 'destroy']);
-        Route::patch('/employees/{employeeId}/addresses/{addressId}/set-primary', [EmployeeAddressController::class, 'setPrimary']);
+        Route::post('/employees/{employeeId}/addresses', [EmployeeAddressController::class, 'store'])->middleware('employee.section:address');
+        Route::put('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'update'])->middleware('employee.section:address');
+        Route::delete('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'destroy'])->middleware('employee.section:address');
+        Route::post('/employees/{employeeId}/addresses/{addressId}/delete', [EmployeeAddressController::class, 'destroy'])->middleware('employee.section:address');
+        Route::patch('/employees/{employeeId}/addresses/{addressId}/set-primary', [EmployeeAddressController::class, 'setPrimary'])->middleware('employee.section:address');
 
         // Referensi wilayah Indonesia — dropdown alamat cascading
         // (Region → City → District → Rural/Urban Village).
@@ -128,11 +131,11 @@ Route::middleware(['web'])->group(function () {
     // Employee Identification endpoints
     Route::prefix('employees/{employeeId}/identifications')->group(function () {
         Route::get('/', [EmployeeIdentificationController::class, 'index']);
-        Route::post('/', [EmployeeIdentificationController::class, 'store']);
+        Route::post('/', [EmployeeIdentificationController::class, 'store'])->middleware('employee.section:identification');
         Route::get('/{identificationId}', [EmployeeIdentificationController::class, 'show']);
-        Route::put('/{identificationId}', [EmployeeIdentificationController::class, 'update']);
-        Route::delete('/{identificationId}', [EmployeeIdentificationController::class, 'destroy']);
-        Route::post('/{identificationId}/delete', [EmployeeIdentificationController::class, 'destroy']);
+        Route::put('/{identificationId}', [EmployeeIdentificationController::class, 'update'])->middleware('employee.section:identification');
+        Route::delete('/{identificationId}', [EmployeeIdentificationController::class, 'destroy'])->middleware('employee.section:identification');
+        Route::post('/{identificationId}/delete', [EmployeeIdentificationController::class, 'destroy'])->middleware('employee.section:identification');
     });
 
     // Employee Family endpoints
@@ -140,77 +143,79 @@ Route::middleware(['web'])->group(function () {
         Route::get('/family', [EmployeeFamilyController::class, 'index']);
         Route::get('/family/statistics', [EmployeeFamilyController::class, 'statistics']);
         Route::get('/family/{familyId}', [EmployeeFamilyController::class, 'show']);
-        Route::post('/family', [EmployeeFamilyController::class, 'store']);
-        Route::put('/family/{familyId}', [EmployeeFamilyController::class, 'update']);
-        Route::delete('/family/{familyId}', [EmployeeFamilyController::class, 'destroy']);
-        Route::post('/family/{familyId}/delete', [EmployeeFamilyController::class, 'destroy']);
+        Route::post('/family', [EmployeeFamilyController::class, 'store'])->middleware('employee.section:family');
+        Route::put('/family/{familyId}', [EmployeeFamilyController::class, 'update'])->middleware('employee.section:family');
+        Route::delete('/family/{familyId}', [EmployeeFamilyController::class, 'destroy'])->middleware('employee.section:family');
+        Route::post('/family/{familyId}/delete', [EmployeeFamilyController::class, 'destroy'])->middleware('employee.section:family');
     });
 
     // Employee Education endpoints
     Route::prefix('employees/{employeeId}/education')->group(function () {
         Route::get('/', [EmployeeEducationController::class, 'index']);
         Route::get('/{educationId}', [EmployeeEducationController::class, 'show']);
-        Route::post('/', [EmployeeEducationController::class, 'store']);
-        Route::put('/{educationId}', [EmployeeEducationController::class, 'update']);
-        Route::delete('/{educationId}', [EmployeeEducationController::class, 'destroy']);
-        Route::post('/{educationId}/delete', [EmployeeEducationController::class, 'destroy']);
+        Route::post('/', [EmployeeEducationController::class, 'store'])->middleware('employee.section:education');
+        Route::put('/{educationId}', [EmployeeEducationController::class, 'update'])->middleware('employee.section:education');
+        Route::delete('/{educationId}', [EmployeeEducationController::class, 'destroy'])->middleware('employee.section:education');
+        Route::post('/{educationId}/delete', [EmployeeEducationController::class, 'destroy'])->middleware('employee.section:education');
     });
 
     // Employee Qualification endpoints
     Route::prefix('employees/{employeeId}/qualification')->group(function () {
         Route::get('/', [EmployeeQualificationController::class, 'index']);
         Route::get('/{qualificationId}', [EmployeeQualificationController::class, 'show']);
-        Route::post('/', [EmployeeQualificationController::class, 'store']);
-        Route::put('/{qualificationId}', [EmployeeQualificationController::class, 'update']);
-        Route::delete('/{qualificationId}', [EmployeeQualificationController::class, 'destroy']);
-        Route::post('/{qualificationId}/delete', [EmployeeQualificationController::class, 'destroy']);
+        Route::post('/', [EmployeeQualificationController::class, 'store'])->middleware('employee.section:qualification');
+        Route::put('/{qualificationId}', [EmployeeQualificationController::class, 'update'])->middleware('employee.section:qualification');
+        Route::delete('/{qualificationId}', [EmployeeQualificationController::class, 'destroy'])->middleware('employee.section:qualification');
+        Route::post('/{qualificationId}/delete', [EmployeeQualificationController::class, 'destroy'])->middleware('employee.section:qualification');
     });
 
     // Employee Contract endpoints
     Route::prefix('employees/{employeeId}/contract')->group(function () {
         Route::get('/', [EmployeeContractController::class, 'index']);
         Route::get('/{contractId}', [EmployeeContractController::class, 'show']);
-        Route::post('/', [EmployeeContractController::class, 'store']);
-        Route::put('/{contractId}', [EmployeeContractController::class, 'update']);
-        Route::delete('/{contractId}', [EmployeeContractController::class, 'destroy']);
-        Route::post('/{contractId}/delete', [EmployeeContractController::class, 'destroy']);
+        Route::post('/', [EmployeeContractController::class, 'store'])->middleware('employee.section:contract');
+        Route::put('/{contractId}', [EmployeeContractController::class, 'update'])->middleware('employee.section:contract');
+        Route::delete('/{contractId}', [EmployeeContractController::class, 'destroy'])->middleware('employee.section:contract');
+        Route::post('/{contractId}/delete', [EmployeeContractController::class, 'destroy'])->middleware('employee.section:contract');
     });
 
     // Employee Bank endpoints
     Route::prefix('employees/{employeeId}/bank')->group(function () {
         Route::get('/', [EmployeeBankController::class, 'index']);
         Route::get('/{bankId}', [EmployeeBankController::class, 'show']);
-        Route::post('/', [EmployeeBankController::class, 'store']);
-        Route::put('/{bankId}', [EmployeeBankController::class, 'update']);
-        Route::delete('/{bankId}', [EmployeeBankController::class, 'destroy']);
-        Route::post('/{bankId}/delete', [EmployeeBankController::class, 'destroy']);
+        Route::post('/', [EmployeeBankController::class, 'store'])->middleware('employee.section:bank');
+        Route::put('/{bankId}', [EmployeeBankController::class, 'update'])->middleware('employee.section:bank');
+        Route::delete('/{bankId}', [EmployeeBankController::class, 'destroy'])->middleware('employee.section:bank');
+        Route::post('/{bankId}/delete', [EmployeeBankController::class, 'destroy'])->middleware('employee.section:bank');
     });
 
     // Employee Payment endpoints
     Route::prefix('employees/{employeeId}/payment')->group(function () {
         Route::get('/', [EmployeePaymentController::class, 'index']);
         Route::get('/{paymentId}', [EmployeePaymentController::class, 'show']);
-        Route::post('/', [EmployeePaymentController::class, 'store']);
-        Route::put('/{paymentId}', [EmployeePaymentController::class, 'update']);
-        Route::delete('/{paymentId}', [EmployeePaymentController::class, 'destroy']);
-        Route::post('/{paymentId}/delete', [EmployeePaymentController::class, 'destroy']);
+        Route::post('/', [EmployeePaymentController::class, 'store'])->middleware('employee.section:payment');
+        Route::put('/{paymentId}', [EmployeePaymentController::class, 'update'])->middleware('employee.section:payment');
+        Route::delete('/{paymentId}', [EmployeePaymentController::class, 'destroy'])->middleware('employee.section:payment');
+        Route::post('/{paymentId}/delete', [EmployeePaymentController::class, 'destroy'])->middleware('employee.section:payment');
     });
 
     // Employee Attachment endpoints
     Route::prefix('employees/{employeeId}/attachments')->group(function () {
         Route::get('/', [EmployeeAttachmentController::class, 'index']);
-        Route::post('/', [EmployeeAttachmentController::class, 'store']);
-        Route::delete('/{attachmentId}', [EmployeeAttachmentController::class, 'destroy']);
-        Route::post('/{attachmentId}/delete', [EmployeeAttachmentController::class, 'destroy']);
+        Route::post('/', [EmployeeAttachmentController::class, 'store'])->middleware('employee.section:attachment');
+        Route::delete('/{attachmentId}', [EmployeeAttachmentController::class, 'destroy'])->middleware('employee.section:attachment');
+        Route::post('/{attachmentId}/delete', [EmployeeAttachmentController::class, 'destroy'])->middleware('employee.section:attachment');
     });
 
     // Employee Module endpoints
     Route::prefix('employees/{employeeId}/modules')->group(function () {
         Route::get('/', [EmployeeModuleController::class, 'index']);
-        Route::post('/sync', [EmployeeModuleController::class, 'sync']);
-        Route::post('/attach', [EmployeeModuleController::class, 'attach']);
-        Route::delete('/{moduleId}', [EmployeeModuleController::class, 'detach']);
-        Route::post('/{moduleId}/delete', [EmployeeModuleController::class, 'detach']);
+        // Penugasan module ke employee — murni master data, tidak pernah
+        // dipanggil dari My Profile, jadi cukup master.employee.action.
+        Route::post('/sync', [EmployeeModuleController::class, 'sync'])->middleware('menu:master.employee.action');
+        Route::post('/attach', [EmployeeModuleController::class, 'attach'])->middleware('menu:master.employee.action');
+        Route::delete('/{moduleId}', [EmployeeModuleController::class, 'detach'])->middleware('menu:master.employee.action');
+        Route::post('/{moduleId}/delete', [EmployeeModuleController::class, 'detach'])->middleware('menu:master.employee.action');
     });
 
     // Module master data endpoints
@@ -237,106 +242,104 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{id}', [CustomerController::class, 'show']);
         Route::get('/{id}/header', [CustomerController::class, 'headerData']);
         Route::get('/{id}/end-customers', [CustomerController::class, 'endCustomers']);
-        // CATATAN: menu 'master.customer.action' (Edit/Delete) belum ditegakkan di
-        // sini secara sengaja — saat ini semua role yang bisa membuka halaman
-        // Customer juga bisa mengedit. Menambahkan middleware di bawah akan
-        // mencabut kemampuan itu dari role yang belum dicentang, jadi biarkan
-        // sampai keputusan itu diambil eksplisit.
-        Route::put('/{id}', [CustomerController::class, 'update']);
-        Route::delete('/{id}', [CustomerController::class, 'destroy']);
-        Route::post('/{id}/delete', [CustomerController::class, 'destroy']);
-        Route::post('/{id}/soft-delete', [CustomerController::class, 'softDelete']);
-        Route::post('/{id}/restore', [CustomerController::class, 'restore']);
+        // Aksi terhadap record customer-nya sendiri — menu 'Actions (Edit/Delete)'
+        // di bawah Master > Business Partner. Data section-nya dijaga terpisah
+        // lewat middleware customer.section (lihat blok-blok di bawah).
+        Route::put('/{id}', [CustomerController::class, 'update'])->middleware('menu:master.customer.action');
+        Route::delete('/{id}', [CustomerController::class, 'destroy'])->middleware('menu:master.customer.action');
+        Route::post('/{id}/delete', [CustomerController::class, 'destroy'])->middleware('menu:master.customer.action');
+        Route::post('/{id}/soft-delete', [CustomerController::class, 'softDelete'])->middleware('menu:master.customer.action');
+        Route::post('/{id}/restore', [CustomerController::class, 'restore'])->middleware('menu:master.customer.action');
     });
 
     // Customer Group endpoints (struktural grouping)
     Route::prefix('customer-groups')->group(function () {
         Route::get('/', [CustomerGroupController::class, 'index']);
-        Route::post('/', [CustomerGroupController::class, 'store']);
+        Route::post('/', [CustomerGroupController::class, 'store'])->middleware('menu:master.customer.create');
         Route::get('/grouping-data', [CustomerGroupController::class, 'groupingData']);
         Route::get('/available-customers', [CustomerGroupController::class, 'availableCustomers']);
-        Route::put('/{id}', [CustomerGroupController::class, 'update']);
-        Route::delete('/{id}', [CustomerGroupController::class, 'destroy']);
-        Route::post('/{id}/delete', [CustomerGroupController::class, 'destroy']);
-        Route::post('/{id}/members', [CustomerGroupController::class, 'addMember']);
-        Route::delete('/{id}/members/{customerId}', [CustomerGroupController::class, 'removeMember']);
-        Route::post('/{id}/members/{customerId}/delete', [CustomerGroupController::class, 'removeMember']);
+        Route::put('/{id}', [CustomerGroupController::class, 'update'])->middleware('menu:master.customer.action');
+        Route::delete('/{id}', [CustomerGroupController::class, 'destroy'])->middleware('menu:master.customer.action');
+        Route::post('/{id}/delete', [CustomerGroupController::class, 'destroy'])->middleware('menu:master.customer.action');
+        Route::post('/{id}/members', [CustomerGroupController::class, 'addMember'])->middleware('menu:master.customer.action');
+        Route::delete('/{id}/members/{customerId}', [CustomerGroupController::class, 'removeMember'])->middleware('menu:master.customer.action');
+        Route::post('/{id}/members/{customerId}/delete', [CustomerGroupController::class, 'removeMember'])->middleware('menu:master.customer.action');
     });
 
     // Customer Basic Data endpoints
     Route::prefix('customers/{customerId}/basic-data')->group(function () {
         Route::get('/', [CustomerBasicDataController::class, 'show']);
-        Route::post('/', [CustomerBasicDataController::class, 'store']);
-        Route::delete('/', [CustomerBasicDataController::class, 'destroy']);
-        Route::post('/delete', [CustomerBasicDataController::class, 'destroy']);
+        Route::post('/', [CustomerBasicDataController::class, 'store'])->middleware('customer.section:basic_data');
+        Route::delete('/', [CustomerBasicDataController::class, 'destroy'])->middleware('customer.section:basic_data');
+        Route::post('/delete', [CustomerBasicDataController::class, 'destroy'])->middleware('customer.section:basic_data');
     });
 
     // Customer Address endpoints
     Route::prefix('customers/{customerId}/addresses')->group(function () {
         Route::get('/', [CustomerAddressController::class, 'index']);
         Route::get('/{addressId}', [CustomerAddressController::class, 'show']);
-        Route::post('/', [CustomerAddressController::class, 'store']);
-        Route::put('/{addressId}', [CustomerAddressController::class, 'update']);
-        Route::delete('/{addressId}', [CustomerAddressController::class, 'destroy']);
-        Route::post('/{addressId}/delete', [CustomerAddressController::class, 'destroy']);
+        Route::post('/', [CustomerAddressController::class, 'store'])->middleware('customer.section:address');
+        Route::put('/{addressId}', [CustomerAddressController::class, 'update'])->middleware('customer.section:address');
+        Route::delete('/{addressId}', [CustomerAddressController::class, 'destroy'])->middleware('customer.section:address');
+        Route::post('/{addressId}/delete', [CustomerAddressController::class, 'destroy'])->middleware('customer.section:address');
     });
 
     // Customer Contact endpoints
     Route::prefix('customers/{customerId}/contacts')->group(function () {
         Route::get('/', [CustomerContactController::class, 'index']);
         Route::get('/{contactId}', [CustomerContactController::class, 'show']);
-        Route::post('/', [CustomerContactController::class, 'store']);
-        Route::put('/{contactId}', [CustomerContactController::class, 'update']);
-        Route::delete('/{contactId}', [CustomerContactController::class, 'destroy']);
-        Route::post('/{contactId}/delete', [CustomerContactController::class, 'destroy']);
+        Route::post('/', [CustomerContactController::class, 'store'])->middleware('customer.section:contact');
+        Route::put('/{contactId}', [CustomerContactController::class, 'update'])->middleware('customer.section:contact');
+        Route::delete('/{contactId}', [CustomerContactController::class, 'destroy'])->middleware('customer.section:contact');
+        Route::post('/{contactId}/delete', [CustomerContactController::class, 'destroy'])->middleware('customer.section:contact');
         // Jarvies login management per contact person
-        Route::post('/{contactId}/create-login', [CustomerContactController::class, 'createLogin']);
-        Route::delete('/{contactId}/revoke-login', [CustomerContactController::class, 'revokeLogin']);
-        Route::post('/{contactId}/revoke-login', [CustomerContactController::class, 'revokeLogin']);
-        Route::patch('/{contactId}/toggle-view-all', [CustomerContactController::class, 'toggleViewAllTickets']);
+        Route::post('/{contactId}/create-login', [CustomerContactController::class, 'createLogin'])->middleware('customer.section:contact');
+        Route::delete('/{contactId}/revoke-login', [CustomerContactController::class, 'revokeLogin'])->middleware('customer.section:contact');
+        Route::post('/{contactId}/revoke-login', [CustomerContactController::class, 'revokeLogin'])->middleware('customer.section:contact');
+        Route::patch('/{contactId}/toggle-view-all', [CustomerContactController::class, 'toggleViewAllTickets'])->middleware('customer.section:contact');
     });
 
     // Customer Identification endpoints
     Route::prefix('customers/{customerId}/identifications')->group(function () {
         Route::get('/', [CustomerIdentificationController::class, 'index']);
         Route::get('/{identificationId}', [CustomerIdentificationController::class, 'show']);
-        Route::post('/', [CustomerIdentificationController::class, 'store']);
-        Route::put('/{identificationId}', [CustomerIdentificationController::class, 'update']);
-        Route::delete('/{identificationId}', [CustomerIdentificationController::class, 'destroy']);
-        Route::post('/{identificationId}/delete', [CustomerIdentificationController::class, 'destroy']);
+        Route::post('/', [CustomerIdentificationController::class, 'store'])->middleware('customer.section:identification');
+        Route::put('/{identificationId}', [CustomerIdentificationController::class, 'update'])->middleware('customer.section:identification');
+        Route::delete('/{identificationId}', [CustomerIdentificationController::class, 'destroy'])->middleware('customer.section:identification');
+        Route::post('/{identificationId}/delete', [CustomerIdentificationController::class, 'destroy'])->middleware('customer.section:identification');
     });
 
     // Customer Bank endpoints
     Route::prefix('customers/{customerId}/banks')->group(function () {
         Route::get('/', [CustomerBankController::class, 'index']);
         Route::get('/{bankId}', [CustomerBankController::class, 'show']);
-        Route::post('/', [CustomerBankController::class, 'store']);
-        Route::put('/{bankId}', [CustomerBankController::class, 'update']);
-        Route::delete('/{bankId}', [CustomerBankController::class, 'destroy']);
-        Route::post('/{bankId}/delete', [CustomerBankController::class, 'destroy']);
+        Route::post('/', [CustomerBankController::class, 'store'])->middleware('customer.section:bank');
+        Route::put('/{bankId}', [CustomerBankController::class, 'update'])->middleware('customer.section:bank');
+        Route::delete('/{bankId}', [CustomerBankController::class, 'destroy'])->middleware('customer.section:bank');
+        Route::post('/{bankId}/delete', [CustomerBankController::class, 'destroy'])->middleware('customer.section:bank');
     });
 
     // Customer Attachment endpoints
     Route::prefix('customers/{customerId}/attachments')->group(function () {
         Route::get('/', [CustomerAttachmentController::class, 'index']);
         Route::get('/{attachmentId}', [CustomerAttachmentController::class, 'show']);
-        Route::post('/', [CustomerAttachmentController::class, 'store']);
-        Route::put('/{attachmentId}', [CustomerAttachmentController::class, 'update']);
-        Route::delete('/{attachmentId}', [CustomerAttachmentController::class, 'destroy']);
-        Route::post('/{attachmentId}/delete', [CustomerAttachmentController::class, 'destroy']);
+        Route::post('/', [CustomerAttachmentController::class, 'store'])->middleware('customer.section:attachment');
+        Route::put('/{attachmentId}', [CustomerAttachmentController::class, 'update'])->middleware('customer.section:attachment');
+        Route::delete('/{attachmentId}', [CustomerAttachmentController::class, 'destroy'])->middleware('customer.section:attachment');
+        Route::post('/{attachmentId}/delete', [CustomerAttachmentController::class, 'destroy'])->middleware('customer.section:attachment');
         Route::get('/{attachmentId}/download', [CustomerAttachmentController::class, 'download']);
     });
 
     // Customer Credential endpoints
     Route::get('customers/{customerId}/credential', [CustomerCredentialController::class, 'show']);
-    Route::post('customers/{customerId}/credential', [CustomerCredentialController::class, 'store']);
+    Route::post('customers/{customerId}/credential', [CustomerCredentialController::class, 'store'])->middleware('customer.section:credential');
 
     // Customer History endpoints
     Route::prefix('customers/{customerId}/history')->group(function () {
         Route::get('/', [CustomerHistoryController::class, 'index']);
-        Route::post('/', [CustomerHistoryController::class, 'store']);
+        Route::post('/', [CustomerHistoryController::class, 'store'])->middleware('customer.section:history');
         Route::get('/statistics', [CustomerHistoryController::class, 'statistics']);
-        Route::delete('/cleanup', [CustomerHistoryController::class, 'cleanup']);
+        Route::delete('/cleanup', [CustomerHistoryController::class, 'cleanup'])->middleware('customer.section:history');
     });
 
     // ==================== TASK (MY PIC TICKETS) ====================
@@ -372,6 +375,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/unassigned', [TicketController::class, 'unassignedTickets']);
         Route::get('/hidden', [TicketController::class, 'hiddenIndex']);
         Route::get('/latest-update', [TicketController::class, 'latestUpdate']);
+        Route::get('/filter-options', [TicketController::class, 'filterOptions']);
         Route::get('/statistics', [TicketController::class, 'statistics']);
         Route::get('/pending-confirmations', [TicketController::class, 'pendingConfirmations']);
         Route::get('/pending-member-changes', [TicketController::class, 'pendingMemberChanges']);
@@ -443,6 +447,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{ticketId}/mandays/pic-draft', [MandaysController::class, 'getCustomerDraft']);
         Route::post('/{ticketId}/mandays/pic-draft', [MandaysController::class, 'saveCustomerDraft']);
         Route::post('/{ticketId}/mandays/pic-draft/submit', [MandaysController::class, 'submitCustomerDraft']);
+        Route::delete('/{ticketId}/mandays/pic-draft', [MandaysController::class, 'deleteCustomerDraft']);
 
         // Customer Mandays — Helpdesk
         Route::get('/{ticketId}/mandays/hd-draft', [MandaysController::class, 'getHelpdeskDraft']);
@@ -523,8 +528,10 @@ Route::middleware(['web'])->group(function () {
         Route::get('/log-shifting', [\App\Http\Controllers\ReportingController::class, 'logShifting']);
         Route::get('/log-shifting/{ticketId}', [\App\Http\Controllers\ReportingController::class, 'logShiftingDetail']);
         Route::get('/resolution-days', [\App\Http\Controllers\ReportingController::class, 'resolutionDays']);
-        Route::get('/diagram-report/ticket-qty', [\App\Http\Controllers\ReportingController::class, 'diagramTicketQty']);
-        Route::get('/diagram-report/ticket-by-module', [\App\Http\Controllers\ReportingController::class, 'diagramTicketByModule']);
+        // Consultant Assignment — daftar consultant yang tergabung di Delivery Project.
+        // Izinnya diperiksa di controller lewat Employee::canAccessMenu().
+        Route::get('/consultant-assignment', [\App\Http\Controllers\ReportingController::class, 'consultantAssignment']);
+        Route::get('/consultant-assignment/filter-options', [\App\Http\Controllers\ReportingController::class, 'consultantAssignmentFilterOptions']);
     });
 
     // ==================== NOTIFICATION ROUTES ====================
@@ -690,11 +697,13 @@ Route::middleware(['web'])->group(function () {
     Route::post('/management/holidays/{id}/delete', [\App\Http\Controllers\HolidayManagementController::class, 'destroy']);
 
     // Employee ↔ Role assignment
+    // Menentukan role seseorang = menentukan izinnya, jadi digate sama dengan
+    // aksi master employee lain (mirror PATCH /employees/{id}/change-role).
     Route::get('/employees/{employeeId}/roles',                     [\App\Http\Controllers\RoleController::class, 'employeeRoles']);
-    Route::post('/employees/{employeeId}/roles',                    [\App\Http\Controllers\RoleController::class, 'assignRoles']);
-    Route::put('/employees/{employeeId}/roles',                     [\App\Http\Controllers\RoleController::class, 'syncRoles']);
-    Route::delete('/employees/{employeeId}/roles/{roleId}',         [\App\Http\Controllers\RoleController::class, 'revokeRole']);
-    Route::post('/employees/{employeeId}/roles/{roleId}/delete',    [\App\Http\Controllers\RoleController::class, 'revokeRole']);
+    Route::post('/employees/{employeeId}/roles',                    [\App\Http\Controllers\RoleController::class, 'assignRoles'])->middleware('menu:master.employee.action');
+    Route::put('/employees/{employeeId}/roles',                     [\App\Http\Controllers\RoleController::class, 'syncRoles'])->middleware('menu:master.employee.action');
+    Route::delete('/employees/{employeeId}/roles/{roleId}',         [\App\Http\Controllers\RoleController::class, 'revokeRole'])->middleware('menu:master.employee.action');
+    Route::post('/employees/{employeeId}/roles/{roleId}/delete',    [\App\Http\Controllers\RoleController::class, 'revokeRole'])->middleware('menu:master.employee.action');
 
     }); // end auth.session protected group
 });

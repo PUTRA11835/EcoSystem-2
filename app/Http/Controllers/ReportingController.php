@@ -830,7 +830,10 @@ class ReportingController extends Controller
                     'term_id'             => (int) $t->id,
                     'term_number'         => (int) $t->term_number,
                     'month_key'           => $key,
-                    'amount'              => (float) $t->amount,
+                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
+                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
+                    'amount'              => round(((float) $t->project_revenue) * ((float) $t->payment_percentage) / 100, 2),
                     'status'              => $t->status,
                     'payment_term'        => $t->payment_term,
                     'payment_percentage'  => (float) $t->payment_percentage,
@@ -1013,7 +1016,10 @@ class ReportingController extends Controller
                     'term_number'         => (int) $t->term_number,
                     'payment_term'        => $t->payment_term ?: '-',
                     'payment_percentage'  => (float) $t->payment_percentage,
-                    'amount'              => (float) $t->amount,
+                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
+                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
+                    'amount'              => round(((float) $t->project_revenue) * ((float) $t->payment_percentage) / 100, 2),
                     'status'              => $t->status,
                     'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : '',
                     'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : '',
@@ -1133,7 +1139,10 @@ class ReportingController extends Controller
                     'term_id'             => (int) $t->id,
                     'term_number'         => (int) $t->term_number,
                     'month_key'           => $key,
-                    'amount'              => (float) $t->amount,
+                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
+                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
+                    'amount'              => round(((float) $t->support_revenue) * ((float) $t->payment_percentage) / 100, 2),
                     'status'              => $t->status,
                     'payment_term'        => $t->payment_term,
                     'payment_percentage'  => (float) $t->payment_percentage,
@@ -1294,7 +1303,10 @@ class ReportingController extends Controller
                     'term_number'         => (int) $t->term_number,
                     'payment_term'        => $t->payment_term ?: '-',
                     'payment_percentage'  => (float) $t->payment_percentage,
-                    'amount'              => (float) $t->amount,
+                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
+                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
+                    'amount'              => round(((float) $t->support_revenue) * ((float) $t->payment_percentage) / 100, 2),
                     'status'              => $t->status,
                     'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : '',
                     'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : '',
@@ -1790,8 +1802,15 @@ class ReportingController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
             }
 
+            // Dua pintu masuk ke data yang sama: halaman/klik-kanan Reporting
+            // (reporting.log-shifting) dan tombol shortcut di headbar room chat
+            // (ticket.shifting-log). Salah satu slug cukup.
             $employee = \App\Models\Employee::find($sessionUser->id);
-            if (!$employee || !$employee->canAccessMenu('reporting.log-shifting')) {
+            $allowed  = $employee && (
+                $employee->canAccessMenu('reporting.log-shifting')
+                || $employee->canAccessMenu('ticket.shifting-log')
+            );
+            if (!$allowed) {
                 return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
             }
 
@@ -1834,6 +1853,533 @@ class ReportingController extends Controller
             Log::error('logShiftingDetail error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to load SLA message detail. Please try again.'], 500);
         }
+    }
+
+    // ── Web: Consultant Assignment ──────────────────────────────────────────
+
+    public function consultantAssignmentIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.consultant-assignment', ['user' => session('user')]);
+    }
+
+    /**
+     * API: daftar consultant yang tergabung di Delivery Project.
+     *
+     * Satu baris = satu penugasan (satu baris pivot `delivery_project_employee`),
+     * jadi orang yang memegang dua peran/modul di project yang sama muncul dua
+     * kali — sama seperti tabel Team Members di halaman project.
+     */
+    public function consultantAssignment(Request $request)
+    {
+        try {
+            $employee = $this->consultantAssignmentGuard();
+            if ($employee instanceof \Illuminate\Http\JsonResponse) {
+                return $employee;
+            }
+
+            [$rows, $stats] = $this->consultantAssignmentRows($request);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $rows,
+                'stats'   => $stats,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('consultantAssignment error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load consultant assignments. Please try again.'], 500);
+        }
+    }
+
+    /**
+     * API: isi dropdown filter (project / customer / module / position).
+     * Diambil dari data penugasan yang ada supaya tidak menawarkan opsi kosong.
+     */
+    public function consultantAssignmentFilterOptions()
+    {
+        try {
+            $employee = $this->consultantAssignmentGuard();
+            if ($employee instanceof \Illuminate\Http\JsonResponse) {
+                return $employee;
+            }
+
+            [$rows] = $this->consultantAssignmentRows(new Request());
+
+            $distinct = function (string $key) use ($rows) {
+                return collect($rows)
+                    ->pluck($key)
+                    ->map(fn ($v) => trim((string) $v))
+                    ->filter()
+                    ->unique()
+                    ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+                    ->values()
+                    ->all();
+            };
+
+            return response()->json([
+                'success'    => true,
+                'projects'   => collect($rows)
+                    ->unique('project_id')
+                    ->sortBy('project_name', SORT_NATURAL | SORT_FLAG_CASE)
+                    ->map(fn ($r) => ['id' => $r['project_id'], 'name' => $r['project_name']])
+                    ->values()
+                    ->all(),
+                'customers'  => $distinct('customer_name'),
+                'modules'    => $distinct('module'),
+                'positions'  => $distinct('position'),
+                'vendors'    => $distinct('vendor_name'),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('consultantAssignmentFilterOptions error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load filter options.'], 500);
+        }
+    }
+
+    /**
+     * Web: export Consultant Assignment ke Excel dengan filter yang sedang aktif
+     * di halaman (parameter query-nya identik dengan endpoint API-nya).
+     */
+    public function exportConsultantAssignment(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.consultant-assignment')) {
+                abort(403, 'Access denied.');
+            }
+
+            [$rows] = $this->consultantAssignmentRows($request);
+
+            return Excel::download(
+                new \App\Exports\ConsultantAssignmentExport(collect($rows)),
+                'consultant-assignment-' . now()->format('Ymd-His') . '.xlsx'
+            );
+
+        } catch (\Exception $e) {
+            Log::error('exportConsultantAssignment error: ' . $e->getMessage());
+            abort(500, 'Failed to export consultant assignments.');
+        }
+    }
+
+    /**
+     * Guard bersama untuk endpoint API Consultant Assignment.
+     *
+     * Izin diresolve lewat Menu Access (`canAccessMenu`), BUKAN daftar RoleId
+     * hardcode — supaya keputusan admin di Control Center benar-benar berlaku.
+     *
+     * @return \App\Models\Employee|\Illuminate\Http\JsonResponse
+     */
+    private function consultantAssignmentGuard()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        $employee = \App\Models\Employee::find($sessionUser->id);
+        if (!$employee || !$employee->canAccessMenu('reporting.consultant-assignment')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        return $employee;
+    }
+
+    /**
+     * Bangun baris laporan Consultant Assignment + ringkasannya.
+     *
+     * Seluruh filter dikerjakan di sini (server-side) supaya halaman dan tombol
+     * Export memakai hasil yang sama persis — tidak ada logika filter kembar di
+     * JavaScript yang bisa menyimpang.
+     *
+     * `stats` dihitung SEBELUM filter Assignment Status diterapkan, karena kartu
+     * ringkasan di halaman itu sendiri yang menjadi kontrol filter tersebut.
+     *
+     * @return array{0: array<int,array<string,mixed>>, 1: array<string,mixed>}
+     */
+    private function consultantAssignmentRows(Request $request): array
+    {
+        $today = Carbon::today();
+
+        // ── Planned MD: total working-day duration dari activity_employee ──────
+        $plannedMd = DB::table('activity_employee as ae')
+            ->join('delivery_project_activities as a', 'a.id', '=', 'ae.delivery_project_activity_id')
+            ->where('ae.is_active', true)
+            ->groupBy('a.delivery_projects_id', 'ae.employee_id')
+            ->select(
+                'a.delivery_projects_id as project_id',
+                'ae.employee_id',
+                DB::raw('SUM(COALESCE(ae.duration, 0)) as md')
+            )
+            ->get()
+            ->keyBy(fn ($r) => $r->project_id . '|' . $r->employee_id);
+
+        // ── Actual MD: timesheet approved yang dibebankan ke project ini ──────
+        $actualMd = DB::table('timesheets')
+            ->whereNotNull('delivery_projects_id')
+            ->where('status', 'approved')
+            ->whereNull('deleted_at')
+            ->groupBy('delivery_projects_id', 'employee_id')
+            ->select(
+                'delivery_projects_id as project_id',
+                'employee_id',
+                DB::raw('SUM(COALESCE(md_consumed, duration_minutes / 480.0, 0)) as md')
+            )
+            ->get()
+            ->keyBy(fn ($r) => $r->project_id . '|' . $r->employee_id);
+
+        // ── Baris pivot (sumber utama Team Members) ───────────────────────────
+        $pivotRows = DB::table('delivery_project_employee as dpe')
+            ->join('delivery_projects as p', 'p.id', '=', 'dpe.delivery_projects_id')
+            ->leftJoin('employee as e', 'e.employee_id', '=', 'dpe.employee_id')
+            ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'dpe.employee_id')
+            ->leftJoin('customer_basic_data as cbd', 'cbd.customer_id', '=', 'p.client_id')
+            ->select(
+                'dpe.id as assignment_id',
+                'dpe.delivery_projects_id as project_id',
+                'dpe.employee_id',
+                'dpe.module',
+                'dpe.role',
+                'dpe.employee_type',
+                'dpe.vendor_name',
+                'dpe.start_date',
+                'dpe.end_date',
+                'dpe.notes',
+                'p.name as project_name',
+                'p.io_number',
+                'p.category as project_category',
+                'p.status as project_status',
+                'p.phase as project_phase',
+                'p.is_closed',
+                'p.project_owner',
+                'p.project_type',
+                'e.eci',
+                'e.is_active as employee_is_active',
+                'ebd.first_name',
+                'ebd.last_name',
+                'ebd.position',
+                'ebd.division',
+                'ebd.department',
+                'ebd.home_base',
+                DB::raw("COALESCE(cbd.name_1, '') as customer_name")
+            )
+            ->get();
+
+        $rows     = [];
+        $seenKeys = [];
+
+        foreach ($pivotRows as $r) {
+            $seenKeys[$r->project_id . '|' . $r->employee_id . '|' . mb_strtolower((string) $r->role)] = true;
+            $rows[] = $this->consultantAssignmentRow($r, (string) $r->role, $plannedMd, $actualMd, $today, false);
+        }
+
+        // ── Baris FK-fallback: PM / Co PM / Project Admin yang hanya tersimpan
+        // di kolom project (project lama tanpa entri pivot). Tanpa ini laporan
+        // kehilangan PM dari project-project tersebut.
+        $fkProjects = DB::table('delivery_projects as p')
+            ->leftJoin('customer_basic_data as cbd', 'cbd.customer_id', '=', 'p.client_id')
+            ->where(function ($q) {
+                $q->whereNotNull('p.project_manager_id')
+                    ->orWhereNotNull('p.co_pm_id')
+                    ->orWhereNotNull('p.project_admin_id');
+            })
+            ->select(
+                'p.id as project_id',
+                'p.name as project_name',
+                'p.io_number',
+                'p.category as project_category',
+                'p.status as project_status',
+                'p.phase as project_phase',
+                'p.is_closed',
+                'p.project_owner',
+                'p.project_type',
+                'p.project_manager_id',
+                'p.co_pm_id',
+                'p.project_admin_id',
+                DB::raw("COALESCE(cbd.name_1, '') as customer_name")
+            )
+            ->get();
+
+        $fkRoleColumns = [
+            'project_manager_id' => 'Project Manager',
+            'co_pm_id'           => 'Co Project Manager',
+            'project_admin_id'   => 'Project Admin',
+        ];
+
+        // Kumpulkan employee_id yang perlu dilengkapi datanya, lalu ambil sekali
+        // saja (hindari query per baris).
+        $fkEmployeeIds = collect();
+        foreach ($fkProjects as $p) {
+            foreach (array_keys($fkRoleColumns) as $col) {
+                if ($p->$col) {
+                    $fkEmployeeIds->push($p->$col);
+                }
+            }
+        }
+
+        $fkEmployees = $fkEmployeeIds->isEmpty()
+            ? collect()
+            : DB::table('employee as e')
+                ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'e.employee_id')
+                ->whereIn('e.employee_id', $fkEmployeeIds->unique()->values())
+                ->select(
+                    'e.employee_id',
+                    'e.eci',
+                    'e.is_active as employee_is_active',
+                    'ebd.first_name',
+                    'ebd.last_name',
+                    'ebd.position',
+                    'ebd.division',
+                    'ebd.department',
+                    'ebd.home_base'
+                )
+                ->get()
+                ->keyBy('employee_id');
+
+        foreach ($fkProjects as $p) {
+            foreach ($fkRoleColumns as $col => $roleLabel) {
+                $empId = $p->$col;
+                if (!$empId) {
+                    continue;
+                }
+
+                $key = $p->project_id . '|' . $empId . '|' . mb_strtolower($roleLabel);
+                if (isset($seenKeys[$key])) {
+                    continue; // sudah ada baris pivot dengan peran yang sama
+                }
+                $seenKeys[$key] = true;
+
+                $emp = $fkEmployees->get($empId);
+
+                $merged = (object) array_merge((array) $p, [
+                    'assignment_id'      => null,
+                    'employee_id'        => $empId,
+                    'module'             => null,
+                    'role'               => $roleLabel,
+                    'employee_type'      => 'Internal',
+                    'vendor_name'        => null,
+                    'start_date'         => null,
+                    'end_date'           => null,
+                    'notes'              => null,
+                    'eci'                => $emp->eci ?? null,
+                    'employee_is_active' => $emp->employee_is_active ?? null,
+                    'first_name'         => $emp->first_name ?? null,
+                    'last_name'          => $emp->last_name ?? null,
+                    'position'           => $emp->position ?? null,
+                    'division'           => $emp->division ?? null,
+                    'department'         => $emp->department ?? null,
+                    'home_base'          => $emp->home_base ?? null,
+                ]);
+
+                $rows[] = $this->consultantAssignmentRow($merged, $roleLabel, $plannedMd, $actualMd, $today, true);
+            }
+        }
+
+        // ── Filter (server-side) ──────────────────────────────────────────────
+        $search      = mb_strtolower(trim((string) $request->input('search', '')));
+        $consultant  = mb_strtolower(trim((string) $request->input('consultant', '')));
+        $projectId   = trim((string) $request->input('project_id', ''));
+        $customer    = trim((string) $request->input('customer', ''));
+        $module      = trim((string) $request->input('module', ''));
+        $position    = trim((string) $request->input('position', ''));
+        $roleList    = $this->csvFilter($request->input('role', ''));
+        $typeList    = $this->csvFilter($request->input('employee_type', ''));
+        $categoryList = $this->csvFilter($request->input('project_category', ''));
+        $periodFrom  = trim((string) $request->input('period_from', ''));
+        $periodTo    = trim((string) $request->input('period_to', ''));
+
+        $rows = array_values(array_filter($rows, function (array $r) use (
+            $search, $consultant, $projectId, $customer, $module, $position,
+            $roleList, $typeList, $categoryList, $periodFrom, $periodTo
+        ) {
+            if ($search !== '') {
+                $haystack = mb_strtolower(implode(' ', [
+                    $r['consultant_name'], $r['eci'], $r['project_name'], $r['io_number'],
+                    $r['customer_name'], $r['module'], $r['role'], $r['position'],
+                    $r['vendor_name'], $r['notes'],
+                ]));
+                if (!str_contains($haystack, $search)) {
+                    return false;
+                }
+            }
+            if ($consultant !== '' && !str_contains(mb_strtolower($r['consultant_name']), $consultant)) {
+                return false;
+            }
+            if ($projectId !== '' && (string) $r['project_id'] !== $projectId) {
+                return false;
+            }
+            if ($customer !== '' && $r['customer_name'] !== $customer) {
+                return false;
+            }
+            if ($module !== '') {
+                if ($module === '__none__') {
+                    if ($r['module'] !== '') {
+                        return false;
+                    }
+                } elseif ($r['module'] !== $module) {
+                    return false;
+                }
+            }
+            if ($position !== '' && $r['position'] !== $position) {
+                return false;
+            }
+            if ($roleList && !in_array(mb_strtolower($r['role']), $roleList, true)) {
+                return false;
+            }
+            if ($typeList && !in_array(mb_strtolower($r['employee_type']), $typeList, true)) {
+                return false;
+            }
+            if ($categoryList && !in_array(mb_strtolower($r['project_category']), $categoryList, true)) {
+                return false;
+            }
+
+            // Rentang periode: penugasan lolos bila periodenya BERSINGGUNGAN
+            // dengan rentang yang diminta (bukan harus termuat seluruhnya).
+            // Penugasan tanpa tanggal tidak bisa dinilai → selalu lolos, supaya
+            // baris FK-fallback tidak hilang diam-diam saat filter dipakai.
+            if (($periodFrom !== '' || $periodTo !== '') && $r['start_date']) {
+                $start = $r['start_date'];
+                $end   = $r['end_date'] ?: '9999-12-31';
+                if ($periodTo !== '' && $start > $periodTo) {
+                    return false;
+                }
+                if ($periodFrom !== '' && $end < $periodFrom) {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
+
+        // ── Ringkasan (dihitung sebelum filter Assignment Status) ─────────────
+        $collection = collect($rows);
+        $stats = [
+            'assignments'  => $collection->count(),
+            'consultants'  => $collection->pluck('employee_id')->unique()->count(),
+            'projects'     => $collection->pluck('project_id')->unique()->count(),
+            'active'       => $collection->where('assignment_status', 'Active')->count(),
+            'upcoming'     => $collection->where('assignment_status', 'Upcoming')->count(),
+            'ended'        => $collection->where('assignment_status', 'Ended')->count(),
+            'undated'      => $collection->where('assignment_status', 'No Period')->count(),
+            'internal'     => $collection->where('employee_type', 'Internal')->count(),
+            'external'     => $collection->whereIn('employee_type', ['External', 'Vendor'])->count(),
+            'planned_md'   => round((float) $collection->sum('planned_md'), 2),
+            'actual_md'    => round((float) $collection->sum('actual_md'), 2),
+        ];
+
+        // ── Filter Assignment Status (kartu ringkasan) ────────────────────────
+        $statusList = $this->csvFilter($request->input('assignment_status', ''));
+        if ($statusList) {
+            $rows = array_values(array_filter(
+                $rows,
+                fn (array $r) => in_array(mb_strtolower($r['assignment_status']), $statusList, true)
+            ));
+        }
+
+        // ── Urutan default: consultant → project → mulai penugasan ───────────
+        usort($rows, function (array $a, array $b) {
+            return [$a['consultant_name'], $a['project_name'], $a['start_date'] ?? '']
+                <=> [$b['consultant_name'], $b['project_name'], $b['start_date'] ?? ''];
+        });
+
+        return [$rows, $stats];
+    }
+
+    /** Normalisasi filter multi-pilih ("a,b,c") menjadi array lowercase. */
+    private function csvFilter($raw): array
+    {
+        return collect(explode(',', (string) $raw))
+            ->map(fn ($v) => mb_strtolower(trim($v)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Bentuk satu baris laporan dari row hasil query.
+     *
+     * @param  \Illuminate\Support\Collection  $plannedMd
+     * @param  \Illuminate\Support\Collection  $actualMd
+     */
+    private function consultantAssignmentRow(
+        object $r,
+        string $role,
+        $plannedMd,
+        $actualMd,
+        Carbon $today,
+        bool $isFkFallback
+    ): array {
+        $name = trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? ''));
+        $key  = $r->project_id . '|' . $r->employee_id;
+
+        $plannedRow = $plannedMd->get($key);
+        $actualRow   = $actualMd->get($key);
+        $planned = (float) ($plannedRow->md ?? 0);
+        $actual  = (float) ($actualRow->md ?? 0);
+
+        $start = $r->start_date ? Carbon::parse($r->start_date)->format('Y-m-d') : null;
+        $end   = $r->end_date   ? Carbon::parse($r->end_date)->format('Y-m-d')   : null;
+
+        // Status penugasan murni turunan tanggal — tidak dipersist, jadi tidak
+        // bisa jadi basi. Tanpa start_date tidak ada yang bisa disimpulkan.
+        if (!$start) {
+            $assignmentStatus = 'No Period';
+        } elseif ($start > $today->format('Y-m-d')) {
+            $assignmentStatus = 'Upcoming';
+        } elseif ($end && $end < $today->format('Y-m-d')) {
+            $assignmentStatus = 'Ended';
+        } else {
+            $assignmentStatus = 'Active';
+        }
+
+        $durationDays = ($start && $end)
+            ? Carbon::parse($start)->diffInDays(Carbon::parse($end)) + 1
+            : null;
+
+        return [
+            'assignment_id'     => $r->assignment_id !== null ? (int) $r->assignment_id : null,
+            'is_fk_fallback'    => $isFkFallback,
+            'employee_id'       => (int) $r->employee_id,
+            'consultant_name'   => $name !== '' ? $name : ('Employee #' . $r->employee_id),
+            'eci'               => (string) ($r->eci ?? ''),
+            'position'          => (string) ($r->position ?? ''),
+            'division'          => (string) ($r->division ?? ''),
+            'department'        => (string) ($r->department ?? ''),
+            'home_base'         => (string) ($r->home_base ?? ''),
+            'employee_active'   => (bool) ($r->employee_is_active ?? false),
+            'project_id'        => (int) $r->project_id,
+            'project_name'      => (string) ($r->project_name ?? '-'),
+            'io_number'         => (string) ($r->io_number ?? ''),
+            'project_type'      => (string) ($r->project_type ?? ''),
+            'project_owner'     => (string) ($r->project_owner ?? ''),
+            'project_category'  => (string) ($r->project_category ?? ''),
+            'project_status'    => (string) ($r->project_status ?? ''),
+            'project_phase'     => (string) ($r->project_phase ?? ''),
+            'project_closed'    => (bool) ($r->is_closed ?? false),
+            'customer_name'     => (string) ($r->customer_name ?? ''),
+            'module'            => (string) ($r->module ?? ''),
+            'role'              => $role !== '' ? $role : 'Member',
+            'employee_type'     => (string) ($r->employee_type ?? 'Internal'),
+            'vendor_name'       => (string) ($r->vendor_name ?? ''),
+            'start_date'        => $start,
+            'end_date'          => $end,
+            'duration_days'     => $durationDays,
+            'assignment_status' => $assignmentStatus,
+            'planned_md'        => round($planned, 2),
+            'actual_md'         => round($actual, 2),
+            'utilization'       => $planned > 0 ? round($actual / $planned * 100, 1) : null,
+            'notes'             => (string) ($r->notes ?? ''),
+        ];
     }
 
     // ── Helper ────────────────────────────────────────────────────────────

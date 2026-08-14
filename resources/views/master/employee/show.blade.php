@@ -6,7 +6,93 @@
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
 
-<div class="space-y-6">
+{{-- ── Loading state ────────────────────────────────────────────────────────
+     Halaman ini dirender server-side, TAPI isi form (Basic Data) baru diisi
+     setelah fetch /api/employees/{id}/basic-data selesai. Tanpa placeholder,
+     user melihat form kosong dulu lalu tiba-tiba terisi — terbaca seperti
+     "data hilang". Skeleton di bawah tampil lebih dulu, konten asli baru
+     dimunculkan setelah data awal masuk (lihat revealProfilePage()). --}}
+<style>
+    #profileContent.is-loading { display: none; }
+    #profileContent.is-revealed { animation: profileFadeIn .25s ease-out both; }
+    @keyframes profileFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    /* Overlay saat pindah tab yang datanya diambil via AJAX (mis. Address).
+       Warna abu netral supaya aman di light maupun dark mode. */
+    .section-loading { position: relative; min-height: 160px; }
+    .section-loading > .section-loading-veil {
+        position: absolute; inset: 0; z-index: 20;
+        display: flex; align-items: flex-start; justify-content: center;
+        padding-top: 3rem;
+        background: rgba(127, 127, 127, .18);
+        border-radius: .5rem;
+    }
+    .section-spinner {
+        width: 2rem; height: 2rem; border-radius: 9999px;
+        border: 3px solid rgba(127, 127, 127, .35);
+        border-top-color: rgb(var(--primary-rgb, 153 27 27));
+        animation: sectionSpin .7s linear infinite;
+    }
+    @keyframes sectionSpin { to { transform: rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce) {
+        #profileContent.is-revealed { animation: none; }
+        .section-spinner { animation-duration: 2s; }
+        #profileSkeleton .animate-pulse { animation: none; }
+    }
+</style>
+<noscript>
+    <style>#profileSkeleton { display: none !important; } #profileContent.is-loading { display: block !important; }</style>
+</noscript>
+
+<div id="profileSkeleton" class="space-y-6" aria-hidden="true">
+    <div class="h-10 w-40 rounded-lg bg-gray-200 animate-pulse"></div>
+
+    {{-- Kartu header --}}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
+            <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gray-200 animate-pulse flex-shrink-0"></div>
+            <div class="flex-1 w-full min-w-0 space-y-4">
+                <div class="space-y-2">
+                    <div class="h-8 w-64 max-w-full rounded bg-gray-200 animate-pulse"></div>
+                    <div class="h-5 w-40 max-w-full rounded bg-gray-200 animate-pulse"></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    @for($i = 0; $i < 6; $i++)
+                    <div class="space-y-2">
+                        <div class="h-3 w-24 rounded bg-gray-200 animate-pulse"></div>
+                        <div class="h-4 w-36 max-w-full rounded bg-gray-200 animate-pulse"></div>
+                    </div>
+                    @endfor
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Tabs + form --}}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div class="border-b border-gray-200 px-6 py-4 flex gap-6 overflow-hidden">
+            @for($i = 0; $i < 7; $i++)
+            <div class="h-4 w-20 flex-shrink-0 rounded bg-gray-200 animate-pulse"></div>
+            @endfor
+        </div>
+        <div class="p-6 space-y-6">
+            <div class="h-5 w-48 rounded bg-gray-200 animate-pulse"></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                @for($i = 0; $i < 12; $i++)
+                <div class="space-y-2">
+                    <div class="h-3 w-24 rounded bg-gray-200 animate-pulse"></div>
+                    <div class="h-10 w-full rounded-lg bg-gray-200 animate-pulse"></div>
+                </div>
+                @endfor
+            </div>
+        </div>
+    </div>
+
+    <p class="sr-only" role="status" aria-live="polite">Memuat data profil…</p>
+</div>
+
+<div id="profileContent" class="space-y-6 is-loading">
     <!-- Header dengan tombol back -->
     <div class="flex items-center justify-between">
         @if(isset($isOwnProfile) && $isOwnProfile)
@@ -96,9 +182,13 @@
     </div>
 
     @php
-        $isOwn = isset($isOwnProfile) && $isOwnProfile;
-        $hidden   = $isOwn ? ($profileSectionHidden   ?? []) : [];
-        $ro       = $isOwn ? ($profileSectionReadonly ?? []) : [];
+        // Dipakai dua halaman: /profile (my-profile.section.*) dan Master >
+        // Employee > detail (employee.section.*). Controller masing-masing yang
+        // memutuskan slug mana yang dipakai; view cukup memakai hasilnya.
+        // Jangan kembalikan ke pola "$isOwn ? ... : []" — itu membuat halaman
+        // Master selalu editable penuh berapa pun izin yang dicentang.
+        $hidden   = $profileSectionHidden   ?? [];
+        $ro       = $profileSectionReadonly ?? [];
         $sec      = ['employee' => $employee, 'employeeId' => $employee->id];
 
         // Sections config: key => [tab-id, label, partial]
@@ -134,16 +224,25 @@
 
         <!-- Tab Content -->
         <div class="p-6">
-            @foreach($visibleSections as $key => [$tabId, $label, $partial])
+            @forelse($visibleSections as $key => [$tabId, $label, $partial])
             <div id="section-{{ $tabId }}" class="section-content {{ $key !== $firstKey ? 'hidden' : '' }}">
                 @include("master.employee.sections.{$partial}", $sec + ['isReadonly' => (bool)($ro[$key] ?? false)])
             </div>
-            @endforeach
+            @empty
+            <div class="py-12 text-center">
+                <i class="fas fa-lock text-3xl text-gray-300 mb-3"></i>
+                <p class="text-sm font-semibold text-gray-700">Tidak ada section yang bisa ditampilkan</p>
+                <p class="text-xs text-gray-500 mt-1">
+                    Role Anda belum diberi izin section mana pun pada menu ini.
+                    Hubungi administrator untuk mencentang section yang diperlukan di Control Center &rarr; Menu Access.
+                </p>
+            </div>
+            @endforelse
         </div>
     </div>
 </div>
 
-@if(isset($isOwnProfile) && $isOwnProfile)
+{{-- Dibutuhkan di kedua halaman (profile & Master detail), bukan hanya profile. --}}
 <style>
 .profile-readonly { position: relative; }
 .profile-readonly::after {
@@ -170,11 +269,12 @@
 .profile-readonly .se-btn { background: #f9fafb !important; color: #6b7280 !important; border-color: #e5e7eb !important; }
 .profile-readonly .js-section-action { display: none !important; }
 </style>
-@endif
 
 <script>
     const employeeId = {{ $employee->id }};
-    let currentSection = 'basic-data';
+    // Tab pertama belum tentu 'basic-data': section tanpa izin .view tidak
+    // dirender sama sekali (lihat $visibleSections di atas).
+    let currentSection = @json($firstKey ? $visibleSections[$firstKey][0] : 'basic-data');
 
     // Switch between sections/tabs
     function switchSection(sectionName) {
@@ -208,17 +308,39 @@
         loadSectionData(sectionName);
     }
 
+    // Overlay spinner selama section menunggu datanya sendiri (Basic Data &
+    // Address diisi via AJAX, section lain sudah lengkap dari server).
+    async function withSectionLoading(sectionName, task) {
+        const host = document.getElementById('section-' + sectionName);
+        if (!host) return task();
+
+        const veil = document.createElement('div');
+        veil.className = 'section-loading-veil';
+        veil.setAttribute('role', 'status');
+        veil.setAttribute('aria-live', 'polite');
+        veil.innerHTML = '<div class="section-spinner"></div><span class="sr-only">Memuat data…</span>';
+        host.classList.add('section-loading');
+        host.appendChild(veil);
+
+        try {
+            return await task();
+        } finally {
+            veil.remove();
+            host.classList.remove('section-loading');
+        }
+    }
+
     // Load data based on active section
     function loadSectionData(sectionName) {
         switch(sectionName) {
             case 'basic-data':
                 if (typeof loadEmployeeBasicData === 'function') {
-                    loadEmployeeBasicData(employeeId);
+                    return withSectionLoading(sectionName, () => loadEmployeeBasicData(employeeId));
                 }
                 break;
             case 'address':
                 if (typeof loadAddresses === 'function') {
-                    loadAddresses(employeeId);
+                    return withSectionLoading(sectionName, () => loadAddresses(employeeId));
                 }
                 break;
         }
@@ -465,13 +587,33 @@
 
     // showNotification tersedia secara global dari dashboard.blade.php
 
+    // Ganti skeleton dengan konten asli. Idempotent — boleh dipanggil berkali-kali
+    // (dipanggil normal setelah data awal masuk, dan oleh safety timeout).
+    function revealProfilePage() {
+        const skeleton = document.getElementById('profileSkeleton');
+        const content  = document.getElementById('profileContent');
+        if (!content || !content.classList.contains('is-loading')) return;
+        if (skeleton) skeleton.remove();
+        content.classList.remove('is-loading');
+        content.classList.add('is-revealed');
+    }
+
+    // Jaring pengaman: kalau fetch data awal menggantung/gagal total, halaman
+    // tetap harus muncul daripada user terjebak di skeleton selamanya.
+    const profileRevealFallback = setTimeout(revealProfilePage, 8000);
+
     // Load data when page loads
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
         // Guard untuk kasus custom-dropdown.js gagal di-load di production.
         if (typeof initCustomDropdowns === 'function') {
             initCustomDropdowns();
         }
-        loadEmployeeBasicData(employeeId);
+        try {
+            await loadEmployeeBasicData(employeeId);
+        } finally {
+            clearTimeout(profileRevealFallback);
+            revealProfilePage();
+        }
     });
 </script>
 @php

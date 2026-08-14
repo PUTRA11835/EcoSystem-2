@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\CheckAuthToken;
 use App\Http\Middleware\CheckJarviesApiKey;
+use App\Http\Middleware\CompressJsonResponse;
 use App\Http\Middleware\ShareMenuPermissions;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -45,12 +46,18 @@ return Application::configure(basePath: dirname(__DIR__))
             ShareMenuPermissions::class,
         ]);
 
+        $middleware->api(append: [
+            CompressJsonResponse::class,
+        ]);
+
         $middleware->alias([
             'auth.session'      => CheckAuthToken::class,
             'jarvies.api_key'   => CheckJarviesApiKey::class,
             'external.api_key'  => \App\Http\Middleware\CheckExternalApiKey::class,
             'menu'              => \App\Http\Middleware\CheckMenuAccess::class,
             'menu.owner'        => \App\Http\Middleware\CheckMenuOrProjectOwner::class,
+            'employee.section'  => \App\Http\Middleware\CheckEmployeeSectionAccess::class,
+            'customer.section'  => \App\Http\Middleware\CheckCustomerSectionAccess::class,
             'lite.auth'         => \App\Http\Middleware\LiteApiAuth::class,
             'project.editable'  => \App\Http\Middleware\EnsureProjectNotClosed::class,
         ]);

@@ -85,7 +85,7 @@
 </div>
 
 {{-- ── Status Cards ────────────────────────────────────────────────────────── --}}
-<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2 mb-4">
     <div id="filterAll" onclick="filterTickets('all')"
         class="stat-card active-filter bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300">
         <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Total</p>
@@ -138,6 +138,14 @@
             <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Hold</p>
         </div>
         <p class="text-2xl font-bold text-orange-600 leading-none" id="holdCount">0</p>
+    </div>
+    <div id="filterCancelled" onclick="filterTickets('cancelled')"
+        class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300">
+        <div class="flex items-center gap-1.5 mb-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Cancelled</p>
+        </div>
+        <p class="text-2xl font-bold text-gray-500 leading-none" id="cancelledCount">0</p>
     </div>
     <div id="filterClosed" onclick="filterTickets('closed')"
         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-green-200">
@@ -251,7 +259,7 @@
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
                             <button type="button" id="dateFilterBtn" onclick="toggleDateFilter(event)"
                                 class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Date</span>
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Start Date</span>
                                 <span id="sort-icon-date" class="sort-icon text-gray-300 font-normal normal-case tracking-normal text-xs">⇅</span>
                                 <svg id="dateFilterCaret" class="w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
@@ -292,6 +300,10 @@
                                     <button type="button" onclick="applyDateFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
                                 </div>
                             </div>
+                        </th>
+                        {{-- CLOSE DATE --}}
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
+                            Close Date
                         </th>
                         {{-- DAY ON CLOSE: sort filter (highest/lowest) --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px;">
@@ -904,6 +916,7 @@
 <script>
     let allTickets = [];
     let filteredTickets = [];
+    let currentStats = null;
     let currentFilter = 'all';
     let currentTicketSort = {
         key: 'last_update',
@@ -958,14 +971,6 @@
     let sortField = null; // 'last_update' | 'ticket_number' | 'date'
     let sortDir = null; // 'desc' | 'asc'
 
-    function getViewBase() {
-        if (STAFF_TOGGLE_ROLES.includes(userRole)) {
-            if (currentView === 'unassigned') return allTickets.filter(t => t.ticket_lead_id === null);
-            return allTickets; // 'all' = semua tiket tanpa filter assigned/unassigned
-        }
-        // Support Manager: server already returns the correct set per currentView
-        return allTickets;
-    }
 
     // ── Filter state persistence ──────────────────────────────────────────
     // Klik "Back to Tickets" atau row ticket adalah full page navigation
@@ -1014,11 +1019,16 @@
         setVal('ticketFilterInput', state.ticketFilterInput);
         setVal('descFilterInput', state.descFilterInput);
 
-        // Single-select custom dropdowns — restore value + label sekaligus
-        if (state.colFilterCustomer && typeof setCustomDropdownValue === 'function') {
+        // Single-select custom dropdowns — restore value + label sekaligus. Values are now
+        // customer_id/employee_id (numeric) or '__unassigned__', not the name string older
+        // sessionStorage entries (persisted before this endpoint switched to ID-based
+        // filtering) may still contain — ignore anything that doesn't look like one of those,
+        // instead of sending a non-numeric value to the server and silently getting zero results.
+        const looksLikeIdOrUnassigned = v => v === '__unassigned__' || /^\d+$/.test(v);
+        if (state.colFilterCustomer && looksLikeIdOrUnassigned(state.colFilterCustomer) && typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('colFilterCustomer', state.colFilterCustomer);
         }
-        if (state.colFilterPic && typeof setCustomDropdownValue === 'function') {
+        if (state.colFilterPic && looksLikeIdOrUnassigned(state.colFilterPic) && typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('colFilterPic', state.colFilterPic);
         }
 
@@ -1043,8 +1053,12 @@
         if (typeof applyColFilter === 'function') applyColFilter();
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
+        // Filter options must be populated before restoring persisted state — the Customer/PIC
+        // dropdown values are now IDs, and setCustomDropdownValue() needs a matching item
+        // already in the panel to resolve the ID back to a display name.
+        await loadFilterOptions();
         restoreTicketFilterState();
         loadTickets();
         if (userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE || STAFF_TOGGLE_ROLES.includes(userRole) || userRole === SUPPORT_MANAGER_ROLE || CAN_VIEW_UNASSIGNED_TICKET) updateViewToggle();
@@ -1115,8 +1129,8 @@
         const colType = document.getElementById('colFilterType')?.value || '';
         const colModule = document.getElementById('colFilterModule')?.value || '';
         if (colStatus) params.set('status', colStatus);
-        if (colCustomer) params.set('customer', colCustomer);
-        if (colPic) params.set('pic', colPic);
+        if (colCustomer) params.set('customer_id', colCustomer);
+        if (colPic) params.set('pic_id', colPic === '__unassigned__' ? 'unassigned' : colPic);
         if (colPriority) params.set('priority', colPriority);
         if (colScale) params.set('scale', colScale);
         if (colType) params.set('type', colType);
@@ -1141,17 +1155,15 @@
     function toggleView(view) {
         currentView = view;
         updateViewToggle();
+        // Helpdesk toggling All/Unassigned used to filter an already-fully-loaded client
+        // array instead of re-fetching; now that the list is paginated there's no full
+        // array to filter, so every role re-fetches from the server (loadTickets() passes
+        // ?unassigned=1 for this case — see its endpoint-selection logic).
         if (STAFF_TOGGLE_ROLES.includes(userRole)) {
-            // Helpdesk: all tickets already loaded — filter client-side for unassigned, no re-fetch
             currentFilter = 'all';
-            currentPage = 1;
-            filteredTickets = getViewBase();
-            updateStats();
-            renderTickets();
-        } else {
-            // Support Manager and others: re-fetch from server
-            loadTickets();
         }
+        currentPage = 1;
+        loadTickets();
         persistTicketFilterState();
     }
 
@@ -1176,7 +1188,13 @@
         }
     }
 
-    async function loadTickets(silent = false) {
+    // Server-side pagination/filter/sort — loadTickets() fetches exactly one page that
+    // already matches every active filter and sort, instead of fetching the entire ticket
+    // set and filtering/sorting/paginating it in the browser. `allTickets`/`filteredTickets`
+    // therefore hold only the current page from here on (names kept to minimize churn
+    // elsewhere in this file). Called directly by every filter/sort/pagination control —
+    // there's no separate client-side "apply filters to already-fetched data" step anymore.
+    async function loadTickets(silent = false, _isRetry = false) {
         try {
             if (!silent) {
                 document.getElementById('loadingState').classList.remove('hidden');
@@ -1185,13 +1203,44 @@
             }
 
             let endpoint = '/api/tickets';
+            const params = new URLSearchParams();
             if (userRole === EC_USER_ROLE) endpoint = '/api/tickets/my';
             else if (IS_EXTERNAL_EMPLOYEE && userRole !== SUPPORT_MANAGER_ROLE && !HEAD_ROLES.includes(userRole)) endpoint = '/api/tickets/my';
             else if (currentView === 'unassigned-tab') endpoint = '/api/tickets/unassigned';
             else if ((userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE) && currentView === 'my') endpoint = '/api/tickets/my';
             else if (userRole === SUPPORT_MANAGER_ROLE && currentView === 'my') endpoint = '/api/tickets/my';
+            else if (STAFF_TOGGLE_ROLES.includes(userRole) && currentView === 'unassigned') params.set('unassigned', '1');
 
-            const response = await fetch(endpoint, {
+            params.set('page', currentPage);
+            params.set('per_page', itemsPerPage);
+            params.set('sort_key', currentTicketSort.key);
+            params.set('sort_dir', currentTicketSort.dir);
+            if (currentFilter && currentFilter !== 'all') params.set('card_status', currentFilter);
+
+            const colCustomer = document.getElementById('colFilterCustomer')?.value || '';
+            const colPic = document.getElementById('colFilterPic')?.value || '';
+            const colPriority = document.getElementById('colFilterPriority')?.value || '';
+            const colScale = document.getElementById('colFilterScale')?.value || '';
+            const colStatus = document.getElementById('colFilterStatus')?.value || '';
+            const colType = document.getElementById('colFilterType')?.value || '';
+            if (colCustomer) params.set('customer_id', colCustomer);
+            if (colPic) params.set('pic_id', colPic === '__unassigned__' ? 'unassigned' : colPic);
+            if (colPriority) params.set('priority', colPriority);
+            if (colScale) params.set('scale', colScale);
+            if (colStatus) params.set('status', colStatus);
+            if (colType) params.set('type', colType);
+
+            const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
+            const dateTo = document.getElementById('dateFilterTo')?.value || '';
+            if (dateFrom) params.set('date_from', dateFrom);
+            if (dateTo) params.set('date_to', dateTo);
+
+            const descKw = (document.getElementById('descFilterInput')?.value || '').trim();
+            const ticketKw = (document.getElementById('ticketFilterInput')?.value || '').trim();
+            if (descKw) params.set('description', descKw);
+            if (ticketKw) params.set('ticket_number', ticketKw);
+
+            const response = await fetch(endpoint + '?' + params.toString(), {
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
@@ -1220,20 +1269,26 @@
             const data = await response.json();
 
             if (data.success) {
-                allTickets = data.data.sort((a, b) => new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at));
-                populateCustomerFilter();
-                populatePicFilter();
-                // applyAdvancedFilters (bukan getViewBase langsung) supaya search/filter yang
-                // sedang aktif tidak ke-reset setiap kali data di-refresh (mis. dari polling) —
-                // fungsi ini juga memanggil updateStats() dengan base yang sudah difilter kolom.
-                const pageBeforeRefresh = currentPage;
-                applyAdvancedFilters();
-                // Saat silent refresh, kembalikan ke halaman semula (bukan balik ke halaman 1)
-                // supaya user yang sedang baca halaman 2/3 dst tidak tiba-tiba ke-lempar.
-                if (silent && pageBeforeRefresh > 1) {
-                    currentPage = Math.min(pageBeforeRefresh, totalPages || 1);
-                    renderTickets();
+                // Filters shrank the result set below the page we were on (e.g. searched
+                // while on page 3) — snap back to the last valid page instead of showing blank.
+                if (!_isRetry && data.meta && data.meta.last_page >= 1 && currentPage > data.meta.last_page) {
+                    currentPage = data.meta.last_page;
+                    return loadTickets(silent, true);
                 }
+
+                allTickets = data.data;
+                filteredTickets = allTickets;
+                totalItems = data.meta ? data.meta.total : allTickets.length;
+                totalPages = data.meta ? data.meta.last_page : 1;
+                currentStats = data.stats || null;
+
+                updateColFilterIndicators();
+                updateDateFilterIndicator();
+                updateDescFilterIndicator();
+                updateTicketFilterIndicator();
+                updateStats();
+                renderTickets();
+                persistTicketFilterState();
             } else {
                 showNotification(data.message || 'Failed to load tickets', 'error');
                 document.getElementById('loadingState').classList.add('hidden');
@@ -1264,64 +1319,27 @@
     // kartu "Closed" tidak membuat kartu lain menghitung ulang dari subset "closed" saja
     // (yang akan membuat semuanya jadi 0 kecuali Closed). Base ini dipakai bareng oleh
     // applyAdvancedFilters() untuk membangun `filteredTickets` tabel.
-    function getColumnFilteredBase() {
-        const colCustomer = (document.getElementById('colFilterCustomer')?.value || '').toLowerCase();
-        const colPic = (document.getElementById('colFilterPic')?.value || '').toLowerCase();
-        const colPriority = (document.getElementById('colFilterPriority')?.value || '').split(',').filter(Boolean);
-        const colScale = (document.getElementById('colFilterScale')?.value || '').split(',').filter(Boolean);
-        const colStatus = (document.getElementById('colFilterStatus')?.value || '').split(',').filter(Boolean);
-        const colType = (document.getElementById('colFilterType')?.value || '').split(',').filter(Boolean);
-        const colModule = (document.getElementById('colFilterModule')?.value || '').split(',').filter(Boolean);
-
-        const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
-        const dateTo = document.getElementById('dateFilterTo')?.value || '';
-        const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00+07:00').getTime() : null;
-        const toMs = dateTo ? new Date(dateTo + 'T23:59:59+07:00').getTime() : null;
-
-        const descKw = (document.getElementById('descFilterInput')?.value || '').trim().toLowerCase();
-        const ticketKw = (document.getElementById('ticketFilterInput')?.value || '').trim().toLowerCase();
-
-        return getViewBase().filter(ticket => {
-            const matchColCustomer = !colCustomer || (ticket.customer?.customer_name || '').toLowerCase() === colCustomer;
-            const matchColPic = !colPic || (colPic === '__unassigned__' ? !ticket.employee : (ticket.employee?.employee_name || '').toLowerCase() === colPic);
-            const matchColPriority = !colPriority.length || colPriority.includes(ticket.ticket_priority);
-            const matchColScale = !colScale.length || colScale.includes(String(ticket.scale ?? ''));
-            const matchColStatus = !colStatus.length || colStatus.includes(ticket.status);
-            const matchColType = !colType.length || colType.includes(ticket.ticket_type);
-            const matchColModule = !colModule.length || colModule.includes(String(ticket.module_id ?? ''));
-
-            let matchDate = true;
-            if (fromMs !== null || toMs !== null) {
-                const ticketDate = ticket.created_at;
-                const startMs = ticketDate ? new Date(ticketDate).getTime() : NaN;
-                if (Number.isNaN(startMs)) {
-                    matchDate = false;
-                } else {
-                    if (fromMs !== null && startMs < fromMs) matchDate = false;
-                    if (toMs !== null && startMs > toMs) matchDate = false;
-                }
-            }
-
-            const matchDesc = !descKw || (ticket.description || '').toLowerCase().includes(descKw);
-            const matchTicket = !ticketKw || (ticket.ticket_number || '').toLowerCase().includes(ticketKw);
-
-            return matchColCustomer && matchColPic && matchColPriority && matchColScale &&
-                matchColStatus && matchColType && matchColModule && matchDate && matchDesc && matchTicket;
-        });
+    // Badge counts now come from the server (`stats` in loadTickets()'s response, honoring
+    // the same column filters/search as the list itself but not the card_status filter —
+    // same semantics as the old client-side version, just computed server-side over the
+    // whole filtered set instead of only whatever page happened to be loaded).
+    function updateStats() {
+        const s = currentStats || {};
+        document.getElementById('totalCount').textContent = s.total ?? 0;
+        document.getElementById('openCount').textContent = s.open ?? 0;
+        document.getElementById('inprocessCount').textContent = s.inprocess ?? 0;
+        document.getElementById('waitingCustomerCount').textContent = s.waiting_on_customer ?? 0;
+        document.getElementById('waiting3rdCount').textContent = s.waiting_on_3rd_party ?? 0;
+        document.getElementById('waitingConfirmCount').textContent = s.waiting_to_confirmation ?? 0;
+        document.getElementById('holdCount').textContent = s.hold ?? 0;
+        document.getElementById('cancelledCount').textContent = s.cancelled ?? 0;
+        document.getElementById('closedCount').textContent = s.closed ?? 0;
     }
 
-    function updateStats(base) {
-        base = base || getColumnFilteredBase();
-        document.getElementById('totalCount').textContent = base.length;
-        document.getElementById('openCount').textContent = base.filter(t => t.status === 'open').length;
-        document.getElementById('inprocessCount').textContent = base.filter(t => t.status === 'inprocess').length;
-        document.getElementById('waitingCustomerCount').textContent = base.filter(t => t.status === 'waiting_on_customer').length;
-        document.getElementById('waiting3rdCount').textContent = base.filter(t => t.status === 'waiting_on_3rd_party').length;
-        document.getElementById('waitingConfirmCount').textContent = base.filter(t => t.status === 'waiting_to_confirmation').length;
-        document.getElementById('holdCount').textContent = base.filter(t => t.status === 'hold').length;
-        document.getElementById('closedCount').textContent = base.filter(t => t.status === 'closed').length;
-    }
-
+    // filteredTickets is now exactly one page, already filtered+sorted by the server —
+    // no client-side slicing or sorting needed here anymore. totalItems/totalPages come
+    // from loadTickets()'s response meta (set before this is called), not recomputed from
+    // filteredTickets.length (which would just be the current page's count).
     function renderTickets() {
         const listBody = document.getElementById('ticketsListBody');
         const container = document.getElementById('ticketsContainer');
@@ -1329,8 +1347,6 @@
         document.getElementById('loadingState').classList.add('hidden');
         document.getElementById('emptyState').classList.add('hidden');
         container.classList.remove('hidden');
-        totalItems = filteredTickets.length;
-        totalPages = Math.ceil(totalItems / itemsPerPage);
 
         if (filteredTickets.length === 0) {
             // Kosongkan hanya baris data; header, toolbar, dan popup search/filter tetap tampil.
@@ -1353,12 +1369,7 @@
             return;
         }
 
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-        let displayTickets = applyTicketSort(filteredTickets);
-        const paginatedTickets = displayTickets.slice(startIndex, endIndex);
-
-        listBody.innerHTML = paginatedTickets.map(ticket => createTicketRow(ticket)).join('');
+        listBody.innerHTML = filteredTickets.map(ticket => createTicketRow(ticket)).join('');
         updatePaginationDisplay();
     }
 
@@ -1405,7 +1416,12 @@
         const customerName = ticket.customer?.customer_name || 'Unknown';
         const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
         const createdDate = new Date(ticket.created_at);
-        const endDate = ticket.end_date ? new Date(ticket.end_date) : null;
+        // ticket.end_date is now set when a ticket's status changes to closed (see
+        // TicketController::updateTicketStatus). Tickets closed before that fix never got
+        // it set, so fall back to the same source "Day on Close" uses (resolved_at, then
+        // updated_at) for those older rows.
+        const closedAtRaw = ticket.end_date || (ticket.status === 'closed' ? (ticket.sla?.resolved_at || ticket.updated_at) : null);
+        const endDate = closedAtRaw ? new Date(closedAtRaw) : null;
 
         const fmt = d => d.toLocaleDateString('en-GB', {
             timeZone: 'Asia/Jakarta',
@@ -1582,9 +1598,13 @@
                 <span class="block truncate text-gray-700 ${ticket.is_read ? 'font-normal' : 'font-bold'} leading-snug"
                       title="${(ticket.description||'').replace(/"/g,'&quot;')}">${ticket.description || '—'}</span>
             </td>
-            {{-- Date --}}
+            {{-- Start Date --}}
             <td class="px-3 py-3 whitespace-nowrap">
                 <span class="text-xs text-gray-500">${dateStr}</span>
+            </td>
+            {{-- Close Date --}}
+            <td class="px-3 py-3 whitespace-nowrap">
+                <span class="text-xs text-gray-500">${endDateStr}</span>
             </td>
             {{-- Day on Close --}}
             <td class="px-3 py-3 whitespace-nowrap">
@@ -1730,20 +1750,20 @@
     function previousPage() {
         if (currentPage > 1) {
             currentPage--;
-            renderTickets();
+            loadTickets();
         }
     }
 
     function nextPage() {
         if (currentPage < totalPages) {
             currentPage++;
-            renderTickets();
+            loadTickets();
         }
     }
 
     function filterTickets(status) {
         currentFilter = status;
-        ['filterAll', 'filterOpen', 'filterInprocess', 'filterWaitingCustomer', 'filterWaiting3rd', 'filterWaitingConfirm', 'filterHold', 'filterClosed'].forEach(id => {
+        ['filterAll', 'filterOpen', 'filterInprocess', 'filterWaitingCustomer', 'filterWaiting3rd', 'filterWaitingConfirm', 'filterHold', 'filterCancelled', 'filterClosed'].forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
             el.classList.remove('active-filter', 'border-red-600', 'shadow-md', 'border-2');
@@ -1758,6 +1778,7 @@
             'waiting_on_3rd_party': 'filterWaiting3rd',
             'waiting_to_confirmation': 'filterWaitingConfirm',
             'hold': 'filterHold',
+            'cancelled': 'filterCancelled',
             'closed': 'filterClosed',
         };
         if (filterMap[status]) {
@@ -1771,7 +1792,29 @@
         applyAdvancedFilters();
     }
 
-    function populateCustomerFilter() {
+    // Customer/PIC filter options — fetched once from /api/tickets/filter-options (distinct
+    // values across every visible ticket) instead of scanned out of allTickets, which after
+    // pagination only ever holds the current page. Values are now customer_id/employee_id
+    // (sent to the server as customer_id/pic_id), not the name string the old client-side
+    // filter used to compare against.
+    async function loadFilterOptions() {
+        try {
+            const res = await fetch('/api/tickets/filter-options', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.success) {
+                populateCustomerFilter(data.customers || []);
+                populatePicFilter(data.pics || []);
+            }
+        } catch (e) {
+            console.warn('[Filter Options] error:', e.message);
+        }
+    }
+
+    function populateCustomerFilter(customers) {
         const ddEl = document.getElementById('ddColFilterCustomer');
         if (!ddEl) return;
         // Panel may be detached to document.body (fixed mode) — use stored ref
@@ -1780,17 +1823,6 @@
 
         // Remove existing items only (preserve injected search wrap + empty state)
         panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
-
-        const seen = new Set();
-        const names = [];
-        allTickets.forEach(t => {
-            const name = t.customer?.customer_name;
-            if (name && !seen.has(name)) {
-                seen.add(name);
-                names.push(name);
-            }
-        });
-        names.sort((a, b) => a.localeCompare(b));
 
         const makeItem = (val, text) => {
             const btn = document.createElement('button');
@@ -1803,7 +1835,7 @@
 
         const fragment = document.createDocumentFragment();
         fragment.appendChild(makeItem('', 'All'));
-        names.forEach(name => fragment.appendChild(makeItem(name, name)));
+        customers.forEach(c => fragment.appendChild(makeItem(String(c.id), c.name)));
 
         // Insert before empty-state div if present, otherwise append
         const emptyEl = panel._ddEmpty || null;
@@ -1811,24 +1843,13 @@
         else panel.appendChild(fragment);
     }
 
-    function populatePicFilter() {
+    function populatePicFilter(pics) {
         const ddEl = document.getElementById('ddColFilterPic');
         if (!ddEl) return;
         const panel = ddEl._ddPanel || ddEl.querySelector('.custom-dd-panel');
         if (!panel) return;
 
         panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
-
-        const seen = new Set();
-        const names = [];
-        allTickets.forEach(t => {
-            const name = t.employee?.employee_name;
-            if (name && !seen.has(name)) {
-                seen.add(name);
-                names.push(name);
-            }
-        });
-        names.sort((a, b) => a.localeCompare(b));
 
         const makeItem = (val, text) => {
             const btn = document.createElement('button');
@@ -1842,7 +1863,7 @@
         const fragment = document.createDocumentFragment();
         fragment.appendChild(makeItem('', 'All'));
         fragment.appendChild(makeItem('__unassigned__', 'Unassigned'));
-        names.forEach(name => fragment.appendChild(makeItem(name, name)));
+        pics.forEach(p => fragment.appendChild(makeItem(String(p.id), p.name)));
 
         const emptyEl = panel._ddEmpty || null;
         if (emptyEl) panel.insertBefore(fragment, emptyEl);
@@ -1871,18 +1892,13 @@
         if (dd) dd.classList.toggle('col-dd-active', value !== '');
     }
 
+    // Entry point for every filter control (column dropdowns, date range, keyword search,
+    // status cards). Filtering now happens server-side, so this just resets to page 1 and
+    // re-fetches — indicator/stats/render updates happen inside loadTickets()'s response
+    // handler once the new data is back.
     function applyAdvancedFilters() {
-        const base = getColumnFilteredBase();
-        filteredTickets = base.filter(ticket => currentFilter === 'all' || ticket.status === currentFilter);
-
-        updateColFilterIndicators();
-        updateDateFilterIndicator();
-        updateDescFilterIndicator();
-        updateTicketFilterIndicator();
-        updateStats(base);
         currentPage = 1;
-        renderTickets();
-        persistTicketFilterState();
+        loadTickets();
     }
 
     // ── Date Range Filter ─────────────────────────────────────────────
@@ -2195,6 +2211,11 @@
         'Simple': 1
     };
 
+    // Sorting is server-side now (TicketController::applyTicketListSort() — has to be, so
+    // it applies across the whole filtered set instead of just whatever page is loaded).
+    // This just updates the sort state and re-fetches; there's no client-side comparator
+    // anymore (dayOnCloseValue() below is kept — it's still used to *display* the column,
+    // just no longer to sort it).
     function sortTickets(key, forcedDir) {
         if (forcedDir) {
             currentTicketSort = {
@@ -2210,61 +2231,8 @@
             };
         }
         updateTicketSortIcons();
-        renderTickets();
+        loadTickets();
         persistTicketFilterState();
-    }
-
-    function applyTicketSort(list) {
-        const {
-            key,
-            dir
-        } = currentTicketSort;
-        return [...list].sort((a, b) => {
-            let va, vb;
-            if (key === 'last_update') {
-                va = new Date(a.last_message_at || a.created_at).getTime();
-                vb = new Date(b.last_message_at || b.created_at).getTime();
-            } else if (key === 'ticket_number') {
-                const extractNum = t => parseInt((t.ticket_number || '').replace(/\D+/g, '') || t.ticket_id || 0, 10);
-                va = extractNum(a);
-                vb = extractNum(b);
-            } else if (key === 'date') {
-                va = new Date(a.created_at).getTime();
-                vb = new Date(b.created_at).getTime();
-            } else if (key === 'day_on_close') {
-                const daysOf = t => {
-                    const v = dayOnCloseValue(t);
-                    return v === null ? -Infinity : v;
-                };
-                va = daysOf(a);
-                vb = daysOf(b);
-            } else if (key === 'description') {
-                va = (a.description || '').toLowerCase();
-                vb = (b.description || '').toLowerCase();
-                return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-            } else if (key === 'customer') {
-                va = (a.customer?.customer_name || '').toLowerCase();
-                vb = (b.customer?.customer_name || '').toLowerCase();
-                return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-            } else if (key === 'priority') {
-                va = PRIORITY_RANK[a.ticket_priority] ?? 0;
-                vb = PRIORITY_RANK[b.ticket_priority] ?? 0;
-            } else if (key === 'scale') {
-                va = SCALE_RANK[a.scale] ?? 0;
-                vb = SCALE_RANK[b.scale] ?? 0;
-            } else if (key === 'status') {
-                va = (a.status || '').toLowerCase();
-                vb = (b.status || '').toLowerCase();
-                return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-            } else if (key === 'type') {
-                va = (a.ticket_type || '').toLowerCase();
-                vb = (b.ticket_type || '').toLowerCase();
-                return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-            } else {
-                return 0;
-            }
-            return dir === 'asc' ? va - vb : vb - va;
-        });
     }
 
     function updateTicketSortIcons() {

@@ -68,7 +68,7 @@ class SlaService
         }
 
         if ($is24h) {
-            return round($from->floatDiffInHours($to), 2);
+            return round($from->diffInHours($to), 2);
         }
 
         $hasBreak = $policy && $policy->break_start_time && $policy->break_end_time;
@@ -90,7 +90,7 @@ class SlaService
                 $periodEnd   = $to->lt($dayEnd) ? $to : $dayEnd;
 
                 if ($periodStart->lt($periodEnd)) {
-                    $segmentHours = $periodStart->floatDiffInHours($periodEnd);
+                    $segmentHours = $periodStart->diffInHours($periodEnd);
 
                     if ($hasBreak) {
                         $breakStart   = $current->copy()->setTime($brkStartH, $brkStartM, 0);
@@ -98,7 +98,7 @@ class SlaService
                         $overlapStart = $periodStart->gt($breakStart) ? $periodStart : $breakStart;
                         $overlapEnd   = $periodEnd->lt($breakEnd) ? $periodEnd : $breakEnd;
                         if ($overlapStart->lt($overlapEnd)) {
-                            $segmentHours -= $overlapStart->floatDiffInHours($overlapEnd);
+                            $segmentHours -= $overlapStart->diffInHours($overlapEnd);
                         }
                     }
 

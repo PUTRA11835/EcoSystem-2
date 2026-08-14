@@ -169,7 +169,7 @@
                     || $ticket->ticket_lead_id == $user->id
                     || $ticket->members->contains('employee_id', $user->id);
             @endphp
-            @if($canViewCredential && $ticket->customer_id)
+            @if($canViewCredential && ($ticket->end_customer_id || $ticket->customer_id))
             <button onclick="openCredentialModal()"
                 title="Customer Credential"
                 class="ml-4 flex-shrink-0 h-9 px-3 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
@@ -181,6 +181,15 @@
                 title="Log SLA"
                 class="ml-2 flex-shrink-0 h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
                 <i class="fas fa-history text-xs"></i> Log SLA
+            </button>
+            @endif
+            @if($can('ticket.shifting-log'))
+            {{-- Shortcut ke modal Log Shifting (data sama dengan klik-kanan di list ticket).
+                 Berlaku untuk SEMUA ticket type, tidak hanya Incident seperti Log SLA. --}}
+            <button onclick="openLogShiftingTicketModal()"
+                title="Log Shifting"
+                class="ml-2 flex-shrink-0 h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
+                <i class="fas fa-exchange-alt text-xs"></i> Log Shifting
             </button>
             @endif
             {{-- Toggle right panel --}}
@@ -713,7 +722,7 @@
                         $picOptions[] = ['name' => $leadName, 'label' => $leadName . ' (Ticket Lead)'];
                     }
                     foreach ($ticket->allMembers as $m) {
-                        if ($m->pivot->is_active && $m->basicData) {
+                        if ($m->pivot->is_active && $m->basicData && $m->employee_id != $ticket->ticket_lead_id) {
                             $mName = trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? ''));
                             $picOptions[] = ['name' => $mName, 'label' => $mName];
                         }
@@ -748,8 +757,14 @@
                 @endphp
                 <div class="pt-3 border-t border-gray-200">
                     <label class="text-xs font-semibold text-gray-500 mb-2 block">Team Members</label>
+                    @php
+                        // Ticket lead sudah ditampilkan terpisah sebagai PIC — jangan tampilkan
+                        // lagi row ticket_member miliknya (aktif/nonaktif) di sini, karena tombol
+                        // aktifkan-kembali untuk row itu selalu gagal (PIC tidak boleh jadi member).
+                        $visibleMembers = $ticket->allMembers->where('employee_id', '!=', $ticket->ticket_lead_id);
+                    @endphp
                     <div id="membersList" class="space-y-1 mb-2">
-                        @forelse($ticket->allMembers as $member)
+                        @forelse($visibleMembers as $member)
                             @php
                                 $mName    = trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? ''));
                                 $mActive  = (bool) $member->pivot->is_active;
@@ -1669,6 +1684,7 @@
                 </button>
             </div>
             <div class="flex gap-2">
+                <button id="picBtnDeleteDraft" onclick="picDeleteDraft()" class="hidden inline-flex items-center px-4 py-2 bg-white text-red-600 text-xs font-semibold rounded-lg border border-red-300 hover:bg-red-50 transition-all duration-200">Delete Draft</button>
                 <button id="picBtnSaveDraft" onclick="picSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save Draft</button>
                 <button id="picBtnSubmit" onclick="picSubmitDraft()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Submit to Helpdesk</button>
             </div>
@@ -1702,8 +1718,9 @@
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Days — working days">Days</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Days proposed by PIC">Add.</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Approved Days — base days approved by Head">Appr. Days</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Approved Additional — extra days approved by Head">Appr. Add.</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Days + Approved Additional">Total Days</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Approved Days + Approved Additional">Total Days</th>
                     </tr>
                 </thead>
                 <tbody id="resolutionBody"></tbody>
@@ -1713,6 +1730,7 @@
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterDays">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterAdd">0</td>
                         <td class="px-3 py-2 border border-gray-200"></td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterApprovedDays">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterApprAdd">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resolutionFooterTotal">0</td>
                     </tr>
@@ -5142,6 +5160,8 @@
     // ==================== TEAM MEMBERS ====================
     const allEmployees  = @json($employees);
     const canManageMembers = {{ $canManageMembers ? 'true' : 'false' }};
+    const ticketLeadId   = {{ $ticket->ticket_lead_id ?? 'null' }};
+    const ticketLeadName = @json($ticket->ticketLead && $ticket->ticketLead->basicData ? trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : null);
 
     function escHtmlMember(str) {
         const d = document.createElement('div');
@@ -5155,10 +5175,16 @@
 
         // All member IDs (active + inactive) — excluded from "add" dropdown
         const allMemberIds = new Set(members.map(m => m.employee_id));
-        if (members.length === 0) {
+
+        // Ticket lead sudah ditampilkan terpisah sebagai PIC — jangan tampilkan lagi
+        // row ticket_member miliknya di sini (tombol aktifkan-kembali untuk row itu
+        // selalu gagal karena PIC tidak boleh jadi member).
+        const visibleMembers = members.filter(m => m.employee_id != ticketLeadId);
+
+        if (visibleMembers.length === 0) {
             list.innerHTML = '<p class="text-xs text-gray-400 italic" id="noMembersText">No members assigned.</p>';
         } else {
-            list.innerHTML = members.map(m => {
+            list.innerHTML = visibleMembers.map(m => {
                 const isActive = m.is_active;
                 const chipBg   = isActive ? 'bg-blue-50' : 'bg-gray-100';
                 const nameCls  = isActive ? 'text-xs text-blue-700 font-medium truncate' : 'text-xs text-gray-400 font-medium truncate line-through';
@@ -5191,7 +5217,7 @@
             const itemCls = 'custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors';
             let itemsHtml = `<button type="button" class="${itemCls}" data-value="">-- Add member --</button>`;
             allEmployees.forEach(emp => {
-                if (!allMemberIds.has(emp.employee_id) && emp.employee_id != {{ $ticket->ticket_lead_id ?? 'null' }}) {
+                if (!allMemberIds.has(emp.employee_id) && emp.employee_id != ticketLeadId) {
                     itemsHtml += `<button type="button" class="${itemCls}" data-value="${escAttr(emp.employee_id)}">${escTxt(emp.name)}</button>`;
                 }
             });
@@ -5208,6 +5234,41 @@
                 label.className   = 'custom-dd-label text-gray-500 truncate';
             }
         }
+
+        rebuildPicDropdown(members);
+    }
+
+    // PIC (In Charge) dropdown options harus ikut berubah begitu member
+    // dinonaktifkan/diaktifkan-kembali — tanpa ini opsi PIC jadi basi sampai
+    // halaman di-refresh manual (member yang sudah di-remove masih bisa dipilih
+    // jadi PIC, dan member yang baru direaktivasi belum muncul sbg opsi).
+    function rebuildPicDropdown(members) {
+        const picPanel = document.querySelector('[data-onchange="onPicDropdownChange"] .custom-dd-panel');
+        if (!picPanel) return;
+
+        // Panel bisa sudah auto-inject search bar (kalau opsi > 7 saat init) —
+        // pertahankan node itu, jangan sampai innerHTML replace bikin referensi
+        // panel._ddSearch/_ddEmpty jadi stale.
+        const searchWrap = picPanel.querySelector('.custom-dd-search-wrap');
+        const emptyEl    = picPanel.querySelector('.custom-dd-empty');
+
+        const currentPic = document.getElementById('picSelectHidden')?.value || '';
+        const escAttr = (s) => String(s).replace(/"/g, '&quot;');
+        const escTxt  = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const itemCls = (name) => `custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 ${currentPic === name ? 'bg-gray-50 font-medium text-gray-900' : ''}`;
+
+        let itemsHtml = '';
+        if (ticketLeadName) {
+            itemsHtml += `<button type="button" class="${itemCls(ticketLeadName)}" data-value="${escAttr(ticketLeadName)}">${escTxt(ticketLeadName)} (Ticket Lead)</button>`;
+        }
+        members.filter(m => m.is_active).forEach(m => {
+            itemsHtml += `<button type="button" class="${itemCls(m.name)}" data-value="${escAttr(m.name)}">${escTxt(m.name)}</button>`;
+        });
+
+        picPanel.innerHTML = '';
+        if (searchWrap) picPanel.appendChild(searchWrap);
+        picPanel.insertAdjacentHTML('beforeend', itemsHtml);
+        if (emptyEl) picPanel.appendChild(emptyEl);
     }
 
     async function addMemberBtn() {
@@ -6571,6 +6632,8 @@
         document.getElementById('picAddRowWrap').classList.toggle('hidden', picReadOnly);
         document.getElementById('picBtnSaveDraft').classList.toggle('hidden', picReadOnly);
         document.getElementById('picBtnSubmit').classList.toggle('hidden', picReadOnly);
+        // Delete only makes sense for an already-saved draft (not a brand-new unsaved version)
+        document.getElementById('picBtnDeleteDraft').classList.toggle('hidden', picReadOnly || !picDraftData || picDraftData?.status !== 'draft');
 
         picUpdateTotal();
     }
@@ -6735,6 +6798,27 @@
         finally { btn.disabled = false; btn.textContent = 'Submit to Helpdesk'; }
     }
 
+    async function picDeleteDraft() {
+        if (!picDraftData || picDraftData.status !== 'draft') return;
+        if (!confirm('Delete this draft? This cannot be undone.')) return;
+        const btn = document.getElementById('picBtnDeleteDraft');
+        btn.disabled = true; btn.textContent = 'Deleting...';
+        try {
+            const res = await fetch(MANDAYS_API('pic-draft'), {
+                method: 'DELETE', headers: getHeaders(), credentials: 'same-origin',
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Draft deleted.', 'success');
+                picMandaysUpdateSidebarBadge(data.ticket_mandays_status);
+                closePicMandaysModal();
+            } else {
+                showNotification(data.message || 'Failed to delete', 'error');
+            }
+        } catch(e) { showNotification('Error: ' + e.message, 'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Delete Draft'; }
+    }
+
     function picMandaysUpdateSidebarBadge(status) {
         const badges = {
             'none':             ['bg-gray-100 text-gray-500',   'None'],
@@ -6843,6 +6927,7 @@
             const existing = valueMap[person.employee_id] || {};
             const md  = existing.mandays || 0;
             const add = existing.additional_mandays || 0;
+            const apprDays = existing.approved_mandays || 0;
             const appAdd = existing.approved_additional || 0;
             // Inputs always show what was proposed (md/add), unchanged — so the consultant
             // can see exactly what they asked for. But while the proposal is still approved
@@ -6850,9 +6935,10 @@
             // (approved_mandays + approved_additional), not the raw proposed amount — so the
             // consultant can see what was NOT approved. Once they start typing a revision,
             // resolutionUpdateRowTotal() takes over and previews the new draft instead.
-            const totalMd = status === 'approved' ? ((existing.approved_mandays || 0) + appAdd) : (md + appAdd);
+            const totalMd = status === 'approved' ? (apprDays + appAdd) : (md + appAdd);
             const mdVal  = md  > 0 ? md  : '';
             const addVal = add > 0 ? add : '';
+            const apprDaysDisplay = apprDays > 0 ? apprDays.toFixed(1) : '—';
             const apprAddDisplay = appAdd > 0 ? appAdd.toFixed(1) : '—';
             html += `<tr>
                 <td class="px-3 py-2 border border-gray-200 font-medium text-gray-700">${person.name}</td>
@@ -6875,6 +6961,7 @@
                         placeholder="notes..."
                         oninput="internalClearNoteHighlight(this)">
                 </td>
+                <td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50 text-gray-500" data-emp-apprdays="${person.employee_id}">${apprDaysDisplay}</td>
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50 text-gray-500" data-emp-appr="${person.employee_id}">${apprAddDisplay}</td>
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center font-semibold bg-gray-50" data-emp-total="${person.employee_id}">${totalMd > 0 ? totalMd.toFixed(1) : '—'}</td>
             </tr>`;
@@ -6907,13 +6994,15 @@
         const footer = document.getElementById('resolutionFooterTotal');
         if (footer) footer.textContent = total.toFixed(1);
 
-        let days = 0, add = 0, apprAdd = 0;
+        let days = 0, add = 0, apprDays = 0, apprAdd = 0;
         document.querySelectorAll('.internal-md-cell').forEach(inp => { days += parseFloat(inp.value) || 0; });
         document.querySelectorAll('.internal-add-cell').forEach(inp => { add += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('[data-emp-apprdays]').forEach(cell => { apprDays += parseFloat(cell.textContent) || 0; });
         document.querySelectorAll('[data-emp-appr]').forEach(cell => { apprAdd += parseFloat(cell.textContent) || 0; });
-        document.getElementById('resFooterDays').textContent    = days.toFixed(1);
-        document.getElementById('resFooterAdd').textContent     = add.toFixed(1);
-        document.getElementById('resFooterApprAdd').textContent = apprAdd.toFixed(1);
+        document.getElementById('resFooterDays').textContent        = days.toFixed(1);
+        document.getElementById('resFooterAdd').textContent         = add.toFixed(1);
+        document.getElementById('resFooterApprovedDays').textContent = apprDays.toFixed(1);
+        document.getElementById('resFooterApprAdd').textContent     = apprAdd.toFixed(1);
     }
 
     function resolutionPicGetPayload() {
@@ -7502,6 +7591,7 @@
                         <input type="number" min="0" step="0.5"
                             class="head-approve-days w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
                             data-employee="${eid}"
+                            data-mandays="${emp.mandays}"
                             value="${currentApprDays > 0 ? currentApprDays : ''}"
                             oninput="headUpdateRowTotal(this)">
                     </td>
@@ -7551,13 +7641,14 @@
             const headApproveBtn = document.getElementById('headBtnApprove');
             headApproveBtn.classList.remove('hidden');
 
-            // On Change Request tickets only: Head can only approve once the customer
-            // (not just Helpdesk) has approved the Customer Mandays proposal.
+            // On Change Request tickets only: Head can only approve once the Customer
+            // Mandays proposal has been approved (by the customer via chat, or directly
+            // by Helpdesk).
             const isChangeRequestTicket = document.getElementById('detailType')?.value === 'Change Request';
             const hintEl = document.getElementById('headResolutionFooterHint');
-            if (isChangeRequestTicket && !data.customer_mandays_customer_approved) {
+            if (isChangeRequestTicket && data.customer_mandays_status !== 'approved') {
                 headApproveBtn.disabled = true;
-                hintEl.textContent = 'Customer must approve the Customer Mandays proposal before Resolution Days can be approved.';
+                hintEl.textContent = 'Customer Mandays proposal must be approved before Resolution Days can be approved.';
                 hintEl.className = 'text-xs text-amber-600';
             } else {
                 headApproveBtn.disabled = false;
@@ -7608,9 +7699,11 @@
     async function headResolutionApprove(confirmNegative = false) {
         // Approved Days is a required judgment call per employee — a blank field silently
         // became 0 before this check existed, so a Head could approve without actually
-        // reviewing someone's days. Block the save and flag every empty field instead.
+        // reviewing someone's days. Block the save and flag every empty field instead —
+        // except rows where the PIC never proposed any Days for that employee (Days
+        // column shows "—"/0), since there's nothing there to make a judgment call on.
         const emptyDaysInputs = Array.from(document.querySelectorAll('.head-approve-days'))
-            .filter(inp => inp.value.trim() === '');
+            .filter(inp => inp.value.trim() === '' && parseFloat(inp.dataset.mandays) > 0);
         document.querySelectorAll('.head-approve-days').forEach(inp => inp.classList.remove('ring-2', 'ring-red-500', 'bg-red-50'));
         if (emptyDaysInputs.length > 0) {
             emptyDaysInputs.forEach(inp => inp.classList.add('ring-2', 'ring-red-500', 'bg-red-50'));
@@ -7720,7 +7813,10 @@
 
     // ==================== CUSTOMER CREDENTIAL MODAL ====================
     @if($canViewCredential ?? false)
-    const _credentialCustomerId = {{ $ticket->customer_id ?? 'null' }};
+    // Prioritas end_customer_id (anak) di atas customer_id (induk) — ticket bisa
+    // ditujukan ke anak perusahaan spesifik dalam grup, dan credential-nya berbeda
+    // per entitas walau induknya sama.
+    const _credentialCustomerId = {{ $ticket->end_customer_id ?? $ticket->customer_id ?? 'null' }};
 
     async function openCredentialModal() {
         if (!_credentialCustomerId) return;
@@ -7952,7 +8048,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-500">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                 </svg>
-                <h3 class="text-base font-bold text-gray-900">Customer Credential — {{ $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</h3>
+                <h3 class="text-base font-bold text-gray-900">Customer Credential — {{ $ticket->endCustomer?->basicData?->name_1 ?? $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</h3>
             </div>
             <button onclick="closeCredentialModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -8282,6 +8378,117 @@ async function _loadSlaLogData() {
     } catch (e) {
         document.getElementById('slaLogContent').innerHTML =
             '<p class="text-center text-red-400 text-sm p-8">Gagal memuat data SLA.</p>';
+    }
+}
+</script>
+@endif
+
+@if($can('ticket.shifting-log'))
+{{-- ==================== LOG SHIFTING MODAL ====================
+     Shortcut dari room chat — sumber data sama dengan Reporting > Log Shifting
+     dan modal klik-kanan di list ticket (GET /api/reporting/log-shifting/{id}). --}}
+<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4" onclick="if(event.target===this)closeLogShiftingTicketModal()">
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                    <i class="fas fa-exchange-alt text-gray-500 text-sm"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Log Shifting</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Ticket <span class="font-mono font-semibold text-gray-600">{{ $ticket->ticket_number }}</span></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="refreshLogShiftingTicketModal()" title="Refresh Log Shifting"
+                    class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 bg-white px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                    <i class="fas fa-sync-alt text-xs" id="lstRefreshIcon"></i> Refresh
+                </button>
+                <button onclick="closeLogShiftingTicketModal()"
+                    class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-auto">
+            <table class="w-full text-xs border-collapse">
+                <thead class="sticky top-0 bg-gray-50 z-10">
+                    <tr>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Date</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Time</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">SLA Message</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">PIC</th>
+                    </tr>
+                </thead>
+                <tbody id="lstModalBody">
+                    <tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function lstEsc(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+}
+
+function openLogShiftingTicketModal() {
+    const modal = document.getElementById('logShiftingTicketModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    _loadLogShiftingData();
+}
+
+function closeLogShiftingTicketModal() {
+    const modal = document.getElementById('logShiftingTicketModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+}
+
+async function refreshLogShiftingTicketModal() {
+    const icon = document.getElementById('lstRefreshIcon');
+    icon?.classList.add('fa-spin');
+    await _loadLogShiftingData();
+    icon?.classList.remove('fa-spin');
+}
+
+async function _loadLogShiftingData() {
+    const body = document.getElementById('lstModalBody');
+    body.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>';
+
+    try {
+        const res = await fetch(`/api/reporting/log-shifting/{{ $ticket->ticket_id }}`, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+        const messages = json.data.messages || [];
+        if (!messages.length) {
+            body.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">No SLA messages found for this ticket.</td></tr>';
+            return;
+        }
+
+        body.innerHTML = messages.map(m => {
+            const bubble  = m.bubble_date ? new Date(m.bubble_date) : null;
+            const dateStr = bubble ? bubble.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+            const timeStr = bubble ? bubble.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' WIB' : '—';
+            return `
+            <tr class="border-b border-gray-100">
+                <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">${dateStr}</td>
+                <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">${timeStr}</td>
+                <td class="px-3 py-2.5 text-gray-700 whitespace-pre-wrap">${lstEsc(m.sla_message || '—')}</td>
+                <td class="px-3 py-2.5 text-gray-700 whitespace-nowrap">${m.sla_message_by ? lstEsc(m.sla_message_by) : '<span class="text-gray-300 italic">Unknown</span>'}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        body.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-red-500">${lstEsc(e.message)}</td></tr>`;
     }
 }
 </script>
