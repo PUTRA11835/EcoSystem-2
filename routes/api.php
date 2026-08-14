@@ -523,6 +523,8 @@ Route::middleware(['web'])->group(function () {
         Route::get('/log-shifting', [\App\Http\Controllers\ReportingController::class, 'logShifting']);
         Route::get('/log-shifting/{ticketId}', [\App\Http\Controllers\ReportingController::class, 'logShiftingDetail']);
         Route::get('/resolution-days', [\App\Http\Controllers\ReportingController::class, 'resolutionDays']);
+        Route::get('/diagram-report/ticket-qty', [\App\Http\Controllers\ReportingController::class, 'diagramTicketQty']);
+        Route::get('/diagram-report/ticket-by-module', [\App\Http\Controllers\ReportingController::class, 'diagramTicketByModule']);
     });
 
     // ==================== NOTIFICATION ROUTES ====================

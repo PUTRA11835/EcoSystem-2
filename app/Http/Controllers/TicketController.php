@@ -445,6 +445,10 @@ class TicketController extends Controller
         if ($request->filled('type')) {
             $query->whereIn('ticket_type', explode(',', $request->type));
         }
+        // Module (comma-separated untuk multi-select)
+        if ($request->filled('module')) {
+            $query->whereIn('module_id', explode(',', $request->module));
+        }
         // Ticket number keyword
         if ($request->filled('ticket_number')) {
             $query->where('ticket_number', 'like', '%' . $request->ticket_number . '%');

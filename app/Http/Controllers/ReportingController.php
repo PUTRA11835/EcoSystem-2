@@ -1330,6 +1330,160 @@ class ReportingController extends Controller
         return view('reporting.ticketing-overview', ['user' => session('user')]);
     }
 
+    public function diagramReportIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        $customers = \App\Models\Customer::with('basicData')->customers()->where('is_active', true)->get();
+
+        return view('reporting.diagram-report', ['user' => session('user'), 'customers' => $customers]);
+    }
+
+    // ── API: Diagram Report — Grafik 1 (Qty Ticket per bulan, dari awal
+    // sampai periode berjalan) ──────────────────────────────────────────────
+    //
+    // Period (date_from/date_to) wajib diisi — tidak ada default range.
+    // Tiket dihitung ke bulan berdasarkan created_at, semua status disertakan.
+
+    public function diagramTicketQty(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $rows = Ticket::whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->whereBetween('created_at', [$from, $to])
+                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as qty")
+                ->groupBy('ym')
+                ->pluck('qty', 'ym');
+
+            $labels = [];
+            $values = [];
+            $cursor = $from->copy()->startOfMonth();
+            $end    = $to->copy()->startOfMonth();
+            while ($cursor->lte($end)) {
+                $key      = $cursor->format('Y-m');
+                $labels[] = $cursor->format('M Y');
+                $values[] = (int) ($rows[$key] ?? 0);
+                $cursor->addMonth();
+            }
+
+            return response()->json(['success' => true, 'data' => ['labels' => $labels, 'values' => $values]]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketQty error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket qty data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Grafik 2 (Ticket per Modul, dikelompokkan
+    // Incident/Error, Request/Konsultasi, Request/CR, Other) ───────────────
+    //
+    // Incident→Incident/Error, Consult→Request/Konsultasi, Change Request→
+    // Request/CR. Semua ticket_type lain (Service Request, EWA, RISE, dll —
+    // termasuk null) masuk kategori "Other" supaya totalnya konsisten dengan
+    // Grafik 1 (semua status/tipe dihitung). Sumbu X = semua modul aktif dari
+    // tabel modules + bucket "No Modul Assign". Period wajib diisi.
+
+    public function diagramTicketByModule(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $typeMap = [
+                'Incident'       => 'Incident / Error',
+                'Consult'        => 'Request / Konsultasi',
+                'Change Request' => 'Request / CR',
+            ];
+            $otherLabel    = 'Other';
+            $seriesLabels  = array_merge(array_values($typeMap), [$otherLabel]);
+            $noModuleLabel = 'No Modul Assign';
+
+            $moduleNames = \App\Models\Module::where('is_active', true)->orderBy('name')->pluck('name')->all();
+            $labels      = array_merge($moduleNames, [$noModuleLabel]);
+
+            $counts = [];
+            foreach ($labels as $label) {
+                $counts[$label] = array_fill_keys($seriesLabels, 0);
+            }
+
+            Ticket::with('moduleMaster')
+                ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereBetween('created_at', [$from, $to])
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
+                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $otherLabel, $noModuleLabel) {
+                    foreach ($tickets as $ticket) {
+                        $seriesLabel = $typeMap[$ticket->ticket_type] ?? $otherLabel;
+
+                        $moduleName = $ticket->module_name;
+                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $noModuleLabel;
+
+                        $counts[$label][$seriesLabel]++;
+                    }
+                });
+
+            // Modul tanpa tiket sama sekali (total 0 di keempat kategori) tidak ditampilkan.
+            $labels = array_values(array_filter($labels, fn ($label) => array_sum($counts[$label]) > 0));
+
+            $series = array_fill_keys($seriesLabels, []);
+            foreach ($labels as $label) {
+                foreach ($seriesLabels as $seriesLabel) {
+                    $series[$seriesLabel][] = $counts[$label][$seriesLabel];
+                }
+            }
+
+            return response()->json(['success' => true, 'data' => ['labels' => $labels, 'series' => $series]]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketByModule error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket by module data. Please try again.'], 500);
+        }
+    }
+
     // ── API: Ticketing Overview data ────────────────────────────────────────
     //
     // Menampilkan jumlah tiket per customer, dikelompokkan ke dalam status:

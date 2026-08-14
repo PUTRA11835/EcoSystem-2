@@ -119,6 +119,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/log-shifting',               [\App\Http\Controllers\ReportingController::class, 'logShiftingIndex'])->name('reporting.log-shifting')->middleware('menu:reporting.log-shifting');
     Route::get('/reporting/ticket-by-module/export',    [\App\Http\Controllers\ReportingController::class, 'exportTicketByModule'])->name('reporting.ticket-by-module.export')->middleware('menu:reporting.ticket-by-module');
     Route::get('/reporting/resolution-days',             [\App\Http\Controllers\ReportingController::class, 'resolutionDaysIndex'])->name('reporting.resolution-days')->middleware('menu:reporting.resolution-days');
+    Route::get('/reporting/diagram-report',              [\App\Http\Controllers\ReportingController::class, 'diagramReportIndex'])->name('reporting.diagram-report')->middleware('menu:reporting.diagram-report');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {

@@ -477,7 +477,26 @@
                                 </div>
                             </div>
                         </th>
-                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Module</th>
+                        {{-- MODULE: column filter dropdown --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:130px;">
+                            <div class="custom-dd relative w-full" id="ddColFilterModule" data-fixed="true" data-multi="true" data-onchange="applyColFilter">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Module</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                <input type="hidden" id="colFilterModule" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:170px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    @foreach ($modules as $moduleOption)
+                                        <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="{{ $moduleOption['id'] }}"><span class="custom-dd-item-text">{{ $moduleOption['name'] }}</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                            </svg></button>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Assign Delivery</th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Customer Mandays</th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Progress</th>
@@ -966,6 +985,7 @@
                 colFilterScale: document.getElementById('colFilterScale')?.value || '',
                 colFilterStatus: document.getElementById('colFilterStatus')?.value || '',
                 colFilterType: document.getElementById('colFilterType')?.value || '',
+                colFilterModule: document.getElementById('colFilterModule')?.value || '',
                 dateFilterFrom: document.getElementById('dateFilterFrom')?.value || '',
                 dateFilterTo: document.getElementById('dateFilterTo')?.value || '',
                 ticketFilterInput: document.getElementById('ticketFilterInput')?.value || '',
@@ -1003,7 +1023,7 @@
         }
 
         // Multi-select custom dropdowns — set value mentah lalu sync checkmark + label
-        ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType'].forEach(id => {
+        ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType', 'colFilterModule'].forEach(id => {
             if (!state[id]) return;
             const hidden = document.getElementById(id);
             if (!hidden) return;
@@ -1093,12 +1113,14 @@
         const colPriority = document.getElementById('colFilterPriority')?.value || '';
         const colScale = document.getElementById('colFilterScale')?.value || '';
         const colType = document.getElementById('colFilterType')?.value || '';
+        const colModule = document.getElementById('colFilterModule')?.value || '';
         if (colStatus) params.set('status', colStatus);
         if (colCustomer) params.set('customer', colCustomer);
         if (colPic) params.set('pic', colPic);
         if (colPriority) params.set('priority', colPriority);
         if (colScale) params.set('scale', colScale);
         if (colType) params.set('type', colType);
+        if (colModule) params.set('module', colModule);
 
         // Date range
         const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
@@ -1249,6 +1271,7 @@
         const colScale = (document.getElementById('colFilterScale')?.value || '').split(',').filter(Boolean);
         const colStatus = (document.getElementById('colFilterStatus')?.value || '').split(',').filter(Boolean);
         const colType = (document.getElementById('colFilterType')?.value || '').split(',').filter(Boolean);
+        const colModule = (document.getElementById('colFilterModule')?.value || '').split(',').filter(Boolean);
 
         const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
         const dateTo = document.getElementById('dateFilterTo')?.value || '';
@@ -1265,6 +1288,7 @@
             const matchColScale = !colScale.length || colScale.includes(String(ticket.scale ?? ''));
             const matchColStatus = !colStatus.length || colStatus.includes(ticket.status);
             const matchColType = !colType.length || colType.includes(ticket.ticket_type);
+            const matchColModule = !colModule.length || colModule.includes(String(ticket.module_id ?? ''));
 
             let matchDate = true;
             if (fromMs !== null || toMs !== null) {
@@ -1282,7 +1306,7 @@
             const matchTicket = !ticketKw || (ticket.ticket_number || '').toLowerCase().includes(ticketKw);
 
             return matchColCustomer && matchColPic && matchColPriority && matchColScale &&
-                matchColStatus && matchColType && matchDate && matchDesc && matchTicket;
+                matchColStatus && matchColType && matchColModule && matchDate && matchDesc && matchTicket;
         });
     }
 
@@ -1833,6 +1857,7 @@
             'ddColFilterScale': 'colFilterScale',
             'ddColFilterStatus': 'colFilterStatus',
             'ddColFilterType': 'colFilterType',
+            'ddColFilterModule': 'colFilterModule',
         };
         Object.entries(colDdMap).forEach(([ddId, inputId]) => {
             updateColFilterActive(ddId, document.getElementById(inputId)?.value || '');
@@ -2093,8 +2118,8 @@
 
     function resetFilters() {
         const colFilterIds = ['colFilterCustomer', 'colFilterPic'];
-        const colFilterMultiIds = ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType'];
-        const colDdIds = ['ddColFilterCustomer', 'ddColFilterPic', 'ddColFilterPriority', 'ddColFilterScale', 'ddColFilterStatus', 'ddColFilterType'];
+        const colFilterMultiIds = ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType', 'colFilterModule'];
+        const colDdIds = ['ddColFilterCustomer', 'ddColFilterPic', 'ddColFilterPriority', 'ddColFilterScale', 'ddColFilterStatus', 'ddColFilterType', 'ddColFilterModule'];
         if (typeof setCustomDropdownValue === 'function') {
             colFilterIds.forEach(id => setCustomDropdownValue(id, ''));
         } else {
@@ -2143,6 +2168,7 @@
         scale: 'colFilterScale',
         status: 'colFilterStatus',
         type: 'colFilterType',
+        module: 'colFilterModule',
     };
 
     function updateColFilterIndicators() {
