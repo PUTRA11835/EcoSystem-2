@@ -478,6 +478,16 @@ class EmployeeController extends Controller
             }
         }
 
+        // Filter by position (multi-select, comma-separated) — sama semantik dengan
+        // home_base: cocok kalau position employee ada di salah satu nilai terpilih.
+        if ($request->filled('position')) {
+            $positions = array_values(array_filter(array_map('trim', explode(',', $request->position)), fn ($p) => $p !== ''));
+            if (!empty($positions)) {
+                $query->whereIn('eb.position', $positions);
+                Log::info('Filter applied: position', ['position' => $positions]);
+            }
+        }
+
         // Filter by module qualification (multi-select, comma-separated).
         // Employee cocok kalau punya minimal satu qualification dengan module
         // yang dipilih (match ANY, bukan harus semua) — sama semantik dengan

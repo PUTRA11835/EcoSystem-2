@@ -2229,6 +2229,9 @@ class ReportingController extends Controller
                 'dpe.role',
                 'dpe.employee_type',
                 'dpe.vendor_name',
+                // Anggota vendor tidak ada di master employee — identitasnya di pivot.
+                'dpe.member_name',
+                'dpe.member_position',
                 'dpe.start_date',
                 'dpe.end_date',
                 'dpe.notes',
@@ -2442,7 +2445,14 @@ class ReportingController extends Controller
         $collection = collect($rows);
         $stats = [
             'assignments'  => $collection->count(),
-            'consultants'  => $collection->pluck('employee_id')->unique()->count(),
+            // Anggota vendor tidak punya employee_id — dihitung per nama supaya
+            // tidak semuanya melebur jadi satu "konsultan null".
+            'consultants'  => $collection
+                ->map(fn (array $r) => $r['employee_id'] !== null
+                    ? 'e:' . $r['employee_id']
+                    : 'v:' . mb_strtolower($r['consultant_name']))
+                ->unique()
+                ->count(),
             'projects'     => $collection->pluck('project_id')->unique()->count(),
             'active'       => $collection->where('assignment_status', 'Active')->count(),
             'upcoming'     => $collection->where('assignment_status', 'Upcoming')->count(),
@@ -2497,7 +2507,15 @@ class ReportingController extends Controller
         Carbon $today,
         bool $isFkFallback
     ): array {
+        // Baris vendor tidak punya employee: nama & posisi diambil dari pivot.
         $name = trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? ''));
+        if ($name === '') {
+            $name = trim((string) ($r->member_name ?? ''));
+        }
+        $position = (string) ($r->position ?? '');
+        if ($position === '') {
+            $position = (string) ($r->member_position ?? '');
+        }
         $key  = $r->project_id . '|' . $r->employee_id;
 
         $plannedRow = $plannedMd->get($key);
@@ -2527,10 +2545,10 @@ class ReportingController extends Controller
         return [
             'assignment_id'     => $r->assignment_id !== null ? (int) $r->assignment_id : null,
             'is_fk_fallback'    => $isFkFallback,
-            'employee_id'       => (int) $r->employee_id,
-            'consultant_name'   => $name !== '' ? $name : ('Employee #' . $r->employee_id),
+            'employee_id'       => $r->employee_id !== null ? (int) $r->employee_id : null,
+            'consultant_name'   => $name !== '' ? $name : ($r->employee_id !== null ? 'Employee #' . $r->employee_id : '-'),
             'eci'               => (string) ($r->eci ?? ''),
-            'position'          => (string) ($r->position ?? ''),
+            'position'          => $position,
             'division'          => (string) ($r->division ?? ''),
             'department'        => (string) ($r->department ?? ''),
             'home_base'         => (string) ($r->home_base ?? ''),
