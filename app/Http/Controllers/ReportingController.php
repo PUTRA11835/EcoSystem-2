@@ -1354,11 +1354,11 @@ class ReportingController extends Controller
         return view('reporting.diagram-report', ['user' => session('user'), 'customers' => $customers]);
     }
 
-    // ── API: Diagram Report — Grafik 1 (Qty Ticket per bulan, dari awal
-    // sampai periode berjalan) ──────────────────────────────────────────────
+    // ── API: Diagram Report — Chart 1 (Ticket qty per month, from start
+    // to current period) ────────────────────────────────────────────────────
     //
-    // Period (date_from/date_to) wajib diisi — tidak ada default range.
-    // Tiket dihitung ke bulan berdasarkan created_at, semua status disertakan.
+    // Period (date_from/date_to) is required — there is no default range.
+    // Tickets are counted into a month based on created_at, all statuses included.
 
     public function diagramTicketQty(Request $request)
     {
@@ -1411,14 +1411,14 @@ class ReportingController extends Controller
         }
     }
 
-    // ── API: Diagram Report — Grafik 2 (Ticket per Modul, dikelompokkan
-    // Incident/Error, Request/Konsultasi, Request/CR, Other) ───────────────
+    // ── API: Diagram Report — Chart 2 (Tickets per Module, grouped into
+    // Incident/Error, Request/Konsultasi, Request/CR, Other) ────────────────
     //
     // Incident→Incident/Error, Consult→Request/Konsultasi, Change Request→
-    // Request/CR. Semua ticket_type lain (Service Request, EWA, RISE, dll —
-    // termasuk null) masuk kategori "Other" supaya totalnya konsisten dengan
-    // Grafik 1 (semua status/tipe dihitung). Sumbu X = semua modul aktif dari
-    // tabel modules + bucket "No Modul Assign". Period wajib diisi.
+    // Request/CR. All other ticket_type values (Service Request, EWA, RISE,
+    // etc. — including null) fall into "Other" so the total stays consistent
+    // with Chart 1 (all statuses/types counted). X-axis = all active modules
+    // from the modules table + a "No Modul Assign" bucket. Period is required.
 
     public function diagramTicketByModule(Request $request)
     {
@@ -1476,7 +1476,7 @@ class ReportingController extends Controller
                     }
                 });
 
-            // Modul tanpa tiket sama sekali (total 0 di keempat kategori) tidak ditampilkan.
+            // Modules with zero tickets across all four categories are hidden entirely.
             $labels = array_values(array_filter($labels, fn ($label) => array_sum($counts[$label]) > 0));
 
             $series = array_fill_keys($seriesLabels, []);
@@ -1493,6 +1493,184 @@ class ReportingController extends Controller
         } catch (\Exception $e) {
             Log::error('diagramTicketByModule error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to load ticket by module data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Chart 3 (Ticket Type per month: Incident/Error,
+    // Request/Konsultasi, Request/CR + TOTAL row) ───────────────────────────
+    //
+    // Month columns follow the Period (date_from/date_to) range picked in the
+    // filter, rows = the 3 ticket_type values above. Period is required.
+
+    public function diagramTicketTypeByMonth(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $typeMap   = [
+                'Incident'       => 'Incident / Error',
+                'Consult'        => 'Request / Konsultasi',
+                'Change Request' => 'Request / CR',
+            ];
+            $rowLabels = array_values($typeMap);
+
+            $months = [];
+            $cursor = $from->copy()->startOfMonth();
+            $end    = $to->copy()->startOfMonth();
+            while ($cursor->lte($end)) {
+                $months[] = $cursor->format('Y-m');
+                $cursor->addMonth();
+            }
+
+            $counts = [];
+            foreach ($rowLabels as $label) {
+                $counts[$label] = array_fill_keys($months, 0);
+            }
+
+            Ticket::whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereIn('ticket_type', array_keys($typeMap))
+                ->whereBetween('created_at', [$from, $to])
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->select('ticket_type', 'created_at')
+                ->chunk(500, function ($tickets) use (&$counts, $typeMap) {
+                    foreach ($tickets as $ticket) {
+                        $label = $typeMap[$ticket->ticket_type] ?? null;
+                        if (!$label) continue;
+                        $ym = $ticket->created_at->format('Y-m');
+                        if (isset($counts[$label][$ym])) {
+                            $counts[$label][$ym]++;
+                        }
+                    }
+                });
+
+            $monthLabels = array_map(fn ($ym) => Carbon::createFromFormat('Y-m', $ym)->format('M Y'), $months);
+
+            $rows   = [];
+            $totals = array_fill_keys($months, 0);
+            foreach ($rowLabels as $label) {
+                $rows[] = ['label' => $label, 'values' => array_values($counts[$label])];
+                foreach ($months as $ym) {
+                    $totals[$ym] += $counts[$label][$ym];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'months' => $monthLabels,
+                    'rows'   => $rows,
+                    'total'  => array_values($totals),
+                ],
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketTypeByMonth error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket type by month data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Chart 4 (Ticket Type per Module: Incident/Error,
+    // Request/Konsultasi, Request/CR — no "Other") ──────────────────────────
+    //
+    // X-axis = active modules (ordered by id/creation order) + an "ALL MODULE"
+    // bucket for tickets not tied to any specific module. Modules with zero
+    // tickets are hidden entirely (same as Chart 2). Only the 3 ticket_type
+    // values above are counted — other types don't appear in this chart at all.
+
+    public function diagramTicketByModuleType(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $typeMap      = [
+                'Incident'       => 'Incident / Error',
+                'Consult'        => 'Request / Konsultasi',
+                'Change Request' => 'Request / CR',
+            ];
+            $seriesLabels   = array_values($typeMap);
+            $allModuleLabel = 'ALL MODULE';
+
+            $moduleNames = \App\Models\Module::where('is_active', true)->orderBy('id')->pluck('name')->all();
+            $labels      = array_merge($moduleNames, [$allModuleLabel]);
+
+            $counts = [];
+            foreach ($labels as $label) {
+                $counts[$label] = array_fill_keys($seriesLabels, 0);
+            }
+
+            Ticket::with('moduleMaster')
+                ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereIn('ticket_type', array_keys($typeMap))
+                ->whereBetween('created_at', [$from, $to])
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
+                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $allModuleLabel) {
+                    foreach ($tickets as $ticket) {
+                        $seriesLabel = $typeMap[$ticket->ticket_type] ?? null;
+                        if (!$seriesLabel) continue;
+
+                        $moduleName = $ticket->module_name;
+                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+
+                        $counts[$label][$seriesLabel]++;
+                    }
+                });
+
+            // Modules with zero tickets across all three ticket_type values are hidden.
+            $labels = array_values(array_filter($labels, fn ($label) => array_sum($counts[$label]) > 0));
+
+            $series = array_fill_keys($seriesLabels, []);
+            foreach ($labels as $label) {
+                foreach ($seriesLabels as $seriesLabel) {
+                    $series[$seriesLabel][] = $counts[$label][$seriesLabel];
+                }
+            }
+
+            return response()->json(['success' => true, 'data' => ['labels' => $labels, 'series' => $series]]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketByModuleType error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket by module type data. Please try again.'], 500);
         }
     }
 

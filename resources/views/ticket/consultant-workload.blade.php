@@ -616,6 +616,7 @@
         const totalAllocMdMain     = m.total_days;
         const totalAddMdMain       = m.add_md;
         const totalRemainMain      = m.remain_md;
+        const totalEffectiveMdMain = totalAllocMdMain + totalAddMdMain;
         const ticketCount          = m.ticket_count;
         const wPct                 = m.workload_pct;
         const wDays                = m.workload_days;
@@ -653,8 +654,11 @@
                     <div class="${barColor(wPct)} h-2 rounded-full transition-all" style="width:${Math.min(wPct,100)}%"></div>
                 </div>
                 <div class="shrink-0">
-                    <span class="text-xs font-bold ${workloadTextColor(wPct)}">${wPct}%</span>
-                    <span class="text-xs text-gray-400 ml-1">${wDays} d</span>
+                    <div>
+                        <span class="text-xs font-bold ${workloadTextColor(wPct)}">${wPct}%</span>
+                        <span class="text-xs text-gray-400 ml-1">${wDays} d</span>
+                    </div>
+                    <div class="text-[10px] text-gray-400">${wDays.toFixed(2)} / ${totalEffectiveMdMain.toFixed(2)} md</div>
                 </div>
             </div>
         </td>

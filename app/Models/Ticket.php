@@ -355,6 +355,7 @@ class Ticket extends Model
 
         $memberIds = \Illuminate\Support\Facades\DB::table('ticket_member')
             ->where('employee_id', $employeeId)
+            ->where('is_active', true)
             ->pluck('ticket_id');
 
         $mandaysIds = \Illuminate\Support\Facades\DB::table('consultant_mandays_detail as cmd')

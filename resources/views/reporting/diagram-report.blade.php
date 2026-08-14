@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'Diagram Report')
 @section('page-title', 'Diagram Report')
-@section('page-subtitle', 'Preview seluruh bentuk diagram yang dapat ditampilkan sistem')
+@section('page-subtitle', 'Preview of every diagram type the system can display')
 
 @push('styles')
 <style>
@@ -43,6 +43,32 @@
     @media (max-width: 767px) {
         .diagram-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
     }
+    .diagram-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .diagram-table th, .diagram-table td {
+        border: 1px solid #d7d5cd;
+        padding: 0.45rem 0.6rem;
+        text-align: center;
+        white-space: nowrap;
+    }
+    .diagram-table thead th {
+        background: #2a78d6;
+        color: #fff;
+        font-weight: 700;
+    }
+    .diagram-table tbody td:first-child,
+    .diagram-table thead th:first-child {
+        text-align: left;
+        position: sticky;
+        left: 0;
+        background: #eef3fb;
+        font-weight: 600;
+    }
+    .diagram-table thead th:first-child { background: #2a78d6; z-index: 1; }
+    .diagram-table tr.diagram-table-total td {
+        background: #d9e4f5;
+        font-weight: 700;
+    }
+    .diagram-table tr.diagram-table-total td:first-child { background: #c3d4ee; }
 </style>
 @endpush
 
@@ -51,8 +77,8 @@
     <i class="fas fa-circle-info text-amber-500 mt-0.5"></i>
     <div class="text-sm text-amber-800">
         <span class="font-semibold">Preview mode.</span>
-        Halaman ini menampilkan seluruh jenis diagram yang bisa disediakan sistem menggunakan data contoh (dummy).
-        Filter di bawah belum terhubung ke data aktual — akan diaktifkan saat sumber data sudah dihubungkan.
+        This page shows every diagram type the system can provide, some using sample (dummy) data.
+        Charts 1–4 are already connected to live data via the filters below; the rest will be enabled once their data source is wired up.
     </div>
 </div>
 
@@ -121,22 +147,22 @@
 <div class="diagram-grid">
 
     <div class="diagram-card">
-        <h3>Grafik 1 — Qty Ticket dari Awal sampai Periode Berjalan</h3>
-        <p class="diagram-desc">Line chart — jumlah tiket per bulan, mengikuti filter Customer &amp; Period di atas.</p>
+        <h3>Chart 1 — Ticket Qty from Start to Current Period</h3>
+        <p class="diagram-desc">Line chart — ticket count per month, following the Customer &amp; Period filters above.</p>
         <div class="diagram-canvas-wrap-lg">
             <canvas id="chartTicketQty"></canvas>
             <div id="ticketQtyEmptyState" class="absolute inset-0 flex items-center justify-center text-center px-6">
                 <p class="text-sm text-gray-400">
                     <i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>
-                    Pilih <strong>Start Date</strong> &amp; <strong>End Date</strong> pada filter Period di atas untuk menampilkan grafik ini.
+                    Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.
                 </p>
             </div>
         </div>
     </div>
 
     <div class="diagram-card">
-        <h3>Grafik 2 — Ticket per Modul</h3>
-        <p class="diagram-desc">Grouped bar chart — jumlah tiket per modul (Incident/Error, Request/Konsultasi, Request/CR, Other), mengikuti filter Customer &amp; Period di atas.</p>
+        <h3>Chart 2 — Tickets per Module</h3>
+        <p class="diagram-desc">Grouped bar chart — ticket count per module (Incident/Error, Request/Konsultasi, Request/CR, Other), following the Customer &amp; Period filters above.</p>
         <div class="diagram-canvas-wrap-lg" style="overflow-x:auto; overflow-y:hidden;">
             <div id="ticketByModuleCanvasInner" style="position:relative; height:100%; min-width:100%;">
                 <canvas id="chartTicketByModule"></canvas>
@@ -144,81 +170,106 @@
             <div id="ticketByModuleEmptyState" class="absolute inset-0 flex items-center justify-center text-center px-6">
                 <p class="text-sm text-gray-400">
                     <i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>
-                    Pilih <strong>Start Date</strong> &amp; <strong>End Date</strong> pada filter Period di atas untuk menampilkan grafik ini.
+                    Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.
                 </p>
             </div>
         </div>
     </div>
 
     <div class="diagram-card">
-        <h3>Horizontal Bar Chart</h3>
-        <p class="diagram-desc">Perbandingan antar kategori dengan label yang panjang.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartBarH"></canvas></div>
+        <h3>Chart 3 — Ticket Type per Month</h3>
+        <p class="diagram-desc">Table of ticket count per Ticket Type per month, following the Customer &amp; Period filters above.</p>
+        <div class="diagram-table-wrap" style="position:relative; overflow:auto; flex:1;">
+            <table id="ticketTypeByMonthTable" class="diagram-table">
+                <thead>
+                    <tr id="ticketTypeByMonthHead">
+                        <th class="text-left">Ticket Type</th>
+                    </tr>
+                </thead>
+                <tbody id="ticketTypeByMonthBody"></tbody>
+            </table>
+            <div id="ticketTypeByMonthEmptyState" class="absolute inset-0 flex items-center justify-center text-center px-6 bg-white">
+                <p class="text-sm text-gray-400">
+                    <i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>
+                    Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this table.
+                </p>
+            </div>
+        </div>
     </div>
 
     <div class="diagram-card">
-        <h3>Grouped Bar Chart</h3>
-        <p class="diagram-desc">Membandingkan beberapa seri berdampingan — mis. tahun ini vs tahun lalu.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartBarGroup"></canvas></div>
+        <h3>Chart 4 — Ticket Type per Module</h3>
+        <p class="diagram-desc">Grouped bar chart — ticket count per module (Incident/Error, Request/Konsultasi, Request/CR), following the Customer &amp; Period filters above.</p>
+        <div class="diagram-canvas-wrap-lg" style="overflow-x:auto; overflow-y:hidden;">
+            <div id="ticketByModuleTypeCanvasInner" style="position:relative; height:100%; min-width:100%;">
+                <canvas id="chartTicketByModuleType"></canvas>
+            </div>
+            <div id="ticketByModuleTypeEmptyState" class="absolute inset-0 flex items-center justify-center text-center px-6">
+                <p class="text-sm text-gray-400">
+                    <i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>
+                    Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.
+                </p>
+            </div>
+        </div>
     </div>
 
     <div class="diagram-card">
         <h3>Stacked Bar Chart</h3>
-        <p class="diagram-desc">Komposisi total yang terbagi ke beberapa kategori per periode.</p>
+        <p class="diagram-desc">Total composition split across several categories per period.</p>
         <div class="diagram-canvas-wrap"><canvas id="chartBarStack"></canvas></div>
     </div>
 
     <div class="diagram-card">
         <h3>Line Chart</h3>
-        <p class="diagram-desc">Tren nilai dari waktu ke waktu untuk satu atau beberapa seri.</p>
+        <p class="diagram-desc">Value trend over time for one or more series.</p>
         <div class="diagram-canvas-wrap"><canvas id="chartLine"></canvas></div>
     </div>
 
     <div class="diagram-card">
         <h3>Area Chart</h3>
-        <p class="diagram-desc">Tren nilai dengan penekanan pada besaran kumulatif/volume.</p>
+        <p class="diagram-desc">Value trend with emphasis on cumulative volume.</p>
         <div class="diagram-canvas-wrap"><canvas id="chartArea"></canvas></div>
     </div>
 
     <div class="diagram-card">
         <h3>Combo Chart (Bar + Line)</h3>
-        <p class="diagram-desc">Menggabungkan nilai aktual (bar) dengan target/rata-rata (garis) dalam satu skala.</p>
+        <p class="diagram-desc">Combines actual values (bar) with a target/average (line) on a single scale.</p>
         <div class="diagram-canvas-wrap"><canvas id="chartCombo"></canvas></div>
     </div>
 
     <div class="diagram-card">
         <h3>Pie Chart</h3>
-        <p class="diagram-desc">Proporsi tiap kategori terhadap keseluruhan.</p>
+        <p class="diagram-desc">Proportion of each category relative to the whole.</p>
         <div class="diagram-canvas-wrap"><canvas id="chartPie"></canvas></div>
     </div>
 
     <div class="diagram-card">
         <h3>Doughnut Chart</h3>
-        <p class="diagram-desc">Sama seperti pie chart, dengan ruang tengah untuk angka ringkasan.</p>
+        <p class="diagram-desc">Same as a pie chart, with a center space for a summary figure.</p>
         <div class="diagram-canvas-wrap"><canvas id="chartDoughnut"></canvas></div>
     </div>
 
     <div class="diagram-card">
         <h3>Radar Chart</h3>
-        <p class="diagram-desc">Membandingkan beberapa dimensi/metrik sekaligus antar seri.</p>
+        <p class="diagram-desc">Compares multiple dimensions/metrics at once across series.</p>
         <div class="diagram-canvas-wrap"><canvas id="chartRadar"></canvas></div>
     </div>
 
     <div class="diagram-card">
         <h3>Polar Area Chart</h3>
-        <p class="diagram-desc">Proporsi antar kategori dengan penekanan pada besaran radius.</p>
+        <p class="diagram-desc">Proportion between categories with emphasis on radius size.</p>
         <div class="diagram-canvas-wrap"><canvas id="chartPolar"></canvas></div>
     </div>
 
     <div class="diagram-card">
         <h3>Scatter Chart</h3>
-        <p class="diagram-desc">Hubungan/korelasi antara dua variabel numerik.</p>
+        <p class="diagram-desc">Relationship/correlation between two numeric variables.</p>
         <div class="diagram-canvas-wrap"><canvas id="chartScatter"></canvas></div>
     </div>
 
     <div class="diagram-card">
         <h3>Bubble Chart</h3>
-        <p class="diagram-desc">Hubungan dua variabel numerik ditambah dimensi ketiga lewat ukuran titik.</p>
+        <p class="diagram-desc">Relationship between two numeric variables plus a third dimension via point size.</p>
         <div class="diagram-canvas-wrap"><canvas id="chartBubble"></canvas></div>
     </div>
 
@@ -240,7 +291,7 @@ function applyDiagramFilters() {
     if (customerVal) parts.push(customerLabel);
     if (from || to) parts.push(document.getElementById('dateFilterLabel').textContent);
 
-    document.getElementById('diagramFilterSummary').textContent = parts.length ? `Filter diterapkan ke Grafik 1 & 2: ${parts.join(' · ')}` : '';
+    document.getElementById('diagramFilterSummary').textContent = parts.length ? `Filters applied to Chart 1, 2, 3 & 4: ${parts.join(' · ')}` : '';
     document.getElementById('diagramClearBtn').classList.toggle('hidden', parts.length === 0);
 
     if (typeof window.loadTicketQtyChart === 'function') {
@@ -248,6 +299,12 @@ function applyDiagramFilters() {
     }
     if (typeof window.loadTicketByModuleChart === 'function') {
         window.loadTicketByModuleChart();
+    }
+    if (typeof window.loadTicketTypeByMonthTable === 'function') {
+        window.loadTicketTypeByMonthTable();
+    }
+    if (typeof window.loadTicketByModuleTypeChart === 'function') {
+        window.loadTicketByModuleTypeChart();
     }
 }
 
@@ -364,10 +421,10 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
     const gridOpts = { color: GRID_COLOR, drawTicks: false };
     const tickOpts = { color: TEXT_MUTED };
 
-    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'];
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
 
-    // Menampilkan angka di atas tiap titik data — mereplikasi tampilan grafik Excel
-    // yang jadi acuan untuk "Grafik 1".
+    // Draws the value above each data point — replicates the Excel chart look
+    // that "Chart 1" is based on.
     const pointValueLabelPlugin = {
         id: 'pointValueLabel',
         afterDatasetsDraw(chart) {
@@ -390,9 +447,9 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
         },
     };
 
-    // ── Grafik 1: Qty Ticket dari Awal sampai Periode Berjalan ─────────────
-    // Data diambil dari API, mengikuti filter Customer & Period (Start/End Date)
-    // di atas. Period wajib diisi dulu — lihat loadTicketQtyChart().
+    // ── Chart 1: Ticket Qty from Start to Current Period ───────────────────
+    // Data comes from the API, following the Customer & Period (Start/End Date)
+    // filters above. Period must be filled in first — see loadTicketQtyChart().
     const ticketQtyChart = new Chart(document.getElementById('chartTicketQty'), {
         type: 'line',
         data: {
@@ -427,7 +484,7 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
         const to   = document.getElementById('filterDateTo').value;
 
         if (!from || !to) {
-            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Pilih <strong>Start Date</strong> &amp; <strong>End Date</strong> pada filter Period di atas untuk menampilkan grafik ini.';
+            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.';
             emptyState.classList.remove('hidden');
             ticketQtyChart.data.labels = [];
             ticketQtyChart.data.datasets[0].data = [];
@@ -449,15 +506,15 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
             ticketQtyChart.data.datasets[0].data = json.data.values;
             ticketQtyChart.update();
         } catch (err) {
-            emptyText.innerHTML = 'Gagal memuat data. Coba lagi.';
+            emptyText.innerHTML = 'Failed to load data. Please try again.';
             emptyState.classList.remove('hidden');
         }
     }
     window.loadTicketQtyChart = loadTicketQtyChart;
     loadTicketQtyChart();
 
-    // ── Grafik 2: Ticket per Modul (Incident/Error, Request/Konsultasi, Request/CR) ──
-    // Data diambil dari API, mengikuti filter Customer & Period di atas.
+    // ── Chart 2: Tickets per Module (Incident/Error, Request/Konsultasi, Request/CR) ──
+    // Data comes from the API, following the Customer & Period filters above.
     const TICKET_TYPE_SERIES = ['Incident / Error', 'Request / Konsultasi', 'Request / CR', 'Other'];
     const TICKET_TYPE_COLORS = [PALETTE.blue, PALETTE.orange, PALETTE.aqua, PALETTE.yellow];
 
@@ -493,7 +550,7 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
         const to   = document.getElementById('filterDateTo').value;
 
         if (!from || !to) {
-            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Pilih <strong>Start Date</strong> &amp; <strong>End Date</strong> pada filter Period di atas untuk menampilkan grafik ini.';
+            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.';
             emptyState.classList.remove('hidden');
             ticketByModuleChart.data.labels = [];
             ticketByModuleChart.data.datasets.forEach(ds => ds.data = []);
@@ -519,56 +576,135 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
             ticketByModuleChart.resize();
             ticketByModuleChart.update();
         } catch (err) {
-            emptyText.innerHTML = 'Gagal memuat data. Coba lagi.';
+            emptyText.innerHTML = 'Failed to load data. Please try again.';
             emptyState.classList.remove('hidden');
         }
     }
     window.loadTicketByModuleChart = loadTicketByModuleChart;
     loadTicketByModuleChart();
 
-    // ── Horizontal Bar ───────────────────────────────────────────────────
-    new Chart(document.getElementById('chartBarH'), {
+    // ── Chart 3: Ticket Type per Month (table) ──────────────────────────────
+    // Data comes from the API, following the Customer & Period filters above.
+    async function loadTicketTypeByMonthTable() {
+        const emptyState = document.getElementById('ticketTypeByMonthEmptyState');
+        const emptyText  = emptyState.querySelector('p');
+        const head       = document.getElementById('ticketTypeByMonthHead');
+        const body       = document.getElementById('ticketTypeByMonthBody');
+        const from = document.getElementById('filterDateFrom').value;
+        const to   = document.getElementById('filterDateTo').value;
+
+        function render(months, rows, total) {
+            head.innerHTML = '<th class="text-left">Ticket Type</th>' +
+                months.map(m => `<th>${m}</th>`).join('');
+
+            body.innerHTML = rows.map(row => `
+                <tr>
+                    <td>${row.label}</td>
+                    ${row.values.map(v => `<td>${v}</td>`).join('')}
+                </tr>
+            `).join('') + `
+                <tr class="diagram-table-total">
+                    <td>TOTAL</td>
+                    ${total.map(v => `<td>${v}</td>`).join('')}
+                </tr>
+            `;
+        }
+
+        if (!from || !to) {
+            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this table.';
+            emptyState.classList.remove('hidden');
+            render([], [], []);
+            return;
+        }
+
+        const customerId = document.getElementById('filterCustomer').value;
+        const params = new URLSearchParams({ date_from: from, date_to: to });
+        if (customerId) params.set('customer_id', customerId);
+
+        try {
+            const res  = await fetch(`/api/reporting/diagram-report/ticket-type-by-month?${params.toString()}`);
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+            emptyState.classList.add('hidden');
+            render(json.data.months, json.data.rows, json.data.total);
+        } catch (err) {
+            emptyText.innerHTML = 'Failed to load data. Please try again.';
+            emptyState.classList.remove('hidden');
+        }
+    }
+    window.loadTicketTypeByMonthTable = loadTicketTypeByMonthTable;
+    loadTicketTypeByMonthTable();
+
+    // ── Chart 4: Ticket Type per Module (Incident/Error, Request/Konsultasi, Request/CR) ──
+    // Data comes from the API, following the Customer & Period filters above.
+    const MODULE_TYPE_SERIES = ['Incident / Error', 'Request / Konsultasi', 'Request / CR'];
+    const MODULE_TYPE_COLORS = [PALETTE.blue, PALETTE.violet, PALETTE.orange];
+
+    const ticketByModuleTypeChart = new Chart(document.getElementById('chartTicketByModuleType'), {
         type: 'bar',
         data: {
-            labels: ['Network', 'Aplikasi', 'Hardware', 'Akses / Login', 'Database'],
-            datasets: [{
-                label: 'Jumlah Tiket',
-                data: [72, 64, 51, 45, 33],
-                backgroundColor: PALETTE.blue,
+            labels: [],
+            datasets: MODULE_TYPE_SERIES.map((label, i) => ({
+                label,
+                data: [],
+                backgroundColor: MODULE_TYPE_COLORS[i],
                 borderRadius: 4,
                 maxBarThickness: 20,
-            }],
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { beginAtZero: true, grid: gridOpts, ticks: tickOpts, border: { display: false } },
-                y: { grid: { display: false }, ticks: tickOpts },
-            },
-        },
-    });
-
-    // ── Grouped Bar ──────────────────────────────────────────────────────
-    new Chart(document.getElementById('chartBarGroup'), {
-        type: 'bar',
-        data: {
-            labels: MONTHS,
-            datasets: [
-                { label: 'Tahun Ini', data: [42, 55, 38, 61, 49, 58], backgroundColor: PALETTE.blue, borderRadius: 4, maxBarThickness: 16 },
-                { label: 'Tahun Lalu', data: [35, 44, 40, 48, 45, 50], backgroundColor: PALETTE.orange, borderRadius: 4, maxBarThickness: 16 },
-            ],
+            })),
         },
         options: {
             responsive: true, maintainAspectRatio: false,
+            layout: { padding: { top: 16 } },
             plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
             scales: {
                 x: { grid: { display: false }, ticks: tickOpts },
-                y: { beginAtZero: true, grid: gridOpts, ticks: tickOpts, border: { display: false } },
+                y: { beginAtZero: true, ticks: { ...tickOpts, precision: 0 }, grid: gridOpts, border: { display: false } },
             },
         },
+        plugins: [pointValueLabelPlugin],
     });
+
+    async function loadTicketByModuleTypeChart() {
+        const emptyState = document.getElementById('ticketByModuleTypeEmptyState');
+        const emptyText  = emptyState.querySelector('p');
+        const inner      = document.getElementById('ticketByModuleTypeCanvasInner');
+        const from = document.getElementById('filterDateFrom').value;
+        const to   = document.getElementById('filterDateTo').value;
+
+        if (!from || !to) {
+            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.';
+            emptyState.classList.remove('hidden');
+            ticketByModuleTypeChart.data.labels = [];
+            ticketByModuleTypeChart.data.datasets.forEach(ds => ds.data = []);
+            ticketByModuleTypeChart.update();
+            return;
+        }
+
+        const customerId = document.getElementById('filterCustomer').value;
+        const params = new URLSearchParams({ date_from: from, date_to: to });
+        if (customerId) params.set('customer_id', customerId);
+
+        try {
+            const res  = await fetch(`/api/reporting/diagram-report/ticket-by-module-type?${params.toString()}`);
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+            emptyState.classList.add('hidden');
+            const wrapWidth = inner.parentElement.clientWidth;
+            inner.style.width = Math.max(json.data.labels.length * 90, wrapWidth) + 'px';
+
+            ticketByModuleTypeChart.data.labels = json.data.labels;
+            ticketByModuleTypeChart.data.datasets.forEach(ds => { ds.data = json.data.series[ds.label] || []; });
+            ticketByModuleTypeChart.resize();
+            ticketByModuleTypeChart.update();
+        } catch (err) {
+            emptyText.innerHTML = 'Failed to load data. Please try again.';
+            emptyState.classList.remove('hidden');
+        }
+    }
+    window.loadTicketByModuleTypeChart = loadTicketByModuleTypeChart;
+    loadTicketByModuleTypeChart();
 
     // ── Stacked Bar ──────────────────────────────────────────────────────
     new Chart(document.getElementById('chartBarStack'), {
@@ -643,8 +779,8 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
         data: {
             labels: MONTHS,
             datasets: [
-                { type: 'bar', label: 'Tiket Selesai', data: [20, 28, 19, 32, 28, 33], backgroundColor: PALETTE.blue, borderRadius: 4, maxBarThickness: 24, order: 2 },
-                { type: 'line', label: 'Rata-rata 6 Bulan', data: [27, 27, 27, 27, 27, 27], borderColor: PALETTE.orange, backgroundColor: PALETTE.orange, borderWidth: 2, pointRadius: 0, borderDash: [5, 4], tension: 0, order: 1 },
+                { type: 'bar', label: 'Tickets Completed', data: [20, 28, 19, 32, 28, 33], backgroundColor: PALETTE.blue, borderRadius: 4, maxBarThickness: 24, order: 2 },
+                { type: 'line', label: '6-Month Average', data: [27, 27, 27, 27, 27, 27], borderColor: PALETTE.orange, backgroundColor: PALETTE.orange, borderWidth: 2, pointRadius: 0, borderDash: [5, 4], tension: 0, order: 1 },
             ],
         },
         options: {
@@ -698,10 +834,10 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
     new Chart(document.getElementById('chartRadar'), {
         type: 'radar',
         data: {
-            labels: ['Responsiveness', 'Kualitas', 'Ketepatan Waktu', 'Komunikasi', 'Penyelesaian'],
+            labels: ['Responsiveness', 'Quality', 'Timeliness', 'Communication', 'Resolution'],
             datasets: [
-                { label: 'Tim A', data: [80, 70, 85, 75, 90], borderColor: PALETTE.blue, backgroundColor: alpha(PALETTE.blue, 0.15), borderWidth: 2, pointRadius: 4, pointBackgroundColor: PALETTE.blue },
-                { label: 'Tim B', data: [65, 85, 70, 80, 72], borderColor: PALETTE.orange, backgroundColor: alpha(PALETTE.orange, 0.15), borderWidth: 2, pointRadius: 4, pointBackgroundColor: PALETTE.orange },
+                { label: 'Team A', data: [80, 70, 85, 75, 90], borderColor: PALETTE.blue, backgroundColor: alpha(PALETTE.blue, 0.15), borderWidth: 2, pointRadius: 4, pointBackgroundColor: PALETTE.blue },
+                { label: 'Team B', data: [65, 85, 70, 80, 72], borderColor: PALETTE.orange, backgroundColor: alpha(PALETTE.orange, 0.15), borderWidth: 2, pointRadius: 4, pointBackgroundColor: PALETTE.orange },
             ],
         },
         options: {
@@ -717,7 +853,7 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
     new Chart(document.getElementById('chartPolar'), {
         type: 'polarArea',
         data: {
-            labels: ['Network', 'Aplikasi', 'Hardware', 'Akses', 'Database'],
+            labels: ['Network', 'Application', 'Hardware', 'Access', 'Database'],
             datasets: [{
                 data: [28, 24, 18, 16, 12],
                 backgroundColor: [alpha(PALETTE.blue, 0.7), alpha(PALETTE.orange, 0.7), alpha(PALETTE.aqua, 0.7), alpha(PALETTE.yellow, 0.7), alpha(PALETTE.magenta, 0.7)],
@@ -740,9 +876,9 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
         type: 'scatter',
         data: {
             datasets: [
-                { label: 'Tim A', data: randPoints(14, 10, 10), backgroundColor: PALETTE.blue },
-                { label: 'Tim B', data: randPoints(14, 10, 10), backgroundColor: PALETTE.orange },
-                { label: 'Tim C', data: randPoints(14, 10, 10), backgroundColor: PALETTE.aqua },
+                { label: 'Team A', data: randPoints(14, 10, 10), backgroundColor: PALETTE.blue },
+                { label: 'Team B', data: randPoints(14, 10, 10), backgroundColor: PALETTE.orange },
+                { label: 'Team C', data: randPoints(14, 10, 10), backgroundColor: PALETTE.aqua },
             ],
         },
         options: {
@@ -772,8 +908,8 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
             scales: {
-                x: { title: { display: true, text: 'Jumlah Tiket', color: TEXT_MUTED }, grid: gridOpts, ticks: tickOpts, border: { display: false } },
-                y: { title: { display: true, text: 'Rata-rata Mandays', color: TEXT_MUTED }, grid: gridOpts, ticks: tickOpts, border: { display: false } },
+                x: { title: { display: true, text: 'Ticket Count', color: TEXT_MUTED }, grid: gridOpts, ticks: tickOpts, border: { display: false } },
+                y: { title: { display: true, text: 'Average Mandays', color: TEXT_MUTED }, grid: gridOpts, ticks: tickOpts, border: { display: false } },
             },
         },
     });

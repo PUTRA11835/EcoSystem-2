@@ -525,6 +525,12 @@ Route::middleware(['web'])->group(function () {
         Route::get('/ticketing-overview', [\App\Http\Controllers\ReportingController::class, 'ticketingOverview']);
         Route::get('/ticketing-overview/{customerId}', [\App\Http\Controllers\ReportingController::class, 'ticketingOverviewDetail']);
         Route::get('/ticket-by-module', [\App\Http\Controllers\ReportingController::class, 'ticketByModule']);
+        // Diagram Report page (Grafik 1/2/3) — dummy charts on the page use hard-coded
+        // sample data; only these three fetch live data.
+        Route::get('/diagram-report/ticket-qty',           [\App\Http\Controllers\ReportingController::class, 'diagramTicketQty']);
+        Route::get('/diagram-report/ticket-by-module',     [\App\Http\Controllers\ReportingController::class, 'diagramTicketByModule']);
+        Route::get('/diagram-report/ticket-type-by-month', [\App\Http\Controllers\ReportingController::class, 'diagramTicketTypeByMonth']);
+        Route::get('/diagram-report/ticket-by-module-type', [\App\Http\Controllers\ReportingController::class, 'diagramTicketByModuleType']);
         Route::get('/log-shifting', [\App\Http\Controllers\ReportingController::class, 'logShifting']);
         Route::get('/log-shifting/{ticketId}', [\App\Http\Controllers\ReportingController::class, 'logShiftingDetail']);
         Route::get('/resolution-days', [\App\Http\Controllers\ReportingController::class, 'resolutionDays']);
