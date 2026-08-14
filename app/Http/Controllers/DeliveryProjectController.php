@@ -239,7 +239,10 @@ class DeliveryProjectController extends Controller
             ]);
         }
 
-        $employees = Employee::with(['basicData', 'addresses'])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
+        // `qualifications.module` ikut di-eager-load: dropdown Module pada modal
+        // Add Team Member mengambil pilihannya dari kualifikasi employee
+        // (bukan lagi free text).
+        $employees = Employee::with(['basicData', 'addresses', 'qualifications.module'])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
 
         // AE dropdown: karyawan aktif ber-role "Sales Operation" (lihat salesRoleEmployees()).
         $aeEmployees = $this->salesRoleEmployees();
@@ -867,7 +870,7 @@ class DeliveryProjectController extends Controller
     {
         $request->validate([
             'employee_id'   => 'required|exists:employee,employee_id',
-            'module'        => 'nullable|string|max:50',
+            'module'        => 'nullable|string|max:255',
             'role'          => 'required|in:Member,Lead,Project Manager,Co Project Manager,Project Admin',
             'employee_type' => 'required|in:Internal,External,Vendor',
             'vendor_name'   => 'nullable|required_if:employee_type,Vendor|string|max:255',
@@ -875,6 +878,38 @@ class DeliveryProjectController extends Controller
             'end_date'      => 'nullable|date|after_or_equal:start_date',
             'notes'         => 'nullable|string',
         ]);
+
+        // Module BUKAN free text: pilihannya berasal dari kualifikasi employee
+        // (employee_qualification → modules). Nilai yang dikirim divalidasi ulang
+        // di server supaya request manual tidak bisa menyelundupkan modul asing.
+        $allowedModules = DB::table('employee_qualification as eq')
+            ->join('modules as m', 'm.id', '=', 'eq.module_id')
+            ->where('eq.employee_id', $request->employee_id)
+            ->pluck('m.name')
+            ->map(fn ($n) => trim((string) $n))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $selectedModules = collect(explode(',', (string) $request->module))
+            ->map(fn ($m) => trim($m))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $unknownModules = $selectedModules->reject(
+            fn ($m) => $allowedModules->contains(fn ($a) => strcasecmp($a, $m) === 0)
+        )->values();
+
+        if ($unknownModules->isNotEmpty()) {
+            $msg = 'Module "' . $unknownModules->implode('", "') . '" is not part of this employee\'s qualification.';
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return back()->with('error', $msg);
+        }
+
+        $moduleValue = $selectedModules->isEmpty() ? null : $selectedModules->implode(', ');
 
         // Cek duplikat: satu employee boleh punya role sama selama entry sebelumnya
         // sudah memiliki end_date. Jika masih aktif (end_date NULL), tolak.
@@ -896,7 +931,7 @@ class DeliveryProjectController extends Controller
         }
 
         $project->teamMembers()->attach($request->employee_id, [
-            'module'        => $request->module,
+            'module'        => $moduleValue,
             'role'          => $request->role,
             'employee_type' => $request->employee_type,
             'vendor_name'   => $request->employee_type === 'Vendor' ? $request->vendor_name : null,

@@ -97,6 +97,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('menu:dashboard');
 
+    // ==================== AI ASSISTANT ====================
+    Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
+
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
         Route::get('/', [CalendarController::class, 'index'])->name('index');

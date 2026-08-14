@@ -904,29 +904,44 @@
             {{-- Team Members Table --}}
             <div>
             @if($hasAnyTeam)
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200" id="teamMembersTable">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left">
+                @php
+                    // Badge role & employee type — dipakai kedua blok baris di bawah.
+                    $teamRoleBadge = [
+                        'Project Manager'    => 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+                        'Co Project Manager' => 'bg-sky-50 text-sky-700 ring-sky-200',
+                        'Project Admin'      => 'bg-violet-50 text-violet-700 ring-violet-200',
+                        'Lead'               => 'bg-amber-50 text-amber-700 ring-amber-200',
+                        'Member'             => 'bg-gray-50 text-gray-600 ring-gray-200',
+                    ];
+                    $teamTypeBadge = [
+                        'Internal' => 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+                        'External' => 'bg-orange-50 text-orange-700 ring-orange-200',
+                        'Vendor'   => 'bg-rose-50 text-rose-700 ring-rose-200',
+                    ];
+                @endphp
+                <div class="overflow-x-auto -mx-6 px-6">
+                    <table class="min-w-full text-xs" id="teamMembersTable">
+                        <thead>
+                            <tr class="bg-gray-50 border-y border-gray-200">
+                                <th class="px-3 py-2 text-left w-8">
                                     <input type="checkbox" id="selectAllTeam" class="row-checkbox" onchange="toggleSelectAll('team')">
                                 </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Module</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee Type</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Name</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Position</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Module</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Role</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Period</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Notes</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody class="divide-y divide-gray-100">
 
                             {{-- ── FK-fallback rows: legacy projects without pivot entries ── --}}
                             @foreach($fkFallbacks as $fb)
                             @php $fbKey = $fb['emp']->employee_id . '::' . $fb['role']; @endphp
                             <tr class="hover:bg-gray-50 team-row" data-member-id="{{ $fb['emp']->employee_id }}">
-                                <td class="px-6 py-4">
+                                <td class="px-3 py-2 align-middle">
                                     <input type="checkbox" class="row-checkbox team-checkbox"
                                            data-id="{{ $fbKey }}"
                                            data-employee-id="{{ $fb['emp']->employee_id }}"
@@ -942,13 +957,15 @@
                                            data-employee-name="{{ $fb['emp']->basicData->full_name ?? '-' }}"
                                            onchange="handleRowSelection('team')">
                                 </td>
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $fb['emp']->basicData->full_name ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $fb['emp']->basicData->position ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">—</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $fb['role'] }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">—</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">—</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">—</td>
+                                <td class="px-3 py-2 align-middle font-medium text-gray-900 whitespace-nowrap">{{ $fb['emp']->basicData->full_name ?? '-' }}</td>
+                                <td class="px-3 py-2 align-middle text-gray-500 whitespace-nowrap">{{ $fb['emp']->basicData->position ?? '-' }}</td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
+                                <td class="px-3 py-2 align-middle whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ring-inset {{ $teamRoleBadge[$fb['role']] ?? 'bg-gray-50 text-gray-600 ring-gray-200' }}">{{ $fb['role'] }}</span>
+                                </td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
                             </tr>
                             @endforeach
 
@@ -957,9 +974,14 @@
                             @php
                                 $rEmp   = $employees->firstWhere('employee_id', $row->employee_id);
                                 $rowKey = $row->employee_id . '::' . $row->role;
+                                // Module disimpan sebagai string ("FI, TR") — dipecah jadi chip biar terbaca.
+                                $rowModules = collect(explode(',', (string) ($row->module ?? '')))
+                                    ->map(fn ($m) => trim($m))
+                                    ->filter()
+                                    ->values();
                             @endphp
                             <tr class="hover:bg-gray-50 team-row" data-member-id="{{ $row->employee_id }}">
-                                <td class="px-6 py-4">
+                                <td class="px-3 py-2 align-middle">
                                     <input type="checkbox" class="row-checkbox team-checkbox"
                                            data-id="{{ $rowKey }}"
                                            data-employee-id="{{ $row->employee_id }}"
@@ -975,26 +997,50 @@
                                            data-employee-name="{{ $rEmp?->basicData->full_name ?? '-' }}"
                                            onchange="handleRowSelection('team')">
                                 </td>
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $rEmp?->basicData->full_name ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $rEmp?->basicData->position ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $row->module ?? '—' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $row->role ?? '—' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">
-                                    {{ $row->employee_type ?? '—' }}
-                                    @if(($row->employee_type ?? '') === 'Vendor' && $row->vendor_name)
-                                        <span class="text-gray-400">({{ $row->vendor_name }})</span>
+                                <td class="px-3 py-2 align-middle font-medium text-gray-900 whitespace-nowrap">{{ $rEmp?->basicData->full_name ?? '-' }}</td>
+                                <td class="px-3 py-2 align-middle text-gray-500 whitespace-nowrap">{{ $rEmp?->basicData->position ?? '-' }}</td>
+                                <td class="px-3 py-2 align-middle">
+                                    @if($rowModules->isNotEmpty())
+                                        <span class="flex flex-wrap gap-1">
+                                            @foreach($rowModules as $mod)
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px] font-medium">{{ $mod }}</span>
+                                            @endforeach
+                                        </span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
                                     @endif
                                 </td>
-                                <td class="px-6 py-4 text-sm text-gray-500">
-                                    {{ $row->start_date ? \Carbon\Carbon::parse($row->start_date)->format('d M Y') : '—' }}
-                                    –
-                                    {{ $row->end_date ? \Carbon\Carbon::parse($row->end_date)->format('d M Y') : 'Present' }}
+                                <td class="px-3 py-2 align-middle whitespace-nowrap">
+                                    @if($row->role)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ring-inset {{ $teamRoleBadge[$row->role] ?? 'bg-gray-50 text-gray-600 ring-gray-200' }}">{{ $row->role }}</span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
                                 </td>
-                                <td class="px-6 py-4 text-sm text-gray-500 max-w-xs">
+                                <td class="px-3 py-2 align-middle whitespace-nowrap">
+                                    @if($row->employee_type)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ring-inset {{ $teamTypeBadge[$row->employee_type] ?? 'bg-gray-50 text-gray-600 ring-gray-200' }}">{{ $row->employee_type }}</span>
+                                        @if($row->employee_type === 'Vendor' && $row->vendor_name)
+                                            <span class="text-gray-400">{{ $row->vendor_name }}</span>
+                                        @endif
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 align-middle text-gray-500 whitespace-nowrap tabular-nums">
+                                    {{ $row->start_date ? \Carbon\Carbon::parse($row->start_date)->format('d M Y') : '—' }}
+                                    <span class="text-gray-300">–</span>
+                                    @if($row->end_date)
+                                        {{ \Carbon\Carbon::parse($row->end_date)->format('d M Y') }}
+                                    @else
+                                        <span class="text-emerald-600 font-medium">Present</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 align-middle text-gray-500 max-w-[14rem]">
                                     @if($row->notes)
                                         <span class="block truncate" title="{{ $row->notes }}">{{ $row->notes }}</span>
                                     @else
-                                        —
+                                        <span class="text-gray-400">—</span>
                                     @endif
                                 </td>
                             </tr>
@@ -3719,20 +3765,38 @@
                                     class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                                 <option value="">-- Select Employee --</option>
                                 @foreach($employees as $employee)
+                                    @php
+                                        // Module diambil dari kualifikasi employee (employee_qualification → modules),
+                                        // bukan lagi diketik manual. Dipisah "|" agar aman untuk nama bermuatan koma.
+                                        $empModules = $employee->qualifications
+                                            ->map(fn ($q) => trim((string) ($q->module->name ?? '')))
+                                            ->filter()
+                                            ->unique()
+                                            ->sort()
+                                            ->values();
+                                    @endphp
                                     <option value="{{ $employee->employee_id }}"
                                             data-department="{{ $employee->basicData->department ?? '' }}"
                                             data-whatsapp="{{ $employee->addresses->first()->cell_phone ?? '' }}"
-                                            data-email="{{ $employee->addresses->first()->email_work ?? '' }}">
+                                            data-email="{{ $employee->addresses->first()->email_work ?? '' }}"
+                                            data-modules="{{ $empModules->implode('|') }}">
                                         {{ $employee->basicData->full_name ?? 'N/A' }}
                                     </option>
                                 @endforeach
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-900 mb-1">Module</label>
-                            <input type="text" name="module" id="modul"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                                   placeholder="e.g. FI, CO, MM">
+                            <label class="block text-sm font-medium text-gray-900 mb-1">
+                                Module
+                                <span class="text-xs text-gray-400 font-normal">— from consultant qualification</span>
+                            </label>
+                            {{-- Nilai akhir (nama modul dipisah koma) dikirim lewat hidden input ini. --}}
+                            <input type="hidden" name="module" id="modul">
+                            <div id="module_picker"
+                                 class="block w-full min-h-[42px] max-h-28 overflow-y-auto py-2 px-3 border border-gray-300 rounded-md shadow-sm bg-white">
+                                <p id="module_placeholder" class="text-sm text-gray-400">Select a consultant first.</p>
+                                <div id="module_options" class="flex flex-wrap gap-x-4 gap-y-1"></div>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Role <span class="text-red-500">*</span></label>
@@ -5894,6 +5958,14 @@ function openModal(modalId) {
         modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
+
+    // Add Team Member: samakan daftar Module dengan consultant yang sedang terpilih
+    // (kosong = placeholder), supaya tidak menyisakan pilihan dari sesi sebelumnya.
+    if (modalId === 'teamModal' && typeof renderTeamModuleOptions === 'function') {
+        const sel = document.getElementById('employee_id');
+        const opt = sel && sel.value ? sel.options[sel.selectedIndex] : null;
+        renderTeamModuleOptions(opt ? (opt.dataset.modules || '') : null);
+    }
 }
 
 function closeModal(modalId) {
@@ -6216,11 +6288,57 @@ function closeContractWarningModal() {
 // ============================================
 // OTHER EXISTING FUNCTIONS
 // ============================================
+// ── Module picker (Add Team Member) ──────────────────────────────────────────
+// Modul TIDAK lagi diketik manual: daftarnya berasal dari kualifikasi consultant
+// yang dipilih (data-modules pada <option>, dipisah "|"). Checkbox yang dicentang
+// digabung ke hidden input #modul sebagai "FI, CO".
+function syncTeamModuleValue() {
+    const hidden = document.getElementById('modul');
+    if (!hidden) return;
+    const picked = Array.from(document.querySelectorAll('.team-module-option:checked')).map(cb => cb.value);
+    hidden.value = picked.join(', ');
+}
+
+function renderTeamModuleOptions(rawModules) {
+    const box    = document.getElementById('module_options');
+    const ph     = document.getElementById('module_placeholder');
+    const hidden = document.getElementById('modul');
+    if (!box || !ph || !hidden) return;
+
+    hidden.value = '';
+    box.innerHTML = '';
+
+    const modules = (rawModules || '').split('|').map(m => m.trim()).filter(Boolean);
+
+    if (!modules.length) {
+        ph.textContent = rawModules === null
+            ? 'Select a consultant first.'
+            : 'No module found in this consultant\'s qualification.';
+        ph.classList.remove('hidden');
+        return;
+    }
+
+    ph.classList.add('hidden');
+    modules.forEach(function (name) {
+        const label = document.createElement('label');
+        label.className = 'inline-flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer';
+        const cb = document.createElement('input');
+        cb.type      = 'checkbox';
+        cb.value     = name;
+        cb.className = 'team-module-option rounded border-gray-300';
+        cb.addEventListener('change', syncTeamModuleValue);
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(name));
+        box.appendChild(label);
+    });
+}
+
 // Employee selection auto-fill
 document.getElementById('employee_id')?.addEventListener('change', function() {
     const selectedOption = this.options[this.selectedIndex];
-    document.getElementById('modul').value = selectedOption.dataset.modul || '';
-    document.getElementById('whatsapp_number').value = selectedOption.dataset.whatsapp || '';
+    const modules = selectedOption && selectedOption.value ? (selectedOption.dataset.modules || '') : null;
+    renderTeamModuleOptions(modules);
+    document.getElementById('whatsapp_number').value = selectedOption?.dataset.whatsapp || '';
 });
 
 // Initialize page on load

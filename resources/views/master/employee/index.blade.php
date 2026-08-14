@@ -15,7 +15,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
     <!-- Filter Section -->
     <div class="bg-gray-50 rounded-lg p-5 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Status</label>
                 <div class="custom-dd relative" data-onchange="applyFilters">
@@ -65,6 +65,22 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Home Base</button>
                         @foreach(\App\Enums\HomeBase::options() as $hb)
                         <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $hb }}"><span class="custom-dd-item-text">{{ $hb }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-col">
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Position</label>
+                <div class="custom-dd relative" id="ddFilterPosition" data-multi="true" data-onchange="applyFilters">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">All Position</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="filterPosition" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Position</button>
+                        @foreach(($positionOptions ?? []) as $pos)
+                        <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pos }}"><span class="custom-dd-item-text">{{ $pos }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
                         @endforeach
                     </div>
                 </div>
@@ -802,6 +818,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             department: document.getElementById('filterDepartment').value,
             modules: document.getElementById('filterModules').value,
             home_base: document.getElementById('filterHomeBase').value,
+            position: document.getElementById('filterPosition').value,
         };
     }
 
@@ -1334,9 +1351,11 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         if (typeof clearCustomDropdownMulti === 'function') {
             clearCustomDropdownMulti('filterModules');
             clearCustomDropdownMulti('filterHomeBase');
+            clearCustomDropdownMulti('filterPosition');
         } else {
             document.getElementById('filterModules').value = '';
             document.getElementById('filterHomeBase').value = '';
+            document.getElementById('filterPosition').value = '';
         }
         currentPage = 1;
         fetchEmployees({});
@@ -1591,12 +1610,13 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             sessionStorage.removeItem(EMP_FILTER_STORAGE_KEY);
         }
 
-        // Set hidden input values SEBELUM initCustomDropdowns() supaya Home Base
-        // (multi-select statis) langsung ke-sync visual/label-nya saat init jalan.
+        // Set hidden input values SEBELUM initCustomDropdowns() supaya Home Base &
+        // Position (multi-select statis) langsung ke-sync visual/label-nya saat init jalan.
         if (restored) {
             document.getElementById('filterEmployee').value   = restored.employee   || '';
             document.getElementById('filterDepartment').value = restored.department || '';
             document.getElementById('filterHomeBase').value   = restored.home_base  || '';
+            document.getElementById('filterPosition').value   = restored.position   || '';
             document.getElementById('filterModules').value    = restored.modules    || '';
             if (restored.page) currentPage = restored.page;
         }

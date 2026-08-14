@@ -105,8 +105,11 @@ class MenuSeeder extends Seeder
             // ── Home ────────────────────────────────────────────────────────────
             ['slug' => 'dashboard',                    'name' => 'Home',                    'type' => 'page',     'parent_slug' => null,          'route_name' => 'dashboard',                    'icon' => 'fa-home',              'order_seq' => 1],
 
+            // ── AI Assistant ─────────────────────────────────────────────────────
+            ['slug' => 'ai-assistant',                 'name' => 'AI Assistant',            'type' => 'page',     'parent_slug' => null,          'route_name' => 'ai-assistant',                 'icon' => 'fa-robot',             'order_seq' => 2],
+
             // ── Calendar ─────────────────────────────────────────────────────────
-            ['slug' => 'calendar',                     'name' => 'Calendar',                'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-calendar-alt',      'order_seq' => 2],
+            ['slug' => 'calendar',                  'name' => 'Calendar',                'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-calendar-alt',      'order_seq' => 2],
             ['slug' => 'calendar.events',              'name' => 'Events',                  'type' => 'page',     'parent_slug' => 'calendar',    'route_name' => 'calendar.events',              'icon' => null,                   'order_seq' => 1],
             ['slug' => 'calendar.events.create',       'name' => 'Create Event',            'type' => 'function', 'parent_slug' => 'calendar.events', 'route_name' => null,                      'icon' => null,                   'order_seq' => 1],
             ['slug' => 'calendar.timesheets',          'name' => 'Timesheets',              'type' => 'page',     'parent_slug' => 'calendar',    'route_name' => 'calendar.timesheets',          'icon' => null,                   'order_seq' => 2],
@@ -297,8 +300,10 @@ class MenuSeeder extends Seeder
         $matrix = [
             // Home
             'dashboard'                   => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
+            // AI Assistant — menu baru: admin saja, role lain lewat Menu Access.
+            'ai-assistant'                => [self::ADMIN=>$v],
             // Calendar
-            'calendar'                    => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
+            'calendar'              => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'calendar.events'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'calendar.events.create'      => [self::ADMIN=>$v],
             'calendar.timesheets'         => [self::ADMIN=>$vced, self::EMPLOYEE=>$vce, self::INTERN=>$vc,  self::HOP=>$vce,  self::HOS=>$vce],
