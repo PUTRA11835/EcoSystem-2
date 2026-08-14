@@ -353,7 +353,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // Team member management routes
     Route::get('/projects/{project}/team-members', [DeliveryProjectController::class, 'getTeamMembers'])->name('projects.team.index')->middleware('menu:delivery-project.team.view');
     Route::middleware(['menu:delivery-project.team.edit', 'project.editable'])->group(function () {
-        Route::put('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'updateTeamMember'])->name('projects.team.update');
+        // Baris pivot diidentifikasi lewat ID-nya (bukan employee_id) karena
+        // anggota vendor tidak punya entri di master employee.
+        Route::put('/projects/{project}/team-rows/{row}', [DeliveryProjectController::class, 'updateTeamRow'])->name('projects.team.update');
     });
     Route::middleware(['menu:delivery-project.team.manage', 'project.editable'])->group(function () {
         Route::post('/projects/{project}/team-members', [DeliveryProjectController::class, 'storeTeamMember'])->name('projects.team.store');

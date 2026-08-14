@@ -136,7 +136,7 @@ class DeliveryProject extends Model
     public function teamMembers()
     {
         return $this->belongsToMany(Employee::class, 'delivery_project_employee', 'delivery_projects_id', 'employee_id', 'id', 'employee_id')
-                    ->withPivot('module', 'role', 'employee_type', 'vendor_name', 'start_date', 'end_date', 'notes')
+                    ->withPivot('module', 'role', 'employee_type', 'vendor_id', 'vendor_name', 'member_name', 'member_position', 'start_date', 'end_date', 'notes')
                     ->withTimestamps();
     }
 

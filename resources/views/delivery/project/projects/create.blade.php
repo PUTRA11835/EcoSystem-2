@@ -612,13 +612,26 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                 </button>
             </div>
             <div class="p-6 overflow-y-auto flex-1">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {{-- Pemilih sumber anggota: master Employee vs orang Vendor --}}
+                <div class="mb-4">
+                    <span class="block text-sm font-medium text-gray-900 mb-1.5">Member Source</span>
+                    <div class="inline-flex rounded-lg border border-gray-300 p-0.5 bg-gray-50">
+                        <button type="button" id="ctmSrcBtnEmployee" onclick="ctmSetSource('employee')"
+                                class="px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200">Employee</button>
+                        <button type="button" id="ctmSrcBtnVendor" onclick="ctmSetSource('vendor')"
+                                class="px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200">Vendor</button>
+                    </div>
+                    <p id="ctmSrcHint" class="text-xs text-gray-400 mt-1.5"></p>
+                </div>
+
+                {{-- ── Pane EMPLOYEE ─────────────────────────────────────────── --}}
+                <div id="ctmPaneEmployee" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     {{-- Employee --}}
                     <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-gray-900 mb-1">
                             Consultant <span class="text-red-500">*</span>
                         </label>
-                        <div class="custom-dd relative" data-fixed="true" id="ctm_emp_dd">
+                        <div class="custom-dd relative" data-fixed="true" id="ctm_emp_dd" data-onchange="ctmOnEmployeeChange">
                             <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
                                 <span class="custom-dd-label text-gray-500">-- Select Employee --</span>
                                 <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -642,13 +655,70 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         </div>
                         <p id="ctm_emp_err" class="mt-1 text-xs text-red-500 hidden">Please select an employee.</p>
                     </div>
-                    {{-- Module --}}
+                    {{-- Employee Type (turunan data employee) --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-900 mb-1">Module</label>
-                        <input type="text" id="ctm_module"
-                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                               placeholder="e.g. FI, CO, MM">
+                        <label class="block text-sm font-medium text-gray-900 mb-1">
+                            Employee Type <span class="text-xs text-gray-400 font-normal">— from employee data</span>
+                        </label>
+                        <input type="text" id="ctm_employee_type_display" readonly
+                               placeholder="Select a consultant first"
+                               class="block w-full py-2.5 px-3 border border-gray-200 rounded-md shadow-sm text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
                     </div>
+                    {{-- Module (dari kualifikasi employee) --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">
+                            Module <span class="text-xs text-gray-400 font-normal">— from consultant qualification</span>
+                        </label>
+                        <div id="ctm_module_picker"
+                             class="block w-full min-h-[42px] max-h-28 overflow-y-auto py-2 px-3 border border-gray-300 rounded-md shadow-sm bg-white">
+                            <p id="ctm_module_placeholder" class="text-sm text-gray-400">Select a consultant first.</p>
+                            <div id="ctm_module_options" class="flex flex-wrap gap-x-4 gap-y-1"></div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Pane VENDOR ───────────────────────────────────────────── --}}
+                <div id="ctmPaneVendor" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" style="display:none;">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-900 mb-1">
+                            Vendor <span class="text-red-500">*</span>
+                            <span class="text-xs text-gray-400 font-normal">— from Business Partner (type Vendor)</span>
+                        </label>
+                        <select id="ctm_vendor_id"
+                                class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                            <option value="">-- Select Vendor --</option>
+                            @foreach($vendors as $vendor)
+                                <option value="{{ $vendor->customer_id }}">{{ $vendor->basicData->name_1 ?? $vendor->customer_code }}</option>
+                            @endforeach
+                        </select>
+                        @if($vendors->isEmpty())
+                            <p class="text-xs text-amber-600 mt-1">No Business Partner of type Vendor yet — add one in Master → Business Partner.</p>
+                        @endif
+                        <p id="ctm_vendor_err" class="mt-1 text-xs text-red-500 hidden">Please select a vendor.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">Consultant Name <span class="text-red-500">*</span></label>
+                        <input type="text" id="ctm_member_name" maxlength="255"
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               placeholder="Vendor consultant name">
+                        <p id="ctm_member_name_err" class="mt-1 text-xs text-red-500 hidden">Consultant name is required.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">Position <span class="text-xs text-gray-400 font-normal">— optional</span></label>
+                        <input type="text" id="ctm_member_position" maxlength="255"
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               placeholder="e.g. SAP Consultant">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-900 mb-1">Module <span class="text-xs text-gray-400 font-normal">— optional, comma separated</span></label>
+                        <input type="text" id="ctm_vendor_module" maxlength="255"
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               placeholder="e.g. FI, CO">
+                    </div>
+                </div>
+
+                {{-- ── Field bersama ─────────────────────────────────────────── --}}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {{-- Role --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-900 mb-1">Role <span class="text-red-500">*</span></label>
@@ -662,23 +732,6 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                             <option value="Member">Member</option>
                         </select>
                         <p id="ctm_role_err" class="mt-1 text-xs text-red-500 hidden">Please select a role.</p>
-                    </div>
-                    {{-- Employee Type --}}
-                    <div>
-                        <label class="block text-sm font-medium text-gray-900 mb-1">Employee Type <span class="text-red-500">*</span></label>
-                        <select id="ctm_employee_type" onchange="ctmToggleVendor()"
-                                class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
-                            <option value="Internal">Internal</option>
-                            <option value="External">External</option>
-                            <option value="Vendor">Vendor</option>
-                        </select>
-                    </div>
-                    {{-- Vendor Name (conditional) --}}
-                    <div id="ctm_vendor_wrap" style="display:none;">
-                        <label class="block text-sm font-medium text-gray-900 mb-1">Vendor Name</label>
-                        <input type="text" id="ctm_vendor_name"
-                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                               placeholder="Vendor name">
                     </div>
                     {{-- Start Date --}}
                     <div>
@@ -1173,15 +1226,22 @@ document.addEventListener('DOMContentLoaded', function () {
 {{-- ===== Team Members (Create Form) ===== --}}
 <script>
 (function () {
-    // Employee data map: id → { name, position }
-    var empMap = {};
-    @foreach($employees as $employee)
-    @php
-        $empName = addslashes($employee->basicData->full_name ?? '-');
-        $empPos  = addslashes($employee->basicData->position ?? '');
-    @endphp
-    empMap['{{ $employee->employee_id }}'] = { name: '{{ $empName }}', position: '{{ $empPos }}' };
-    @endforeach
+    // Employee data map: id → { name, position, employee_type, modules }
+    // employee_type & modules ikut supaya keduanya TIDAK diketik manual:
+    // type = turunan data employee, modules = kualifikasi employee.
+    var empMap = {!! json_encode(
+        $employees->mapWithKeys(fn ($e) => [
+            (string) $e->employee_id => [
+                'name'          => $e->basicData->full_name ?? '-',
+                'position'      => $e->basicData->position ?? '',
+                'employee_type' => $e->basicData->employee_type ?? 'Internal',
+                'modules'       => $e->qualifications
+                    ->map(fn ($q) => trim((string) ($q->module->name ?? '')))
+                    ->filter()->unique()->sort()->values(),
+            ],
+        ]),
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    ) !!};
 
     var teamMembers = [];   // array of member objects
     var editIndex   = -1;   // -1 = add mode, >=0 = edit index
@@ -1199,12 +1259,75 @@ document.addEventListener('DOMContentLoaded', function () {
         return dt.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
     }
 
-    /* ---- vendor toggle ---- */
-    function ctmToggleVendor() {
-        var type = document.getElementById('ctm_employee_type').value;
-        document.getElementById('ctm_vendor_wrap').style.display = (type === 'Vendor') ? 'block' : 'none';
+    /* ---- member source: Employee vs Vendor ----
+       Employee → orang master Employee; Employee Type & Module ikut datanya.
+       Vendor   → orang vendor di luar master: vendornya dari Business Partner
+                  (type Vendor), identitas & modulnya diketik manual.          */
+    var ctmSource = 'employee';
+
+    function ctmSetSource(source) {
+        ctmSource = (source === 'vendor') ? 'vendor' : 'employee';
+        var isVendor = ctmSource === 'vendor';
+
+        document.getElementById('ctmPaneEmployee').style.display = isVendor ? 'none' : 'grid';
+        document.getElementById('ctmPaneVendor').style.display   = isVendor ? 'grid' : 'none';
+
+        var active   = 'px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 bg-white text-gray-900 shadow-sm';
+        var inactive = 'px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 text-gray-500 hover:text-gray-700';
+        document.getElementById('ctmSrcBtnEmployee').className = isVendor ? inactive : active;
+        document.getElementById('ctmSrcBtnVendor').className   = isVendor ? active : inactive;
+
+        document.getElementById('ctmSrcHint').textContent = isVendor
+            ? 'Vendor is taken from Master Business Partner (type Vendor); the consultant details are typed in manually.'
+            : 'Consultant comes from Master Employee — Employee Type and Module follow their data.';
     }
-    window.ctmToggleVendor = ctmToggleVendor;
+    window.ctmSetSource = ctmSetSource;
+
+    /* ---- module picker (dari kualifikasi employee) ---- */
+    function ctmRenderModules(modules, checked) {
+        var box = document.getElementById('ctm_module_options');
+        var ph  = document.getElementById('ctm_module_placeholder');
+        box.innerHTML = '';
+
+        var list = modules || [];
+        if (!list.length) {
+            ph.textContent = modules === null
+                ? 'Select a consultant first.'
+                : 'No module found in this consultant\'s qualification.';
+            ph.classList.remove('hidden');
+            return;
+        }
+        ph.classList.add('hidden');
+
+        var pre = (checked || []).map(function (m) { return m.trim().toLowerCase(); });
+        list.forEach(function (name) {
+            var label = document.createElement('label');
+            label.className = 'inline-flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer';
+            var cb = document.createElement('input');
+            cb.type      = 'checkbox';
+            cb.value     = name;
+            cb.className = 'ctm-module-option rounded border-gray-300';
+            cb.checked   = pre.indexOf(name.trim().toLowerCase()) !== -1;
+            label.appendChild(cb);
+            label.appendChild(document.createTextNode(name));
+            box.appendChild(label);
+        });
+    }
+
+    function ctmPickedModules() {
+        return Array.prototype.slice
+            .call(document.querySelectorAll('.ctm-module-option:checked'))
+            .map(function (cb) { return cb.value; });
+    }
+
+    /* Dipanggil custom-dd (data-onchange) setiap consultant berganti. */
+    function ctmOnEmployeeChange() {
+        var id   = document.getElementById('ctm_employee_id').value;
+        var info = id ? empMap[id] : null;
+        document.getElementById('ctm_employee_type_display').value = info ? (info.employee_type || 'Internal') : '';
+        ctmRenderModules(info ? (info.modules || []) : null, []);
+    }
+    window.ctmOnEmployeeChange = ctmOnEmployeeChange;
 
     /* ---- pickers ---- */
     function initModalPickers() {
@@ -1227,17 +1350,22 @@ document.addEventListener('DOMContentLoaded', function () {
         var ddLabel = document.querySelector('#ctm_emp_dd .custom-dd-label');
         if (ddLabel) { ddLabel.textContent = '-- Select Employee --'; ddLabel.className = 'custom-dd-label text-gray-500'; }
         document.getElementById('ctm_employee_id').value = '';
-        document.getElementById('ctm_module').value       = '';
+        document.getElementById('ctm_employee_type_display').value = '';
+        ctmRenderModules(null, []);
+
+        document.getElementById('ctm_vendor_id').value       = '';
+        document.getElementById('ctm_member_name').value     = '';
+        document.getElementById('ctm_member_position').value = '';
+        document.getElementById('ctm_vendor_module').value   = '';
+
         document.getElementById('ctm_role').value         = '';
-        document.getElementById('ctm_employee_type').value = 'Internal';
-        ctmToggleVendor();
-        document.getElementById('ctm_vendor_name').value  = '';
         document.getElementById('ctm_start_date').value   = '';
         document.getElementById('ctm_end_date').value     = '';
         document.getElementById('ctm_notes').value        = '';
-        ['ctm_emp_err', 'ctm_role_err', 'ctm_start_err'].forEach(function (id) {
+        ['ctm_emp_err', 'ctm_role_err', 'ctm_start_err', 'ctm_vendor_err', 'ctm_member_name_err'].forEach(function (id) {
             document.getElementById(id).classList.add('hidden');
         });
+        ctmSetSource('employee');
     }
 
     /* ---- open (add) ---- */
@@ -1263,16 +1391,25 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('cTeamModalTitle').textContent = 'Edit Team Member';
         resetModal();
 
-        // Fill employee custom-dd
-        var ddLabel = document.querySelector('#ctm_emp_dd .custom-dd-label');
-        if (ddLabel) { ddLabel.textContent = m.name; ddLabel.className = 'custom-dd-label text-gray-700'; }
-        document.getElementById('ctm_employee_id').value   = m.employee_id;
-        document.getElementById('ctm_module').value        = m.module || '';
-        document.getElementById('ctm_role').value          = m.role || '';
-        document.getElementById('ctm_employee_type').value = m.employee_type || 'Internal';
-        ctmToggleVendor();
-        document.getElementById('ctm_vendor_name').value   = m.vendor_name || '';
-        document.getElementById('ctm_notes').value         = m.notes || '';
+        ctmSetSource(m.member_source || 'employee');
+
+        if ((m.member_source || 'employee') === 'vendor') {
+            document.getElementById('ctm_vendor_id').value       = m.vendor_id || '';
+            document.getElementById('ctm_member_name').value     = m.member_name || '';
+            document.getElementById('ctm_member_position').value = m.member_position || '';
+            document.getElementById('ctm_vendor_module').value   = m.module || '';
+        } else {
+            // Fill employee custom-dd
+            var ddLabel = document.querySelector('#ctm_emp_dd .custom-dd-label');
+            if (ddLabel) { ddLabel.textContent = m.name; ddLabel.className = 'custom-dd-label text-gray-700'; }
+            document.getElementById('ctm_employee_id').value = m.employee_id;
+            var info = empMap[m.employee_id];
+            document.getElementById('ctm_employee_type_display').value = m.employee_type || (info ? info.employee_type : 'Internal');
+            ctmRenderModules(info ? (info.modules || []) : [], (m.module || '').split(','));
+        }
+
+        document.getElementById('ctm_role').value  = m.role || '';
+        document.getElementById('ctm_notes').value = m.notes || '';
 
         document.getElementById('cTeamModal').classList.remove('hidden');
         setTimeout(function () {
@@ -1303,33 +1440,63 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /* ---- save ---- */
     function saveCTeamMember() {
-        var empId = document.getElementById('ctm_employee_id').value;
+        var isVendor = ctmSource === 'vendor';
         var role  = document.getElementById('ctm_role').value;
         var start = document.getElementById('ctm_start_date').value;
         var valid = true;
 
-        if (!empId) { document.getElementById('ctm_emp_err').classList.remove('hidden'); valid = false; }
-        else         { document.getElementById('ctm_emp_err').classList.add('hidden'); }
-        if (!role)  { document.getElementById('ctm_role_err').classList.remove('hidden'); valid = false; }
-        else         { document.getElementById('ctm_role_err').classList.add('hidden'); }
-        if (!start) { document.getElementById('ctm_start_err').classList.remove('hidden'); valid = false; }
-        else         { document.getElementById('ctm_start_err').classList.add('hidden'); }
+        var empId      = document.getElementById('ctm_employee_id').value;
+        var vendorId   = document.getElementById('ctm_vendor_id').value;
+        var memberName = document.getElementById('ctm_member_name').value.trim();
+
+        function mark(id, bad) {
+            document.getElementById(id).classList.toggle('hidden', !bad);
+            if (bad) valid = false;
+        }
+        mark('ctm_emp_err',         !isVendor && !empId);
+        mark('ctm_vendor_err',      isVendor  && !vendorId);
+        mark('ctm_member_name_err', isVendor  && !memberName);
+        mark('ctm_role_err',        !role);
+        mark('ctm_start_err',       !start);
         if (!valid) return;
 
-        var empType  = document.getElementById('ctm_employee_type').value;
-        var empInfo  = empMap[empId] || { name: empId, position: '' };
-        var member = {
-            employee_id:   empId,
-            name:          empInfo.name,
-            position:      empInfo.position,
-            module:        document.getElementById('ctm_module').value.trim(),
-            role:          role,
-            employee_type: empType,
-            vendor_name:   (empType === 'Vendor') ? document.getElementById('ctm_vendor_name').value.trim() : '',
-            start_date:    start,
-            end_date:      document.getElementById('ctm_end_date').value || '',
-            notes:         document.getElementById('ctm_notes').value.trim(),
+        var common = {
+            role:       role,
+            start_date: start,
+            end_date:   document.getElementById('ctm_end_date').value || '',
+            notes:      document.getElementById('ctm_notes').value.trim(),
         };
+
+        var member;
+        if (isVendor) {
+            var vendorSel = document.getElementById('ctm_vendor_id');
+            member = Object.assign({
+                member_source:   'vendor',
+                employee_id:     '',
+                vendor_id:       vendorId,
+                vendor_name:     vendorSel.options[vendorSel.selectedIndex].text,
+                member_name:     memberName,
+                member_position: document.getElementById('ctm_member_position').value.trim(),
+                name:            memberName,
+                position:        document.getElementById('ctm_member_position').value.trim(),
+                module:          document.getElementById('ctm_vendor_module').value.trim(),
+                employee_type:   'Vendor',
+            }, common);
+        } else {
+            var empInfo = empMap[empId] || { name: empId, position: '', employee_type: 'Internal' };
+            member = Object.assign({
+                member_source:   'employee',
+                employee_id:     empId,
+                vendor_id:       '',
+                vendor_name:     '',
+                member_name:     '',
+                member_position: '',
+                name:            empInfo.name,
+                position:        empInfo.position,
+                module:          ctmPickedModules().join(', '),
+                employee_type:   empInfo.employee_type || 'Internal',
+            }, common);
+        }
 
         if (editIndex >= 0) {
             teamMembers[editIndex] = member;
@@ -1378,7 +1545,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Regenerate hidden inputs inside the main form
         hidden.innerHTML = '';
-        var fields = ['employee_id', 'module', 'role', 'employee_type', 'vendor_name', 'start_date', 'end_date', 'notes'];
+        var fields = ['member_source', 'employee_id', 'vendor_id', 'member_name', 'member_position',
+                      'module', 'role', 'start_date', 'end_date', 'notes'];
         teamMembers.forEach(function (m, i) {
             fields.forEach(function (f) {
                 var inp = document.createElement('input');
