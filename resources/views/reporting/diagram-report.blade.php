@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'Diagram Report')
 @section('page-title', 'Diagram Report')
-@section('page-subtitle', 'Preview of every diagram type the system can display')
+@section('page-subtitle', 'Ticket analytics across 10 charts, filterable by Customer & Period')
 
 @push('styles')
 <style>
@@ -69,6 +69,8 @@
         font-weight: 700;
     }
     .diagram-table tr.diagram-table-total td:first-child { background: #c3d4ee; }
+    .diagram-table td.diagram-table-rowtotal { font-weight: 700; background: #eef3fb; color: #0b0b0b; }
+    .diagram-table th.diagram-table-rowtotal { font-weight: 700; background: #1d5aa3; color: #fff; }
 </style>
 @endpush
 
@@ -76,9 +78,8 @@
 <div class="mb-5 rounded-xl border border-dashed border-gray-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
     <i class="fas fa-circle-info text-amber-500 mt-0.5"></i>
     <div class="text-sm text-amber-800">
-        <span class="font-semibold">Preview mode.</span>
-        This page shows every diagram type the system can provide, some using sample (dummy) data.
-        Charts 1–4 are already connected to live data via the filters below; the rest will be enabled once their data source is wired up.
+        <span class="font-semibold">Live data.</span>
+        All 10 charts below are connected to real ticket data and update together based on the Customer &amp; Period filters below.
     </div>
 </div>
 
@@ -214,63 +215,95 @@
     </div>
 
     <div class="diagram-card">
-        <h3>Stacked Bar Chart</h3>
-        <p class="diagram-desc">Total composition split across several categories per period.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartBarStack"></canvas></div>
+        <h3>Chart 5 — Ticket Type x Module</h3>
+        <p class="diagram-desc">Table of ticket count per Ticket Type per module, with a Total Tickets column, following the Customer &amp; Period filters above.</p>
+        <div class="diagram-table-wrap" style="position:relative; overflow:auto; flex:1;">
+            <table id="ticketTypeByModuleTable" class="diagram-table">
+                <thead>
+                    <tr id="ticketTypeByModuleHead">
+                        <th class="text-left">Ticket Type</th>
+                    </tr>
+                </thead>
+                <tbody id="ticketTypeByModuleBody"></tbody>
+            </table>
+            <div id="ticketTypeByModuleEmptyState" class="absolute inset-0 flex items-center justify-center text-center px-6 bg-white">
+                <p class="text-sm text-gray-400">
+                    <i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>
+                    Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this table.
+                </p>
+            </div>
+        </div>
     </div>
 
     <div class="diagram-card">
-        <h3>Line Chart</h3>
-        <p class="diagram-desc">Value trend over time for one or more series.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartLine"></canvas></div>
+        <h3>Chart 6 — Ticket Count per Module</h3>
+        <p class="diagram-desc">Bar chart — ticket count per module, following the Customer &amp; Period filters above.</p>
+        <div class="diagram-canvas-wrap"><canvas id="chartTicketByModuleCurrentPeriod"></canvas>
+            <div id="ticketByModuleCurrentPeriodEmptyState" class="absolute inset-0 flex items-center justify-center text-center px-6">
+                <p class="text-sm text-gray-400">
+                    <i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>
+                    Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.
+                </p>
+            </div>
+        </div>
     </div>
 
     <div class="diagram-card">
-        <h3>Area Chart</h3>
-        <p class="diagram-desc">Value trend with emphasis on cumulative volume.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartArea"></canvas></div>
+        <h3>Chart 7 — Ticket Count by Type</h3>
+        <p class="diagram-desc">Bar chart — ticket count per Ticket Type, following the Customer &amp; Period filters above.</p>
+        <div class="diagram-canvas-wrap"><canvas id="chartTicketByType"></canvas>
+            <div id="ticketByTypeEmptyState" class="absolute inset-0 flex items-center justify-center text-center px-6">
+                <p class="text-sm text-gray-400">
+                    <i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>
+                    Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.
+                </p>
+            </div>
+        </div>
     </div>
 
     <div class="diagram-card">
-        <h3>Combo Chart (Bar + Line)</h3>
-        <p class="diagram-desc">Combines actual values (bar) with a target/average (line) on a single scale.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartCombo"></canvas></div>
+        <h3>Chart 8 — CR vs Non-CR by Status</h3>
+        <p class="diagram-desc">Grouped bar chart — Non CR vs Request CR, split by Close (closed, cancelled) and Open (inprocess, waiting on customer, waiting for confirmation, hold, waiting on 3rd party) status, following the Customer &amp; Period filters above.</p>
+        <div class="diagram-canvas-wrap"><canvas id="chartTicketByCrStatus"></canvas>
+            <div id="ticketByCrStatusEmptyState" class="absolute inset-0 flex items-center justify-center text-center px-6">
+                <p class="text-sm text-gray-400">
+                    <i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>
+                    Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.
+                </p>
+            </div>
+        </div>
     </div>
 
     <div class="diagram-card">
-        <h3>Pie Chart</h3>
-        <p class="diagram-desc">Proportion of each category relative to the whole.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartPie"></canvas></div>
+        <h3>Chart 9 — CR &amp; Non CR from Start to Current Period</h3>
+        <p class="diagram-desc">Grouped bar chart — Non CR vs Request / CR ticket count per month, following the Customer &amp; Period filters above.</p>
+        <div class="diagram-canvas-wrap-lg" style="overflow-x:auto; overflow-y:hidden;">
+            <div id="ticketByCrPerMonthCanvasInner" style="position:relative; height:100%; min-width:100%;">
+                <canvas id="chartTicketByCrPerMonth"></canvas>
+            </div>
+            <div id="ticketByCrPerMonthEmptyState" class="absolute inset-0 flex items-center justify-center text-center px-6">
+                <p class="text-sm text-gray-400">
+                    <i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>
+                    Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.
+                </p>
+            </div>
+        </div>
     </div>
 
     <div class="diagram-card">
-        <h3>Doughnut Chart</h3>
-        <p class="diagram-desc">Same as a pie chart, with a center space for a summary figure.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartDoughnut"></canvas></div>
-    </div>
-
-    <div class="diagram-card">
-        <h3>Radar Chart</h3>
-        <p class="diagram-desc">Compares multiple dimensions/metrics at once across series.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartRadar"></canvas></div>
-    </div>
-
-    <div class="diagram-card">
-        <h3>Polar Area Chart</h3>
-        <p class="diagram-desc">Proportion between categories with emphasis on radius size.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartPolar"></canvas></div>
-    </div>
-
-    <div class="diagram-card">
-        <h3>Scatter Chart</h3>
-        <p class="diagram-desc">Relationship/correlation between two numeric variables.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartScatter"></canvas></div>
-    </div>
-
-    <div class="diagram-card">
-        <h3>Bubble Chart</h3>
-        <p class="diagram-desc">Relationship between two numeric variables plus a third dimension via point size.</p>
-        <div class="diagram-canvas-wrap"><canvas id="chartBubble"></canvas></div>
+        <h3>Chart 10 — Closed Tickets by Month</h3>
+        <p class="diagram-desc">Bar chart — ticket count with status Closed per month, following the Customer &amp; Period filters above.</p>
+        <div class="diagram-canvas-wrap-lg" style="overflow-x:auto; overflow-y:hidden;">
+            <div id="ticketClosedPerMonthCanvasInner" style="position:relative; height:100%; min-width:100%;">
+                <canvas id="chartTicketClosedPerMonth"></canvas>
+            </div>
+            <div id="ticketClosedPerMonthEmptyState" class="absolute inset-0 flex items-center justify-center text-center px-6">
+                <p class="text-sm text-gray-400">
+                    <i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>
+                    Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.
+                </p>
+            </div>
+        </div>
     </div>
 
 </div>
@@ -291,7 +324,7 @@ function applyDiagramFilters() {
     if (customerVal) parts.push(customerLabel);
     if (from || to) parts.push(document.getElementById('dateFilterLabel').textContent);
 
-    document.getElementById('diagramFilterSummary').textContent = parts.length ? `Filters applied to Chart 1, 2, 3 & 4: ${parts.join(' · ')}` : '';
+    document.getElementById('diagramFilterSummary').textContent = parts.length ? `Filters applied to Chart 1-10: ${parts.join(' · ')}` : '';
     document.getElementById('diagramClearBtn').classList.toggle('hidden', parts.length === 0);
 
     if (typeof window.loadTicketQtyChart === 'function') {
@@ -305,6 +338,24 @@ function applyDiagramFilters() {
     }
     if (typeof window.loadTicketByModuleTypeChart === 'function') {
         window.loadTicketByModuleTypeChart();
+    }
+    if (typeof window.loadTicketTypeByModuleTable === 'function') {
+        window.loadTicketTypeByModuleTable();
+    }
+    if (typeof window.loadTicketByModuleCurrentPeriodChart === 'function') {
+        window.loadTicketByModuleCurrentPeriodChart();
+    }
+    if (typeof window.loadTicketByTypeChart === 'function') {
+        window.loadTicketByTypeChart();
+    }
+    if (typeof window.loadTicketByCrStatusChart === 'function') {
+        window.loadTicketByCrStatusChart();
+    }
+    if (typeof window.loadTicketByCrPerMonthChart === 'function') {
+        window.loadTicketByCrPerMonthChart();
+    }
+    if (typeof window.loadTicketClosedPerMonthChart === 'function') {
+        window.loadTicketClosedPerMonthChart();
     }
 }
 
@@ -411,17 +462,8 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
     Chart.defaults.font.size = 12;
     Chart.defaults.color = TEXT_SECONDARY;
 
-    function alpha(hex, a) {
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-        return `rgba(${r}, ${g}, ${b}, ${a})`;
-    }
-
     const gridOpts = { color: GRID_COLOR, drawTicks: false };
     const tickOpts = { color: TEXT_MUTED };
-
-    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
 
     // Draws the value above each data point — replicates the Excel chart look
     // that "Chart 1" is based on.
@@ -706,213 +748,390 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
     window.loadTicketByModuleTypeChart = loadTicketByModuleTypeChart;
     loadTicketByModuleTypeChart();
 
-    // ── Stacked Bar ──────────────────────────────────────────────────────
-    new Chart(document.getElementById('chartBarStack'), {
+    // ── Chart 5: Ticket Type x Module (table, with Total Tickets column) ───
+    // Data comes from the API, following the Customer & Period filters above.
+    async function loadTicketTypeByModuleTable() {
+        const emptyState = document.getElementById('ticketTypeByModuleEmptyState');
+        const emptyText  = emptyState.querySelector('p');
+        const head       = document.getElementById('ticketTypeByModuleHead');
+        const body       = document.getElementById('ticketTypeByModuleBody');
+        const from = document.getElementById('filterDateFrom').value;
+        const to   = document.getElementById('filterDateTo').value;
+
+        function render(columns, rows) {
+            head.innerHTML = '<th class="text-left">Ticket Type</th>' +
+                columns.map(c => `<th>${c}</th>`).join('') +
+                '<th class="diagram-table-rowtotal">Total Tickets</th>';
+
+            body.innerHTML = rows.map(row => `
+                <tr>
+                    <td>${row.label}</td>
+                    ${row.values.map(v => `<td>${v}</td>`).join('')}
+                    <td class="diagram-table-rowtotal">${row.total}</td>
+                </tr>
+            `).join('');
+        }
+
+        if (!from || !to) {
+            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this table.';
+            emptyState.classList.remove('hidden');
+            render([], []);
+            return;
+        }
+
+        const customerId = document.getElementById('filterCustomer').value;
+        const params = new URLSearchParams({ date_from: from, date_to: to });
+        if (customerId) params.set('customer_id', customerId);
+
+        try {
+            const res  = await fetch(`/api/reporting/diagram-report/ticket-type-by-module-table?${params.toString()}`);
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+            emptyState.classList.add('hidden');
+            render(json.data.columns, json.data.rows);
+        } catch (err) {
+            emptyText.innerHTML = 'Failed to load data. Please try again.';
+            emptyState.classList.remove('hidden');
+        }
+    }
+    window.loadTicketTypeByModuleTable = loadTicketTypeByModuleTable;
+    loadTicketTypeByModuleTable();
+
+    // ── Chart 6: Ticket Count per Module ────────────────────────────────────
+    // Data comes from the API, following the Customer & Period filters above.
+    const ticketByModuleCurrentPeriodChart = new Chart(document.getElementById('chartTicketByModuleCurrentPeriod'), {
         type: 'bar',
         data: {
-            labels: MONTHS,
-            datasets: [
-                { label: 'Open', data: [12, 15, 10, 14, 11, 13], backgroundColor: PALETTE.red, borderRadius: 4, maxBarThickness: 24 },
-                { label: 'In Process', data: [10, 12, 9, 15, 10, 12], backgroundColor: PALETTE.yellow, borderRadius: 4, maxBarThickness: 24 },
-                { label: 'Close', data: [20, 28, 19, 32, 28, 33], backgroundColor: PALETTE.aqua, borderRadius: 4, maxBarThickness: 24 },
-            ],
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
-            scales: {
-                x: { stacked: true, grid: { display: false }, ticks: tickOpts },
-                y: { stacked: true, beginAtZero: true, grid: gridOpts, ticks: tickOpts, border: { display: false } },
-            },
-        },
-    });
-
-    // ── Line ─────────────────────────────────────────────────────────────
-    new Chart(document.getElementById('chartLine'), {
-        type: 'line',
-        data: {
-            labels: MONTHS,
-            datasets: [
-                { label: 'Resolution Days', data: [3.2, 2.8, 3.5, 2.6, 2.9, 2.4], borderColor: PALETTE.blue, backgroundColor: PALETTE.blue, borderWidth: 2, pointRadius: 4, pointBackgroundColor: PALETTE.blue, tension: 0.3 },
-                { label: 'SLA Target', data: [3, 3, 3, 3, 3, 3], borderColor: PALETTE.orange, backgroundColor: PALETTE.orange, borderWidth: 2, pointRadius: 4, pointBackgroundColor: PALETTE.orange, borderDash: [5, 4], tension: 0 },
-            ],
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
-            scales: {
-                x: { grid: { display: false }, ticks: tickOpts },
-                y: { beginAtZero: true, grid: gridOpts, ticks: tickOpts, border: { display: false } },
-            },
-        },
-    });
-
-    // ── Area ─────────────────────────────────────────────────────────────
-    new Chart(document.getElementById('chartArea'), {
-        type: 'line',
-        data: {
-            labels: MONTHS,
+            labels: [],
             datasets: [{
-                label: 'Total Mandays',
-                data: [18, 26, 22, 31, 27, 35],
-                borderColor: PALETTE.blue,
-                backgroundColor: alpha(PALETTE.blue, 0.1),
-                borderWidth: 2,
-                pointRadius: 4,
-                pointBackgroundColor: PALETTE.blue,
-                fill: true,
-                tension: 0.3,
+                label: 'Ticket Count',
+                data: [],
+                backgroundColor: PALETTE.blue,
+                borderRadius: 4,
+                maxBarThickness: 36,
             }],
         },
         options: {
             responsive: true, maintainAspectRatio: false,
+            layout: { padding: { top: 16 } },
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Trend Ticket vs Module', align: 'start', color: TEXT_SECONDARY, font: { size: 14, weight: '600' }, padding: { bottom: 12 } },
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: tickOpts },
+                y: { beginAtZero: true, ticks: { ...tickOpts, precision: 0 }, grid: gridOpts, border: { display: false } },
+            },
+        },
+        plugins: [pointValueLabelPlugin],
+    });
+
+    async function loadTicketByModuleCurrentPeriodChart() {
+        const emptyState = document.getElementById('ticketByModuleCurrentPeriodEmptyState');
+        const emptyText  = emptyState.querySelector('p');
+        const from = document.getElementById('filterDateFrom').value;
+        const to   = document.getElementById('filterDateTo').value;
+
+        if (!from || !to) {
+            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.';
+            emptyState.classList.remove('hidden');
+            ticketByModuleCurrentPeriodChart.data.labels = [];
+            ticketByModuleCurrentPeriodChart.data.datasets[0].data = [];
+            ticketByModuleCurrentPeriodChart.update();
+            return;
+        }
+
+        const customerId = document.getElementById('filterCustomer').value;
+        const params = new URLSearchParams({ date_from: from, date_to: to });
+        if (customerId) params.set('customer_id', customerId);
+
+        try {
+            const res  = await fetch(`/api/reporting/diagram-report/ticket-by-module-current-period?${params.toString()}`);
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+            emptyState.classList.add('hidden');
+            ticketByModuleCurrentPeriodChart.data.labels = json.data.labels;
+            ticketByModuleCurrentPeriodChart.data.datasets[0].data = json.data.values;
+            ticketByModuleCurrentPeriodChart.update();
+        } catch (err) {
+            emptyText.innerHTML = 'Failed to load data. Please try again.';
+            emptyState.classList.remove('hidden');
+        }
+    }
+    window.loadTicketByModuleCurrentPeriodChart = loadTicketByModuleCurrentPeriodChart;
+    loadTicketByModuleCurrentPeriodChart();
+
+    // ── Chart 7: Ticket Count by Type ───────────────────────────────────────
+    // Data comes from the API, following the Customer & Period filters above.
+    const ticketByTypeChart = new Chart(document.getElementById('chartTicketByType'), {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Ticket Count',
+                data: [],
+                backgroundColor: PALETTE.blue,
+                borderRadius: 4,
+                maxBarThickness: 60,
+            }],
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            layout: { padding: { top: 16 } },
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Trend Ticket vs Type', align: 'start', color: TEXT_SECONDARY, font: { size: 14, weight: '600' }, padding: { bottom: 12 } },
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: tickOpts },
+                y: { beginAtZero: true, ticks: { ...tickOpts, precision: 0 }, grid: gridOpts, border: { display: false } },
+            },
+        },
+        plugins: [pointValueLabelPlugin],
+    });
+
+    async function loadTicketByTypeChart() {
+        const emptyState = document.getElementById('ticketByTypeEmptyState');
+        const emptyText  = emptyState.querySelector('p');
+        const from = document.getElementById('filterDateFrom').value;
+        const to   = document.getElementById('filterDateTo').value;
+
+        if (!from || !to) {
+            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.';
+            emptyState.classList.remove('hidden');
+            ticketByTypeChart.data.labels = [];
+            ticketByTypeChart.data.datasets[0].data = [];
+            ticketByTypeChart.update();
+            return;
+        }
+
+        const customerId = document.getElementById('filterCustomer').value;
+        const params = new URLSearchParams({ date_from: from, date_to: to });
+        if (customerId) params.set('customer_id', customerId);
+
+        try {
+            const res  = await fetch(`/api/reporting/diagram-report/ticket-by-type?${params.toString()}`);
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+            emptyState.classList.add('hidden');
+            ticketByTypeChart.data.labels = json.data.labels;
+            ticketByTypeChart.data.datasets[0].data = json.data.values;
+            ticketByTypeChart.update();
+        } catch (err) {
+            emptyText.innerHTML = 'Failed to load data. Please try again.';
+            emptyState.classList.remove('hidden');
+        }
+    }
+    window.loadTicketByTypeChart = loadTicketByTypeChart;
+    loadTicketByTypeChart();
+
+    // ── Chart 8: CR vs Non-CR by Status ─────────────────────────────────────
+    // Data comes from the API, following the Customer & Period filters above.
+    const CR_STATUS_SERIES = ['Close', 'Open'];
+    const CR_STATUS_COLORS = [PALETTE.blue, PALETTE.orange];
+
+    const ticketByCrStatusChart = new Chart(document.getElementById('chartTicketByCrStatus'), {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: CR_STATUS_SERIES.map((label, i) => ({
+                label,
+                data: [],
+                backgroundColor: CR_STATUS_COLORS[i],
+                borderRadius: 4,
+                maxBarThickness: 60,
+            })),
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            layout: { padding: { top: 16 } },
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } },
+                title: { display: true, text: 'Trend Ticket vs Status', align: 'start', color: TEXT_SECONDARY, font: { size: 14, weight: '600' }, padding: { bottom: 12 } },
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: tickOpts },
+                y: { beginAtZero: true, ticks: { ...tickOpts, precision: 0 }, grid: gridOpts, border: { display: false } },
+            },
+        },
+        plugins: [pointValueLabelPlugin],
+    });
+
+    async function loadTicketByCrStatusChart() {
+        const emptyState = document.getElementById('ticketByCrStatusEmptyState');
+        const emptyText  = emptyState.querySelector('p');
+        const from = document.getElementById('filterDateFrom').value;
+        const to   = document.getElementById('filterDateTo').value;
+
+        if (!from || !to) {
+            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.';
+            emptyState.classList.remove('hidden');
+            ticketByCrStatusChart.data.labels = [];
+            ticketByCrStatusChart.data.datasets.forEach(ds => ds.data = []);
+            ticketByCrStatusChart.update();
+            return;
+        }
+
+        const customerId = document.getElementById('filterCustomer').value;
+        const params = new URLSearchParams({ date_from: from, date_to: to });
+        if (customerId) params.set('customer_id', customerId);
+
+        try {
+            const res  = await fetch(`/api/reporting/diagram-report/ticket-by-cr-status?${params.toString()}`);
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+            emptyState.classList.add('hidden');
+            ticketByCrStatusChart.data.labels = json.data.labels;
+            ticketByCrStatusChart.data.datasets.forEach(ds => { ds.data = json.data.series[ds.label] || []; });
+            ticketByCrStatusChart.update();
+        } catch (err) {
+            emptyText.innerHTML = 'Failed to load data. Please try again.';
+            emptyState.classList.remove('hidden');
+        }
+    }
+    window.loadTicketByCrStatusChart = loadTicketByCrStatusChart;
+    loadTicketByCrStatusChart();
+
+    // ── Chart 9: CR & Non CR from Start to Current Period ───────────────────
+    // Data comes from the API, following the Customer & Period filters above.
+    const CR_MONTH_SERIES = ['Non CR', 'Request / CR'];
+    const CR_MONTH_COLORS = [PALETTE.blue, PALETTE.orange];
+
+    const ticketByCrPerMonthChart = new Chart(document.getElementById('chartTicketByCrPerMonth'), {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: CR_MONTH_SERIES.map((label, i) => ({
+                label,
+                data: [],
+                backgroundColor: CR_MONTH_COLORS[i],
+                borderRadius: 4,
+                maxBarThickness: 20,
+            })),
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            layout: { padding: { top: 16 } },
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
+            scales: {
+                x: { grid: { display: false }, ticks: tickOpts },
+                y: { beginAtZero: true, ticks: { ...tickOpts, precision: 0 }, grid: gridOpts, border: { display: false } },
+            },
+        },
+        plugins: [pointValueLabelPlugin],
+    });
+
+    async function loadTicketByCrPerMonthChart() {
+        const emptyState = document.getElementById('ticketByCrPerMonthEmptyState');
+        const emptyText  = emptyState.querySelector('p');
+        const inner      = document.getElementById('ticketByCrPerMonthCanvasInner');
+        const from = document.getElementById('filterDateFrom').value;
+        const to   = document.getElementById('filterDateTo').value;
+
+        if (!from || !to) {
+            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.';
+            emptyState.classList.remove('hidden');
+            ticketByCrPerMonthChart.data.labels = [];
+            ticketByCrPerMonthChart.data.datasets.forEach(ds => ds.data = []);
+            ticketByCrPerMonthChart.update();
+            return;
+        }
+
+        const customerId = document.getElementById('filterCustomer').value;
+        const params = new URLSearchParams({ date_from: from, date_to: to });
+        if (customerId) params.set('customer_id', customerId);
+
+        try {
+            const res  = await fetch(`/api/reporting/diagram-report/ticket-by-cr-per-month?${params.toString()}`);
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+            emptyState.classList.add('hidden');
+            const wrapWidth = inner.parentElement.clientWidth;
+            inner.style.width = Math.max(json.data.labels.length * 90, wrapWidth) + 'px';
+
+            ticketByCrPerMonthChart.data.labels = json.data.labels;
+            ticketByCrPerMonthChart.data.datasets.forEach(ds => { ds.data = json.data.series[ds.label] || []; });
+            ticketByCrPerMonthChart.resize();
+            ticketByCrPerMonthChart.update();
+        } catch (err) {
+            emptyText.innerHTML = 'Failed to load data. Please try again.';
+            emptyState.classList.remove('hidden');
+        }
+    }
+    window.loadTicketByCrPerMonthChart = loadTicketByCrPerMonthChart;
+    loadTicketByCrPerMonthChart();
+
+    // ── Chart 10: Closed Tickets by Month ───────────────────────────────────
+    // Data comes from the API, following the Customer & Period filters above.
+    const ticketClosedPerMonthChart = new Chart(document.getElementById('chartTicketClosedPerMonth'), {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Closed Tickets',
+                data: [],
+                backgroundColor: PALETTE.blue,
+                borderRadius: 4,
+                maxBarThickness: 36,
+            }],
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            layout: { padding: { top: 16 } },
             plugins: { legend: { display: false } },
             scales: {
                 x: { grid: { display: false }, ticks: tickOpts },
-                y: { beginAtZero: true, grid: gridOpts, ticks: tickOpts, border: { display: false } },
+                y: { beginAtZero: true, ticks: { ...tickOpts, precision: 0 }, grid: gridOpts, border: { display: false } },
             },
         },
+        plugins: [pointValueLabelPlugin],
     });
 
-    // ── Combo (Bar + Line, single shared axis) ─────────────────────────────
-    new Chart(document.getElementById('chartCombo'), {
-        data: {
-            labels: MONTHS,
-            datasets: [
-                { type: 'bar', label: 'Tickets Completed', data: [20, 28, 19, 32, 28, 33], backgroundColor: PALETTE.blue, borderRadius: 4, maxBarThickness: 24, order: 2 },
-                { type: 'line', label: '6-Month Average', data: [27, 27, 27, 27, 27, 27], borderColor: PALETTE.orange, backgroundColor: PALETTE.orange, borderWidth: 2, pointRadius: 0, borderDash: [5, 4], tension: 0, order: 1 },
-            ],
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
-            scales: {
-                x: { grid: { display: false }, ticks: tickOpts },
-                y: { beginAtZero: true, grid: gridOpts, ticks: tickOpts, border: { display: false } },
-            },
-        },
-    });
+    async function loadTicketClosedPerMonthChart() {
+        const emptyState = document.getElementById('ticketClosedPerMonthEmptyState');
+        const emptyText  = emptyState.querySelector('p');
+        const inner      = document.getElementById('ticketClosedPerMonthCanvasInner');
+        const from = document.getElementById('filterDateFrom').value;
+        const to   = document.getElementById('filterDateTo').value;
 
-    // ── Pie ──────────────────────────────────────────────────────────────
-    new Chart(document.getElementById('chartPie'), {
-        type: 'pie',
-        data: {
-            labels: ['Open', 'In Process', 'Close', 'Wait Close', 'Other'],
-            datasets: [{
-                data: [18, 24, 41, 10, 7],
-                backgroundColor: [PALETTE.red, PALETTE.yellow, PALETTE.aqua, PALETTE.violet, PALETTE.magenta],
-                borderColor: '#fff',
-                borderWidth: 2,
-            }],
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
-        },
-    });
+        if (!from || !to) {
+            emptyText.innerHTML = '<i class="fas fa-calendar-alt mb-1 block text-lg text-gray-300"></i>Select <strong>Start Date</strong> &amp; <strong>End Date</strong> in the Period filter above to display this chart.';
+            emptyState.classList.remove('hidden');
+            ticketClosedPerMonthChart.data.labels = [];
+            ticketClosedPerMonthChart.data.datasets[0].data = [];
+            ticketClosedPerMonthChart.update();
+            return;
+        }
 
-    // ── Doughnut ─────────────────────────────────────────────────────────
-    new Chart(document.getElementById('chartDoughnut'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Customer A', 'Customer B', 'Customer C', 'Customer D'],
-            datasets: [{
-                data: [35, 27, 21, 17],
-                backgroundColor: [PALETTE.blue, PALETTE.orange, PALETTE.aqua, PALETTE.yellow],
-                borderColor: '#fff',
-                borderWidth: 2,
-            }],
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            cutout: '65%',
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
-        },
-    });
+        const customerId = document.getElementById('filterCustomer').value;
+        const params = new URLSearchParams({ date_from: from, date_to: to });
+        if (customerId) params.set('customer_id', customerId);
 
-    // ── Radar ────────────────────────────────────────────────────────────
-    new Chart(document.getElementById('chartRadar'), {
-        type: 'radar',
-        data: {
-            labels: ['Responsiveness', 'Quality', 'Timeliness', 'Communication', 'Resolution'],
-            datasets: [
-                { label: 'Team A', data: [80, 70, 85, 75, 90], borderColor: PALETTE.blue, backgroundColor: alpha(PALETTE.blue, 0.15), borderWidth: 2, pointRadius: 4, pointBackgroundColor: PALETTE.blue },
-                { label: 'Team B', data: [65, 85, 70, 80, 72], borderColor: PALETTE.orange, backgroundColor: alpha(PALETTE.orange, 0.15), borderWidth: 2, pointRadius: 4, pointBackgroundColor: PALETTE.orange },
-            ],
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
-            scales: {
-                r: { grid: { color: GRID_COLOR }, angleLines: { color: GRID_COLOR }, pointLabels: { color: TEXT_SECONDARY }, ticks: { display: false, backdropColor: 'transparent' } },
-            },
-        },
-    });
+        try {
+            const res  = await fetch(`/api/reporting/diagram-report/ticket-closed-per-month?${params.toString()}`);
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to load data');
 
-    // ── Polar Area ───────────────────────────────────────────────────────
-    new Chart(document.getElementById('chartPolar'), {
-        type: 'polarArea',
-        data: {
-            labels: ['Network', 'Application', 'Hardware', 'Access', 'Database'],
-            datasets: [{
-                data: [28, 24, 18, 16, 12],
-                backgroundColor: [alpha(PALETTE.blue, 0.7), alpha(PALETTE.orange, 0.7), alpha(PALETTE.aqua, 0.7), alpha(PALETTE.yellow, 0.7), alpha(PALETTE.magenta, 0.7)],
-                borderColor: '#fff',
-                borderWidth: 2,
-            }],
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
-            scales: { r: { grid: { color: GRID_COLOR }, ticks: { display: false, backdropColor: 'transparent' } } },
-        },
-    });
+            emptyState.classList.add('hidden');
+            const wrapWidth = inner.parentElement.clientWidth;
+            inner.style.width = Math.max(json.data.labels.length * 60, wrapWidth) + 'px';
 
-    // ── Scatter (capped at 3 series — all-pairs comparison) ────────────────
-    function randPoints(n, xMax, yMax) {
-        return Array.from({ length: n }, () => ({ x: +(Math.random() * xMax).toFixed(1), y: +(Math.random() * yMax).toFixed(1) }));
+            ticketClosedPerMonthChart.data.labels = json.data.labels;
+            ticketClosedPerMonthChart.data.datasets[0].data = json.data.values;
+            ticketClosedPerMonthChart.resize();
+            ticketClosedPerMonthChart.update();
+        } catch (err) {
+            emptyText.innerHTML = 'Failed to load data. Please try again.';
+            emptyState.classList.remove('hidden');
+        }
     }
-    new Chart(document.getElementById('chartScatter'), {
-        type: 'scatter',
-        data: {
-            datasets: [
-                { label: 'Team A', data: randPoints(14, 10, 10), backgroundColor: PALETTE.blue },
-                { label: 'Team B', data: randPoints(14, 10, 10), backgroundColor: PALETTE.orange },
-                { label: 'Team C', data: randPoints(14, 10, 10), backgroundColor: PALETTE.aqua },
-            ],
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
-            scales: {
-                x: { title: { display: true, text: 'Mandays', color: TEXT_MUTED }, grid: gridOpts, ticks: tickOpts, border: { display: false } },
-                y: { title: { display: true, text: 'Resolution Days', color: TEXT_MUTED }, grid: gridOpts, ticks: tickOpts, border: { display: false } },
-            },
-        },
-    });
-
-    // ── Bubble (capped at 3 series) ─────────────────────────────────────────
-    function randBubbles(n, xMax, yMax, rMax) {
-        return Array.from({ length: n }, () => ({ x: +(Math.random() * xMax).toFixed(1), y: +(Math.random() * yMax).toFixed(1), r: 4 + Math.random() * rMax }));
-    }
-    new Chart(document.getElementById('chartBubble'), {
-        type: 'bubble',
-        data: {
-            datasets: [
-                { label: 'Customer A', data: randBubbles(8, 10, 10, 10), backgroundColor: alpha(PALETTE.blue, 0.6) },
-                { label: 'Customer B', data: randBubbles(8, 10, 10, 10), backgroundColor: alpha(PALETTE.orange, 0.6) },
-                { label: 'Customer C', data: randBubbles(8, 10, 10, 10), backgroundColor: alpha(PALETTE.aqua, 0.6) },
-            ],
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' } } },
-            scales: {
-                x: { title: { display: true, text: 'Ticket Count', color: TEXT_MUTED }, grid: gridOpts, ticks: tickOpts, border: { display: false } },
-                y: { title: { display: true, text: 'Average Mandays', color: TEXT_MUTED }, grid: gridOpts, ticks: tickOpts, border: { display: false } },
-            },
-        },
-    });
+    window.loadTicketClosedPerMonthChart = loadTicketClosedPerMonthChart;
+    loadTicketClosedPerMonthChart();
 })();
 </script>
 @endpush

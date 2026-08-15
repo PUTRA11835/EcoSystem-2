@@ -531,6 +531,12 @@ Route::middleware(['web'])->group(function () {
         Route::get('/diagram-report/ticket-by-module',     [\App\Http\Controllers\ReportingController::class, 'diagramTicketByModule']);
         Route::get('/diagram-report/ticket-type-by-month', [\App\Http\Controllers\ReportingController::class, 'diagramTicketTypeByMonth']);
         Route::get('/diagram-report/ticket-by-module-type', [\App\Http\Controllers\ReportingController::class, 'diagramTicketByModuleType']);
+        Route::get('/diagram-report/ticket-type-by-module-table', [\App\Http\Controllers\ReportingController::class, 'diagramTicketTypeByModuleTable']);
+        Route::get('/diagram-report/ticket-by-module-current-period', [\App\Http\Controllers\ReportingController::class, 'diagramTicketByModuleCurrentPeriod']);
+        Route::get('/diagram-report/ticket-by-type', [\App\Http\Controllers\ReportingController::class, 'diagramTicketByType']);
+        Route::get('/diagram-report/ticket-by-cr-status', [\App\Http\Controllers\ReportingController::class, 'diagramTicketByCrStatus']);
+        Route::get('/diagram-report/ticket-by-cr-per-month', [\App\Http\Controllers\ReportingController::class, 'diagramTicketByCrPerMonth']);
+        Route::get('/diagram-report/ticket-closed-per-month', [\App\Http\Controllers\ReportingController::class, 'diagramTicketClosedPerMonth']);
         Route::get('/log-shifting', [\App\Http\Controllers\ReportingController::class, 'logShifting']);
         Route::get('/log-shifting/{ticketId}', [\App\Http\Controllers\ReportingController::class, 'logShiftingDetail']);
         Route::get('/resolution-days', [\App\Http\Controllers\ReportingController::class, 'resolutionDays']);
