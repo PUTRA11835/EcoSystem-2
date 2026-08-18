@@ -52,6 +52,15 @@ return [
             'lock_path' => storage_path('framework/cache/data'),
         ],
 
+        // Ephemeral storage for the AI Assistant's in-flight conversation state.
+        // Isolated from the shared 'file' store so it can be inspected/cleared
+        // independently. No conversation content is ever persisted to the database.
+        'ai_chat' => [
+            'driver' => 'file',
+            'path' => storage_path('framework/cache/ai-chat'),
+            'lock_path' => storage_path('framework/cache/ai-chat'),
+        ],
+
         'memcached' => [
             'driver' => 'memcached',
             'persistent_id' => env('MEMCACHED_PERSISTENT_ID'),

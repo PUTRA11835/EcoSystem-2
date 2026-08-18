@@ -616,6 +616,7 @@
         const totalAllocMdMain     = m.total_days;
         const totalAddMdMain       = m.add_md;
         const totalRemainMain      = m.remain_md;
+        const totalEffectiveMdMain = totalAllocMdMain + totalAddMdMain;
         const ticketCount          = m.ticket_count;
         const wPct                 = m.workload_pct;
         const wDays                = m.workload_days;
@@ -653,8 +654,11 @@
                     <div class="${barColor(wPct)} h-2 rounded-full transition-all" style="width:${Math.min(wPct,100)}%"></div>
                 </div>
                 <div class="shrink-0">
-                    <span class="text-xs font-bold ${workloadTextColor(wPct)}">${wPct}%</span>
-                    <span class="text-xs text-gray-400 ml-1">${wDays} d</span>
+                    <div>
+                        <span class="text-xs font-bold ${workloadTextColor(wPct)}">${wPct}%</span>
+                        <span class="text-xs text-gray-400 ml-1">${wDays} d</span>
+                    </div>
+                    <div class="text-[10px] text-gray-400">${wDays.toFixed(2)} / ${totalEffectiveMdMain.toFixed(2)} md</div>
                 </div>
             </div>
         </td>
@@ -749,9 +753,16 @@
         // Hanya ambil mandays milik consultant ini (bukan total semua consultant)
         const myDetail    = (t.consultant_details ?? []).find(d => d.employee_id == empId);
         const myApproved  = myDetail ? !!myDetail.is_approved : false;
-        const myAllocMd   = myApproved ? parseFloat(myDetail.mandays) || 0 : 0;
-        const myAddMd     = myApproved ? parseFloat(myDetail.approved_additional) || 0 : 0;
-        const myRemainMd  = myApproved ? parseFloat(myDetail.remain_md) || 0 : 0;
+        // Alloc Days memakai mandays yang diajukan (draft) selama belum approved —
+        // backend sudah mengembalikan cmd.mandays untuk kasus ini, jadi ikut masuk ke
+        // total & remain di baris konsultan, bukan cuma placeholder.
+        const myAllocMd   = myDetail ? parseFloat(myDetail.mandays) || 0 : 0;
+        // Sama seperti Alloc Days: sebelum approve, backend sudah mengisi field ini dengan
+        // additional_mandays yang diajukan (bukan cuma approved_additional) — beberapa proposal
+        // murni top-up (mandays=0, additional_mandays>0), jadi kalau digate approval dulu
+        // kolom Add. Days akan tampak kosong padahal ada draft yang menunggu approval.
+        const myAddMd     = myDetail ? parseFloat(myDetail.approved_additional) || 0 : 0;
+        const myRemainMd  = myDetail ? parseFloat(myDetail.remain_md) || 0 : 0;
         const myPct       = myDetail ? parseFloat(myDetail.progress_percentage) || 0 : 0;
 
         const ticketPct = parseFloat(t.progress_percentage) || 0;
@@ -798,17 +809,19 @@
             <span class="px-1.5 py-0.5 rounded text-xs font-medium ${prCls}">${t.ticket_priority ?? '—'}</span>
         </td>
         <td class="px-3 py-2.5 text-xs font-semibold text-gray-700">${dayOnClose !== null ? dayOnClose : '<span class="text-gray-300 font-normal">—</span>'}</td>
-        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${myApproved
-            ? myAllocMd.toFixed(2) + ' days'
-            : (myDetail && myDetail.mandays != null
-                ? `<span class="inline-flex items-center gap-1 text-amber-600 italic font-normal" title="Proposed ${parseFloat(myDetail.mandays).toFixed(2)} days, awaiting approval">
+        <td class="px-3 py-2.5 text-right text-xs font-semibold text-gray-700">${!myDetail
+            ? '<span class="text-gray-400 italic font-normal">Not determined</span>'
+            : (myApproved
+                ? myAllocMd.toFixed(2) + ' days'
+                : `<span class="inline-flex items-center gap-1 text-amber-600 italic font-normal" title="Proposed, awaiting approval">
                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m0 3h.008v.008H12v-.008zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                       Pending approval
-                   </span>`
-                : '<span class="text-gray-400 italic font-normal">Not determined</span>')}</td>
+                       ${myAllocMd.toFixed(2)} days
+                   </span>`)}</td>
         <td class="px-3 py-2.5 text-right text-xs text-gray-500">
             ${myAddMd > 0
-                ? `<span class="text-indigo-600 font-semibold">${myAddMd.toFixed(2)} days</span>`
+                ? (myApproved
+                    ? `<span class="text-indigo-600 font-semibold">${myAddMd.toFixed(2)} days</span>`
+                    : `<span class="text-amber-600 italic font-normal" title="Proposed additional, awaiting approval">${myAddMd.toFixed(2)} days</span>`)
                 : '<span class="text-gray-300">—</span>'}
         </td>
         <td class="px-3 py-2.5 text-right">${remainCell}</td>

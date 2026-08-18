@@ -153,9 +153,26 @@ class EmployeeController extends Controller
                 'eci' => $employee->eci ?? null
             ]);
 
+            // Section mana yang boleh dilihat / diubah oleh pembuka halaman.
+            // Slug employee.section.* ini dulu hanya berupa baris menu tanpa
+            // pemakai — akibatnya halaman detail selalu bisa diedit penuh
+            // walaupun checkbox-nya dimatikan di Control Center.
+            // Padanan untuk halaman /profile ada di ProfileController.
+            $viewer   = Employee::find($user['id'] ?? null);
+            $hidden   = [];
+            $readonly = [];
+            foreach (array_keys(SettingsController::PROFILE_SECTIONS) as $key) {
+                $canView   = (bool) $viewer?->canAccessMenu("employee.section.{$key}.view");
+                $canUpdate = (bool) $viewer?->canAccessMenu("employee.section.{$key}.update");
+                $hidden[$key]   = !$canView;
+                $readonly[$key] = $canView && !$canUpdate;
+            }
+
             return view('master.employee.show', [
-                'employee' => $employee,
-                'user' => $user
+                'employee'               => $employee,
+                'user'                   => $user,
+                'profileSectionHidden'   => $hidden,
+                'profileSectionReadonly' => $readonly,
             ]);
 
         } catch (\Exception $e) {
@@ -458,6 +475,16 @@ class EmployeeController extends Controller
             if (!empty($homeBases)) {
                 $query->whereIn('eb.home_base', $homeBases);
                 Log::info('Filter applied: home_base', ['home_base' => $homeBases]);
+            }
+        }
+
+        // Filter by position (multi-select, comma-separated) — sama semantik dengan
+        // home_base: cocok kalau position employee ada di salah satu nilai terpilih.
+        if ($request->filled('position')) {
+            $positions = array_values(array_filter(array_map('trim', explode(',', $request->position)), fn ($p) => $p !== ''));
+            if (!empty($positions)) {
+                $query->whereIn('eb.position', $positions);
+                Log::info('Filter applied: position', ['position' => $positions]);
             }
         }
 

@@ -97,6 +97,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('menu:dashboard');
 
+    // ==================== AI ASSISTANT ====================
+    Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
+    Route::post('/ai-assistant/chat', [\App\Http\Controllers\AiAssistantController::class, 'chat'])->name('ai-assistant.chat')->middleware('menu:ai-assistant');
+
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
         Route::get('/', [CalendarController::class, 'index'])->name('index');
@@ -119,21 +123,24 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/log-shifting',               [\App\Http\Controllers\ReportingController::class, 'logShiftingIndex'])->name('reporting.log-shifting')->middleware('menu:reporting.log-shifting');
     Route::get('/reporting/ticket-by-module/export',    [\App\Http\Controllers\ReportingController::class, 'exportTicketByModule'])->name('reporting.ticket-by-module.export')->middleware('menu:reporting.ticket-by-module');
     Route::get('/reporting/resolution-days',             [\App\Http\Controllers\ReportingController::class, 'resolutionDaysIndex'])->name('reporting.resolution-days')->middleware('menu:reporting.resolution-days');
+    Route::get('/reporting/consultant-assignment',        [\App\Http\Controllers\ReportingController::class, 'consultantAssignmentIndex'])->name('reporting.consultant-assignment')->middleware('menu:reporting.consultant-assignment');
+    Route::get('/reporting/consultant-assignment/export', [\App\Http\Controllers\ReportingController::class, 'exportConsultantAssignment'])->name('reporting.consultant-assignment.export')->middleware('menu:reporting.consultant-assignment');
+    Route::get('/reporting/diagram-report',              [\App\Http\Controllers\ReportingController::class, 'diagramReportIndex'])->name('reporting.diagram-report')->middleware('menu:reporting.diagram-report');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
         // Employee routes
         Route::prefix('employee')->name('employee.')->group(function () {
             Route::get('/', [EmployeeController::class, 'index'])->name('index')->middleware('menu:master.employee');
-            Route::get('/export', [EmployeeController::class, 'exportToExcel'])->name('export');
-            Route::get('/{id}', [EmployeeController::class, 'show'])->name('detail');
+            Route::get('/export', [EmployeeController::class, 'exportToExcel'])->name('export')->middleware('menu:master.employee');
+            Route::get('/{id}', [EmployeeController::class, 'show'])->name('detail')->middleware('menu:master.employee');
         });
         
         // Customer routes
         Route::prefix('customer')->name('customer.')->group(function () {
             Route::get('/', [CustomerController::class, 'index'])->name('index')->middleware('menu:master.customer');
-            Route::get('/grouping', [CustomerController::class, 'grouping'])->name('grouping');
-            Route::get('/{id}', [CustomerController::class, 'show'])->name('detail');
+            Route::get('/grouping', [CustomerController::class, 'grouping'])->name('grouping')->middleware('menu:master.customer');
+            Route::get('/{id}', [CustomerController::class, 'show'])->name('detail')->middleware('menu:master.customer');
         });
     });
 
@@ -348,7 +355,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // Team member management routes
     Route::get('/projects/{project}/team-members', [DeliveryProjectController::class, 'getTeamMembers'])->name('projects.team.index')->middleware('menu:delivery-project.team.view');
     Route::middleware(['menu:delivery-project.team.edit', 'project.editable'])->group(function () {
-        Route::put('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'updateTeamMember'])->name('projects.team.update');
+        // Baris pivot diidentifikasi lewat ID-nya (bukan employee_id) karena
+        // anggota vendor tidak punya entri di master employee.
+        Route::put('/projects/{project}/team-rows/{row}', [DeliveryProjectController::class, 'updateTeamRow'])->name('projects.team.update');
     });
     Route::middleware(['menu:delivery-project.team.manage', 'project.editable'])->group(function () {
         Route::post('/projects/{project}/team-members', [DeliveryProjectController::class, 'storeTeamMember'])->name('projects.team.store');

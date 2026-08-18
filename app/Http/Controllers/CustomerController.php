@@ -12,6 +12,22 @@ use Illuminate\Validation\Rule;
 class CustomerController extends Controller
 {
     /**
+     * Section pada halaman detail Business Partner.
+     * key => label tab. Key-nya sama dengan slug izin
+     * customer.section.{key}.view / .update.
+     */
+    const SECTIONS = [
+        'basic_data'     => 'Basic Data',
+        'address'        => 'Address',
+        'contact'        => 'Contact',
+        'identification' => 'Identification',
+        'bank'           => 'Bank Account',
+        'credential'     => 'Credential',
+        'history'        => 'History',
+        'attachment'     => 'Attachment',
+    ];
+
+    /**
      * Get current user's identifier
      */
     private function getCurrentUserIdentifier()
@@ -117,8 +133,23 @@ class CustomerController extends Controller
                 ->sortBy('name')
                 ->values();
 
+            // Section mana yang boleh dilihat / diubah oleh pembuka halaman.
+            // Padanan sisi employee ada di EmployeeController::show().
+            $viewer          = \App\Models\Employee::find($user['id'] ?? null);
+            $sectionHidden   = [];
+            $sectionReadonly = [];
+            foreach (array_keys(self::SECTIONS) as $key) {
+                $canView   = (bool) $viewer?->canAccessMenu("customer.section.{$key}.view");
+                $canUpdate = (bool) $viewer?->canAccessMenu("customer.section.{$key}.update");
+                $sectionHidden[$key]   = !$canView;
+                $sectionReadonly[$key] = $canView && !$canUpdate;
+            }
+
             // Pass customer, user and employees to view
-            return view('master.customer.show', compact('customer', 'user', 'employees', 'customerGroups', 'parentOptions'));
+            return view('master.customer.show', compact(
+                'customer', 'user', 'employees', 'customerGroups', 'parentOptions',
+                'sectionHidden', 'sectionReadonly'
+            ));
             
         } catch (\Exception $e) {
             Log::error('=== WEB: ERROR SHOWING CUSTOMER DETAIL ===', [
