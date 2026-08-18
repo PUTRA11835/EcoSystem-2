@@ -170,6 +170,9 @@
                             <span class="flex items-center gap-1">Module <span id="sort-icon-module" class="text-gray-300 text-xs">⇅</span></span>
                         </th>
                         <th class="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider" style="min-width:95px">Man Days</th>
+                        <th class="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider" style="min-width:150px">
+                            <span class="flex items-center gap-1">Workload <span class="normal-case font-normal text-gray-400 text-[10px]">(remain/alloc)</span></span>
+                        </th>
                         <th class="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider" style="min-width:95px">End Date</th>
                         <th class="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider" style="min-width:160px">Progress</th>
                         <th class="pr-3 py-3.5 w-10"></th>
@@ -177,7 +180,7 @@
                 </thead>
                 <tbody id="taskBody">
                     <tr>
-                        <td colspan="8" class="text-center py-16 text-gray-400">
+                        <td colspan="9" class="text-center py-16 text-gray-400">
                             <div class="flex flex-col items-center gap-3">
                                 <svg class="animate-spin w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -281,13 +284,27 @@
         return 'bg-red-400';
     }
 
+    // Workload % = remain / allocated — arahnya kebalikan dari progressBarColor
+    // (di sini makin tinggi makin berat, jadi merah di angka besar).
+    function workloadBarColor(pct) {
+        if (pct >= 70) return 'bg-red-500';
+        if (pct >= 40) return 'bg-yellow-400';
+        return 'bg-emerald-500';
+    }
+
+    function workloadTextColor(pct) {
+        if (pct >= 70) return 'text-red-600';
+        if (pct >= 40) return 'text-yellow-600';
+        return 'text-emerald-600';
+    }
+
     // ── Load ───────────────────────────────────────────────────────────
     async function loadTasks() {
         const month = document.getElementById('filterMonth').value;
         const year = document.getElementById('filterYear').value;
 
         document.getElementById('taskBody').innerHTML = `
-        <tr><td colspan="8" class="text-center py-16 text-gray-400">
+        <tr><td colspan="9" class="text-center py-16 text-gray-400">
             <div class="flex flex-col items-center gap-3">
                 <svg class="animate-spin w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -306,12 +323,12 @@
             } catch {
                 console.error('Non-JSON:', text.substring(0, 500));
                 document.getElementById('taskBody').innerHTML =
-                    `<tr><td colspan="9" class="text-center py-10 text-red-500 text-sm">Server error. Check console.</td></tr>`;
+                    `<tr><td colspan="10" class="text-center py-10 text-red-500 text-sm">Server error. Check console.</td></tr>`;
                 return;
             }
             if (!json.success) {
                 document.getElementById('taskBody').innerHTML =
-                    `<tr><td colspan="9" class="text-center py-10 text-red-500 text-sm">${json.message}</td></tr>`;
+                    `<tr><td colspan="10" class="text-center py-10 text-red-500 text-sm">${json.message}</td></tr>`;
                 return;
             }
             myEmpId = json.emp_id ?? null;
@@ -321,7 +338,7 @@
             filterTable();
         } catch (e) {
             document.getElementById('taskBody').innerHTML =
-                `<tr><td colspan="9" class="text-center py-10 text-red-500 text-sm">Failed: ${e.message}</td></tr>`;
+                `<tr><td colspan="10" class="text-center py-10 text-red-500 text-sm">Failed: ${e.message}</td></tr>`;
         }
     }
 
@@ -392,7 +409,7 @@
     function renderTable(tasks) {
         if (!tasks.length) {
             document.getElementById('taskBody').innerHTML =
-                `<tr><td colspan="8" class="text-center py-12 text-gray-400">
+                `<tr><td colspan="9" class="text-center py-12 text-gray-400">
                 <i class="fas fa-check-circle text-3xl mb-3 block text-gray-300"></i>
                 No active tickets assigned as Lead
             </td></tr>`;
@@ -428,14 +445,23 @@
         const details = t.consultant_details ?? [];
         const myDetail = details.find(d => d.employee_id == myEmpId);
         const myMd = myDetail ? Math.round((parseFloat(myDetail.mandays) + parseFloat(myDetail.approved_additional || 0)) * 100) / 100 : null;
-        // Sebelum ada resolution mandays yang approved, mandays yang tersimpan cuma
-        // placeholder (1 md per orang) — tetap tampilkan "Belum ditentukan".
-        const displayMd = t.has_real_man_days ? (myMd || (t.man_days ? parseFloat(t.man_days) : null)) : null;
+        // Backend sudah mengembalikan MD yang diajukan (bukan placeholder) selama belum
+        // approved, jadi tampilkan langsung — fallback ke ticket.man_days cuma untuk tiket
+        // lama yang belum punya breakdown consultant_details sama sekali.
+        const displayMd = myMd !== null ? myMd : (t.has_real_man_days && t.man_days ? parseFloat(t.man_days) : null);
         const hasDetails = details.length > 0;
+
+        // Workload % = remain_md / effective_md milik user ini di tiket ini — dihitung sama
+        // seperti Consultant Workload (sudah termasuk MD yang masih pending approval).
+        const myEffectiveMd = myDetail ? parseFloat(myDetail.effective_md) || 0 : 0;
+        const myRemainMd    = myDetail ? parseFloat(myDetail.remain_md) || 0 : 0;
+        const myWorkloadPct = myDetail && myEffectiveMd > 0
+            ? Math.round(myRemainMd / myEffectiveMd * 1000) / 10
+            : null;
 
         const detailSubTable = hasDetails ? `
     <tr id="det-${t.ticket_id}" class="hidden bg-indigo-50/30">
-        <td colspan="9" class="px-0 py-0">
+        <td colspan="10" class="px-0 py-0">
             <div class="ml-10 mr-5 my-3 rounded-xl border border-indigo-100 overflow-hidden shadow-sm">
                 <table class="w-full text-xs">
                     <thead>
@@ -457,10 +483,12 @@
                                 <p class="text-gray-400 font-mono text-[11px]">${d.eci}</p>
                             </td>
                             <td class="px-4 py-2 text-gray-500">${d.module !== '—' ? d.module : '<span class="text-gray-300">—</span>'}</td>
-                            <td class="px-4 py-2 text-right font-semibold text-gray-700">${d.is_approved ? d.mandays + ' md' : '<span class="text-gray-400 italic font-normal">Belum ditentukan</span>'}</td>
-                            <td class="px-4 py-2 text-right font-semibold ${d.approved_additional > 0 ? 'text-indigo-600' : 'text-gray-300'}">${d.approved_additional > 0 ? d.approved_additional + ' md' : '—'}</td>
+                            <td class="px-4 py-2 text-right font-semibold text-gray-700">${d.is_approved
+                                ? d.mandays + ' md'
+                                : `<span class="text-amber-600 italic font-normal" title="Proposed, awaiting approval">${d.mandays} md</span>`}</td>
+                            <td class="px-4 py-2 text-right font-semibold ${d.approved_additional > 0 ? (d.is_approved ? 'text-indigo-600' : 'text-amber-600 italic') : 'text-gray-300'}"${d.approved_additional > 0 && !d.is_approved ? ` title="Proposed additional, awaiting approval"` : ''}>${d.approved_additional > 0 ? d.approved_additional + ' md' : '—'}</td>
                             <td class="px-4 py-2 text-right">
-                                ${d.is_approved && d.remain_md !== null && d.remain_md !== undefined
+                                ${d.remain_md !== null && d.remain_md !== undefined
                                     ? `<span class="font-bold ${d.remain_md > 0 ? 'text-orange-600' : 'text-emerald-600'}">${d.remain_md} d</span>`
                                     : '<span class="text-gray-300">—</span>'}
                             </td>
@@ -486,15 +514,9 @@
                         <tr class="border-t-2 border-indigo-200 bg-indigo-50/80 font-bold">
                             <td class="px-4 py-2 text-indigo-700">Total · ${details.length} consultant${details.length > 1 ? 's' : ''}</td>
                             <td class="px-4 py-2"></td>
-                            ${details.some(d => d.is_approved) ? `
-                            <td class="px-4 py-2 text-right text-gray-700">${details.reduce((s,d)=>s+(d.is_approved ? parseFloat(d.mandays)||0 : 0),0).toFixed(2)} md</td>
-                            <td class="px-4 py-2 text-right text-indigo-600">${details.reduce((s,d)=>s+(d.is_approved ? parseFloat(d.approved_additional)||0 : 0),0).toFixed(2)} md</td>
-                            <td class="px-4 py-2 text-right text-orange-600">${details.reduce((s,d)=>s+(d.is_approved ? parseFloat(d.remain_md)||0 : 0),0).toFixed(2)} d</td>
-                            ` : `
-                            <td class="px-4 py-2 text-right text-gray-400 italic font-normal">Belum ditentukan</td>
-                            <td class="px-4 py-2"></td>
-                            <td class="px-4 py-2"></td>
-                            `}
+                            <td class="px-4 py-2 text-right text-gray-700">${details.reduce((s,d)=>s+(parseFloat(d.mandays)||0),0).toFixed(2)} md</td>
+                            <td class="px-4 py-2 text-right text-indigo-600">${details.reduce((s,d)=>s+(parseFloat(d.approved_additional)||0),0).toFixed(2)} md</td>
+                            <td class="px-4 py-2 text-right text-orange-600">${details.reduce((s,d)=>s+(parseFloat(d.remain_md)||0),0).toFixed(2)} d</td>
                             <td class="px-4 py-2"></td>
                             <td class="px-4 py-2"></td>
                         </tr>
@@ -529,7 +551,23 @@
             </span>
         </td>
         <td class="px-4 py-3">${moduleHtml}</td>
-        <td class="px-4 py-3 text-right font-semibold text-gray-700">${displayMd ? displayMd + ' md' : '<span class="text-gray-400 italic font-normal">Belum ditentukan</span>'}</td>
+        <td class="px-4 py-3 text-right font-semibold text-gray-700">${displayMd !== null
+            ? (myDetail && !myDetail.is_approved
+                ? `<span class="text-amber-600 italic font-normal" title="Proposed, awaiting approval">${displayMd} md</span>`
+                : displayMd + ' md')
+            : '<span class="text-gray-400 italic font-normal">Belum ditentukan</span>'}</td>
+        <td class="px-5 py-3.5">
+            ${myWorkloadPct !== null ? `
+            <div class="flex flex-col gap-1">
+                <div class="flex items-center gap-2">
+                    <div class="bg-gray-100 rounded-full h-2" style="width:80px">
+                        <div class="${workloadBarColor(myWorkloadPct)} h-2 rounded-full transition-all" style="width:${Math.min(myWorkloadPct,100)}%"></div>
+                    </div>
+                    <span class="text-xs font-bold ${workloadTextColor(myWorkloadPct)} w-10 text-right shrink-0">${myWorkloadPct}%</span>
+                </div>
+                <div class="text-[10px] text-gray-400">${myRemainMd.toFixed(2)} / ${myEffectiveMd.toFixed(2)} md</div>
+            </div>` : '<span class="text-gray-300 text-xs">—</span>'}
+        </td>
         <td class="px-4 py-3 text-right text-xs text-gray-500">${endDate}</td>
         <td class="px-4 py-3" onclick="event.stopPropagation()">
             <div class="flex items-center gap-2">

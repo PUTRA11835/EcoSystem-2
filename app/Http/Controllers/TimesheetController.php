@@ -909,18 +909,24 @@ class TimesheetController extends Controller
                 $empId    = $timesheet->employee_id;
                 $ticketId = $timesheet->ticket_id;
 
-                // Latest Customer Mandays version for this ticket must be approved before
-                // any timesheet can be submitted — an older approved version doesn't count
-                // if a newer draft/revision superseded it.
-                $latestCustomerMandays = CustomerMandays::where('ticket_id', $ticketId)
-                    ->orderBy('version', 'desc')
-                    ->first();
+                // Customer Mandays approval is only required for Change Request tickets
+                // (same ticket_type check used by MandaysController's CR gates on Resolution
+                // Days). Other ticket types never require a Customer Mandays proposal, so
+                // gating their timesheets on it would block submission forever.
+                if ($timesheet->ticket?->ticket_type === 'Change Request') {
+                    // Latest Customer Mandays version for this ticket must be approved before
+                    // any timesheet can be submitted — an older approved version doesn't count
+                    // if a newer draft/revision superseded it.
+                    $latestCustomerMandays = CustomerMandays::where('ticket_id', $ticketId)
+                        ->orderBy('version', 'desc')
+                        ->first();
 
-                if (!$latestCustomerMandays || $latestCustomerMandays->status !== 'approved') {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Customer Mandays status is not approved yet, cannot submit timesheet.',
-                    ], 422);
+                    if (!$latestCustomerMandays || $latestCustomerMandays->status !== 'approved') {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Customer Mandays status is not approved yet, cannot submit timesheet.',
+                        ], 422);
+                    }
                 }
 
                 $latestApproved = ConsultantMandays::where('ticket_id', $ticketId)

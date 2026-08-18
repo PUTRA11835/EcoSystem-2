@@ -130,6 +130,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'reporting.log-shifting',       'name' => 'Log Shifting',            'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.log-shifting',       'icon' => null,                   'order_seq' => 6],
             ['slug' => 'reporting.resolution-days',    'name' => 'Resolution Days',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.resolution-days',    'icon' => null,                   'order_seq' => 7],
             ['slug' => 'reporting.consultant-assignment', 'name' => 'Consultant Assignment', 'type' => 'page',   'parent_slug' => 'reporting',   'route_name' => 'reporting.consultant-assignment', 'icon' => null,                'order_seq' => 8],
+            ['slug' => 'reporting.diagram-report',     'name' => 'Diagram Report',          'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.diagram-report',     'icon' => null,                   'order_seq' => 8],
 
             // ── Master ────────────────────────────────────────────────────────────
             ['slug' => 'master',                       'name' => 'Master',                  'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-database',          'order_seq' => 4],
@@ -322,9 +323,6 @@ class MenuSeeder extends Seeder
             'reporting.ticket-by-module'   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'reporting.log-shifting'       => [self::ADMIN=>$vced, self::HOS=>$vce, self::HELPDESK=>$vce, self::RPMO=>$vce],
             'reporting.resolution-days'    => [self::ADMIN=>$vced, self::HOS=>$vce],
-            // Menu baru → hanya EC Administrator. Role lain menyusul dari
-            // Control Center → Menu Access kalau pemilik sistem memutuskan begitu.
-            'reporting.consultant-assignment' => [self::ADMIN=>$v],
             // Master
             'master'                      => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$v],
             'master.employee'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$ve,  self::HOP=>$v,      self::HOS=>$v],

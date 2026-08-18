@@ -270,6 +270,7 @@ class ConsultantWorkloadController extends Controller
                 'eq.qualification_modules',
                 'cmd.mandays',
                 'cmd.approved_mandays',
+                'cmd.additional_mandays',
                 'cmd.approved_additional',
                 'cmd.progress_percentage as consultant_progress',
                 'cmd.progress_note as consultant_progress_note',
@@ -283,10 +284,14 @@ class ConsultantWorkloadController extends Controller
             $tid        = (int) $row->ticket_id;
             $isApproved = $row->proposal_status === 'approved';
 
-            // Sebelum Head approve, MD yang ditampilkan tetap placeholder (1 MD, tanpa
-            // additional) — biar tidak ikut berubah begitu PIC edit draft proposal-nya.
-            $mandays     = $isApproved ? (float) ($row->approved_mandays ?? 0) : 1.0;
-            $additional  = $isApproved ? (float) $row->approved_additional : 0.0;
+            // Sebelum Head approve, tampilkan MD yang diajukan PIC (cmd.mandays) —
+            // sengaja ikut berubah live seiring draft proposal di-edit, supaya Alloc Days
+            // dan turunannya (remain, workload %, load score) mencerminkan proposal terkini.
+            $mandays     = $isApproved ? (float) ($row->approved_mandays ?? 0) : (float) ($row->mandays ?? 0);
+            // Sama untuk additional: sebelum approve pakai angka yang diajukan (additional_mandays),
+            // bukan 0 — beberapa proposal murni pengajuan top-up (mandays=0, additional_mandays>0),
+            // jadi kalau di-nol-kan Alloc Days tampak 0.00 padahal ada draft yang menunggu approval.
+            $additional  = $isApproved ? (float) $row->approved_additional : (float) ($row->additional_mandays ?? 0);
             $effectiveMd = $mandays + $additional;
             $consultantPct = (float) ($row->consultant_progress ?? 0);
             $remainShare = round($effectiveMd * (1 - $consultantPct / 100), 2);
