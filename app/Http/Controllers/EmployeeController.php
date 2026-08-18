@@ -212,6 +212,7 @@ class EmployeeController extends Controller
                     'eb.gender',
                     'eb.birth_date',
                     'eb.position',
+                    'eb.employee_group',
                     'eb.employee_subgroup',
                     'eb.division',
                     'eb.department',

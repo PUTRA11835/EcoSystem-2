@@ -119,7 +119,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         </div>
 
         <div id="employeeTableWrapper" class="overflow-x-auto border border-gray-200 rounded-lg">
-            <table class="w-full" style="min-width:1350px;">
+            <table class="w-full" style="min-width:1600px;">
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:100px;">ECI</th>
@@ -127,7 +127,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Position</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Module</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Division</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Department</th>
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:130px;">Employee Group</th>
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:220px;">Department</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Home Base</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Since Date</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Status</th>
@@ -861,7 +862,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         if (data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="10" class="px-4 py-16 text-center">
+                    <td colspan="11" class="px-4 py-16 text-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                         </svg>
@@ -901,7 +902,10 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.position || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${(emp.modules && emp.modules.length) ? emp.modules.join(', ') : '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.division || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.employee_subgroup || '-'}</td>
+                <td class="px-4 py-3.5 text-sm">${renderEmployeeGroup(emp.employee_group)}</td>
+                {{-- Kolom Department membaca eb.department. Sebelumnya keliru
+                     merender employee_subgroup sehingga selalu tampil "-". --}}
+                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.department || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.home_base || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.since_date || '-'}</td>
                 <td class="px-4 py-3.5 text-sm">
@@ -921,6 +925,24 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             </tr>
         `;
         }).join('');
+    }
+
+    /**
+     * Employee Group (INTERNAL / EXTERNAL / INTERNSHIP) — penanda jenis employee
+     * yang menggantikan pemakaian Home Base "Others" sebagai indikator lama.
+     */
+    function renderEmployeeGroup(group) {
+        const value = (group || '').trim();
+        if (!value) return '<span class="text-gray-600">-</span>';
+
+        const palette = {
+            'INTERNAL'  : 'bg-blue-100 text-blue-700',
+            'EXTERNAL'  : 'bg-amber-100 text-amber-700',
+            'INTERNSHIP': 'bg-purple-100 text-purple-700',
+        };
+        const cls = palette[value.toUpperCase()] || 'bg-gray-100 text-gray-700';
+        const safe = value.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+        return `<span class="inline-block px-2.5 py-0.5 text-[11px] font-semibold rounded-full ${cls}">${safe}</span>`;
     }
 
     function getStatusInfo(emp) {
