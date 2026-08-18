@@ -38,40 +38,6 @@
 
 <div class="ai-shell flex gap-4">
 
-    {{-- ── Rail percakapan ──────────────────────────────────────────────────── --}}
-    <aside class="hidden xl:flex w-64 shrink-0 flex-col bg-white rounded-2xl border border-gray-200 overflow-hidden">
-        <div class="p-3 border-b border-gray-100">
-            <button type="button" onclick="aiNewChat()"
-                    class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white text-xs font-semibold rounded-xl hover:bg-red-700 transition-all">
-                <i class="fas fa-plus text-[10px]"></i> New Chat
-            </button>
-            <div class="relative mt-2.5">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/>
-                    </svg>
-                </span>
-                <input type="text" id="aiSearch" placeholder="Search chats…" oninput="aiFilterHistory(this.value)"
-                       class="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-xl text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
-            </div>
-        </div>
-
-        <div class="flex-1 overflow-y-auto ai-scroll px-2 py-2" id="aiHistoryList">
-            <p class="px-2 pt-1 pb-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest ai-history-label">Recent</p>
-            {{-- Riwayat masih contoh; akan diisi dari server saat API siap. --}}
-            <button type="button" class="ai-history-item w-full text-left px-3 py-2 rounded-xl bg-red-50 border border-red-100 mb-1">
-                <span class="block text-xs font-semibold text-gray-800 truncate">New conversation</span>
-                <span class="block text-[10px] text-gray-400 mt-0.5">Just now</span>
-            </button>
-        </div>
-
-        <div class="px-3 py-2.5 border-t border-gray-100">
-            <p class="text-[10px] text-gray-400 leading-relaxed">
-                Chat history is not stored yet. It will be enabled together with the API configuration.
-            </p>
-        </div>
-    </aside>
-
     {{-- ── Panel chat ───────────────────────────────────────────────────────── --}}
     <section class="flex-1 min-w-0 flex flex-col bg-white rounded-2xl border border-gray-200 overflow-hidden">
 
@@ -83,11 +49,11 @@
             <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
                     <h2 class="text-sm font-bold text-gray-900 truncate">EcoSystem Assistant</h2>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-semibold text-amber-700">
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Not connected
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-semibold text-emerald-700">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Connected
                     </span>
                 </div>
-                <p class="text-[11px] text-gray-400 truncate">Waiting for API configuration — the interface is ready</p>
+                <p class="text-[11px] text-gray-400 truncate">Ask about your tickets, SLA, and delivery projects</p>
             </div>
 
             <div class="flex items-center gap-1.5">
@@ -192,18 +158,39 @@
 @push('scripts')
 <script>
 /* ──────────────────────────────────────────────────────────────────────────
-   AI Assistant — UI saja.
+   AI Assistant.
 
-   Semua yang menyentuh backend dikumpulkan di aiSendToBackend(). Ketika
-   endpoint chat sudah ada, ganti isi fungsi itu (dan hapus balasan
-   placeholder-nya); sisa file ini tidak perlu berubah.
+   Backend touchpoint is aiSendToBackend(), which streams the reply from
+   POST /ai-assistant/chat as Server-Sent Events. No conversation history is
+   stored server-side beyond a short-lived cache keyed by a client-generated
+   conversation id (see aiEnsureConversationId()) — refreshing or switching
+   tabs keeps the same conversation id, so the backend's cached context
+   picks up where it left off; a brand-new tab starts a fresh conversation.
    ────────────────────────────────────────────────────────────────────────── */
 
 const AI_MAX_CHARS = 4000;
+const AI_CHAT_ENDPOINT = @json(route('ai-assistant.chat'));
+const AI_CONVERSATION_STORAGE_KEY = 'ai_conversation_id';
 
 let aiFiles     = [];     // File[] yang dipilih untuk pesan berikutnya
 let aiBusy      = false;  // sedang menunggu balasan
-let aiAbort     = null;   // pembatal balasan berjalan
+let aiAbort     = null;   // AbortController pembatal request berjalan
+let aiConversationId = null;
+
+function aiEnsureConversationId() {
+    if (aiConversationId) return aiConversationId;
+
+    aiConversationId = sessionStorage.getItem(AI_CONVERSATION_STORAGE_KEY);
+    if (!aiConversationId) {
+        aiConversationId = crypto.randomUUID();
+        sessionStorage.setItem(AI_CONVERSATION_STORAGE_KEY, aiConversationId);
+    }
+    return aiConversationId;
+}
+
+function aiCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+}
 
 /* ── Composer ──────────────────────────────────────────────────────────── */
 
@@ -374,12 +361,33 @@ function aiAppendAssistantPending() {
     return id;
 }
 
+/** Bertahap: append satu potongan teks ke bubble yang sedang streaming. */
+function aiAppendAssistantDelta(id, deltaText) {
+    const wrap = document.getElementById(id);
+    if (!wrap) return;
+
+    const body = wrap.querySelector('.ai-body');
+    if (!body.dataset.streaming) {
+        body.dataset.streaming = '1';
+        body.dataset.text = '';
+        body.innerHTML = '<p class="whitespace-pre-wrap break-words"></p>';
+    }
+
+    body.dataset.text += deltaText;
+    body.querySelector('p').textContent = body.dataset.text;
+    aiScrollToBottom();
+}
+
 function aiResolveAssistant(id, text, isError) {
     const wrap = document.getElementById(id);
     if (!wrap) return;
 
     const body = wrap.querySelector('.ai-body');
-    body.innerHTML = `<p class="whitespace-pre-wrap break-words${isError ? ' text-red-600' : ''}">${aiEsc(text)}</p>`;
+    // Jika sudah ada teks yang di-stream dan ini bukan error, biarkan apa
+    // adanya (text di sini kosong pada jalur sukses — lihat aiSendToBackend).
+    if (!(body.dataset.streaming && !isError)) {
+        body.innerHTML = `<p class="whitespace-pre-wrap break-words${isError ? ' text-red-600' : ''}">${aiEsc(text)}</p>`;
+    }
 
     const actions = wrap.querySelector('.ai-actions');
     actions.classList.remove('hidden');
@@ -411,6 +419,7 @@ function aiSend() {
     }
 
     const files = aiFiles.slice();
+    const model = document.getElementById('aiModel')?.value || 'default';
 
     aiShowThread();
     aiAppendUser(text, files);
@@ -423,10 +432,15 @@ function aiSend() {
     aiSetBusy(true);
     const pendingId = aiAppendAssistantPending();
 
-    aiSendToBackend(text, files)
-        .then(reply => aiResolveAssistant(pendingId, reply, false))
-        .catch(err  => aiResolveAssistant(pendingId, err.message || 'Something went wrong.', true))
-        .finally(()  => aiSetBusy(false));
+    aiSendToBackend(text, files, model, pendingId)
+        .then(() => aiResolveAssistant(pendingId, '', false))
+        .catch(err => {
+            // User-initiated Stop: keep whatever text already streamed in
+            // rather than overwriting it with an error message.
+            const stopped = err.name === 'AbortError';
+            aiResolveAssistant(pendingId, stopped ? '' : (err.message || 'Something went wrong.'), !stopped);
+        })
+        .finally(() => aiSetBusy(false));
 }
 
 function aiSetBusy(busy) {
@@ -437,33 +451,83 @@ function aiSetBusy(busy) {
 }
 
 function aiStop() {
-    if (aiAbort) aiAbort();
+    if (aiAbort) aiAbort.abort();
 }
 
 /**
  * SATU-SATUNYA titik sentuh backend.
  *
- * Sementara ini mengembalikan balasan placeholder supaya alur UI bisa diuji.
- * Saat konfigurasi API siap, ganti isinya dengan fetch ke endpoint chat —
- * kirim `text` + `files` sebagai FormData, dan buang seluruh blok placeholder.
+ * Streaming Server-Sent Events dari POST /ai-assistant/chat. Tiap potongan
+ * teks ("delta" event) langsung ditambahkan ke bubble `pendingId` lewat
+ * aiAppendAssistantDelta(); "done" menandai selesai normal, "error" menandai
+ * kegagalan (backend selalu mengirim salah satu dari keduanya sebagai
+ * penutup stream).
  */
-function aiSendToBackend(text, files) {
-    return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-            aiAbort = null;
-            resolve(
-                'The assistant is not connected to a provider yet, so I cannot answer this.\n\n' +
-                'The interface is complete — sending, attachments, and the conversation view all work. ' +
-                'Once the API configuration is in place, this reply will be replaced by a real answer.'
-            );
-        }, 900);
+async function aiSendToBackend(text, files, model, pendingId) {
+    const controller = new AbortController();
+    aiAbort = controller;
 
-        aiAbort = () => {
-            clearTimeout(timer);
-            aiAbort = null;
-            reject(new Error('Generation stopped.'));
-        };
+    const form = new FormData();
+    form.append('conversation_id', aiEnsureConversationId());
+    form.append('message', text);
+    form.append('model', model);
+    files.forEach(file => form.append('files[]', file));
+
+    const response = await fetch(AI_CHAT_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': aiCsrfToken(),
+            'Accept': 'text/event-stream',
+        },
+        body: form,
+        signal: controller.signal,
     });
+
+    if (!response.ok || !response.body) {
+        throw new Error('Could not reach the assistant (HTTP ' + response.status + ').');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let sawError = null;
+
+    try {
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            let boundary;
+            while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                const frame = buffer.slice(0, boundary);
+                buffer = buffer.slice(boundary + 2);
+
+                let eventName = 'message';
+                let dataLine = '';
+                frame.split('\n').forEach(line => {
+                    if (line.startsWith('event:')) eventName = line.slice(6).trim();
+                    if (line.startsWith('data:')) dataLine = line.slice(5).trim();
+                });
+                if (!dataLine) continue;
+
+                let payload;
+                try { payload = JSON.parse(dataLine); } catch { continue; }
+
+                if (eventName === 'delta' && payload.text) {
+                    aiAppendAssistantDelta(pendingId, payload.text);
+                } else if (eventName === 'error') {
+                    sawError = payload.message || 'Something went wrong.';
+                }
+                // 'done' needs no handling here — the outer promise just resolves.
+            }
+        }
+    } finally {
+        aiAbort = null;
+    }
+
+    if (sawError) throw new Error(sawError);
 }
 
 /* ── Percakapan ────────────────────────────────────────────────────────── */
@@ -478,24 +542,15 @@ function aiNewChat() {
     aiFiles = [];
     aiRenderAttachments();
 
+    // Start a fresh conversation — the backend's cached context for the old
+    // id is simply left to expire, nothing to explicitly tear down.
+    aiConversationId = null;
+    sessionStorage.removeItem(AI_CONVERSATION_STORAGE_KEY);
+
     const input = document.getElementById('aiInput');
     input.value = '';
     aiAutoGrow(input);
     input.focus();
-}
-
-function aiFilterHistory(term) {
-    const q = term.trim().toLowerCase();
-
-    document.querySelectorAll('#aiHistoryList .ai-history-item').forEach(item => {
-        item.classList.toggle('hidden', q !== '' && !item.textContent.toLowerCase().includes(q));
-    });
-
-    // Sembunyikan label grup saat tidak ada isi yang cocok.
-    const anyVisible = !!document.querySelector('#aiHistoryList .ai-history-item:not(.hidden)');
-    document.querySelectorAll('#aiHistoryList .ai-history-label').forEach(el => {
-        el.classList.toggle('hidden', !anyVisible);
-    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
