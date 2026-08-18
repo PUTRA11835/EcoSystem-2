@@ -114,7 +114,8 @@ const _DATE_FILTER_PANEL = `<div id="tsDateFilterPanel" class="hidden absolute t
 
 const SUPPORT_THEAD_HTML = `<tr>
     <th class="${TH_PLAIN}" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
-    <th class="${TH_FILT}" style="min-width:110px; position:relative;"><button type="button" onclick="toggleTsDatePanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Date</span>${CHEVRON_SVG}${FUNNEL_SVG('tsDateFilterIcon')}<span id="tsSortDateIcon" onclick="event.stopPropagation(); toggleTsDateSort()" title="Click to toggle sort (descending ↔ ascending)" class="cursor-pointer text-[10px] text-red-500 font-bold shrink-0 ml-auto hover:text-red-700 transition-colors">↓</span></button>${_DATE_FILTER_PANEL}</th>
+    <th class="${TH_FILT}" style="min-width:110px; position:relative;"><button type="button" onclick="toggleTsDatePanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Submit Date</span>${CHEVRON_SVG}${FUNNEL_SVG('tsDateFilterIcon')}<span id="tsSortDateIcon" onclick="event.stopPropagation(); toggleTsDateSort()" title="Click to toggle sort (descending ↔ ascending)" class="cursor-pointer text-[10px] text-red-500 font-bold shrink-0 ml-auto hover:text-red-700 transition-colors">↓</span></button>${_DATE_FILTER_PANEL}</th>
+    <th class="${TH_PLAIN}" style="min-width:100px;">Activity Date</th>
     <th class="${TH_FILT}" style="min-width:85px;">${_mkMonthDd()}</th>
     <th class="${TH_FILT}" style="min-width:70px;">${_mkYearDd()}</th>
     <th class="${TH_FILT}" style="min-width:150px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Employee')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Name</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Employee')}<span id="tsSortEmpIcon" onclick="event.stopPropagation(); toggleTsEmpSort()" title="Click to toggle sort (A–Z ↔ Z–A)" class="cursor-pointer text-[10px] text-gray-300 font-bold shrink-0 ml-auto hover:text-red-500 transition-colors">⇅</span></button>${_EMP_TEXT_PANEL}</th>
@@ -663,6 +664,15 @@ function handleTimesheetTypeChange() {
                     </div>
                     <input type="hidden" id="timesheetTicket">
                 </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                    Activity Date <span class="text-red-500">*</span>
+                </label>
+                <input type="date" id="supportActivityDate" required value="${formatDate(new Date())}"
+                    class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50 hover:bg-white transition-colors">
+                <p class="mt-1 text-xs text-gray-400">When the work actually happened — any date, no period restriction.</p>
             </div>
 
             <div class="grid grid-cols-3 gap-2">
@@ -1695,6 +1705,8 @@ function renderTimesheetRows() {
 
             var dObj  = ts.date ? new Date(ts.date + 'T00:00:00') : null;
             var dFmt  = dObj ? dObj.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '/') : '-';
+            var adObj = ts.activity_date ? new Date(ts.activity_date + 'T00:00:00') : null;
+            var adFmt = adObj ? adObj.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '/') : '-';
             // Use server-assigned period if available (handles overridden closed periods), else compute client-side
             var bln, thn;
             if (ts.period_month != null && ts.period_year != null) {
@@ -1756,6 +1768,7 @@ function renderTimesheetRows() {
             rows += '<tr class="' + rowClass + '" ' + trClick + '>'
                 + '<td class="px-3 py-2 border-b border-gray-100">' + firstTd + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">' + dFmt + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">' + adFmt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + bln + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + thn + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-800 font-medium">' + nam + '</td>'
@@ -2208,6 +2221,8 @@ function editTimesheet(id) {
                 if (onSiteEl) onSiteEl.checked = timesheet.presence === 'onsite';
                 const mdEl = document.getElementById('supportMdConsumed');
                 if (mdEl) mdEl.value = timesheet.md_consumed != null ? timesheet.md_consumed : '';
+                const activityDateEl = document.getElementById('supportActivityDate');
+                if (activityDateEl) activityDateEl.value = timesheet.activity_date || '';
             }, 400);
         }
     }, 150);
@@ -2710,6 +2725,7 @@ async function handleFormSubmit(e) {
 
         timesheetData.delivery_projects_id = null;
         timesheetData.ticket_id = document.getElementById('timesheetTicket')?.value || null;
+        timesheetData.activity_date = document.getElementById('supportActivityDate')?.value || null;
         timesheetData.activity_type = 'support';
         timesheetData.presence = onSite ? 'onsite' : 'remote';
         timesheetData.location = null;
