@@ -16,6 +16,7 @@ use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectActivity;
 use App\Models\DeliverySupportActivity;
 use App\Models\Employee;
+use App\Models\Grade;
 use App\Models\Notification;
 use App\Models\ReportingPeriod;
 use App\Models\Ticket;
@@ -104,6 +105,7 @@ class TimesheetController extends Controller
                                         'employee_id' => $timesheet->employee_id,
                                         'employee_name' => trim($timesheet->employee?->basicData?->first_name . ' ' . $timesheet->employee?->basicData?->last_name),
                                         'date' => $timesheet->date?->format('Y-m-d'),
+                                        'activity_date' => $timesheet->activity_date?->format('Y-m-d'),
                                         'start_time' => $timesheet->start_time,
                                         'end_time' => $timesheet->end_time,
                                         'duration_minutes' => $timesheet->duration_minutes,
@@ -515,6 +517,7 @@ class TimesheetController extends Controller
                     'activity_id'          => $t->activity_id,
                     'activity'             => $t->activity ? ['id' => $t->activity->id, 'name' => $t->activity->name] : null,
                     'date'                 => $t->date?->format('Y-m-d'),
+                    'activity_date'        => $t->activity_date?->format('Y-m-d'),
                     'start_time'           => $t->start_time,
                     'end_time'             => $t->end_time,
                     'duration_minutes'     => $t->duration_minutes,
@@ -604,6 +607,7 @@ class TimesheetController extends Controller
             $rules = [
                 'employee_id' => 'required|exists:employee,employee_id',
                 'date' => 'required|date|before_or_equal:today',
+                'activity_date' => 'nullable|date',
                 'start_time' => 'required',
                 'end_time' => 'required|after:start_time',
                 'description' => 'required|string',
@@ -623,6 +627,9 @@ class TimesheetController extends Controller
             } elseif ($request->filled('ticket_id')) {
                 $rules['ticket_id'] = 'nullable|integer';
                 $rules['delivery_projects_id'] = 'nullable';
+                // Activity date has no window restriction (unlike `date`, the submit date) —
+                // it just needs to be a real date, tracking when the work actually happened.
+                $rules['activity_date'] = 'required|date';
             }
 
             $validated = $request->validate($rules);
@@ -662,6 +669,14 @@ class TimesheetController extends Controller
                 );
                 if ($quotaError) {
                     return response()->json(['success' => false, 'message' => $quotaError], 422);
+                }
+
+                $levelError = $this->checkConsultantLevelDayLimit(
+                    (int) $validated['employee_id'],
+                    (float) ($validated['md_consumed'] ?? 0)
+                );
+                if ($levelError) {
+                    return response()->json(['success' => false, 'message' => $levelError], 422);
                 }
             }
             // ─────────────────────────────────────────────────────────────────
@@ -751,6 +766,7 @@ class TimesheetController extends Controller
 
             $rules = [
                 'date' => 'required|date|before_or_equal:today',
+                'activity_date' => 'nullable|date',
                 'start_time' => 'required',
                 'end_time' => 'required|after:start_time',
                 'description' => 'required|string',
@@ -769,6 +785,7 @@ class TimesheetController extends Controller
             } elseif ($request->filled('ticket_id')) {
                 $rules['ticket_id'] = 'nullable|integer';
                 $rules['delivery_projects_id'] = 'nullable';
+                $rules['activity_date'] = 'required|date';
             }
 
             $validated = $request->validate($rules);
@@ -800,6 +817,14 @@ class TimesheetController extends Controller
                 );
                 if ($quotaError) {
                     return response()->json(['success' => false, 'message' => $quotaError], 422);
+                }
+
+                $levelError = $this->checkConsultantLevelDayLimit(
+                    (int) $timesheet->employee_id,
+                    (float) ($validated['md_consumed'] ?? 0)
+                );
+                if ($levelError) {
+                    return response()->json(['success' => false, 'message' => $levelError], 422);
                 }
             }
             // ─────────────────────────────────────────────────────────────────
@@ -1424,6 +1449,32 @@ class TimesheetController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Consultants at Middle level or above may consume at most 1 MD per single
+     * support timesheet entry (no such cap for Associate and below). Level is
+     * the employee's highest Certification qualification_level across all
+     * modules — see Employee::highestQualificationLevelSortOrder().
+     * Returns an error message if blocked, or null if OK.
+     */
+    private function checkConsultantLevelDayLimit(int $employeeId, float $mdConsumed): ?string
+    {
+        if ($mdConsumed <= 1) {
+            return null;
+        }
+
+        $middleSortOrder = Grade::sortOrderForLevel('Middle');
+        if ($middleSortOrder === null) {
+            return null;
+        }
+
+        $levelSortOrder = Employee::find($employeeId)?->highestQualificationLevelSortOrder();
+        if ($levelSortOrder === null || $levelSortOrder < $middleSortOrder) {
+            return null;
+        }
+
+        return 'Consultants at Middle level or above can consume a maximum of 1 MD per timesheet entry. Please split this into multiple entries.';
     }
 
     // ── Period helper ─────────────────────────────────────────────────────
