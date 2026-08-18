@@ -53,7 +53,7 @@
                 <!-- Module/Course (for Education, Certification, Training) -->
                 <div class="col-span-2" id="moduleField">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module/Course</label>
-                    <div class="custom-dd relative">
+                    <div class="custom-dd relative" data-searchable="true" data-search-placeholder="Search module...">
                         <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
                             <span class="custom-dd-label text-gray-500">Select Module</span>
                             <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -295,7 +295,20 @@
             const data = await res.json();
             const panel = document.getElementById('moduleDropdownPanel');
             if (!data.success) return;
-            panel.innerHTML = `<button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50 transition-colors" data-value="">Select Module</button>`;
+
+            // Jangan pakai panel.innerHTML = ... — itu akan menghapus search box
+            // (+empty-state) yang sudah di-inject custom-dropdown.js saat init.
+            // Cukup buang item lama, lalu append item baru; wrap search tetap
+            // di posisi awal (sticky) dan empty-state tetap di akhir.
+            panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
+
+            const placeholder = document.createElement('button');
+            placeholder.type = 'button';
+            placeholder.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50 transition-colors';
+            placeholder.dataset.value = '';
+            placeholder.textContent = 'Select Module';
+            panel.appendChild(placeholder);
+
             data.data.forEach(m => {
                 const btn = document.createElement('button');
                 btn.type = 'button';
@@ -304,6 +317,10 @@
                 btn.textContent = m.name;
                 panel.appendChild(btn);
             });
+
+            // Empty-state harus tetap di akhir supaya tidak menyisip di antara item.
+            const empty = panel.querySelector('.custom-dd-empty');
+            if (empty) panel.appendChild(empty);
         } catch (e) {
             console.error('Failed to load modules', e);
         }
