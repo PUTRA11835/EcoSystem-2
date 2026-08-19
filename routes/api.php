@@ -42,7 +42,9 @@ use App\Http\Controllers\AdminBackupController;
 use App\Http\Controllers\AdminNotificationSoundController;
 use App\Http\Controllers\TicketMigrationController;
 use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\ModuleGroupController;
 use App\Http\Controllers\EmployeeModuleController;
+use App\Http\Controllers\ModuleLeadController;
 
 // ==================== HEALTH CHECK (public, no auth) ====================
 Route::get('/health', function () {
@@ -223,9 +225,30 @@ Route::middleware(['web'])->group(function () {
         Route::get('/', [ModuleController::class, 'index']);
         Route::post('/', [ModuleController::class, 'store']);
         Route::get('/{id}', [ModuleController::class, 'show']);
+        Route::get('/{id}/members', [ModuleController::class, 'members']);
         Route::put('/{id}', [ModuleController::class, 'update']);
         Route::delete('/{id}', [ModuleController::class, 'destroy']);
         Route::post('/{id}/delete', [ModuleController::class, 'destroy']);
+    });
+
+    // Module Group master data endpoints — pengelompokan module (mis. "Logistik" berisi ABAP, FI, dll).
+    Route::prefix('module-groups')->group(function () {
+        Route::get('/', [ModuleGroupController::class, 'index']);
+        Route::post('/', [ModuleGroupController::class, 'store']);
+        Route::get('/{id}', [ModuleGroupController::class, 'show']);
+        Route::put('/{id}', [ModuleGroupController::class, 'update']);
+        Route::delete('/{id}', [ModuleGroupController::class, 'destroy']);
+        Route::post('/{id}/delete', [ModuleGroupController::class, 'destroy']);
+    });
+
+    // Module Lead endpoints — siapa yang jadi lead untuk tiap module.
+    // Gating disamakan dengan penugasan module ke employee (menu:master.employee.action).
+    Route::get('/module-leads/search-employees', [ModuleLeadController::class, 'searchEmployees']);
+    Route::prefix('modules/{moduleId}/leads')->group(function () {
+        Route::get('/', [ModuleLeadController::class, 'index']);
+        Route::post('/', [ModuleLeadController::class, 'store'])->middleware('menu:master.employee.action');
+        Route::delete('/{employeeId}', [ModuleLeadController::class, 'destroy'])->middleware('menu:master.employee.action');
+        Route::post('/{employeeId}/delete', [ModuleLeadController::class, 'destroy'])->middleware('menu:master.employee.action');
     });
 
 // ==================== CUSTOMER ROUTES ====================

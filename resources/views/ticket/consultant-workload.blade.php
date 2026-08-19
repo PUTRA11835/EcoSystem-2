@@ -13,6 +13,25 @@
             <p class="text-sm text-gray-500 mt-0.5">Monitor workload and ticket progress for each consultant</p>
         </div>
         <div class="flex items-center gap-2">
+            <div class="relative" id="groupFilterDd">
+                <button type="button" id="groupFilterBtn" onclick="toggleGroupPanel(event)"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all duration-200">
+                    <i class="fas fa-layer-group text-[11px]"></i>
+                    <span id="groupFilterBtnLabel">Group Modul</span>
+                    <svg id="groupFilterArrow" class="w-3 h-3 text-gray-400 transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div id="groupFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden normal-case" style="min-width:220px;">
+                    <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filter by Group</span>
+                        <button type="button" onclick="clearGroupFilter()" class="text-xs text-red-600 hover:underline">Reset</button>
+                    </div>
+                    <div id="groupFilterList" class="overflow-y-auto py-1" style="max-height:240px;">
+                        <p class="px-4 py-3 text-xs text-gray-400">Loading...</p>
+                    </div>
+                </div>
+            </div>
             <button onclick="expandAll()"
                 class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all duration-200">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -27,80 +46,6 @@
                 </svg>
                 Collapse All
             </button>
-        </div>
-    </div>
-
-    {{-- Summary Cards --}}
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Consultants</p>
-                    <p class="text-3xl font-bold text-gray-900 mt-1.5" id="cardTotal">—</p>
-                </div>
-                <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                </div>
-            </div>
-            <p class="text-xs text-gray-400 mt-2">Total active consultants</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Busy</p>
-                    <p class="text-3xl font-bold text-red-600 mt-1.5" id="cardBusy">—</p>
-                </div>
-                <div class="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
-                    </svg>
-                </div>
-            </div>
-            <p class="text-xs text-gray-400 mt-2">Workload ≥ 70%</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Moderate</p>
-                    <p class="text-3xl font-bold text-yellow-600 mt-1.5" id="cardModerate">—</p>
-                </div>
-                <div class="w-10 h-10 bg-yellow-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
-                    </svg>
-                </div>
-            </div>
-            <p class="text-xs text-gray-400 mt-2">Workload 40–70%</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Light</p>
-                    <p class="text-3xl font-bold text-green-600 mt-1.5" id="cardLight">—</p>
-                </div>
-                <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                </div>
-            </div>
-            <p class="text-xs text-gray-400 mt-2">Workload &lt; 40%</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Active Tickets</p>
-                    <p class="text-3xl font-bold text-gray-900 mt-1.5" id="cardTickets">—</p>
-                </div>
-                <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                    </svg>
-                </div>
-            </div>
-            <p class="text-xs text-gray-400 mt-2">Open, in-progress, waiting, or hold</p>
         </div>
     </div>
 
@@ -290,7 +235,6 @@
             populateModuleFilter();
             updateSortIcons();
             renderTable(applySortTo(allConsultants));
-            updateSummary(allConsultants);
         } catch (e) {
             document.getElementById('workloadBody').innerHTML =
                 `<tr><td colspan="8" class="text-center py-8 text-red-500 text-sm">Failed: ${e.message}</td></tr>`;
@@ -326,6 +270,78 @@
     }
 
     let selectedModules = new Set();
+    let selectedGroups = new Set();
+    let moduleGroupsData = [];
+
+    // ── Group filter (page-header button, terpisah dari filter Module per-kolom) ──
+    async function loadModuleGroups() {
+        try {
+            const res  = await fetch('/api/module-groups?is_active=1');
+            const json = await res.json();
+            moduleGroupsData = json.data || [];
+        } catch (e) {
+            moduleGroupsData = [];
+        }
+        renderGroupFilterList();
+    }
+
+    function renderGroupFilterList() {
+        const list = document.getElementById('groupFilterList');
+        if (!moduleGroupsData.length) {
+            list.innerHTML = '<p class="px-4 py-3 text-xs text-gray-400">No module groups yet.</p>';
+            return;
+        }
+        list.innerHTML = '';
+        moduleGroupsData.forEach(g => {
+            const label = document.createElement('label');
+            label.className = 'flex items-center gap-2.5 px-4 py-2 hover:bg-gray-50 cursor-pointer transition-colors';
+            label.innerHTML = `
+                <input type="checkbox" class="group-filter-checkbox w-3.5 h-3.5 text-red-800 border-gray-300 rounded focus:ring-red-800 cursor-pointer" value="${g.id}" ${selectedGroups.has(g.id) ? 'checked' : ''}>
+                <span class="text-sm text-gray-700">${g.name}</span>`;
+            label.querySelector('input').addEventListener('change', e => {
+                e.target.checked ? selectedGroups.add(g.id) : selectedGroups.delete(g.id);
+                updateGroupFilterLabel();
+                filterTable();
+            });
+            list.appendChild(label);
+        });
+        updateGroupFilterLabel();
+    }
+
+    function updateGroupFilterLabel() {
+        const lbl = document.getElementById('groupFilterBtnLabel');
+        const btn = document.getElementById('groupFilterBtn');
+        if (selectedGroups.size === 0) {
+            lbl.textContent = 'Group Modul';
+            btn.classList.remove('bg-red-50', 'text-red-700');
+            btn.classList.add('bg-gray-100', 'text-gray-600');
+        } else {
+            lbl.textContent = `Group Modul (${selectedGroups.size})`;
+            btn.classList.remove('bg-gray-100', 'text-gray-600');
+            btn.classList.add('bg-red-50', 'text-red-700');
+        }
+    }
+
+    function toggleGroupPanel(event) {
+        event?.stopPropagation();
+        const panel = document.getElementById('groupFilterPanel');
+        const arrow = document.getElementById('groupFilterArrow');
+        const btn   = document.getElementById('groupFilterBtn');
+        if (panel.classList.contains('hidden')) {
+            closeHeaderPanel(document.getElementById('moduleFilterPanel'), document.getElementById('moduleFilterArrow'));
+            closeHeaderPanel(document.getElementById('consultantFilterPanel'), document.getElementById('consultantFilterArrow'));
+            openHeaderPanel(btn, panel, arrow);
+        } else {
+            closeHeaderPanel(panel, arrow);
+        }
+    }
+
+    function clearGroupFilter() {
+        selectedGroups.clear();
+        document.querySelectorAll('.group-filter-checkbox').forEach(c => c.checked = false);
+        updateGroupFilterLabel();
+        filterTable();
+    }
 
     function toggleModulePanel(event) {
         event?.stopPropagation();
@@ -334,6 +350,7 @@
         const btn   = document.getElementById('moduleFilterBtn');
         if (panel.classList.contains('hidden')) {
             closeHeaderPanel(document.getElementById('consultantFilterPanel'), document.getElementById('consultantFilterArrow'));
+            closeHeaderPanel(document.getElementById('groupFilterPanel'), document.getElementById('groupFilterArrow'));
             openHeaderPanel(btn, panel, arrow);
         } else {
             closeHeaderPanel(panel, arrow);
@@ -395,6 +412,7 @@
         const btn   = document.getElementById('consultantFilterBtn');
         if (panel.classList.contains('hidden')) {
             closeHeaderPanel(document.getElementById('moduleFilterPanel'), document.getElementById('moduleFilterArrow'));
+            closeHeaderPanel(document.getElementById('groupFilterPanel'), document.getElementById('groupFilterArrow'));
             openHeaderPanel(btn, panel, arrow);
             requestAnimationFrame(() => document.getElementById('consultantFilterInput').focus());
         } else {
@@ -428,15 +446,19 @@
         if (!clickedInside(e, 'consultantFilterDd', 'consultantFilterPanel')) {
             closeHeaderPanel(document.getElementById('consultantFilterPanel'), document.getElementById('consultantFilterArrow'));
         }
+        if (!clickedInside(e, 'groupFilterDd', 'groupFilterPanel')) {
+            closeHeaderPanel(document.getElementById('groupFilterPanel'), document.getElementById('groupFilterArrow'));
+        }
     });
 
     // Panel fixed tidak ikut bergerak saat halaman/tabel di-scroll → tutup saja,
     // supaya tidak menggantung lepas dari tombolnya. Kecuali scroll yang berasal
     // dari dalam panel itu sendiri (daftar modul bisa di-scroll).
     ['scroll', 'resize'].forEach(evt => window.addEventListener(evt, e => {
-        if (e.target?.closest?.('#moduleFilterPanel, #consultantFilterPanel')) return;
+        if (e.target?.closest?.('#moduleFilterPanel, #consultantFilterPanel, #groupFilterPanel')) return;
         closeHeaderPanel(document.getElementById('moduleFilterPanel'), document.getElementById('moduleFilterArrow'));
         closeHeaderPanel(document.getElementById('consultantFilterPanel'), document.getElementById('consultantFilterArrow'));
+        closeHeaderPanel(document.getElementById('groupFilterPanel'), document.getElementById('groupFilterArrow'));
     }, true));
 
     function filterTable() {
@@ -446,6 +468,19 @@
             filtered = filtered.filter(c => {
                 const empModules = (c.modules ?? '').split(', ').map(m => m.trim());
                 return [...selectedModules].every(m => empModules.includes(m));
+            });
+        }
+        if (selectedGroups.size > 0) {
+            // OR di dalam group yang dipilih: konsultan cocok kalau salah satu
+            // module-nya ada di salah satu group yang dicentang.
+            const allowedModules = new Set();
+            selectedGroups.forEach(gid => {
+                const g = moduleGroupsData.find(x => x.id === gid);
+                (g?.modules || []).forEach(m => allowedModules.add(m.name));
+            });
+            filtered = filtered.filter(c => {
+                const empModules = (c.modules ?? '').split(', ').map(m => m.trim());
+                return empModules.some(m => allowedModules.has(m));
             });
         }
         if (q) filtered = filtered.filter(c =>
@@ -860,30 +895,10 @@
         document.querySelectorAll('[id^="chevron-"]').forEach(el => el.style.transform = '');
     }
 
-    // ── Summary ────────────────────────────────────────────────────────
-    function updateSummary(data) {
-        const high = data.filter(c => calcInProgress(c).workload_pct >= 70).length;
-        const mid = data.filter(c => {
-            const p = calcInProgress(c).workload_pct;
-            return p >= 40 && p < 70;
-        }).length;
-        const low = data.filter(c => calcInProgress(c).workload_pct < 40).length;
-        // Satu tiket bisa punya beberapa konsultan (PIC + member), jadi jangan
-        // dijumlah per-konsultan (dobel hitung) — hitung ticket_id unik saja.
-        const uniqueTicketIds = new Set();
-        data.forEach(c => calcActive(c).tickets.forEach(t => uniqueTicketIds.add(t.ticket_id)));
-        const tickets = uniqueTicketIds.size;
-
-        document.getElementById('cardTotal').textContent = data.length;
-        document.getElementById('cardBusy').textContent = high;
-        document.getElementById('cardModerate').textContent = mid;
-        document.getElementById('cardLight').textContent = low;
-        document.getElementById('cardTickets').textContent = tickets;
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
         loadWorkload();
+        loadModuleGroups();
     });
 
     // ── Progress Update Modal ──────────────────────────────────────────
@@ -1047,9 +1062,6 @@
                 if (restored) restored.classList.remove('hidden');
                 if (chevron)  chevron.style.transform = 'rotate(90deg)';
             }
-
-            // Update summary cards only
-            updateSummary(allConsultants);
         } catch (e) {
             console.error('Refresh after progress update failed:', e);
         }
