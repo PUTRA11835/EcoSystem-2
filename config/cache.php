@@ -52,7 +52,8 @@ return [
             'lock_path' => storage_path('framework/cache/data'),
         ],
 
-        // Ephemeral storage for the AI Assistant's in-flight conversation state.
+        // Ephemeral storage for in-flight conversation state of both AI pages
+        // (AI Assistant and AI Research — keys are namespaced per assistant).
         // Isolated from the shared 'file' store so it can be inspected/cleared
         // independently. No conversation content is ever persisted to the database.
         'ai_chat' => [

@@ -60,4 +60,16 @@ return [
         'api_key' => env('ANTHROPIC_API_KEY'),
     ],
 
+    'ai' => [
+        /*
+         * Retensi arsip percakapan AI (tabel ai_conversations), dalam hari,
+         * dihitung dari pesan terakhir. 0 = simpan selamanya.
+         *
+         * Angkanya dibuat konfigurasi karena ini keputusan kebijakan, bukan
+         * teknis: isinya bisa memuat tangkapan layar sistem customer, dan
+         * seberapa lama itu layak disimpan bisa berubah tanpa perlu ubah kode.
+         */
+        'retention_days' => (int) env('AI_HISTORY_RETENTION_DAYS', 90),
+    ],
+
 ];
