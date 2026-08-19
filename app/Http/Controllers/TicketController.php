@@ -531,6 +531,16 @@ class TicketController extends Controller
                 ->groupBy('ticket_id')
                 ->map(fn($group) => $group->sum('total_mandays'));
 
+            // Latest activity date logged against each ticket's support timesheets
+            // (user-entered "when did the work happen", separate from the timesheet's
+            // submit date). Excludes rejected entries — those aren't verified work.
+            $activityDateMap = \App\Models\Timesheet::whereIn('ticket_id', $ticketIds)
+                ->whereNotNull('activity_date')
+                ->whereIn('status', ['draft', 'submitted', 'approved'])
+                ->get()
+                ->groupBy('ticket_id')
+                ->map(fn($group) => $group->max('activity_date')?->format('Y-m-d'));
+
             // Batch-load semua pending confirmations sekaligus (hindari N+1)
             $confirmationMap = DB::table('ticket_confirmation')
                 ->whereIn('ticket_id', $ticketIds)
@@ -544,7 +554,7 @@ class TicketController extends Controller
                 ->groupBy('ticket_id');
 
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap, $pausesByTicket) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $activityDateMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap, $pausesByTicket) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -572,6 +582,7 @@ class TicketController extends Controller
                     'end_date' => $ticket->end_date,
                     'man_days' => $ticket->man_days,
                     'customer_mandays' => $customerMandaysMap[$ticket->ticket_id] ?? null,
+                    'activity_date' => $activityDateMap[$ticket->ticket_id] ?? null,
                     'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
                     'all_consultant_progress' => $allProgress,
                     'wait_close' => $ticket->wait_close,

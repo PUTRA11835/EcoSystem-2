@@ -25,6 +25,10 @@ class AppServiceProvider extends ServiceProvider
         if (env('OPENSSL_CONF') && !getenv('OPENSSL_CONF')) {
             putenv('OPENSSL_CONF=' . env('OPENSSL_CONF'));
         }
+
+        $this->app->singleton(\Anthropic\Client::class, function () {
+            return new \Anthropic\Client(apiKey: config('services.anthropic.api_key'));
+        });
     }
 
     public function boot(): void

@@ -99,6 +99,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // ==================== AI ASSISTANT ====================
     Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
+    Route::post('/ai-assistant/chat', [\App\Http\Controllers\AiAssistantController::class, 'chat'])->name('ai-assistant.chat')->middleware('menu:ai-assistant');
 
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
