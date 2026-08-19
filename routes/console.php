@@ -25,3 +25,11 @@ Schedule::command('notifications:project-reminders')->dailyAt('07:00');
 Schedule::command('onedrive:audit-links --fix')
     ->dailyAt('02:30')
     ->withoutOverlapping();
+
+// Buang percakapan AI yang kedaluwarsa tiap hari 03:00. Cache file Laravel hanya
+// menghapus entri kedaluwarsa saat kuncinya dibaca lagi, jadi percakapan yang
+// ditinggalkan (tab ditutup, tidak pernah kembali) menetap di disk selamanya —
+// termasuk lampiran gambarnya yang ikut tersimpan di dalam riwayat.
+Schedule::command('ai:prune-conversations --apply')
+    ->dailyAt('03:00')
+    ->withoutOverlapping();
