@@ -333,6 +333,27 @@ class StagingTicketController extends Controller
 
         $staging = StagingTicket::findOrFail($id);
 
+        // Delivery support wajib dipilih SELAMA customer tiket ini memang punya
+        // delivery support terdaftar (kalau tidak punya, field boleh kosong).
+        // Yang dipilih juga harus benar-benar milik customer tersebut.
+        if ($staging->customer_id) {
+            $customerSupportIds = DB::table('delivery_support')
+                ->where('client_id', $staging->customer_id)
+                ->pluck('id')
+                ->all();
+
+            if (!empty($customerSupportIds)) {
+                $chosenSupportId = (int) $request->input('delivery_support_id');
+                if (!in_array($chosenSupportId, array_map('intval', $customerSupportIds), true)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Delivery support is required and must belong to this customer.',
+                        'errors'  => ['delivery_support_id' => ['Delivery support is required for this customer.']],
+                    ], 422);
+                }
+            }
+        }
+
         // Override additional info fields jika dikirim dari modal (nilai bisa berbeda
         // dari yang ada di staging, misal helpdesk menambahkan info saat validasi).
         foreach (['name', 'no_hp', 'module', 'client'] as $field) {
