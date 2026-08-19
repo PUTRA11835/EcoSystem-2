@@ -2530,7 +2530,15 @@ class ReportingController extends Controller
                     ->values()
                     ->all(),
                 'customers'  => $distinct('customer_name'),
-                'modules'    => $distinct('module'),
+                // Kolom module bebas teks dan bisa memuat beberapa modul sekaligus
+                // ("FI, CO, FM"). Opsi filter dipecah per modul supaya daftarnya
+                // tidak berisi kombinasi dan memilih "CO" ikut menangkap baris itu.
+                'modules'    => collect($rows)
+                    ->flatMap(fn ($r) => $this->consultantModuleTokens($r['module']))
+                    ->unique(fn ($m) => mb_strtoupper($m))
+                    ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+                    ->values()
+                    ->all(),
                 'positions'  => $distinct('position'),
                 'vendors'    => $distinct('vendor_name'),
             ]);
@@ -2799,10 +2807,13 @@ class ReportingController extends Controller
         $categoryList = $this->csvFilter($request->input('project_category', ''));
         $periodFrom  = trim((string) $request->input('period_from', ''));
         $periodTo    = trim((string) $request->input('period_to', ''));
+        // Lensa kartu MD di ringkasan: "planned" / "actual" = tampilkan hanya
+        // penugasan yang IKUT MENYUMBANG angka kartu tersebut (nilainya > 0).
+        $mdOnly      = mb_strtolower(trim((string) $request->input('md_only', '')));
 
         $rows = array_values(array_filter($rows, function (array $r) use (
             $search, $consultant, $projectId, $customer, $module, $position,
-            $roleList, $typeList, $categoryList, $periodFrom, $periodTo
+            $roleList, $categoryList, $periodFrom, $periodTo
         ) {
             if ($search !== '') {
                 $haystack = mb_strtolower(implode(' ', [
@@ -2824,11 +2835,12 @@ class ReportingController extends Controller
                 return false;
             }
             if ($module !== '') {
+                $tokens = array_map('mb_strtoupper', $this->consultantModuleTokens($r['module']));
                 if ($module === '__none__') {
-                    if ($r['module'] !== '') {
+                    if ($tokens !== []) {
                         return false;
                     }
-                } elseif ($r['module'] !== $module) {
+                } elseif (!in_array(mb_strtoupper($module), $tokens, true)) {
                     return false;
                 }
             }
@@ -2836,9 +2848,6 @@ class ReportingController extends Controller
                 return false;
             }
             if ($roleList && !in_array(mb_strtolower($r['role']), $roleList, true)) {
-                return false;
-            }
-            if ($typeList && !in_array(mb_strtolower($r['employee_type']), $typeList, true)) {
                 return false;
             }
             if ($categoryList && !in_array(mb_strtolower($r['project_category']), $categoryList, true)) {
@@ -2863,7 +2872,24 @@ class ReportingController extends Controller
             return true;
         }));
 
-        // ── Ringkasan (dihitung sebelum filter Assignment Status) ─────────────
+        // ── Facet Internal / External ─────────────────────────────────────────
+        // Kartu Internal & External/Vendor DI RINGKASAN sekaligus jadi kontrol
+        // filter employee_type. Angkanya karena itu dihitung SEBELUM filter
+        // employee_type diterapkan — kalau ikut dipersempit oleh pilihannya
+        // sendiri, kartu External akan menampilkan 0 padahal mengkliknya
+        // memunculkan baris. Filter lain (project, periode, dst.) tetap ikut.
+        $facet = collect($rows);
+        $facetInternal = $facet->where('employee_type', 'Internal')->count();
+        $facetExternal = $facet->whereIn('employee_type', ['External', 'Vendor'])->count();
+
+        if ($typeList) {
+            $rows = array_values(array_filter(
+                $rows,
+                fn (array $r) => in_array(mb_strtolower($r['employee_type']), $typeList, true)
+            ));
+        }
+
+        // ── Ringkasan (dihitung sebelum lensa MD & Assignment Status) ─────────
         $collection = collect($rows);
         $stats = [
             'assignments'  => $collection->count(),
@@ -2880,11 +2906,21 @@ class ReportingController extends Controller
             'upcoming'     => $collection->where('assignment_status', 'Upcoming')->count(),
             'ended'        => $collection->where('assignment_status', 'Ended')->count(),
             'undated'      => $collection->where('assignment_status', 'No Period')->count(),
-            'internal'     => $collection->where('employee_type', 'Internal')->count(),
-            'external'     => $collection->whereIn('employee_type', ['External', 'Vendor'])->count(),
+            'internal'     => $facetInternal,
+            'external'     => $facetExternal,
             'planned_md'   => round((float) $collection->sum('planned_md'), 2),
             'actual_md'    => round((float) $collection->sum('actual_md'), 2),
         ];
+
+        // ── Lensa kartu MD (md_only) ──────────────────────────────────────────
+        // Diterapkan SESUDAH ringkasan, sama seperti Assignment Status: kartu
+        // hanya mempersempit isi tabel, angka ringkasannya tetap utuh sebagai
+        // acuan. Baris ber-MD 0 tidak menyumbang total, jadi jumlah MD memang
+        // tidak berubah saat lensa ini aktif.
+        if ($mdOnly === 'planned' || $mdOnly === 'actual') {
+            $key  = $mdOnly === 'planned' ? 'planned_md' : 'actual_md';
+            $rows = array_values(array_filter($rows, fn (array $r) => (float) $r[$key] > 0));
+        }
 
         // ── Filter Assignment Status (kartu ringkasan) ────────────────────────
         $statusList = $this->csvFilter($request->input('assignment_status', ''));
@@ -3001,6 +3037,23 @@ class ReportingController extends Controller
     }
 
     // ── Helper ────────────────────────────────────────────────────────────
+
+    /**
+     * Pecah nilai `delivery_project_employee.module` jadi token satuan.
+     * Kolomnya bebas teks: ada yang satu modul ("CO"), ada yang beberapa dalam
+     * satu kolom ("FI, CO, FM" / "CO , FM"), dan ada placeholder "-".
+     *
+     * @return array<int,string>
+     */
+    private function consultantModuleTokens(?string $raw): array
+    {
+        $tokens = preg_split('/[,;\/|]+/', (string) $raw) ?: [];
+
+        return array_values(array_filter(
+            array_map('trim', $tokens),
+            fn ($t) => $t !== '' && $t !== '-'
+        ));
+    }
 
     private function monthName(int $month): string
     {

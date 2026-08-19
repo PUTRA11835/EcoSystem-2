@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -252,6 +253,7 @@ class MenuSeeder extends Seeder
 
         // ── Upsert menus (idempotent) ────────────────────────────────────────────
         $inserted = [];
+        $newSlugs = []; // slug yang baru lahir di run ini — cuma ini yang boleh dapat default matrix di bawah
         foreach ($menus as $menu) {
             $parentId = isset($menu['parent_slug']) && $menu['parent_slug']
                 ? ($inserted[$menu['parent_slug']] ?? null)
@@ -272,6 +274,7 @@ class MenuSeeder extends Seeder
                 ]);
                 $id = $existing->id;
             } else {
+                $newSlugs[$menu['slug']] = true;
                 $id = DB::table('menu')->insertGetId([
                     'parent_id'  => $parentId,
                     'name'       => $menu['name'],
@@ -433,23 +436,59 @@ class MenuSeeder extends Seeder
             $matrix[$slug] = $supportSectionRoles;
         }
 
+        // Seeder ini rutin dijalankan ulang di production tiap kali ada slug baru
+        // (lihat MULTI_ROLE_SYSTEM.md). Matrix di atas cuma boleh diterapkan untuk
+        // slug yang BARU LAHIR di run ini ($newSlugs). Slug yang sudah ada sebelum
+        // run ini SAMA SEKALI tidak disentuh lagi — bukan cuma soal tidak menimpa
+        // baris yang ada, tapi juga tidak mengisi baris yang HILANG karena role
+        // tersebut sengaja "Revoke Access" via Control Center → Menu Access.
+        // Revoke di UI itu men-detach() baris role_menu (dihapus, bukan
+        // can_view=false), jadi kalau matrix tetap diterapkan ke slug lama,
+        // baris yang hilang itu akan dianggap "belum ada" dan diisi ulang dengan
+        // nilai baku — persis gejala "slug balik ke default padahal sudah
+        // dicabut" yang dilaporkan. Aturannya sama seperti App\Support\
+        // MenuRegistrar: sekali sebuah slug lahir, Control Center adalah satu-
+        // satunya sumber kebenaran untuk role_menu-nya.
+        $existingPairs = DB::table('role_menu')
+            ->get(['role_id', 'menu_id'])
+            ->map(fn ($row) => "{$row->role_id}-{$row->menu_id}")
+            ->flip();
+
+        $newlyGrantedRoleIds = [];
+
         foreach ($matrix as $slug => $rolePerms) {
             $menuId = $inserted[$slug] ?? null;
-            if (!$menuId) continue;
+            if (!$menuId || !isset($newSlugs[$slug])) continue;
 
             foreach ($rolePerms as $roleId => $perms) {
-                DB::table('role_menu')->updateOrInsert(
-                    ['role_id' => $roleId, 'menu_id' => $menuId],
-                    [
-                        'can_view'   => $perms[0],
-                        'can_create' => $perms[1],
-                        'can_edit'   => $perms[2],
-                        'can_delete' => $perms[3],
-                        'updated_at' => $now,
-                        'created_at' => $now,
-                    ]
-                );
+                $key = "{$roleId}-{$menuId}";
+                if (isset($existingPairs[$key])) {
+                    continue;
+                }
+
+                DB::table('role_menu')->insert([
+                    'role_id'    => $roleId,
+                    'menu_id'    => $menuId,
+                    'can_view'   => $perms[0],
+                    'can_create' => $perms[1],
+                    'can_edit'   => $perms[2],
+                    'can_delete' => $perms[3],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                $newlyGrantedRoleIds[] = $roleId;
             }
+        }
+
+        // Buang cache perm_slugs milik employee yang baru dapat grant, supaya slug
+        // baru langsung muncul tanpa nunggu TTL 60 menit (lihat ShareMenuPermissions).
+        if (!empty($newlyGrantedRoleIds)) {
+            DB::table('employee_role_assignment')
+                ->whereIn('role_id', array_unique($newlyGrantedRoleIds))
+                ->pluck('employee_id')
+                ->unique()
+                ->each(fn ($empId) => Cache::forget("perm_slugs_{$empId}"));
         }
     }
 }

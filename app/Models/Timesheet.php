@@ -17,6 +17,7 @@ class Timesheet extends Model
         'activity_id', // Link to assigned activity
         'ticket_id',
         'date',
+        'activity_date',
         'start_time',
         'end_time',
         'duration_minutes',
@@ -38,6 +39,7 @@ class Timesheet extends Model
     protected $casts = [
         'employee_id'  => 'integer',
         'date'         => 'date',
+        'activity_date' => 'date',
         'approved_at'  => 'datetime',
         'is_billable'  => 'boolean',
     ];
