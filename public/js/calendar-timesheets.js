@@ -34,6 +34,11 @@ const _STATUS_DD_ITEMS = `
     <button type="button" class="${DD_ITEM}" data-value="approved">Approved</button>
     <button type="button" class="${DD_ITEM}" data-value="rejected">Rejected</button>`;
 
+const _TYPE_DD_ITEMS = `
+    <button type="button" class="${DD_ITEM}" data-value="">All</button>
+    <button type="button" class="${DD_ITEM}" data-value="internal">Internal</button>
+    <button type="button" class="${DD_ITEM}" data-value="non_internal">Non Internal</button>`;
+
 const _ACT_TEXT_PANEL = `<div id="tsTextPanel_ActivityType" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
     <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search activity type</label>
     <input type="text" id="colFilterTsActivityType" placeholder="e.g. Development…" oninput="applyColFilter()" onclick="event.stopPropagation()"
@@ -87,6 +92,7 @@ const _CUST_TEXT_PANEL = `<div id="tsTextPanel_Customer" class="hidden absolute 
 </div>`;
 
 function _mkStatusDd() { return `<div class="custom-dd relative w-full" id="ddColFilterTsStatus" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Status</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsStatus" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:150px;">${_STATUS_DD_ITEMS}</div></div>`; }
+function _mkTypeDd()   { return `<div class="custom-dd relative w-full" id="ddColFilterTsType" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Type</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsType" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:150px;min-width:140px;">${_TYPE_DD_ITEMS}</div></div>`; }
 function _mkMonthDd()  { return `<div class="custom-dd relative w-full" id="ddColFilterTsMonth" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Month</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsMonth" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:120px;">${_MONTH_DD_ITEMS}</div></div>`; }
 // Year dropdown: panel items are filled dynamically from the loaded data
 // (years vary by dataset, unlike Month's fixed 12-item list) — see _populateTsYearDd().
@@ -123,6 +129,7 @@ const SUPPORT_THEAD_HTML = `<tr>
     <th class="${TH_FILT}" style="min-width:150px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Ticket')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Ticket</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Ticket')}</button>${_TKT_TEXT_PANEL}</th>
     <th class="${TH_PLAIN}" style="min-width:180px;">Description</th>
     <th class="${TH_FILT}" style="min-width:130px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Customer')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Customer</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Customer')}</button>${_CUST_TEXT_PANEL}</th>
+    <th class="${TH_FILT}" style="min-width:110px;">${_mkTypeDd()}</th>
     <th class="${TH_PLAIN}" style="min-width:80px;">Quota MD</th>
     ${_mkActivityTextTh()}
     <th class="${TH_PLAIN}" style="min-width:90px;">MD Consumed</th>
@@ -1219,6 +1226,7 @@ function applyStatusFilter() {
     const colCustomer = (document.getElementById('colFilterTsCustomer')?.value    || '').toLowerCase().trim();
     const colMonth    =  document.getElementById('colFilterTsMonth')?.value        || '';
     const colYear     =  document.getElementById('colFilterTsYear')?.value         || '';
+    const colType     =  document.getElementById('colFilterTsType')?.value         || '';
 
     if (colEmp)      result = result.filter(t => (t.employee_name || '').toLowerCase().includes(colEmp));
     if (colStatus)   result = result.filter(t => t.status === colStatus);
@@ -1227,6 +1235,7 @@ function applyStatusFilter() {
     if (colCustomer) result = result.filter(t => (t.customer_name || '').toLowerCase().includes(colCustomer));
     if (colMonth)    result = result.filter(t => String(t.period_month) === colMonth);
     if (colYear)     result = result.filter(t => String(t.period_year) === colYear);
+    if (colType)     result = result.filter(t => t.ticket_id && (colType === 'internal' ? t.ticket_type === 'Internal' : t.ticket_type !== 'Internal'));
 
     // Date range filter (Date column From/To — sama seperti view ticket)
     const dateFrom = document.getElementById('tsDateFrom')?.value || '';
@@ -1527,6 +1536,7 @@ function resetFilters() {
         setCustomDropdownValue('colFilterTsStatus', '');
         setCustomDropdownValue('colFilterTsMonth', '');
         setCustomDropdownValue('colFilterTsYear', '');
+        setCustomDropdownValue('colFilterTsType', '');
     }
 
     // 3. Clear text search inputs
@@ -1613,7 +1623,7 @@ function resetFilters() {
 // membuat timesheet baru.
 function tsHasActiveFilters() {
     const ids = ['colFilterTsEmployee', 'colFilterTsTicket', 'colFilterTsCustomer', 'colFilterTsActivityType',
-                 'colFilterTsStatus', 'colFilterTsMonth', 'colFilterTsYear', 'tsDateFrom', 'tsDateTo'];
+                 'colFilterTsStatus', 'colFilterTsMonth', 'colFilterTsYear', 'colFilterTsType', 'tsDateFrom', 'tsDateTo'];
     if (ids.some(id => !!(document.getElementById(id)?.value))) return true;
     return !!(currentFilters.status || currentFilters.activity_type);
 }
@@ -1721,6 +1731,11 @@ function renderTimesheetRows() {
             var tkt   = ts.ticket_number ? ('#' + escapeHtml(ts.ticket_number)) : (ts.ticket_id ? ('#' + ts.ticket_id) : '-');
             var tdesc = escapeHtml(ts.ticket_description || '-');
             var cust  = escapeHtml(ts.customer_name || '-');
+            var typeCell = '-';
+            if (ts.ticket_id) {
+                var isInternalTkt = ts.ticket_type === 'Internal';
+                typeCell = '<span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ' + (isInternalTkt ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700') + '">' + (isInternalTkt ? 'Internal' : 'Non Internal') + '</span>';
+            }
             var jmd   = ts.jatah_md   != null ? formatMdTrim(ts.jatah_md)   : '-';
             var akt   = escapeHtml(ts.description || '-');
             var mdc   = ts.md_consumed != null ? formatMdTrim(ts.md_consumed) : '-';
@@ -1776,6 +1791,7 @@ function renderTimesheetRows() {
                 + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs font-semibold text-purple-700"><i class="fas fa-ticket-alt mr-1 opacity-60"></i>' + tkt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-600 max-w-[180px]" title="' + escapeHtml(ts.ticket_description || '') + '">' + tdesc + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700">' + cust + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">' + typeCell + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">' + jmd + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700 max-w-[180px]" title="' + escapeHtml(ts.description || '') + '">' + akt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">' + mdc + '</td>'

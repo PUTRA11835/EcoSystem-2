@@ -633,6 +633,8 @@ Route::middleware(['web'])->group(function () {
     // ==================== ADMIN ROUTES ====================
     Route::prefix('admin')->group(function () {
         Route::get('/activity-logs', [ActivityLogController::class, 'getData']);
+        Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'getData']);
+        Route::get('/audit-logs/modules', [\App\Http\Controllers\AuditLogController::class, 'modules']);
         Route::get('/login-logs', [LoginLogController::class, 'getData']);
 
         // Session Management

@@ -9,10 +9,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use App\Traits\Auditable;
 
 class DeliveryProjectPlanning extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
+
+    protected static ?string $auditModule = 'Delivery Project';
 
     protected $table = 'delivery_project_planning';
 

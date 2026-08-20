@@ -126,8 +126,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:200px;">Full Name</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Position</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Module</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Division</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:130px;">Employee Group</th>
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Division</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:220px;">Department</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Home Base</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Since Date</th>
@@ -898,11 +898,11 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             return `
             <tr class="employee-row" onclick="navigateToDetail(${emp.id}, event)">
                 <td class="px-4 py-3.5 text-sm" style="min-width:100px;"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
-                <td class="px-4 py-3.5 text-sm text-gray-600" style="min-width:200px;">${fullName}${emp.employee_type === 'External' ? ' <span class="inline-block ml-1.5 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 align-middle">External</span>' : ''}</td>
+                <td class="px-4 py-3.5 text-sm text-gray-600" style="min-width:200px;">${fullName}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.position || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${(emp.modules && emp.modules.length) ? emp.modules.join(', ') : '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.division || '-'}</td>
                 <td class="px-4 py-3.5 text-sm">${renderEmployeeGroup(emp.employee_group)}</td>
+                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.division || '-'}</td>
                 {{-- Kolom Department membaca eb.department. Sebelumnya keliru
                      merender employee_subgroup sehingga selalu tampil "-". --}}
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.department || '-'}</td>
