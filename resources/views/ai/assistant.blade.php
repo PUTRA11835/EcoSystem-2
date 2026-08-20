@@ -26,11 +26,29 @@
 
     #aiInput { max-height: 200px; }
 
-    /* Isi jawaban assistant dirender sebagai teks biasa untuk sekarang;
-       aturan ini menyiapkan tampilannya saat markdown sudah dipasang. */
+    /* Isi jawaban assistant dirender dari markdown (lihat aiRenderMarkdown). */
     .ai-prose p { margin: 0 0 .6rem; }
-    .ai-prose p:last-child { margin-bottom: 0; }
+    .ai-prose p:last-child, .ai-prose > *:last-child { margin-bottom: 0; }
+    .ai-prose strong { font-weight: 600; }
     .ai-prose code { background: rgba(0,0,0,.06); padding: .1rem .3rem; border-radius: .3rem; font-size: .8125rem; }
+    .ai-prose pre { background: rgba(0,0,0,.06); padding: .6rem .75rem; border-radius: .5rem; overflow-x: auto; margin: 0 0 .6rem; }
+    .ai-prose pre code { background: none; padding: 0; }
+    .ai-prose ul, .ai-prose ol { margin: 0 0 .6rem; padding-left: 1.25rem; }
+    .ai-prose ul { list-style: disc; }
+    .ai-prose ol { list-style: decimal; }
+    .ai-prose li { margin: .15rem 0; }
+    .ai-prose li > ul, .ai-prose li > ol { margin: .15rem 0 0; }
+    .ai-prose h1, .ai-prose h2, .ai-prose h3, .ai-prose h4 { font-weight: 600; margin: .9rem 0 .4rem; }
+    .ai-prose h1:first-child, .ai-prose h2:first-child, .ai-prose h3:first-child, .ai-prose h4:first-child { margin-top: 0; }
+    .ai-prose h1 { font-size: 1.05rem; }
+    .ai-prose h2 { font-size: 1rem; }
+    .ai-prose h3, .ai-prose h4 { font-size: .9rem; }
+    .ai-prose table { width: 100%; border-collapse: collapse; margin: 0 0 .6rem; font-size: .8125rem; }
+    .ai-prose th, .ai-prose td { border: 1px solid #e5e7eb; padding: .35rem .55rem; text-align: left; vertical-align: top; }
+    .ai-prose th { background: rgba(0,0,0,.03); font-weight: 600; }
+    .ai-prose a { color: #dc2626; text-decoration: underline; }
+    .ai-prose blockquote { border-left: 3px solid #e5e7eb; padding-left: .75rem; margin: 0 0 .6rem; color: #6b7280; }
+    .ai-prose hr { border: none; border-top: 1px solid #e5e7eb; margin: .6rem 0; }
 </style>
 @endpush
 
@@ -74,7 +92,7 @@
         <div id="aiThread" class="flex-1 overflow-y-auto ai-scroll px-4 sm:px-6 py-5">
 
             {{-- Empty state --}}
-            <div id="aiEmptyState" class="h-full flex flex-col items-center justify-center text-center">
+            <div id="aiEmptyState" class="min-h-full flex flex-col items-center justify-center py-6 text-center">
                 <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white mb-4">
                     <i class="fas fa-wand-magic-sparkles text-lg"></i>
                 </div>
@@ -83,25 +101,8 @@
                     Ask about tickets, projects, or delivery data. Attach a document and I can summarize it for you.
                 </p>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6 w-full max-w-2xl text-left">
-                    @foreach ([
-                        ['fa-ticket-alt',      'Summarize a ticket',      'Summarize the latest open tickets for this week'],
-                        ['fa-diagram-project', 'Check project progress',  'Which delivery projects are behind schedule?'],
-                        ['fa-envelope-open-text', 'Draft a reply',        'Draft a polite reply telling the customer the issue is resolved'],
-                        ['fa-chart-line',      'Explain a report',        'Explain the Collection Outlook numbers for this month'],
-                    ] as [$icon, $label, $prompt])
-                        <button type="button" onclick="aiUseSuggestion(@js($prompt))"
-                                class="group flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-white hover:border-red-300 hover:bg-red-50/40 transition-all">
-                            <span class="w-8 h-8 shrink-0 rounded-lg bg-gray-50 group-hover:bg-white flex items-center justify-center text-gray-400 group-hover:text-red-600 transition-all">
-                                <i class="fas {{ $icon }} text-xs"></i>
-                            </span>
-                            <span class="min-w-0">
-                                <span class="block text-xs font-semibold text-gray-800">{{ $label }}</span>
-                                <span class="block text-[11px] text-gray-500 mt-0.5 leading-snug">{{ $prompt }}</span>
-                            </span>
-                        </button>
-                    @endforeach
-                </div>
+                <p class="text-[10.5px] font-semibold text-gray-400 uppercase tracking-wide mt-6 mb-2.5">Pilih topik supaya lebih spesifik</p>
+                <div id="aiTopics" class="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl text-left"></div>
             </div>
 
             {{-- Pesan disisipkan di sini --}}
@@ -126,11 +127,6 @@
                             class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
                         <i class="fas fa-paperclip text-sm"></i>
                     </button>
-                    <button type="button" onclick="aiNotYet('Voice input')" title="Voice input"
-                            class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
-                        <i class="fas fa-microphone text-sm"></i>
-                    </button>
-
                     <span class="flex-1"></span>
 
                     <span id="aiCounter" class="hidden sm:inline text-[10px] text-gray-400 tabular-nums mr-1">0 / 4000</span>
@@ -156,6 +152,8 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 <script>
 /* ──────────────────────────────────────────────────────────────────────────
    AI Assistant.
@@ -176,6 +174,21 @@ let aiFiles     = [];     // File[] yang dipilih untuk pesan berikutnya
 let aiBusy      = false;  // sedang menunggu balasan
 let aiAbort     = null;   // AbortController pembatal request berjalan
 let aiConversationId = null;
+let aiActiveTopic = null; // tag topik yang sedang dipilih di empty state
+
+/* Topik pembuka — dipetakan dari 8 kategori yang assistant sendiri sebutkan
+   saat ditanya "bisa bantu apa saja". Memilih satu menyisipkan "#Tag" di
+   awal pesan supaya pertanyaan lebih spesifik dan gampang ditelusuri. */
+const AI_TOPICS = [
+    { tag: 'TiketSupport',  icon: 'fa-ticket',           label: 'Tiket Support',          desc: 'Status, prioritas & ringkasan tiket' },
+    { tag: 'SLA',           icon: 'fa-clock',             label: 'SLA',                     desc: 'Tenggat, tiket berisiko & kebijakan SLA' },
+    { tag: 'ProyekDelivery',icon: 'fa-diagram-project',   label: 'Proyek Delivery',         desc: 'Progres, jadwal & data finansial proyek' },
+    { tag: 'Mandays',       icon: 'fa-business-time',     label: 'Mandays',                 desc: 'Pengajuan mandays & resolution days' },
+    { tag: 'DataKaryawan',  icon: 'fa-users',             label: 'Data Karyawan/HR',        desc: 'Kepegawaian, divisi & jabatan' },
+    { tag: 'DataCustomer',  icon: 'fa-address-book',      label: 'Data Customer',           desc: 'Informasi terkait pelanggan' },
+    { tag: 'Timesheet',     icon: 'fa-table-list',        label: 'Timesheet & Master Data', desc: 'Timesheet & data referensi lainnya' },
+    { tag: 'DraftBalasan',  icon: 'fa-reply',             label: 'Draft Balasan',           desc: 'Bantuan menulis balasan ke customer' },
+];
 
 function aiEnsureConversationId() {
     if (aiConversationId) return aiConversationId;
@@ -219,6 +232,50 @@ function aiUseSuggestion(text) {
 
 function aiNotYet(feature) {
     showToast((feature || 'This feature') + ' is not available yet.', 'warning');
+}
+
+/* ── Topik pembuka ─────────────────────────────────────────────────────── */
+
+function aiRenderTopics() {
+    const box = document.getElementById('aiTopics');
+    if (!box) return;
+
+    box.innerHTML = AI_TOPICS.map(t => {
+        const active = aiActiveTopic === t.tag;
+        return `
+        <button type="button" onclick="aiSelectTopic('${t.tag}')"
+                class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all ${active
+                    ? 'border-red-500 bg-red-50 ring-1 ring-red-200'
+                    : 'border-gray-200 bg-white hover:border-red-300 hover:bg-red-50/40'}">
+            <span class="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center ${active ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500'}">
+                <i class="fas ${t.icon} text-xs"></i>
+            </span>
+            <span class="min-w-0">
+                <span class="block text-xs font-semibold ${active ? 'text-red-700' : 'text-gray-800'}">${aiEsc(t.label)}</span>
+                <span class="block text-[10.5px] text-gray-400 truncate">${aiEsc(t.desc)}</span>
+            </span>
+        </button>`;
+    }).join('');
+}
+
+/** Klik topik menyisipkan/mengganti "#Tag" di awal input. Klik ulang topik
+ *  yang sama membatalkan pilihannya (hashtag dilepas dari input). */
+function aiSelectTopic(tag) {
+    const input = document.getElementById('aiInput');
+    let value = input.value;
+
+    const current = AI_TOPICS.find(t => value.trimStart().startsWith('#' + t.tag));
+    if (current) {
+        value = value.trimStart().slice(('#' + current.tag).length).trimStart();
+    }
+
+    aiActiveTopic = (aiActiveTopic === tag) ? null : tag;
+    input.value = aiActiveTopic ? `#${aiActiveTopic} ${value}` : value;
+
+    aiRenderTopics();
+    aiAutoGrow(input);
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
 }
 
 /* ── Lampiran ──────────────────────────────────────────────────────────── */
@@ -274,6 +331,14 @@ function aiFileSize(bytes) {
 }
 
 /* ── Thread ────────────────────────────────────────────────────────────── */
+
+marked.setOptions({ breaks: true });
+
+/** Markdown -> HTML, lalu disaring DOMPurify sebelum dipasang via innerHTML —
+ *  teksnya berasal dari model/data DB, jadi tidak boleh dipercaya mentah. */
+function aiRenderMarkdown(text) {
+    return DOMPurify.sanitize(marked.parse(String(text ?? '')));
+}
 
 function aiEsc(s) {
     return String(s).replace(/[&<>"']/g, c => ({
@@ -361,7 +426,10 @@ function aiAppendAssistantPending() {
     return id;
 }
 
-/** Bertahap: append satu potongan teks ke bubble yang sedang streaming. */
+/** Bertahap: append satu potongan teks ke bubble yang sedang streaming, lalu
+ *  render ulang seluruh teks yang terkumpul sebagai markdown. Re-parse penuh
+ *  tiap delta (bukan cuma append HTML) supaya syntax markdown yang terpotong
+ *  di tengah delta (mis. "**Data Prib") tetap dirender benar begitu utuh. */
 function aiAppendAssistantDelta(id, deltaText) {
     const wrap = document.getElementById(id);
     if (!wrap) return;
@@ -370,11 +438,10 @@ function aiAppendAssistantDelta(id, deltaText) {
     if (!body.dataset.streaming) {
         body.dataset.streaming = '1';
         body.dataset.text = '';
-        body.innerHTML = '<p class="whitespace-pre-wrap break-words"></p>';
     }
 
     body.dataset.text += deltaText;
-    body.querySelector('p').textContent = body.dataset.text;
+    body.innerHTML = aiRenderMarkdown(body.dataset.text);
     aiScrollToBottom();
 }
 
@@ -383,11 +450,14 @@ function aiResolveAssistant(id, text, isError) {
     if (!wrap) return;
 
     const body = wrap.querySelector('.ai-body');
-    // Jika sudah ada teks yang di-stream dan ini bukan error, biarkan apa
-    // adanya (text di sini kosong pada jalur sukses — lihat aiSendToBackend).
-    if (!(body.dataset.streaming && !isError)) {
-        body.innerHTML = `<p class="whitespace-pre-wrap break-words${isError ? ' text-red-600' : ''}">${aiEsc(text)}</p>`;
+
+    if (isError) {
+        body.innerHTML = `<p class="whitespace-pre-wrap break-words text-red-600">${aiEsc(text)}</p>`;
+    } else if (!body.dataset.streaming) {
+        // Tidak ada delta yang masuk (text penuh langsung) — render sekarang.
+        body.innerHTML = aiRenderMarkdown(text);
     }
+    // else: sudah dirender bertahap oleh aiAppendAssistantDelta.
 
     const actions = wrap.querySelector('.ai-actions');
     actions.classList.remove('hidden');
@@ -428,6 +498,8 @@ function aiSend() {
     aiFiles = [];
     aiRenderAttachments();
     aiAutoGrow(input);
+
+    aiActiveTopic = null;
 
     aiSetBusy(true);
     const pendingId = aiAppendAssistantPending();
@@ -542,6 +614,9 @@ function aiNewChat() {
     aiFiles = [];
     aiRenderAttachments();
 
+    aiActiveTopic = null;
+    aiRenderTopics();
+
     // Start a fresh conversation — the backend's cached context for the old
     // id is simply left to expire, nothing to explicitly tear down.
     aiConversationId = null;
@@ -556,6 +631,7 @@ function aiNewChat() {
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('aiInput');
     aiAutoGrow(input);
+    aiRenderTopics();
     input.focus();
 });
 </script>

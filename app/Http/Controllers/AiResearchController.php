@@ -76,6 +76,14 @@ class AiResearchController extends Controller
         $request->session()->save();
 
         return response()->stream(function () use ($employee, $conversationId, $message, $attachments, $modelTier, $rejectedNote) {
+            // Giliran panjang (pause_turn resume, penyambungan max_tokens, web
+            // search/fetch berulang) bisa gampang melewati max_execution_time
+            // default PHP (30s), yang mematikan request dengan fatal error yang
+            // TIDAK bisa ditangkap try/catch di tengah stream (browser cuma lihat
+            // HTTP 500 kosong). Batas MAX_PAUSE_RESUMES/MAX_LENGTH_RESUMES dan cek
+            // connection_aborted() sudah membatasi loop ini, jadi aman dilepas.
+            set_time_limit(0);
+
             $send = function (string $event, array $payload): void {
                 echo 'event: ' . $event . "\n";
                 echo 'data: ' . json_encode($payload) . "\n\n";
