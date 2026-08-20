@@ -104,6 +104,12 @@ class DeliverySupport extends Model
             ->withTimestamps();
     }
 
+    public function modules()
+    {
+        return $this->belongsToMany(Module::class, 'delivery_support_modules', 'delivery_support_id', 'module_id')
+            ->withTimestamps();
+    }
+
     public function coPm()
     {
         return $this->belongsTo(Employee::class, 'co_pm_id', 'employee_id');

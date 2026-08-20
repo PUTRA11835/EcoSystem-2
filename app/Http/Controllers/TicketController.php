@@ -9,6 +9,7 @@ use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Customer;
 use App\Models\Employee;
+use App\Models\ModuleLead;
 use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
@@ -458,6 +459,34 @@ class TicketController extends Controller
                     ->whereNull('ticket.is_hidden');
                 if ($filterUnassigned) {
                     $query->whereNull('ticket.ticket_lead_id');
+                }
+            }
+
+            // "Ticket Modul" tab — dibatasi ke tiket yang lead/member-nya adalah
+            // konsultan dari module yang dipimpin employee ini (module_leads).
+            // Diterapkan di atas query yang sudah dibangun per-role di atas, supaya
+            // tidak perlu duplikasi logic di tiap cabang role.
+            if ($request->boolean('module_team')) {
+                $employeeId = $sessionUser['id'];
+                $ledModuleIds = ModuleLead::where('employee_id', $employeeId)->pluck('module_id');
+
+                if ($ledModuleIds->isEmpty()) {
+                    // Bukan lead module manapun — tab ini seharusnya tidak tampil
+                    // di UI untuk employee ini, tapi kalau tetap diakses langsung
+                    // lewat API, jangan bocorkan tiket siapa pun.
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $memberIds = DB::table('employee_qualification')
+                        ->whereIn('module_id', $ledModuleIds)
+                        ->pluck('employee_id')
+                        ->push($employeeId)
+                        ->unique()
+                        ->values();
+
+                    $query->where(function ($q) use ($memberIds) {
+                        $q->whereIn('ticket.ticket_lead_id', $memberIds)
+                          ->orWhereHas('members', fn ($i) => $i->whereIn('ticket_member.employee_id', $memberIds));
+                    });
                 }
             }
 

@@ -211,6 +211,18 @@ class Employee extends Model
     }
 
 
+    public function moduleLeaderships()
+    {
+        return $this->hasMany(ModuleLead::class, 'employee_id', 'employee_id');
+    }
+
+    public function ledModules()
+    {
+        return $this->belongsToMany(Module::class, 'module_leads', 'employee_id', 'module_id', 'employee_id', 'id')
+                    ->withTimestamps();
+    }
+
+
     public function contracts()
     {
         return $this->hasMany(EmployeeContract::class, 'employee_id', 'employee_id');

@@ -1272,6 +1272,14 @@
                             <span class="nav-text text-sm">Hidden Tickets</span>
                         </a>
                         @endif
+                        @if($can('management.module-groups'))
+                        <a href="{{ route('management.module-groups.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/module-groups*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-layer-group text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Module Group</span>
+                        </a>
+                        @endif
                         @if($can('management.employee'))
                         <div class="mt-1">
                             <button onclick="toggleMasterMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">

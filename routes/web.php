@@ -575,6 +575,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             ->middleware('menu:management.hidden-tickets')
             ->name('hidden-tickets.index');
 
+        Route::get('/module-groups', [\App\Http\Controllers\ModuleGroupController::class, 'page'])
+            ->middleware('menu:management.module-groups')
+            ->name('module-groups.index');
+
         Route::prefix('employee')->name('employee.')->group(function () {
             Route::get('/basic-data',     [\App\Http\Controllers\ManagementEmployeeController::class, 'basicData'])    ->middleware('menu:management.employee.basic-data')    ->name('basic-data.index');
             Route::get('/address',        [\App\Http\Controllers\ManagementEmployeeController::class, 'address'])      ->middleware('menu:management.employee.address')        ->name('address.index');

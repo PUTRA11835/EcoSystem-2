@@ -67,6 +67,17 @@
         </div>
         @endif
 
+        {{-- Tab "Ticket Modul" — independen dari role di atas. Muncul hanya kalau role-nya
+             di-grant menu 'ticket.module-lead' DAN employee ini memang lead di module manapun
+             (module_leads) — dua-duanya harus true. --}}
+        @if($can('ticket.module-lead') && ($isModuleLead ?? false))
+        <div class="inline-flex bg-gray-100 rounded-xl p-1">
+            <button onclick="toggleView('module-lead')" id="btnViewModuleLead" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200">
+                <i class="fas fa-people-group text-[10px] mr-1"></i>Ticket Modul
+            </button>
+        </div>
+        @endif
+
         @if($can('ui.ticket.btn-create'))
         <button onclick="openCreateTicketModal()"
             class="inline-flex items-center gap-1.5 px-3.5 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">
@@ -796,7 +807,9 @@
     #btnViewAll,
     #btnViewMy,
     #btnViewAllHd,
-    #btnViewUnassigned {
+    #btnViewUnassigned,
+    #btnViewUnassignedTab,
+    #btnViewModuleLead {
         background: transparent;
         color: #9ca3af;
         font-size: 12px;
@@ -805,7 +818,9 @@
     #btnViewAll.active,
     #btnViewMy.active,
     #btnViewAllHd.active,
-    #btnViewUnassigned.active {
+    #btnViewUnassigned.active,
+    #btnViewUnassignedTab.active,
+    #btnViewModuleLead.active {
         background: white;
         color: #111827;
         font-weight: 700;
@@ -1187,6 +1202,12 @@
         if (btnUt) {
             btnUt.classList.toggle('active', currentView === 'unassigned-tab');
         }
+        // Ticket Modul tab — visibility driven by 'ticket.module-lead' menu permission +
+        // isModuleLead (server-computed), independent of the role toggles above.
+        const btnMl = document.getElementById('btnViewModuleLead');
+        if (btnMl) {
+            btnMl.classList.toggle('active', currentView === 'module-lead');
+        }
     }
 
     // Server-side pagination/filter/sort — loadTickets() fetches exactly one page that
@@ -1211,6 +1232,7 @@
             else if ((userRole === EC_ADMINISTRATOR_ROLE || userRole === DELIVERY_SUPPORT_USER_ROLE) && currentView === 'my') endpoint = '/api/tickets/my';
             else if (userRole === SUPPORT_MANAGER_ROLE && currentView === 'my') endpoint = '/api/tickets/my';
             else if (STAFF_TOGGLE_ROLES.includes(userRole) && currentView === 'unassigned') params.set('unassigned', '1');
+            if (currentView === 'module-lead') params.set('module_team', '1');
 
             params.set('page', currentPage);
             params.set('per_page', itemsPerPage);
