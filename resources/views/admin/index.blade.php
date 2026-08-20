@@ -163,6 +163,42 @@
             </div>
         </div>
 
+        <!-- AI Settings Card -->
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+            <div class="p-5 flex-1">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                        <i class="fas fa-microchip text-indigo-600 text-base"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800">AI Settings</h3>
+                        <p class="text-xs text-gray-400">Model & token ceiling per assistant</p>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    @foreach (\App\Support\AiModelSettings::assistants() as $aiKey => $aiName)
+                        @php $aiActive = \App\Support\AiModelSettings::resolve($aiKey); @endphp
+                        <div class="bg-indigo-50 rounded-xl p-3 flex items-center gap-3">
+                            <i class="fas fa-bolt text-indigo-500 text-sm"></i>
+                            <div class="min-w-0">
+                                <p class="text-xs font-medium text-gray-700">{{ $aiName }}</p>
+                                <p class="text-xs text-gray-400 truncate">
+                                    {{ \App\Support\AiModelSettings::catalog()[$aiActive['model']]['label'] ?? $aiActive['model'] }}
+                                    &middot; max {{ number_format($aiActive['max_tokens']) }} tokens
+                                </p>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+            <div class="px-5 pb-5">
+                <a href="{{ route('admin.ai-settings') }}"
+                   class="block w-full text-center px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition">
+                    Manage AI Models
+                </a>
+            </div>
+        </div>
+
         <!-- Backup & Export Card -->
         <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
             <div class="p-5 flex-1">

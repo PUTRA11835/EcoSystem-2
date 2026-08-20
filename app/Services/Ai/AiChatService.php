@@ -7,6 +7,8 @@ use Anthropic\Messages\InputJSONDelta;
 use Anthropic\Messages\TextDelta;
 use Anthropic\Messages\ToolUseBlock;
 use App\Models\Employee;
+use App\Support\AiModelSettings;
+use App\Support\AiTextAttachment;
 use App\Services\Ai\Tools\AggregateDataTool;
 use App\Services\Ai\Tools\AiTool;
 use App\Services\Ai\Tools\ExplainWorkflowTool;
@@ -77,6 +79,9 @@ class AiChatService
         ];
 
         [$model, $config] = $this->modelConfigFor($modelTier);
+
+        // Tier yang dipakai ditentukan admin, bukan request.
+        $modelTier = $config['tier'];
 
         $iterations = 0;
 
@@ -249,14 +254,24 @@ class AiChatService
     }
 
     /**
-     * @param array<int, array{type: string, media_type: string, data: string}> $attachments
+     * Lampiran teks (tempelan besar / berkas kode) menjadi content block
+     * `text` — bukan `document` base64. Lihat App\Support\AiTextAttachment.
+     *
+     * @param array<int, array<string, mixed>> $attachments
      * @return array<int, array<string, mixed>>
      */
     private function buildUserContent(string $text, array $attachments): array
     {
         $content = [];
+        $textIndex = 0;
 
         foreach ($attachments as $attachment) {
+            if ('text' === $attachment['type']) {
+                $content[] = AiTextAttachment::toContentBlock($attachment, ++$textIndex);
+
+                continue;
+            }
+
             $content[] = [
                 'type' => $attachment['type'],
                 'source' => [
@@ -275,27 +290,30 @@ class AiChatService
     }
 
     /**
-     * @return array{0: string, 1: array{max_tokens: int, thinking: ?array, output_config: ?array}}
+     * Model, plafon token, dan effort yang berlaku — DITENTUKAN SUPER ADMIN
+     * lewat Control Center → AI Settings, bukan lagi hardcode di sini.
+     *
+     * Argumen $tier dari request SENGAJA DIABAIKAN: halaman chat tidak lagi
+     * punya pemilih model. Tier yang benar-benar dipakai ikut dikembalikan
+     * supaya yang tercatat di cache adalah tier itu, bukan 'default' bawaan
+     * request.
+     *
+     * effort dan thinking bergerak bersama: model yang tidak menerima effort
+     * (Haiku 4.5 menolaknya, bukan mengabaikannya) juga tidak dikirimi blok
+     * thinking adaptif — kombinasinya sudah dijamin AiModelSettings.
+     *
+     * @return array{0: string, 1: array{tier: string, max_tokens: int, thinking: ?array, output_config: ?array}}
      */
     private function modelConfigFor(string $tier): array
     {
-        return match ($tier) {
-            'fast' => ['claude-haiku-4-5', [
-                'max_tokens' => 2048,
-                'thinking' => null,
-                'output_config' => null,
-            ]],
-            'reasoning' => ['claude-opus-5', [
-                'max_tokens' => 8000,
-                'thinking' => ['type' => 'adaptive'],
-                'output_config' => ['effort' => 'high'],
-            ]],
-            default => ['claude-sonnet-5', [
-                'max_tokens' => 4096,
-                'thinking' => ['type' => 'adaptive'],
-                'output_config' => ['effort' => 'medium'],
-            ]],
-        };
+        $active = AiModelSettings::resolve(AiModelSettings::INTERNAL);
+
+        return [$active['model'], [
+            'tier' => $active['tier'],
+            'max_tokens' => $active['max_tokens'],
+            'thinking' => $active['effort'] ? ['type' => 'adaptive'] : null,
+            'output_config' => $active['effort'] ? ['effort' => $active['effort']] : null,
+        ]];
     }
 
     private function cacheKey(Employee $employee, string $conversationId): string
