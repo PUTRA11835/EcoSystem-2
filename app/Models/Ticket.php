@@ -5,11 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
+use App\Traits\Auditable;
 
 class Ticket extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
     use \App\Models\Concerns\HasOneDriveShareLink;
+
+    protected static ?string $auditModule = 'Ticket';
 
     protected $table = 'ticket';
     protected $primaryKey = 'ticket_id';

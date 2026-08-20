@@ -3,9 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class TicketSla extends Model
 {
+    use Auditable;
+
+    protected static ?string $auditModule = 'Ticket';
+
     protected $table = 'ticket_sla';
 
     protected $fillable = [

@@ -21,7 +21,7 @@ class TimesheetSupportExport implements
     WithStyles,
     ShouldAutoSize
 {
-    private const LAST_COL = 'M';
+    private const LAST_COL = 'N';
 
     protected Collection $rows;
     protected array $jatahMap;
@@ -49,6 +49,7 @@ class TimesheetSupportExport implements
                 'ticket'             => $ts->ticket?->ticket_number ?? ($ts->ticket_id ? "#{$ts->ticket_id}" : '-'),
                 'ticket_description' => $ts->ticket?->description ?? '-',
                 'customer'           => $ts->ticket?->customer?->basicData?->name_1 ?? '-',
+                'type'               => $ts->ticket_id ? (($ts->ticket?->ticket_type === 'Internal') ? 'Internal' : 'Non Internal') : '-',
                 'delivery_support'   => $ts->ticket_id ? ($this->deliveryMap[$ts->ticket_id] ?? '-') : '-',
                 'quota_md'           => $ts->ticket_id ? ($this->jatahMap[$jatahKey] ?? '-') : '-',
                 'activity'           => $ts->description ?? '-',
@@ -69,6 +70,7 @@ class TimesheetSupportExport implements
             'Ticket',
             'Description',
             'Customer',
+            'Type',
             'Delivery Support',
             'Quota MD',
             'Activity',

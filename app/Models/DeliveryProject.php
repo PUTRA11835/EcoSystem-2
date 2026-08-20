@@ -8,12 +8,15 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Models\AuthUser;
 use App\Models\DeliveryProjectCost;
+use App\Traits\Auditable;
 
 
 class DeliveryProject extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
     use \App\Models\Concerns\HasOneDriveShareLink;
+
+    protected static ?string $auditModule = 'Delivery Project';
 
     /**
      * The attributes that are mass assignable.

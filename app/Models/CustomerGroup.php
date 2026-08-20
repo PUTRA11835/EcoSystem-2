@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\Auditable;
 
 /**
  * Customer Group struktural.
@@ -15,6 +16,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class CustomerGroup extends Model
 {
+    use Auditable;
+
+    protected static ?string $auditModule = 'Customer';
+
     protected $table = 'customer_groups';
 
     protected $fillable = [
