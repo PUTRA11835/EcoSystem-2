@@ -745,6 +745,18 @@
                 </div>
                 @endif
 
+                @if($can('ai-research'))
+                <!-- AI RESEARCH -->
+                <div class="mb-2">
+                    <a href="{{ route('ai-research') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ai-research*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-magnifying-glass-chart"></i>
+                        </span>
+                        <span class="nav-text font-medium">AI Research</span>
+                    </a>
+                </div>
+                @endif
+
                 @if($can('calendar'))
                 <!-- CALENDAR Dropdown -->
                 <div class="mb-2">
@@ -1258,6 +1270,14 @@
                                 <i class="fas fa-eye-slash text-xs"></i>
                             </span>
                             <span class="nav-text text-sm">Hidden Tickets</span>
+                        </a>
+                        @endif
+                        @if($can('management.module-groups'))
+                        <a href="{{ route('management.module-groups.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/module-groups*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-layer-group text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Module Group</span>
                         </a>
                         @endif
                         @if($can('management.employee'))

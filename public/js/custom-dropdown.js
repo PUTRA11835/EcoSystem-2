@@ -658,3 +658,38 @@ function clearCustomDropdownMulti(hiddenId) {
     if (!dd) return;
     _clearMultiSelection(dd);
 }
+
+/**
+ * Programmatically select a set of values in a multi-select dropdown
+ * (data-multi="true"), replacing whatever was selected before. Lets a page
+ * drive a column filter from somewhere else in the UI (e.g. a summary card)
+ * while keeping the dropdown itself as the single source of truth.
+ * @param {string} hiddenId — the id of the hidden input inside the dropdown
+ * @param {string[]|string} values — values to select; empty clears everything
+ */
+function setCustomDropdownMulti(hiddenId, values) {
+    const hidden = document.getElementById(hiddenId);
+    if (!hidden) return;
+    const dd = hidden.closest('.custom-dd');
+    if (!dd) return;
+
+    // Selalu mulai dari kondisi bersih supaya centang sisa pilihan sebelumnya
+    // tidak tertinggal di panel.
+    _clearMultiSelection(dd);
+
+    const list = (Array.isArray(values) ? values : String(values || '').split(','))
+        .map(v => String(v).trim())
+        .filter(Boolean);
+    if (!list.length) return;
+
+    const panel = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
+    list.forEach(val => {
+        const item = panel?.querySelector(`.custom-dd-item[data-value="${CSS.escape(val)}"]`);
+        if (!item) return;
+        item.classList.add('bg-gray-50', 'font-medium', 'text-gray-900');
+        item.querySelector('.custom-dd-check')?.classList.remove('opacity-0');
+    });
+
+    hidden.value = list.join(',');
+    _updateMultiLabel(dd, list);
+}

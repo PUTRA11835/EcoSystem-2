@@ -101,6 +101,15 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
     Route::post('/ai-assistant/chat', [\App\Http\Controllers\AiAssistantController::class, 'chat'])->name('ai-assistant.chat')->middleware('menu:ai-assistant');
 
+    // ==================== AI RESEARCH (pencarian eksternal) ====================
+    Route::get('/ai-research', [\App\Http\Controllers\AiResearchController::class, 'index'])->name('ai-research')->middleware('menu:ai-research');
+    Route::post('/ai-research/chat', [\App\Http\Controllers\AiResearchController::class, 'chat'])->name('ai-research.chat')->middleware('menu:ai-research');
+    // Riwayat percakapan (arsip DB). Hapus memakai POST, bukan DELETE:
+    // verb DELETE diblokir edge/WAF di production.
+    Route::get('/ai-research/conversations', [\App\Http\Controllers\AiResearchController::class, 'conversations'])->name('ai-research.conversations')->middleware('menu:ai-research');
+    Route::get('/ai-research/conversations/{conversation}', [\App\Http\Controllers\AiResearchController::class, 'conversation'])->name('ai-research.conversation')->middleware('menu:ai-research');
+    Route::post('/ai-research/conversations/{conversation}/delete', [\App\Http\Controllers\AiResearchController::class, 'destroyConversation'])->name('ai-research.conversation.delete')->middleware('menu:ai-research');
+
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
         Route::get('/', [CalendarController::class, 'index'])->name('index');
@@ -565,6 +574,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/hidden-tickets', [\App\Http\Controllers\HiddenTicketController::class, 'page'])
             ->middleware('menu:management.hidden-tickets')
             ->name('hidden-tickets.index');
+
+        Route::get('/module-groups', [\App\Http\Controllers\ModuleGroupController::class, 'page'])
+            ->middleware('menu:management.module-groups')
+            ->name('module-groups.index');
 
         Route::prefix('employee')->name('employee.')->group(function () {
             Route::get('/basic-data',     [\App\Http\Controllers\ManagementEmployeeController::class, 'basicData'])    ->middleware('menu:management.employee.basic-data')    ->name('basic-data.index');

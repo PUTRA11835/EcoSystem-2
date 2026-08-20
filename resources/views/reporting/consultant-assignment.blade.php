@@ -74,25 +74,44 @@
     </div>
 </div>
 
-{{-- ── Secondary summary strip ─────────────────────────────────────────────── --}}
+{{-- ── Secondary summary strip (juga berfungsi sebagai filter cepat) ────────
+     Internal / External menyetir dropdown kolom "Employee Type" (satu sumber
+     kebenaran, bukan filter kedua yang bisa bertabrakan dengannya); kartu MD
+     memakai parameter `md_only` untuk menyisakan penugasan yang menyumbang
+     angka tersebut. --}}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-    <div class="bg-white rounded-xl border border-gray-200 px-4 py-2.5">
+    <div id="caCardInternal" onclick="caTypeCardFilter('internal')" role="button" tabindex="0"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();caTypeCardFilter('internal');}"
+         title="Show internal consultants only"
+         class="ca-lens-card bg-white rounded-xl border border-gray-200 px-4 py-2.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-100">
         <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Internal</p>
         <p class="text-base font-bold text-gray-700" id="caStatInternal">0</p>
     </div>
-    <div class="bg-white rounded-xl border border-gray-200 px-4 py-2.5">
+    <div id="caCardExternal" onclick="caTypeCardFilter('external')" role="button" tabindex="0"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();caTypeCardFilter('external');}"
+         title="Show external / vendor consultants only"
+         class="ca-lens-card bg-white rounded-xl border border-gray-200 px-4 py-2.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-100">
         <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">External / Vendor</p>
         <p class="text-base font-bold text-gray-700" id="caStatExternal">0</p>
     </div>
-    <div class="bg-white rounded-xl border border-gray-200 px-4 py-2.5">
-        <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest" title="Total planned working days from activity assignments">Planned MD</p>
+    <div id="caCardPlannedMd" onclick="caMdCardFilter('planned')" role="button" tabindex="0"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();caMdCardFilter('planned');}"
+         title="Total planned working days from activity assignments — click to show only assignments with planned MD"
+         class="ca-lens-card bg-white rounded-xl border border-gray-200 px-4 py-2.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-100">
+        <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Planned MD</p>
         <p class="text-base font-bold text-gray-700" id="caStatPlannedMd">0</p>
     </div>
-    <div class="bg-white rounded-xl border border-gray-200 px-4 py-2.5">
-        <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest" title="Total approved timesheet mandays charged to the project">Actual MD</p>
+    <div id="caCardActualMd" onclick="caMdCardFilter('actual')" role="button" tabindex="0"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();caMdCardFilter('actual');}"
+         title="Total approved timesheet mandays charged to the project — click to show only assignments with actual MD"
+         class="ca-lens-card bg-white rounded-xl border border-gray-200 px-4 py-2.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-100">
+        <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Actual MD</p>
         <p class="text-base font-bold text-gray-700" id="caStatActualMd">0</p>
     </div>
 </div>
+{{-- Lensa kartu MD (planned/actual). Bukan dropdown — cukup nilai tersembunyi
+     yang ikut terbawa caFilterParams() ke API maupun Export. --}}
+<input type="hidden" id="caMdOnly" value="">
 
 {{-- ── Table ───────────────────────────────────────────────────────────────── --}}
 <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -376,9 +395,26 @@
 .primary-text { color: var(--primary-color) !important; }
 /* Baris induk yang terbuka ditandai supaya batas antar consultant tetap jelas
    saat beberapa consultant dibuka sekaligus. */
-.ca-group-row.ca-group-open { background: rgba(254, 242, 242, 0.6) !important; }
+.ca-group-row.ca-group-open { background: #fdf2f2 !important; }
 .ca-group-row.ca-group-open td { border-bottom: 0; }
-.ca-stat-card.active-filter {
+/* Kolom Consultant menempel (sticky) saat tabel digeser horizontal. Latarnya
+   WAJIB opaque — warna semi-transparan (bg-white/60, bg-gray-50/95, dst.)
+   membuat isi kolom yang lewat di belakangnya tembus dan terbaca dobel. */
+.ca-sticky-col { position: sticky; left: 0; z-index: 12; background: #ffffff; }
+.ca-group-row:hover .ca-sticky-col { background: #fef4f4; }
+.ca-group-row.ca-group-open .ca-sticky-col { background: #fdf2f2; }
+.ca-group-row.ca-group-open:hover .ca-sticky-col { background: #fbe9e9; }
+.ca-child-row .ca-sticky-col { background: #f9fafb; }
+.ca-child-row:hover .ca-sticky-col { background: #f3f4f6; }
+/* Kartu lensa yang tidak punya data untuk disaring (nilainya 0). */
+.ca-lens-card.ca-lens-disabled {
+    cursor: default;
+    opacity: 0.55;
+    box-shadow: none !important;
+}
+.ca-lens-card.ca-lens-disabled:hover { border-color: #e5e7eb !important; }
+.ca-stat-card.active-filter,
+.ca-lens-card.active-filter {
     border-left: 3px solid #dc2626 !important;
     border-top-color: #fecaca !important;
     border-right-color: #fecaca !important;
@@ -438,6 +474,7 @@ function caFilterParams() {
     add('project_category',  val('caCategory'));
     add('period_from',       val('caPeriodFrom'));
     add('period_to',         val('caPeriodTo'));
+    add('md_only',           val('caMdOnly'));
     add('assignment_status', caStatus);
 
     return params;
@@ -551,6 +588,7 @@ function caApplyDropdownFilter() {
         const dd = document.getElementById(ddId);
         if (dd) dd.classList.toggle('ca-dd-active', (document.getElementById(inputId)?.value || '') !== '');
     });
+    caSyncLensCards();
     caLoad();
 }
 
@@ -595,6 +633,67 @@ function caCardFilter(status) {
     caLoad();
 }
 
+// ── Kartu ringkasan baris kedua (Internal / External / Planned MD / Actual MD) ─
+// Kartu-kartu ini adalah PINTASAN filter, bukan filter tersendiri:
+//  - Internal & External/Vendor menyetir dropdown kolom "Employee Type" supaya
+//    tidak ada dua kontrol berbeda untuk satu kolom yang bisa saling bertabrakan.
+//  - Planned/Actual MD memakai `md_only`, menyisakan penugasan yang nilainya > 0.
+// Semuanya bersifat toggle: klik kartu yang sedang aktif untuk melepas filternya.
+
+const CA_TYPE_CARD_VALUES = {
+    internal: ['Internal'],
+    external: ['External', 'Vendor'],
+};
+
+/** Bandingkan CSV pilihan multi-select sebagai HIMPUNAN (urutan klik tak penting). */
+function caSameSet(csv, values) {
+    const a = String(csv || '').split(',').map(s => s.trim()).filter(Boolean).sort();
+    const b = [...values].sort();
+    return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+function caTypeCardFilter(kind) {
+    const target = CA_TYPE_CARD_VALUES[kind];
+    if (!target || caLensDisabled(kind === 'internal' ? 'caCardInternal' : 'caCardExternal')) return;
+    const current = document.getElementById('caEmployeeType')?.value || '';
+
+    // Sudah aktif → lepas filternya. Selain itu, ganti pilihan (bukan tambah),
+    // supaya Internal dan External tidak pernah tercentang bersamaan.
+    const next = caSameSet(current, target) ? [] : target;
+
+    if (typeof setCustomDropdownMulti === 'function') {
+        setCustomDropdownMulti('caEmployeeType', next);
+    } else {
+        const hidden = document.getElementById('caEmployeeType');
+        if (hidden) hidden.value = next.join(',');
+    }
+    caApplyDropdownFilter();   // menandai dropdown aktif, sync kartu, lalu caLoad()
+}
+
+function caLensDisabled(cardId) {
+    return document.getElementById(cardId)?.dataset.disabled === '1';
+}
+
+function caMdCardFilter(kind) {
+    const hidden = document.getElementById('caMdOnly');
+    if (!hidden || caLensDisabled(kind === 'planned' ? 'caCardPlannedMd' : 'caCardActualMd')) return;
+    hidden.value = hidden.value === kind ? '' : kind;
+    caSyncLensCards();
+    caLoad();
+}
+
+/** Tandai kartu mana yang sedang menjadi filter aktif. */
+function caSyncLensCards() {
+    const type = document.getElementById('caEmployeeType')?.value || '';
+    const md   = document.getElementById('caMdOnly')?.value || '';
+    const mark = (id, on) => document.getElementById(id)?.classList.toggle('active-filter', on);
+
+    mark('caCardInternal',  caSameSet(type, CA_TYPE_CARD_VALUES.internal));
+    mark('caCardExternal',  caSameSet(type, CA_TYPE_CARD_VALUES.external));
+    mark('caCardPlannedMd', md === 'planned');
+    mark('caCardActualMd',  md === 'actual');
+}
+
 function caResetFilters() {
     ['caSearch', 'caFilterConsultant', 'caPeriodFrom', 'caPeriodTo'].forEach(id => {
         const el = document.getElementById(id);
@@ -608,6 +707,10 @@ function caResetFilters() {
         ['caRole', 'caEmployeeType', 'caCategory'].forEach(id => clearCustomDropdownMulti(id));
     }
     document.querySelectorAll('.custom-dd').forEach(dd => dd.classList.remove('ca-dd-active'));
+
+    const mdOnly = document.getElementById('caMdOnly');
+    if (mdOnly) mdOnly.value = '';
+    caSyncLensCards();
 
     caSortKey = null;
     caSortDir = null;
@@ -688,6 +791,31 @@ function caUpdateSortIcons() {
 
 const CA_NUMERIC_KEYS = ['planned_md', 'actual_md'];
 
+/**
+ * Pecah nilai kolom module jadi token satuan. `delivery_project_employee.module`
+ * bebas teks: ada yang satu modul ("CO"), ada yang beberapa dalam satu kolom
+ * ("FI, CO, FM" / "CO , FM"), dan ada placeholder "-".
+ */
+function caModuleTokens(raw) {
+    return String(raw ?? '')
+        .split(/[,;/|]+/)
+        .map(t => t.trim())
+        .filter(t => t !== '' && t !== '-');
+}
+
+/** Gabungkan modul dari banyak penugasan; dedupe case-insensitive, urutan tampil pertama menang. */
+function caUniqueModules(values) {
+    const seen = new Set();
+    const out  = [];
+    (values || []).forEach(v => caModuleTokens(v).forEach(t => {
+        const key = t.toUpperCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(t);
+    }));
+    return out;
+}
+
 function caBuildGroups() {
     const byEmployee = new Map();
 
@@ -721,7 +849,10 @@ function caBuildGroups() {
         g.project_count  = new Set(g.items.map(i => i.project_id)).size;
         g.customer_count = new Set(g.items.map(i => i.customer_name).filter(Boolean)).size;
         g.roles          = [...new Set(g.items.map(i => i.role).filter(Boolean))];
-        g.modules        = [...new Set(g.items.map(i => i.module).filter(Boolean))];
+        // Satu penugasan bisa menyimpan beberapa modul dalam satu kolom
+        // ("FI, CO, FM"), jadi dedupe harus per TOKEN — bukan per string utuh,
+        // yang membuat "FI, CO, FM" + "CO" tampil sebagai "FI, CO, FM, CO".
+        g.modules        = caUniqueModules(g.items.map(i => i.module));
         g.types          = [...new Set(g.items.map(i => i.employee_type).filter(Boolean))];
         g.active_count   = g.items.filter(i => i.assignment_status === 'Active').length;
         g.ended_count    = g.items.filter(i => i.assignment_status === 'Ended').length;
@@ -832,6 +963,24 @@ function caRenderStats(stats) {
     set('caStatExternal',    stats.external);
     set('caStatPlannedMd',   caNum(stats.planned_md));
     set('caStatActualMd',    caNum(stats.actual_md));
+
+    // Kartu bernilai 0 tidak punya apa pun untuk disaring — matikan supaya
+    // tidak ada klik yang berujung tabel kosong tanpa penjelasan.
+    caSetLensEnabled('caCardInternal',  Number(stats.internal)   > 0);
+    caSetLensEnabled('caCardExternal',  Number(stats.external)   > 0);
+    caSetLensEnabled('caCardPlannedMd', Number(stats.planned_md) > 0);
+    caSetLensEnabled('caCardActualMd',  Number(stats.actual_md)  > 0);
+}
+
+function caSetLensEnabled(cardId, enabled) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    // Kartu yang sedang menjadi filter aktif TIDAK boleh dimatikan — kalau tidak,
+    // filternya terkunci dan tidak bisa dilepas lagi lewat kartu itu sendiri.
+    enabled = enabled || card.classList.contains('active-filter');
+    card.dataset.disabled = enabled ? '' : '1';
+    card.classList.toggle('ca-lens-disabled', !enabled);
+    card.setAttribute('tabindex', enabled ? '0' : '-1');
 }
 
 function caRender() {
@@ -883,7 +1032,7 @@ function caGroupRow(g) {
     return `
         <tr class="border-t border-gray-200 bg-white hover:bg-red-50/40 cursor-pointer ca-group-row ${open ? 'ca-group-open' : ''}"
             onclick="caToggleRow(${g.employee_id})">
-            <td class="px-3 py-3 sticky left-0 z-10 ${open ? 'bg-red-50/60' : 'bg-white'}">
+            <td class="px-3 py-3 ca-sticky-col">
                 <div class="flex items-center gap-2">
                     <svg class="w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-90' : ''}"
                          fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -926,8 +1075,8 @@ function caGroupRow(g) {
 /** Baris anak: detail satu penugasan. */
 function caChildRows(g) {
     return g.items.map(r => `
-        <tr class="border-t border-gray-100 bg-gray-50/40 hover:bg-gray-50">
-            <td class="px-3 py-2 sticky left-0 bg-gray-50/95 z-10">
+        <tr class="ca-child-row border-t border-gray-100 bg-gray-50/40 hover:bg-gray-50">
+            <td class="px-3 py-2 ca-sticky-col">
                 <div class="flex items-center gap-2 pl-5">
                     <span class="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0"></span>
                     <span class="text-[11px] text-gray-400 truncate">${caEsc(r.role)}</span>

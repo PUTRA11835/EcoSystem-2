@@ -490,6 +490,16 @@ function fillModal(s) {
     }
 
     // ── Validation panel ──
+    // Delivery support milik customer tiket ini. Aturan bisnis:
+    //   • customer punya ≥1 delivery support  → WAJIB dipilih (tak ada opsi kosong)
+    //   • tepat 1                             → langsung terisi otomatis
+    //   • tidak punya sama sekali             → field dikunci & approve tetap boleh
+    const dsOptions  = DELIVERY_SUPPORTS.filter(ds => ds.client_id == s.customer_id);
+    const dsRequired = dsOptions.length > 0;
+
+    // Reset pilihan setiap kali modal dibuka supaya tidak bocor dari staging sebelumnya.
+    _stagingDsSelected = { id: null, name: '' };
+
     let validationHtml = '';
     if (isUnvalidated) {
         validationHtml = `
@@ -540,31 +550,32 @@ function fillModal(s) {
                 </div>
             </div>
             <div class="border-t border-gray-100 px-4 pt-3 pb-3">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Delivery Support <span class="text-gray-400 font-normal">(optional — for SLA matching)</span></label>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Delivery Support
+                    ${dsRequired
+                        ? '<span class="text-red-500">*</span>'
+                        : '<span class="text-gray-400 font-normal">(no delivery support registered for this customer)</span>'}
+                </label>
                 <input type="hidden" id="stagingDsHidden" value="">
                 <div id="stagingDsDd" class="relative">
                     <input type="text" id="stagingDsSearch"
-                        placeholder="Select delivery support…"
+                        placeholder="${dsRequired ? 'Select delivery support…' : 'Not available for this customer'}"
                         autocomplete="off"
+                        ${dsRequired ? '' : 'disabled'}
                         oninput="filterStagingDs(this.value)"
                         onfocus="openStagingDsDd()"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm ${dsRequired ? 'bg-white' : 'bg-gray-50 text-gray-400 cursor-not-allowed'} focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
                     <div id="stagingDsPanel" class="hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-y-auto" style="max-height:200px;">
-                        <button type="button" class="staging-ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-400 italic hover:bg-gray-50 transition"
-                            onclick="selectStagingDs(this.dataset.id, this.dataset.name)" data-id="" data-name="">— No delivery support</button>
-                        ${(() => {
-                            const filtered = DELIVERY_SUPPORTS.filter(ds => ds.client_id == s.customer_id);
-                            if (!filtered.length) {
-                                return '<div class="px-3 py-2.5 text-xs text-gray-400 italic">No delivery support found for this customer.</div>';
-                            }
-                            return filtered.map(ds =>
-                                '<button type="button" class="staging-ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition" ' +
-                                'onclick="selectStagingDs(this.dataset.id, this.dataset.name)" ' +
-                                'data-id="' + ds.id + '" data-name="' + escHtml(ds.name) + '">' + escHtml(ds.name) + '</button>'
-                            ).join('');
-                        })()}
+                        ${dsOptions.map(ds =>
+                            '<button type="button" class="staging-ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition" ' +
+                            'onclick="selectStagingDs(this.dataset.id, this.dataset.name)" ' +
+                            'data-id="' + ds.id + '" data-name="' + escHtml(ds.name) + '">' + escHtml(ds.name) + '</button>'
+                        ).join('')}
                     </div>
                 </div>
+                <p id="dsError" class="hidden mt-1 text-xs text-red-500">Delivery support is required.</p>
+                ${dsRequired && dsOptions.length > 1
+                    ? '<p class="mt-1 text-[11px] text-gray-400">This customer has ' + dsOptions.length + ' delivery supports — choose the right one.</p>'
+                    : ''}
             </div>
             <div id="forCustomerWrap" class="hidden border-t border-gray-100 px-4 pt-3 pb-3">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">For customer <span class="text-gray-400 font-normal">(end-customer under this parent)</span></label>
@@ -727,6 +738,12 @@ function fillModal(s) {
         if (s.scale) {
             const scaleEl = document.getElementById('approveScale');
             if (scaleEl) scaleEl.value = s.scale;
+        }
+
+        // Delivery support: kalau customer hanya punya satu, langsung pilihkan —
+        // validator tetap jalan, tapi user tak perlu memilih manual.
+        if (dsOptions.length === 1) {
+            selectStagingDs(dsOptions[0].id, dsOptions[0].name);
         }
 
         // ── "For customer": tampil hanya jika customer ter-match adalah parent
@@ -903,6 +920,7 @@ async function submitApprove(id) {
 
     const typeErr = document.getElementById('typeError');
     const prioErr = document.getElementById('priorityError');
+    const dsErr   = document.getElementById('dsError');
     let valid = true;
 
     if (!ticketType) { typeErr?.classList.remove('hidden'); valid = false; }
@@ -910,6 +928,11 @@ async function submitApprove(id) {
 
     if (!priority)    { prioErr?.classList.remove('hidden'); valid = false; }
     else              { prioErr?.classList.add('hidden'); }
+
+    // Wajib hanya bila customer memang punya delivery support terdaftar.
+    const dsAvailable = document.querySelectorAll('#stagingDsPanel .staging-ds-opt').length > 0;
+    if (dsAvailable && !deliverySupportId) { dsErr?.classList.remove('hidden'); valid = false; }
+    else                                   { dsErr?.classList.add('hidden'); }
 
     if (!valid) return;
 
