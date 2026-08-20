@@ -144,7 +144,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // ==================== HR & GENERAL ====================
     Route::get('/general', function () {
-        return view('general.general', ['user' => session('user')]);
+        return view('HR_General.HR_General', ['user' => session('user')]);
     })->name('general')->middleware('menu:general');
 
     // ==================== BUSINESS ====================
@@ -594,3 +594,7 @@ require __DIR__ . '/delivery.php';
 // ==================== DELIVERY SUPPORT ROUTES ====================
 // Include delivery support module routes
 require __DIR__ . '/delivery-support.php';
+
+// ==================== HR & GENERAL ROUTES ====================
+// Include HR & General module routes (Attendance, Branches, Shifts)
+require __DIR__ . '/HR_General.php';

@@ -886,14 +886,66 @@
                 </div>
                 @endif
 
-                @if($can('general'))
-                <!-- HR & GENERAL -->
+                @php
+                    // "My Attendance" sengaja TIDAK menyalakan dropdown ini: ia
+                    // dirender sebagai item tingkat atas tersendiri di bawah,
+                    // karena seluruh karyawan melakukan presensi sementara hanya
+                    // sebagian yang mengakses modul HR.
+                    // Halaman general/settings/* juga tidak: menunya berada di
+                    // Management > HR & General.
+                    $generalActive = Request::is('general')
+                        || Request::is('general/attendance*');
+
+                    // Dropdown hanya ditampilkan bila ADA isinya. Tanpa penjagaan
+                    // ini, role yang hanya diberi "My Attendance" tetap melihat
+                    // "HR & General" di sidebar lalu mendapati dropdown terbuka
+                    // kosong — menu yang tidak bisa dipakai lebih membingungkan
+                    // daripada menu yang tidak ditampilkan sama sekali.
+                    $hasGeneralChildren = $can('general.attendance')
+                        || $can('general.attendance.correction');
+                @endphp
+                @if($can('general') && $hasGeneralChildren)
+                <!-- HR & GENERAL Dropdown -->
                 <div class="mb-2">
-                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <button onclick="toggleGeneralDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $generalActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-users-cog"></i>
                         </span>
-                        <span class="nav-text font-medium">HR & General</span>
+                        <span class="nav-text flex-1 font-medium">HR &amp; General</span>
+                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="generalChevron"></i>
+                    </button>
+                    <div id="generalDropdown" class="nav-text {{ $generalActive ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        @if($can('general.attendance'))
+                        <a href="{{ route('general.attendance.daily') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance') || Request::is('general/attendance/monthly*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-calendar-check text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Attendance</span>
+                        </a>
+                        @endif
+                        @if($can('general.attendance.correction'))
+                        <a href="{{ route('general.attendance.corrections.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance/corrections*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-clock-rotate-left text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Attendance Corrections</span>
+                        </a>
+                        @endif
+                    </div>
+                </div>
+                @endif
+
+                @if($can('general.my-attendance'))
+                <!-- MY ATTENDANCE -->
+                {{-- Sengaja item TINGKAT ATAS, bukan di dalam dropdown HR & General:
+                     setiap karyawan melakukan presensi, sementara hanya sebagian
+                     yang mengakses modul HR. --}}
+                <div class="mb-2">
+                    <a href="{{ route('general.my-attendance.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-attendance*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-fingerprint"></i>
+                        </span>
+                        <span class="nav-text font-medium">My Attendance</span>
                     </a>
                 </div>
                 @endif
@@ -1253,6 +1305,45 @@
                             </div>
                         </div>
                         @endif
+
+                        @php
+                            // Konfigurasi modul HR & General dikumpulkan di sini
+                            // agar seluruh pengaturan sistem berada di satu tempat,
+                            // sementara dropdown HR & General di atas hanya berisi
+                            // menu operasional harian.
+                            $hrGeneralSettingsActive = Request::is('general/settings*');
+                        @endphp
+                        @if($can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance'))
+                        <div class="mt-1">
+                            <button onclick="toggleHrGeneralMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $hrGeneralSettingsActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-users-cog text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm flex-1">HR &amp; General</span>
+                                <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $hrGeneralSettingsActive ? 'rotate-180' : '' }}" id="hrGeneralMgmtChevron"></i>
+                            </button>
+                            <div id="hrGeneralMgmtDropdown" class="nav-text {{ $hrGeneralSettingsActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                                @if($can('general.settings.branches'))
+                                <a href="{{ route('general.settings.branches.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/branches*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-map-marker-alt text-xs"></i></span>
+                                    <span class="nav-text text-xs">Branches</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.shifts'))
+                                <a href="{{ route('general.settings.shifts.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/shifts*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-clock text-xs"></i></span>
+                                    <span class="nav-text text-xs">Shifts</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.attendance'))
+                                <a href="{{ route('general.settings.attendance.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/attendance*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-sliders text-xs"></i></span>
+                                    <span class="nav-text text-xs">Attendance Settings</span>
+                                </a>
+                                @endif
+                            </div>
+                        </div>
+                        @endif
                     </div>
                 </div>
                 @endif
@@ -1403,6 +1494,8 @@
     <script>
         var isCollapsed = false;
         var isMasterDropdownOpen = {{ Request::is('master*') ? 'true' : 'false' }};
+        var isGeneralDropdownOpen = {{ Request::is('general') || Request::is('general/attendance*') ? 'true' : 'false' }};
+        var isHrGeneralMgmtDropdownOpen = {{ Request::is('general/settings*') ? 'true' : 'false' }};
         var isDeliveryDropdownOpen = {{ Request::is('project*') || Request::is('support*') ? 'true' : 'false' }};
         var isReportingDropdownOpen = {{ Request::is('reporting*') ? 'true' : 'false' }};
         
@@ -1472,6 +1565,19 @@
         function toggleMasterDropdown() {
             isMasterDropdownOpen = !isMasterDropdownOpen;
             document.getElementById('masterDropdown').classList.toggle('hidden', !isMasterDropdownOpen);
+        }
+
+        function toggleGeneralDropdown() {
+            isGeneralDropdownOpen = !isGeneralDropdownOpen;
+            document.getElementById('generalDropdown').classList.toggle('hidden', !isGeneralDropdownOpen);
+        }
+
+        function toggleHrGeneralMgmtDropdown() {
+            isHrGeneralMgmtDropdownOpen = !isHrGeneralMgmtDropdownOpen;
+            const panel   = document.getElementById('hrGeneralMgmtDropdown');
+            const chevron = document.getElementById('hrGeneralMgmtChevron');
+            panel.classList.toggle('hidden', !isHrGeneralMgmtDropdownOpen);
+            chevron.classList.toggle('rotate-180', isHrGeneralMgmtDropdownOpen);
         }
 
         function toggleReportingDropdown() {
