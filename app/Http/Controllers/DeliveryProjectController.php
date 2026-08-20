@@ -1107,6 +1107,43 @@ class DeliveryProjectController extends Controller
         return back()->with('error', $message);
     }
 
+    /**
+     * Hapus SATU baris pivot team member berdasarkan ID barisnya.
+     *
+     * Identifikasinya lewat ID baris (bukan employee_id) karena anggota vendor
+     * tidak punya entri di master employee — employee_id-nya NULL. Kolom FK
+     * project-role (project_manager_id dkk) ikut dibersihkan kalau baris yang
+     * dihapus adalah baris yang sedang dirujuk kolom tersebut.
+     *
+     * Gated `menu:delivery-project.team.delete`.
+     */
+    public function destroyTeamRow(Request $request, DeliveryProject $project, $rowId)
+    {
+        $row = DB::table('delivery_project_employee')
+            ->where('delivery_projects_id', $project->id)
+            ->where('id', $rowId)
+            ->first();
+
+        if (!$row) {
+            return $this->teamMemberError($request, 'Team member entry not found.');
+        }
+
+        DB::table('delivery_project_employee')->where('id', $row->id)->delete();
+
+        if ($row->employee_id !== null && isset(self::PROJECT_ROLE_COLUMNS[$row->role])) {
+            $col = self::PROJECT_ROLE_COLUMNS[$row->role];
+            if ((string) $project->$col === (string) $row->employee_id) {
+                $project->$col = null;
+                $project->save();
+            }
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Team member removed successfully']);
+        }
+        return back()->with('success', 'Team member removed successfully.');
+    }
+
     public function destroyTeamMember(Request $request, DeliveryProject $project, $employeeId)
     {
         $role = $request->input('role');

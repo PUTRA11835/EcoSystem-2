@@ -140,22 +140,51 @@
             </div>
         </div>
         
-        <div id="scurveChartContent" class="hidden p-6">
-            <!-- Progress Status Banner -->
-            <div id="scurveStatusBanner" class="mb-6 p-4 rounded-lg border-l-4 hidden">
-                <div class="flex items-center">
-                    <svg id="scurveStatusIcon" class="w-6 h-6 mr-3" fill="currentColor" viewBox="0 0 20 20"></svg>
-                    <div class="flex-1">
-                        <h4 id="scurveStatusTitle" class="font-bold text-sm"></h4>
-                        <p id="scurveStatusMessage" class="text-xs mt-1"></p>
-                    </div>
-                    <div id="scurveStatusPercentage" class="text-2xl font-bold ml-4"></div>
-                </div>
-            </div>
+        <div id="scurveChartContent" class="hidden p-4 sm:p-6">
+            <!-- Report Title -->
+            <h3 class="text-center text-xl sm:text-2xl font-extrabold text-blue-800 tracking-wide mb-4">Project Progress</h3>
 
-            <!-- Chart Canvas -->
-            <div class="relative bg-white rounded-lg border-2 border-gray-100 p-4" style="height: 450px;">
-                <canvas id="scurveChart"></canvas>
+            <div class="grid grid-cols-1 xl:grid-cols-4 gap-4">
+                <!-- Chart + aligned data grid -->
+                <div class="xl:col-span-3 bg-white rounded-lg border-2 border-gray-200 p-3 sm:p-4">
+                    <div class="relative" style="height: 400px;">
+                        <canvas id="scurveChart"></canvas>
+                    </div>
+
+                    <!-- Excel-style data rows (aligned to chart x-axis) -->
+                    <div id="scurveGridWrap" class="mt-2 select-none text-[10px] sm:text-[11px]">
+                        <div id="scurveGridActual" class="flex items-stretch border-t border-gray-200"></div>
+                        <div id="scurveGridPlan" class="flex items-stretch border-t border-b border-gray-200"></div>
+                    </div>
+                </div>
+
+                <!-- Summary panel -->
+                <aside class="xl:col-span-1 space-y-3">
+                    <div class="border-2 border-gray-300 rounded-lg overflow-hidden">
+                        <div class="grid grid-cols-3 bg-gray-100 text-center text-[11px] font-bold text-gray-700 uppercase tracking-wide">
+                            <div class="px-2 py-2 border-r border-gray-300">Plan</div>
+                            <div class="px-2 py-2 border-r border-gray-300">Actual</div>
+                            <div class="px-2 py-2">Deviation</div>
+                        </div>
+                        <div class="grid grid-cols-3 text-center">
+                            <div id="scurveSummaryPlan" class="px-2 py-3 text-lg font-bold text-purple-700 border-r border-gray-300">0%</div>
+                            <div id="scurveSummaryActual" class="px-2 py-3 text-lg font-bold text-orange-600 border-r border-gray-300">0%</div>
+                            <div id="scurveSummaryDeviation" class="px-2 py-3 text-lg font-bold text-gray-700">0%</div>
+                        </div>
+                    </div>
+
+                    <div class="border-2 border-gray-300 rounded-lg px-3 py-2">
+                        <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Current Phase</span>
+                        <div id="scurveSummaryPhase" class="text-sm font-bold text-gray-900 mt-0.5">-</div>
+                    </div>
+
+                    <div class="border-2 border-gray-300 rounded-lg px-3 py-2">
+                        <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Deviation</span>
+                        <ul id="scurveSummaryNotes" class="mt-1 space-y-1 text-xs text-gray-700 list-disc list-inside"></ul>
+                    </div>
+
+                    <div id="scurveSummaryStatus" class="rounded-lg px-3 py-2 border-l-4 text-xs font-semibold"></div>
+                </aside>
             </div>
             
             <!-- Data Table (Mobile Scrollable) -->
@@ -198,16 +227,16 @@
                 <span class="text-xs font-bold text-gray-700 block mb-3 uppercase tracking-wide">📈 Chart Lines</span>
                 <div class="flex flex-wrap items-center gap-4 text-sm">
                     <div class="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm">
-                        <div class="w-10 h-1 bg-blue-500 mr-2 rounded"></div>
-                        <span class="font-medium text-gray-700">Planned</span>
+                        <div class="w-10 h-1 mr-2 rounded" style="background-color:#7030A0"></div>
+                        <span class="font-medium text-gray-700">Plan</span>
                     </div>
                     <div class="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm">
-                        <div class="w-10 h-1 bg-green-500 mr-2 rounded"></div>
+                        <div class="w-10 h-1 mr-2 rounded" style="background-color:#ED7D31"></div>
                         <span class="font-medium text-gray-700">Actual</span>
                     </div>
                     <div class="flex items-center bg-white px-3 py-2 rounded-lg shadow-sm">
-                        <div class="w-10 h-1 bg-red-500 border-t-2 border-dashed border-red-500 mr-2"></div>
-                        <span class="font-medium text-gray-700">Behind Schedule</span>
+                        <div class="w-1 h-4 mr-2 rounded" style="background-color:#1F4E79"></div>
+                        <span class="font-medium text-gray-700">Latest Week</span>
                     </div>
                 </div>
             </div>
@@ -234,6 +263,14 @@
     let scurveChart = null;
     let scurveData = null;
     let currentMode = 'cumulative';
+
+    // Palet mengikuti format laporan Project Progress
+    const PLAN_COLOR = '#7030A0';
+    const ACTUAL_COLOR = '#ED7D31';
+    const IS_DARK = '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? '1' : '0' }}' === '1';
+    const TEXT_COLOR = IS_DARK ? '#e5e7eb' : '#374151';
+    const AXIS_COLOR = IS_DARK ? '#9ca3af' : '#4b5563';
+    const GRID_COLOR = IS_DARK ? 'rgba(255,255,255,0.09)' : 'rgba(0, 0, 0, 0.08)';
     
     // ==========================================
     // GET PROJECT ID
@@ -280,7 +317,7 @@
                 }
                 
                 updateStatistics(scurveData.statistics);
-                updateStatusBanner(scurveData);
+                updateSummaryPanel(scurveData);
                 renderSCurveChart();
                 renderPhasesLegend(scurveData.phases);
                 updateDataTable();
@@ -295,68 +332,190 @@
     };
     
     // ==========================================
-    // UPDATE STATUS BANNER (FIXED - NO className)
+    // UPDATE SUMMARY PANEL (Plan / Actual / Deviation)
     // ==========================================
-    function updateStatusBanner(data) {
-        const banner = document.getElementById('scurveStatusBanner');
-        const icon = document.getElementById('scurveStatusIcon');
-        const title = document.getElementById('scurveStatusTitle');
-        const message = document.getElementById('scurveStatusMessage');
-        const percentage = document.getElementById('scurveStatusPercentage');
-        
+    function updateSummaryPanel(data) {
         if (!data.weekly_data || data.weekly_data.length === 0) return;
-        
-        const lastWeek = data.weekly_data[data.weekly_data.length - 1];
-        const variance = lastWeek.variance;
-        
-        // Remove hidden class
-        banner.classList.remove('hidden');
-        
-        // Remove all possible classes first
-        banner.classList.remove('bg-red-50', 'border-red-500', 'bg-blue-50', 'border-blue-500', 'bg-green-50', 'border-green-500');
-        icon.classList.remove('text-red-600', 'text-blue-600', 'text-green-600');
-        title.classList.remove('text-red-800', 'text-blue-800', 'text-green-800');
-        message.classList.remove('text-red-700', 'text-blue-700', 'text-green-700');
-        percentage.classList.remove('text-red-600', 'text-blue-600', 'text-green-600');
-        
-        if (variance < -10) {
-            // Behind Schedule
-            banner.classList.add('bg-red-50', 'border-red-500');
-            icon.classList.add('text-red-600');
-            icon.innerHTML = '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>';
-            title.classList.add('text-red-800');
-            title.textContent = '⚠️ Project Behind Schedule';
-            message.classList.add('text-red-700');
-            message.textContent = 'Currently ' + Math.abs(variance).toFixed(1) + '% behind planned progress. Immediate action recommended.';
-            percentage.classList.add('text-red-600');
-            percentage.textContent = variance.toFixed(1) + '%';
-        } else if (variance > 10) {
-            // Ahead of Schedule
-            banner.classList.add('bg-blue-50', 'border-blue-500');
-            icon.classList.add('text-blue-600');
-            icon.innerHTML = '<path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>';
-            title.classList.add('text-blue-800');
-            title.textContent = '🎉 Project Ahead of Schedule';
-            message.classList.add('text-blue-700');
-            message.textContent = 'Excellent progress! ' + variance.toFixed(1) + '% ahead of planned schedule. Maintain current momentum.';
-            percentage.classList.add('text-blue-600');
-            percentage.textContent = '+' + variance.toFixed(1) + '%';
+
+        const latest = data.weekly_data.find(w => w.is_latest) || data.weekly_data[data.weekly_data.length - 1];
+        const summary = data.summary || {};
+
+        const plan = summary.plan !== undefined ? summary.plan : latest.planned_cumulative;
+        const actual = summary.actual !== undefined ? summary.actual : latest.actual_cumulative;
+        const deviation = summary.deviation !== undefined ? summary.deviation : (actual - plan);
+
+        document.getElementById('scurveSummaryPlan').textContent = fmtPct(plan);
+        document.getElementById('scurveSummaryActual').textContent = fmtPct(actual);
+
+        const devEl = document.getElementById('scurveSummaryDeviation');
+        devEl.textContent = (deviation > 0 ? '+' : '') + fmtPct(deviation);
+        devEl.classList.remove('text-gray-700', 'text-red-600', 'text-green-600');
+        devEl.classList.add(deviation < -0.05 ? 'text-red-600' : (deviation > 0.05 ? 'text-green-600' : 'text-gray-700'));
+
+        document.getElementById('scurveSummaryPhase').textContent = summary.current_phase || '-';
+
+        // Catatan deviasi
+        const notesEl = document.getElementById('scurveSummaryNotes');
+        notesEl.innerHTML = '';
+        const notes = (summary.deviation_notes && summary.deviation_notes.length)
+            ? summary.deviation_notes
+            : ['Tidak ada keterlambatan tercatat'];
+        notes.forEach(function(note) {
+            const li = document.createElement('li');
+            li.textContent = note;
+            notesEl.appendChild(li);
+        });
+
+        // Status ringkas
+        const statusEl = document.getElementById('scurveSummaryStatus');
+        statusEl.classList.remove('bg-red-50', 'border-red-500', 'text-red-700',
+                                  'bg-green-50', 'border-green-500', 'text-green-700',
+                                  'bg-blue-50', 'border-blue-500', 'text-blue-700');
+        if (deviation < -10) {
+            statusEl.classList.add('bg-red-50', 'border-red-500', 'text-red-700');
+            statusEl.textContent = 'Behind schedule ' + fmtPct(Math.abs(deviation)) + ' dari rencana.';
+        } else if (deviation > 10) {
+            statusEl.classList.add('bg-blue-50', 'border-blue-500', 'text-blue-700');
+            statusEl.textContent = 'Ahead of schedule ' + fmtPct(deviation) + ' dari rencana.';
         } else {
-            // On Track
-            banner.classList.add('bg-green-50', 'border-green-500');
-            icon.classList.add('text-green-600');
-            icon.innerHTML = '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>';
-            title.classList.add('text-green-800');
-            title.textContent = '✓ Project On Track';
-            message.classList.add('text-green-700');
-            message.textContent = 'Progress aligned with plan. Variance: ' + variance.toFixed(1) + '%. Continue monitoring key milestones.';
-            percentage.classList.add('text-green-600');
-            percentage.textContent = variance > 0 ? '+' + variance.toFixed(1) + '%' : variance.toFixed(1) + '%';
+            statusEl.classList.add('bg-green-50', 'border-green-500', 'text-green-700');
+            statusEl.textContent = 'On track. Deviasi ' + fmtPct(deviation) + '.';
         }
     }
-    
+
+    function fmtPct(value) {
+        return (Math.round((value || 0) * 10) / 10).toFixed(1) + '%';
+    }
+
     // ==========================================
-    // RENDER S-CURVE CHART
+    // PLUGIN: garis vertikal "Latest Week"
+    // ==========================================
+    const latestWeekMarker = {
+        id: 'latestWeekMarker',
+        afterDatasetsDraw(chart) {
+            const idx = chart.$latestWeekIndex;
+            if (idx === null || idx === undefined || idx < 0) return;
+
+            const x = chart.scales.x.getPixelForValue(idx);
+            const area = chart.chartArea;
+            const ctx = chart.ctx;
+
+            ctx.save();
+            ctx.strokeStyle = '#1F4E79';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x, area.top);
+            ctx.lineTo(x, area.bottom);
+            ctx.stroke();
+
+            // Kepala panah ke bawah
+            ctx.beginPath();
+            ctx.moveTo(x, area.bottom);
+            ctx.lineTo(x - 5, area.bottom - 9);
+            ctx.lineTo(x + 5, area.bottom - 9);
+            ctx.closePath();
+            ctx.fillStyle = '#1F4E79';
+            ctx.fill();
+
+            // Label
+            ctx.font = 'bold 11px sans-serif';
+            ctx.fillStyle = '#1F4E79';
+            ctx.textBaseline = 'bottom';
+            const label = 'Latest Week';
+            const w = ctx.measureText(label).width;
+            let lx = x - w / 2;
+            lx = Math.max(area.left, Math.min(lx, area.right - w));
+            ctx.fillText(label, lx, area.top - 4);
+            ctx.restore();
+        }
+    };
+
+    // ==========================================
+    // PLUGIN: sinkron tabel data dengan sumbu X
+    // ==========================================
+    const alignedDataGrid = {
+        id: 'alignedDataGrid',
+        afterRender(chart) {
+            if (chart.config.type !== 'line') {
+                hideDataGrid();
+                return;
+            }
+            renderAlignedDataGrid(chart);
+        }
+    };
+
+    function hideDataGrid() {
+        const wrap = document.getElementById('scurveGridWrap');
+        if (!wrap) return;
+        wrap.classList.add('hidden');
+        delete wrap.dataset.signature;
+    }
+
+    function resetDataGridCache() {
+        const wrap = document.getElementById('scurveGridWrap');
+        if (wrap) delete wrap.dataset.signature;
+    }
+
+    function renderAlignedDataGrid(chart) {
+        const wrap = document.getElementById('scurveGridWrap');
+        const rowActual = document.getElementById('scurveGridActual');
+        const rowPlan = document.getElementById('scurveGridPlan');
+        if (!wrap || !rowActual || !rowPlan || !scurveData) return;
+
+        // Terlalu banyak minggu -> sel jadi tak terbaca, cukup andalkan tabel detail
+        if (scurveData.weekly_data.length > 40) {
+            hideDataGrid();
+            return;
+        }
+
+        wrap.classList.remove('hidden');
+
+        const area = chart.chartArea;
+
+        // afterRender juga terpanggil tiap hover; bangun ulang hanya saat geometri berubah
+        const signature = [
+            Math.round(area.left), Math.round(area.right), Math.round(chart.width),
+            scurveData.weekly_data.length
+        ].join('|');
+        if (wrap.dataset.signature === signature) return;
+        wrap.dataset.signature = signature;
+
+        // Lebar kolom label = lebar area sumbu Y, supaya tiap nilai jatuh tepat
+        // di bawah titik minggunya (persis tabel data di bawah grafik Excel).
+        const labelWidth = Math.round(area.left);
+
+        const build = function(row, title, color, values) {
+            row.innerHTML = '';
+            row.style.width = chart.width + 'px';
+
+            const label = document.createElement('div');
+            label.textContent = title;
+            label.style.width = labelWidth + 'px';
+            label.style.flex = '0 0 ' + labelWidth + 'px';
+            label.style.color = color;
+            label.className = 'px-1 py-1 font-bold text-right border-r border-gray-200 truncate';
+            row.appendChild(label);
+
+            const cells = document.createElement('div');
+            cells.className = 'flex';
+            cells.style.width = Math.round(area.right - area.left) + 'px';
+
+            values.forEach(function(v) {
+                const cell = document.createElement('div');
+                cell.textContent = (Math.round(v * 10) / 10).toFixed(0) + '%';
+                cell.className = 'flex-1 min-w-0 py-1 text-center text-gray-600 border-r border-gray-100 truncate';
+                cells.appendChild(cell);
+            });
+
+            row.appendChild(cells);
+        };
+
+        build(rowActual, 'Actual', ACTUAL_COLOR, scurveData.weekly_data.map(d => d.actual_cumulative));
+        build(rowPlan, 'Plan', PLAN_COLOR, scurveData.weekly_data.map(d => d.planned_cumulative));
+    }
+
+    // ==========================================
+    // RENDER S-CURVE CHART (format laporan Project Progress)
     // ==========================================
     function renderSCurveChart() {
         const canvas = document.getElementById('scurveChart');
@@ -364,63 +523,64 @@
             console.error('❌ Canvas element not found');
             return;
         }
-        
+
         const ctx = canvas.getContext('2d');
-        
+
         if (scurveChart) {
             scurveChart.destroy();
         }
-        
-        const labels = scurveData.weekly_data.map(d => d.week_label);
-        const plannedData = scurveData.weekly_data.map(d => d.planned_cumulative);
-        const actualData = scurveData.weekly_data.map(d => d.actual_cumulative);
-        
-        const plannedGradient = ctx.createLinearGradient(0, 0, 0, 400);
-        plannedGradient.addColorStop(0, 'rgba(59, 130, 246, 0.3)');
-        plannedGradient.addColorStop(1, 'rgba(59, 130, 246, 0.05)');
-        
-        const actualGradient = ctx.createLinearGradient(0, 0, 0, 400);
-        actualGradient.addColorStop(0, 'rgba(16, 185, 129, 0.3)');
-        actualGradient.addColorStop(1, 'rgba(16, 185, 129, 0.05)');
-        
+
+        resetDataGridCache();
+
+        const weeks = scurveData.weekly_data;
+        const labels = weeks.map((d, i) => d.week_index || (i + 1));
+        const plannedData = weeks.map(d => d.planned_cumulative);
+        const actualData = weeks.map(d => d.actual_cumulative);
+
+        let latestIndex = weeks.findIndex(d => d.is_latest);
+        if (latestIndex < 0) latestIndex = weeks.length - 1;
+
         scurveChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Planned Progress',
-                        data: plannedData,
-                        borderColor: '#3b82f6',
-                        backgroundColor: plannedGradient,
-                        borderWidth: 3,
-                        tension: 0.4,
-                        fill: true,
-                        pointRadius: 5,
-                        pointHoverRadius: 8,
-                        pointBackgroundColor: '#3b82f6',
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 3,
+                        label: 'Actual',
+                        data: actualData,
+                        borderColor: ACTUAL_COLOR,
+                        backgroundColor: ACTUAL_COLOR,
+                        borderWidth: 2,
+                        tension: 0,
+                        fill: false,
+                        pointStyle: 'rectRot',
+                        pointRadius: 4,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: ACTUAL_COLOR,
+                        pointBorderColor: ACTUAL_COLOR,
+                        pointBorderWidth: 1,
                     },
                     {
-                        label: 'Actual Progress',
-                        data: actualData,
-                        borderColor: '#10b981',
-                        backgroundColor: actualGradient,
-                        borderWidth: 3,
-                        tension: 0.4,
-                        fill: true,
-                        pointRadius: 5,
-                        pointHoverRadius: 8,
-                        pointBackgroundColor: '#10b981',
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 3,
+                        label: 'Plan',
+                        data: plannedData,
+                        borderColor: PLAN_COLOR,
+                        backgroundColor: PLAN_COLOR,
+                        borderWidth: 2,
+                        tension: 0,
+                        fill: false,
+                        pointStyle: 'rectRot',
+                        pointRadius: 4,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: PLAN_COLOR,
+                        pointBorderColor: PLAN_COLOR,
+                        pointBorderWidth: 1,
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: { padding: { top: 22 } },
                 interaction: {
                     mode: 'index',
                     intersect: false,
@@ -428,27 +588,32 @@
                 plugins: {
                     legend: {
                         display: true,
-                        position: 'top',
+                        position: 'bottom',
                         labels: {
                             usePointStyle: true,
-                            padding: 20,
-                            font: { size: 13, weight: 'bold' },
-                            color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? '#e5e7eb' : '#374151' }}'
+                            pointStyle: 'rectRot',
+                            padding: 18,
+                            font: { size: 12, weight: 'bold' },
+                            color: TEXT_COLOR
                         }
                     },
                     tooltip: {
                         backgroundColor: 'rgba(0, 0, 0, 0.8)',
                         padding: 12,
-                        titleFont: { size: 14, weight: 'bold' },
-                        bodyFont: { size: 13 },
+                        titleFont: { size: 13, weight: 'bold' },
+                        bodyFont: { size: 12 },
                         callbacks: {
+                            title: function(items) {
+                                const w = scurveData.weekly_data[items[0].dataIndex];
+                                return 'Week ' + (w.week_index || (items[0].dataIndex + 1)) + ' — ' + w.week_label;
+                            },
                             label: function(context) {
                                 return context.dataset.label + ': ' + context.parsed.y.toFixed(1) + '%';
                             },
                             afterBody: function(tooltipItems) {
                                 const idx = tooltipItems[0].dataIndex;
                                 const variance = scurveData.weekly_data[idx].variance;
-                                return '\nVariance: ' + (variance > 0 ? '+' : '') + variance.toFixed(1) + '%';
+                                return '\nDeviation: ' + (variance > 0 ? '+' : '') + variance.toFixed(1) + '%';
                             }
                         }
                     }
@@ -456,29 +621,43 @@
                 scales: {
                     y: {
                         beginAtZero: true,
-                        max: 110,
-                        grid: { color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? 'rgba(255,255,255,0.09)' : 'rgba(0, 0, 0, 0.05)' }}', drawBorder: false },
-                        ticks: {
-                            callback: function(value) { return value + '%'; },
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: 'Progress',
                             font: { size: 12, weight: 'bold' },
-                            color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? '#9ca3af' : '#6b7280' }}'
-                        }
+                            color: TEXT_COLOR
+                        },
+                        ticks: {
+                            stepSize: 10,
+                            callback: function(value) { return value + '%'; },
+                            font: { size: 11 },
+                            color: AXIS_COLOR
+                        },
+                        grid: { color: GRID_COLOR, drawBorder: false }
                     },
                     x: {
+                        // offset:true -> titik berada di tengah kolom, sejajar
+                        // dengan sel tabel data di bawah grafik
+                        offset: true,
                         grid: { display: false, drawBorder: false },
                         ticks: {
-                            maxRotation: 45,
+                            autoSkip: weeks.length > 30,
+                            maxRotation: 0,
                             minRotation: 0,
-                            font: { size: 11, weight: 'bold' },
-                            color: '{{ (session('user_preferences')['theme'] ?? 'light') === 'dark' ? '#9ca3af' : '#6b7280' }}'
+                            font: { size: 10, weight: 'bold' },
+                            color: AXIS_COLOR
                         }
                     }
                 }
-            }
+            },
+            plugins: [latestWeekMarker, alignedDataGrid]
         });
-        
+
+        scurveChart.$latestWeekIndex = latestIndex;
+        scurveChart.update('none');
     }
-    
+
     // ==========================================
     // UPDATE STATISTICS
     // ==========================================
@@ -539,13 +718,17 @@
             }
             
             // ✅ UPDATED: Show date as main label with week number below
+            if (week.is_latest) {
+                tr.classList.add('bg-yellow-50');
+            }
+
             tr.innerHTML = `
                 <td class="px-3 sm:px-4 py-3 whitespace-nowrap">
                     <div class="flex flex-col">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
-                            ${week.week_label}
+                            Week ${week.week_index || ''}${week.is_latest ? ' • Latest' : ''}
                         </span>
-                        <span class="text-[10px] text-gray-500 mt-1 text-center">${week.week_number || ''}</span>
+                        <span class="text-[10px] text-gray-500 mt-1 text-center">${week.week_label} (${week.week_number || ''})</span>
                     </div>
                 </td>
                 <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-center text-gray-600 text-xs font-medium">${week.date_label}</td>
@@ -611,11 +794,13 @@
     function renderWeeklyChart() {
         const canvas = document.getElementById('scurveChart');
         if (!canvas) return;
-        
+
+        hideDataGrid();
+
         const ctx = canvas.getContext('2d');
         if (scurveChart) scurveChart.destroy();
-        
-        const labels = scurveData.weekly_data.map(d => d.week_label);
+
+        const labels = scurveData.weekly_data.map((d, i) => d.week_index || (i + 1));
         const plannedWeekly = [];
         const actualWeekly = [];
         
@@ -632,20 +817,20 @@
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Planned Weekly',
+                        label: 'Plan (per week)',
                         data: plannedWeekly,
-                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
-                        borderColor: '#3b82f6',
-                        borderWidth: 2,
-                        borderRadius: 6,
+                        backgroundColor: PLAN_COLOR,
+                        borderColor: PLAN_COLOR,
+                        borderWidth: 1,
+                        borderRadius: 4,
                     },
                     {
-                        label: 'Actual Weekly',
+                        label: 'Actual (per week)',
                         data: actualWeekly,
-                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
-                        borderColor: '#10b981',
-                        borderWidth: 2,
-                        borderRadius: 6,
+                        backgroundColor: ACTUAL_COLOR,
+                        borderColor: ACTUAL_COLOR,
+                        borderWidth: 1,
+                        borderRadius: 4,
                     }
                 ]
             },

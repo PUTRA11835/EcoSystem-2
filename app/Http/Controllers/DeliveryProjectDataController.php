@@ -94,13 +94,17 @@ class DeliveryProjectDataController extends Controller
                 
                 $phaseWeight = $phase->weight ?? 0;
                 $phaseProgress = $this->calculatePhaseProgressFromGroups($phaseTasks);
-                
+                $phaseRange = $this->calculateGanttRangeFromTasks($phaseTasks);
+
                 $verticalGroups[] = [
                     'id' => $phase->id,
                     'name' => $phase->name,
                     'color' => $phase->color ?? '#6366f1',
                     'weight' => $phaseWeight,
                     'progress' => $phaseProgress,
+                    // Rollup phase: dipakai untuk bar ringkasan di baris phase
+                    'start' => $phaseRange['start'],
+                    'end' => $phaseRange['end'],
                     'tasks' => $phaseTasks,
                 ];
             }
@@ -163,7 +167,11 @@ class DeliveryProjectDataController extends Controller
             
             foreach ($phases as $phase) {
                 foreach ($phase->plannings as $group) {
-                    $this->collectSCurveDates($group, $allDates, $dataPoints);
+                    $this->collectSCurveDates($group, $allDates, $dataPoints, [
+                        'id' => $phase->id,
+                        'name' => $phase->name,
+                        'order' => $phase->order_sequence,
+                    ]);
                 }
             }
 
@@ -178,6 +186,7 @@ class DeliveryProjectDataController extends Controller
 
             $weeklyData = $this->generateWeeklyData($startDate, $endDate, $dataPoints);
             $statistics = $this->calculateSCurveStatistics($dataPoints);
+            $summary = $this->buildSCurveSummary($weeklyData, $dataPoints, $phases);
 
             return response()->json([
                 'success' => true,
@@ -185,6 +194,7 @@ class DeliveryProjectDataController extends Controller
                 'end_date' => $endDate->format('Y-m-d'),
                 'weekly_data' => $weeklyData,
                 'statistics' => $statistics,
+                'summary' => $summary,
                 'phases' => $this->formatPhasesForSCurve($phases),
             ]);
 
@@ -207,7 +217,7 @@ class DeliveryProjectDataController extends Controller
         return [
             'children' => function($query) {
                 $query->where('is_group', true)
-                    ->with(['children', 'stages'])
+                    ->with(['children', 'stages', 'directActivities'])
                     ->orderBy('order_sequence');
             },
             'stages' => function($q) {
@@ -217,7 +227,11 @@ class DeliveryProjectDataController extends Controller
                             $qq->orderBy('order_sequence');
                         }
                     ]);
-            }
+            },
+            // Aktivitas tanpa stage — bentuk data Project Planning saat ini
+            'directActivities' => function($q) {
+                $q->orderBy('order_sequence');
+            },
         ];
     }
 
@@ -226,7 +240,7 @@ class DeliveryProjectDataController extends Controller
         return [
             'children' => function($childQuery) {
                 $childQuery->where('is_group', true)
-                    ->with(['children', 'stages'])
+                    ->with(['children', 'stages', 'directActivities'])
                     ->orderBy('order_sequence');
             },
             'stages' => function($stageQuery) {
@@ -236,7 +250,12 @@ class DeliveryProjectDataController extends Controller
                             $actQuery->orderBy('order_sequence');
                         }
                     ]);
-            }
+            },
+            // Aktivitas yang menempel langsung ke group (tanpa stage) —
+            // ini bentuk data yang dipakai Project Planning saat ini.
+            'directActivities' => function($actQuery) {
+                $actQuery->orderBy('order_sequence');
+            },
         ];
     }
 
@@ -380,6 +399,9 @@ class DeliveryProjectDataController extends Controller
 
     private function formatStageWithActivities($stage)
     {
+        $stageDates = $this->calculateStageDates($stage, false);
+        $stageActualDates = $this->calculateStageDates($stage, true);
+
         $stageData = [
             'id' => $stage->id,
             'type' => 'stage',
@@ -390,11 +412,11 @@ class DeliveryProjectDataController extends Controller
             'status' => $stage->status ?? 'not_started',
             'status_text' => $stage->status_label ?? 'Not Started',
             'status_badge' => $this->getStatusBadgeClass($stage->status ?? 'not_started'),
-            'start_date' => $stage->planned_start_date ? $stage->planned_start_date->format('d M Y') : '-',
-            'end_date' => $stage->planned_end_date ? $stage->planned_end_date->format('d M Y') : '-',
-            'actual_start_date' => $stage->actual_start_date ? $stage->actual_start_date->format('d M Y') : '-',
-            'actual_end_date' => $stage->actual_end_date ? $stage->actual_end_date->format('d M Y') : '-',
-            'duration_in_days' => $stage->duration_days ?? null,
+            'start_date' => $stageDates['start'] ? $stageDates['start']->format('d M Y') : '-',
+            'end_date' => $stageDates['end'] ? $stageDates['end']->format('d M Y') : '-',
+            'actual_start_date' => $stageActualDates['start'] ? $stageActualDates['start']->format('d M Y') : '-',
+            'actual_end_date' => $stageActualDates['end'] ? $stageActualDates['end']->format('d M Y') : '-',
+            'duration_in_days' => $stageDates['duration'] ?? $stage->duration_days ?? null,
             'color' => $stage->color ?? '#06b6d4',
             'planning_id' => $stage->planning_id,
             'activities' => []
@@ -516,80 +538,144 @@ class DeliveryProjectDataController extends Controller
         return $badges[$status] ?? $badges['not_started'];
     }
 
-    private function calculateGroupDates($group)
+    /**
+     * Ubah nilai apa pun (Carbon|string|null) jadi Carbon, atau null kalau tidak valid.
+     */
+    private function toDate($value)
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            return $value instanceof \Carbon\CarbonInterface ? $value : Carbon::parse($value);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    private function durationBetween($start, $end)
+    {
+        if (!$start || !$end) {
+            return null;
+        }
+
+        return Carbon::parse($start)->diffInDays(Carbon::parse($end)) + 1;
+    }
+
+    /**
+     * Ambil sumber tanggal yang BENAR-BENAR ditampilkan untuk satu activity.
+     * Baris planning yang tertaut ke DeliveryProjectActivity menampilkan tanggal milik
+     * activity tertaut (lihat formatActivityForHierarchy()), jadi agregasi parent
+     * harus membaca sumber yang sama supaya angkanya konsisten.
+     */
+    private function resolveActivityDateSource($activity)
+    {
+        if ($activity instanceof \App\Models\DeliveryProjectActivity) {
+            return $activity;
+        }
+
+        if (!empty($activity->activity_id)) {
+            if (!$activity->relationLoaded('activity')) {
+                $activity->load('activity');
+            }
+            if ($activity->activity) {
+                return $activity->activity;
+            }
+        }
+
+        return $activity;
+    }
+
+    /**
+     * Dorong tanggal plan/actual dari sekumpulan activity ke koleksi agregasi.
+     */
+    private function pushActivityDates($activities, $allDates, bool $actual = false)
+    {
+        foreach ($activities ?? [] as $activity) {
+            $source = $this->resolveActivityDateSource($activity);
+
+            $start = $this->toDate($actual ? ($source->actual_start_date ?? null) : ($source->start_date ?? null));
+            $end = $this->toDate($actual ? ($source->actual_end_date ?? null) : ($source->end_date ?? null));
+
+            if ($start) {
+                $allDates->push(['type' => 'start', 'date' => $start]);
+            }
+            if ($end) {
+                $allDates->push(['type' => 'end', 'date' => $end]);
+            }
+        }
+    }
+
+    /**
+     * Activity milik satu stage, mengikuti urutan prioritas formatStageWithActivities().
+     */
+    private function resolveStageActivities($stage)
+    {
+        $activities = $stage->projectActivities ?? collect();
+
+        if ($activities->isEmpty()) {
+            $activities = $stage->activities ?? collect();
+        }
+
+        return $activities;
+    }
+
+    /**
+     * Tanggal STAGE = tanggal termuda (start) & tertua (end) dari activity di dalamnya.
+     * Kalau stage belum punya activity, pakai tanggal yang tersimpan di stage.
+     */
+    private function calculateStageDates($stage, bool $actual = false)
     {
         $allDates = collect();
-        
-        if ($group->stages) {
-            foreach ($group->stages as $stage) {
-                if ($stage->planned_start_date) {
-                    $allDates->push(['type' => 'start', 'date' => $stage->planned_start_date]);
-                }
-                if ($stage->planned_end_date) {
-                    $allDates->push(['type' => 'end', 'date' => $stage->planned_end_date]);
-                }
-            }
-        }
-        
-        if ($group->children) {
-            foreach ($group->children->where('is_group', true) as $subGroup) {
-                $subDates = $this->calculateGroupDates($subGroup);
-                if ($subDates['start']) {
-                    $allDates->push(['type' => 'start', 'date' => $subDates['start']]);
-                }
-                if ($subDates['end']) {
-                    $allDates->push(['type' => 'end', 'date' => $subDates['end']]);
-                }
-            }
-        }
-        
+        $this->pushActivityDates($this->resolveStageActivities($stage), $allDates, $actual);
+
         if ($allDates->isEmpty()) {
+            $start = $this->toDate($actual ? $stage->actual_start_date : $stage->planned_start_date);
+            $end = $this->toDate($actual ? $stage->actual_end_date : $stage->planned_end_date);
+
             return [
-                'start' => null,
-                'end' => null,
-                'duration' => null
+                'start' => $start,
+                'end' => $end,
+                'duration' => $this->durationBetween($start, $end),
             ];
         }
-        
-        $startDate = $allDates->where('type', 'start')->pluck('date')->min();
-        $endDate = $allDates->where('type', 'end')->pluck('date')->max();
-        
-        $duration = null;
-        if ($startDate && $endDate) {
-            $start = Carbon::parse($startDate);
-            $end = Carbon::parse($endDate);
-            $duration = $start->diffInDays($end) + 1;
-        }
-        
+
+        $start = $allDates->where('type', 'start')->pluck('date')->min();
+        $end = $allDates->where('type', 'end')->pluck('date')->max();
+
         return [
-            'start' => $startDate ? Carbon::parse($startDate) : null,
-            'end' => $endDate ? Carbon::parse($endDate) : null,
-            'duration' => $duration
+            'start' => $start ? Carbon::parse($start) : null,
+            'end' => $end ? Carbon::parse($end) : null,
+            'duration' => $this->durationBetween($start, $end),
         ];
     }
 
     /**
-     * Aggregate ACTUAL start/end dates for a group from its stages & sub-groups.
-     * Mirrors calculateGroupDates() but reads actual_* columns.
+     * Tanggal GROUP dihitung naik mengikuti hierarki:
+     * activity langsung di bawah group + stage (yang sudah menurunkan dari activity-nya)
+     * + sub-group (rekursif). Start = paling awal, End = paling akhir.
      */
-    private function calculateGroupActualDates($group)
+    private function aggregateGroupDates($group, bool $actual = false)
     {
         $allDates = collect();
 
-        if ($group->stages) {
-            foreach ($group->stages as $stage) {
-                if ($stage->actual_start_date) {
-                    $allDates->push(['type' => 'start', 'date' => $stage->actual_start_date]);
-                }
-                if ($stage->actual_end_date) {
-                    $allDates->push(['type' => 'end', 'date' => $stage->actual_end_date]);
-                }
+        foreach ($group->stages ?? [] as $stage) {
+            $stageDates = $this->calculateStageDates($stage, $actual);
+            if ($stageDates['start']) {
+                $allDates->push(['type' => 'start', 'date' => $stageDates['start']]);
+            }
+            if ($stageDates['end']) {
+                $allDates->push(['type' => 'end', 'date' => $stageDates['end']]);
             }
         }
 
+        // Activity yang menempel langsung ke group (tanpa stage)
+        $this->pushActivityDates($this->resolveDirectActivities($group), $allDates, $actual);
+
         if ($group->children) {
             foreach ($group->children->where('is_group', true) as $subGroup) {
-                $subDates = $this->calculateGroupActualDates($subGroup);
+                $subDates = $this->aggregateGroupDates($subGroup, $actual);
                 if ($subDates['start']) {
                     $allDates->push(['type' => 'start', 'date' => $subDates['start']]);
                 }
@@ -606,16 +692,21 @@ class DeliveryProjectDataController extends Controller
         $startDate = $allDates->where('type', 'start')->pluck('date')->min();
         $endDate = $allDates->where('type', 'end')->pluck('date')->max();
 
-        $duration = null;
-        if ($startDate && $endDate) {
-            $duration = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
-        }
-
         return [
             'start' => $startDate ? Carbon::parse($startDate) : null,
             'end' => $endDate ? Carbon::parse($endDate) : null,
-            'duration' => $duration
+            'duration' => $this->durationBetween($startDate, $endDate),
         ];
+    }
+
+    private function calculateGroupDates($group)
+    {
+        return $this->aggregateGroupDates($group, false);
+    }
+
+    private function calculateGroupActualDates($group)
+    {
+        return $this->aggregateGroupDates($group, true);
     }
 
     private function calculateGroupProgress($group)
@@ -902,21 +993,40 @@ class DeliveryProjectDataController extends Controller
             'is_group' => true,
             'sub_groups' => [],
             'stages' => [],
+            'activities' => [],
         ];
-        
+
         if ($group->children && $group->children->isNotEmpty()) {
             foreach ($group->children->where('is_group', true) as $subGroup) {
                 $formatted['sub_groups'][] = $this->formatGroupForGantt($subGroup, $allDates, $level + 1);
             }
         }
-        
+
         if ($group->stages && $group->stages->isNotEmpty()) {
             foreach ($group->stages as $stage) {
                 $formatted['stages'][] = $this->formatStageForGantt($stage, $allDates);
             }
         }
-        
+
+        foreach ($this->resolveDirectActivities($group) as $activity) {
+            $formatted['activities'][] = $this->formatProjectActivityForGantt($activity, $allDates);
+        }
+
         return $formatted;
+    }
+
+    /**
+     * Aktivitas yang menggantung langsung di group (tanpa stage).
+     */
+    private function resolveDirectActivities($group)
+    {
+        if (!$group->relationLoaded('directActivities')) {
+            $group->load(['directActivities' => function($q) {
+                $q->orderBy('order_sequence')->with('activity');
+            }]);
+        }
+
+        return $group->directActivities ?? collect();
     }
 
     private function calculateGroupDatesForGantt($group, &$allDates)
@@ -925,17 +1035,29 @@ class DeliveryProjectDataController extends Controller
         
         if ($group->stages) {
             foreach ($group->stages as $stage) {
-                if ($stage->planned_start_date) {
-                    $this->addDate($allDates, $stage->planned_start_date);
-                    $dates->push($stage->planned_start_date);
+                $stageDates = $this->calculateStageDates($stage, false);
+                if ($stageDates['start']) {
+                    $this->addDate($allDates, $stageDates['start']);
+                    $dates->push($stageDates['start']);
                 }
-                if ($stage->planned_end_date) {
-                    $this->addDate($allDates, $stage->planned_end_date);
-                    $dates->push($stage->planned_end_date);
+                if ($stageDates['end']) {
+                    $this->addDate($allDates, $stageDates['end']);
+                    $dates->push($stageDates['end']);
                 }
             }
         }
         
+        foreach ($this->resolveDirectActivities($group) as $activity) {
+            if ($activity->start_date) {
+                $this->addDate($allDates, $activity->start_date);
+                $dates->push($activity->start_date);
+            }
+            if ($activity->end_date) {
+                $this->addDate($allDates, $activity->end_date);
+                $dates->push($activity->end_date);
+            }
+        }
+
         if ($group->children) {
             foreach ($group->children->where('is_group', true) as $subGroup) {
                 $subDates = $this->calculateGroupDatesForGantt($subGroup, $allDates);
@@ -966,8 +1088,10 @@ class DeliveryProjectDataController extends Controller
 
     private function formatStageForGantt($stage, &$allDates)
     {
-        $this->addDate($allDates, $stage->planned_start_date);
-        $this->addDate($allDates, $stage->planned_end_date);
+        // Tanggal stage diturunkan dari activity di dalamnya (lihat calculateStageDates)
+        $stageDates = $this->calculateStageDates($stage, false);
+        $this->addDate($allDates, $stageDates['start']);
+        $this->addDate($allDates, $stageDates['end']);
         
         $stageActivities = [];
         
@@ -980,8 +1104,8 @@ class DeliveryProjectDataController extends Controller
         return [
             'id' => $stage->id,
             'name' => $stage->name,
-            'planned_start_date' => $stage->planned_start_date ? $stage->planned_start_date->format('Y-m-d') : null,
-            'planned_end_date' => $stage->planned_end_date ? $stage->planned_end_date->format('Y-m-d') : null,
+            'planned_start_date' => $stageDates['start'] ? $stageDates['start']->format('Y-m-d') : null,
+            'planned_end_date' => $stageDates['end'] ? $stageDates['end']->format('Y-m-d') : null,
             'progress' => round($stage->progress ?? 0), 
             'status' => $stage->status ?? 'not_started',
             'color' => $stage->color ?? '#06b6d4',
@@ -1006,6 +1130,34 @@ class DeliveryProjectDataController extends Controller
             'module' => $activity->module,
             'object' => $activity->object,
             'deliverable' => $activity->deliverable,
+        ];
+    }
+
+    /**
+     * Rentang tanggal gabungan dari sekumpulan task gantt (start/end 'Y-m-d').
+     * Dipakai untuk bar ringkasan di baris PHASE: start paling awal, end paling akhir.
+     */
+    private function calculateGanttRangeFromTasks($tasks)
+    {
+        $starts = [];
+        $ends = [];
+
+        foreach ($tasks as $task) {
+            if (!empty($task['start'])) {
+                $starts[] = $task['start'];
+            }
+            if (!empty($task['end'])) {
+                $ends[] = $task['end'];
+            }
+        }
+
+        if (empty($starts) && empty($ends)) {
+            return ['start' => null, 'end' => null];
+        }
+
+        return [
+            'start' => !empty($starts) ? min($starts) : null,
+            'end' => !empty($ends) ? max($ends) : null,
         ];
     }
 
@@ -1062,7 +1214,7 @@ class DeliveryProjectDataController extends Controller
         return round($weightedProgress / $totalWeight);
     }
 
-    private function collectSCurveDates($group, &$allDates, &$dataPoints)
+    private function collectSCurveDates($group, &$allDates, &$dataPoints, $phase = null)
     {
         if ($group->stages) {
             foreach ($group->stages as $stage) {
@@ -1090,6 +1242,9 @@ class DeliveryProjectDataController extends Controller
                     'planned_end' => $stage->planned_end_date,
                     'actual_start' => $stage->actual_start_date,
                     'actual_end' => $stage->actual_end_date,
+                    'phase_id' => $phase['id'] ?? null,
+                    'phase_name' => $phase['name'] ?? null,
+                    'phase_order' => $phase['order'] ?? 0,
                 ];
 
                 if ($stage->projectActivities) {
@@ -1117,15 +1272,47 @@ class DeliveryProjectDataController extends Controller
                             'planned_end' => $activity->end_date,
                             'actual_start' => $activity->actual_start_date,
                             'actual_end' => $activity->actual_end_date,
+                            'phase_id' => $phase['id'] ?? null,
+                            'phase_name' => $phase['name'] ?? null,
+                            'phase_order' => $phase['order'] ?? 0,
                         ];
                     }
                 }
             }
         }
 
+        // Aktivitas langsung di bawah group (tanpa stage)
+        if (!$group->relationLoaded('directActivities')) {
+            $group->load(['directActivities' => function($q) {
+                $q->orderBy('order_sequence');
+            }]);
+        }
+
+        foreach ($group->directActivities as $activity) {
+            $this->addDate($allDates, $activity->start_date);
+            $this->addDate($allDates, $activity->end_date);
+            $this->addDate($allDates, $activity->actual_start_date);
+            $this->addDate($allDates, $activity->actual_end_date);
+
+            $dataPoints[] = [
+                'type' => 'activity',
+                'id' => $activity->id,
+                'name' => $activity->name,
+                'weight' => $activity->weight,
+                'progress' => $activity->progress_percentage ?? 0,
+                'planned_start' => $activity->start_date,
+                'planned_end' => $activity->end_date,
+                'actual_start' => $activity->actual_start_date,
+                'actual_end' => $activity->actual_end_date,
+                'phase_id' => $phase['id'] ?? null,
+                'phase_name' => $phase['name'] ?? null,
+                'phase_order' => $phase['order'] ?? 0,
+            ];
+        }
+
         if ($group->children) {
             foreach ($group->children->where('is_group', true) as $subGroup) {
-                $this->collectSCurveDates($subGroup, $allDates, $dataPoints);
+                $this->collectSCurveDates($subGroup, $allDates, $dataPoints, $phase);
             }
         }
     }
@@ -1134,11 +1321,16 @@ class DeliveryProjectDataController extends Controller
     {
         $weeklyData = [];
         $current = $startDate->copy();
-        
+
         $totalWeight = collect($dataPoints)->sum('weight');
-        
+        $weekIndex = 0;
+
         while ($current <= $endDate) {
-            $weekEnd = $current->copy()->endOfWeek();
+            $weekIndex++;
+            // Rentang selalu 7 hari penuh dari titik mulai. endOfWeek() memotong
+            // minggu pertama jika tanggal mulai bukan awal minggu kalender,
+            // sehingga ada hari yang tidak tercakup minggu manapun.
+            $weekEnd = $current->copy()->addDays(6)->endOfDay();
             
             $plannedProgress = $this->calculateCumulativeProgress(
                 $dataPoints, 
@@ -1155,6 +1347,7 @@ class DeliveryProjectDataController extends Controller
             );
             
             $weeklyData[] = [
+                'week_index' => $weekIndex,
                 'week_start' => $current->format('Y-m-d'),
                 'week_end' => $weekEnd->format('Y-m-d'),
                 'week_label' => $current->format('d M'),
@@ -1163,12 +1356,137 @@ class DeliveryProjectDataController extends Controller
                 'planned_cumulative' => round($plannedProgress, 2),
                 'actual_cumulative' => round($actualProgress, 2),
                 'variance' => round($actualProgress - $plannedProgress, 2),
+                'is_latest' => false,
             ];
-            
+
             $current->addWeek();
         }
-        
+
+        return $this->markLatestWeek($weeklyData);
+    }
+
+    /**
+     * Tandai minggu berjalan (minggu yang memuat hari ini). Kalau proyek belum
+     * mulai -> minggu pertama; kalau sudah lewat -> minggu terakhir.
+     */
+    private function markLatestWeek(array $weeklyData)
+    {
+        if (empty($weeklyData)) {
+            return $weeklyData;
+        }
+
+        $today = Carbon::now()->startOfDay();
+        $latestIdx = null;
+
+        foreach ($weeklyData as $idx => $week) {
+            if ($today->between(Carbon::parse($week['week_start']), Carbon::parse($week['week_end'])->endOfDay())) {
+                $latestIdx = $idx;
+                break;
+            }
+        }
+
+        if ($latestIdx === null) {
+            $latestIdx = $today->lt(Carbon::parse($weeklyData[0]['week_start']))
+                ? 0
+                : count($weeklyData) - 1;
+        }
+
+        $weeklyData[$latestIdx]['is_latest'] = true;
+
         return $weeklyData;
+    }
+
+    /**
+     * Ringkasan gaya laporan Project Progress: Plan vs Actual pada minggu berjalan,
+     * deviasi, fase yang sedang berjalan, dan penyebab deviasi.
+     */
+    private function buildSCurveSummary(array $weeklyData, array $dataPoints, $phases)
+    {
+        $latest = collect($weeklyData)->firstWhere('is_latest', true) ?? collect($weeklyData)->last();
+
+        $plan = $latest ? (float) $latest['planned_cumulative'] : 0;
+        $actual = $latest ? (float) $latest['actual_cumulative'] : 0;
+
+        return [
+            'latest_week_index' => $latest['week_index'] ?? null,
+            'latest_week_label' => $latest['week_label'] ?? null,
+            'latest_week_start' => $latest['week_start'] ?? null,
+            'plan' => round($plan, 1),
+            'actual' => round($actual, 1),
+            'deviation' => round($actual - $plan, 1),
+            'current_phase' => $this->resolveCurrentPhase($dataPoints, $phases),
+            'deviation_notes' => $this->resolveDeviationNotes($dataPoints),
+        ];
+    }
+
+    /**
+     * Fase berjalan = fase pertama (urut order_sequence) yang progresnya belum 100%.
+     */
+    private function resolveCurrentPhase(array $dataPoints, $phases)
+    {
+        $byPhase = [];
+
+        foreach ($dataPoints as $point) {
+            $phaseId = $point['phase_id'] ?? null;
+            if (!$phaseId) continue;
+
+            if (!isset($byPhase[$phaseId])) {
+                $byPhase[$phaseId] = ['weight' => 0, 'weighted_progress' => 0];
+            }
+
+            $weight = (float) ($point['weight'] ?? 0);
+            $byPhase[$phaseId]['weight'] += $weight;
+            $byPhase[$phaseId]['weighted_progress'] += $weight * (float) ($point['progress'] ?? 0);
+        }
+
+        $lastNamed = null;
+
+        foreach ($phases as $phase) {
+            $bucket = $byPhase[$phase->id] ?? null;
+            if (!$bucket || $bucket['weight'] <= 0) continue;
+
+            $lastNamed = $phase->name;
+            $progress = $bucket['weighted_progress'] / $bucket['weight'];
+
+            if ($progress < 100) {
+                return $phase->name;
+            }
+        }
+
+        return $lastNamed ?? '-';
+    }
+
+    /**
+     * Penyebab deviasi: task yang selesai terlambat atau sudah lewat jadwal
+     * tapi belum 100%. Diambil maksimal 3 nama, terlama duluan.
+     */
+    private function resolveDeviationNotes(array $dataPoints)
+    {
+        $today = Carbon::now()->startOfDay();
+        $late = [];
+
+        foreach ($dataPoints as $point) {
+            $plannedEnd = $point['planned_end'] ?? null;
+            if (!$plannedEnd) continue;
+
+            $plannedEnd = Carbon::parse($plannedEnd);
+            $progress = (float) ($point['progress'] ?? 0);
+            $actualEnd = !empty($point['actual_end']) ? Carbon::parse($point['actual_end']) : null;
+
+            if ($actualEnd && $actualEnd->gt($plannedEnd)) {
+                $late[] = ['name' => $point['name'], 'days' => $plannedEnd->diffInDays($actualEnd)];
+            } elseif (!$actualEnd && $progress < 100 && $plannedEnd->lt($today)) {
+                $late[] = ['name' => $point['name'], 'days' => $plannedEnd->diffInDays($today)];
+            }
+        }
+
+        usort($late, fn ($a, $b) => $b['days'] <=> $a['days']);
+
+        return collect($late)
+            ->take(3)
+            ->map(fn ($item) => 'Keterlambatan ' . $item['name'] . ' (' . $item['days'] . ' hari)')
+            ->values()
+            ->all();
     }
 
     private function calculateCumulativeProgress($dataPoints, $targetDate, $type, $totalWeight)

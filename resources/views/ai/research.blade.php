@@ -2,7 +2,7 @@
 
 @section('title', 'AI Research')
 @section('page-title', 'AI Research')
-@section('page-subtitle', 'Look things up outside EcoSystem — TCODEs, errors, vendor documentation')
+@section('page-subtitle', 'Look things up outside EcoSystem')
 
 @push('styles')
 <style>
@@ -107,6 +107,17 @@
     #airLightbox { background: rgba(3,7,18,.88); backdrop-filter: blur(2px); }
     #airLightbox img { max-width: 92vw; max-height: 86vh; border-radius: .5rem; }
 
+    /* Pratinjau tempelan besar: monospace + gulir sendiri, jangan mendorong
+       lebar modal (baris kode panjang tidak boleh melebarkan halaman). */
+    .air-paste-preview {
+        white-space: pre;
+        overflow: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11.5px;
+        line-height: 1.55;
+        tab-size: 4;
+    }
+
     @if(session('user_preferences.theme', 'light') === 'dark')
     /* Dark mode: aturan di atas memakai CSS mentah, jadi override utilitas
        Tailwind di dashboard tidak menyentuhnya — warnanya dipetakan ulang di sini. */
@@ -179,11 +190,8 @@
                         class="lg:hidden w-8 h-8 inline-flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
                     <i class="fas fa-clock-rotate-left text-xs"></i>
                 </button>
-                <select id="airModel"
-                        class="hidden sm:block px-2.5 py-1.5 border border-gray-200 rounded-xl text-[11px] font-semibold text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400">
-                    <option value="default">Balanced</option>
-                    <option value="deep">Deep research</option>
-                </select>
+                {{-- Pemilih model DIHAPUS: modelnya ditentukan super admin di
+                     Control Center → AI Settings, sama untuk semua orang. --}}
                 <button type="button" onclick="airNewChat()" title="New chat"
                         class="w-8 h-8 inline-flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
                     <i class="fas fa-rotate-left text-xs"></i>
@@ -233,26 +241,38 @@
         {{-- Composer --}}
         <div class="border-t border-gray-100 px-3 sm:px-5 py-3">
 
-            {{-- Chip lampiran --}}
+            {{-- Chip lampiran + pemakaian jatah unggahan pesan ini --}}
+            <p id="airUploadBudget" class="hidden text-[10px] text-gray-400 mb-1.5"></p>
             <div id="airAttachments" class="hidden flex-wrap gap-2 mb-2.5"></div>
 
             <div id="airDropzone"
                  class="air-dropzone rounded-2xl border border-gray-200 bg-white focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
-                <textarea id="airInput" rows="1" placeholder="Ask anything…  (Enter to send, Shift + Enter for a new line, Ctrl + V to paste an image)"
+                <textarea id="airInput" rows="1" placeholder="Ask anything…  (Enter to send, Shift + Enter for a new line — long pastes and screenshots become attachments)"
                           oninput="airAutoGrow(this)" onkeydown="airOnKeydown(event)"
                           class="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm text-gray-800 placeholder-gray-400 focus:outline-none air-scroll"></textarea>
 
                 <div class="flex items-center gap-1.5 px-2.5 pb-2.5 pt-1">
                     <input type="file" id="airFile" class="hidden" multiple accept="image/*,application/pdf" onchange="airOnFilesPicked(this)">
 
-                    <button type="button" onclick="document.getElementById('airFile').click()" title="Attach an image or PDF (max 2 files, 5 MB each)"
+                    {{-- Tooltip memakai angka dari controller. Yang tertulis di
+                         sini sebelumnya ("max 2 files, 5 MB each") sudah lama
+                         tidak benar. --}}
+                    <button type="button" onclick="document.getElementById('airFile').click()"
+                            title="Attach images or PDFs — up to {{ $limits['file_mb'] }} MB per file and {{ $limits['message_mb'] }} MB per message. No limit on how many."
                             class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
                         <i class="fas fa-paperclip text-sm"></i>
                     </button>
 
+                    <button type="button" onclick="airOpenLimits()" title="Limits and behaviour of this assistant"
+                            class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
+                        <i class="fas fa-circle-info text-sm"></i>
+                    </button>
+
                     <span class="flex-1"></span>
 
-                    <span id="airCounter" class="hidden sm:inline text-[10px] text-gray-400 tabular-nums mr-1">0 / 4000</span>
+                    {{-- Terlihat di semua ukuran layar: batas panjang pesan tidak
+                         berhenti berlaku hanya karena layarnya sempit. --}}
+                    <span id="airCounter" class="text-[10px] text-gray-400 tabular-nums mr-1">0 / {{ $limits['chars'] }}</span>
 
                     <button type="button" id="airStopBtn" onclick="airStop()"
                             class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 transition-all">
@@ -269,9 +289,93 @@
             <p class="mt-2 text-[10px] text-gray-400 text-center">
                 Search results can be wrong — always check the source links before acting on them.
                 For internal data (tickets, SLA, projects), use the AI Assistant page.
+                <button type="button" onclick="airOpenLimits()" class="underline hover:text-gray-600">Limits &amp; behaviour</button>
             </p>
         </div>
     </section>
+</div>
+
+{{-- ── Limits & behaviour ───────────────────────────────────────────────────
+     Setiap batas yang bisa ditemui user disebut di SATU tempat, dengan angka
+     yang datang dari controller. Sebelum ini batas-batas ini hanya muncul
+     sebagai pesan error setelah user terlanjur menabraknya. --}}
+<div id="airLimitsModal" class="hidden fixed inset-0 z-[65] items-center justify-center p-4 bg-gray-900/50" onclick="airCloseLimits(event)">
+    <div class="w-full max-w-lg max-h-[85vh] overflow-y-auto air-scroll bg-white rounded-2xl border border-gray-200 shadow-xl" onclick="event.stopPropagation()">
+        <div class="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100">
+            <h3 class="flex-1 text-sm font-bold text-gray-900">Limits &amp; behaviour</h3>
+            <button type="button" onclick="airCloseLimits()" title="Close"
+                    class="w-7 h-7 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100">
+                <i class="fas fa-xmark text-xs"></i>
+            </button>
+        </div>
+
+        <dl class="px-5 py-4 space-y-3.5 text-[11px] leading-relaxed">
+            <div>
+                <dt class="text-xs font-semibold text-gray-800">Message length</dt>
+                <dd class="text-gray-500 mt-0.5">
+                    Up to {{ number_format($limits['chars']) }} characters per message. The counter next to Send turns
+                    amber as you approach it and red once you pass it; Send stays disabled until the message fits.
+                </dd>
+            </div>
+            <div>
+                <dt class="text-xs font-semibold text-gray-800">Attachments per message</dt>
+                <dd class="text-gray-500 mt-0.5">
+                    Any number of files, up to {{ $limits['file_mb'] }} MB each and {{ $limits['message_mb'] }} MB in
+                    total per message — and only if the conversation still has room for them (see below). Only PDF and
+                    images (PNG, JPEG, GIF, WEBP) can be read; other file types are skipped, and the reply says which
+                    ones.
+                </dd>
+            </div>
+            <div>
+                <dt class="text-xs font-semibold text-gray-800">Attachments per conversation</dt>
+                <dd class="text-gray-500 mt-0.5">
+                    About {{ $limits['chat_attachment_mb'] }} MB of attachments per chat, counted
+                    <span class="font-semibold text-gray-700">across every message in it</span> — not per message.
+                    Files you send stay in the conversation and are re-sent with every follow-up question, which is
+                    what makes the assistant able to look at an earlier screenshot again, and also why the budget is
+                    shared. This is the tightest of the three limits, so it applies even to your first message. When it
+                    is full, new attachments are refused — questions without attachments still work, and starting a new
+                    chat resets the budget.
+                </dd>
+            </div>
+            <div>
+                <dt class="text-xs font-semibold text-gray-800">Answers that get cut off</dt>
+                <dd class="text-gray-500 mt-0.5">
+                    Each reply has a token ceiling set by your administrator. When a reply reaches it, the assistant
+                    resumes itself automatically a few times; if it is still unfinished, the answer stops and a
+                    <span class="font-semibold text-gray-700">Continue</span> button appears under it. Continue picks up
+                    exactly where the text stopped — it does not repeat what was already written.
+                </dd>
+            </div>
+            <div>
+                <dt class="text-xs font-semibold text-gray-800">Working memory</dt>
+                <dd class="text-gray-500 mt-0.5">
+                    Within a chat the assistant reads the whole conversation — including images you attached earlier,
+                    which it can look at again — so follow-up questions like "and what about the second one?" work as
+                    you would expect. That full context is held for {{ $limits['context_age'] }} after your last
+                    message. Once it expires, reopening the chat restores the last {{ $limits['context_messages'] }} messages
+                    (about {{ intdiv($limits['context_messages'], 2) }} exchanges) as text only — a line in the
+                    transcript marks where the assistant's memory starts, and images are not restored, so re-upload
+                    them if a follow-up depends on what they showed.
+                </dd>
+            </div>
+            <div>
+                <dt class="text-xs font-semibold text-gray-800">What it can and cannot see</dt>
+                <dd class="text-gray-500 mt-0.5">
+                    This assistant searches the public web only. It has no access to EcoSystem data — tickets, SLA
+                    figures, delivery projects, customers or employees. Use the AI Assistant page for those. The model
+                    itself is chosen by your administrator in Control Center → AI Settings.
+                </dd>
+            </div>
+        </dl>
+
+        <div class="px-5 py-3 border-t border-gray-100 text-right">
+            <button type="button" onclick="airCloseLimits()"
+                    class="px-3.5 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-all">
+                Got it
+            </button>
+        </div>
+    </div>
 </div>
 
 {{-- Lightbox gambar (di luar thread supaya tidak ikut ter-scroll) --}}
@@ -284,6 +388,26 @@
         <img id="airLightboxImg" src="" alt="">
         <figcaption id="airLightboxCaption" class="text-xs text-white/70"></figcaption>
     </figure>
+</div>
+
+{{-- Pratinjau tempelan besar. Isinya tidak pernah dirender inline di thread:
+     8.000 baris di dalam bubble membuat halaman tidak bisa dipakai. --}}
+<div id="airPasteModal" onclick="airClosePaste(event)"
+     class="hidden fixed inset-0 z-[70] bg-black/60 items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-gray-200 w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden">
+        <header class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+            <i class="fas fa-align-left text-xs text-gray-400"></i>
+            <div class="min-w-0 flex-1">
+                <p id="airPasteTitle" class="text-sm font-bold text-gray-900 truncate">Pasted text</p>
+                <p id="airPasteMeta" class="text-[11px] text-gray-400"></p>
+            </div>
+            <button type="button" onclick="airClosePaste()" title="Close"
+                    class="w-8 h-8 inline-flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50">
+                <i class="fas fa-xmark text-xs"></i>
+            </button>
+        </header>
+        <pre id="airPasteBody" class="air-paste-preview air-scroll flex-1 m-0 px-4 py-3 text-gray-700 bg-gray-50"></pre>
+    </div>
 </div>
 @endsection
 
@@ -302,13 +426,23 @@
    Satu-satunya titik sentuh backend adalah airSendToBackend().
    ────────────────────────────────────────────────────────────────────────── */
 
-const AIR_MAX_CHARS = 4000;
+/* Semua angka batas datang dari controller — tidak ada yang ditulis ulang di
+   sini. Duplikatnya dulu yang membuat tooltip lampiran menyebut angka yang
+   sudah tidak berlaku selama berbulan-bulan. */
+const AIR_MAX_CHARS = @json($limits['chars']);
 
-/* Harus sama dengan AiResearchController::MAX_ATTACHMENTS / MAX_ATTACHMENT_KB.
-   Dicek di sini hanya supaya user dapat pesan yang jelas — server tetap yang
-   menegakkannya (lihat catatan alasan batas ini di controller). */
-const AIR_MAX_FILES = 2;
-const AIR_MAX_FILE_MB = 5;
+/* JUMLAH berkas per pesan tidak dibatasi — lihat catatan di
+   AiResearchController. Dua angka di bawah dicek di sini hanya supaya user
+   dapat pesan yang jelas; server tetap yang menegakkannya.
+
+   AIR_MAX_FILE_MB  : harus sama dengan MAX_ATTACHMENT_KB di controller.
+   AIR_MAX_TOTAL_MB : total satu pesan, ditahan di bawah `post_max_size`
+                      PHP (30M di produksi). Melewatinya membuat PHP
+                      membuang SELURUH body, bukan cuma berkasnya — server
+                      punya pagar untuk itu, tapi jauh lebih baik dicegah
+                      di sini sebelum 30 MB terlanjur terkirim. */
+const AIR_MAX_FILE_MB = @json($limits['file_mb']);
+const AIR_MAX_TOTAL_MB = @json($limits['message_mb']);
 const AIR_CHAT_ENDPOINT = @json(route('ai-research.chat'));
 const AIR_LIST_ENDPOINT = @json(route('ai-research.conversations'));
 /* {id} diganti saat dipakai — route() butuh parameter, dan menyusun URL-nya
@@ -327,6 +461,22 @@ let airConversationId = null;
 const airPreviews = new Map();  // File → object URL
 let airPreviewUrls = [];
 
+/* ── Tempelan besar ─────────────────────────────────────────────────────────
+   Di atas salah satu ambang ini, teks yang di-paste TIDAK masuk ke textarea
+   melainkan jadi lampiran .txt — sama seperti composer claude.ai. Alasannya
+   bukan kosmetik: `message` dibatasi AIR_MAX_CHARS di server, jadi menempel
+   ribuan baris kode ke textarea berakhir sebagai penolakan validasi. */
+const AIR_PASTE_MIN_CHARS = @json(\App\Support\AiTextAttachment::PASTE_THRESHOLD_CHARS);
+const AIR_PASTE_MIN_LINES = @json(\App\Support\AiTextAttachment::PASTE_THRESHOLD_LINES);
+
+/* Sinkron dengan AiTextAttachment::MAX_CHARS — di atas ini server memotong,
+   dan user berhak tahu SEBELUM mengirim, bukan sesudah. */
+const AIR_TEXT_MAX_CHARS = @json(\App\Support\AiTextAttachment::MAX_CHARS);
+
+const airPasteMeta = new WeakMap();  // File → {id, lines}
+const airPasteById = {};             // id → {lines, chars, text} untuk modal
+let airPasteSeq = 0;
+
 function airEnsureConversationId() {
     if (airConversationId) return airConversationId;
 
@@ -344,13 +494,30 @@ function airCsrfToken() {
 
 /* ── Composer ──────────────────────────────────────────────────────────── */
 
+/**
+ * Tinggi textarea + penghitung karakter.
+ *
+ * Penghitungnya BERWARNA, dan Send ikut mati begitu batas terlampaui: dulu
+ * angkanya abu-abu sampai batas berapa pun, lalu pesan panjang baru ditolak
+ * lewat toast SETELAH user menekan Send — sudah terlambat untuk berguna.
+ */
 function airAutoGrow(el) {
     el.style.height = 'auto';
     el.style.height = el.scrollHeight + 'px';
 
     const len = el.value.length;
-    document.getElementById('airCounter').textContent = len + ' / ' + AIR_MAX_CHARS;
-    document.getElementById('airSendBtn').disabled = airBusy || (len === 0 && airFiles.length === 0);
+    const over = len > AIR_MAX_CHARS;
+    const near = !over && len >= AIR_MAX_CHARS * 0.9;
+
+    const counter = document.getElementById('airCounter');
+    counter.textContent = len + ' / ' + AIR_MAX_CHARS + (over ? ' — too long' : '');
+    counter.classList.toggle('text-red-600', over);
+    counter.classList.toggle('font-semibold', over || near);
+    counter.classList.toggle('text-amber-600', near);
+    counter.classList.toggle('text-gray-400', !over && !near);
+
+    document.getElementById('airSendBtn').disabled =
+        airBusy || over || (len === 0 && airFiles.length === 0);
 }
 
 function airOnKeydown(e) {
@@ -399,16 +566,33 @@ function airAddFiles(files) {
     }
     if (incoming.length === 0) return;
 
-    const room = AIR_MAX_FILES - airFiles.length;
-    if (room <= 0) {
-        showToast('You can attach at most ' + AIR_MAX_FILES + ' files per message.', 'warning');
-        return;
-    }
-    if (incoming.length > room) {
-        showToast('Only the first ' + room + ' file(s) were added (max ' + AIR_MAX_FILES + ').', 'warning');
-    }
+    // Berapa pun jumlahnya boleh, asal totalnya masih muat dalam satu request.
+    // Ditambahkan satu per satu supaya yang lewat batas saja yang ditolak,
+    // bukan seluruh pilihan user.
+    const budget = AIR_MAX_TOTAL_MB * 1024 * 1024;
+    let used = airFiles.reduce((sum, f) => sum + f.size, 0);
+    const accepted = [];
+    const skipped = [];
 
-    airFiles = airFiles.concat(incoming.slice(0, room));
+    incoming.forEach(file => {
+        if (used + file.size > budget) {
+            skipped.push(file.name);
+            return;
+        }
+        used += file.size;
+        accepted.push(file);
+    });
+
+    if (skipped.length > 0) {
+        showToast(
+            skipped.join(', ') + ' — this message would exceed ' + AIR_MAX_TOTAL_MB
+                + ' MB in total. Send them in a separate message.',
+            'warning',
+        );
+    }
+    if (accepted.length === 0) return;
+
+    airFiles = airFiles.concat(accepted);
     airRenderAttachments();
     airAutoGrow(document.getElementById('airInput'));
 }
@@ -429,7 +613,32 @@ function airRenderAttachments() {
     box.classList.toggle('hidden', airFiles.length === 0);
     box.classList.toggle('flex', airFiles.length > 0);
 
+    airRenderUploadBudget();
+
     box.innerHTML = airFiles.map((file, i) => {
+        const paste = airPasteMeta.get(file);
+
+        // Tempelan besar tampil sebagai chip PASTED yang bisa diklik untuk
+        // dilihat isinya — nama berkas buatan ("pasted-1.php") tidak
+        // memberi tahu apa pun tentang apa yang barusan ditempel.
+        if (paste) {
+            return `
+            <span class="inline-flex items-center gap-2 pl-2 pr-1.5 py-1.5 rounded-xl border border-gray-200 bg-gray-50 max-w-[240px]">
+                <button type="button" onclick="airOpenPaste('${paste.id}')" title="View pasted text"
+                        class="flex items-center gap-2 min-w-0 text-left">
+                    <span class="px-1.5 py-0.5 rounded-md bg-gray-200/70 text-[9px] font-bold tracking-wide text-gray-700">PASTED</span>
+                    <span class="min-w-0">
+                        <span class="block text-[11px] font-semibold text-gray-700 truncate">${airEsc(file.name)}</span>
+                        <span class="block text-[10px] text-gray-400">${paste.lines.toLocaleString()} lines · ${airFileSize(file.size)}</span>
+                    </span>
+                </button>
+                <button type="button" onclick="airRemoveFile(${i})" title="Remove"
+                        class="w-5 h-5 shrink-0 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-all">
+                    <i class="fas fa-xmark text-[10px]"></i>
+                </button>
+            </span>`;
+        }
+
         const thumb = airIsImage(file)
             ? `<img src="${airPreviewUrl(file)}" alt="" class="air-thumb w-9 h-9 shrink-0"
                     data-air-full="${airPreviewUrl(file)}" data-air-caption="${airEsc(file.name)}">`
@@ -448,6 +657,28 @@ function airRenderAttachments() {
             </button>
         </span>`;
     }).join('');
+}
+
+/**
+ * Berapa MB dari jatah satu pesan yang sudah terpakai.
+ *
+ * Ditampilkan SELAGI memilih berkas, bukan hanya sebagai penolakan setelah
+ * berkas ke-sekian ditolak: user berhak tahu ia sedang mendekati batas ketika
+ * masih bisa berbuat sesuatu tentang itu.
+ */
+function airRenderUploadBudget() {
+    const line = document.getElementById('airUploadBudget');
+    if (airFiles.length === 0) {
+        line.classList.add('hidden');
+        return;
+    }
+
+    const used = airFiles.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024;
+    const share = used / AIR_MAX_TOTAL_MB;
+
+    line.textContent = airFiles.length + (airFiles.length > 1 ? ' files · ' : ' file · ')
+        + used.toFixed(1) + ' / ' + AIR_MAX_TOTAL_MB + ' MB in this message';
+    line.className = 'text-[10px] mb-1.5 ' + (share >= 0.9 ? 'text-amber-600 font-semibold' : 'text-gray-400');
 }
 
 function airFileIcon(name) {
@@ -471,7 +702,9 @@ function airFileSize(bytes) {
  * backend kehilangan ekstensi untuk ditebak.
  */
 function airOnPaste(e) {
-    const items = Array.from(e.clipboardData?.items || []);
+    if (!e.clipboardData) return;
+
+    const items = Array.from(e.clipboardData.items || []);
     const images = items
         .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
         .map(item => item.getAsFile())
@@ -480,10 +713,105 @@ function airOnPaste(e) {
             ? file
             : new File([file], 'screenshot-' + Date.now() + '.' + (file.type.split('/')[1] || 'png'), { type: file.type }));
 
-    if (images.length === 0) return;   // paste teks biasa: biarkan default
+    if (images.length > 0) {
+        e.preventDefault();
+        airAddFiles(images);
+        return;
+    }
+
+    // Tempelan teks hanya diubah jadi lampiran kalau memang ditujukan ke
+    // composer. Listener ini dipasang di document (supaya screenshot bisa
+    // ditempel dari mana saja), dan membajak paste ke kolom pencarian atau
+    // kolom lain akan terasa seperti kerusakan, bukan seperti fitur.
+    if (e.target !== document.getElementById('airInput')) return;
+
+    const text = e.clipboardData.getData('text/plain') || '';
+    if (!airIsLargePaste(text)) return;   // tempelan wajar: biarkan default
 
     e.preventDefault();
-    airAddFiles(images);
+    airAddPastedText(text);
+}
+
+function airIsLargePaste(text) {
+    if (!text) return false;
+
+    return text.length > AIR_PASTE_MIN_CHARS
+        || (text.match(/\n/g) || []).length + 1 > AIR_PASTE_MIN_LINES;
+}
+
+/**
+ * Teks tempelan → berkas .txt biasa.
+ *
+ * Sengaja lewat jalur lampiran yang sudah ada, bukan lewat field request
+ * baru: di server, berkas teks dan tempelan ditangani kode yang sama
+ * (App\Support\AiTextAttachment), jadi tidak ada jalur kedua yang bisa
+ * menyimpang diam-diam.
+ */
+function airAddPastedText(text) {
+    const lines = (text.match(/\n/g) || []).length + 1;
+    const id = 'paste' + (++airPasteSeq) + '-' + Date.now();
+
+    if (text.length > AIR_TEXT_MAX_CHARS) {
+        showToast('That paste is very large — only the first '
+            + AIR_TEXT_MAX_CHARS.toLocaleString() + ' characters will be sent.', 'warning');
+    }
+
+    const file = new File([text], airPasteFileName(text, airPasteSeq), { type: 'text/plain' });
+
+    airPasteMeta.set(file, { id: id, lines: lines });
+    airPasteById[id] = { lines: lines, chars: text.length, text: text };
+
+    airAddFiles([file]);
+}
+
+/**
+ * Ekstensi ditebak dari isinya supaya nama lampiran memberi petunjuk bahasa —
+ * model membaca nama berkas, dan "pasted-1.txt" untuk file Blade membuang
+ * konteks yang sebenarnya gratis.
+ */
+function airPasteFileName(text, seq) {
+    const head = text.slice(0, 2000);
+    let ext = 'txt';
+
+    if (/^\s*[{[]/.test(head))                                      ext = 'json';
+    // Escape heksadesimal DIPAKAI DENGAN SENGAJA di baris berikut (\x40 =
+    // karakter at, \x7b/\x7d = kurung kurawal): file ini Blade, dan penanda
+    // direktif Blade yang ditulis literal di dalam <script> tetap ikut
+    // dikompilasi — hasilnya view gagal dirender (500), bukan sekadar regex
+    // yang salah.
+    else if (/\x40extends|\x40section|\x40php|\x7b\x7b.*\x7d\x7d/.test(head))  ext = 'blade.php';
+    else if (/<\?php|namespace\s+\w+|public function /.test(head))   ext = 'php';
+    else if (/<\/?(div|html|body|span|table)\b/i.test(head))         ext = 'html';
+    else if (/\b(function|const|let|=>|document\.)\b/.test(head))    ext = 'js';
+    else if (/\b(SELECT|INSERT|UPDATE|CREATE TABLE)\b/i.test(head))  ext = 'sql';
+
+    return 'pasted-' + seq + '.' + ext;
+}
+
+function airOpenPaste(id) {
+    const paste = airPasteById[id];
+    if (!paste) return;
+
+    document.getElementById('airPasteMeta').textContent =
+        paste.lines.toLocaleString() + ' lines · ' + paste.chars.toLocaleString() + ' characters'
+        + (paste.chars > AIR_TEXT_MAX_CHARS
+            ? ' · only the first ' + AIR_TEXT_MAX_CHARS.toLocaleString() + ' are sent'
+            : '');
+    document.getElementById('airPasteBody').textContent = paste.text;
+
+    const box = document.getElementById('airPasteModal');
+    box.classList.remove('hidden');
+    box.classList.add('flex');
+}
+
+/** Klik latar (bukan isi panel) menutup — sama seperti lightbox. */
+function airClosePaste(e) {
+    if (e && e.target !== e.currentTarget) return;
+
+    const box = document.getElementById('airPasteModal');
+    box.classList.add('hidden');
+    box.classList.remove('flex');
+    document.getElementById('airPasteBody').textContent = '';
 }
 
 function airOnDragOver(e) {
@@ -519,6 +847,23 @@ function airCloseLightbox(e) {
     box.classList.add('hidden');
     box.classList.remove('flex');
     document.getElementById('airLightboxImg').src = '';
+}
+
+/* ── Limits & behaviour ────────────────────────────────────────────────── */
+
+function airOpenLimits() {
+    const box = document.getElementById('airLimitsModal');
+    box.classList.remove('hidden');
+    box.classList.add('flex');
+}
+
+/** Klik latar (bukan isi panel) menutup — sama seperti lightbox. */
+function airCloseLimits(e) {
+    if (e && e.target !== e.currentTarget) return;
+
+    const box = document.getElementById('airLimitsModal');
+    box.classList.add('hidden');
+    box.classList.remove('flex');
 }
 
 /* ── Markdown ──────────────────────────────────────────────────────────── */
@@ -807,6 +1152,10 @@ function airAppendAssistantPending(at) {
                     </div>
                 </div>
                 <div class="air-sources hidden mt-2"></div>
+                {{-- Panel batas: jawaban terpotong, dihentikan user, atau gagal.
+                     Terpisah dari .air-body supaya tidak pernah tercampur ke
+                     dalam teks jawaban (dan tidak ikut tersalin oleh Copy). --}}
+                <div class="air-notice hidden mt-2"></div>
                 <div class="air-actions hidden items-center gap-1 mt-1.5">
                     <button type="button" onclick="airCopy('${id}')" title="Copy"
                             class="w-6 h-6 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
@@ -867,6 +1216,133 @@ function airRenderSources(id, items) {
         </div>`;
     box.classList.remove('hidden');
     airScrollToBottom();
+}
+
+/* ── Panel batas (terpotong / dihentikan / gagal) ───────────────────────────
+   Kenapa panel, bukan teks miring di ujung jawaban seperti sebelumnya:
+     - user harus bisa membedakan "ini kata model" dari "ini kata sistem";
+     - keadaan ini SELALU punya jalan keluar, dan jalan keluarnya harus berupa
+       tombol, bukan kalimat yang menyuruh user melakukan sesuatu sendiri;
+     - teks yang menempel di jawaban ikut tersalin tombol Copy.
+   ────────────────────────────────────────────────────────────────────────── */
+
+const AIR_NOTICE_TONES = {
+    warn:  { box: 'border-amber-200 bg-amber-50',   title: 'text-amber-900', text: 'text-amber-800', icon: 'fa-circle-exclamation text-amber-500' },
+    error: { box: 'border-red-200 bg-red-50',       title: 'text-red-900',   text: 'text-red-800',   icon: 'fa-triangle-exclamation text-red-500' },
+    info:  { box: 'border-gray-200 bg-gray-50',     title: 'text-gray-800',  text: 'text-gray-500',  icon: 'fa-circle-info text-gray-400' },
+};
+
+/**
+ * @param {object} n  { title, text, can_continue, tone }
+ */
+function airRenderNotice(id, n) {
+    const wrap = document.getElementById(id);
+    if (!wrap) return;
+
+    const box = wrap.querySelector('.air-notice');
+    const tone = AIR_NOTICE_TONES[n.tone || 'warn'];
+
+    const continueBtn = n.can_continue ? `
+        <button type="button" onclick="airContinue('${id}')"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-semibold hover:bg-indigo-700 transition-all">
+            <i class="fas fa-forward text-[9px]"></i> Continue
+        </button>` : '';
+
+    box.innerHTML = `
+        <div class="rounded-xl border ${tone.box} px-3 py-2.5">
+            <div class="flex gap-2">
+                <i class="fas ${tone.icon} text-[11px] mt-0.5"></i>
+                <div class="min-w-0">
+                    <p class="text-[11px] font-bold ${tone.title}">${airEsc(n.title || '')}</p>
+                    <p class="text-[11px] ${tone.text} mt-0.5 leading-relaxed">${airEsc(n.text || '')}</p>
+                    <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                        ${continueBtn}
+                        <button type="button" onclick="airNewChat()"
+                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-300 bg-white text-gray-600 text-[10px] font-semibold hover:bg-gray-50 transition-all">
+                            <i class="fas fa-plus text-[9px]"></i> Start a new chat
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+    box.classList.remove('hidden');
+
+    // Panel bisa muncul SELAGI stream masih jalan (notice datang sebelum 'done'),
+    // jadi keadaan tombolnya harus disamakan dengan keadaan sekarang.
+    if (airBusy) {
+        box.querySelectorAll('button').forEach(btn => {
+            btn.disabled = true;
+            btn.classList.add('opacity-40', 'cursor-not-allowed');
+        });
+    }
+
+    airScrollToBottom();
+}
+
+function airClearNotice(id) {
+    const box = document.querySelector('#' + id + ' .air-notice');
+    if (!box) return;
+    box.innerHTML = '';
+    box.classList.add('hidden');
+}
+
+/**
+ * Lanjutkan jawaban yang berhenti karena batas — hasilnya di-stream ke bubble
+ * YANG SAMA, bukan bubble baru: bagi user ini satu jawaban yang tersambung,
+ * dan menyambungnya di tempat lain justru membuat kalimat terpotongnya makin
+ * sulit dibaca. Server yang menyusun instruksi lanjutannya (resume=1), jadi
+ * tidak ada perintah palsu atas nama user di dalam riwayat.
+ */
+async function airContinue(id) {
+    if (airBusy) return;
+
+    const wrap = document.getElementById(id);
+    if (!wrap) return;
+
+    airClearNotice(id);
+    airSetBusy(true);
+    airSetStatus(id, 'Continuing the answer…');
+
+    try {
+        await airSendToBackend('', [], 'default', id, true);
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            airRenderNotice(id, airStoppedNotice(id));
+        } else {
+            airRenderNotice(id, {
+                tone: 'error',
+                title: 'Could not continue this answer',
+                text: err.message || 'Something went wrong. Try again, or ask the remaining part as a new question.',
+                can_continue: !err.airRejected,
+            });
+        }
+    } finally {
+        airClearStatus(id);
+        airSetBusy(false);
+        airLoadHistory();
+    }
+}
+
+/** Isi panel saat user menekan Stop — beda pesan kalau belum ada teks apa pun. */
+function airStoppedNotice(id) {
+    const body = document.querySelector('#' + id + ' .air-body');
+    const hasText = Boolean(body && (body.dataset.text || '').trim());
+
+    return hasText
+        ? {
+            tone: 'info',
+            title: 'You stopped this answer',
+            text: 'What you see above is only the part that had arrived. Continue to resume it from where it stopped, '
+                + 'or just ask your next question.',
+            can_continue: true,
+        }
+        : {
+            tone: 'info',
+            title: 'You stopped this answer',
+            text: 'Nothing had been written yet, so there is nothing to resume. Ask the question again when you are ready.',
+            can_continue: false,
+        };
 }
 
 function airHostOf(url) {
@@ -942,7 +1418,9 @@ function airSend() {
     }
 
     const files = airFiles.slice();
-    const model = document.getElementById('airModel')?.value || 'default';
+    // Tier dikirim hanya demi kompatibilitas payload; server memakai model
+    // yang ditetapkan admin dan mengabaikan nilai ini.
+    const model = 'default';
 
     airShowThread();
     airAppendUser(text, files);
@@ -962,6 +1440,35 @@ function airSend() {
             // Stop oleh user: pertahankan teks yang sudah masuk.
             const stopped = err.name === 'AbortError';
             airResolveAssistant(pendingId, stopped ? '' : (err.message || 'Something went wrong.'), !stopped);
+
+            if (stopped) {
+                // Jawaban yang dihentikan sendiri oleh user tetap harus jelas
+                // statusnya: tanpa ini bubble-nya cuma berhenti begitu saja dan
+                // terlihat seperti jawaban yang memang sudah selesai.
+                airRenderNotice(pendingId, airStoppedNotice(pendingId));
+            } else {
+                airRenderNotice(pendingId, {
+                    tone: 'error',
+                    title: err.airRejected ? 'This message was not sent' : 'The assistant could not finish',
+                    text: err.airRejected
+                        ? 'Your text and files are still in the composer, so nothing was lost.'
+                        : 'Nothing was saved for this turn. Try again, or start a new chat if it keeps failing.',
+                    can_continue: false,
+                });
+            }
+
+            // Pesan DITOLAK sebelum sempat diproses (lampiran penuh, unggahan
+            // kebesaran): kembalikan pilihan berkas dan teksnya. Memilih ulang
+            // belasan berkas hanya karena kena batas adalah hukuman yang tidak
+            // ada gunanya — tidak ada yang terkirim, jadi tidak ada yang hilang.
+            if (err.airRejected) {
+                airFiles = files;
+                airRenderAttachments();
+                if (!input.value.trim()) {
+                    input.value = text;
+                    airAutoGrow(input);
+                }
+            }
         })
         .finally(() => {
             airSetBusy(false);
@@ -973,6 +1480,15 @@ function airSetBusy(busy) {
     airBusy = busy;
     document.getElementById('airSendBtn').classList.toggle('hidden', busy);
     document.getElementById('airStopBtn').classList.toggle('hidden', !busy);
+
+    // Tombol di panel batas ikut mati selagi ada giliran berjalan — kalau tidak,
+    // Continue terlihat bisa ditekan padahal airContinue() akan mengabaikannya.
+    document.querySelectorAll('.air-notice button').forEach(btn => {
+        btn.disabled = busy;
+        btn.classList.toggle('opacity-40', busy);
+        btn.classList.toggle('cursor-not-allowed', busy);
+    });
+
     airAutoGrow(document.getElementById('airInput'));
 }
 
@@ -987,9 +1503,14 @@ function airStop() {
  *   delta   → potongan teks jawaban
  *   status  → label progres selagi server tool berjalan
  *   sources → daftar {url, title} sumber yang dipakai
+ *   notice  → giliran berhenti karena BATAS, bukan karena selesai
  *   done / error → penutup stream (backend selalu mengirim salah satunya)
+ *
+ * resume = true: giliran "Continue". Tidak ada teks maupun berkas yang dikirim
+ * — instruksi lanjutannya disusun server supaya identik dengan penyambung
+ * otomatisnya.
  */
-async function airSendToBackend(text, files, model, pendingId) {
+async function airSendToBackend(text, files, model, pendingId, resume = false) {
     const controller = new AbortController();
     airAbort = controller;
 
@@ -997,6 +1518,7 @@ async function airSendToBackend(text, files, model, pendingId) {
     form.append('conversation_id', airEnsureConversationId());
     form.append('message', text);
     form.append('model', model);
+    if (resume) form.append('resume', '1');
     files.forEach(file => form.append('files[]', file));
 
     const response = await fetch(AIR_CHAT_ENDPOINT, {
@@ -1010,7 +1532,14 @@ async function airSendToBackend(text, files, model, pendingId) {
     });
 
     if (!response.ok || !response.body) {
-        throw new Error('Could not reach the assistant (HTTP ' + response.status + ').');
+        // Penolakan yang disengaja (lampiran penuh, unggahan kebesaran) datang
+        // sebagai JSON dengan alasan yang bisa ditindaklanjuti. Menampilkan
+        // 'HTTP 422' saja membuat user mengira sistemnya rusak.
+        let reason = null;
+        try { reason = (await response.json()).message; } catch { /* bukan JSON */ }
+        const err = new Error(reason || 'Could not reach the assistant (HTTP ' + response.status + ').');
+        err.airRejected = Boolean(reason);   // ditolak dengan alasan, bukan gagal jaringan
+        throw err;
     }
 
     const reader = response.body.getReader();
@@ -1048,6 +1577,14 @@ async function airSendToBackend(text, files, model, pendingId) {
                     airSetStatus(pendingId, payload.label);
                 } else if (eventName === 'sources' && Array.isArray(payload.items)) {
                     airRenderSources(pendingId, payload.items);
+                } else if (eventName === 'notice') {
+                    airClearStatus(pendingId);
+                    airRenderNotice(pendingId, {
+                        tone: 'warn',
+                        title: payload.title,
+                        text: payload.text,
+                        can_continue: Boolean(payload.can_continue),
+                    });
                 } else if (eventName === 'error') {
                     sawError = payload.message || 'Something went wrong.';
                 }
@@ -1099,7 +1636,7 @@ function airNewChat() {
 /* ── Riwayat ───────────────────────────────────────────────────────────
    Percakapan disimpan di server dan hanya bisa dilihat pemiliknya. Lampiran
    sengaja TIDAK ikut diarsipkan: byte gambarnya hanya hidup selama konteks di
-   cache masih berlaku (1 jam). Karena itu percakapan lama tetap bisa dibaca,
+   cache masih berlaku (12 jam). Karena itu percakapan lama tetap bisa dibaca,
    tapi melanjutkannya dengan pertanyaan tentang gambar butuh unggah ulang.
    ────────────────────────────────────────────────────────────────────── */
 
@@ -1192,14 +1729,27 @@ async function airOpenConversation(id, silent = false) {
         airConversationId = data.id;
         sessionStorage.setItem(AIR_CONVERSATION_STORAGE_KEY, data.id);
 
-        const model = document.getElementById('airModel');
-        if (model && data.model_tier) model.value = data.model_tier;
+        const messages = data.messages || [];
 
-        if ((data.messages || []).length > 0) {
+        if (messages.length > 0) {
             airShowThread();
-            data.messages.forEach(m => m.role === 'user'
-                ? airAppendUserStored(m.content, m.attachments, m.at)
-                : airAppendAssistantStored(m.content, m.sources, m.at));
+
+            // Batas ingatan model. Saat konteks kerjanya sudah kedaluwarsa,
+            // yang disemai ulang ke model hanya `window` pesan TERAKHIR — layar
+            // menampilkan lebih banyak daripada yang diingat model, dan itu
+            // harus dikatakan, bukan dibiarkan ditebak dari jawaban yang pelupa.
+            const ctx = data.context || {};
+            const cut = (!ctx.warm && ctx.window && messages.length > ctx.window)
+                ? messages.length - ctx.window
+                : -1;
+
+            messages.forEach((m, i) => {
+                if (i === cut) airAppendMemoryDivider();
+
+                m.role === 'user'
+                    ? airAppendUserStored(m.content, m.attachments, m.at)
+                    : airAppendAssistantStored(m.content, m.sources, m.at);
+            });
         }
 
         airMarkActive(data.id);
@@ -1230,6 +1780,24 @@ async function airDeleteConversation(id, title) {
     } catch {
         showToast('Could not delete that conversation.', 'error');
     }
+}
+
+/**
+ * Garis "dari sini yang diingat model".
+ *
+ * Ditempatkan DI DALAM transkrip, bukan sebagai banner di atas halaman: yang
+ * perlu diketahui user bukan "ada batas", melainkan batasnya ada DI MANA.
+ */
+function airAppendMemoryDivider() {
+    document.getElementById('airMessages').insertAdjacentHTML('beforeend', `
+        <div class="flex items-center gap-2 py-1" title="Older messages are still readable here — the assistant just no longer has them in context.">
+            <span class="flex-1 h-px bg-gray-200"></span>
+            <span class="text-[10px] text-gray-400 px-1 text-center leading-snug">
+                The assistant remembers the conversation from here on — earlier messages and any images are no longer in its context
+            </span>
+            <span class="flex-1 h-px bg-gray-200"></span>
+        </div>
+    `);
 }
 
 /** Bubble user dari arsip: teksnya tersimpan, lampirannya tidak. */
@@ -1311,7 +1879,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') airCloseLightbox();
+        if (e.key !== 'Escape') return;
+        airCloseLightbox();
+        airCloseLimits();
     });
 
     const zone = document.getElementById('airDropzone');

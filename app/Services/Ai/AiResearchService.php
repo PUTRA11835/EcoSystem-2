@@ -9,6 +9,8 @@ use Anthropic\Messages\WebFetchTool20260209;
 use Anthropic\Messages\WebSearchTool20260209;
 use App\Models\AiConversation;
 use App\Models\Employee;
+use App\Support\AiModelSettings;
+use App\Support\AiTextAttachment;
 use Closure;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -28,12 +30,34 @@ use Throwable;
  * 'pause_turn' (model menjeda giliran panjang dan minta dilanjutkan).
  *
  * Sama seperti AiChatService, isi percakapan TIDAK PERNAH masuk database —
- * hanya cache 'ai_chat' dengan TTL 1 jam (lihat cacheKey()).
+ * hanya cache 'ai_chat' dengan TTL 12 jam (lihat CACHE_TTL_MINUTES).
  */
 class AiResearchService
 {
     private const CACHE_STORE = 'ai_chat';
-    private const CACHE_TTL_MINUTES = 60;
+    /**
+     * Berapa lama konteks kerja satu percakapan bertahan sejak pesan terakhir.
+     * Di-refresh tiap pesan, jadi ini umur DIAM, bukan umur percakapan.
+     *
+     * 20 Agu 2026: dinaikkan 60 menit → 12 jam supaya percakapan yang
+     * ditinggalkan sebentar (rapat, makan siang, pagi ke sore) tetap diingat
+     * UTUH berikut lampirannya, bukan menyusut jadi 20 pesan terakhir tanpa
+     * gambar. Sebelumnya jendela satu jam terlalu pendek untuk ritme kerja
+     * konsultan — riset pagi hari sudah "lupa" saat dibuka lagi siangnya.
+     *
+     * DUA HAL YANG IKUT BERUBAH karena angka ini, dan keduanya disengaja:
+     *
+     *   1. Anggaran lampiran (~16 MB/percakapan) sekarang berlaku sepanjang
+     *      12 jam itu, bukan satu jam. Percakapan yang banyak screenshot akan
+     *      lebih cepat kena "attachment limit" — jalan keluarnya tetap sama:
+     *      mulai chat baru.
+     *   2. Berkas cache — termasuk byte gambar — menetap di disk 12× lebih
+     *      lama. Karena itu `ai:prune-conversations` dijadwalkan lebih sering
+     *      (lihat routes/console.php): cache file Laravel tidak punya GC.
+     *
+     * Public karena halaman chat menampilkannya kepada user.
+     */
+    public const CACHE_TTL_MINUTES = 720;
 
     /**
      * Berapa PESAN terakhir yang dipulihkan dari arsip saat cache sudah mati
@@ -43,7 +67,7 @@ class AiResearchService
      * dua bulan bisa berisi ratusan giliran, dan memuat semuanya berarti
      * membayar token untuk konteks yang hampir pasti sudah tidak relevan.
      */
-    private const ARCHIVE_CONTEXT_MESSAGES = 20;
+    public const ARCHIVE_CONTEXT_MESSAGES = 20;
 
     /** Batas berapa kali 'pause_turn' boleh dilanjutkan dalam satu giliran. */
     private const MAX_PAUSE_RESUMES = 4;
@@ -76,8 +100,11 @@ class AiResearchService
     /**
      * @param array<int, array{type: string, media_type: string, data: string}> $attachments
      * @param Closure(string): void $onDelta dipanggil tiap potongan teks jawaban
-     * @param Closure(string, array<string, mixed>): void $onEvent event non-teks ('status', 'sources')
+     * @param Closure(string, array<string, mixed>): void $onEvent event non-teks ('status', 'sources', 'notice')
      * @param Closure(): bool $isAborted dipolling di antara langkah jaringan
+     * @param bool $resume giliran ini adalah "Continue" yang DIMINTA USER lewat tombol,
+     *                     bukan pertanyaan baru: tidak ada teks user, yang dikirim
+     *                     adalah instruksi lanjutan yang sama dengan penyambung otomatis.
      */
     public function streamReply(
         Employee $employee,
@@ -88,11 +115,12 @@ class AiResearchService
         Closure $onDelta,
         Closure $onEvent,
         Closure $isAborted,
+        bool $resume = false,
     ): void {
         $cacheKey = $this->cacheKey($employee, $conversationId);
         $messages = $this->restoreMessages($cacheKey);
 
-        // Cache kosong bukan berarti percakapan baru: TTL-nya cuma 1 jam,
+        // Cache kosong bukan berarti percakapan baru: TTL-nya 12 jam,
         // sementara arsipnya bertahan berbulan-bulan. Tanpa langkah ini,
         // membuka percakapan lama dari sidebar akan menampilkan transkrip
         // yang lengkap di layar tapi model tidak ingat apa pun — user melihat
@@ -106,12 +134,40 @@ class AiResearchService
         // riwayat yang kebetulan ikut terbawa di $messages.
         $turnStart = count($messages);
 
-        $messages[] = [
-            'role' => 'user',
-            'content' => $this->buildUserContent($userText, $attachments),
-        ];
+        // "Continue" bukan pertanyaan baru: yang disisipkan adalah instruksi
+        // lanjutan yang persis sama dengan penyambung otomatis, sehingga
+        // toHistory() ikut membuangnya dari riwayat — user tidak pernah melihat
+        // perintah palsu atas namanya, baik di layar maupun di arsip.
+        if ($resume) {
+            // Tidak ada apa pun untuk dilanjutkan — konteksnya sudah hilang
+            // (tab dibiarkan terbuka melewati TTL cache, arsipnya kosong).
+            // Katakan terus terang; membiarkannya lewat berarti model diminta
+            // "lanjutkan" tanpa tahu apa yang harus dilanjutkan.
+            if (empty($messages)) {
+                $onEvent('notice', [
+                    'kind' => 'nothing_to_continue',
+                    'title' => 'Nothing left to continue',
+                    'text' => 'The earlier answer is no longer in this conversation\'s working context, so it '
+                        . 'cannot be resumed. Ask the question again instead.',
+                    'can_continue' => false,
+                ]);
+
+                return;
+            }
+
+            $messages[] = ['role' => 'user', 'content' => [$this->continuationBlock()]];
+        } else {
+            $messages[] = [
+                'role' => 'user',
+                'content' => $this->buildUserContent($userText, $attachments),
+            ];
+        }
 
         [$model, $config] = $this->modelConfigFor($modelTier);
+
+        // Tier yang dipakai ditentukan admin, bukan request — pakai yang
+        // sebenarnya berlaku supaya cache dan arsip tidak mencatat tier palsu.
+        $modelTier = $config['tier'];
 
         $pauseResumes = 0;
         $lengthResumes = 0;
@@ -128,7 +184,7 @@ class AiResearchService
                 model: $model,
                 system: $this->systemPrompt(),
                 thinking: ['type' => 'adaptive'],
-                outputConfig: ['effort' => $config['effort']],
+                outputConfig: $config['output_config'],
                 tools: $this->toolDefinitions(),
             );
 
@@ -173,24 +229,24 @@ class AiResearchService
             // jadi model tahu persis di mana ia berhenti.
             if ('max_tokens' === $stopReason) {
                 if (++$lengthResumes > self::MAX_LENGTH_RESUMES) {
-                    $onDelta("\n\n_…jawaban dipotong karena sudah terlalu panjang. Tanyakan bagian yang belum terjawab secara lebih spesifik._");
+                    // Sudah disambung sebanyak yang diizinkan dan MASIH terpotong.
+                    // Dikirim sebagai 'notice', bukan ditempelkan ke teks jawaban:
+                    // ini keadaan sistem, bukan isi jawaban — UI yang menampilkannya
+                    // sebagai panel lengkap dengan tombol Continue / New chat.
+                    $onEvent('notice', [
+                        'kind' => 'truncated',
+                        'title' => 'This answer was cut off',
+                        'text' => 'The reply hit the output limit for this turn and has already been continued '
+                            . 'automatically ' . self::MAX_LENGTH_RESUMES . ' times. Continue to resume exactly '
+                            . 'where it stopped, or ask about the missing part more specifically.',
+                        'can_continue' => true,
+                    ]);
                     break;
                 }
 
-                $messages[] = [
-                    'role' => 'user',
-                    'content' => [[
-                        'type' => 'text',
-                        'text' => self::CONTINUE_MARKER
-                            . 'Jawabanmu terpotong karena batas panjang. Lanjutkan PERSIS dari '
-                            . 'karakter terakhir yang tadi kamu tulis — jangan mengulang bagian yang sudah ada, '
-                            . 'jangan menyapa ulang, jangan membuat ringkasan pembuka. Kalau kalimat atau blok kode '
-                            . 'terakhir terputus di tengah, teruskan kalimat/blok itu sampai selesai. '
-                            . 'Bahasa dan gaya penulisannya harus sama dengan bagian sebelumnya.',
-                    ]],
-                ];
+                $messages[] = ['role' => 'user', 'content' => [$this->continuationBlock()]];
 
-                $onEvent('status', ['label' => 'Melanjutkan jawaban yang terpotong…']);
+                $onEvent('status', ['label' => 'Continuing the cut-off answer…']);
                 continue;
             }
 
@@ -199,11 +255,17 @@ class AiResearchService
             }
 
             if (++$pauseResumes > self::MAX_PAUSE_RESUMES) {
-                $onDelta("\n\n_Pencarian ini terlalu panjang untuk diselesaikan sekaligus — coba persempit pertanyaannya._");
+                $onEvent('notice', [
+                    'kind' => 'search_limit',
+                    'title' => 'The search ran longer than one turn allows',
+                    'text' => 'This lookup paused ' . self::MAX_PAUSE_RESUMES . ' times and still is not finished, '
+                        . 'so it was stopped here. Continue to let it carry on, or narrow the question.',
+                    'can_continue' => true,
+                ]);
                 break;
             }
 
-            $onEvent('status', ['label' => 'Melanjutkan pencarian…']);
+            $onEvent('status', ['label' => 'Resuming the search…']);
         }
 
         Cache::store(self::CACHE_STORE)->put($cacheKey, [
@@ -295,6 +357,35 @@ class AiResearchService
     }
 
     /**
+     * Instruksi "sambung dari titik berhenti", satu bentuk untuk DUA pemakai:
+     * penyambung otomatis saat stopReason 'max_tokens', dan tombol Continue
+     * yang ditekan user. Keduanya harus identik — kalau tidak, jawaban yang
+     * disambung mesin dan yang disambung manusia jadi terasa beda.
+     *
+     * Ditulis dalam bahasa Inggris seperti system prompt, dengan perintah
+     * eksplisit untuk mempertahankan bahasa bagian sebelumnya: instruksi
+     * berbahasa Indonesia di sini pernah membuat jawaban ikut berpindah bahasa
+     * di tengah jalan.
+     *
+     * @return array{type: string, text: string}
+     */
+    private function continuationBlock(): array
+    {
+        return [
+            'type' => 'text',
+            'text' => self::CONTINUE_MARKER
+                // Sengaja tidak menyebut sebabnya secara spesifik: blok yang sama
+                // dipakai untuk potongan max_tokens DAN untuk pencarian yang
+                // kehabisan jeda, dan menyebut sebab yang salah hanya membuat
+                // model menjelaskan hal yang tidak terjadi.
+                . 'Your previous reply stopped before it was finished. Resume from EXACTLY the last character '
+                . 'you wrote — do not repeat anything you already said, do not greet again, do not open with a '
+                . 'recap or summary. If the last sentence, list item, table row, or code block was left unfinished, '
+                . 'finish that first. Keep the same language, formatting, and level of detail as the earlier part.',
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $message
      */
     private function isContinuationPrompt(array $message): bool
@@ -310,6 +401,83 @@ class AiResearchService
         return is_array($block)
             && 'text' === ($block['type'] ?? null)
             && str_starts_with((string) ($block['text'] ?? ''), self::CONTINUE_MARKER);
+    }
+
+    /**
+     * Berapa banyak byte base64 lampiran yang masih menempel di konteks
+     * percakapan ini — yaitu yang akan DIKIRIM ULANG ke API pada pertanyaan
+     * berikutnya.
+     *
+     * Diukur dalam byte BASE64, bukan ukuran berkas asli, karena itulah yang
+     * benar-benar dihitung terhadap plafon 32 MB per request milik API
+     * (base64 menggelembungkan ~33%).
+     *
+     * Angkanya turun sendiri ke nol begitu cache 12 jam kedaluwarsa:
+     * restoreFromArchive() menyemai ulang konteks dari transkrip TEKS, tanpa
+     * byte gambar. Jadi anggaran ini membatasi satu sesi kerja, bukan
+     * percakapan seumur hidup.
+     */
+    /**
+     * Seberapa jauh model masih "ingat" percakapan ini.
+     *
+     * Ada dua keadaan, dan bedanya penting bagi user:
+     *
+     *   - warm  : konteks kerja masih di cache. Model melihat SELURUH
+     *             percakapan ini, lampiran gambar termasuk.
+     *   - dingin: cache sudah kedaluwarsa. Transkrip di layar tetap lengkap
+     *             (dibaca dari arsip), tapi yang disemai ulang ke model hanya
+     *             `window` pesan TERAKHIR, dan tanpa gambar.
+     *
+     * Keadaan kedua itulah yang diam-diam membingungkan: layar penuh riwayat,
+     * model hanya ingat ekornya. UI memakai nilai ini untuk mengatakannya
+     * terus terang alih-alih membiarkan user menyimpulkan sendiri dari
+     * jawaban yang terasa pelupa.
+     *
+     * @return array{warm: bool, window: int, ttl_minutes: int}
+     */
+    public function contextState(Employee $employee, string $conversationId): array
+    {
+        return [
+            'warm' => !empty($this->restoreMessages($this->cacheKey($employee, $conversationId))),
+            'window' => self::ARCHIVE_CONTEXT_MESSAGES,
+            'ttl_minutes' => self::CACHE_TTL_MINUTES,
+        ];
+    }
+
+    public function attachmentBytesInContext(Employee $employee, string $conversationId): int
+    {
+        $bytes = 0;
+
+        foreach ($this->restoreMessages($this->cacheKey($employee, $conversationId)) as $message) {
+            if ('user' !== ($message['role'] ?? null)) {
+                continue;
+            }
+
+            foreach ($message['content'] as $block) {
+                if (!is_array($block)) {
+                    continue;
+                }
+
+                $data = $block['source']['data'] ?? null;
+
+                if (is_string($data)) {
+                    $bytes += strlen($data);
+                    continue;
+                }
+
+                // Lampiran TEKS tinggal di blok text biasa. Yang dihitung
+                // hanya blok berlabel <attached_text …> — teks yang diketik
+                // user sendiri bukan lampiran dan tidak boleh memakan
+                // anggaran yang sama.
+                $text = $block['text'] ?? null;
+
+                if (is_string($text) && str_starts_with($text, '<attached_text ')) {
+                    $bytes += strlen($text);
+                }
+            }
+        }
+
+        return $bytes;
     }
 
     /**
@@ -416,10 +584,14 @@ class AiResearchService
                     continue;
                 }
 
+                // Catatan sistem, ditulis Inggris seperti system prompt: ini
+                // menempel di dalam giliran user, dan kalimat Indonesia di sini
+                // ikut menarik bahasa jawaban (aturan bahasa di system prompt
+                // menyuruh model mengikuti bahasa tulisan user).
                 if ('user' === $row->role && $row->attachment_count > 0) {
-                    $text = trim($text . "\n\n[Pesan ini dulu memuat " . $row->attachment_count
-                        . ' lampiran yang sudah tidak tersedia lagi. Kalau jawabannya bergantung pada isi lampiran itu, '
-                        . 'minta user mengunggahnya ulang alih-alih menebak.]');
+                    $text = trim($text . "\n\n[This message originally carried " . $row->attachment_count
+                        . ' attachment(s) that are no longer available. If the answer depends on what they showed, '
+                        . 'ask the user to upload them again instead of guessing.]');
                 }
 
                 // Giliran pertama harus dari user — potongan yang diawali
@@ -502,18 +674,26 @@ class AiResearchService
                 $conversation->last_message_at = now();
                 $conversation->save();
 
-                $conversation->messages()->createMany([
-                    [
+                $rows = [];
+
+                // Giliran "Continue" tidak punya pertanyaan user — menulis baris
+                // user kosong hanya menghasilkan bubble hampa saat percakapan
+                // dibuka lagi. Yang disimpan cukup sambungan jawabannya.
+                if ('' !== $userText || $attachmentCount > 0) {
+                    $rows[] = [
                         'role' => 'user',
                         'content' => $userText,
                         'attachment_count' => $attachmentCount,
-                    ],
-                    [
-                        'role' => 'assistant',
-                        'content' => $reply,
-                        'sources' => empty($sources) ? null : $sources,
-                    ],
-                ]);
+                    ];
+                }
+
+                $rows[] = [
+                    'role' => 'assistant',
+                    'content' => $reply,
+                    'sources' => empty($sources) ? null : $sources,
+                ];
+
+                $conversation->messages()->createMany($rows);
             });
         } catch (Throwable $e) {
             Log::warning('AI research archive write failed', ['error' => $e->getMessage()]);
@@ -541,15 +721,17 @@ class AiResearchService
                 $block = $event->contentBlock;
 
                 switch ($block->type ?? '') {
+                    // Label berbahasa Inggris, sama seperti seluruh halaman ini.
+                    // Sebelumnya campur: UI Inggris, baris progresnya Indonesia.
                     case 'server_tool_use':
                         $onEvent('status', ['label' => 'web_fetch' === ($block->name ?? '')
-                            ? 'Membuka halaman sumber…'
-                            : 'Mencari di internet…']);
+                            ? 'Opening the source page…'
+                            : 'Searching the web…']);
                         break;
 
                     case 'web_search_tool_result':
                     case 'web_fetch_tool_result':
-                        $onEvent('status', ['label' => 'Membaca hasil pencarian…']);
+                        $onEvent('status', ['label' => 'Reading the results…']);
                         break;
                 }
                 break;
@@ -635,14 +817,24 @@ class AiResearchService
     }
 
     /**
-     * @param array<int, array{type: string, media_type: string, data: string}> $attachments
+     * Lampiran teks (tempelan besar / berkas kode) menjadi content block
+     * `text` — bukan `document` base64. Lihat App\Support\AiTextAttachment.
+     *
+     * @param array<int, array<string, mixed>> $attachments
      * @return array<int, array<string, mixed>>
      */
     private function buildUserContent(string $text, array $attachments): array
     {
         $content = [];
+        $textIndex = 0;
 
         foreach ($attachments as $attachment) {
+            if ('text' === $attachment['type']) {
+                $content[] = AiTextAttachment::toContentBlock($attachment, ++$textIndex);
+
+                continue;
+            }
+
             $content[] = [
                 'type' => $attachment['type'],
                 'source' => [
@@ -661,26 +853,34 @@ class AiResearchService
     }
 
     /**
-     * max_tokens di sini adalah PLAFON KERAS: begitu tersentuh, jawaban dipotong
-     * di tengah kalimat (stopReason 'max_tokens'). Karena thinking adaptif ikut
-     * memakan jatah yang sama, plafon lama (8000/16000) gampang habis pada
-     * jawaban teknis panjang — itulah penyebab jawaban "putus" di layar.
+     * Model, plafon token, dan effort yang berlaku — DITENTUKAN SUPER ADMIN
+     * lewat Control Center → AI Settings, bukan lagi hardcode di sini.
+     *
+     * Argumen $tier dari request SENGAJA DIABAIKAN: halaman chat tidak lagi
+     * punya pemilih model, jadi tier yang dipakai adalah yang ditandai aktif
+     * oleh admin. Nilainya ikut dikembalikan supaya yang tercatat di cache dan
+     * arsip adalah tier yang BENAR-BENAR dipakai, bukan 'default' bawaan
+     * request.
+     *
+     * max_tokens tetap PLAFON KERAS: begitu tersentuh, jawaban dipotong di
+     * tengah kalimat (stopReason 'max_tokens') — lihat loop penyambung di
+     * streamReply(). Karena thinking adaptif ikut memakan jatah yang sama,
+     * plafon yang terlalu rendah membuat jawaban teknis panjang "putus".
      * Semua request di sini streaming, jadi angka besar tidak berisiko timeout.
      *
-     * @return array{0: string, 1: array{max_tokens: int, effort: string}}
+     * @return array{0: string, 1: array{tier: string, max_tokens: int, output_config: ?array}}
      */
     private function modelConfigFor(string $tier): array
     {
-        return match ($tier) {
-            'deep' => ['claude-opus-5', [
-                'max_tokens' => 64000,
-                'effort' => 'high',
-            ]],
-            default => ['claude-sonnet-5', [
-                'max_tokens' => 32000,
-                'effort' => 'medium',
-            ]],
-        };
+        $active = AiModelSettings::resolve(AiModelSettings::RESEARCH);
+
+        return [$active['model'], [
+            'tier' => $active['tier'],
+            'max_tokens' => $active['max_tokens'],
+            // effort null = admin mematikannya. outputConfig harus jadi null utuh,
+            // bukan ['effort' => null] — API menolak nilai effort kosong.
+            'output_config' => $active['effort'] ? ['effort' => $active['effort']] : null,
+        ]];
     }
 
     private function cacheKey(Employee $employee, string $conversationId): string

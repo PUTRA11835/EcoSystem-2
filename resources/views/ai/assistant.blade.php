@@ -31,6 +31,17 @@
     .ai-prose p { margin: 0 0 .6rem; }
     .ai-prose p:last-child { margin-bottom: 0; }
     .ai-prose code { background: rgba(0,0,0,.06); padding: .1rem .3rem; border-radius: .3rem; font-size: .8125rem; }
+
+    /* Pratinjau tempelan besar: monospace + gulir sendiri, jangan mendorong
+       lebar modal (baris kode panjang tidak boleh membuat halaman melebar). */
+    .ai-paste-preview {
+        white-space: pre;
+        overflow: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11.5px;
+        line-height: 1.55;
+        tab-size: 4;
+    }
 </style>
 @endpush
 
@@ -57,12 +68,8 @@
             </div>
 
             <div class="flex items-center gap-1.5">
-                <select id="aiModel"
-                        class="hidden sm:block px-2.5 py-1.5 border border-gray-200 rounded-xl text-[11px] font-semibold text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
-                    <option value="default">Default model</option>
-                    <option value="fast">Fast</option>
-                    <option value="reasoning">Reasoning</option>
-                </select>
+                {{-- Pemilih model DIHAPUS: modelnya ditentukan super admin di
+                     Control Center → AI Settings, sama untuk semua orang. --}}
                 <button type="button" onclick="aiNewChat()" title="Clear conversation"
                         class="w-8 h-8 inline-flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
                     <i class="fas fa-rotate-left text-xs"></i>
@@ -115,8 +122,8 @@
             <div id="aiAttachments" class="hidden flex-wrap gap-2 mb-2.5"></div>
 
             <div class="rounded-2xl border border-gray-200 bg-white focus-within:border-red-400 focus-within:ring-2 focus-within:ring-red-100 transition-all">
-                <textarea id="aiInput" rows="1" placeholder="Send a message…  (Enter to send, Shift + Enter for a new line)"
-                          oninput="aiAutoGrow(this)" onkeydown="aiOnKeydown(event)"
+                <textarea id="aiInput" rows="1" placeholder="Send a message…  (Enter to send, Shift + Enter for a new line — long pastes become an attachment)"
+                          oninput="aiAutoGrow(this)" onkeydown="aiOnKeydown(event)" onpaste="aiOnPaste(event)"
                           class="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm text-gray-800 placeholder-gray-400 focus:outline-none ai-scroll"></textarea>
 
                 <div class="flex items-center gap-1.5 px-2.5 pb-2.5 pt-1">
@@ -153,6 +160,27 @@
         </div>
     </section>
 </div>
+
+{{-- Pratinjau tempelan besar. Chip di composer maupun di bubble yang sudah
+     terkirim membuka modal ini — isi tempelan tidak pernah dirender inline,
+     karena 8.000 baris di dalam thread membuat halaman tak bisa dipakai. --}}
+<div id="aiPasteModal" onclick="aiClosePaste(event)"
+     class="hidden fixed inset-0 z-50 bg-black/50 items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-gray-200 w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden">
+        <header class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+            <i class="fas fa-align-left text-xs text-gray-400"></i>
+            <div class="min-w-0 flex-1">
+                <p id="aiPasteTitle" class="text-sm font-bold text-gray-900 truncate">Pasted text</p>
+                <p id="aiPasteMeta" class="text-[11px] text-gray-400"></p>
+            </div>
+            <button type="button" onclick="aiClosePaste()" title="Close"
+                    class="w-8 h-8 inline-flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50">
+                <i class="fas fa-xmark text-xs"></i>
+            </button>
+        </header>
+        <pre id="aiPasteBody" class="ai-paste-preview ai-scroll flex-1 m-0 px-4 py-3 text-gray-700 bg-gray-50"></pre>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -172,10 +200,34 @@ const AI_MAX_CHARS = 4000;
 const AI_CHAT_ENDPOINT = @json(route('ai-assistant.chat'));
 const AI_CONVERSATION_STORAGE_KEY = 'ai_conversation_id';
 
+/* Ambang "ini tempelan, bukan ketikan". Di atas salah satu angka ini, teks
+   yang di-paste TIDAK masuk ke textarea melainkan jadi lampiran — persis
+   seperti composer claude.ai. Alasannya bukan kosmetik: `message` dibatasi
+   4.000 karakter di server, jadi menempel 8.000 baris kode ke textarea
+   berakhir sebagai penolakan validasi, bukan sebagai jawaban. */
+const AI_PASTE_MIN_CHARS = @json(\App\Support\AiTextAttachment::PASTE_THRESHOLD_CHARS);
+const AI_PASTE_MIN_LINES = @json(\App\Support\AiTextAttachment::PASTE_THRESHOLD_LINES);
+
+/* Sinkron dengan AiTextAttachment::MAX_CHARS — di atas ini server memotong,
+   dan user berhak tahu SEBELUM mengirim, bukan sesudah. */
+const AI_TEXT_MAX_CHARS = @json(\App\Support\AiTextAttachment::MAX_CHARS);
+
+const AI_MAX_FILES = 5;
+
 let aiFiles     = [];     // File[] yang dipilih untuk pesan berikutnya
 let aiBusy      = false;  // sedang menunggu balasan
 let aiAbort     = null;   // AbortController pembatal request berjalan
 let aiConversationId = null;
+
+/* Tempelan besar: File → metadata chip. WeakMap supaya berkas yang sudah
+   dibuang dari aiFiles tidak menahan isinya di memori. */
+const aiPasteMeta = new WeakMap();
+
+/* Isi tempelan per id, dipakai modal pratinjau. Ini BUKAN duplikat WeakMap
+   di atas: chip pada bubble yang sudah terkirim tidak lagi memegang objek
+   File-nya, jadi ia perlu kunci yang bisa ditulis ke dalam HTML. */
+const aiPasteById = {};
+let aiPasteSeq = 0;
 
 function aiEnsureConversationId() {
     if (aiConversationId) return aiConversationId;
@@ -224,8 +276,24 @@ function aiNotYet(feature) {
 /* ── Lampiran ──────────────────────────────────────────────────────────── */
 
 function aiOnFilesPicked(input) {
-    aiFiles = aiFiles.concat(Array.from(input.files || []));
+    aiAddFiles(Array.from(input.files || []));
     input.value = '';  // supaya file yang sama bisa dipilih lagi
+}
+
+function aiAddFiles(files) {
+    const room = AI_MAX_FILES - aiFiles.length;
+
+    if (room <= 0) {
+        showToast('You can attach up to ' + AI_MAX_FILES + ' items per message.', 'warning');
+        return;
+    }
+
+    if (files.length > room) {
+        showToast('Only the first ' + room + ' attachment(s) were added — the limit is '
+            + AI_MAX_FILES + ' per message.', 'warning');
+    }
+
+    aiFiles = aiFiles.concat(files.slice(0, room));
     aiRenderAttachments();
     aiAutoGrow(document.getElementById('aiInput'));
 }
@@ -242,18 +310,163 @@ function aiRenderAttachments() {
     box.classList.toggle('flex', aiFiles.length > 0);
 
     box.innerHTML = aiFiles.map((file, i) => `
-        <span class="inline-flex items-center gap-2 pl-2.5 pr-1.5 py-1.5 rounded-xl border border-gray-200 bg-gray-50 max-w-[220px]">
-            <i class="fas ${aiFileIcon(file.name)} text-xs text-gray-400"></i>
-            <span class="min-w-0">
-                <span class="block text-[11px] font-semibold text-gray-700 truncate">${aiEsc(file.name)}</span>
-                <span class="block text-[10px] text-gray-400">${aiFileSize(file.size)}</span>
-            </span>
+        <span class="inline-flex items-center gap-2 pl-2.5 pr-1.5 py-1.5 rounded-xl border border-gray-200 bg-gray-50 max-w-[240px]">
+            ${aiChipFace(file, 'text-gray-400', 'text-gray-700', 'bg-gray-200/70')}
             <button type="button" onclick="aiRemoveFile(${i})" title="Remove"
                     class="w-5 h-5 shrink-0 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-all">
                 <i class="fas fa-xmark text-[10px]"></i>
             </button>
         </span>
     `).join('');
+}
+
+/**
+ * Bagian "wajah" chip — dipakai bersama oleh composer dan bubble terkirim,
+ * supaya lampiran yang sama tidak tampil berbeda di dua tempat.
+ */
+function aiChipFace(file, iconClass, labelClass, badgeClass) {
+    const paste = aiPasteMeta.get(file);
+
+    if (paste) {
+        return `
+            <button type="button" onclick="aiOpenPaste('${paste.id}')" title="View pasted text"
+                    class="flex items-center gap-2 min-w-0 text-left">
+                <span class="px-1.5 py-0.5 rounded-md ${badgeClass} text-[9px] font-bold tracking-wide ${labelClass}">PASTED</span>
+                <span class="min-w-0">
+                    <span class="block text-[11px] font-semibold ${labelClass} truncate">${aiEsc(paste.label)}</span>
+                    <span class="block text-[10px] ${iconClass}">${paste.lines.toLocaleString()} lines · ${aiFileSize(file.size)}</span>
+                </span>
+            </button>`;
+    }
+
+    return `
+        <span class="flex items-center gap-2 min-w-0">
+            <i class="fas ${aiFileIcon(file.name)} text-xs ${iconClass}"></i>
+            <span class="min-w-0">
+                <span class="block text-[11px] font-semibold ${labelClass} truncate">${aiEsc(file.name)}</span>
+                <span class="block text-[10px] ${iconClass}">${aiFileSize(file.size)}</span>
+            </span>
+        </span>`;
+}
+
+/* ── Tempelan besar ────────────────────────────────────────────────────── */
+
+/**
+ * Tempelan besar dan gambar dari clipboard sama-sama berakhir sebagai
+ * LAMPIRAN, bukan sebagai isi textarea.
+ *
+ * Tempelan kecil dibiarkan lewat (return tanpa preventDefault) — mengubah
+ * setiap paste jadi lampiran akan merusak hal paling biasa yang dilakukan
+ * orang di composer: menempel satu kalimat.
+ */
+function aiOnPaste(e) {
+    const data = e.clipboardData;
+    if (!data) return;
+
+    const images = Array.from(data.items || [])
+        .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter(Boolean)
+        // Screenshot dari clipboard datang tanpa nama; tanpa nama buatan,
+        // chip-nya kosong dan server kehilangan ekstensi untuk ditebak.
+        .map(file => file.name
+            ? file
+            : new File([file], 'screenshot-' + Date.now() + '.' + (file.type.split('/')[1] || 'png'), { type: file.type }));
+
+    if (images.length > 0) {
+        e.preventDefault();
+        aiAddFiles(images);
+        return;
+    }
+
+    const text = data.getData('text/plain') || '';
+    if (!aiIsLargePaste(text)) return;   // tempelan wajar: biarkan default
+
+    e.preventDefault();
+    aiAddPastedText(text);
+}
+
+function aiIsLargePaste(text) {
+    if (!text) return false;
+
+    return text.length > AI_PASTE_MIN_CHARS
+        || (text.match(/\n/g) || []).length + 1 > AI_PASTE_MIN_LINES;
+}
+
+/**
+ * Teks tempelan → berkas .txt biasa.
+ *
+ * Sengaja lewat jalur lampiran yang sudah ada, bukan lewat field request
+ * baru: server memperlakukan berkas teks dan tempelan dengan kode yang sama
+ * (App\Support\AiTextAttachment), jadi tidak ada jalur kedua yang bisa
+ * menyimpang diam-diam.
+ */
+function aiAddPastedText(text) {
+    const lines = (text.match(/\n/g) || []).length + 1;
+    const id = 'paste' + (++aiPasteSeq) + '-' + Date.now();
+
+    if (text.length > AI_TEXT_MAX_CHARS) {
+        showToast('That paste is very large — only the first '
+            + AI_TEXT_MAX_CHARS.toLocaleString() + ' characters will be sent.', 'warning');
+    }
+
+    const file = new File([text], aiPasteFileName(text, aiPasteSeq), { type: 'text/plain' });
+
+    aiPasteMeta.set(file, { id, label: 'Pasted text', lines: lines, text: text });
+    aiPasteById[id] = { label: 'Pasted text', lines: lines, chars: text.length, text: text };
+
+    aiAddFiles([file]);
+}
+
+/**
+ * Ekstensi ditebak dari isinya supaya nama berkas yang sampai ke model
+ * memberi petunjuk bahasa — model membaca nama lampiran, dan "pasted-1.txt"
+ * untuk file Blade membuang konteks yang sebenarnya gratis.
+ */
+function aiPasteFileName(text, seq) {
+    const head = text.slice(0, 2000);
+    let ext = 'txt';
+
+    if (/^\s*[{[]/.test(head) && /["}\]]\s*$/.test(text.slice(-200)))            ext = 'json';
+    // Escape heksadesimal DIPAKAI DENGAN SENGAJA di baris berikut (\x40 =
+    // karakter at, \x7b/\x7d = kurung kurawal): file ini Blade, dan penanda
+    // direktif Blade yang ditulis literal di dalam <script> tetap ikut
+    // dikompilasi — hasilnya view gagal dirender (500), bukan sekadar regex
+    // yang salah.
+    else if (/\x40extends|\x40section|\x40php|\x7b\x7b.*\x7d\x7d/.test(head))  ext = 'blade.php';
+    else if (/<\?php|namespace\s+\w+|public function /.test(head))               ext = 'php';
+    else if (/<\/?(div|html|body|span|table)\b/i.test(head))                     ext = 'html';
+    else if (/\b(function|const|let|=>|document\.)\b/.test(head))                ext = 'js';
+    else if (/\b(SELECT|INSERT|UPDATE|CREATE TABLE)\b/i.test(head))              ext = 'sql';
+
+    return 'pasted-' + seq + '.' + ext;
+}
+
+function aiOpenPaste(id) {
+    const paste = aiPasteById[id];
+    if (!paste) return;
+
+    document.getElementById('aiPasteTitle').textContent = paste.label;
+    document.getElementById('aiPasteMeta').textContent =
+        paste.lines.toLocaleString() + ' lines · ' + paste.chars.toLocaleString() + ' characters'
+        + (paste.chars > AI_TEXT_MAX_CHARS
+            ? ' · only the first ' + AI_TEXT_MAX_CHARS.toLocaleString() + ' are sent'
+            : '');
+    document.getElementById('aiPasteBody').textContent = paste.text;
+
+    const box = document.getElementById('aiPasteModal');
+    box.classList.remove('hidden');
+    box.classList.add('flex');
+}
+
+/** Klik latar (bukan isi panel) menutup. */
+function aiClosePaste(e) {
+    if (e && e.target !== e.currentTarget) return;
+
+    const box = document.getElementById('aiPasteModal');
+    box.classList.add('hidden');
+    box.classList.remove('flex');
+    document.getElementById('aiPasteBody').textContent = '';
 }
 
 function aiFileIcon(name) {
@@ -299,9 +512,8 @@ function aiAppendUser(text, files) {
     const chips = files.length === 0 ? '' : `
         <div class="flex flex-wrap gap-1.5 justify-end mt-2">
             ${files.map(f => `
-                <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/15 border border-white/20">
-                    <i class="fas ${aiFileIcon(f.name)} text-[10px]"></i>
-                    <span class="text-[10px] font-medium truncate max-w-[140px]">${aiEsc(f.name)}</span>
+                <span class="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-white/15 border border-white/20 max-w-[220px]">
+                    ${aiChipFace(f, 'text-white/70', 'text-white', 'bg-white/20')}
                 </span>`).join('')}
         </div>`;
 
@@ -419,7 +631,8 @@ function aiSend() {
     }
 
     const files = aiFiles.slice();
-    const model = document.getElementById('aiModel')?.value || 'default';
+    // Server memakai model yang ditetapkan admin; nilai ini diabaikan.
+    const model = 'default';
 
     aiShowThread();
     aiAppendUser(text, files);
@@ -541,6 +754,10 @@ function aiNewChat() {
 
     aiFiles = [];
     aiRenderAttachments();
+
+    // Bubble yang memegang id-nya sudah ikut terhapus di atas, jadi isi
+    // tempelan lama tidak lagi bisa dibuka — jangan ditahan di memori.
+    Object.keys(aiPasteById).forEach(id => delete aiPasteById[id]);
 
     // Start a fresh conversation — the backend's cached context for the old
     // id is simply left to expire, nothing to explicitly tear down.

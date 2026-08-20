@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Services\Ai\AiChatService;
+use App\Support\AiTextAttachment;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
@@ -20,7 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class AiAssistantController extends Controller
 {
     private const SUPPORTED_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-    private const MAX_ATTACHMENTS = 3;
+    private const MAX_ATTACHMENTS = 5;
 
     public function index()
     {
@@ -108,11 +109,12 @@ class AiAssistantController extends Controller
     }
 
     /**
-     * Split uploaded files into Claude-ready attachments (PDF/image only) and
-     * an optional user-facing note about anything that had to be skipped.
+     * Split uploaded files into Claude-ready attachments (text/code, PDF,
+     * image) and an optional user-facing note about anything that had to be
+     * skipped.
      *
      * @param array<int, UploadedFile|null> $files
-     * @return array{0: array<int, array{type: string, media_type: string, data: string}>, 1: ?string}
+     * @return array{0: array<int, array<string, mixed>>, 1: ?string}
      */
     private function prepareAttachments(array $files): array
     {
@@ -126,7 +128,12 @@ class AiAssistantController extends Controller
 
             $mime = (string) $file->getMimeType();
 
-            if ('application/pdf' === $mime) {
+            // Teks/kode diperiksa DULUAN: tebakan MIME untuk berkas kode
+            // sering salah (.ts → video/mp2t), dan tempelan besar dari
+            // composer sampai ke sini sebagai berkas .txt.
+            if (AiTextAttachment::isTextual($file)) {
+                $attachments[] = AiTextAttachment::fromFile($file);
+            } elseif ('application/pdf' === $mime) {
                 $attachments[] = [
                     'type' => 'document',
                     'media_type' => 'application/pdf',
@@ -146,8 +153,8 @@ class AiAssistantController extends Controller
         $note = null;
         if (!empty($rejected)) {
             $names = implode(', ', $rejected);
-            $note = "_Note: {$names} — this file type isn't supported yet. Only PDF and image attachments "
-                . "(PNG, JPEG, GIF, WEBP) can be read right now._\n\n";
+            $note = "_Note: {$names} — this file type isn't supported yet. Only PDF, image "
+                . "(PNG, JPEG, GIF, WEBP), and text/code attachments can be read right now._\n\n";
         }
 
         return [$attachments, $note];
