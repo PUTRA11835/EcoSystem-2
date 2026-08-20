@@ -63,6 +63,14 @@ class AiAssistantController extends Controller
         $request->session()->save();
 
         return response()->stream(function () use ($employee, $conversationId, $message, $attachments, $modelTier, $rejectedNote) {
+            // A multi-turn tool-use loop (up to MAX_TOOL_ITERATIONS round-trips to
+            // Anthropic) can easily exceed PHP's default 30s max_execution_time,
+            // which kills the request with an uncatchable fatal error mid-stream
+            // (surfaces to the browser as a bare HTTP 500). The tool-iteration cap
+            // and connection_aborted() check already bound this loop, so lifting
+            // the time limit here is safe.
+            set_time_limit(0);
+
             $send = function (string $event, array $payload): void {
                 echo 'event: ' . $event . "\n";
                 echo 'data: ' . json_encode($payload) . "\n\n";
