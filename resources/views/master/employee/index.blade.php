@@ -395,6 +395,11 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         </div>
 
                         <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Current Assignment</label>
+                            <input type="text" id="currentAssignment" placeholder="e.g., Project X" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                        </div>
+
+                        <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Employee Group</label>
                             <div class="custom-dd relative" data-fixed="true">
                                 <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
@@ -1171,6 +1176,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 document.getElementById('cellPhone').value = emp.cell_phone || '';
                 
                 // SECTION 3: ORGANIZATIONAL DATA
+                document.getElementById('currentAssignment').value = emp.current_assignment || '';
                 if (typeof setCustomDropdownValue === 'function') {
                     setCustomDropdownValue('personnelArea', emp.personnel_area || '');
                     setCustomDropdownValue('position', emp.position || '');
@@ -1249,6 +1255,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             // SECTION 3: ORGANIZATIONAL DATA
             personnel_area: document.getElementById('personnelArea').value,
             position: document.getElementById('position').value,
+            current_assignment: document.getElementById('currentAssignment').value,
             employee_group: document.getElementById('employeeGroup').value,
             employee_subgroup: document.getElementById('employeeSubgroup').value,
             division: document.getElementById('division').value,
