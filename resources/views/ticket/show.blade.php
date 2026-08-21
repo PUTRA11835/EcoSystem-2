@@ -3109,10 +3109,18 @@
     }
 
     // â"€â"€ @mention state â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-    let pendingMentions   = [];   // [{ type:'employee'|'role', id, display }]
+    let pendingMentions   = [];   // [{ type:'employee'|'role', id, display }] — main compose editor
+    let editNotePendingMentions = []; // same shape — edit internal note modal editor
     let mentionQuery      = null; // null = not in mention mode
     let mentionStartIndex = -1;   // character index where '@' was typed
     let mentionFetchTimer = null;
+    // Editor yang sedang aktif ber-mention (composer utama atau modal edit note) —
+    // detectMention/insertMention/renderMentionDropdown beroperasi atas instance ini
+    // alih-alih hardcode quillEditor, supaya dropdown @mention yang sama bisa dipakai
+    // oleh editor manapun yang sedang difokus.
+    let activeMentionQuill   = null;   // di-set null s/d salah satu editor terinisialisasi
+    let activeMentionEditorElId = 'quillEditor';
+    let activeMentionPending = null;   // reference ke pendingMentions atau editNotePendingMentions
     // Cache untuk menghilangkan delay: roles disimpan penuh (server balikan semua saat q kosong),
     // employee di-cache per query. Bila sebuah query hasilnya "lengkap" (< limit server),
     // query yang lebih spesifik cukup difilter di client → instan tanpa network.
@@ -3363,20 +3371,11 @@
         initReplyEditorResize();
 
         // â"€â"€ @mention: detect @ in quill text-change â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        activeMentionQuill = quillEditor;
+        activeMentionEditorElId = 'quillEditor';
+        activeMentionPending = pendingMentions;
         quillEditor.on('text-change', function (delta, oldDelta, source) {
-            // Only react to direct user input — ignore API-triggered changes (e.g. from insertMention)
-            if (source !== 'user') return;
-
-            const selection = quillEditor.getSelection();
-            if (!selection) return;
-
-            const m = detectMention(selection.index);
-            if (!m) { closeMentionDropdown(); return; }
-
-            mentionQuery      = m.query;
-            mentionStartIndex = m.startIndex;
-
-            showMentions(m.query);
+            handleMentionTextChange(quillEditor, 'quillEditor', pendingMentions, source);
         });
 
         // â"€â"€ Auto-link: detect URL saat user ketik spasi/enter setelah URL â"€â"€â"€â"€â"€â"€
@@ -3384,20 +3383,7 @@
         // Gunakan posisi dari delta.ops (bukan getSelection) agar lebih reliable.
         // setTimeout untuk menghindari masalah re-entrancy Quill.
         quillEditor.on('text-change', function (delta, oldDelta, source) {
-            // Cegah format mention (warna+bold) "bocor" ke teks lanjutan.
-            // Chip mention diberi warna+bold lalu diikuti spasi netral sebagai pemisah;
-            // jika spasi pemisah itu dihapus user, kursor menempel tepat di belakang teks
-            // berwarna sehingga Quill melanjutkan format tsb saat mengetik lagi.
-            if (source === 'user') {
-                const sel = quillEditor.getSelection();
-                if (sel && sel.length === 0) {
-                    const fmt = quillEditor.getFormat(sel.index);
-                    if (MENTION_COLORS.includes(fmt.color)) {
-                        quillEditor.format('color', false);
-                        if (fmt.bold) quillEditor.format('bold', false);
-                    }
-                }
-            }
+            if (source === 'user') clearMentionFormatIfNeeded(quillEditor);
         });
 
         quillEditor.on('text-change', function(delta, _old, source) {
@@ -3477,14 +3463,56 @@
         if (match) scrollToMessage(match[1]);
     }
 
+    // Cegah format mention (warna+bold) "bocor" ke teks lanjutan — dipakai oleh
+    // composer utama & modal edit internal note (dipanggil dari text-change, source
+    // 'user' saja). Chip mention diberi warna+bold lalu diikuti spasi netral sebagai
+    // pemisah; jika spasi pemisah itu dihapus/hilang, kursor menempel tepat di belakang
+    // teks berwarna sehingga Quill melanjutkan format tsb saat mengetik lagi.
+    // NOTE: JANGAN panggil ini dari 'selection-change' — quill.format() pada selection
+    // kosong yang formatnya BERBEDA dari ambient bisa menyisipkan Cursor blot (embed
+    // placeholder internal Quill) ke dalam dokumen, yang bikin detectMention() (yang
+    // berhenti begitu ketemu op non-string / embed) langsung gagal mendeteksi '@'.
+    function clearMentionFormatIfNeeded(quill) {
+        const sel = quill.getSelection();
+        if (!sel || sel.length !== 0) return;
+        const fmt = quill.getFormat(sel.index);
+        if (MENTION_COLORS.includes(fmt.color)) {
+            quill.format('color', false);
+            if (fmt.bold) quill.format('bold', false);
+        }
+    }
+
     // ==================== @MENTION AUTOCOMPLETE ====================
+    // Handler bersama dipakai oleh SEMUA editor Quill yang mendukung @mention
+    // (composer utama & modal edit internal note). Menandai editor pemanggil sebagai
+    // "aktif" dulu supaya detectMention/insertMention/dropdown beroperasi atas
+    // instance & pending-list yang benar, baru jalankan deteksi @ seperti biasa.
+    function handleMentionTextChange(quillInstance, editorElId, pendingList, source) {
+        if (source !== 'user') return;
+
+        activeMentionQuill      = quillInstance;
+        activeMentionEditorElId = editorElId;
+        activeMentionPending    = pendingList;
+
+        const selection = quillInstance.getSelection();
+        if (!selection) return;
+
+        const m = detectMention(selection.index);
+        if (!m) { closeMentionDropdown(); return; }
+
+        mentionQuery      = m.query;
+        mentionStartIndex = m.startIndex;
+
+        showMentions(m.query);
+    }
+
     // Deteksi mention berbasis INDEX DOKUMEN (bukan getText, yang mengabaikan embed
     // gambar/tabel sehingga index meleset). Jalan mundur dari cursor mengumpulkan
     // teks sampai ketemu '@'. Berhenti bila kena spasi/newline/embed → bukan mention.
     // Return { startIndex, query } dalam koordinat dokumen Quill, atau null.
     function detectMention(cursorPos) {
         if (!cursorPos || cursorPos <= 0) return null;
-        const contents = quillEditor.getContents(0, cursorPos);
+        const contents = activeMentionQuill.getContents(0, cursorPos);
         let docIndex = cursorPos;
         let query = '';
         const ops = contents.ops || [];
@@ -3601,15 +3629,15 @@
         });
 
         // Anchor tepat DI ATAS posisi '@' yang sedang diketik (bukan selebar editor).
-        const editorEl = document.getElementById('quillEditor');
+        const editorEl = document.getElementById(activeMentionEditorElId);
         if (editorEl) {
             const rect      = editorEl.getBoundingClientRect();
             const anchorIdx = mentionStartIndex >= 0
                 ? mentionStartIndex
-                : (quillEditor.getSelection()?.index ?? 0);
+                : (activeMentionQuill.getSelection()?.index ?? 0);
             let caretLeft = rect.left, caretTop = rect.top;
             try {
-                const b = quillEditor.getBounds(anchorIdx);
+                const b = activeMentionQuill.getBounds(anchorIdx);
                 caretLeft = rect.left + b.left;
                 caretTop  = rect.top + b.top;
             } catch (_) {}
@@ -3635,20 +3663,22 @@
         if (startIdx < 0) return;
 
         const replaceLen = 1 + (savedQuery?.length ?? 0); // '@' + typed query
+        const quill      = activeMentionQuill;
+        const pending     = activeMentionPending || pendingMentions;
 
         // Delete the '@...' text
-        quillEditor.deleteText(startIdx, replaceLen);
+        quill.deleteText(startIdx, replaceLen);
 
         // Insert a leading space if the character immediately before the '@' wasn't whitespace.
         // Pakai getContents (bukan getText) agar embed gambar/tabel sebelum '@' dianggap
         // batas dan tidak salah hitung.
         let needsLeadSpace = false;
         if (startIdx > 0) {
-            const prevOp = quillEditor.getContents(startIdx - 1, 1).ops[0];
+            const prevOp = quill.getContents(startIdx - 1, 1).ops[0];
             needsLeadSpace = !!prevOp && typeof prevOp.insert === 'string' && !/\s$/.test(prevOp.insert);
         }
         if (needsLeadSpace) {
-            quillEditor.insertText(startIdx, ' ', { color: false, bold: false });
+            quill.insertText(startIdx, ' ', { color: false, bold: false });
         }
 
         const chipPos = needsLeadSpace ? startIdx + 1 : startIdx;
@@ -3657,16 +3687,16 @@
         const chip    = display.startsWith('@') ? display : `@${display}`;
 
         // Insert chip with colour + bold, then trailing space with plain formatting
-        quillEditor.insertText(chipPos, chip, {
+        quill.insertText(chipPos, chip, {
             color: type === 'role' ? '#7c3aed' : '#1d4ed8',
             bold: true,
         });
-        quillEditor.insertText(chipPos + chip.length, ' ', { color: false, bold: false });
-        quillEditor.setSelection(chipPos + chip.length + 1);
+        quill.insertText(chipPos + chip.length, ' ', { color: false, bold: false });
+        quill.setSelection(chipPos + chip.length + 1);
 
         // Track for payload
-        const already = pendingMentions.find(m => m.type === type && m.id === id);
-        if (!already) pendingMentions.push({ type, id, display });
+        const already = pending.find(m => m.type === type && m.id === id);
+        if (!already) pending.push({ type, id, display });
 
         closeMentionDropdown();
     }
@@ -7882,6 +7912,7 @@
 
         editNoteId = msgId;
         editNoteRemovedAttachmentIds = [];
+        editNotePendingMentions = []; // reset — hanya mention BARU yang ditambahkan selama sesi edit ini
 
         // Lazy-init Quill editor for the edit modal
         if (!editNoteQuill) {
@@ -7919,6 +7950,15 @@
             });
             // Pertahankan tabel yang di-paste di editor edit internal note juga
             addTablePasteMatcher(editNoteQuill);
+
+            // â"€â"€ @mention: sama seperti composer utama, pakai dropdown #mentionDropdown
+            // bersama (hanya satu editor aktif dalam satu waktu — modal ini modal overlay). â"€â"€
+            editNoteQuill.on('text-change', function (delta, oldDelta, source) {
+                handleMentionTextChange(editNoteQuill, 'editNoteEditorContainer', editNotePendingMentions, source);
+            });
+            editNoteQuill.on('text-change', function (delta, oldDelta, source) {
+                if (source === 'user') clearMentionFormatIfNeeded(editNoteQuill);
+            });
         }
 
         // Pre-fill content
@@ -7974,6 +8014,15 @@
         const msgHtml  = editNoteQuill.root.innerHTML;
         const formData = new FormData();
         formData.append('message_html', msgHtml);
+
+        // Mention baru yang ditambahkan selama edit ini (mention lama tidak perlu dikirim
+        // ulang — backend union-kan dengan yang sudah tersimpan di message).
+        editNotePendingMentions
+            .filter(m => m.type === 'employee')
+            .forEach(m => formData.append('mentioned_employee_ids[]', m.id));
+        editNotePendingMentions
+            .filter(m => m.type === 'role')
+            .forEach(m => formData.append('mentioned_role_ids[]', m.id));
 
         editNoteRemovedAttachmentIds.forEach(id => formData.append('remove_attachment_ids[]', id));
 

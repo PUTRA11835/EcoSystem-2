@@ -6,11 +6,14 @@ use Laravel\Sanctum\HasApiTokens;
 use App\Models\EmployeeRole;
 use App\Models\Menu;
 use App\Models\DeliveryProjectActivity;
+use App\Traits\Auditable;
 
 class Employee extends Model
 {
-    use HasApiTokens;
-    
+    use HasApiTokens, Auditable;
+
+    protected static ?string $auditModule = 'Employee';
+
     protected $table = 'employee';
     protected $primaryKey = 'employee_id';
     public $timestamps = true;
