@@ -888,7 +888,7 @@
 
 {{-- Team Section WITH CHECKBOX SELECTION --}}
 @if($can('delivery-project.team.view'))
-<section id="team" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.team.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.team.manage') ? '1' : '0' }}">
+<section id="team" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.team.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.team.manage') ? '1' : '0' }}" data-perm-delete="{{ $can('delivery-project.team.delete') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-700">Team Members</h2>
@@ -1322,7 +1322,10 @@
             </svg>
             <span>Edit</span>
         </button>
-        {{-- Delete: disembunyikan untuk Team Member (hanya tampil untuk document/issue) --}}
+        {{-- Delete: toolbar ini berada DI LUAR <section>, jadi skrip izin
+             per-section tidak menjangkaunya. Izin per jenis baris dikirim ke JS
+             lewat DELETE_PERMISSION, dan tombolnya disembunyikan kalau jenis
+             yang sedang dipilih tidak boleh dihapus oleh role ini. --}}
         <button id="toolbarDeleteBtn" onclick="handleBulkDelete()" class="flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-400 rounded-md transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -5594,6 +5597,17 @@ function handleRowSelection(type) {
     updateSelectionToolbar(type);
 }
 
+// Izin hapus per jenis baris yang bisa dipilih di tabel. Ini lapisan UI saja —
+// penegakan sebenarnya ada di middleware `menu:` pada route hapus masing-masing
+// (delivery-project.team.delete / delivery-project.documents.manage).
+const DELETE_PERMISSION = {
+    team:     @json($can('delivery-project.team.delete')),
+    document: @json($can('delivery-project.documents.manage')),
+};
+
+// Label yang dipakai di dialog konfirmasi hapus.
+const DELETE_LABEL = { team: 'team member', document: 'document' };
+
 function updateSelectionToolbar(type) {
     const toolbar = document.getElementById('selectionToolbar');
     const count = selectedItems[type].size;
@@ -5604,9 +5618,8 @@ function updateSelectionToolbar(type) {
         toolbar.classList.add('show');
         countSpan.textContent = `${count} item${count > 1 ? 's' : ''} selected`;
         currentType = type;
-        // Team members cannot be deleted — only edited (role/end_date/notes)
         if (deleteBtn) {
-            deleteBtn.style.display = (type === 'team') ? 'none' : '';
+            deleteBtn.style.display = DELETE_PERMISSION[type] ? '' : 'none';
         }
     } else {
         toolbar.classList.remove('show');
@@ -5660,10 +5673,15 @@ function handleBulkDelete() {
         return;
     }
     
+    if (!DELETE_PERMISSION[currentType]) {
+        showNotification('You do not have permission to delete this data', 'error');
+        return;
+    }
+
     const count = selectedItems[currentType].size;
-    const itemType = currentType.charAt(0).toUpperCase() + currentType.slice(1);
-    
-    document.getElementById('deleteMessage').textContent = 
+    const itemType = DELETE_LABEL[currentType] || currentType;
+
+    document.getElementById('deleteMessage').textContent =
         `Are you sure you want to delete ${count} ${itemType}${count > 1 ? 's' : ''}? This action cannot be undone.`;
     
     openModal('deleteModal');
@@ -5675,11 +5693,18 @@ function handleBulkDelete() {
 
 async function executeBulkDelete() {
     const selectedIds = Array.from(selectedItems[currentType]);
-    
+    const type = currentType;
+
+    let deleted = 0;
+    let skipped = 0;
+    let failed = 0;
+
     for (const id of selectedIds) {
+        const cb = document.querySelector(`.${type}-checkbox[data-id="${id}"]`);
+
         try {
             let url;
-            let fetchOptions = {
+            const fetchOptions = {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -5687,29 +5712,54 @@ async function executeBulkDelete() {
                 }
             };
 
-            if (currentType === 'document') {
+            if (type === 'document') {
                 url = `/project/documents/${id}/delete`;
+            } else if (type === 'team') {
+                // Baris pivot diidentifikasi lewat ID barisnya: anggota vendor
+                // tidak punya employee_id. Baris FK-fallback (PM/Co PM lama yang
+                // hanya tersimpan di kolom project) tidak punya baris pivot,
+                // jadi tidak ada yang bisa dihapus dari sini.
+                const rowId = cb?.dataset.rowId || '';
+                if (!rowId) {
+                    skipped++;
+                    continue;
+                }
+                url = `/projects/{{ $project->id }}/team-rows/${rowId}/delete`;
             } else {
-                // Team members cannot be deleted — delete button is hidden for type 'team'
                 continue;
             }
 
             const response = await fetch(url, fetchOptions);
 
             if (response.ok) {
-                // Remove the specific row that was selected
-                const cb = document.querySelector(`.${currentType}-checkbox[data-id="${id}"]`);
+                deleted++;
                 if (cb) cb.closest('tr')?.remove();
+            } else {
+                failed++;
+                console.error('Delete failed:', url, response.status);
             }
         } catch (error) {
+            failed++;
             console.error('Delete error:', error);
         }
     }
 
-    showNotification(`Successfully deleted ${selectedIds.length} item(s)`, 'success');
+    if (deleted > 0) {
+        showNotification(`Successfully deleted ${deleted} item(s)`, 'success');
+    }
+    if (skipped > 0) {
+        showNotification(`${skipped} legacy entr${skipped > 1 ? 'ies are' : 'y is'} stored on the project itself and cannot be deleted here.`, 'warning');
+    }
+    if (failed > 0) {
+        showNotification(`${failed} item(s) could not be deleted. Please check your permission and try again.`, 'error');
+    }
+
     clearAllSelections();
     closeModal('deleteModal');
-    setTimeout(() => location.reload(), 800);
+
+    if (deleted > 0) {
+        setTimeout(() => location.reload(), 800);
+    }
 }
 
 // ============================================

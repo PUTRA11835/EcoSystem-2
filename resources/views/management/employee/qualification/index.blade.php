@@ -513,8 +513,8 @@
     async function removeLead(employeeId) {
         if (!currentLeadsModuleId) return;
         try {
-            const res = await fetch(`/api/modules/${currentLeadsModuleId}/leads/${employeeId}`, {
-                method: 'DELETE',
+            const res = await fetch(`/api/modules/${currentLeadsModuleId}/leads/${employeeId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',

@@ -434,6 +434,7 @@
                 setValue('employeeGroup', basicData.employee_group);
                 setValue('employeeSubgroup', basicData.employee_subgroup);
                 setValue('position', basicData.position);
+                setValue('currentAssignment', basicData.current_assignment);
                 setValue('division', basicData.division);
                 setValue('department', basicData.department);
                 setValue('directSupervision', basicData.direct_supervision);
@@ -486,6 +487,7 @@
             employee_group: getValue('employeeGroup'),
             employee_subgroup: getValue('employeeSubgroup'),
             position: getValue('position'),
+            current_assignment: getValue('currentAssignment'),
             division: getValue('division'),
             department: getValue('department'),
             direct_supervision: getValue('directSupervision'),

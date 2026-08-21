@@ -34,7 +34,9 @@ class MenuSeeder extends Seeder
         ['base' => 'delivery-project.general',       'name' => 'General Information',        'actions' => ['view', 'edit']],
         ['base' => 'delivery-project.delivery-data', 'name' => 'Delivery Data',              'actions' => ['view', 'edit']],
         ['base' => 'delivery-project.delivery-info', 'name' => 'Delivery Information & TOP', 'actions' => ['view', 'edit', 'manage']],
-        ['base' => 'delivery-project.team',          'name' => 'Team Members',               'actions' => ['view', 'edit', 'manage']],
+        // Team Members: hapus anggota dipisah dari tambah, karena ada role yang
+        // boleh menghapus tapi tidak boleh menambah (dan sebaliknya).
+        ['base' => 'delivery-project.team',          'name' => 'Team Members',               'actions' => ['view', 'edit', 'manage', 'delete'], 'labels' => ['manage' => 'Create']],
         ['base' => 'delivery-project.documents',     'name' => 'Documents',                  'actions' => ['view', 'edit', 'manage']],
         ['base' => 'delivery-project.issue-log',     'name' => 'Issue Log',                  'actions' => ['view', 'edit', 'manage']],
         ['base' => 'delivery-project.risk',          'name' => 'Risk Register',              'actions' => ['view', 'edit', 'manage']],
@@ -55,7 +57,7 @@ class MenuSeeder extends Seeder
         ['base' => 'delivery-support.documents',    'name' => 'Documents & Folder',          'actions' => ['view', 'edit', 'manage']],
     ];
 
-    const ACTION_LABEL = ['view' => 'View', 'edit' => 'Edit', 'manage' => 'Create / Delete'];
+    const ACTION_LABEL = ['view' => 'View', 'edit' => 'Edit', 'manage' => 'Create / Delete', 'delete' => 'Delete'];
 
     /** Baris $menus untuk seluruh slug section granular. */
     private static function sectionMenus(): array
@@ -68,7 +70,9 @@ class MenuSeeder extends Seeder
                 foreach ($section['actions'] as $action) {
                     $rows[] = [
                         'slug'        => $section['base'] . '.' . $action,
-                        'name'        => $section['name'] . ' — ' . self::ACTION_LABEL[$action],
+                        // Label boleh dioverride per section (mis. Team Members
+                        // memakai "Create" karena "Delete"-nya slug terpisah).
+                        'name'        => $section['name'] . ' — ' . ($section['labels'][$action] ?? self::ACTION_LABEL[$action]),
                         'type'        => 'function',
                         'parent_slug' => $parent,
                         'route_name'  => null,
@@ -215,6 +219,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'control-center.failed-jobs',   'name' => 'Failed Jobs',             'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.failed-jobs',        'icon' => null,                   'order_seq' => 4],
             ['slug' => 'control-center.backup',        'name' => 'Backup & Export',         'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.backup',             'icon' => null,                   'order_seq' => 5],
             ['slug' => 'control-center.sounds',        'name' => 'Notif Sounds',            'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.sounds',             'icon' => null,                   'order_seq' => 6],
+            ['slug' => 'control-center.ai-settings',   'name' => 'AI Settings',             'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.ai-settings',        'icon' => null,                   'order_seq' => 8],
 
             // ── SLA ───────────────────────────────────────────────────────────────
             ['slug' => 'sla',                          'name' => 'SLA',                     'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-stopwatch',         'order_seq' => 13],
@@ -399,6 +404,7 @@ class MenuSeeder extends Seeder
             'control-center.failed-jobs'  => [self::ADMIN=>$v],
             'control-center.backup'       => [self::ADMIN=>$v],
             'control-center.sounds'       => [self::ADMIN=>$v],
+            'control-center.ai-settings'  => [self::ADMIN=>$v],
             // SLA
             'sla'                         => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
             'sla.report'                  => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
@@ -440,6 +446,11 @@ class MenuSeeder extends Seeder
         foreach (self::sectionSlugs(self::SUPPORT_SECTIONS) as $slug) {
             $matrix[$slug] = $supportSectionRoles;
         }
+
+        // Hapus anggota tim adalah aksi baru dan destruktif: lahir HANYA untuk
+        // EC Administrator (lihat App\Support\MenuRegistrar). Pemberian ke role
+        // lain diputuskan lewat Control Center -> Menu Access.
+        $matrix['delivery-project.team.delete'] = [self::ADMIN => $v];
 
         // Seeder ini rutin dijalankan ulang di production tiap kali ada slug baru
         // (lihat MULTI_ROLE_SYSTEM.md). Matrix di atas cuma boleh diterapkan untuk

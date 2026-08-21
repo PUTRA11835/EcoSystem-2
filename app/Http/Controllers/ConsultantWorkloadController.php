@@ -32,6 +32,7 @@ class ConsultantWorkloadController extends Controller
             $consultants = Employee::with(['basicData', 'roles'])
                 ->where('is_active', true)
                 ->withAnyRole([RoleId::DELIVERY_SUPPORT_USER->value])
+                ->whereHas('basicData', fn ($q) => $q->byPosition('SAP CONSULTANT'))
                 ->get();
 
             // Pre-load weighted progress per ticket dari consultant_mandays_detail
@@ -80,6 +81,8 @@ class ConsultantWorkloadController extends Controller
                     'eci'          => $emp->eci,
                     'name'         => $name,
                     'roles'        => $roles,
+                    'personnel_area'      => $emp->basicData?->personnel_area,
+                    'current_assignment'  => $emp->basicData?->current_assignment,
                     'modules'      => $modulesMap[$emp->employee_id] ?? '-',
                     'ticket_count' => $ticketCount,
                     'total_days'   => round($totalAllocMd, 2),

@@ -225,6 +225,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/sounds', [AdminNotificationSoundController::class, 'index'])->name('sounds')->middleware('menu:control-center.sounds');
         Route::post('/sounds', [AdminNotificationSoundController::class, 'store'])->name('sounds.store');
         Route::delete('/sounds/{id}', [AdminNotificationSoundController::class, 'destroy'])->name('sounds.destroy');
+
+        // Model AI yang dipakai kedua asisten — dipegang super admin.
+        Route::get('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'index'])->name('ai-settings')->middleware('menu:control-center.ai-settings');
+        Route::post('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'update'])->name('ai-settings.update')->middleware('menu:control-center.ai-settings');
     });
 
     // ==================== SLA ====================
@@ -372,6 +376,15 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     });
     Route::middleware(['menu:delivery-project.team.manage', 'project.editable'])->group(function () {
         Route::post('/projects/{project}/team-members', [DeliveryProjectController::class, 'storeTeamMember'])->name('projects.team.store');
+    });
+    // Hapus anggota tim punya slug sendiri (`...team.delete`), terpisah dari
+    // `...team.manage` yang kini hanya berarti "boleh menambah".
+    Route::middleware(['menu:delivery-project.team.delete', 'project.editable'])->group(function () {
+        // Per baris pivot — satu-satunya cara menghapus anggota vendor, yang
+        // tidak punya employee_id.
+        Route::delete('/projects/{project}/team-rows/{row}', [DeliveryProjectController::class, 'destroyTeamRow'])->name('projects.team.rows.destroy');
+        Route::post('/projects/{project}/team-rows/{row}/delete', [DeliveryProjectController::class, 'destroyTeamRow'])->name('projects.team.rows.destroy.post');
+
         Route::delete('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy');
         Route::post('/projects/{project}/team-members/{employee}/delete', [DeliveryProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy.post');
     });
