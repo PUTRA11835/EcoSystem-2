@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\StagingAttachment;
 use App\Models\StagingTicket;
@@ -863,8 +864,9 @@ class StagingTicketController extends Controller
                 'updated_at'                => now(),
             ]);
 
+            $planningId = null;
             if ($group) {
-                DB::table('delivery_support_planning')->insert([
+                $planningId = DB::table('delivery_support_planning')->insertGetId([
                     'delivery_support_id' => $supportId,
                     'phase_id'            => $phase->id,
                     'parent_id'           => $group->id,
@@ -882,6 +884,23 @@ class StagingTicketController extends Controller
                     'updated_at'          => now(),
                 ]);
             }
+
+            AuditLog::recordAction(
+                module: 'Delivery Support',
+                auditableType: 'DeliverySupport',
+                auditableId: $supportId,
+                event: 'updated',
+                recordLabel: "Delivery Support #{$supportId}",
+                description: "assigned Ticket #{$ticket->ticket_number} to Delivery Support #{$supportId} (staging validation)",
+                old: null,
+                new: [
+                    'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'activity_id' => $activityId,
+                    'planning_id' => $planningId,
+                    'phase_id' => $phase->id,
+                ],
+            );
         });
 
         app(\App\Services\SlaService::class)->syncPolicy($ticket, $supportId);

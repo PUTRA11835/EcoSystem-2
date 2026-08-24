@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Services\Ai\AiChatService;
 use App\Support\AiTextAttachment;
@@ -57,6 +58,18 @@ class AiAssistantController extends Controller
         if ('' === $message && empty($attachments) && null === $rejectedNote) {
             abort(422, 'Message or a supported attachment is required.');
         }
+
+        AuditLog::logAiPrompt(
+            module: 'AI Assistant',
+            auditableType: 'AiAssistantPrompt',
+            actorId: $employee->employee_id,
+            actorRoleId: $sessionUser['role']['id'] ?? null,
+            actorName: $sessionUser['name'] ?? null,
+            conversationId: $conversationId,
+            message: $message,
+            attachmentCount: count($attachments),
+            modelTier: $modelTier,
+        );
 
         // Release the session file lock before the long-running stream so this
         // request doesn't block other tabs/requests for the same logged-in user.
