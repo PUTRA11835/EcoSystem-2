@@ -44,6 +44,7 @@ class EmployeeBasicData extends Model
         'employee_group',
         'employee_subgroup',
         'position',
+        'current_assignment',
         'division',
         'department',
         'direct_supervision',

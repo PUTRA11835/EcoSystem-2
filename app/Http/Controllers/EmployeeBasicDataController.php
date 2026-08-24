@@ -55,6 +55,7 @@ class EmployeeBasicDataController extends Controller
                         'employee_group' => null,
                         'employee_subgroup' => null,
                         'position' => null,
+                        'current_assignment' => null,
                         'division' => null,
                         'department' => null,
                         'direct_supervision' => null,
@@ -120,7 +121,7 @@ class EmployeeBasicDataController extends Controller
             'search_term_1', 'search_term_2', 'marital_status',
             'birth_date', 'birth_place', 'since_date',
             'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
-            'position', 'division', 'department', 'direct_supervision',
+            'position', 'current_assignment', 'division', 'department', 'direct_supervision',
             'manager', 'authorization_group', 'home_base',
         ];
         foreach ($nullableFields as $field) {
@@ -163,6 +164,7 @@ class EmployeeBasicDataController extends Controller
             'employee_group' => 'nullable|string|max:100',
             'employee_subgroup' => 'nullable|string|max:100',
             'position' => 'nullable|string|max:255',
+            'current_assignment' => 'nullable|string|max:255',
             'division' => 'nullable|string|max:255',
             'department' => 'nullable|string|max:255',
             'direct_supervision' => 'nullable|string|max:255',
@@ -285,7 +287,7 @@ class EmployeeBasicDataController extends Controller
                 'search_term_1', 'search_term_2', 'marital_status',
                 'birth_date', 'birth_place', 'since_date',
                 'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
-                'position', 'division', 'department', 'direct_supervision',
+                'position', 'current_assignment', 'division', 'department', 'direct_supervision',
                 'manager', 'authorization_group',
             ];
             foreach ($nullableFields as $field) {
@@ -313,6 +315,7 @@ class EmployeeBasicDataController extends Controller
                 'employee_group' => 'nullable|string|max:100',
                 'employee_subgroup' => 'nullable|string|max:100',
                 'position' => 'nullable|string|max:255',
+                'current_assignment' => 'nullable|string|max:255',
                 'division' => 'nullable|string|max:255',
                 'department' => 'nullable|string|max:255',
                 'direct_supervision' => 'nullable|string|max:255',
@@ -347,7 +350,7 @@ class EmployeeBasicDataController extends Controller
                 'first_name', 'last_name', 'search_term_1', 'search_term_2',
                 'marital_status', 'birth_date', 'birth_place', 'since_date',
                 'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
-                'position', 'division', 'department', 'direct_supervision',
+                'position', 'current_assignment', 'division', 'department', 'direct_supervision',
                 'manager', 'authorization_group', 'home_base', 'block', 'deletion_flag'
             ]);
 

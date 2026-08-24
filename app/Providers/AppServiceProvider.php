@@ -7,6 +7,7 @@ use App\Enums\EmployeeGroup;
 use App\Enums\EmployeeSubgroup;
 use App\Enums\HomeBase;
 use App\Enums\PersonnelArea;
+use App\Enums\PersonnelSubarea;
 use App\Enums\RoleId;
 use App\Models\Department;
 use App\Models\Grade;
@@ -70,6 +71,7 @@ class AppServiceProvider extends ServiceProvider
                      ->with('departmentOptions', $departmentOptions)
                      ->with('divisionOptions', Division::options())
                      ->with('personnelAreaOptions', PersonnelArea::options())
+                     ->with('personnelSubareaOptions', PersonnelSubarea::options())
                      ->with('employeeGroupOptions', EmployeeGroup::options())
                      ->with('employeeSubgroupOptions', EmployeeSubgroup::options());
             }
