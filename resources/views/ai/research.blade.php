@@ -209,7 +209,7 @@
                 </div>
                 <h3 class="text-base font-bold text-gray-900">What would you like to look up?</h3>
                 <p class="text-xs text-gray-500 mt-1 max-w-md">
-                    Paste a screenshot (Ctrl + V) or attach an image — for example, ask "which TCODE is this?".
+                    Ask anything — work related or not. Paste a screenshot (Ctrl + V) or attach an image too.
                     Answers are researched on the web and come with source links.
                 </p>
 
@@ -217,7 +217,7 @@
                     @foreach ([
                         ['fa-image',                'Identify a screenshot', 'Which SAP screen is this, and what is its TCODE?'],
                         ['fa-triangle-exclamation', 'Investigate an error',  'What causes the SAP dump "TSV_TNEW_PAGE_ALLOC_FAILED"?'],
-                        ['fa-book',                 'Find documentation',    'What is the difference between BAPI_SALESORDER_CREATEFROMDAT1 and DAT2?'],
+                        ['fa-globe',                'Look anything up',      'Kampus terbaik di Yogyakarta beserta jurusan unggulannya'],
                         ['fa-code-compare',         'Compare options',       'Compare SAP S/4HANA Cloud Public vs Private Edition'],
                     ] as [$icon, $label, $prompt])
                         <button type="button" onclick="airUseSuggestion(@js($prompt))"

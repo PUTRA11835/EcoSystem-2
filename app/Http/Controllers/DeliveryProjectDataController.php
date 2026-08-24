@@ -93,7 +93,7 @@ class DeliveryProjectDataController extends Controller
                 }
                 
                 $phaseWeight = $phase->weight ?? 0;
-                $phaseProgress = $this->calculatePhaseProgressFromGroups($phaseTasks);
+                $phaseProgress = $this->calculatePhaseProgressFromGroups($phaseTasks, $phaseWeight);
                 $phaseRange = $this->calculateGanttRangeFromTasks($phaseTasks);
 
                 $verticalGroups[] = [
@@ -101,7 +101,10 @@ class DeliveryProjectDataController extends Controller
                     'name' => $phase->name,
                     'color' => $phase->color ?? '#6366f1',
                     'weight' => $phaseWeight,
-                    'progress' => $phaseProgress,
+                    // progress = nilai bulat untuk ditampilkan, progress_raw = nilai
+                    // presisi untuk agregasi overall (jangan dibulatkan berlapis).
+                    'progress' => round($phaseProgress),
+                    'progress_raw' => $phaseProgress,
                     // Rollup phase: dipakai untuk bar ringkasan di baris phase
                     'start' => $phaseRange['start'],
                     'end' => $phaseRange['end'],
@@ -166,12 +169,27 @@ class DeliveryProjectDataController extends Controller
             $dataPoints = [];
             
             foreach ($phases as $phase) {
+                // Bobot phase dibagi proporsional ke group-nya supaya total bobot
+                // seluruh task = total bobot phase. Tanpa ini, saat Σbobot group
+                // != bobot phase, kurva S memakai penyebut berbeda dari
+                // Progress Overview / Table view dan angkanya melenceng.
+                $groupWeightSum = $phase->plannings->sum(
+                    fn ($g) => (float) ($g->calculated_weight ?? $g->weight ?? 0)
+                );
+                $phaseWeight = (float) ($phase->weight ?? 0);
+
                 foreach ($phase->plannings as $group) {
+                    $groupWeight = (float) ($group->calculated_weight ?? $group->weight ?? 0);
+
+                    $effectiveWeight = $phaseWeight > 0
+                        ? $this->shareWeight($phaseWeight, $groupWeight, $groupWeightSum, $phase->plannings->count())
+                        : $groupWeight;
+
                     $this->collectSCurveDates($group, $allDates, $dataPoints, [
                         'id' => $phase->id,
                         'name' => $phase->name,
                         'order' => $phase->order_sequence,
-                    ]);
+                    ], $effectiveWeight);
                 }
             }
 
@@ -922,11 +940,19 @@ class DeliveryProjectDataController extends Controller
         }
 
         $weightedProgress = 0;
+        $totalGroupWeightRaw = 0;
 
         foreach ($groups as $group) {
             $weight = (float)($group['weight'] ?? 0);
             $progress = (float)($group['progress_percentage'] ?? 0);
+            $totalGroupWeightRaw += $weight;
             $weightedProgress += ($progress * $weight);
+        }
+
+        // Bobot group belum diisi sama sekali — bagi rata. Kalau tidak, phase
+        // ini selalu 0% padahal bobot phase-nya tetap menekan overall progress.
+        if ($totalGroupWeightRaw <= 0) {
+            return round(collect($groups)->avg(fn ($g) => (float)($g['progress_percentage'] ?? 0)) ?? 0, 2);
         }
 
         // Formula: Σ(activity_weight × activity_progress) / phase_weight
@@ -980,12 +1006,20 @@ class DeliveryProjectDataController extends Controller
     {
         $calculatedDates = $this->calculateGroupDatesForGantt($group, $allDates);
         
+        // Pakai perhitungan yang sama dengan Table view (calculateGroupProgress)
+        // supaya angka group di Gantt tidak pernah beda dengan Table/Overview.
+        $groupProgress = $this->calculateGroupProgress($group);
+
         $formatted = [
             'id' => $group->id,
             'name' => $group->name,
             'start' => $calculatedDates['start'],
             'end' => $calculatedDates['end'],
-            'progress' => round($group->calculated_progress ?? $group->progress_percentage ?? 0), 
+            // Bobot wajib ikut: tanpa ini agregasi phase di Gantt jatuh ke
+            // rata-rata polos dan hasilnya beda dengan Table view.
+            'weight' => (float) ($group->calculated_weight ?? $group->weight ?? 0),
+            'progress' => round($groupProgress),
+            'progress_raw' => $groupProgress,
             'status' => $group->status ?? 'not_started',
             'status_color' => $this->getStatusColor($group->status ?? 'not_started'),
             'custom_class' => $group->status ?? 'not_started',
@@ -1184,137 +1218,195 @@ class DeliveryProjectDataController extends Controller
         return $colors[$status] ?? $colors['not_started'];
     }
 
-    private function calculatePhaseProgressFromGroups($groups)
+    /**
+     * Progres phase untuk Gantt. Rumusnya SAMA PERSIS dengan calculatePhaseProgress()
+     * yang dipakai Table view: Σ(bobot_group × progres_group) ÷ bobot_phase,
+     * dengan fallback ke Σ bobot group kalau phase belum diberi bobot.
+     */
+    private function calculatePhaseProgressFromGroups($groups, $phaseWeight = 0)
     {
         if (empty($groups)) {
             return 0;
         }
-        
+
         $totalWeight = 0;
         $weightedProgress = 0;
-        
+
         foreach ($groups as $group) {
-            $weight = $group['weight'] ?? 0;
-            $progress = $group['progress'] ?? 0;
-            
+            $weight = (float) ($group['weight'] ?? 0);
+            $progress = (float) ($group['progress_raw'] ?? $group['progress'] ?? 0);
+
             $totalWeight += $weight;
             $weightedProgress += ($progress * $weight);
         }
-        
-        if ($totalWeight == 0) {
+
+        // Bobot group belum diisi sama sekali — rata-rata polos (sama dengan Table view)
+        if ($totalWeight <= 0) {
             $progressSum = 0;
-            $count = 0;
             foreach ($groups as $group) {
-                $progressSum += ($group['progress'] ?? 0);
-                $count++;
+                $progressSum += (float) ($group['progress_raw'] ?? $group['progress'] ?? 0);
             }
-            return $count > 0 ? round($progressSum / $count) : 0;
+
+            return round($progressSum / count($groups), 2);
         }
-        
-        return round($weightedProgress / $totalWeight);
+
+        if ($phaseWeight > 0) {
+            return round($weightedProgress / $phaseWeight, 2);
+        }
+
+        return round($weightedProgress / $totalWeight, 2);
     }
 
-    private function collectSCurveDates($group, &$allDates, &$dataPoints, $phase = null)
+    /**
+     * Kumpulkan leaf task untuk kurva S berikut bobot EFEKTIF-nya.
+     *
+     * $effectiveWeight = porsi bobot proyek yang dialokasikan ke group ini. Bobot
+     * itu dibagi proporsional ke anak-anaknya (stage / sub-group / activity)
+     * sehingga Σ bobot seluruh leaf = Σ bobot phase. Dengan begitu penyebut kurva S
+     * identik dengan Progress Overview, Table view, dan Gantt view.
+     *
+     * Hanya LEAF yang masuk $dataPoints. Stage yang punya activity tidak ikut
+     * didaftarkan supaya bobotnya tidak terhitung dua kali.
+     */
+    private function collectSCurveDates($group, &$allDates, &$dataPoints, $phase = null, $effectiveWeight = null)
     {
-        if ($group->stages) {
-            foreach ($group->stages as $stage) {
-                if ($stage->planned_start_date) {
-                    $allDates[] = $stage->planned_start_date->format('Y-m-d');
-                }
-                if ($stage->planned_end_date) {
-                    $allDates[] = $stage->planned_end_date->format('Y-m-d');
-                }
-                
-                if ($stage->actual_start_date) {
-                    $allDates[] = $stage->actual_start_date->format('Y-m-d');
-                }
-                if ($stage->actual_end_date) {
-                    $allDates[] = $stage->actual_end_date->format('Y-m-d');
-                }
-
-                $dataPoints[] = [
-                    'type' => 'stage',
-                    'id' => $stage->id,
-                    'name' => $stage->name,
-                    'weight' => $stage->weight,
-                    'progress' => $stage->progress ?? 0,
-                    'planned_start' => $stage->planned_start_date,
-                    'planned_end' => $stage->planned_end_date,
-                    'actual_start' => $stage->actual_start_date,
-                    'actual_end' => $stage->actual_end_date,
-                    'phase_id' => $phase['id'] ?? null,
-                    'phase_name' => $phase['name'] ?? null,
-                    'phase_order' => $phase['order'] ?? 0,
-                ];
-
-                if ($stage->projectActivities) {
-                    foreach ($stage->projectActivities as $activity) {
-                        if ($activity->start_date) {
-                            $allDates[] = $activity->start_date->format('Y-m-d');
-                        }
-                        if ($activity->end_date) {
-                            $allDates[] = $activity->end_date->format('Y-m-d');
-                        }
-                        if ($activity->actual_start_date) {
-                            $allDates[] = $activity->actual_start_date->format('Y-m-d');
-                        }
-                        if ($activity->actual_end_date) {
-                            $allDates[] = $activity->actual_end_date->format('Y-m-d');
-                        }
-
-                        $dataPoints[] = [
-                            'type' => 'activity',
-                            'id' => $activity->id,
-                            'name' => $activity->name,
-                            'weight' => $activity->weight,
-                            'progress' => $activity->progress_percentage ?? 0,
-                            'planned_start' => $activity->start_date,
-                            'planned_end' => $activity->end_date,
-                            'actual_start' => $activity->actual_start_date,
-                            'actual_end' => $activity->actual_end_date,
-                            'phase_id' => $phase['id'] ?? null,
-                            'phase_name' => $phase['name'] ?? null,
-                            'phase_order' => $phase['order'] ?? 0,
-                        ];
-                    }
-                }
-            }
-        }
-
-        // Aktivitas langsung di bawah group (tanpa stage)
         if (!$group->relationLoaded('directActivities')) {
             $group->load(['directActivities' => function($q) {
-                $q->orderBy('order_sequence');
+                $q->orderBy('order_sequence')->with('activity');
             }]);
         }
 
-        foreach ($group->directActivities as $activity) {
-            $this->addDate($allDates, $activity->start_date);
-            $this->addDate($allDates, $activity->end_date);
-            $this->addDate($allDates, $activity->actual_start_date);
-            $this->addDate($allDates, $activity->actual_end_date);
+        $stages = $group->stages ?? collect();
+        $subGroups = $group->children ? $group->children->where('is_group', true) : collect();
+        $directActivities = $group->directActivities ?? collect();
 
+        // Bobot mentah tiap anak langsung, dipakai sebagai dasar pembagian
+        $children = [];
+        foreach ($stages as $stage) {
+            $children[] = ['kind' => 'stage', 'node' => $stage, 'weight' => (float) ($stage->weight ?? 0)];
+        }
+        foreach ($subGroups as $subGroup) {
+            $children[] = ['kind' => 'group', 'node' => $subGroup, 'weight' => (float) ($subGroup->calculated_weight ?? $subGroup->weight ?? 0)];
+        }
+        foreach ($directActivities as $activity) {
+            $children[] = ['kind' => 'activity', 'node' => $activity, 'weight' => (float) ($activity->weight ?? 0)];
+        }
+
+        // Group kosong tetap didaftarkan sebagai leaf, kalau tidak bobotnya hilang
+        // dari penyebut dan kurva S memakai total bobot lebih kecil dari view lain.
+        if (empty($children)) {
             $dataPoints[] = [
-                'type' => 'activity',
-                'id' => $activity->id,
-                'name' => $activity->name,
-                'weight' => $activity->weight,
-                'progress' => $activity->progress_percentage ?? 0,
-                'planned_start' => $activity->start_date,
-                'planned_end' => $activity->end_date,
-                'actual_start' => $activity->actual_start_date,
-                'actual_end' => $activity->actual_end_date,
+                'type' => 'group',
+                'id' => $group->id,
+                'name' => $group->name,
+                'weight' => $effectiveWeight === null ? (float) ($group->weight ?? 0) : (float) $effectiveWeight,
+                'progress' => (float) ($group->progress_percentage ?? 0),
+                'planned_start' => $group->start_date ?? null,
+                'planned_end' => $group->end_date ?? null,
+                'actual_start' => $group->actual_start_date ?? null,
+                'actual_end' => $group->actual_end_date ?? null,
                 'phase_id' => $phase['id'] ?? null,
                 'phase_name' => $phase['name'] ?? null,
                 'phase_order' => $phase['order'] ?? 0,
             ];
+
+            return;
         }
 
-        if ($group->children) {
-            foreach ($group->children->where('is_group', true) as $subGroup) {
-                $this->collectSCurveDates($subGroup, $allDates, $dataPoints, $phase);
+        $childWeightSum = array_sum(array_column($children, 'weight'));
+
+        foreach ($children as $child) {
+            $childEffective = $this->shareWeight($effectiveWeight, $child['weight'], $childWeightSum, count($children));
+
+            if ($child['kind'] === 'group') {
+                $this->collectSCurveDates($child['node'], $allDates, $dataPoints, $phase, $childEffective);
+            } elseif ($child['kind'] === 'stage') {
+                $this->collectStageSCurveDates($child['node'], $allDates, $dataPoints, $phase, $childEffective);
+            } else {
+                $this->pushSCurvePoint($child['node'], $allDates, $dataPoints, $phase, $childEffective);
             }
         }
+    }
+
+    /**
+     * Bagian bobot untuk satu anak. Kalau bobot anak belum diisi sama sekali,
+     * jatah dibagi rata supaya tidak ada porsi proyek yang hilang.
+     */
+    private function shareWeight($effectiveWeight, float $childWeight, float $childWeightSum, int $childCount): float
+    {
+        if ($effectiveWeight === null) {
+            return $childWeight;
+        }
+        if ($childWeightSum > 0) {
+            return (float) $effectiveWeight * ($childWeight / $childWeightSum);
+        }
+
+        return $childCount > 0 ? (float) $effectiveWeight / $childCount : 0.0;
+    }
+
+    private function collectStageSCurveDates($stage, &$allDates, &$dataPoints, $phase, $effectiveWeight)
+    {
+        $this->addDate($allDates, $stage->planned_start_date);
+        $this->addDate($allDates, $stage->planned_end_date);
+        $this->addDate($allDates, $stage->actual_start_date);
+        $this->addDate($allDates, $stage->actual_end_date);
+
+        $activities = $stage->projectActivities ?? collect();
+
+        // Stage tanpa activity jadi leaf; kalau ada activity, bobot stage
+        // dibagikan ke activity-nya (stage sendiri tidak didaftarkan lagi).
+        if ($activities->isEmpty()) {
+            $dataPoints[] = [
+                'type' => 'stage',
+                'id' => $stage->id,
+                'name' => $stage->name,
+                'weight' => $effectiveWeight === null ? (float) ($stage->weight ?? 0) : (float) $effectiveWeight,
+                'progress' => (float) ($stage->calculated_progress ?? $stage->progress ?? 0),
+                'planned_start' => $stage->planned_start_date,
+                'planned_end' => $stage->planned_end_date,
+                'actual_start' => $stage->actual_start_date,
+                'actual_end' => $stage->actual_end_date,
+                'phase_id' => $phase['id'] ?? null,
+                'phase_name' => $phase['name'] ?? null,
+                'phase_order' => $phase['order'] ?? 0,
+            ];
+            return;
+        }
+
+        $activityWeightSum = (float) $activities->sum(fn ($a) => (float) ($a->weight ?? 0));
+
+        foreach ($activities as $activity) {
+            $share = $this->shareWeight($effectiveWeight, (float) ($activity->weight ?? 0), $activityWeightSum, $activities->count());
+            $this->pushSCurvePoint($activity, $allDates, $dataPoints, $phase, $share);
+        }
+    }
+
+    private function pushSCurvePoint($activity, &$allDates, &$dataPoints, $phase, $effectiveWeight)
+    {
+        $this->addDate($allDates, $activity->start_date);
+        $this->addDate($allDates, $activity->end_date);
+        $this->addDate($allDates, $activity->actual_start_date);
+        $this->addDate($allDates, $activity->actual_end_date);
+
+        // Sama seperti Table/Overview: progres dari activity tertaut kalau ada
+        $progress = (isset($activity->activity) && $activity->activity)
+            ? (float) ($activity->activity->progress_percentage ?? $activity->progress_percentage ?? 0)
+            : (float) ($activity->progress_percentage ?? 0);
+
+        $dataPoints[] = [
+            'type' => 'activity',
+            'id' => $activity->id,
+            'name' => $activity->name,
+            'weight' => $effectiveWeight === null ? (float) ($activity->weight ?? 0) : (float) $effectiveWeight,
+            'progress' => $progress,
+            'planned_start' => $activity->start_date,
+            'planned_end' => $activity->end_date,
+            'actual_start' => $activity->actual_start_date,
+            'actual_end' => $activity->actual_end_date,
+            'phase_id' => $phase['id'] ?? null,
+            'phase_name' => $phase['name'] ?? null,
+            'phase_order' => $phase['order'] ?? 0,
+        ];
     }
 
     private function generateWeeklyData($startDate, $endDate, $dataPoints)
@@ -1339,13 +1431,12 @@ class DeliveryProjectDataController extends Controller
                 $totalWeight
             );
             
-            $actualProgress = $this->calculateCumulativeProgress(
-                $dataPoints, 
-                $weekEnd, 
-                'actual',
+            $actualProgress = $this->calculateActualCumulative(
+                $dataPoints,
+                $weekEnd,
                 $totalWeight
             );
-            
+
             $weeklyData[] = [
                 'week_index' => $weekIndex,
                 'week_start' => $current->format('Y-m-d'),
@@ -1362,7 +1453,36 @@ class DeliveryProjectDataController extends Controller
             $current->addWeek();
         }
 
-        return $this->markLatestWeek($weeklyData);
+        return $this->trimFutureActual($this->markLatestWeek($weeklyData));
+    }
+
+    /**
+     * Actual hanya punya arti sampai minggu berjalan. Minggu setelahnya dikosongkan
+     * (null) supaya garis oranye berhenti di "Latest Week" — bukan datar sampai akhir
+     * proyek yang membuat semua minggu depan terbaca "Behind".
+     */
+    private function trimFutureActual(array $weeklyData)
+    {
+        $latestIdx = null;
+        foreach ($weeklyData as $idx => $week) {
+            if (!empty($week['is_latest'])) {
+                $latestIdx = $idx;
+                break;
+            }
+        }
+
+        if ($latestIdx === null) {
+            return $weeklyData;
+        }
+
+        foreach ($weeklyData as $idx => $week) {
+            if ($idx > $latestIdx) {
+                $weeklyData[$idx]['actual_cumulative'] = null;
+                $weeklyData[$idx]['variance'] = null;
+            }
+        }
+
+        return $weeklyData;
     }
 
     /**
@@ -1404,8 +1524,14 @@ class DeliveryProjectDataController extends Controller
     {
         $latest = collect($weeklyData)->firstWhere('is_latest', true) ?? collect($weeklyData)->last();
 
-        $plan = $latest ? (float) $latest['planned_cumulative'] : 0;
-        $actual = $latest ? (float) $latest['actual_cumulative'] : 0;
+        // Diukur pada HARI INI (bukan akhir minggu berjalan) supaya Plan/Actual di
+        // panel ini identik dengan Planning Progress & Overall Progress di
+        // Progress Overview dan Table/Gantt view.
+        $today = Carbon::now()->startOfDay();
+        $totalWeight = collect($dataPoints)->sum('weight');
+
+        $plan = $this->calculateCumulativeProgress($dataPoints, $today, 'planned', $totalWeight);
+        $actual = $this->calculateActualCumulative($dataPoints, $today, $totalWeight);
 
         return [
             'latest_week_index' => $latest['week_index'] ?? null,
@@ -1489,36 +1615,101 @@ class DeliveryProjectDataController extends Controller
             ->all();
     }
 
+    /**
+     * Kurva PLAN: porsi bobot yang seharusnya sudah selesai per tanggal target,
+     * murni dari jadwal rencana. Proration memakai hari inklusif agar identik
+     * dengan DeliveryProjectPlanning::plannedFraction() yang dipakai
+     * Progress Overview ("Planning Progress").
+     */
     private function calculateCumulativeProgress($dataPoints, $targetDate, $type, $totalWeight)
     {
         if ($totalWeight == 0) return 0;
-        
+
+        $target = Carbon::parse($targetDate)->startOfDay();
         $cumulativeWeight = 0;
-        
+
         foreach ($dataPoints as $point) {
             $startDate = $type === 'planned' ? $point['planned_start'] : $point['actual_start'];
             $endDate = $type === 'planned' ? $point['planned_end'] : $point['actual_end'];
-            
+
             if (!$startDate || !$endDate) continue;
-            
-            if (Carbon::parse($startDate)->lte($targetDate)) {
-                $weight = $point['weight'];
-                
-                if (Carbon::parse($endDate)->lte($targetDate)) {
-                    $cumulativeWeight += $weight;
-                } else {
-                    $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate));
-                    $daysPassed = Carbon::parse($startDate)->diffInDays($targetDate);
-                    
-                    if ($totalDays > 0) {
-                        $completion = min(($daysPassed / $totalDays) * 100, 100);
-                        $cumulativeWeight += ($weight * $completion / 100);
-                    }
-                }
-            }
+
+            $start = Carbon::parse($startDate)->startOfDay();
+            $end = Carbon::parse($endDate)->startOfDay();
+            if ($start->gt($target)) continue;
+
+            $weight = (float) ($point['weight'] ?? 0);
+            $cumulativeWeight += $weight * $this->elapsedFraction($start, $end, $target);
         }
-        
+
         return ($cumulativeWeight / $totalWeight) * 100;
+    }
+
+    /**
+     * Kurva ACTUAL: earned value dari progres yang benar-benar tercatat
+     * (Σ bobot × progres), bukan dari ada/tidaknya tanggal aktual.
+     *
+     * Jendela kerja tiap task: pakai tanggal aktual bila terisi; kalau belum,
+     * pakai jadwal rencana dengan batas maksimal HARI INI — dengan begitu progres
+     * yang sudah tercatat selalu terhitung penuh pada minggu berjalan, sehingga
+     * titik Actual di minggu terakhir = Overall Progress di Table/Gantt/Overview.
+     */
+    private function calculateActualCumulative($dataPoints, $targetDate, $totalWeight)
+    {
+        if ($totalWeight == 0) return 0;
+
+        $target = Carbon::parse($targetDate)->startOfDay();
+        $today = Carbon::now()->startOfDay();
+        $earnedWeight = 0;
+
+        foreach ($dataPoints as $point) {
+            $progress = (float) ($point['progress'] ?? 0);
+            $weight = (float) ($point['weight'] ?? 0);
+
+            if ($progress <= 0 || $weight <= 0) continue;
+
+            $start = $point['actual_start'] ?: $point['planned_start'];
+            if (!$start) continue;
+            $start = Carbon::parse($start)->startOfDay();
+
+            if ($point['actual_end']) {
+                $end = Carbon::parse($point['actual_end'])->startOfDay();
+            } else {
+                // Belum ada tanggal selesai aktual: progres dianggap terkumpul
+                // paling lambat hari ini (atau di akhir jadwal kalau sudah lewat).
+                $plannedEnd = $point['planned_end']
+                    ? Carbon::parse($point['planned_end'])->startOfDay()
+                    : null;
+                $end = ($plannedEnd && $plannedEnd->lt($today)) ? $plannedEnd : $today;
+            }
+
+            if ($start->gt($target)) continue;
+
+            $earnedWeight += $weight * ($progress / 100) * $this->elapsedFraction($start, $end, $target);
+        }
+
+        return ($earnedWeight / $totalWeight) * 100;
+    }
+
+    /**
+     * Porsi jendela [start, end] yang sudah terlewati pada $target (0..1, inklusif).
+     */
+    private function elapsedFraction(Carbon $start, Carbon $end, Carbon $target): float
+    {
+        if ($end->lt($start)) {
+            $end = $start->copy();
+        }
+        if ($target->lt($start)) {
+            return 0.0;
+        }
+        if ($target->gte($end)) {
+            return 1.0;
+        }
+
+        $totalDays = $start->diffInDays($end) + 1;
+        $elapsed = $start->diffInDays($target) + 1;
+
+        return $totalDays > 0 ? min(1.0, max(0.0, $elapsed / $totalDays)) : 1.0;
     }
 
     private function calculateSCurveStatistics($dataPoints)
@@ -1528,37 +1719,46 @@ class DeliveryProjectDataController extends Controller
         $onTrack = 0;
         $delayed = 0;
         $notStarted = 0;
-        
+
+        $today = Carbon::now()->startOfDay();
         $totalWeight = 0;
-        $completedWeight = 0;
-        
+        $weightedProgress = 0;
+
         foreach ($dataPoints as $point) {
-            $weight = $point['weight'];
+            $weight = (float) ($point['weight'] ?? 0);
             $totalWeight += $weight;
-            
-            if ($point['progress'] >= 100) {
+            // Progres parsial ikut dihitung — kalau hanya task 100% yang dihitung,
+            // kartu ini selalu lebih kecil dari Overall Progress di Table/Gantt.
+            $weightedProgress += $weight * (float) ($point['progress'] ?? 0);
+
+            $progress = (float) ($point['progress'] ?? 0);
+            $plannedEnd = $point['planned_end'] ? Carbon::parse($point['planned_end']) : null;
+            $actualEnd = $point['actual_end'] ? Carbon::parse($point['actual_end']) : null;
+
+            if ($progress >= 100) {
                 $completed++;
-                $completedWeight += $weight;
-            } elseif (!$point['actual_start']) {
+            } elseif ($progress <= 0 && !$point['actual_start']) {
+                // Belum ada progres DAN belum ada tanggal mulai aktual
                 $notStarted++;
-            } elseif ($point['actual_end'] && $point['planned_end']) {
-                if (Carbon::parse($point['actual_end'])->gt(Carbon::parse($point['planned_end']))) {
-                    $delayed++;
-                } else {
-                    $onTrack++;
-                }
+            } elseif ($actualEnd && $plannedEnd && $actualEnd->gt($plannedEnd)) {
+                $delayed++;
+            } elseif (!$actualEnd && $plannedEnd && $plannedEnd->lt($today)) {
+                // Lewat jadwal tapi belum selesai
+                $delayed++;
             } else {
                 $onTrack++;
             }
         }
-        
+
         return [
             'total_tasks' => $total,
             'completed' => $completed,
             'on_track' => $onTrack,
             'delayed' => $delayed,
             'not_started' => $notStarted,
-            'overall_progress' => $totalWeight > 0 ? round(($completedWeight / $totalWeight) * 100, 1) : 0,
+            // Overall progress = Σ(bobot × progres) ÷ Σbobot — definisi yang sama
+            // dipakai Progress Overview, Table view, dan Gantt view.
+            'overall_progress' => $totalWeight > 0 ? round($weightedProgress / $totalWeight, 1) : 0,
         ];
     }
 
