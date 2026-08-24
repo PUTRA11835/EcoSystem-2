@@ -84,7 +84,6 @@
                                 </div>
                             </div>
                         </th>
-                        <th class="px-4 py-3 text-left" style="min-width:140px">Personnel Area</th>
                         <th class="px-4 py-3 text-left" style="min-width:140px">Personnel Sub Area</th>
                         <th class="px-4 py-3 text-left" style="min-width:160px">Current Assignment</th>
                         <th class="px-4 py-3 text-left" style="min-width:170px">
@@ -147,7 +146,7 @@
                 </thead>
                 <tbody id="workloadBody">
                     <tr>
-                        <td colspan="11" class="text-center py-12 text-gray-400">
+                        <td colspan="10" class="text-center py-12 text-gray-400">
                             <svg class="animate-spin w-5 h-5 mx-auto mb-2 text-red-400" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
@@ -210,7 +209,7 @@
     // jadi periode selalu bulan berjalan menurut timezone server.
     async function loadWorkload() {
         document.getElementById('workloadBody').innerHTML = `
-        <tr><td colspan="11" class="text-center py-12 text-gray-400">
+        <tr><td colspan="10" class="text-center py-12 text-gray-400">
             <svg class="animate-spin w-5 h-5 mx-auto mb-2 text-red-400" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
@@ -226,12 +225,12 @@
             } catch {
                 console.error('Non-JSON response:', text.substring(0, 500));
                 document.getElementById('workloadBody').innerHTML =
-                    `<tr><td colspan="11" class="text-center py-8 text-red-500 text-sm">Server error. Check console.</td></tr>`;
+                    `<tr><td colspan="10" class="text-center py-8 text-red-500 text-sm">Server error. Check console.</td></tr>`;
                 return;
             }
             if (!json.success) {
                 document.getElementById('workloadBody').innerHTML =
-                    `<tr><td colspan="11" class="text-center py-8 text-red-500 text-sm">${json.message}</td></tr>`;
+                    `<tr><td colspan="10" class="text-center py-8 text-red-500 text-sm">${json.message}</td></tr>`;
                 return;
             }
             allConsultants = json.data ?? [];
@@ -240,7 +239,7 @@
             renderTable(applySortTo(allConsultants));
         } catch (e) {
             document.getElementById('workloadBody').innerHTML =
-                `<tr><td colspan="11" class="text-center py-8 text-red-500 text-sm">Failed: ${e.message}</td></tr>`;
+                `<tr><td colspan="10" class="text-center py-8 text-red-500 text-sm">Failed: ${e.message}</td></tr>`;
         }
     }
 
@@ -605,7 +604,7 @@
     function renderTable(consultants) {
         if (!consultants.length) {
             document.getElementById('workloadBody').innerHTML =
-                `<tr><td colspan="11" class="text-center py-8 text-gray-400">No data available.</td></tr>`;
+                `<tr><td colspan="10" class="text-center py-8 text-gray-400">No data available.</td></tr>`;
             return;
         }
 
@@ -670,7 +669,6 @@
             <div class="font-semibold text-gray-900 text-sm">${c.name}</div>
             <div class="text-xs text-gray-400 mt-0.5">${c.eci}</div>
         </td>
-        <td class="px-4 py-3 text-sm text-gray-700">${c.personnel_area || '<span class="text-gray-300">—</span>'}</td>
         <td class="px-4 py-3 text-sm text-gray-700">${c.personnel_subarea || '<span class="text-gray-300">—</span>'}</td>
         <td class="px-4 py-3 text-sm text-gray-700">${c.current_assignment || '<span class="text-gray-300">—</span>'}</td>
         <td class="px-4 py-3">
@@ -719,14 +717,14 @@
         if (visibleTickets.length === 0) {
             html += `
     <tr id="tickets-${c.employee_id}" class="hidden border-b border-blue-100">
-        <td colspan="11" class="pl-12 pr-4 py-3 text-xs text-slate-400 italic bg-slate-50/80">
+        <td colspan="10" class="pl-12 pr-4 py-3 text-xs text-slate-400 italic bg-slate-50/80">
             No In Progress tickets
         </td>
     </tr>`;
         } else {
             html += `
     <tr id="tickets-${c.employee_id}" class="hidden">
-        <td colspan="11" class="p-0 border-b-2 border-blue-200" style="background:#f0f5ff">
+        <td colspan="10" class="p-0 border-b-2 border-blue-200" style="background:#f0f5ff">
             <div class="mx-4 my-3 rounded-xl overflow-hidden border border-blue-200 shadow-sm">
             <table class="w-full">
                 <thead>
