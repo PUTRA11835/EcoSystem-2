@@ -964,7 +964,9 @@
         
         verticalGroups.forEach(function(phase) {
             var phaseWeight = parseFloat(phase.weight) || 0;
-            var phaseProgress = parseFloat(phase.progress) || 0;
+            // progress_raw = nilai presisi; phase.progress sudah dibulatkan untuk
+            // tampilan dan tidak boleh dipakai sebagai basis agregasi.
+            var phaseProgress = parseFloat(phase.progress_raw !== undefined ? phase.progress_raw : phase.progress) || 0;
             
             totalPhaseWeight += phaseWeight;
             weightedPhaseProgress += (phaseProgress * phaseWeight);
