@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\AuthUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -209,6 +210,17 @@ class CustomerContactController extends Controller
 
             $contactId = DB::table('customer_contact')->insertGetId($contactData);
 
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerContact's own $auditModule so these rows group together
+                auditableType: 'CustomerContact',
+                auditableId: $contactId,
+                event: 'created',
+                recordLabel: $request->full_name,
+                description: "added Customer Contact: {$request->full_name} — Customer #{$customerId}",
+                old: null,
+                new: $contactData,
+            );
+
             Log::info('=== API: CUSTOMER CONTACT CREATED SUCCESSFULLY ===', [
                 'contact_id' => $contactId
             ]);
@@ -276,6 +288,12 @@ class CustomerContactController extends Controller
         }
 
         try {
+            // Snapshot before update — needed for the audit log entry below.
+            $existingContact = DB::table('customer_contact')
+                ->where('customer_id', $customerId)
+                ->where('contact_id', $contactId)
+                ->first();
+
             $updateData = [
                 'title' => $request->title,
                 'full_name' => $request->full_name,
@@ -313,6 +331,17 @@ class CustomerContactController extends Controller
                 ], 404);
             }
 
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerContact's own $auditModule so these rows group together
+                auditableType: 'CustomerContact',
+                auditableId: $contactId,
+                event: 'updated',
+                recordLabel: $request->full_name,
+                description: "updated Customer Contact: {$request->full_name} — Customer #{$customerId}",
+                old: (array) $existingContact,
+                new: $updateData,
+            );
+
             Log::info('=== API: CUSTOMER CONTACT UPDATED SUCCESSFULLY ===');
 
             return response()->json([
@@ -344,6 +373,12 @@ class CustomerContactController extends Controller
         ]);
 
         try {
+            // Snapshot before delete — needed for the audit log entry below.
+            $existingContact = DB::table('customer_contact')
+                ->where('customer_id', $customerId)
+                ->where('contact_id', $contactId)
+                ->first();
+
             // Explicitly remove any linked login account first. Don't rely
             // solely on the auth_users.contact_id ON DELETE CASCADE FK —
             // it has been observed not to fire in production, leaving an
@@ -363,6 +398,19 @@ class CustomerContactController extends Controller
                     'message' => 'Contact not found'
                 ], 404);
             }
+
+            $label = $existingContact->full_name ?? "Contact #{$contactId}";
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerContact's own $auditModule so these rows group together
+                auditableType: 'CustomerContact',
+                auditableId: $contactId,
+                event: 'deleted',
+                recordLabel: $label,
+                description: "deleted Customer Contact: {$label} — Customer #{$customerId}",
+                old: (array) $existingContact,
+                new: null,
+            );
 
             Log::info('=== API: CUSTOMER CONTACT DELETED SUCCESSFULLY ===');
 

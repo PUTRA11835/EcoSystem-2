@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Enums\RoleId;
 use App\Exports\EmployeeExport;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeBasicData;
 use Maatwebsite\Excel\Facades\Excel;
@@ -792,6 +793,29 @@ class EmployeeController extends Controller
 
             DB::commit();
 
+            $employeeFullName = trim($request->first_name . ' ' . $request->last_name);
+            AuditLog::recordAction(
+                module: 'Employee',
+                auditableType: 'Employee',
+                auditableId: $employeeId,
+                event: 'created',
+                recordLabel: $employeeFullName ?: $request->eci,
+                description: "added Employee: {$employeeFullName} (ECI: {$request->eci})",
+                old: null,
+                new: [
+                    'eci' => $request->eci,
+                    'first_name' => $request->first_name,
+                    'last_name' => $request->last_name,
+                    'nick_name' => $request->nick_name,
+                    'email_work' => $request->email_work,
+                    'gender' => $request->gender,
+                    'position' => $request->position,
+                    'department' => $request->department,
+                    'division' => $request->division,
+                    'home_base' => $request->home_base,
+                ],
+            );
+
             Log::info('=== API: EMPLOYEE CREATED SUCCESSFULLY ===', [
                 'employee_id' => $employeeId,
                 'eci' => $request->eci,
@@ -942,9 +966,9 @@ class EmployeeController extends Controller
 
         try {
             // Check if employee exists
-            $employeeExists = DB::table('employee')->where('employee_id', $id)->exists();
-            
-            if (!$employeeExists) {
+            $oldEmployee = DB::table('employee')->where('employee_id', $id)->first();
+
+            if (!$oldEmployee) {
                 Log::warning('=== API: EMPLOYEE NOT FOUND FOR UPDATE ===', [
                     'employee_id' => $id
                 ]);
@@ -1031,6 +1055,37 @@ class EmployeeController extends Controller
             }
 
             DB::commit();
+
+            AuditLog::recordAction(
+                module: 'Employee',
+                auditableType: 'Employee',
+                auditableId: $id,
+                event: 'updated',
+                recordLabel: trim($request->first_name . ' ' . ($request->last_name ?? $existingBasicData?->last_name ?? '')) ?: $request->eci,
+                description: "updated Employee: {$request->first_name} (ECI: {$request->eci})",
+                old: [
+                    'eci' => $oldEmployee->eci,
+                    'first_name' => $existingBasicData?->first_name,
+                    'last_name' => $existingBasicData?->last_name,
+                    'nick_name' => $existingBasicData?->nick_name,
+                    'gender' => $existingBasicData?->gender,
+                    'position' => $existingBasicData?->position,
+                    'department' => $existingBasicData?->department,
+                    'division' => $existingBasicData?->division,
+                    'home_base' => $existingBasicData?->home_base,
+                ],
+                new: [
+                    'eci' => $request->eci,
+                    'first_name' => $request->first_name,
+                    'last_name' => $request->last_name,
+                    'nick_name' => $request->nick_name,
+                    'gender' => $request->gender,
+                    'position' => $request->position,
+                    'department' => $request->department,
+                    'division' => $request->division,
+                    'home_base' => $request->home_base,
+                ],
+            );
 
             Log::info('=== API: EMPLOYEE UPDATED SUCCESSFULLY ===', [
                 'employee_id' => $id,
@@ -1324,8 +1379,11 @@ public function getRoles()
             $eci = $employee->eci;
             Log::info('Employee found, proceeding with permanent deletion', ['eci' => $eci]);
 
+            // Snapshot before the cascade delete below removes it — needed for the audit log entry.
+            $basicDataSnapshot = DB::table('employee_basic_data')->where('employee_id', $id)->first();
+
             // Delete related records first (foreign key constraints)
-            
+
             // 1. Delete employee addresses
             $addressesDeleted = DB::table('employee_address')->where('employee_id', $id)->delete();
             Log::info('Employee addresses deleted', ['count' => $addressesDeleted]);
@@ -1347,6 +1405,25 @@ public function getRoles()
             Log::info('Employee record deleted', ['count' => $employeeDeleted]);
 
             DB::commit();
+
+            $deletedFullName = trim(($basicDataSnapshot?->first_name ?? '') . ' ' . ($basicDataSnapshot?->last_name ?? ''));
+            AuditLog::recordAction(
+                module: 'Employee',
+                auditableType: 'Employee',
+                auditableId: $id,
+                event: 'deleted',
+                recordLabel: $deletedFullName ?: $eci,
+                description: "deleted Employee: {$deletedFullName} (ECI: {$eci})",
+                old: [
+                    'eci' => $eci,
+                    'first_name' => $basicDataSnapshot?->first_name,
+                    'last_name' => $basicDataSnapshot?->last_name,
+                    'nick_name' => $basicDataSnapshot?->nick_name,
+                    'position' => $basicDataSnapshot?->position,
+                    'department' => $basicDataSnapshot?->department,
+                ],
+                new: null,
+            );
 
             Log::info('=== API: EMPLOYEE PERMANENTLY DELETED SUCCESSFULLY ===', [
                 'employee_id' => $id,

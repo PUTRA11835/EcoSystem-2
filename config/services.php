@@ -58,6 +58,14 @@ return [
 
     'anthropic' => [
         'api_key' => env('ANTHROPIC_API_KEY'),
+        // Skill ID Agent Skills custom "sap-ticket-analyzer" (dibuat di Anthropic
+        // Console) — dipakai AiTicketAnalyzerService untuk fitur Analisa AI di
+        // validasi Staging Ticket.
+        'ticket_analyzer_skill_id' => env('ANTHROPIC_TICKET_ANALYZER_SKILL_ID'),
+    ],
+
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
     ],
 
     'ai' => [

@@ -387,6 +387,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/{id}/attachment-download', [StagingTicketController::class, 'emailAttachmentDownload']);
         Route::post('/{id}/approve', [StagingTicketController::class, 'approve']);
         Route::post('/{id}/reject', [StagingTicketController::class, 'reject']);
+        Route::post('/{id}/analyze', [StagingTicketController::class, 'analyze']);
     });
 
     // ==================== TICKET ROUTES ====================
