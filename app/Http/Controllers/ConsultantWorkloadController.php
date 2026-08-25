@@ -82,7 +82,7 @@ class ConsultantWorkloadController extends Controller
                     'eci'          => $emp->eci,
                     'name'         => $name,
                     'roles'        => $roles,
-                    'personnel_area'      => $emp->basicData?->personnel_area,
+                    'personnel_subarea'   => $emp->basicData?->personnel_subarea,
                     'current_assignment'  => $emp->basicData?->current_assignment,
                     'modules'      => $modulesMap[$emp->employee_id] ?? '-',
                     'ticket_count' => $ticketCount,

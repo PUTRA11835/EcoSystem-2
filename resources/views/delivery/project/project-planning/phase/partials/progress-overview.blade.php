@@ -40,12 +40,16 @@
                 $weightedGroupPlanned  += ($groupPlanned * $groupWeight);
             }
 
-            $phaseProgress = $totalGroupWeight > 0
-                ? ($weightedGroupProgress / $totalGroupWeight)
-                : 0;
-            $phasePlanned = $totalGroupWeight > 0
-                ? ($weightedGroupPlanned / $totalGroupWeight)
-                : 0;
+            if ($totalGroupWeight > 0) {
+                $phaseProgress = $weightedGroupProgress / $totalGroupWeight;
+                $phasePlanned  = $weightedGroupPlanned / $totalGroupWeight;
+            } else {
+                // Bobot group belum diisi — bagi rata, jangan diperlakukan 0%.
+                // (Phase tetap menyumbang bobotnya ke penyebut overall, jadi kalau
+                // di-nol-kan progres proyek ikut tertarik turun tanpa sebab.)
+                $phaseProgress = $phaseGroups->avg(fn ($g) => (float) ($g->calculated_progress ?? $g->progress_percentage ?? 0)) ?? 0;
+                $phasePlanned  = $phaseGroups->avg(fn ($g) => (float) ($g->planned_progress ?? 0)) ?? 0;
+            }
         } else {
             $phaseProgress = 0;
             $phasePlanned  = 0;

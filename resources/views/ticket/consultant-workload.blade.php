@@ -84,7 +84,7 @@
                                 </div>
                             </div>
                         </th>
-                        <th class="px-4 py-3 text-left" style="min-width:140px">Personnel Area</th>
+                        <th class="px-4 py-3 text-left" style="min-width:140px">Personnel Sub Area</th>
                         <th class="px-4 py-3 text-left" style="min-width:160px">Current Assignment</th>
                         <th class="px-4 py-3 text-left" style="min-width:170px">
                             <div class="flex items-center gap-1.5">
@@ -669,7 +669,7 @@
             <div class="font-semibold text-gray-900 text-sm">${c.name}</div>
             <div class="text-xs text-gray-400 mt-0.5">${c.eci}</div>
         </td>
-        <td class="px-4 py-3 text-sm text-gray-700">${c.personnel_area || '<span class="text-gray-300">—</span>'}</td>
+        <td class="px-4 py-3 text-sm text-gray-700">${c.personnel_subarea || '<span class="text-gray-300">—</span>'}</td>
         <td class="px-4 py-3 text-sm text-gray-700">${c.current_assignment || '<span class="text-gray-300">—</span>'}</td>
         <td class="px-4 py-3">
             ${c.modules && c.modules !== '-'

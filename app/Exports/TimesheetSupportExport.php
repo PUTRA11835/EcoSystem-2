@@ -21,7 +21,7 @@ class TimesheetSupportExport implements
     WithStyles,
     ShouldAutoSize
 {
-    private const LAST_COL = 'N';
+    private const LAST_COL = 'O';
 
     protected Collection $rows;
     protected array $jatahMap;
@@ -43,6 +43,7 @@ class TimesheetSupportExport implements
             return [
                 'employee'           => $employeeName ?: '-',
                 'date'               => $ts->date?->format('d M Y') ?? '-',
+                'activity_date'      => $ts->activity_date?->format('d M Y') ?? '-',
                 'month'              => $ts->period_month ?? '-',
                 'year'               => $ts->period_year  ?? '-',
                 'status'             => ucfirst($ts->status ?? '-'),
@@ -64,6 +65,7 @@ class TimesheetSupportExport implements
         return [
             'Employee',
             'Date',
+            'Activity Date',
             'Month',
             'Year',
             'Status',

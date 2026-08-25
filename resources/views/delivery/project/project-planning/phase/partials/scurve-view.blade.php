@@ -502,7 +502,10 @@
 
             values.forEach(function(v) {
                 const cell = document.createElement('div');
-                cell.textContent = (Math.round(v * 10) / 10).toFixed(0) + '%';
+                // Minggu setelah "Latest Week" tidak punya nilai actual -> sel kosong
+                cell.textContent = (v === null || v === undefined)
+                    ? ''
+                    : (Math.round(v * 10) / 10).toFixed(0) + '%';
                 cell.className = 'flex-1 min-w-0 py-1 text-center text-gray-600 border-r border-gray-100 truncate';
                 cells.appendChild(cell);
             });
@@ -613,6 +616,7 @@
                             afterBody: function(tooltipItems) {
                                 const idx = tooltipItems[0].dataIndex;
                                 const variance = scurveData.weekly_data[idx].variance;
+                                if (variance === null || variance === undefined) return '';
                                 return '\nDeviation: ' + (variance > 0 ? '+' : '') + variance.toFixed(1) + '%';
                             }
                         }
@@ -695,13 +699,20 @@
         scurveData.weekly_data.forEach(function(week) {
             const tr = document.createElement('tr');
             const variance = week.variance;
-            
+            // Minggu yang belum dijalani belum punya realisasi -> jangan dinilai
+            const hasActual = week.actual_cumulative !== null && week.actual_cumulative !== undefined;
+
             let varClass = 'text-gray-600';
             let statusIcon = '●';
             let statusClass = 'text-gray-600';
             let statusText = 'On Track';
-            
-            if (variance < -5) {
+
+            if (!hasActual) {
+                varClass = 'text-gray-400';
+                statusIcon = '—';
+                statusClass = 'text-gray-400';
+                statusText = 'Belum berjalan';
+            } else if (variance < -5) {
                 varClass = 'text-red-600 font-bold';
                 statusIcon = '⚠️';
                 statusClass = 'text-red-600 font-semibold';
@@ -733,8 +744,8 @@
                 </td>
                 <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-center text-gray-600 text-xs font-medium">${week.date_label}</td>
                 <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-right font-bold text-blue-700 bg-blue-50">${week.planned_cumulative.toFixed(1)}%</td>
-                <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-right font-bold text-green-700 bg-green-50">${week.actual_cumulative.toFixed(1)}%</td>
-                <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-right ${varClass} bg-purple-50">${(week.variance > 0 ? '+' : '')}${week.variance.toFixed(1)}%</td>
+                <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-right font-bold text-green-700 bg-green-50">${hasActual ? week.actual_cumulative.toFixed(1) + '%' : '-'}</td>
+                <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-right ${varClass} bg-purple-50">${hasActual ? (variance > 0 ? '+' : '') + variance.toFixed(1) + '%' : '-'}</td>
                 <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-center ${statusClass}">${statusIcon} ${statusText}</td>
             `;
             
@@ -808,7 +819,12 @@
             const curr = scurveData.weekly_data[i];
             const prev = i > 0 ? scurveData.weekly_data[i - 1] : { planned_cumulative: 0, actual_cumulative: 0 };
             plannedWeekly.push(curr.planned_cumulative - prev.planned_cumulative);
-            actualWeekly.push(curr.actual_cumulative - prev.actual_cumulative);
+            // null = minggu belum berjalan; batang actual sengaja dikosongkan
+            actualWeekly.push(
+                (curr.actual_cumulative === null || curr.actual_cumulative === undefined)
+                    ? null
+                    : curr.actual_cumulative - (prev.actual_cumulative || 0)
+            );
         }
         
         scurveChart = new Chart(ctx, {
