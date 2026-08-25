@@ -29,7 +29,6 @@ class AiSettingsController extends Controller
             'settings' => AiModelSettings::all(),
             'assistants' => AiModelSettings::assistants(),
             'catalog' => AiModelSettings::catalog(),
-            'efforts' => AiModelSettings::efforts(),
         ]);
     }
 

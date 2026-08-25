@@ -163,7 +163,7 @@
         </div>
 
         <p class="px-3 py-2.5 border-t border-gray-100 text-[10px] text-gray-400 leading-snug">
-            Only you can see these. Attachments aren't archived — reopened chats keep the text, not the images.
+            Only you can see these. Attachments aren't archived, so reopened chats keep the text, not the images.
         </p>
     </aside>
 
@@ -182,7 +182,7 @@
                         <i class="fas fa-globe text-[9px]"></i> Web access
                     </span>
                 </div>
-                <p class="text-[11px] text-gray-400 truncate">Answers come from the web — not from EcoSystem data</p>
+                <p class="text-[11px] text-gray-400 truncate">Answers come from the web, not from EcoSystem data</p>
             </div>
 
             <div class="flex items-center gap-1.5">
@@ -202,36 +202,18 @@
         {{-- Thread --}}
         <div id="airThread" class="flex-1 overflow-y-auto air-scroll px-4 sm:px-6 py-5">
 
-            {{-- Empty state --}}
+            {{-- Empty state: sapaan singkat saja, bukan daftar contoh pertanyaan.
+                 Nama diambil dari sesi (pola yang sama dipakai dashboard.blade.php),
+                 waktu harinya dihitung di klien lewat airGreeting() supaya
+                 mengikuti jam lokal browser, bukan zona waktu server. --}}
             <div id="airEmptyState" class="h-full flex flex-col items-center justify-center text-center">
                 <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white mb-4">
                     <i class="fas fa-magnifying-glass text-lg"></i>
                 </div>
-                <h3 class="text-base font-bold text-gray-900">What would you like to look up?</h3>
-                <p class="text-xs text-gray-500 mt-1 max-w-md">
-                    Paste a screenshot (Ctrl + V) or attach an image — for example, ask "which TCODE is this?".
-                    Answers are researched on the web and come with source links.
+                <h3 id="airGreeting" class="text-lg font-bold text-gray-900">Hi</h3>
+                <p class="text-xs text-gray-500 mt-1 max-w-sm">
+                    Ask anything, or paste a screenshot to identify it.
                 </p>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6 w-full max-w-2xl text-left">
-                    @foreach ([
-                        ['fa-image',                'Identify a screenshot', 'Which SAP screen is this, and what is its TCODE?'],
-                        ['fa-triangle-exclamation', 'Investigate an error',  'What causes the SAP dump "TSV_TNEW_PAGE_ALLOC_FAILED"?'],
-                        ['fa-book',                 'Find documentation',    'What is the difference between BAPI_SALESORDER_CREATEFROMDAT1 and DAT2?'],
-                        ['fa-code-compare',         'Compare options',       'Compare SAP S/4HANA Cloud Public vs Private Edition'],
-                    ] as [$icon, $label, $prompt])
-                        <button type="button" onclick="airUseSuggestion(@js($prompt))"
-                                class="group flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/40 transition-all">
-                            <span class="w-8 h-8 shrink-0 rounded-lg bg-gray-50 group-hover:bg-white flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-all">
-                                <i class="fas {{ $icon }} text-xs"></i>
-                            </span>
-                            <span class="min-w-0">
-                                <span class="block text-xs font-semibold text-gray-800">{{ $label }}</span>
-                                <span class="block text-[11px] text-gray-500 mt-0.5 leading-snug">{{ $prompt }}</span>
-                            </span>
-                        </button>
-                    @endforeach
-                </div>
             </div>
 
             {{-- Pesan disisipkan di sini --}}
@@ -247,7 +229,7 @@
 
             <div id="airDropzone"
                  class="air-dropzone rounded-2xl border border-gray-200 bg-white focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
-                <textarea id="airInput" rows="1" placeholder="Ask anything…  (Enter to send, Shift + Enter for a new line — long pastes and screenshots become attachments)"
+                <textarea id="airInput" rows="1" placeholder="What would you like to look up?"
                           oninput="airAutoGrow(this)" onkeydown="airOnKeydown(event)"
                           class="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm text-gray-800 placeholder-gray-400 focus:outline-none air-scroll"></textarea>
 
@@ -258,7 +240,7 @@
                          sini sebelumnya ("max 2 files, 5 MB each") sudah lama
                          tidak benar. --}}
                     <button type="button" onclick="document.getElementById('airFile').click()"
-                            title="Attach images or PDFs — up to {{ $limits['file_mb'] }} MB per file and {{ $limits['message_mb'] }} MB per message. No limit on how many."
+                            title="Attach images or PDFs, up to {{ $limits['file_mb'] }} MB per file and {{ $limits['message_mb'] }} MB per message. No limit on how many."
                             class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
                         <i class="fas fa-paperclip text-sm"></i>
                     </button>
@@ -287,7 +269,7 @@
             </div>
 
             <p class="mt-2 text-[10px] text-gray-400 text-center">
-                Search results can be wrong — always check the source links before acting on them.
+                Search results can be wrong, so always check the source links before acting on them.
                 For internal data (tickets, SLA, projects), use the AI Assistant page.
                 <button type="button" onclick="airOpenLimits()" class="underline hover:text-gray-600">Limits &amp; behaviour</button>
             </p>
@@ -321,7 +303,7 @@
                 <dt class="text-xs font-semibold text-gray-800">Attachments per message</dt>
                 <dd class="text-gray-500 mt-0.5">
                     Any number of files, up to {{ $limits['file_mb'] }} MB each and {{ $limits['message_mb'] }} MB in
-                    total per message — and only if the conversation still has room for them (see below). Only PDF and
+                    total per message, and only if the conversation still has room for them (see below). Only PDF and
                     images (PNG, JPEG, GIF, WEBP) can be read; other file types are skipped, and the reply says which
                     ones.
                 </dd>
@@ -330,11 +312,11 @@
                 <dt class="text-xs font-semibold text-gray-800">Attachments per conversation</dt>
                 <dd class="text-gray-500 mt-0.5">
                     About {{ $limits['chat_attachment_mb'] }} MB of attachments per chat, counted
-                    <span class="font-semibold text-gray-700">across every message in it</span> — not per message.
+                    <span class="font-semibold text-gray-700">across every message in it</span>, not per message.
                     Files you send stay in the conversation and are re-sent with every follow-up question, which is
                     what makes the assistant able to look at an earlier screenshot again, and also why the budget is
                     shared. This is the tightest of the three limits, so it applies even to your first message. When it
-                    is full, new attachments are refused — questions without attachments still work, and starting a new
+                    is full, new attachments are refused; questions without attachments still work, and starting a new
                     chat resets the budget.
                 </dd>
             </div>
@@ -344,17 +326,17 @@
                     Each reply has a token ceiling set by your administrator. When a reply reaches it, the assistant
                     resumes itself automatically a few times; if it is still unfinished, the answer stops and a
                     <span class="font-semibold text-gray-700">Continue</span> button appears under it. Continue picks up
-                    exactly where the text stopped — it does not repeat what was already written.
+                    exactly where the text stopped; it does not repeat what was already written.
                 </dd>
             </div>
             <div>
                 <dt class="text-xs font-semibold text-gray-800">Working memory</dt>
                 <dd class="text-gray-500 mt-0.5">
-                    Within a chat the assistant reads the whole conversation — including images you attached earlier,
-                    which it can look at again — so follow-up questions like "and what about the second one?" work as
+                    Within a chat the assistant reads the whole conversation, including images you attached earlier,
+                    which it can look at again, so follow-up questions like "and what about the second one?" work as
                     you would expect. That full context is held for {{ $limits['context_age'] }} after your last
                     message. Once it expires, reopening the chat restores the last {{ $limits['context_messages'] }} messages
-                    (about {{ intdiv($limits['context_messages'], 2) }} exchanges) as text only — a line in the
+                    (about {{ intdiv($limits['context_messages'], 2) }} exchanges) as text only. A line in the
                     transcript marks where the assistant's memory starts, and images are not restored, so re-upload
                     them if a follow-up depends on what they showed.
                 </dd>
@@ -362,9 +344,8 @@
             <div>
                 <dt class="text-xs font-semibold text-gray-800">What it can and cannot see</dt>
                 <dd class="text-gray-500 mt-0.5">
-                    This assistant searches the public web only. It has no access to EcoSystem data — tickets, SLA
-                    figures, delivery projects, customers or employees. Use the AI Assistant page for those. The model
-                    itself is chosen by your administrator in Control Center → AI Settings.
+                    This assistant searches the public web only. It has no access to EcoSystem data: tickets, SLA
+                    figures, delivery projects, customers or employees. Use the AI Assistant page for those.
                 </dd>
             </div>
         </dl>
@@ -456,6 +437,26 @@ let airBusy  = false;   // sedang menunggu balasan
 let airAbort = null;    // AbortController pembatal request berjalan
 let airConversationId = null;
 
+/* Nama user yang login, untuk sapaan di empty state (airGreeting()). */
+const AIR_USER_NAME = @json(session('user.name', ''));
+
+/* Placeholder composer: satu dipilih acak tiap halaman dimuat / chat baru,
+   supaya terasa hidup alih-alih satu kalimat instruksi yang sama terus —
+   pola yang sama seperti composer claude.ai. Instruksi keyboard (Enter/
+   Shift+Enter) sengaja tidak dijejalkan ke sini lagi; itu perilaku standar
+   yang tidak perlu diiklankan di setiap kunjungan. */
+const AIR_PLACEHOLDERS = [
+    'What would you like to look up?',
+    'How can I help you research today?',
+    'Ask about an error, TCODE, or documentation…',
+    'Paste a screenshot, or ask a question…',
+    'What are you trying to figure out?',
+];
+
+function airRandomPlaceholder() {
+    return AIR_PLACEHOLDERS[Math.floor(Math.random() * AIR_PLACEHOLDERS.length)];
+}
+
 /* Object URL pratinjau gambar. Dipegang sampai percakapan direset — bubble
    yang sudah terkirim masih memakai URL yang sama dengan chip composer. */
 const airPreviews = new Map();  // File → object URL
@@ -476,6 +477,17 @@ const AIR_TEXT_MAX_CHARS = @json(\App\Support\AiTextAttachment::MAX_CHARS);
 const airPasteMeta = new WeakMap();  // File → {id, lines}
 const airPasteById = {};             // id → {lines, chars, text} untuk modal
 let airPasteSeq = 0;
+
+/** Sapaan berdasar jam LOKAL BROWSER (bukan zona waktu server) + nama depan
+ *  user yang login. Dipanggil sekali saat halaman dimuat: sapaan ini bukan
+ *  status yang berubah-ubah selama sesi, jadi tidak perlu jam berjalan. */
+function airGreeting() {
+    const hour = new Date().getHours();
+    const time = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    const firstName = AIR_USER_NAME.trim().split(/\s+/)[0] || '';
+
+    return firstName ? `${time}, ${firstName}` : time;
+}
 
 function airEnsureConversationId() {
     if (airConversationId) return airConversationId;
@@ -510,7 +522,7 @@ function airAutoGrow(el) {
     const near = !over && len >= AIR_MAX_CHARS * 0.9;
 
     const counter = document.getElementById('airCounter');
-    counter.textContent = len + ' / ' + AIR_MAX_CHARS + (over ? ' — too long' : '');
+    counter.textContent = len + ' / ' + AIR_MAX_CHARS + (over ? ' (too long)' : '');
     counter.classList.toggle('text-red-600', over);
     counter.classList.toggle('font-semibold', over || near);
     counter.classList.toggle('text-amber-600', near);
@@ -525,13 +537,6 @@ function airOnKeydown(e) {
         e.preventDefault();
         airSend();
     }
-}
-
-function airUseSuggestion(text) {
-    const input = document.getElementById('airInput');
-    input.value = text;
-    input.focus();
-    airAutoGrow(input);
 }
 
 /* ── Lampiran ──────────────────────────────────────────────────────────── */
@@ -560,7 +565,7 @@ function airAddFiles(files) {
     if (tooBig.length > 0) {
         incoming = incoming.filter(f => f.size <= AIR_MAX_FILE_MB * 1024 * 1024);
         showToast(
-            tooBig.map(f => f.name).join(', ') + ' — larger than ' + AIR_MAX_FILE_MB + ' MB, skipped.',
+            tooBig.map(f => f.name).join(', ') + ': larger than ' + AIR_MAX_FILE_MB + ' MB, skipped.',
             'warning',
         );
     }
@@ -585,7 +590,7 @@ function airAddFiles(files) {
 
     if (skipped.length > 0) {
         showToast(
-            skipped.join(', ') + ' — this message would exceed ' + AIR_MAX_TOTAL_MB
+            skipped.join(', ') + ': this message would exceed ' + AIR_MAX_TOTAL_MB
                 + ' MB in total. Send them in a separate message.',
             'warning',
         );
@@ -752,7 +757,7 @@ function airAddPastedText(text) {
     const id = 'paste' + (++airPasteSeq) + '-' + Date.now();
 
     if (text.length > AIR_TEXT_MAX_CHARS) {
-        showToast('That paste is very large — only the first '
+        showToast('That paste is very large, so only the first '
             + AIR_TEXT_MAX_CHARS.toLocaleString() + ' characters will be sent.', 'warning');
     }
 
@@ -1618,6 +1623,7 @@ function airResetThread() {
 
     const input = document.getElementById('airInput');
     input.value = '';
+    input.placeholder = airRandomPlaceholder();
     airAutoGrow(input);
 }
 
@@ -1790,10 +1796,10 @@ async function airDeleteConversation(id, title) {
  */
 function airAppendMemoryDivider() {
     document.getElementById('airMessages').insertAdjacentHTML('beforeend', `
-        <div class="flex items-center gap-2 py-1" title="Older messages are still readable here — the assistant just no longer has them in context.">
+        <div class="flex items-center gap-2 py-1" title="Older messages are still readable here; the assistant just no longer has them in context.">
             <span class="flex-1 h-px bg-gray-200"></span>
             <span class="text-[10px] text-gray-400 px-1 text-center leading-snug">
-                The assistant remembers the conversation from here on — earlier messages and any images are no longer in its context
+                The assistant remembers the conversation from here on; earlier messages and any images are no longer in its context
             </span>
             <span class="flex-1 h-px bg-gray-200"></span>
         </div>
@@ -1805,7 +1811,7 @@ function airAppendUserStored(text, attachmentCount, at) {
     const note = attachmentCount > 0 ? `
         <div class="flex items-center gap-1.5 justify-end ${text ? 'mt-2' : ''} text-[10px] text-white/70">
             <i class="fas fa-paperclip text-[9px]"></i>
-            ${attachmentCount} attachment${attachmentCount > 1 ? 's' : ''} — not kept in history
+            ${attachmentCount} attachment${attachmentCount > 1 ? 's' : ''} (not kept in history)
         </div>` : '';
 
     const body = text ? `<p class="whitespace-pre-wrap break-words">${airEsc(text)}</p>` : '';
@@ -1855,7 +1861,9 @@ function airCloseHistoryDrawer() {
 
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('airInput');
+    input.placeholder = airRandomPlaceholder();
     airAutoGrow(input);
+    document.getElementById('airGreeting').textContent = airGreeting();
     input.focus();
 
     airLoadHistory();

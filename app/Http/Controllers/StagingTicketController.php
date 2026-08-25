@@ -56,7 +56,13 @@ class StagingTicketController extends Controller
             'name'      => $ds->name . ($ds->type ? ' (' . $ds->type . ')' : ''),
         ])->values();
 
-        return view('staging.index', compact('user', 'deliverySupports', 'deliverySupportsJson'));
+        $ticketClassification = [
+            'types' => \App\Support\TicketClassification::TYPES,
+            'priorities' => \App\Support\TicketClassification::PRIORITIES,
+            'scales' => \App\Support\TicketClassification::SCALES,
+        ];
+
+        return view('staging.index', compact('user', 'deliverySupports', 'deliverySupportsJson', 'ticketClassification'));
     }
 
     /**
@@ -321,9 +327,9 @@ class StagingTicketController extends Controller
         }
 
         $request->validate([
-            'ticket_type'         => 'required|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
-            'ticket_priority'     => 'required|string|in:Very High,High,Medium,Low',
-            'scale'               => 'nullable|string|max:50',
+            'ticket_type'         => 'required|string|in:' . implode(',', \App\Support\TicketClassification::TYPES),
+            'ticket_priority'     => 'required|string|in:' . implode(',', \App\Support\TicketClassification::PRIORITIES),
+            'scale'               => 'nullable|string|in:' . implode(',', \App\Support\TicketClassification::SCALES),
             'name'                => 'nullable|string|max:255',
             'no_hp'               => 'nullable|string|max:255',
             'module'              => 'nullable|string|max:255',
@@ -452,6 +458,158 @@ class StagingTicketController extends Controller
                 'message' => 'Failed to validate ticket',
             ], 500);
         }
+    }
+
+    // ─── API: AI ticket analysis ──────────────────────────────────────────────
+
+    /**
+     * POST /api/staging-tickets/{id}/analyze
+     * Analisa AI (skill "sap-ticket-analyzer") untuk bantu validasi: overview,
+     * dugaan akar masalah, saran klasifikasi, dan saran assignee.
+     *
+     * Dipanggil OTOMATIS oleh frontend begitu admin membuka satu staging
+     * ticket unvalidated (bukan tombol manual) — dan HANYA BOLEH benar-benar
+     * memanggil AI TEPAT SEKALI seumur hidup tiket itu, tidak ada re-analyze.
+     * Itu ditegakkan lewat klaim atomic di kolom ai_analysis_status: baris ini
+     * cuma sukses meng-update kalau statusnya masih NULL, jadi walau dua admin
+     * buka tiket yang sama bersamaan (atau frontend keliru memanggil dua kali),
+     * cuma satu yang benar-benar sampai memanggil provider AI.
+     */
+    public function analyze(Request $request, $id, \App\Services\Ai\AiTicketAnalyzerService $analyzer)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $roleId = $sessionUser['role']['id'];
+        if (!in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $staging = StagingTicket::findOrFail($id);
+
+        if ($staging->isProcessed()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ticket sudah divalidasi/ditolak, analisa tidak relevan lagi.',
+            ], 422);
+        }
+
+        $claimed = StagingTicket::where('id', $id)
+            ->whereNull('ai_analysis_status')
+            ->update(['ai_analysis_status' => 'pending']);
+
+        if (!$claimed) {
+            // Sudah pernah diklaim sebelumnya (oleh request ini sendiri yang
+            // dipanggil dobel, request lain yang sedang berjalan, atau memang
+            // sudah selesai/gagal permanen) — jangan panggil AI lagi, cukup
+            // laporkan state yang ada sekarang.
+            $staging->refresh();
+
+            if ('completed' === $staging->ai_analysis_status && $staging->ai_analysis) {
+                return response()->json(['success' => true, 'data' => $staging->ai_analysis]);
+            }
+
+            if ('pending' === $staging->ai_analysis_status) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Analisa AI untuk tiket ini sedang berjalan, mohon tunggu.',
+                    'status'  => 'pending',
+                ], 409);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Analisa AI untuk tiket ini sudah pernah dicoba dan gagal — tidak bisa diulang otomatis. Silakan isi klasifikasi secara manual.',
+                'status'  => 'failed',
+            ], 409);
+        }
+
+        // Agent Skill via code-execution container bisa makan waktu beberapa menit
+        // (provisioning container + Claude baca file skill + reasoning effort tinggi)
+        // — jauh di atas 60s yang tadinya dipasang di sini, yang bikin PHP fatal
+        // duluan sebelum respons Anthropic sempat balik. Dibatasi 630s (bukan
+        // unlimited) supaya selaras dengan timeout HTTP client di
+        // AppServiceProvider (600s) — kalau Guzzle-nya sendiri gagal timeout
+        // karena sebab lain, PHP tetap punya batas keras dan tidak menggantung
+        // worker selamanya.
+        set_time_limit(630);
+
+        try {
+            $result = $analyzer->analyze(
+                staging: $staging,
+                actorId: (int) $sessionUser['id'],
+                actorRoleId: $roleId,
+                actorName: $sessionUser['name'] ?? null,
+            );
+
+            return response()->json(['success' => true, 'data' => $result]);
+        } catch (\Anthropic\Core\Exceptions\AuthenticationException |
+                 \Anthropic\Core\Exceptions\PermissionDeniedException |
+                 \Anthropic\Core\Exceptions\BadRequestException |
+                 \Anthropic\Core\Exceptions\NotFoundException $e) {
+            // Konfigurasi/kredit/otentikasi bermasalah di sisi provider — mencoba
+            // lagi TIDAK akan membantu sampai penyebabnya dibenahi (mis. saldo
+            // Anthropic/OpenAI habis, API key dicabut, skill ID salah). Dibedakan
+            // dari error transient di bawah supaya pesannya tidak menyesatkan
+            // admin dengan "coba lagi" padahal percuma, dan supaya log-nya bisa
+            // dipantau/di-alert terpisah dari sekadar gangguan jaringan sesaat.
+            return $this->analyzeFailureResponse($id, $e, retryable: false);
+        } catch (\OpenAI\Exceptions\ErrorException $e) {
+            $retryable = !in_array($e->getStatusCode(), [400, 401, 403, 404], true);
+
+            return $this->analyzeFailureResponse($id, $e, retryable: $retryable);
+        } catch (\Anthropic\Core\Exceptions\RateLimitException |
+                 \Anthropic\Core\Exceptions\InternalServerException |
+                 \Anthropic\Core\Exceptions\APIConnectionException |
+                 \OpenAI\Exceptions\RateLimitException |
+                 \OpenAI\Exceptions\ServerException |
+                 \OpenAI\Exceptions\TransporterException $e) {
+            // Rate limit / server sibuk / koneksi terputus — genuinely transient,
+            // retry (termasuk retry otomatis bawaan SDK) punya peluang berhasil.
+            return $this->analyzeFailureResponse($id, $e, retryable: true);
+        } catch (\RuntimeException $e) {
+            // Guard rail internal AiTicketAnalyzerService sendiri (skill ID belum
+            // diisi di .env, atau jawaban AI gagal di-parse sebagai JSON valid) —
+            // bukan outage provider, tapi tetap bukan sesuatu yang pasti akan
+            // beda hasilnya kalau di-retry begitu saja.
+            return $this->analyzeFailureResponse($id, $e, retryable: true);
+        } catch (\Throwable $e) {
+            return $this->analyzeFailureResponse($id, $e, retryable: true);
+        }
+    }
+
+    /**
+     * Satu titik keluar untuk semua kegagalan analyze() — menandai
+     * ai_analysis_status='failed' (permanen, tidak ada re-analyze), lalu log
+     * level & pesan diagnostik dibedakan berdasarkan apakah penyebabnya
+     * genuinely transient ($retryable, buat dipantau ops — bukan buat user
+     * mencoba lagi, karena jalur retry-nya sudah tidak ada) atau butuh campur
+     * tangan admin sistem (billing/config). Pesan yang dilihat admin yang lagi
+     * validasi tiket TETAP sama di kedua kasus: analisa gagal, isi manual.
+     */
+    private function analyzeFailureResponse(int|string $stagingId, \Throwable $e, bool $retryable)
+    {
+        StagingTicket::where('id', $stagingId)->update(['ai_analysis_status' => 'failed']);
+
+        $context = [
+            'staging_id' => $stagingId,
+            'exception'  => get_class($e),
+            'error'      => $e->getMessage(),
+        ];
+
+        if (!$retryable) {
+            Log::critical('StagingTicketController@analyze: non-retryable AI provider error', $context);
+        } else {
+            Log::error('StagingTicketController@analyze: failed to analyze (transient)', $context);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Analisa AI untuk tiket ini gagal dan tidak bisa diulang otomatis. Silakan isi klasifikasi (Type/Priority/Scale/Module) secara manual.',
+            'status'  => 'failed',
+        ], $retryable ? 503 : 502);
     }
 
     // ─── API: Admin reject ────────────────────────────────────────────────────
@@ -1545,6 +1703,10 @@ class StagingTicketController extends Controller
             'no_hp'               => $s->no_hp,
             'module'              => $s->module,
             'client'              => $s->client,
+            // Analisa AI (cache — lihat AiTicketAnalyzerService)
+            'ai_analysis'              => $s->ai_analysis,
+            'ai_analysis_generated_at' => $s->ai_analysis_generated_at?->toIso8601String(),
+            'ai_analysis_status'       => $s->ai_analysis_status,
         ];
     }
 }

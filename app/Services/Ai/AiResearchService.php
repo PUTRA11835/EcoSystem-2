@@ -2,13 +2,9 @@
 
 namespace App\Services\Ai;
 
-use Anthropic\Client;
-use Anthropic\Lib\Streaming\MessageAccumulator;
-use Anthropic\Messages\TextDelta;
-use Anthropic\Messages\WebFetchTool20260209;
-use Anthropic\Messages\WebSearchTool20260209;
 use App\Models\AiConversation;
 use App\Models\Employee;
+use App\Services\Ai\Drivers\AiDriverFactory;
 use App\Support\AiModelSettings;
 use App\Support\AiTextAttachment;
 use Closure;
@@ -22,12 +18,16 @@ use Throwable;
  *
  * Bedanya dengan AiChatService:
  *   - AiChatService  : tool lokal (get_tickets, get_sla_summary, …) → data internal.
- *   - AiResearchService : tool SERVER-SIDE Anthropic (web_search, web_fetch) →
- *     pencarian internet. Tidak ada tool loop di sisi kita: pencarian dijalankan
- *     di infrastruktur Anthropic dan hasilnya sudah ikut dalam response yang sama.
+ *   - AiResearchService : tool SERVER-SIDE milik provider (web_search/web_fetch
+ *     Anthropic, atau `web_search` bawaan Responses API OpenAI — lihat
+ *     ResearchDriver/AiDriverFactory) → pencarian internet. Tidak ada tool loop
+ *     di sisi kita: pencarian dijalankan di infrastruktur provider dan hasilnya
+ *     sudah ikut dalam response yang sama.
  *
- * Karena itu satu-satunya alasan kita mengulang request adalah stopReason
- * 'pause_turn' (model menjeda giliran panjang dan minta dilanjutkan).
+ * Di sisi kita, satu-satunya alasan mengulang request adalah plafon max_tokens
+ * (lihat loop di streamReply()) — kelanjutan Claude 'pause_turn' tidak punya
+ * padanan di provider lain dan sepenuhnya ditangani di dalam driver-nya sendiri,
+ * tidak pernah terlihat sampai ke sini (lihat ResearchDriver's docblock).
  *
  * Sama seperti AiChatService, isi percakapan TIDAK PERNAH masuk database —
  * hanya cache 'ai_chat' dengan TTL 12 jam (lihat CACHE_TTL_MINUTES).
@@ -69,16 +69,14 @@ class AiResearchService
      */
     public const ARCHIVE_CONTEXT_MESSAGES = 20;
 
-    /** Batas berapa kali 'pause_turn' boleh dilanjutkan dalam satu giliran. */
-    private const MAX_PAUSE_RESUMES = 4;
-
     /**
      * Batas berapa kali jawaban yang kena plafon 'max_tokens' boleh disambung.
      *
-     * Berbeda dari pause_turn: di sini modelnya TIDAK menjeda diri, tapi
-     * dipotong paksa di tengah kalimat karena max_tokens habis. Tanpa
-     * penanganan, jawaban berhenti begitu saja ("**3. lo_alv->display( ) dipan")
-     * dan user tidak diberi tahu apa pun.
+     * Berbeda dari pause_turn Claude (yang kini ditangani sepenuhnya di dalam
+     * ResearchDriver): di sini modelnya TIDAK menjeda diri, tapi dipotong
+     * paksa di tengah kalimat karena max_tokens habis. Tanpa penanganan,
+     * jawaban berhenti begitu saja ("**3. lo_alv->display( ) dipan") dan user
+     * tidak diberi tahu apa pun.
      */
     private const MAX_LENGTH_RESUMES = 3;
 
@@ -90,10 +88,7 @@ class AiResearchService
      */
     private const CONTINUE_MARKER = '[[continue]] ';
 
-    /** Batas pemakaian tiap server tool per request (biaya + waktu tunggu). */
-    private const MAX_WEB_USES = 6;
-
-    public function __construct(private Client $client)
+    public function __construct(private AiDriverFactory $drivers)
     {
     }
 
@@ -169,7 +164,11 @@ class AiResearchService
         // sebenarnya berlaku supaya cache dan arsip tidak mencatat tier palsu.
         $modelTier = $config['tier'];
 
-        $pauseResumes = 0;
+        // Loop 'pause_turn' Claude sekarang sepenuhnya di dalam driver (lihat
+        // ResearchDriver::ask()) — resend-nya butuh blok server-tool mentah yang
+        // tidak pernah keluar dari driver. Yang tersisa di sini cuma plafon
+        // max_tokens, yang MEMANG harus tampak ke user (tombol Continue).
+        $driver = $this->drivers->research($config['provider']);
         $lengthResumes = 0;
         $turnSources = [];
 
@@ -178,49 +177,24 @@ class AiResearchService
                 return;
             }
 
-            $stream = $this->client->messages->createStream(
-                maxTokens: $config['max_tokens'],
-                messages: $messages,
+            [$assistantContent, $stopReason, $sources] = $driver->ask(
                 model: $model,
-                system: $this->systemPrompt(),
-                thinking: ['type' => 'adaptive'],
-                outputConfig: $config['output_config'],
-                tools: $this->toolDefinitions(),
+                systemPrompt: $this->systemPrompt(),
+                messages: $messages,
+                maxTokens: $config['max_tokens'],
+                effort: $config['effort'],
+                onDelta: $onDelta,
+                onEvent: $onEvent,
+                isAborted: $isAborted,
             );
 
-            // MessageAccumulator melipat event stream kembali menjadi Message utuh.
-            // Ini penting di sini: blok hasil server tool (web_search_tool_result)
-            // harus dikirim balik apa adanya pada giliran berikutnya, dan menyusunnya
-            // manual dari event mentah rapuh — biarkan SDK yang mengerjakan.
-            $accumulator = MessageAccumulator::forMessages();
-            $aborted = false;
-
-            foreach ($stream as $event) {
-                if ($isAborted()) {
-                    $stream->close();
-                    $aborted = true;
-                    break;
-                }
-
-                $accumulator->accumulate($event);
-                $this->emitProgress($event, $onDelta, $onEvent);
-            }
-
-            if ($aborted) {
+            if (null === $assistantContent) {
+                // Aborted mid-stream.
                 return;
             }
 
-            $message = $accumulator->message();
-
-            // Objek SDK apa adanya — HANYA hidup di memori selama request ini.
-            // Untuk melanjutkan 'pause_turn', giliran assistant harus dikirim
-            // balik utuh, dan objek aslinya adalah bentuk paling setia: tidak
-            // ada round-trip JSON yang bisa merusaknya. Yang masuk cache adalah
-            // hasil toHistory(), bukan ini — lihat catatan di sana.
-            $messages[] = ['role' => 'assistant', 'content' => $message->content];
-            $turnSources = $this->emitSources($message, $onEvent, $turnSources);
-
-            $stopReason = $message->stopReason;
+            $messages[] = ['role' => 'assistant', 'content' => $assistantContent];
+            $turnSources = $this->mergeSources($turnSources, $sources, $onEvent);
 
             // Jawaban kena plafon max_tokens: terpotong PAKSA di tengah kalimat.
             // Sambung dengan giliran user baru — bukan prefill assistant, karena
@@ -250,22 +224,7 @@ class AiResearchService
                 continue;
             }
 
-            if ('pause_turn' !== $stopReason) {
-                break;
-            }
-
-            if (++$pauseResumes > self::MAX_PAUSE_RESUMES) {
-                $onEvent('notice', [
-                    'kind' => 'search_limit',
-                    'title' => 'The search ran longer than one turn allows',
-                    'text' => 'This lookup paused ' . self::MAX_PAUSE_RESUMES . ' times and still is not finished, '
-                        . 'so it was stopped here. Continue to let it carry on, or narrow the question.',
-                    'can_continue' => true,
-                ]);
-                break;
-            }
-
-            $onEvent('status', ['label' => 'Resuming the search…']);
+            break;
         }
 
         Cache::store(self::CACHE_STORE)->put($cacheKey, [
@@ -714,71 +673,22 @@ class AiResearchService
             ->where('conversation_id', $conversationId)
             ->first();
     }
-    private function emitProgress(object $event, Closure $onDelta, Closure $onEvent): void
-    {
-        switch ($event->type) {
-            case 'content_block_start':
-                $block = $event->contentBlock;
-
-                switch ($block->type ?? '') {
-                    // Label berbahasa Inggris, sama seperti seluruh halaman ini.
-                    // Sebelumnya campur: UI Inggris, baris progresnya Indonesia.
-                    case 'server_tool_use':
-                        $onEvent('status', ['label' => 'web_fetch' === ($block->name ?? '')
-                            ? 'Opening the source page…'
-                            : 'Searching the web…']);
-                        break;
-
-                    case 'web_search_tool_result':
-                    case 'web_fetch_tool_result':
-                        $onEvent('status', ['label' => 'Reading the results…']);
-                        break;
-                }
-                break;
-
-            case 'content_block_delta':
-                $delta = $event->delta;
-                if ($delta instanceof TextDelta) {
-                    $onDelta($delta->text);
-                }
-                break;
-        }
-    }
-
     /**
-     * Kumpulkan URL sumber dari blok hasil server tool supaya UI bisa
-     * menampilkannya sebagai daftar rujukan di bawah jawaban.
+     * Gabungkan sumber BARU dari giliran ini (sudah diberikan driver, per
+     * ResearchDriver::ask()) ke akumulator lintas-giliran milik streamReply(),
+     * lalu pancarkan daftar lengkapnya ke UI. Dedup lintas giliran adalah
+     * tanggung jawab DI SINI, bukan driver — driver hanya tahu satu giliran.
      *
-     * Catatan bentuk data: pada web_search, `content` berisi ARRAY hasil saat
-     * sukses, tapi berubah jadi OBJEK error (mis. max_uses_exceeded) saat gagal —
-     * server tool tidak melempar exception, errornya ikut di body 200.
+     * @param array<string, array{url: string, title: string}> $sources akumulator, dikunci per URL
+     * @param array<int, array{url: string, title: string}> $newSources sumber giliran ini
+     * @return array<string, array{url: string, title: string}>
      */
-    private function emitSources(object $message, Closure $onEvent, array $sources = []): array
+    private function mergeSources(array $sources, array $newSources, Closure $onEvent): array
     {
-
-        foreach ($message->content as $block) {
-            switch ($block->type ?? '') {
-                case 'web_search_tool_result':
-                    $results = $block->content ?? null;
-                    if (!is_array($results)) {
-                        break; // objek error, bukan daftar hasil
-                    }
-
-                    foreach ($results as $result) {
-                        $url = $result->url ?? null;
-                        if ($url) {
-                            $sources[$url] = ['url' => $url, 'title' => ($result->title ?? null) ?: $url];
-                        }
-                    }
-                    break;
-
-                case 'web_fetch_tool_result':
-                    $result = $block->content ?? null;
-                    $url = is_object($result) ? ($result->url ?? null) : null;
-                    if ($url) {
-                        $sources[$url] = ['url' => $url, 'title' => $sources[$url]['title'] ?? $url];
-                    }
-                    break;
+        foreach ($newSources as $item) {
+            $url = $item['url'] ?? null;
+            if ($url) {
+                $sources[$url] = ['url' => $url, 'title' => $item['title'] ?? $url];
             }
         }
 
@@ -787,33 +697,6 @@ class AiResearchService
         }
 
         return $sources;
-    }
-
-    /**
-     * Server tool milik Anthropic — dieksekusi di sisi mereka, kita cukup
-     * mendeklarasikannya. Varian _20260209 (dynamic filtering) butuh model
-     * Sonnet 5 / Opus 5 ke atas; itulah kenapa tier "cepat" (Haiku) tidak
-     * ditawarkan di halaman ini.
-     *
-     * Sengaja memakai kelas typed, bukan array biasa: ToolUnion di SDK adalah
-     * union TANPA discriminator — array polos dicocokkan ke varian pertama yang
-     * "muat", dan Tool (tool buatan sendiri) ada di urutan pertama.
-     *
-     * citations pada web_fetch sengaja TIDAK diaktifkan. Kutipan wajib berupa
-     * potongan HARFIAH dari halaman sumber — dan sumbernya hampir selalu bahasa
-     * Inggris, sehingga fiturnya justru mendorong kalimat Inggris mentah masuk
-     * ke jawaban berbahasa Indonesia ("The return value has the type i…").
-     * Daftar rujukan tetap ada: kita menyusunnya sendiri di emitSources() dari
-     * URL blok hasil, tanpa bergantung pada citations.
-     *
-     * @return array<int, object>
-     */
-    private function toolDefinitions(): array
-    {
-        return [
-            WebSearchTool20260209::with(maxUses: self::MAX_WEB_USES),
-            WebFetchTool20260209::with(maxUses: self::MAX_WEB_USES),
-        ];
     }
 
     /**
@@ -868,7 +751,10 @@ class AiResearchService
      * plafon yang terlalu rendah membuat jawaban teknis panjang "putus".
      * Semua request di sini streaming, jadi angka besar tidak berisiko timeout.
      *
-     * @return array{0: string, 1: array{tier: string, max_tokens: int, output_config: ?array}}
+     * effort dilewatkan APA ADANYA — driver yang dipilih lewat 'provider' yang
+     * tahu cara menerjemahkannya ke parameter API-nya sendiri.
+     *
+     * @return array{0: string, 1: array{tier: string, provider: string, max_tokens: int, effort: ?string}}
      */
     private function modelConfigFor(string $tier): array
     {
@@ -876,10 +762,9 @@ class AiResearchService
 
         return [$active['model'], [
             'tier' => $active['tier'],
+            'provider' => $active['provider'],
             'max_tokens' => $active['max_tokens'],
-            // effort null = admin mematikannya. outputConfig harus jadi null utuh,
-            // bukan ['effort' => null] — API menolak nilai effort kosong.
-            'output_config' => $active['effort'] ? ['effort' => $active['effort']] : null,
+            'effort' => $active['effort'],
         ]];
     }
 

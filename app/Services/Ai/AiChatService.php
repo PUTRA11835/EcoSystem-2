@@ -2,11 +2,8 @@
 
 namespace App\Services\Ai;
 
-use Anthropic\Client;
-use Anthropic\Messages\InputJSONDelta;
-use Anthropic\Messages\TextDelta;
-use Anthropic\Messages\ToolUseBlock;
 use App\Models\Employee;
+use App\Services\Ai\Drivers\AiDriverFactory;
 use App\Support\AiModelSettings;
 use App\Support\AiTextAttachment;
 use App\Services\Ai\Tools\AggregateDataTool;
@@ -24,8 +21,9 @@ use Throwable;
 
 /**
  * Orchestrates one assistant turn: loads/saves ephemeral conversation state
- * from cache, drives the Claude tool-use loop, and streams text deltas back
- * to the caller as they arrive.
+ * from cache, drives the model's tool-use loop (via a ChatDriver picked per
+ * AiModelSettings' active provider — see AiDriverFactory), and streams text
+ * deltas back to the caller as they arrive.
  *
  * No conversation content is ever written to the database — state lives only
  * in the 'ai_chat' cache store for a sliding 1-hour window (see cacheKey()).
@@ -42,7 +40,7 @@ class AiChatService
     /** @var array<string, AiTool> */
     private array $tools;
 
-    public function __construct(private Client $client, SlaService $slaService)
+    public function __construct(private AiDriverFactory $drivers, SlaService $slaService)
     {
         $this->tools = [
             'get_tickets' => new GetTicketsTool(),
@@ -83,6 +81,7 @@ class AiChatService
         // Tier yang dipakai ditentukan admin, bukan request.
         $modelTier = $config['tier'];
 
+        $driver = $this->drivers->chat($config['provider']);
         $iterations = 0;
 
         while (true) {
@@ -95,17 +94,16 @@ class AiChatService
                 break;
             }
 
-            $stream = $this->client->messages->createStream(
-                maxTokens: $config['max_tokens'],
-                messages: $messages,
+            [$assistantContent, $toolUseBlocks, $stopReason] = $driver->turn(
                 model: $model,
-                system: $this->systemPrompt(),
-                thinking: $config['thinking'],
-                outputConfig: $config['output_config'],
+                systemPrompt: $this->systemPrompt(),
+                messages: $messages,
                 tools: $this->toolDefinitions(),
+                maxTokens: $config['max_tokens'],
+                effort: $config['effort'],
+                onDelta: $onDelta,
+                isAborted: $isAborted,
             );
-
-            [$assistantContent, $toolUseBlocks, $stopReason] = $this->consumeStream($stream, $onDelta, $isAborted);
 
             if (null === $assistantContent) {
                 // Aborted mid-stream.
@@ -126,81 +124,6 @@ class AiChatService
             'model_tier' => $modelTier,
             'updated_at' => now()->toIso8601String(),
         ], now()->addMinutes(self::CACHE_TTL_MINUTES));
-    }
-
-    /**
-     * Consume one model turn's stream: forward text deltas via $onDelta and
-     * reassemble the full assistant content-block array (including tool_use
-     * blocks, whose input arrives as incremental JSON deltas).
-     *
-     * @return array{0: ?array<int, array<string, mixed>>, 1: array<int, array<string, mixed>>, 2: ?string}
-     */
-    private function consumeStream($stream, Closure $onDelta, Closure $isAborted): array
-    {
-        /** @var array<int, array<string, mixed>> $blocks */
-        $blocks = [];
-        $stopReason = null;
-
-        foreach ($stream as $event) {
-            if ($isAborted()) {
-                $stream->close();
-
-                return [null, [], null];
-            }
-
-            switch ($event->type) {
-                case 'content_block_start':
-                    $block = $event->contentBlock;
-                    $blocks[$event->index] = $block instanceof ToolUseBlock
-                        ? ['type' => 'tool_use', 'id' => $block->id, 'name' => $block->name, 'input_json' => '']
-                        : ['type' => 'text', 'text' => ''];
-                    break;
-
-                case 'content_block_delta':
-                    $delta = $event->delta;
-                    if ($delta instanceof TextDelta) {
-                        $blocks[$event->index]['text'] .= $delta->text;
-                        $onDelta($delta->text);
-                    } elseif ($delta instanceof InputJSONDelta) {
-                        $blocks[$event->index]['input_json'] .= $delta->partialJSON;
-                    }
-                    break;
-
-                case 'message_delta':
-                    $stopReason = $event->delta->stopReason;
-                    break;
-
-                case 'message_stop':
-                    break 2;
-            }
-        }
-
-        ksort($blocks);
-
-        $assistantContent = [];
-        $toolUseBlocks = [];
-
-        foreach ($blocks as $block) {
-            if ('text' === $block['type']) {
-                if ('' !== $block['text']) {
-                    $assistantContent[] = ['type' => 'text', 'text' => $block['text']];
-                }
-
-                continue;
-            }
-
-            $input = json_decode($block['input_json'], true);
-            $toolUseBlock = [
-                'type' => 'tool_use',
-                'id' => $block['id'],
-                'name' => $block['name'],
-                'input' => is_array($input) ? $input : [],
-            ];
-            $assistantContent[] = $toolUseBlock;
-            $toolUseBlocks[] = $toolUseBlock;
-        }
-
-        return [$assistantContent, $toolUseBlocks, $stopReason];
     }
 
     /**
@@ -298,11 +221,12 @@ class AiChatService
      * supaya yang tercatat di cache adalah tier itu, bukan 'default' bawaan
      * request.
      *
-     * effort dan thinking bergerak bersama: model yang tidak menerima effort
-     * (Haiku 4.5 menolaknya, bukan mengabaikannya) juga tidak dikirimi blok
-     * thinking adaptif — kombinasinya sudah dijamin AiModelSettings.
+     * effort dilewatkan APA ADANYA (string mentah atau null) — driver yang
+     * dipilih lewat 'provider' yang tahu cara menerjemahkannya ke parameter
+     * API-nya sendiri (thinking+output_config di Anthropic, reasoning.effort
+     * di OpenAI); lihat AnthropicChatDriver/OpenAiChatDriver.
      *
-     * @return array{0: string, 1: array{tier: string, max_tokens: int, thinking: ?array, output_config: ?array}}
+     * @return array{0: string, 1: array{tier: string, provider: string, max_tokens: int, effort: ?string}}
      */
     private function modelConfigFor(string $tier): array
     {
@@ -310,9 +234,9 @@ class AiChatService
 
         return [$active['model'], [
             'tier' => $active['tier'],
+            'provider' => $active['provider'],
             'max_tokens' => $active['max_tokens'],
-            'thinking' => $active['effort'] ? ['type' => 'adaptive'] : null,
-            'output_config' => $active['effort'] ? ['effort' => $active['effort']] : null,
+            'effort' => $active['effort'],
         ]];
     }
 

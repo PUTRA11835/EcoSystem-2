@@ -98,18 +98,18 @@
         {{-- Thread --}}
         <div id="aiThread" class="flex-1 overflow-y-auto ai-scroll px-4 sm:px-6 py-5">
 
-            {{-- Empty state --}}
+            {{-- Empty state: sapaan singkat saja, bukan daftar topik. Nama diambil
+                 dari sesi (pola yang sama dipakai dashboard.blade.php), waktu
+                 harinya dihitung di klien lewat aiGreeting() supaya mengikuti jam
+                 lokal browser, bukan zona waktu server. --}}
             <div id="aiEmptyState" class="min-h-full flex flex-col items-center justify-center py-6 text-center">
                 <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white mb-4">
                     <i class="fas fa-wand-magic-sparkles text-lg"></i>
                 </div>
-                <h3 class="text-base font-bold text-gray-900">How can I help you today?</h3>
-                <p class="text-xs text-gray-500 mt-1 max-w-md">
-                    Ask about tickets, projects, or delivery data. Attach a document and I can summarize it for you.
+                <h3 id="aiGreeting" class="text-lg font-bold text-gray-900">Hi</h3>
+                <p class="text-xs text-gray-500 mt-1 max-w-sm">
+                    Ask about tickets, projects, or delivery data, or attach a document to summarize it.
                 </p>
-
-                <p class="text-[10.5px] font-semibold text-gray-400 uppercase tracking-wide mt-6 mb-2.5">Pilih topik supaya lebih spesifik</p>
-                <div id="aiTopics" class="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl text-left"></div>
             </div>
 
             {{-- Pesan disisipkan di sini --}}
@@ -123,7 +123,7 @@
             <div id="aiAttachments" class="hidden flex-wrap gap-2 mb-2.5"></div>
 
             <div class="rounded-2xl border border-gray-200 bg-white focus-within:border-red-400 focus-within:ring-2 focus-within:ring-red-100 transition-all">
-                <textarea id="aiInput" rows="1" placeholder="Send a message…  (Enter to send, Shift + Enter for a new line — long pastes become an attachment)"
+                <textarea id="aiInput" rows="1" placeholder="How can I help you today?"
                           oninput="aiAutoGrow(this)" onkeydown="aiOnKeydown(event)" onpaste="aiOnPaste(event)"
                           class="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm text-gray-800 placeholder-gray-400 focus:outline-none ai-scroll"></textarea>
 
@@ -151,7 +151,7 @@
             </div>
 
             <p class="mt-2 text-[10px] text-gray-400 text-center">
-                Responses may be inaccurate — always verify important information before acting on it.
+                Responses may be inaccurate, so always verify important information before acting on it.
             </p>
         </div>
     </section>
@@ -216,21 +216,26 @@ let aiFiles     = [];     // File[] yang dipilih untuk pesan berikutnya
 let aiBusy      = false;  // sedang menunggu balasan
 let aiAbort     = null;   // AbortController pembatal request berjalan
 let aiConversationId = null;
-let aiActiveTopic = null; // tag topik yang sedang dipilih di empty state
 
-/* Topik pembuka — dipetakan dari 8 kategori yang assistant sendiri sebutkan
-   saat ditanya "bisa bantu apa saja". Memilih satu menyisipkan "#Tag" di
-   awal pesan supaya pertanyaan lebih spesifik dan gampang ditelusuri. */
-const AI_TOPICS = [
-    { tag: 'TiketSupport',  icon: 'fa-ticket',           label: 'Tiket Support',          desc: 'Status, prioritas & ringkasan tiket' },
-    { tag: 'SLA',           icon: 'fa-clock',             label: 'SLA',                     desc: 'Tenggat, tiket berisiko & kebijakan SLA' },
-    { tag: 'ProyekDelivery',icon: 'fa-diagram-project',   label: 'Proyek Delivery',         desc: 'Progres, jadwal & data finansial proyek' },
-    { tag: 'Mandays',       icon: 'fa-business-time',     label: 'Mandays',                 desc: 'Pengajuan mandays & resolution days' },
-    { tag: 'DataKaryawan',  icon: 'fa-users',             label: 'Data Karyawan/HR',        desc: 'Kepegawaian, divisi & jabatan' },
-    { tag: 'DataCustomer',  icon: 'fa-address-book',      label: 'Data Customer',           desc: 'Informasi terkait pelanggan' },
-    { tag: 'Timesheet',     icon: 'fa-table-list',        label: 'Timesheet & Master Data', desc: 'Timesheet & data referensi lainnya' },
-    { tag: 'DraftBalasan',  icon: 'fa-reply',             label: 'Draft Balasan',           desc: 'Bantuan menulis balasan ke customer' },
+/* Nama user yang login, untuk sapaan di empty state (aiGreeting()). */
+const AI_USER_NAME = @json(session('user.name', ''));
+
+/* Placeholder composer: satu dipilih acak tiap halaman dimuat / chat baru,
+   supaya terasa hidup alih-alih satu kalimat instruksi yang sama terus —
+   pola yang sama seperti composer claude.ai. Instruksi keyboard (Enter/
+   Shift+Enter) sengaja tidak dijejalkan ke sini lagi; itu perilaku standar
+   yang tidak perlu diiklankan di setiap kunjungan. */
+const AI_PLACEHOLDERS = [
+    'How can I help you today?',
+    'Ask about a ticket, project, or SLA…',
+    'What would you like to know?',
+    'Need a summary or a quick answer?',
+    'Ask me anything about EcoSystem…',
 ];
+
+function aiRandomPlaceholder() {
+    return AI_PLACEHOLDERS[Math.floor(Math.random() * AI_PLACEHOLDERS.length)];
+}
 
 /* Tempelan besar: File → metadata chip. WeakMap supaya berkas yang sudah
    dibuang dari aiFiles tidak menahan isinya di memori. */
@@ -275,59 +280,21 @@ function aiOnKeydown(e) {
     }
 }
 
-function aiUseSuggestion(text) {
-    const input = document.getElementById('aiInput');
-    input.value = text;
-    input.focus();
-    aiAutoGrow(input);
-}
-
 function aiNotYet(feature) {
     showToast((feature || 'This feature') + ' is not available yet.', 'warning');
 }
 
-/* ── Topik pembuka ─────────────────────────────────────────────────────── */
+/* ── Sapaan ────────────────────────────────────────────────────────────── */
 
-function aiRenderTopics() {
-    const box = document.getElementById('aiTopics');
-    if (!box) return;
+/** Sapaan berdasar jam LOKAL BROWSER (bukan zona waktu server) + nama depan
+ *  user yang login. Dipanggil sekali saat halaman dimuat: sapaan ini bukan
+ *  status yang berubah-ubah selama sesi, jadi tidak perlu jam berjalan. */
+function aiGreeting() {
+    const hour = new Date().getHours();
+    const time = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    const firstName = AI_USER_NAME.trim().split(/\s+/)[0] || '';
 
-    box.innerHTML = AI_TOPICS.map(t => {
-        const active = aiActiveTopic === t.tag;
-        return `
-        <button type="button" onclick="aiSelectTopic('${t.tag}')"
-                class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all ${active
-                    ? 'border-red-500 bg-red-50 ring-1 ring-red-200'
-                    : 'border-gray-200 bg-white hover:border-red-300 hover:bg-red-50/40'}">
-            <span class="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center ${active ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500'}">
-                <i class="fas ${t.icon} text-xs"></i>
-            </span>
-            <span class="min-w-0">
-                <span class="block text-xs font-semibold ${active ? 'text-red-700' : 'text-gray-800'}">${aiEsc(t.label)}</span>
-                <span class="block text-[10.5px] text-gray-400 truncate">${aiEsc(t.desc)}</span>
-            </span>
-        </button>`;
-    }).join('');
-}
-
-/** Klik topik menyisipkan/mengganti "#Tag" di awal input. Klik ulang topik
- *  yang sama membatalkan pilihannya (hashtag dilepas dari input). */
-function aiSelectTopic(tag) {
-    const input = document.getElementById('aiInput');
-    let value = input.value;
-
-    const current = AI_TOPICS.find(t => value.trimStart().startsWith('#' + t.tag));
-    if (current) {
-        value = value.trimStart().slice(('#' + current.tag).length).trimStart();
-    }
-
-    aiActiveTopic = (aiActiveTopic === tag) ? null : tag;
-    input.value = aiActiveTopic ? `#${aiActiveTopic} ${value}` : value;
-
-    aiRenderTopics();
-    aiAutoGrow(input);
-    input.focus();
-    input.setSelectionRange(input.value.length, input.value.length);
+    return firstName ? `${time}, ${firstName}` : time;
 }
 
 /* ── Lampiran ──────────────────────────────────────────────────────────── */
@@ -346,7 +313,7 @@ function aiAddFiles(files) {
     }
 
     if (files.length > room) {
-        showToast('Only the first ' + room + ' attachment(s) were added — the limit is '
+        showToast('Only the first ' + room + ' attachment(s) were added; the limit is '
             + AI_MAX_FILES + ' per message.', 'warning');
     }
 
@@ -463,7 +430,7 @@ function aiAddPastedText(text) {
     const id = 'paste' + (++aiPasteSeq) + '-' + Date.now();
 
     if (text.length > AI_TEXT_MAX_CHARS) {
-        showToast('That paste is very large — only the first '
+        showToast('That paste is very large, so only the first '
             + AI_TEXT_MAX_CHARS.toLocaleString() + ' characters will be sent.', 'warning');
     }
 
@@ -712,8 +679,6 @@ function aiSend() {
     aiRenderAttachments();
     aiAutoGrow(input);
 
-    aiActiveTopic = null;
-
     aiSetBusy(true);
     const pendingId = aiAppendAssistantPending();
 
@@ -828,26 +793,26 @@ function aiNewChat() {
     aiRenderAttachments();
 
     // Bubble yang memegang id-nya sudah ikut terhapus di atas, jadi isi
-    // tempelan lama tidak lagi bisa dibuka — jangan ditahan di memori.
+    // tempelan lama tidak lagi bisa dibuka; jangan ditahan di memori.
     Object.keys(aiPasteById).forEach(id => delete aiPasteById[id]);
-    aiActiveTopic = null;
-    aiRenderTopics();
 
-    // Start a fresh conversation — the backend's cached context for the old
+    // Start a fresh conversation; the backend's cached context for the old
     // id is simply left to expire, nothing to explicitly tear down.
     aiConversationId = null;
     sessionStorage.removeItem(AI_CONVERSATION_STORAGE_KEY);
 
     const input = document.getElementById('aiInput');
     input.value = '';
+    input.placeholder = aiRandomPlaceholder();
     aiAutoGrow(input);
     input.focus();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('aiInput');
+    input.placeholder = aiRandomPlaceholder();
     aiAutoGrow(input);
-    aiRenderTopics();
+    document.getElementById('aiGreeting').textContent = aiGreeting();
     input.focus();
 });
 </script>

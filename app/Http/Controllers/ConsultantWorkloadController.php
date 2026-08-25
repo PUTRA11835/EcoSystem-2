@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 
 class ConsultantWorkloadController extends Controller
 {
-    private const ACTIVE_STATUSES = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
+    public const ACTIVE_STATUSES = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
 
     public function index()
     {
