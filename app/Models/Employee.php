@@ -100,7 +100,6 @@ class Employee extends Model
         $essSlugs = [
             'general.my-attendance',
             'my-leave-permit',
-            'hr_general.leave_permit',
             'general.my-overtime',
             'general.my-reimbursement',
             'profile.my',
@@ -160,7 +159,6 @@ class Employee extends Model
         $essDefaults = [
             'general.my-attendance',
             'my-leave-permit',
-            'hr_general.leave_permit',
             'general.my-overtime',
             'general.my-reimbursement',
             'profile.my',
