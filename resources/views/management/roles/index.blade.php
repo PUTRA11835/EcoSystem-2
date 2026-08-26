@@ -119,6 +119,12 @@
             </button>
         </div>
 
+        <!-- Info Banner -->
+        <div class="px-6 py-2 bg-blue-50 border-b border-blue-100 text-xs text-blue-800 flex items-center gap-2 flex-shrink-0">
+            <i class="fas fa-info-circle text-blue-600"></i>
+            <span><strong>Global ESS Policy:</strong> ESS menu items are available to all employees by default and excluded from role revocation. Use Role Access for administrative, management, and approval overrides.</span>
+        </div>
+
         <!-- Search -->
         <div class="px-6 py-3 border-b border-gray-100 flex-shrink-0">
             <input type="text" id="menuSearch" placeholder="Search menu name..." oninput="filterMenuRows()"
@@ -374,7 +380,7 @@ function renderMenuNode(node, depth, container, search, parentAccessible = true)
         function: { icon: 'fa-bolt text-orange-400',        textCls: 'text-gray-700',               bg: 'bg-gray-50' },
     }[node.type] || { icon: 'fa-circle text-gray-400', textCls: 'text-gray-700', bg: 'bg-white' };
 
-    // Jika parent tidak accessible, row di-gray-out
+    const isEssItem   = node.slug && (node.slug.startsWith('ess.') || node.slug === 'ess' || node.slug === 'ess.my_leave_permit');
     const rowOpacity  = isDisabled ? 'opacity-40' : '';
     const labelCls    = isDisabled ? 'text-gray-400' : typeStyle.textCls;
 
@@ -382,6 +388,14 @@ function renderMenuNode(node, depth, container, search, parentAccessible = true)
     div.className = `flex items-center gap-2 px-4 py-2.5 transition-colors border-b border-gray-100 ${typeStyle.bg} ${rowOpacity} ${isDisabled ? '' : 'hover:bg-blue-50/30'}`;
     div.style.paddingLeft = `${16 + depth * 22}px`;
     if (isDisabled) div.title = 'Parent menu is inactive — enable the parent first';
+
+    const rightActionHtml = isEssItem
+        ? `<span class="px-2 py-0.5 text-[11px] font-semibold bg-green-50 text-green-700 border border-green-200 rounded flex items-center gap-1" title="Managed under ESS Settings"><i class="fas fa-globe text-[10px]"></i> Global ESS</span>
+           <input type="checkbox" checked disabled class="w-4 h-4 rounded flex-shrink-0 cursor-not-allowed opacity-50 accent-green-600" title="Global ESS Access — cannot be revoked per role">`
+        : `<input type="checkbox" ${hasAccess ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}
+            class="w-4 h-4 rounded flex-shrink-0 ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer accent-red-800'}"
+            onchange="toggleMenuAccess(${node.id}, this)"
+            title="${escHtml(node.name)}">`;
 
     div.innerHTML = `
         ${hasChildren
@@ -393,10 +407,7 @@ function renderMenuNode(node, depth, container, search, parentAccessible = true)
         }
         <i class="fas ${typeStyle.icon} text-xs w-4 text-center flex-shrink-0"></i>
         <span class="text-sm ${labelCls} flex-1 leading-tight">${escHtml(node.name)}</span>
-        <input type="checkbox" ${hasAccess ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}
-            class="w-4 h-4 rounded flex-shrink-0 ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer accent-red-800'}"
-            onchange="toggleMenuAccess(${node.id}, this)"
-            title="${escHtml(node.name)}">
+        ${rightActionHtml}
     `;
 
     container.appendChild(div);
