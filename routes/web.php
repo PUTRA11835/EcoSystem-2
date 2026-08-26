@@ -96,6 +96,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== DASHBOARD ROUTES ====================
     
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('menu:dashboard');
+    Route::get('/coming-soon', function (\Illuminate\Http\Request $request) {
+        $feature = $request->query('feature', 'Feature');
+        return view('coming-soon', compact('feature'));
+    })->name('coming-soon');
 
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
@@ -138,6 +142,13 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     });
 
     // ==================== FINANCIAL ====================
+    
+    // ==================== HR & GENERAL ====================
+    Route::prefix('hr-general')->name('hr-general.')->group(function () {
+        Route::get('/leave-permit', [\App\Http\Controllers\HR\LeavePermitController::class, 'index'])
+            ->name('leave-permit')
+            ->middleware('menu:hr_general.leave_permit');
+    });
     Route::get('/financial', function () {
         return view('financial.financial', ['user' => session('user')]);
     })->name('financial')->middleware('menu:financial');
@@ -549,6 +560,13 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             ->middleware('menu:management.permissions')
             ->name('permissions.index');
 
+        Route::get('/ess-settings', [\App\Http\Controllers\Management\EssSettingsController::class, 'index'])
+            ->middleware('menu:management.permissions')
+            ->name('ess-settings.index');
+        Route::post('/ess-settings', [\App\Http\Controllers\Management\EssSettingsController::class, 'update'])
+            ->middleware('menu:management.permissions')
+            ->name('ess-settings.update');
+
         Route::get('/holidays', [\App\Http\Controllers\HolidayManagementController::class, 'page'])
             ->middleware('menu:management.holidays')
             ->name('holidays.index');
@@ -576,6 +594,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/attachments/{id}', [AttachmentController::class, 'show'])
         ->name('attachments.show')
         ->where('id', '[0-9]+');
+
+    // ==================== LEAVE & PERMIT ATTENDANCE ROUTES ====================
+    Route::get('/my-leave-permit', [\App\Http\Controllers\HR\LeavePermitController::class, 'myLeavePermitIndex'])->name('my-leave-permit');
+    Route::get('/hr-general/leave-permit', [\App\Http\Controllers\HR\LeavePermitController::class, 'index'])->name('hr-general.leave-permit');
 });
 
 // ==================== ROOT REDIRECT ====================
