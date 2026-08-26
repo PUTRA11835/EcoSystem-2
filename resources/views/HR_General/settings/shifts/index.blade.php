@@ -157,7 +157,6 @@
 
 <form id="deleteShiftForm" method="POST" class="hidden">
     @csrf
-    @method('DELETE')
 </form>
 @endsection
 
@@ -178,7 +177,7 @@ async function deleteShift(id, name, assignedCount) {
     if (!ok) return;
 
     const form = document.getElementById('deleteShiftForm');
-    form.action = `/general/settings/shifts/${id}`;
+    form.action = `/general/settings/shifts/${id}/delete`;
     form.submit();
 }
 </script>

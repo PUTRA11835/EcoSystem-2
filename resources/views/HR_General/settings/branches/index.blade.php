@@ -158,7 +158,6 @@
 {{-- Form penghapusan; dikirim setelah showConfirm() disetujui --}}
 <form id="deleteBranchForm" method="POST" class="hidden">
     @csrf
-    @method('DELETE')
 </form>
 @endsection
 
@@ -175,7 +174,7 @@ async function deleteBranch(id, name) {
     if (!ok) return;
 
     const form = document.getElementById('deleteBranchForm');
-    form.action = `/general/settings/branches/${id}`;
+    form.action = `/general/settings/branches/${id}/delete`;
     form.submit();
 }
 </script>

@@ -14,7 +14,6 @@
       action="{{ $isEditing ? route('general.settings.shifts.update', $shift) : route('general.settings.shifts.store') }}"
       class="space-y-5">
     @csrf
-    @if($isEditing) @method('PUT') @endif
 
     @if($errors->any())
     <div class="bg-red-50 border border-red-200 rounded-xl p-4">

@@ -175,7 +175,6 @@
 
 <form id="releaseForm" method="POST" class="hidden">
     @csrf
-    @method('DELETE')
 </form>
 @endsection
 
@@ -237,7 +236,7 @@ async function releaseAssignment(assignmentId, employeeName) {
     if (!ok) return;
 
     const form = document.getElementById('releaseForm');
-    form.action = `/general/settings/shifts/${SHIFT_ID}/assign/${assignmentId}`;
+    form.action = `/general/settings/shifts/${SHIFT_ID}/assign/${assignmentId}/release`;
     form.submit();
 }
 </script>

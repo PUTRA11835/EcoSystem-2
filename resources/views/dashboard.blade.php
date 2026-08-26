@@ -76,6 +76,24 @@
             --text-color: {{ $textColor }};
             --card-bg: {{ $cardBg }};
             --scrollbar-track: {{ $preferences['theme'] === 'dark' ? '#111827' : '#f1f1f1' }};
+
+            /* Latar "permukaan bertema" untuk kartu utama di dalam halaman —
+               misalnya kartu identitas pada My Attendance.
+
+               Nilainya PERSIS mengikuti pilihan Sidebar style, sehingga kartu
+               tersebut ikut berubah begitu Accent color atau gaya sidebar
+               diganti di Settings. Ditulis sebagai custom property agar halaman
+               anak cukup memakai kelas `.primary-surface` tanpa perlu tahu
+               preferensi pengguna — variabel $preferences hanya hidup di layout
+               ini, tidak ikut terbawa ke bagian konten halaman anak.
+
+               CATATAN: jangan menulis nama direktif Blade berawalan "at" di
+               dalam komentar CSS mana pun pada berkas ini. Blade memproses
+               direktif tanpa peduli konteks komentar CSS, sehingga teks
+               tersebut ikut dikompilasi dan menghasilkan galat 500. */
+            --primary-surface: {{ $preferences['sidebar_style'] === 'gradient'
+                ? 'linear-gradient(135deg, rgb(var(--primary-dark-rgb)), rgb(var(--primary-rgb)))'
+                : 'rgb(var(--primary-rgb))' }};
         }
         
         body {
@@ -112,6 +130,12 @@
         
         .primary-solid {
             background-color: rgb(var(--primary-rgb)) !important;
+        }
+
+        /* Kartu bertema di dalam halaman. Satu sumber warna dengan sidebar:
+           keduanya berakar pada --primary-rgb, jadi tidak mungkin melenceng. */
+        .primary-surface {
+            background: var(--primary-surface) !important;
         }
         
         /* Smooth scrollbar */
@@ -893,8 +917,12 @@
                     // sebagian yang mengakses modul HR.
                     // Halaman general/settings/* juga tidak: menunya berada di
                     // Management > HR & General.
+                    // `general/reimbursement*` sengaja TIDAK di sini: sejak
+                    // migrasi 2026_08_25_000001, Reimbursement Management adalah
+                    // item tingkat atas, bukan isi dropdown ini.
                     $generalActive = Request::is('general')
-                        || Request::is('general/attendance*');
+                        || Request::is('general/attendance*')
+                        || Request::is('general/overtime*');
 
                     // Dropdown hanya ditampilkan bila ADA isinya. Tanpa penjagaan
                     // ini, role yang hanya diberi "My Attendance" tetap melihat
@@ -902,7 +930,8 @@
                     // kosong — menu yang tidak bisa dipakai lebih membingungkan
                     // daripada menu yang tidak ditampilkan sama sekali.
                     $hasGeneralChildren = $can('general.attendance')
-                        || $can('general.attendance.correction');
+                        || $can('general.attendance.correction')
+                        || $can('general.overtime');
                 @endphp
                 @if($can('general') && $hasGeneralChildren)
                 <!-- HR & GENERAL Dropdown -->
@@ -931,6 +960,14 @@
                             <span class="nav-text text-sm">Attendance Corrections</span>
                         </a>
                         @endif
+                        @if($can('general.overtime'))
+                        <a href="{{ route('general.overtime.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/overtime*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-business-time text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Overtime Management</span>
+                        </a>
+                        @endif
                     </div>
                 </div>
                 @endif
@@ -946,6 +983,67 @@
                             <i class="fas fa-fingerprint"></i>
                         </span>
                         <span class="nav-text font-medium">My Attendance</span>
+                    </a>
+                </div>
+                @endif
+
+                @if($can('general.my-overtime'))
+                <!-- OVERTIME (sisi karyawan) -->
+                {{-- Item TINGKAT ATAS dengan alasan yang sama seperti My Attendance:
+                     setiap karyawan dapat mengajukan lembur, sementara hanya
+                     sebagian yang meninjau.
+
+                     Namanya cukup "Overtime" — sisi HR bernama "Overtime
+                     Management" di dalam dropdown, jadi keduanya tidak bertabrakan.
+                     Slug-nya tetap `general.my-overtime`: itu identitas fungsional
+                     yang terikat tabel `menu`, bukan nama yang dilihat pengguna. --}}
+                <div class="mb-2">
+                    <a href="{{ route('general.my-overtime.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-overtime*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-hourglass-half"></i>
+                        </span>
+                        <span class="nav-text font-medium">Overtime</span>
+                    </a>
+                </div>
+                @endif
+
+                @if($can('general.my-reimbursement'))
+                <!-- REIMBURSEMENT (sisi karyawan) -->
+                {{-- Item TINGKAT ATAS dengan alasan yang sama seperti My Attendance
+                     dan Overtime: setiap karyawan dapat mengajukan penggantian
+                     biaya, sementara hanya sebagian yang meninjau.
+
+                     Slug-nya tetap `general.my-reimbursement`; sisi HR bernama
+                     "Reimbursement Management" di dalam dropdown, jadi keduanya
+                     tidak bertabrakan. --}}
+                <div class="mb-2">
+                    <a href="{{ route('general.my-reimbursement.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-reimbursement*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-receipt"></i>
+                        </span>
+                        <span class="nav-text font-medium">Reimbursement</span>
+                    </a>
+                </div>
+                @endif
+
+                @if($can('general.reimbursement'))
+                <!-- REIMBURSEMENT MANAGEMENT (sisi HR / GA / Finance) -->
+                {{-- Item TINGKAT ATAS, sengaja BUKAN di dalam dropdown HR & General
+                     (migrasi 2026_08_25_000001). Alasannya hak sekecil mungkin:
+                     selama ia bersarang, setiap penyetuju reimbursement terpaksa
+                     ikut diberi slug induk `general` — padahal mereka orang GA dan
+                     Finance yang tidak punya urusan dengan Attendance maupun
+                     Overtime. Sekarang cukup `general.reimbursement` saja.
+
+                     "Overtime Management" SENGAJA tetap di dalam dropdown: modul
+                     itu sudah selesai dan teruji, memindahkannya adalah perubahan
+                     tersendiri. --}}
+                <div class="mb-2">
+                    <a href="{{ route('general.reimbursement.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/reimbursement*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                        </span>
+                        <span class="nav-text font-medium">Reimbursement Management</span>
                     </a>
                 </div>
                 @endif
@@ -1313,7 +1411,7 @@
                             // menu operasional harian.
                             $hrGeneralSettingsActive = Request::is('general/settings*');
                         @endphp
-                        @if($can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance'))
+                        @if($can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance') || $can('general.settings.overtime') || $can('general.settings.reimbursement'))
                         <div class="mt-1">
                             <button onclick="toggleHrGeneralMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $hrGeneralSettingsActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="w-4 h-4 flex items-center justify-center">
@@ -1339,6 +1437,18 @@
                                 <a href="{{ route('general.settings.attendance.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/attendance*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-sliders text-xs"></i></span>
                                     <span class="nav-text text-xs">Attendance Settings</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.overtime'))
+                                <a href="{{ route('general.settings.overtime.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/overtime*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-business-time text-xs"></i></span>
+                                    <span class="nav-text text-xs">Overtime Settings</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.reimbursement'))
+                                <a href="{{ route('general.settings.reimbursement.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/reimbursement*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-receipt text-xs"></i></span>
+                                    <span class="nav-text text-xs">Reimbursement Settings</span>
                                 </a>
                                 @endif
                             </div>
@@ -1494,7 +1604,14 @@
     <script>
         var isCollapsed = false;
         var isMasterDropdownOpen = {{ Request::is('master*') ? 'true' : 'false' }};
-        var isGeneralDropdownOpen = {{ Request::is('general') || Request::is('general/attendance*') ? 'true' : 'false' }};
+        {{-- Memakai ulang $generalActive yang sudah dihitung di blok sidebar,
+             bukan menyalin ulang daftar Request::is(). Sebelumnya keduanya
+             ditulis terpisah dan sempat berbeda: dropdown ter-render terbuka di
+             halaman Overtime Management, tetapi variabel ini bernilai false,
+             sehingga klik pertama pada tombolnya tidak menutup panel. Satu
+             sumber kebenaran menutup kemungkinan itu terulang saat sub-modul
+             berikutnya ditambahkan. --}}
+        var isGeneralDropdownOpen = {{ $generalActive ? 'true' : 'false' }};
         var isHrGeneralMgmtDropdownOpen = {{ Request::is('general/settings*') ? 'true' : 'false' }};
         var isDeliveryDropdownOpen = {{ Request::is('project*') || Request::is('support*') ? 'true' : 'false' }};
         var isReportingDropdownOpen = {{ Request::is('reporting*') ? 'true' : 'false' }};

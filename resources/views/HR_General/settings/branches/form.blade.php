@@ -20,7 +20,6 @@
       action="{{ $isEditing ? route('general.settings.branches.update', $branch) : route('general.settings.branches.store') }}"
       class="space-y-5">
     @csrf
-    @if($isEditing) @method('PUT') @endif
 
     {{-- Ringkasan galat validasi --}}
     @if($errors->any())

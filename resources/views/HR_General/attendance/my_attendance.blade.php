@@ -26,7 +26,11 @@
 <div class="space-y-5">
 
     {{-- ── Kartu identitas ────────────────────────────────────────────── --}}
-    <div class="bg-gray-900 rounded-xl p-6 shadow-sm text-white">
+    {{-- Warna kartu mengikuti sidebar: kelas `primary-surface` didefinisikan di
+         layout dan berakar pada variabel yang sama dengan sidebar, sehingga
+         mengganti Accent color atau Sidebar style di Settings langsung terlihat
+         di sini juga. --}}
+    <div class="primary-surface rounded-xl p-6 shadow-sm text-white">
         <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div class="min-w-0">
                 <p class="text-xs text-white text-opacity-60 mb-1">
@@ -454,7 +458,6 @@
 
 <form id="cancelCorrectionForm" method="POST" class="hidden">
     @csrf
-    @method('DELETE')
 </form>
 @endsection
 
@@ -857,7 +860,7 @@ async function cancelCorrection(id) {
     if (!ok) return;
 
     const form = document.getElementById('cancelCorrectionForm');
-    form.action = `/general/my-attendance/correction/${id}`;
+    form.action = `/general/my-attendance/correction/${id}/cancel`;
     form.submit();
 }
 </script>

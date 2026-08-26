@@ -50,17 +50,38 @@ class HrSync extends Command
         'attendance_sources',
     ];
 
+    /** Tabel penanda kemajuan sub-modul Overtime. */
+    private const OVERTIME_TABLES = [
+        'overtime_settings',
+        'overtime_approval_steps',
+        'overtime_requests',
+        'overtime_request_approvals',
+    ];
+
+    /**
+     * Tabel penanda kemajuan sub-modul Reimbursement.
+     *
+     * Belum satu pun dibuat per 24 Agustus 2026 — rancangannya sudah terkunci
+     * (R0 selesai), langkah R1 belum dikerjakan. Dipantau sejak sekarang sesuai
+     * Keputusan D73, supaya begitu migrasinya dibuat statusnya langsung terbaca
+     * di HANDOFF tanpa harus ingat memperbarui perintah ini.
+     */
+    private const REIMBURSEMENT_TABLES = [
+        'reimbursement_settings',
+        'reimbursement_approval_steps',
+        'reimbursement_requests',
+        'reimbursement_items',
+        'reimbursement_request_approvals',
+    ];
+
     /**
      * Tabel modul HR lain yang belum dikerjakan — dipantau agar tidak terlewat.
      *
-     * Nama tabel Overtime masih tentatif; dipantau sejak sekarang supaya begitu
-     * migrasinya dibuat, statusnya langsung ikut terbaca di HANDOFF tanpa harus
-     * mengingat memperbarui perintah ini.
+     * Namanya masih tentatif; dipantau sejak sekarang supaya begitu migrasinya
+     * dibuat, statusnya langsung ikut terbaca di HANDOFF tanpa harus mengingat
+     * memperbarui perintah ini.
      */
     private const OTHER_HR_TABLES = [
-        'overtime_settings',
-        'overtime_requests',
-        'overtime_records',
         'leave_types',
         'leave_entitlements',
         'leave_requests',
@@ -126,6 +147,16 @@ class HrSync extends Command
             $attendanceTables[$table] = Schema::hasTable($table);
         }
 
+        $overtimeTables = [];
+        foreach (self::OVERTIME_TABLES as $table) {
+            $overtimeTables[$table] = Schema::hasTable($table);
+        }
+
+        $reimbursementTables = [];
+        foreach (self::REIMBURSEMENT_TABLES as $table) {
+            $reimbursementTables[$table] = Schema::hasTable($table);
+        }
+
         $otherHrTables = [];
         foreach (self::OTHER_HR_TABLES as $table) {
             $otherHrTables[$table] = Schema::hasTable($table);
@@ -155,7 +186,18 @@ class HrSync extends Command
                 ? DB::table('employee_role')->whereIn('id', [31, 32, 33])->get(['id', 'name'])
                 : collect(),
             'attendance_tables' => $attendanceTables,
+            'overtime_tables'   => $overtimeTables,
+            'reimbursement_tables' => $reimbursementTables,
             'other_hr_tables'   => $otherHrTables,
+            'reimbursement_rows' => Schema::hasTable('reimbursement_requests')
+                ? DB::table('reimbursement_requests')->count()
+                : null,
+            'overtime_rows'     => Schema::hasTable('overtime_requests')
+                ? DB::table('overtime_requests')->count()
+                : null,
+            'overtime_steps'    => Schema::hasTable('overtime_approval_steps')
+                ? DB::table('overtime_approval_steps')->where('is_active', 1)->count()
+                : 0,
             'attendance_rows'   => Schema::hasTable('attendance_records')
                 ? DB::table('attendance_records')->count()
                 : null,
@@ -170,7 +212,114 @@ class HrSync extends Command
             'shift_rows'        => Schema::hasTable('shifts') ? DB::table('shifts')->count() : 0,
             'route_general'     => File::exists(base_path('routes/HR_General.php')),
             'holidays'          => Schema::hasTable('holidays') ? DB::table('holidays')->count() : 0,
+
+            // Fakta yang DIHITUNG dari repo, bukan ditulis tangan. Sebelumnya
+            // angka-angka ini dipatok di dalam heredoc dan langsung basi begitu
+            // sub-modul berikutnya ditambahkan — persis kegagalan yang perintah
+            // ini seharusnya cegah.
+            'code_counts'       => $this->codeCounts(),
+            'sidebar_lines'     => $this->sidebarLines(),
+            'csrf_lines'        => $this->csrfLines(),
         ];
+    }
+
+    /**
+     * Jumlah berkas per lapisan modul.
+     *
+     * Dihitung dari sistem berkas supaya HANDOFF tidak pernah menyebut angka
+     * yang tidak lagi benar.
+     *
+     * @return array<string,int>
+     */
+    private function codeCounts(): array
+    {
+        $count = fn (string $glob): int => count(File::glob(base_path($glob)));
+
+        return [
+            'controllers'   => $count('app/Http/Controllers/HR_General/*.php'),
+            'views'         => count(File::glob(base_path('resources/views/HR_General/*/*.blade.php')))
+                             + count(File::glob(base_path('resources/views/HR_General/*/*/*.blade.php')))
+                             + count(File::glob(base_path('resources/views/HR_General/*.blade.php'))),
+            'models_att'    => $count('app/Models/Attendance/*.php'),
+            'models_ot'     => $count('app/Models/Overtime/*.php'),
+            'models_rb'     => $count('app/Models/Reimbursement/*.php'),
+            'services_att'  => $count('app/Services/Attendance/*.php'),
+            'services_ot'   => $count('app/Services/Overtime/*.php'),
+            'services_rb'   => $count('app/Services/Reimbursement/*.php'),
+            'tests'         => $count('tests/Unit/Attendance/*.php')
+                             + $count('tests/Unit/Overtime/*.php')
+                             + $count('tests/Unit/Reimbursement/*.php'),
+            'routes'        => $this->matchCount(base_path('routes/HR_General.php'), '/^\s*Route::(get|post)\(/m'),
+        ];
+    }
+
+    /**
+     * Nomor baris blok sidebar milik modul ini di `dashboard.blade.php`.
+     *
+     * Sidebar di-hardcode di satu berkas 2.500 baris. Menyebut nomor baris yang
+     * salah membuat pembacanya menyunting blok milik modul LAIN — berkas ini
+     * termasuk yang produksi, jadi kesalahannya mahal. Karena itu penandanya
+     * dicari dari komentar penanda, bukan dihafal.
+     *
+     * @return array<string,string> label => nomor baris (atau '?' bila hilang)
+     */
+    private function sidebarLines(): array
+    {
+        $path = base_path('resources/views/dashboard.blade.php');
+
+        return [
+            'dropdown HR & General'          => $this->lineOf($path, '<!-- HR & GENERAL Dropdown -->'),
+            'My Attendance (tingkat atas)'   => $this->lineOf($path, '<!-- MY ATTENDANCE -->'),
+            'Overtime (tingkat atas)'        => $this->lineOf($path, '<!-- OVERTIME (sisi karyawan) -->'),
+            'Reimbursement (tingkat atas)'   => $this->lineOf($path, '<!-- REIMBURSEMENT (sisi karyawan) -->'),
+            'Reimbursement Management'       => $this->lineOf($path, '<!-- REIMBURSEMENT MANAGEMENT'),
+            'Management > HR & General'      => $this->lineOf($path, '$hrGeneralSettingsActive = Request::is'),
+            'fungsi toggle dropdown'         => $this->lineOf($path, 'function toggleHrGeneralMgmtDropdown()'),
+            'definisi --primary-surface'     => $this->lineOf($path, '--primary-surface:'),
+        ];
+    }
+
+    /**
+     * Dua baris pola CSRF di `dashboard.blade.php`: yang rusak dan yang benar.
+     *
+     * Yang rusak memakai kutip tipografis sehingga selektornya tidak pernah
+     * cocok dan token selalu kosong. Keduanya dicari otomatis karena nomor
+     * barisnya bergeser setiap kali sidebar bertambah.
+     *
+     * @return array{bad:string,good:string}
+     */
+    private function csrfLines(): array
+    {
+        $path = base_path('resources/views/dashboard.blade.php');
+
+        return [
+            'bad'  => $this->lineOf($path, 'meta[name=”csrf-token”]'),
+            'good' => $this->lineOf($path, "querySelector('meta[name=\"csrf-token\"]')"),
+        ];
+    }
+
+    /** Nomor baris kemunculan pertama sebuah penanda; '?' bila tidak ditemukan. */
+    private function lineOf(string $path, string $needle): string
+    {
+        if (!File::exists($path)) {
+            return '?';
+        }
+
+        foreach (file($path) as $i => $line) {
+            if (str_contains($line, $needle)) {
+                return (string) ($i + 1);
+            }
+        }
+
+        return '?';
+    }
+
+    /** Berapa kali sebuah pola muncul di dalam satu berkas. */
+    private function matchCount(string $path, string $pattern): int
+    {
+        return File::exists($path)
+            ? preg_match_all($pattern, File::get($path))
+            : 0;
     }
 
     /**
@@ -191,6 +340,22 @@ class HrSync extends Command
             ->map(fn ($ada, $t) => '  ' . ($ada ? '[v]' : '[ ]') . ' ' . $t)
             ->implode("\n");
 
+        $overtime = collect($f['overtime_tables'])
+            ->map(fn ($ada, $t) => '  ' . ($ada ? '[v]' : '[ ]') . ' ' . $t)
+            ->implode("\n");
+
+        $reimbursement = collect($f['reimbursement_tables'])
+            ->map(fn ($ada, $t) => '  ' . ($ada ? '[v]' : '[ ]') . ' ' . $t)
+            ->implode("\n");
+
+        // Nomor baris & jumlah berkas: dirender dari fakta terhitung supaya blok
+        // ini tidak pernah menyebut angka yang sudah bergeser.
+        $sidebar = collect($f['sidebar_lines'])
+            ->map(fn ($line, $label) => '  baris ' . str_pad($line, 5) . $label)
+            ->implode("\n");
+
+        $c = $f['code_counts'];
+
         $https = $f['is_https']
             ? 'ya'
             : 'TIDAK (' . $f['app_url'] . ') — Geolocation hanya jalan di localhost';
@@ -203,7 +368,8 @@ Fakta di bawah SUDAH DIVERIFIKASI. Jangan telusuri ulang.
 TUGAS: menambahkan modul HR & General ke aplikasi Laravel internal (EcoSystem,
 perusahaan konsultan SAP). Modul DITAMBAHKAN, tidak menggantikan apa pun.
 Sub-modul ATTENDANCE (B0-B9) SELESAI & teruji; B10 ditunda.
-Fokus saat ini: sub-modul OVERTIME (lembur) — rancangan belum disusun.
+Sub-modul OVERTIME (O0-O8) SELESAI & teruji 20 Agu 2026.
+Sub-modul REIMBURSEMENT (R0-R8) SELESAI & teruji 24 Agu 2026.
 SISTEM SUDAH LIVE DI PRODUKSI — pengujian dilakukan di lokal.
 
 --- STACK ---
@@ -228,11 +394,8 @@ Pola granularitas: .view / .edit / .manage
 Slug baru WAJIB didaftarkan lewat migrasi memakai App\Support\MenuRegistrar
 MenuRegistrar memberi grant awal HANYA ke EC Administrator — jangan bagikan lewat migrasi
 Otorisasi rute: ->middleware('menu:general.xxx')   Blade: @if(\$can('general.xxx'))
-Sidebar HARDCODE di resources/views/dashboard.blade.php (2.400 baris). Titik modul ini:
-  ~890-935  dropdown "HR & General" (Attendance + Attendance Corrections)
-  ~938-950  item TINGKAT ATAS "My Attendance"
-  ~1310-1345 Management > HR & General (Branches, Shifts, Attendance Settings)
-  ~1497-1498 variabel state · ~1570-1582 fungsi toggle
+Sidebar HARDCODE di resources/views/dashboard.blade.php. Titik modul ini (dihitung otomatis):
+{$sidebar}
 
 Anak menu 'general' saat ini:
 {$menus}
@@ -285,7 +448,7 @@ JANGAN buat Policy, Form Request, Action class, Repository, base model, Blade Co
 JANGAN tambah paket Composer/NPM baru (Leaflet dimuat lewat CDN)
 JANGAN pakai FLOAT untuk koordinat — DECIMAL(10,8) lintang, DECIMAL(11,8) bujur
 JANGAN pakai ulang timesheets.presence / .location (vocabulary sudah rusak)
-JANGAN salin pola CSRF dari dashboard.blade.php:1768 (kutip tipografis) — pakai baris 2294
+JANGAN salin pola CSRF dari dashboard.blade.php:{$f['csrf_lines']['bad']} (kutip tipografis) — pakai baris {$f['csrf_lines']['good']}
 JANGAN catch (\\Throwable) tanpa Log::error()
 JANGAN ambil employee_id dari request body — SELALU dari session('user')['id']
 JANGAN ubah: PeriodService, Employee, AuthController, CheckMenuAccess, MenuRegistrar,
@@ -293,12 +456,25 @@ JANGAN ubah: PeriodService, Employee, AuthController, CheckMenuAccess, MenuRegis
 Berkas lama yang BOLEH disentuh hanya: routes/web.php (+3 baris require) dan
              dashboard.blade.php (blok sidebar modul ini saja — lihat baris di atas)
 
---- STRUKTUR BERKAS MODUL (pasca-refactor 19 Agu) ---
-app/Http/Controllers/HR_General/   namespace App\Http\Controllers\HR_General  (8 controller)
-app/Models/Attendance/             8 model      app/Services/Attendance/  3 service
-resources/views/HR_General/        13 view, nama berkas pakai GARIS BAWAH (my_attendance.blade.php)
-routes/HR_General.php              36 rute (URI berawalan general/*)
+--- STRUKTUR BERKAS MODUL (dihitung otomatis dari repo) ---
+app/Http/Controllers/HR_General/   namespace App\Http\Controllers\HR_General  ({$c['controllers']} controller)
+app/Models/       Attendance {$c['models_att']} · Overtime {$c['models_ot']} · Reimbursement {$c['models_rb']}
+app/Services/     Attendance {$c['services_att']} · Overtime {$c['services_ot']} · Reimbursement {$c['services_rb']}
+resources/views/HR_General/        {$c['views']} view, nama berkas pakai GARIS BAWAH (my_attendance.blade.php)
+routes/HR_General.php              {$c['routes']} rute GET/POST (URI berawalan general/*)
+tests/Unit/                        {$c['tests']} berkas tes unit
 Nama BERKAS boleh HR_General; slug izin / nama rute / URL TETAP 'general.*' — terikat tabel menu
+
+--- KONVENSI UI & STYLING (wajib, selengkapnya: docs/updated-file/07-KONVENSI-UI.md) ---
+Warna kontainer TIDAK PERNAH dipatok. Semua warna ber-merek berasal dari preferensi
+  pengguna di Settings (Accent color + Sidebar style), lewat variabel di :root
+  dashboard.blade.php baris {$f['sidebar_lines']['definisi --primary-surface']}:
+  .primary-surface  kartu/hero bertema (gradien atau solid, mengikuti Sidebar style)
+  .primary-gradient / .primary-solid / .primary-text / .primary-border  elemen ber-merek
+  Kartu biasa TETAP `bg-white rounded-xl shadow-sm` — dipetakan ulang otomatis oleh
+  blok dark mode di layout. JANGAN tulis bg-gray-900 untuk hero card.
+  bg-gray-800 pada tombol filter (Apply/Search/Save) SENGAJA netral — jangan diaksenkan.
+Teks antarmuka BAHASA INGGRIS; komentar kode BAHASA INDONESIA.
 
 --- DOKUMEN KERJA — seluruhnya di docs/updated-file/ (baca sesuai kebutuhan, JANGAN semuanya) ---
 00-INDEKS.md                        peta dokumen + alur kerja harian
@@ -307,17 +483,111 @@ Nama BERKAS boleh HR_General; slug izin / nama rute / URL TETAP 'general.*' — 
 03-KEPUTUSAN.md                     keputusan yang sudah diambil + alasannya
 04-DISKUSI-DAN-RISIKO.md            pertanyaan terbuka + risiko + kontrak jangan-sentuh
 05-KONVENSI-RINGKAS.md              aturan kode padat (kerangka migrasi/model/controller/Blade)
+07-KONVENSI-UI.md                   aturan TAMPILAN: token warna dari Settings, resep kartu,
+                                    badge, dark mode, kartu hero — baca sebelum menyentuh Blade
 attendance/00-RINGKASAN-PEKERJAAN.md  catatan kerja per sesi + keputusan D23-D71
 attendance/14-RANCANGAN-BERLAKU.md    rancangan Attendance yang berlaku (B0-B10)
+06-KONVENSI-RUTE-PRODUKSI.md        aturan verb HTTP modul ini + cara memverifikasi
+overtime/00-RINGKASAN-PEKERJAAN.md    catatan kerja Overtime + keputusan D88-D101
+overtime/02-PANDUAN-KODE.md           panduan teknis Overtime untuk diskusi tim
+overtime/03-CARA-PENGGUNAAN.md        cara memakai fitur Overtime (karyawan/penyetuju/admin)
+reimbursement/01-RANCANGAN.md         rancangan BERLAKU (5 tabel, 8 slug, 26 rute, D102-D114)
+reimbursement/02-PERTANYAAN-KONFIRMASI.md  R1-R12 + jawabannya + konsekuensi tiap jawaban
+reimbursement/00-RINGKASAN-PEKERJAAN.md    catatan kerja Reimbursement per sesi
+reimbursement/03-CHECKLIST-PENGERJAAN.md   PAPAN PELACAKAN R0-R8 + berkas per langkah
 
---- SUB-MODUL BERIKUTNYA: OVERTIME ---
-Rancangan BELUM ada. 4 pertanyaan yang menentukan SKEMA (bukan UI) menunggu jawaban —
-selengkapnya di docs/updated-file/04-DISKUSI-DAN-RISIKO.md §0:
-  O1 diajukan sebelum, atau diklaim setelah?
-  O2 penyetuju HR atau atasan langsung?  (hierarki atasan BELUM ADA)
-  O3 menit lembur otomatis dari attendance_records.overtime_minutes, atau manual?
-  O4 ada tarif/pengali hari kerja vs libur?  (menyentuh ranah payroll)
-Jangan membuat migrasi Overtime sebelum keempatnya terjawab.
+--- VERB RUTE: routes/HR_General.php HANYA GET & POST ---
+Nol PUT/PATCH/DELETE sejak 21 Agu 2026. Pengubah data memakai akhiran aksi:
+  ubah  -> POST /{id}/update      hapus -> POST /{id}/delete
+  batal -> POST /{id}/cancel      lepas -> POST /{id}/release
+JANGAN pakai Route::put()/delete() maupun @method() di modul ini.
+Saat menyusun URL di JavaScript, tulis akhiran aksinya — route() menyesuaikan
+  sendiri, string literal TIDAK. Selengkapnya: docs/updated-file/06-KONVENSI-RUTE-PRODUKSI.md
+Modul LAIN masih memakai PUT/DELETE dan SENGAJA tidak diubah.
+
+--- SUB-MODUL OVERTIME (selesai) ---
+{$overtime}
+Baris overtime_requests: {$this->nullable($f['overtime_rows'])}   langkah persetujuan aktif: {$f['overtime_steps']}
+Model app/Models/Overtime/ (4)  Service app/Services/Overtime/ (2)
+  OvertimeRateService  MURNI tanpa DB, pengali PP 35/2021, 22 unit test
+  OvertimeService      mesin submit/cancel/canAct/approve/reject, agnostik transport
+DUA LAPIS IZIN — jangan disatukan:
+  slug menu:general.overtime.approve  = boleh MEMBUKA halaman peninjauan
+  langkah workflow                    = boleh menyetujui pengajuan YANG MANA
+Langkah persetujuan DISALIN ke tiap pengajuan saat dibuat, sehingga mengubah
+  konfigurasi tidak pernah merusak pengajuan yang sedang berjalan
+NOMINAL RUPIAH sengaja BELUM ada: nol tabel gaji di database ini. Kolom
+  hourly_rate/rate_breakdown/amount sudah disiapkan nullable, day_type dibekukan
+  saat pengajuan — penyambungan ke payroll nanti TIDAK perlu migrasi
+
+--- SUB-MODUL REIMBURSEMENT (SELESAI R0-R8, 24 Agu 2026) ---
+{$reimbursement}
+Baris reimbursement_requests: {$this->nullable($f['reimbursement_rows'])}
+SELURUH KODE SUDAH ADA — jangan dibangun ulang:
+  app/Models/Reimbursement/            5 model
+  app/Services/Reimbursement/          ReimbursementTotalService  MURNI tanpa DB, 26 unit test
+                                       ReimbursementService       submit/update/canAct/approve/
+                                                                  reject/softDelete/itemRules/
+                                                                  signatories, agnostik transport
+  app/Http/Controllers/HR_General/     MyReimbursementController (ESS)
+                                       ReimbursementController (HR, 12 method)
+                                       ReimbursementImportController (impor Excel)
+                                       ReimbursementSettingController (aturan + alur)
+  resources/views/HR_General/reimbursement/  8 view (2 di antaranya partial dipakai 3 form)
+  app/Exports/ReimbursementDocumentExport.php  satu kelas: ekspor dokumen DAN bulanan
+  routes/HR_General.php                26 rute reimbursement SUDAH ada
+  dashboard.blade.php                  2 item menu SUDAH ada (tingkat atas + dropdown HR)
+YANG TERSISA hanyalah pembagian izin lewat Control Center -> Menu Access.
+  Slug mana untuk siapa: docs/updated-file/reimbursement/03-CHECKLIST-PENGERJAAN.md
+  Untuk sisi HR, slug induk `general` WAJIB ikut diberikan — tanpa itu dropdown
+  "HR & General" tidak dirender sama sekali.
+LETAK MENU (sejak 25 Agu, migrasi 2026_08_25_000001):
+  'Reimbursement' DAN 'Reimbursement Management' keduanya TINGKAT ATAS, sejajar
+  My Attendance & Overtime. Reimbursement Management SENGAJA di luar dropdown
+  'HR & General' supaya penyetuju TIDAK perlu diberi slug induk `general`.
+  Overtime Management SENGAJA masih di dalam dropdown — jangan ikut dipindah
+  tanpa diminta.
+DUA JALAN MENUJU EDIT — jangan disederhanakan jadi satu:
+  1. pemegang general.reimbursement.manage  (kapan pun, selama dokumen terbuka)
+  2. penyetuju yang SEDANG mendapat giliran, bila setelan
+     allow_approver_adjust_amount dinyalakan; haknya HILANG begitu ia menyetujui
+  Keputusannya di ReimbursementController::canEditDocument(), diperiksa DUA KALI
+  (saat merender tombol dan saat menyimpan). Rute edit/update dijaga
+  menu:general.reimbursement; destroy TETAP menu:general.reimbursement.manage.
+ALUR PERSETUJUAN — ATURAN ASIMETRIS (Keputusan D116), jangan disederhanakan:
+  MENAMBAH langkah BOLEH diterapkan ke dokumen yang sedang berjalan (memperketat),
+  lewat kotak centang `apply_to_open` saat menambahnya. MENGHAPUS / MELONGGARKAN
+  TIDAK PERNAH berlaku surut — di sanalah bahayanya: dokumen yang menunggu di
+  langkah yang dihapus bisa melompat jadi disetujui tanpa ditinjau siapa pun.
+  Itu sebabnya salinan langkah per dokumen tetap dipertahankan.
+  Mesinnya: ReimbursementService::applyStepToOpenRequests() — hanya dokumen
+  terbuka, hanya langkah ber-order_seq LEBIH BESAR dari langkah yang menunggu,
+  anti-duplikat, ditandai flag `workflow_extended` (NETRAL) + Log::info.
+CATATAN yang menghemat waktu bila menyentuh modul ini:
+  - Nama field item memakai KUNCI ACAK (items[<uuid>][amount]), BUKAN indeks berurutan
+  - Aturan baris item ada di ReimbursementService::itemRules() — dipakai 3 pintu masuk
+  - after_or_equal TIDAK bekerja dengan wildcard; dipakai closure
+  - Karyawan TIDAK punya tombol Cancel (D111)
+  - showPrompt() TIDAK ADA di aplikasi ini; hanya showConfirm() dan showNotification()
+  - Rute baca sisi HR memakai ->withTrashed() agar dokumen terhapus tetap terbuka
+  - Seluruh setelan sudah DIAUDIT (39 pemeriksaan): mengubahnya benar-benar
+    mengubah perilaku. Bila menambah setelan baru, WAJIB dibuktikan terpakai —
+    setelan mati adalah kegagalan D52
+PANDUAN PEMAKAIAN (menu, izin per peran, tiap setelan, cara menguji):
+  docs/updated-file/reimbursement/PANDUAN-REIMBURSEMENT.docx
+Bentuk yang sudah dikunci (keputusan D102-D115):
+  Header `reimbursement_requests` + detail `reimbursement_items` (multi-item)
+  Item dibebankan ke CABANG (branches). Kolom delivery_project_id dibuat tapi UI MATI
+  charged_to_label & cost_center_label DIBEKUKAN saat submit (nama cabang bisa berubah)
+  total_amount DIHITUNG lalu DISIMPAN; satu-satunya jalur tulis recalculateTotals()
+  Bukti = TAUTAN Google Drive (supporting_url) + daftar host di settings. Nol unggahan
+  Batas nominal: over_limit_policy = flag (bawaan) / block. 0 = tanpa batas
+  Hapus = SOFT DELETE + deleted_by + delete_reason WAJIB (dokumen keuangan)
+  Karyawan TIDAK bisa membatalkan -> status hanya EMPAT: submitted/in_review/approved/rejected
+  Penanda tangan disimpan sebagai employee_id (bukan nama) di reimbursement_settings
+  Label status: rekap 'Pending {langkah}' · detail & ESS 'Waiting {langkah}'
+Nama menu: 'Reimbursement' (karyawan, tingkat atas) · 'Reimbursement Management' (HR)
+Tabel langkah persetujuan DIBUAT SENDIRI, tidak menumpang overtime_approval_steps (D102)
 
 === TUGAS HARI INI ===
 [tulis di sini, sebutkan nomor langkahnya — contoh: "Kerjakan langkah B10"]
@@ -339,6 +609,14 @@ TXT;
         // membedakan "B4 selesai" dari "B9 selesai".
         $b9Files = File::exists(resource_path('views/HR_General/attendance/monthly.blade.php'))
             && File::exists(app_path('Http/Controllers/HR_General/AttendanceCorrectionController.php'));
+
+        $overtimeDone = !collect($f['overtime_tables'])->contains(false)
+            && File::exists(app_path('Services/Overtime/OvertimeService.php'));
+
+        if ($allTables && $f['branch_rows'] > 0 && $b9Files && $overtimeDone) {
+            return 'Attendance B0-B9 SELESAI (B10 ditunda) · Overtime O0-O8 SELESAI'
+                 . ' — cek docs/updated-file/{attendance,overtime}/00-RINGKASAN-PEKERJAAN.md';
+        }
 
         if ($allTables && $f['branch_rows'] > 0 && $b9Files) {
             return 'B0-B9 SELESAI (Attendance siap rilis, ' . $f['branch_rows'] . ' cabang terisi) · B10 ditunda'
@@ -448,6 +726,7 @@ TXT;
         $startLineEnd = strpos($content, "\n", $startAt);
 
         $tables = collect($f['attendance_tables'])
+            ->merge($f['overtime_tables'])
             ->merge($f['other_hr_tables'])
             ->map(fn ($ada, $t) => '| `' . $t . '` | ' . ($ada ? '✅ ada' : '☐ belum') . ' |')
             ->implode("\n");

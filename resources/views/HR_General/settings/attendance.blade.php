@@ -7,7 +7,6 @@
 @section('content')
 <form method="POST" action="{{ route('general.settings.attendance.update') }}" id="settingsForm" class="space-y-5">
     @csrf
-    @method('PUT')
 
     @if($errors->any())
     <div class="bg-red-50 border border-red-200 rounded-xl p-4">
@@ -202,7 +201,6 @@
                     <tr class="hover:bg-gray-50 transition-colors">
                         <form method="POST" action="{{ route('general.settings.sources.update', $source) }}" id="srcForm{{ $source->id }}">
                             @csrf
-                            @method('PUT')
                         </form>
 
                         <td class="px-3 py-3">
@@ -313,7 +311,6 @@
 
     <form id="deleteSourceForm" method="POST" class="hidden">
         @csrf
-        @method('DELETE')
     </form>
 
     <div class="flex items-center gap-3">
@@ -352,7 +349,7 @@ async function deleteSource(id, name) {
     if (!ok) return;
 
     const form = document.getElementById('deleteSourceForm');
-    form.action = `/general/settings/attendance-sources/${id}`;
+    form.action = `/general/settings/attendance-sources/${id}/delete`;
     form.submit();
 }
 </script>
