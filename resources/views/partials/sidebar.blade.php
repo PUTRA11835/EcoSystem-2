@@ -350,7 +350,7 @@
                 </div>
             @endif
 
-            @if($can('general') || $can('hr_general.leave_permit') || $can('general.attendance') || $can('general.attendance.correction') || $can('general.overtime') || $can('general.reimbursement'))
+            @if($can('general') || $can('hr_general.leave_permit.admin') || $can('general.attendance') || $can('general.attendance.correction') || $can('general.overtime') || $can('general.reimbursement'))
                 <!-- HR & GENERAL -->
                 @php
                     $hrGeneralOpen = Request::is('hr-general*') || Request::is('general/attendance*') || Request::is('general/overtime*') || Request::is('general/reimbursement*');
@@ -367,7 +367,7 @@
                     </button>
                     <div id="hrGeneralDropdown"
                         class="nav-text {{ $hrGeneralOpen ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
-                        @if($can('hr_general.leave_permit') || $can('general'))
+                        @if($can('hr_general.leave_permit.admin') || $can('general'))
                             <a href="{{ route('hr-general.leave-permit') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('hr-general/leave-permit*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
