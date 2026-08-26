@@ -48,7 +48,7 @@ class OvertimeReviewController extends Controller
             ->get()
             ->keyBy('status');
 
-        return view('HR_General.overtime.review', [
+        return view('hr-general.overtime.review', [
             'requests' => $requests,
             'filters'  => $filters,
             'mineIds'  => $mineIds,

@@ -237,9 +237,9 @@ class HrSync extends Command
 
         return [
             'controllers'   => $count('app/Http/Controllers/HR_General/*.php'),
-            'views'         => count(File::glob(base_path('resources/views/HR_General/*/*.blade.php')))
-                             + count(File::glob(base_path('resources/views/HR_General/*/*/*.blade.php')))
-                             + count(File::glob(base_path('resources/views/HR_General/*.blade.php'))),
+            'views'         => count(File::glob(base_path('resources/views/hr-general/*/*.blade.php')))
+                             + count(File::glob(base_path('resources/views/hr-general/*/*/*.blade.php')))
+                             + count(File::glob(base_path('resources/views/hr-general/*.blade.php'))),
             'models_att'    => $count('app/Models/Attendance/*.php'),
             'models_ot'     => $count('app/Models/Overtime/*.php'),
             'models_rb'     => $count('app/Models/Reimbursement/*.php'),
@@ -265,17 +265,21 @@ class HrSync extends Command
      */
     private function sidebarLines(): array
     {
-        $path = base_path('resources/views/dashboard.blade.php');
+        // Sejak merge staging_al_naf (26 Agu 2026) sidebar TIDAK lagi berada di
+        // dalam dashboard.blade.php, melainkan di partial tersendiri. Hanya
+        // `--primary-surface` yang masih tinggal di layout.
+        $sidebar = base_path('resources/views/partials/sidebar.blade.php');
+        $layout  = base_path('resources/views/dashboard.blade.php');
 
         return [
-            'dropdown HR & General'          => $this->lineOf($path, '<!-- HR & GENERAL Dropdown -->'),
-            'My Attendance (tingkat atas)'   => $this->lineOf($path, '<!-- MY ATTENDANCE -->'),
-            'Overtime (tingkat atas)'        => $this->lineOf($path, '<!-- OVERTIME (sisi karyawan) -->'),
-            'Reimbursement (tingkat atas)'   => $this->lineOf($path, '<!-- REIMBURSEMENT (sisi karyawan) -->'),
-            'Reimbursement Management'       => $this->lineOf($path, '<!-- REIMBURSEMENT MANAGEMENT'),
-            'Management > HR & General'      => $this->lineOf($path, '$hrGeneralSettingsActive = Request::is'),
-            'fungsi toggle dropdown'         => $this->lineOf($path, 'function toggleHrGeneralMgmtDropdown()'),
-            'definisi --primary-surface'     => $this->lineOf($path, '--primary-surface:'),
+            'partials/sidebar.blade.php — dropdown HR & General' => $this->lineOf($sidebar, '<!-- HR & GENERAL -->'),
+            'partials/sidebar.blade.php — My Attendance (ESS)'   => $this->lineOf($sidebar, "\$essConfig['my_attendance']"),
+            'partials/sidebar.blade.php — Overtime (ESS)'        => $this->lineOf($sidebar, "\$essConfig['overtime']"),
+            'partials/sidebar.blade.php — Reimbursement (ESS)'   => $this->lineOf($sidebar, "\$essConfig['expense_reimbursement']"),
+            'partials/sidebar.blade.php — Reimbursement Mgmt'    => $this->lineOf($sidebar, "route('general.reimbursement.index')"),
+            'partials/sidebar.blade.php — Control Center'        => $this->lineOf($sidebar, '<!-- CONTROL CENTER -->'),
+            'partials/sidebar.blade.php — fungsi toggle'         => $this->lineOf($sidebar, 'function toggleSidebarDropdown('),
+            'dashboard.blade.php — definisi --primary-surface'   => $this->lineOf($layout, '--primary-surface:'),
         ];
     }
 
@@ -394,7 +398,8 @@ Pola granularitas: .view / .edit / .manage
 Slug baru WAJIB didaftarkan lewat migrasi memakai App\Support\MenuRegistrar
 MenuRegistrar memberi grant awal HANYA ke EC Administrator — jangan bagikan lewat migrasi
 Otorisasi rute: ->middleware('menu:general.xxx')   Blade: @if(\$can('general.xxx'))
-Sidebar HARDCODE di resources/views/dashboard.blade.php. Titik modul ini (dihitung otomatis):
+Sidebar berada di resources/views/partials/sidebar.blade.php (sejak merge 26 Agu 2026,
+BUKAN lagi di dashboard.blade.php). Titik modul ini (dihitung otomatis):
 {$sidebar}
 
 Anak menu 'general' saat ini:
@@ -460,7 +465,11 @@ Berkas lama yang BOLEH disentuh hanya: routes/web.php (+3 baris require) dan
 app/Http/Controllers/HR_General/   namespace App\Http\Controllers\HR_General  ({$c['controllers']} controller)
 app/Models/       Attendance {$c['models_att']} · Overtime {$c['models_ot']} · Reimbursement {$c['models_rb']}
 app/Services/     Attendance {$c['services_att']} · Overtime {$c['services_ot']} · Reimbursement {$c['services_rb']}
-resources/views/HR_General/        {$c['views']} view, nama berkas pakai GARIS BAWAH (my_attendance.blade.php)
+resources/views/hr-general/        {$c['views']} view, nama berkas pakai TANDA HUBUNG (my-attendance.blade.php)
+                                   Folder & nama berkas diganti pada merge 26 Agu 2026 —
+                                   dulu HR_General/ dengan garis bawah. Sidebar kini berada
+                                   di resources/views/partials/sidebar.blade.php, BUKAN lagi
+                                   di dalam dashboard.blade.php
 routes/HR_General.php              {$c['routes']} rute GET/POST (URI berawalan general/*)
 tests/Unit/                        {$c['tests']} berkas tes unit
 Nama BERKAS boleh HR_General; slug izin / nama rute / URL TETAP 'general.*' — terikat tabel menu
@@ -468,7 +477,7 @@ Nama BERKAS boleh HR_General; slug izin / nama rute / URL TETAP 'general.*' — 
 --- KONVENSI UI & STYLING (wajib, selengkapnya: docs/updated-file/07-KONVENSI-UI.md) ---
 Warna kontainer TIDAK PERNAH dipatok. Semua warna ber-merek berasal dari preferensi
   pengguna di Settings (Accent color + Sidebar style), lewat variabel di :root
-  dashboard.blade.php baris {$f['sidebar_lines']['definisi --primary-surface']}:
+  dashboard.blade.php baris {$f['sidebar_lines']['dashboard.blade.php — definisi --primary-surface']}:
   .primary-surface  kartu/hero bertema (gradien atau solid, mengikuti Sidebar style)
   .primary-gradient / .primary-solid / .primary-text / .primary-border  elemen ber-merek
   Kartu biasa TETAP `bg-white rounded-xl shadow-sm` — dipetakan ulang otomatis oleh
@@ -533,7 +542,7 @@ SELURUH KODE SUDAH ADA — jangan dibangun ulang:
                                        ReimbursementController (HR, 12 method)
                                        ReimbursementImportController (impor Excel)
                                        ReimbursementSettingController (aturan + alur)
-  resources/views/HR_General/reimbursement/  8 view (2 di antaranya partial dipakai 3 form)
+  resources/views/hr-general/reimbursement/  8 view (2 di antaranya partial dipakai 3 form)
   app/Exports/ReimbursementDocumentExport.php  satu kelas: ekspor dokumen DAN bulanan
   routes/HR_General.php                26 rute reimbursement SUDAH ada
   dashboard.blade.php                  2 item menu SUDAH ada (tingkat atas + dropdown HR)
@@ -607,7 +616,10 @@ TXT;
         // B9 dinilai dari BERKAS, bukan tabel: rekap bulanan & koreksi tidak
         // meninggalkan jejak skema sendiri, jadi tabel saja tidak bisa
         // membedakan "B4 selesai" dari "B9 selesai".
-        $b9Files = File::exists(resource_path('views/HR_General/attendance/monthly.blade.php'))
+        // Folder view diganti nama menjadi `hr-general/` pada merge staging_al_naf
+        // (26 Agu 2026). Path lama akan selalu false dan membuat B9 terlaporkan
+        // belum selesai padahal sudah.
+        $b9Files = File::exists(resource_path('views/hr-general/attendance/monthly.blade.php'))
             && File::exists(app_path('Http/Controllers/HR_General/AttendanceCorrectionController.php'));
 
         $overtimeDone = !collect($f['overtime_tables'])->contains(false)

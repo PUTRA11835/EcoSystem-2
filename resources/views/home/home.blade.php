@@ -40,108 +40,176 @@
         + ($stats['hold'] ?? 0);
 
     $cardBase = 'bg-white rounded-2xl border border-gray-200 shadow-sm p-4 transition-all group';
+
+    // Build dynamic KPI cards list based on user role permissions
+    $kpiCards = [];
+
+    if ($can('master.employee')) {
+        $kpiCards[] = [
+            'href' => route('management.employee.basic-data.index'),
+            'icon' => 'fa-users',
+            'bg'   => 'bg-blue-50',
+            'hover' => 'group-hover:bg-blue-100',
+            'color' => 'text-blue-600',
+            'border' => 'hover:border-blue-300',
+            'val'   => number_format($data['employee'] ?? 0),
+            'label' => 'Employees',
+        ];
+    }
+
+    if ($can('master.customer')) {
+        $kpiCards[] = [
+            'href' => route('master.customer.index'),
+            'icon' => 'fa-building',
+            'bg'   => 'bg-green-50',
+            'hover' => 'group-hover:bg-green-100',
+            'color' => 'text-green-600',
+            'border' => 'hover:border-green-300',
+            'val'   => number_format($data['customers'] ?? 0),
+            'label' => 'Customers',
+        ];
+    }
+
+    if ($can('delivery.project')) {
+        $kpiCards[] = [
+            'href' => route('projects.index'),
+            'icon' => 'fa-project-diagram',
+            'bg'   => 'bg-purple-50',
+            'hover' => 'group-hover:bg-purple-100',
+            'color' => 'text-purple-600',
+            'border' => 'hover:border-purple-300',
+            'val'   => number_format($data['active_projects'] ?? 0),
+            'label' => 'Active Projects',
+        ];
+    }
+
+    // ESS Cards
+    if ($can('hr_general.leave_permit') || $can('general')) {
+        $kpiCards[] = [
+            'href' => route('my-leave-permit'),
+            'icon' => 'fa-calendar-check',
+            'bg'   => 'bg-purple-50',
+            'hover' => 'group-hover:bg-purple-100',
+            'color' => 'text-purple-600',
+            'border' => 'hover:border-purple-300',
+            'val'   => 'Leave & Permit',
+            'label' => 'Apply / Requests',
+        ];
+    }
+
+    if ($can('general.my-attendance')) {
+        $kpiCards[] = [
+            'href' => route('general.my-attendance.index'),
+            'icon' => 'fa-user-clock',
+            'bg'   => 'bg-emerald-50',
+            'hover' => 'group-hover:bg-emerald-100',
+            'color' => 'text-emerald-600',
+            'border' => 'hover:border-emerald-300',
+            'val'   => 'My Attendance',
+            'label' => 'Check-In / Out',
+        ];
+    }
+
+    if ($can('general.my-overtime')) {
+        $kpiCards[] = [
+            'href' => route('general.my-overtime.index'),
+            'icon' => 'fa-business-time',
+            'bg'   => 'bg-amber-50',
+            'hover' => 'group-hover:bg-amber-100',
+            'color' => 'text-amber-600',
+            'border' => 'hover:border-amber-300',
+            'val'   => 'My Overtime',
+            'label' => 'Submit / History',
+        ];
+    }
+
+    if ($can('general.my-reimbursement')) {
+        $kpiCards[] = [
+            'href' => route('general.my-reimbursement.index'),
+            'icon' => 'fa-receipt',
+            'bg'   => 'bg-sky-50',
+            'hover' => 'group-hover:bg-sky-100',
+            'color' => 'text-sky-600',
+            'border' => 'hover:border-sky-300',
+            'val'   => 'Reimbursement',
+            'label' => 'Submit Claims',
+        ];
+    }
+
+    // Tickets Cards
+    if ($can('ticket') || $can('ticket.index') || !empty($stats['total'])) {
+        $kpiCards[] = [
+            'href' => route('ticket.index'),
+            'icon' => 'fa-ticket-alt',
+            'bg'   => 'bg-red-50',
+            'hover' => 'group-hover:bg-red-100',
+            'color' => 'text-red-600',
+            'border' => 'hover:border-red-300',
+            'val'   => number_format($stats['total'] ?? 0),
+            'label' => 'Total Tickets',
+        ];
+        $kpiCards[] = [
+            'href' => route('ticket.index'),
+            'icon' => 'fa-clock',
+            'bg'   => 'bg-blue-50',
+            'hover' => 'group-hover:bg-blue-100',
+            'color' => 'text-blue-600',
+            'border' => 'hover:border-blue-300',
+            'val'   => number_format($activeTickets ?? 0),
+            'label' => 'Active Tickets',
+        ];
+    }
+
+    // SLA Compliance
+    if ($can('sla.report')) {
+        $slaVal = ($sla && $sla['compliance_rate'] !== null) ? $sla['compliance_rate'] . '%' : '—';
+        $kpiCards[] = [
+            'href' => route('sla.report'),
+            'icon' => 'fa-stopwatch',
+            'bg'   => 'bg-emerald-50',
+            'hover' => 'group-hover:bg-emerald-100',
+            'color' => 'text-emerald-600',
+            'border' => 'hover:border-emerald-300',
+            'val'   => $slaVal,
+            'label' => 'SLA Compliance',
+        ];
+    }
 @endphp
+
+@section('page-actions')
+<div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+    @if($stagingPend > 0 && $can('tickets.staging'))
+    <a href="{{ route('staging.index') }}"
+        title="{{ $stagingPend }} pending validation"
+        class="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg hover:bg-amber-100 transition shadow-sm whitespace-nowrap active:scale-95">
+        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+        <span class="hidden md:inline">{{ $stagingPend }} pending validation</span>
+        <span class="inline md:hidden">{{ $stagingPend }} Pending</span>
+    </a>
+    @endif
+    <span class="text-xs text-gray-500 font-mono hidden lg:inline-block bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-md shrink-0" id="dashClock"></span>
+</div>
+@endsection
 
 <div class="space-y-5">
 
-{{-- ── Row 1: Greeting + Attendance ─────────────────────────────────────────
-     Sapaan teks polos digantikan kartu hero bertema milik modul HR & General.
-     Seluruh isinya ada di berkas partial tersebut, bukan di sini, supaya
-     dashboard tidak perlu tahu apa pun tentang presensi — bila modul itu
-     dimatikan, cukup satu baris ini yang dihapus. --}}
-@include('HR_General.dashboard.attendance')
+{{-- ── Row 1: Greeting + Attendance ───────────────────────────────────────── --}}
+@include('hr-general.dashboard.attendance')
 
-<div class="flex items-center justify-end gap-3">
-    @if($stagingPend > 0 && $can('tickets.staging'))
-    <a href="{{ route('staging.index') }}"
-        class="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-amber-100 transition">
-        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-        {{ $stagingPend }} pending validation
+{{-- ── Row 2: Dynamic Role-Based KPI Cards ───────────────────────────────────── --}}
+@if(!empty($kpiCards))
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3.5 sm:gap-4">
+    @foreach($kpiCards as $card)
+    <a href="{{ $card['href'] }}" class="{{ $cardBase }} {{ $card['border'] }} hover:shadow-md active:scale-95">
+        <div class="w-9 h-9 rounded-xl {{ $card['bg'] }} {{ $card['hover'] }} flex items-center justify-center mb-3 transition">
+            <i class="fas {{ $card['icon'] }} {{ $card['color'] }} text-sm"></i>
+        </div>
+        <p class="text-lg sm:text-2xl font-bold text-gray-800 truncate">{{ $card['val'] }}</p>
+        <p class="text-xs text-gray-400 mt-0.5 truncate">{{ $card['label'] }}</p>
     </a>
-    @endif
-    <span class="text-xs text-gray-400 font-mono" id="dashClock"></span>
+    @endforeach
 </div>
-
-{{-- ── Row 2: KPI Cards ──────────────────────────────────────────────────────── --}}
-<div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
-
-    {{-- Employees --}}
-    @if($can('master.employee'))
-    <a href="{{ route('master.employee.index') }}" class="{{ $cardBase }} hover:border-blue-300 hover:shadow-md">
-    @else
-    <div class="{{ $cardBase }}">
-    @endif
-        <div class="w-9 h-9 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center mb-3 transition">
-            <i class="fas fa-users text-blue-600 text-sm"></i>
-        </div>
-        <p class="text-2xl font-bold text-gray-800">{{ $data['employee'] ?? 0 }}</p>
-        <p class="text-xs text-gray-400 mt-0.5">Employees</p>
-    @if($can('master.employee'))</a>@else</div>@endif
-
-    {{-- Customers --}}
-    @if($can('master.customer'))
-    <a href="{{ route('master.customer.index') }}" class="{{ $cardBase }} hover:border-green-300 hover:shadow-md">
-    @else
-    <div class="{{ $cardBase }}">
-    @endif
-        <div class="w-9 h-9 rounded-xl bg-green-50 group-hover:bg-green-100 flex items-center justify-center mb-3 transition">
-            <i class="fas fa-building text-green-600 text-sm"></i>
-        </div>
-        <p class="text-2xl font-bold text-gray-800">{{ $data['customers'] ?? 0 }}</p>
-        <p class="text-xs text-gray-400 mt-0.5">Customers</p>
-    @if($can('master.customer'))</a>@else</div>@endif
-
-    {{-- Active Projects --}}
-    @if($can('delivery.project'))
-    <a href="{{ route('projects.index') }}" class="{{ $cardBase }} hover:border-purple-300 hover:shadow-md">
-    @else
-    <div class="{{ $cardBase }}">
-    @endif
-        <div class="w-9 h-9 rounded-xl bg-purple-50 group-hover:bg-purple-100 flex items-center justify-center mb-3 transition">
-            <i class="fas fa-project-diagram text-purple-600 text-sm"></i>
-        </div>
-        <p class="text-2xl font-bold text-gray-800">{{ $data['active_projects'] ?? 0 }}</p>
-        <p class="text-xs text-gray-400 mt-0.5">Active Projects</p>
-    @if($can('delivery.project'))</a>@else</div>@endif
-
-    {{-- Total Tickets --}}
-    <a href="{{ route('ticket.index') }}" class="{{ $cardBase }} hover:border-red-300 hover:shadow-md">
-        <div class="w-9 h-9 rounded-xl bg-red-50 group-hover:bg-red-100 flex items-center justify-center mb-3 transition">
-            <i class="fas fa-ticket-alt text-red-600 text-sm"></i>
-        </div>
-        <p class="text-2xl font-bold text-gray-800">{{ number_format($stats['total'] ?? 0) }}</p>
-        <p class="text-xs text-gray-400 mt-0.5">Total Tickets</p>
-    </a>
-
-    {{-- Active Tickets --}}
-    <a href="{{ route('ticket.index') }}" class="{{ $cardBase }} hover:border-blue-300 hover:shadow-md">
-        <div class="w-9 h-9 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center mb-3 transition">
-            <i class="fas fa-clock text-blue-600 text-sm"></i>
-        </div>
-        <p class="text-2xl font-bold text-gray-800">{{ $activeTickets }}</p>
-        <p class="text-xs text-gray-400 mt-0.5">Active Tickets</p>
-    </a>
-
-    {{-- SLA Compliance --}}
-    @if($can('sla.report'))
-    <a href="{{ route('sla.report') }}" class="{{ $cardBase }} hover:border-emerald-300 hover:shadow-md">
-    @else
-    <div class="{{ $cardBase }}">
-    @endif
-        <div class="w-9 h-9 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center mb-3 transition">
-            <i class="fas fa-stopwatch text-emerald-600 text-sm"></i>
-        </div>
-        @if($sla && $sla['compliance_rate'] !== null)
-            <p class="text-2xl font-bold {{ $sla['compliance_rate'] >= 80 ? 'text-emerald-600' : ($sla['compliance_rate'] >= 60 ? 'text-yellow-600' : 'text-red-600') }}">
-                {{ $sla['compliance_rate'] }}%
-            </p>
-        @else
-            <p class="text-2xl font-bold text-gray-400">—</p>
-        @endif
-        <p class="text-xs text-gray-400 mt-0.5">SLA Compliance</p>
-    @if($can('sla.report'))</a>@else</div>@endif
-
-</div>
+@endif
 
 {{-- ── Row 3: Ticket Status Breakdown ──────────────────────────────────────── --}}
 @if(!empty($stats))

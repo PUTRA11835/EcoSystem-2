@@ -40,12 +40,12 @@ class BranchController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        return view('HR_General.settings.branches.index', compact('branches', 'search', 'status'));
+        return view('hr-general.settings.branches.index', compact('branches', 'search', 'status'));
     }
 
     public function create()
     {
-        return view('HR_General.settings.branches.form', [
+        return view('hr-general.settings.branches.form', [
             'branch'    => new Branch(['radius_meters' => 100, 'is_active' => true]),
             'isEditing' => false,
         ]);
@@ -53,7 +53,7 @@ class BranchController extends Controller
 
     public function edit(Branch $branch)
     {
-        return view('HR_General.settings.branches.form', [
+        return view('hr-general.settings.branches.form', [
             'branch'    => $branch,
             'isEditing' => true,
         ]);

@@ -29,7 +29,7 @@ class EssSettingsController extends Controller
         ],
         'my_attendance' => [
             'name'  => 'My Attendance',
-            'route' => null,
+            'route' => 'general.my-attendance.index',
             'icon'  => 'fas fa-user-clock',
         ],
         'my_leave_permit' => [
@@ -39,7 +39,7 @@ class EssSettingsController extends Controller
         ],
         'overtime' => [
             'name'  => 'Overtime',
-            'route' => null,
+            'route' => 'general.my-overtime.index',
             'icon'  => 'fas fa-business-time',
         ],
         'paystub' => [
@@ -49,7 +49,7 @@ class EssSettingsController extends Controller
         ],
         'expense_reimbursement' => [
             'name'  => 'Expense Reimbursement',
-            'route' => null,
+            'route' => 'general.my-reimbursement.index',
             'icon'  => 'fas fa-receipt',
         ],
         'purchase_request' => [

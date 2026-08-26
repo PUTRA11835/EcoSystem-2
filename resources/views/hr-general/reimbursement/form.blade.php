@@ -134,7 +134,7 @@
             @error('supporting_url')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
         </div>
 
-        @include('HR_General.reimbursement._item_rows', ['existingItems' => $isEdit ? $request->items : null])
+        @include('hr-general.reimbursement._item_rows', ['existingItems' => $isEdit ? $request->items : null])
 
         <div class="flex items-center gap-3 pt-2 border-t border-gray-100">
             <button type="submit"
@@ -153,5 +153,5 @@
 @endsection
 
 @push('scripts')
-@include('HR_General.reimbursement._item_rows_script')
+@include('hr-general.reimbursement._item_rows_script')
 @endpush

@@ -77,7 +77,10 @@
     $selfTiles = [];
     if ($canSelf) {
         $selfTiles[] = ['href' => route('general.my-attendance.index'), 'icon' => 'fa-fingerprint', 'bg' => 'bg-green-50', 'color' => 'text-green-600', 'title' => 'Check-in / Check-out', 'desc' => "Check in, check out, and view today's attendance status."];
-        $selfTiles[] = ['href' => route('general.my-attendance.index'), 'icon' => 'fa-clock-rotate-left', 'bg' => 'bg-sky-50', 'color' => 'text-sky-600', 'title' => 'Attendance', 'desc' => 'View your personal history and submit corrections.'];
+        $selfTiles[] = ['href' => route('general.my-attendance.index'), 'icon' => 'fa-clock-rotate-left', 'bg' => 'bg-sky-50', 'color' => 'text-sky-600', 'title' => 'Attendance History', 'desc' => 'View your personal history and submit corrections.'];
+    }
+    if ($can('hr_general.leave_permit') || $can('general')) {
+        $selfTiles[] = ['href' => route('my-leave-permit'), 'icon' => 'fa-calendar-check', 'bg' => 'bg-purple-50', 'color' => 'text-purple-600', 'title' => 'Leave & Permit', 'desc' => 'Apply for leave, permit, or view request history.'];
     }
     if ($canLeaveSelf) {
         $selfTiles[] = ['href' => route('my-leave-permit'), 'icon' => 'fa-calendar-minus', 'bg' => 'bg-pink-50', 'color' => 'text-pink-600', 'title' => 'Leave & Permit', 'desc' => 'Submit a leave or permit request and track its approval.'];
@@ -87,28 +90,43 @@
 @endphp
 
 {{-- ── HERO — menggantikan sapaan teks polos ──────────────────────────── --}}
-<div class="primary-surface rounded-2xl p-6 shadow-sm text-white">
+<div class="primary-surface rounded-2xl p-5 sm:p-6 shadow-sm text-white">
     <div class="flex flex-col lg:flex-row lg:items-stretch lg:justify-between gap-5">
 
         <div class="min-w-0 flex flex-col justify-center">
-            <span class="inline-flex items-center gap-2 self-start bg-white bg-opacity-15 text-xs font-semibold px-3 py-1 rounded-full mb-3">
+            <span class="inline-flex items-center gap-2 self-start bg-white bg-opacity-15 text-xs font-semibold px-3 py-1 rounded-full mb-3 backdrop-blur-sm">
                 <i class="fas fa-wand-magic-sparkles text-[10px]"></i> Employee daily home
             </span>
-            <h2 class="text-2xl font-bold truncate">{{ $greeting }}, {{ $firstName }}</h2>
-            <p class="text-sm text-white text-opacity-70 mt-1">
+            <h2 class="text-xl sm:text-2xl font-bold truncate">{{ $greeting }}, {{ $firstName }}</h2>
+            <p class="text-sm text-white text-opacity-80 mt-1">
                 {{ $roleName }}@if(!empty($user['position'])) &middot; {{ $user['position'] }}@endif
             </p>
-            <p class="text-xs text-white text-opacity-60 mt-0.5">
+            <p class="text-xs text-white text-opacity-70 mt-0.5">
                 {{ now()->translatedFormat('dddd, d F Y') }}
                 <span id="dashAttShift"></span>
             </p>
+
+            <!-- Quick Access Buttons (Mobile & Desktop) -->
+            <div class="mt-4 flex flex-wrap gap-2">
+                @if($can('hr_general.leave_permit') || $can('general'))
+                <a href="{{ route('my-leave-permit') }}"
+                   class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-semibold transition backdrop-blur-sm shadow-sm border border-white/25 active:scale-95">
+                    <i class="fas fa-calendar-check text-xs"></i> Apply Leave & Permit
+                </a>
+                @endif
+                @if($canSelf)
+                <a href="{{ route('general.my-attendance.index') }}"
+                   class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-semibold transition backdrop-blur-sm shadow-sm border border-white/25 active:scale-95">
+                    <i class="fas fa-fingerprint text-xs"></i> My Attendance
+                </a>
+                @endif
+            </div>
         </div>
 
         @if($canSelf)
-        {{-- Kartu presensi hari ini. Latar putih di atas permukaan beraksen —
-             kontras yang sama dipakai kartu ringkasan di halaman lain. --}}
-        <div class="bg-white rounded-xl p-5 shadow-sm w-full lg:max-w-md shrink-0">
-            <div class="flex items-start justify-between gap-3 mb-4">
+        {{-- Kartu presensi hari ini --}}
+        <div class="bg-white rounded-xl p-4 sm:p-5 shadow-sm w-full lg:max-w-md shrink-0 text-gray-900">
+            <div class="flex items-start justify-between gap-3 mb-3">
                 <div>
                     <p class="text-sm font-bold text-gray-900">Today's Attendance</p>
                     <span id="dashAttBadge" class="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded bg-gray-100 text-gray-600">Loading…</span>
@@ -119,21 +137,40 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3 mb-4">
-                <div class="border border-gray-200 rounded-lg p-3">
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="border border-gray-200 rounded-lg p-2.5 sm:p-3">
                     <p class="text-xs text-gray-500 mb-1">Check-in</p>
-                    <p class="text-xl font-bold text-gray-900" id="dashAttCheckIn">–</p>
+                    <p class="text-lg sm:text-xl font-bold text-gray-900" id="dashAttCheckIn">–</p>
                 </div>
-                <div class="border border-gray-200 rounded-lg p-3">
+                <div class="border border-gray-200 rounded-lg p-2.5 sm:p-3">
                     <p class="text-xs text-gray-500 mb-1">Check-out</p>
-                    <p class="text-xl font-bold text-gray-900" id="dashAttCheckOut">–</p>
+                    <p class="text-lg sm:text-xl font-bold text-gray-900" id="dashAttCheckOut">–</p>
                 </div>
             </div>
 
+            <!-- Original Check-in / Check-out button -->
             <a href="{{ route('general.my-attendance.index') }}"
                class="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-black transition-all">
                 <i class="fas fa-fingerprint"></i> Open details
             </a>
+
+            <!-- Dedicated div below attendance for Leave & Permit -->
+            @if($can('hr_general.leave_permit') || $can('general'))
+            <div class="mt-3 pt-3 border-t border-gray-100">
+                <a href="{{ route('my-leave-permit') }}"
+                   class="flex items-center justify-between gap-2 w-full px-3.5 py-2.5 bg-purple-50 border border-purple-200 text-purple-800 hover:bg-purple-100 rounded-lg transition-all text-xs font-semibold group shadow-sm active:scale-95">
+                    <span class="flex items-center gap-2">
+                        <span class="w-6.5 h-6.5 rounded-md bg-purple-700 text-white flex items-center justify-center text-[11px] shadow-sm">
+                            <i class="fas fa-calendar-plus"></i>
+                        </span>
+                        <span>Apply Leave & Permit</span>
+                    </span>
+                    <span class="flex items-center gap-1 text-[11px] text-purple-600 font-medium">
+                        Apply now <i class="fas fa-chevron-right text-[10px] group-hover:translate-x-0.5 transition-transform"></i>
+                    </span>
+                </a>
+            </div>
+            @endif
         </div>
         @endif
 
