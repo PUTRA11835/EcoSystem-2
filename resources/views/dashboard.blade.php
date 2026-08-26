@@ -70,32 +70,34 @@
         }
 
         :root {
-            --primary-color:
-                {{ $primaryColor }}
-            ;
-            --primary-rgb:
-                {{ $primaryRgb }}
-            ;
-            --primary-dark-rgb:
-                {{ $primaryDarkRgb }}
-            ;
-            --font-size-base:
-                {{ $baseFontSize }}
-            ;
-            --bg-color:
-                {{ $bgColor }}
-            ;
-            --text-color:
-                {{ $textColor }}
-            ;
-            --card-bg:
-                {{ $cardBg }}
-            ;
-            --scrollbar-track:
-                {{ $preferences['theme'] === 'dark' ? '#111827' : '#f1f1f1' }}
-            ;
-        }
+            --primary-color: {{ $primaryColor }};
+            --primary-rgb: {{ $primaryRgb }};
+            --primary-dark-rgb: {{ $primaryDarkRgb }};
+            --font-size-base: {{ $baseFontSize }};
+            --bg-color: {{ $bgColor }};
+            --text-color: {{ $textColor }};
+            --card-bg: {{ $cardBg }};
+            --scrollbar-track: {{ $preferences['theme'] === 'dark' ? '#111827' : '#f1f1f1' }};
 
+            /* Latar "permukaan bertema" untuk kartu utama di dalam halaman —
+               misalnya kartu identitas pada My Attendance.
+
+               Nilainya PERSIS mengikuti pilihan Sidebar style, sehingga kartu
+               tersebut ikut berubah begitu Accent color atau gaya sidebar
+               diganti di Settings. Ditulis sebagai custom property agar halaman
+               anak cukup memakai kelas `.primary-surface` tanpa perlu tahu
+               preferensi pengguna — variabel $preferences hanya hidup di layout
+               ini, tidak ikut terbawa ke bagian konten halaman anak.
+
+               CATATAN: jangan menulis nama direktif Blade berawalan "at" di
+               dalam komentar CSS mana pun pada berkas ini. Blade memproses
+               direktif tanpa peduli konteks komentar CSS, sehingga teks
+               tersebut ikut dikompilasi dan menghasilkan galat 500. */
+            --primary-surface: {{ $preferences['sidebar_style'] === 'gradient'
+                ? 'linear-gradient(135deg, rgb(var(--primary-dark-rgb)), rgb(var(--primary-rgb)))'
+                : 'rgb(var(--primary-rgb))' }};
+        }
+        
         body {
             font-size: var(--font-size-base);
             background-color: var(--bg-color) !important;
@@ -134,6 +136,12 @@
             background-color: rgb(var(--primary-rgb)) !important;
         }
 
+        /* Kartu bertema di dalam halaman. Satu sumber warna dengan sidebar:
+           keduanya berakar pada --primary-rgb, jadi tidak mungkin melenceng. */
+        .primary-surface {
+            background: var(--primary-surface) !important;
+        }
+        
         /* Smooth scrollbar */
         ::-webkit-scrollbar {
             width: 4px;
@@ -251,1522 +259,323 @@
                 background-color: rgba(153, 27, 27, .22) !important;
             }
 
-            /* Pastel -50/-100 lain (Quick Navigation, badge status/role, chip ikon)
-                                           → tint gelap sesuai hue agar tak menyilaukan di atas latar gelap. */
-            .bg-blue-50 {
-                background-color: rgba(59, 130, 246, .14) !important;
-            }
-
-            .bg-sky-50 {
-                background-color: rgba(14, 165, 233, .14) !important;
-            }
-
-            .bg-indigo-50 {
-                background-color: rgba(99, 102, 241, .14) !important;
-            }
-
-            .bg-green-50 {
-                background-color: rgba(34, 197, 94, .14) !important;
-            }
-
-            .bg-emerald-50 {
-                background-color: rgba(16, 185, 129, .14) !important;
-            }
-
-            .bg-teal-50 {
-                background-color: rgba(20, 184, 166, .14) !important;
-            }
-
-            .bg-amber-50 {
-                background-color: rgba(245, 158, 11, .14) !important;
-            }
-
-            .bg-yellow-50 {
-                background-color: rgba(234, 179, 8, .14) !important;
-            }
-
-            .bg-orange-50 {
-                background-color: rgba(249, 115, 22, .14) !important;
-            }
-
-            .bg-purple-50 {
-                background-color: rgba(168, 85, 247, .14) !important;
-            }
-
-            .bg-pink-50 {
-                background-color: rgba(236, 72, 153, .14) !important;
-            }
-
-            .bg-blue-100 {
-                background-color: rgba(59, 130, 246, .20) !important;
-            }
-
-            .bg-sky-100 {
-                background-color: rgba(14, 165, 233, .20) !important;
-            }
-
-            .bg-indigo-100 {
-                background-color: rgba(99, 102, 241, .20) !important;
-            }
-
-            .bg-green-100 {
-                background-color: rgba(34, 197, 94, .20) !important;
-            }
-
-            .bg-emerald-100 {
-                background-color: rgba(16, 185, 129, .20) !important;
-            }
-
-            .bg-amber-100 {
-                background-color: rgba(245, 158, 11, .20) !important;
-            }
-
-            .bg-yellow-100 {
-                background-color: rgba(234, 179, 8, .20) !important;
-            }
-
-            .bg-orange-100 {
-                background-color: rgba(249, 115, 22, .20) !important;
-            }
-
-            .bg-purple-100 {
-                background-color: rgba(168, 85, 247, .20) !important;
-            }
-
-            /* Shade -200 (mis. chip WEIGHT % `bg-purple-200 text-purple-800` di tabel
-                                           Planning) → tint gelap agar teks (yg dicerahkan) terbaca. */
-            .bg-blue-200 {
-                background-color: rgba(59, 130, 246, .26) !important;
-            }
-
-            .bg-sky-200 {
-                background-color: rgba(14, 165, 233, .26) !important;
-            }
-
-            .bg-indigo-200 {
-                background-color: rgba(99, 102, 241, .26) !important;
-            }
-
-            .bg-green-200 {
-                background-color: rgba(34, 197, 94, .26) !important;
-            }
-
-            .bg-emerald-200 {
-                background-color: rgba(16, 185, 129, .26) !important;
-            }
-
-            .bg-teal-200 {
-                background-color: rgba(20, 184, 166, .26) !important;
-            }
-
-            .bg-amber-200 {
-                background-color: rgba(245, 158, 11, .26) !important;
-            }
-
-            .bg-yellow-200 {
-                background-color: rgba(234, 179, 8, .26) !important;
-            }
-
-            .bg-orange-200 {
-                background-color: rgba(249, 115, 22, .26) !important;
-            }
-
-            .bg-purple-200 {
-                background-color: rgba(168, 85, 247, .26) !important;
-            }
-
-            .bg-pink-200 {
-                background-color: rgba(236, 72, 153, .26) !important;
-            }
-
-            .bg-red-200 {
-                background-color: rgba(153, 27, 27, .30) !important;
-            }
-
-            /* Varian OPACITY pastel (mis. `bg-orange-50/40`, `bg-blue-50/40` di kolom
-                                           Plan Cost) — class berbeda dari `bg-orange-50`, ditangkap via atribut. */
-            [class*="bg-blue-50/"] {
-                background-color: rgba(59, 130, 246, .15) !important;
-            }
-
-            [class*="bg-sky-50/"] {
-                background-color: rgba(14, 165, 233, .15) !important;
-            }
-
-            [class*="bg-indigo-50/"] {
-                background-color: rgba(99, 102, 241, .15) !important;
-            }
-
-            [class*="bg-green-50/"] {
-                background-color: rgba(34, 197, 94, .15) !important;
-            }
-
-            [class*="bg-emerald-50/"] {
-                background-color: rgba(16, 185, 129, .15) !important;
-            }
-
-            [class*="bg-orange-50/"] {
-                background-color: rgba(249, 115, 22, .15) !important;
-            }
-
-            [class*="bg-amber-50/"] {
-                background-color: rgba(245, 158, 11, .15) !important;
-            }
-
-            [class*="bg-yellow-50/"] {
-                background-color: rgba(234, 179, 8, .15) !important;
-            }
-
-            [class*="bg-purple-50/"] {
-                background-color: rgba(168, 85, 247, .15) !important;
-            }
-
-            [class*="bg-red-50/"] {
-                background-color: rgba(153, 27, 27, .20) !important;
-            }
-
-            /* Teks warna gelap (badge `-700/-800`) → dicerahkan agar terbaca di gelap.
-                                           Ikon `-600` sudah cukup jenuh, dibiarkan. */
-            .text-blue-700,
-            .text-blue-800 {
-                color: #93c5fd !important;
-            }
-
-            .text-sky-700,
-            .text-sky-800 {
-                color: #7dd3fc !important;
-            }
-
-            .text-indigo-700,
-            .text-indigo-800 {
-                color: #a5b4fc !important;
-            }
-
-            .text-green-700,
-            .text-green-800 {
-                color: #86efac !important;
-            }
-
-            .text-emerald-700,
-            .text-emerald-800 {
-                color: #6ee7b7 !important;
-            }
-
-            .text-teal-600,
-            .text-teal-700,
-            .text-teal-800 {
-                color: #5eead4 !important;
-            }
-
-            .text-cyan-700,
-            .text-cyan-800 {
-                color: #67e8f9 !important;
-            }
-
-            .text-amber-700,
-            .text-amber-800 {
-                color: #fcd34d !important;
-            }
-
-            .text-yellow-700,
-            .text-yellow-800 {
-                color: #fde047 !important;
-            }
-
-            .text-orange-700,
-            .text-orange-800 {
-                color: #fdba74 !important;
-            }
-
-            .text-purple-700,
-            .text-purple-800 {
-                color: #d8b4fe !important;
-            }
-
-            .text-red-700,
-            .text-red-800 {
-                color: #fca5a5 !important;
-            }
-
-            /* Shade -900 (teks paling gelap, dipakai di chip `bg-*-200 text-*-900`) */
-            .text-blue-900 {
-                color: #93c5fd !important;
-            }
-
-            .text-sky-900 {
-                color: #7dd3fc !important;
-            }
-
-            .text-indigo-900 {
-                color: #a5b4fc !important;
-            }
-
-            .text-green-900 {
-                color: #86efac !important;
-            }
-
-            .text-emerald-900 {
-                color: #6ee7b7 !important;
-            }
-
-            .text-teal-900 {
-                color: #5eead4 !important;
-            }
-
-            .text-amber-900 {
-                color: #fcd34d !important;
-            }
-
-            .text-yellow-900 {
-                color: #fde047 !important;
-            }
-
-            .text-orange-900 {
-                color: #fdba74 !important;
-            }
-
-            .text-purple-900 {
-                color: #d8b4fe !important;
-            }
-
-            .text-red-900 {
-                color: #fca5a5 !important;
-            }
-
-            /* Aksen merah brand (.primary-text = var(--primary-color) #991b1b) terlalu
-                                           gelap di latar gelap → dicerahkan. `body` agar menang atas aturan halaman
-                                           `.primary-text{color:var(--primary-color)!important}`. */
-            body .primary-text {
-                color: #f87171 !important;
-            }
-
-            /* Badge SOLID terang (mis. `bg-yellow-400 text-gray-900` = badge count di
-                                           sidebar) — latarnya tetap terang, jadi teks HARUS tetap gelap; jangan
-                                           ikut dicerahkan seperti `.text-gray-900` biasa. Compound (0,2,0) menang. */
-            .bg-yellow-300.text-gray-900,
-            .bg-yellow-400.text-gray-900,
-            .bg-yellow-500.text-gray-900,
-            .bg-amber-300.text-gray-900,
-            .bg-amber-400.text-gray-900,
-            .bg-amber-500.text-gray-900,
-            .bg-lime-400.text-gray-900,
-            .bg-green-400.text-gray-900,
-            .bg-orange-400.text-gray-900,
-            .bg-yellow-400.text-gray-800,
-            .bg-amber-400.text-gray-800 {
-                color: #111827 !important;
-            }
-
-            /* Text */
-            .text-gray-900,
-            .text-black {
-                color: #f3f4f6 !important;
-            }
-
-            .text-gray-800 {
-                color: #e5e7eb !important;
-            }
-
-            .text-gray-700 {
-                color: #d1d5db !important;
-            }
-
-            .text-gray-600 {
-                color: #cbd1d9 !important;
-            }
-
-            .text-gray-500 {
-                color: #9ca3af !important;
-            }
-
-            .text-gray-400 {
-                color: #8b93a1 !important;
-            }
-
-            .text-gray-300 {
-                color: #6b7280 !important;
-            }
-
-            /* Borders & dividers */
-            .border-gray-100 {
-                border-color: #1f2937 !important;
-            }
-
-            .border-gray-200 {
-                border-color: #374151 !important;
-            }
-
-            .border-gray-300 {
-                border-color: #4b5563 !important;
-            }
-
-            .divide-gray-100> :not([hidden])~ :not([hidden]) {
-                border-color: #1f2937 !important;
-            }
-
-            .divide-gray-200> :not([hidden])~ :not([hidden]) {
-                border-color: #374151 !important;
-            }
-
-            /* ── Hover states ──────────────────────────────────────────────────
-                                           Samakan SEMUA hover latar terang ke #374151 (seperti Master Employee),
-                                           termasuk varian opacity (mis. `hover:bg-gray-50/80`) & shade lain.
-                                           Selektor atribut menangkap semua varian; `!important` menang atas
-                                           utilitas hover Tailwind (yang non-important). */
-            [class*="hover:bg-gray-"]:hover,
-            [class*="hover:bg-slate-"]:hover,
-            [class*="hover:bg-zinc-"]:hover,
-            [class*="hover:bg-neutral-"]:hover,
-            [class*="hover:bg-stone-"]:hover,
-            [class*="hover:bg-white"]:hover {
-                background-color: #374151 !important;
-            }
-
-            /* Hover pastel berwarna (khusus shade -50/-100 via ~= agar TIDAK kena
-                                           tombol solid -500/-600/-700) → tint gelap sesuai hue, tetap subtle. */
-            [class~="hover:bg-blue-50"]:hover,
-            [class~="hover:bg-blue-100"]:hover {
-                background-color: rgba(59, 130, 246, .22) !important;
-            }
-
-            [class~="hover:bg-sky-50"]:hover,
-            [class~="hover:bg-sky-100"]:hover {
-                background-color: rgba(14, 165, 233, .22) !important;
-            }
-
-            [class~="hover:bg-indigo-50"]:hover,
-            [class~="hover:bg-indigo-100"]:hover {
-                background-color: rgba(99, 102, 241, .22) !important;
-            }
-
-            [class~="hover:bg-green-50"]:hover,
-            [class~="hover:bg-green-100"]:hover {
-                background-color: rgba(34, 197, 94, .22) !important;
-            }
-
-            [class~="hover:bg-emerald-50"]:hover,
-            [class~="hover:bg-emerald-100"]:hover {
-                background-color: rgba(16, 185, 129, .22) !important;
-            }
-
-            [class~="hover:bg-teal-50"]:hover,
-            [class~="hover:bg-teal-100"]:hover {
-                background-color: rgba(20, 184, 166, .22) !important;
-            }
-
-            [class~="hover:bg-amber-50"]:hover,
-            [class~="hover:bg-amber-100"]:hover {
-                background-color: rgba(245, 158, 11, .22) !important;
-            }
-
-            [class~="hover:bg-yellow-50"]:hover,
-            [class~="hover:bg-yellow-100"]:hover {
-                background-color: rgba(234, 179, 8, .22) !important;
-            }
-
-            [class~="hover:bg-orange-50"]:hover,
-            [class~="hover:bg-orange-100"]:hover {
-                background-color: rgba(249, 115, 22, .22) !important;
-            }
-
-            [class~="hover:bg-purple-50"]:hover,
-            [class~="hover:bg-purple-100"]:hover {
-                background-color: rgba(168, 85, 247, .22) !important;
-            }
-
-            [class~="hover:bg-pink-50"]:hover,
-            [class~="hover:bg-pink-100"]:hover {
-                background-color: rgba(236, 72, 153, .22) !important;
-            }
-
-            [class~="hover:bg-red-50"]:hover,
-            [class~="hover:bg-red-100"]:hover {
-                background-color: rgba(153, 27, 27, .30) !important;
-            }
-
-            /* Chip ikon dengan group-hover (mis. Quick Navigation) — samakan pola */
-            .group:hover [class*="group-hover:bg-gray-"],
-            .group:hover [class*="group-hover:bg-slate-"] {
-                background-color: #374151 !important;
-            }
-
-            .group:hover [class~="group-hover:bg-blue-100"] {
-                background-color: rgba(59, 130, 246, .26) !important;
-            }
-
-            .group:hover [class~="group-hover:bg-sky-100"] {
-                background-color: rgba(14, 165, 233, .26) !important;
-            }
-
-            .group:hover [class~="group-hover:bg-indigo-100"] {
-                background-color: rgba(99, 102, 241, .26) !important;
-            }
-
-            .group:hover [class~="group-hover:bg-green-100"] {
-                background-color: rgba(34, 197, 94, .26) !important;
-            }
-
-            .group:hover [class~="group-hover:bg-emerald-100"] {
-                background-color: rgba(16, 185, 129, .26) !important;
-            }
-
-            .group:hover [class~="group-hover:bg-amber-100"] {
-                background-color: rgba(245, 158, 11, .26) !important;
-            }
-
-            .group:hover [class~="group-hover:bg-purple-100"] {
-                background-color: rgba(168, 85, 247, .26) !important;
-            }
-
-            .group:hover [class~="group-hover:bg-red-100"] {
-                background-color: rgba(153, 27, 27, .34) !important;
-            }
-
-            /* Sidebar = permukaan ber-ACCENT (bukan gelap). Nav pakai overlay putih
-                                           transparan (active `bg-white/opacity-15`, hover `hover:bg-white/opacity-10`).
-                                           Kembalikan overlay itu agar tidak diubah jadi abu/gelap oleh aturan generik
-                                           di atas — `#sidebar` (ID) menang spesifisitas. */
-            #sidebar .bg-white {
-                background-color: rgba(255, 255, 255, 0.15) !important;
-            }
-
-            #sidebar [class*="hover:bg-white"]:hover {
-                background-color: rgba(255, 255, 255, 0.10) !important;
-            }
-
-            /* Form controls */
-            input,
-            select,
-            textarea {
-                background-color: #374151 !important;
-                color: #f9fafb !important;
-                border-color: #4b5563 !important;
-            }
-
-            input:read-only,
-            input:disabled,
-            select:disabled,
-            textarea:disabled {
-                background-color: #1f2937 !important;
-                color: #9ca3af !important;
-            }
-
-            input::placeholder,
-            textarea::placeholder {
-                color: #6b7280 !important;
-            }
-
-            /* Shadow lebih dalam agar kartu tetap terbaca di atas latar gelap */
-            .shadow-sm,
-            .shadow,
-            .shadow-md,
-            .shadow-lg,
-            .shadow-xl,
-            .shadow-2xl {
-                box-shadow: 0 4px 16px rgba(0, 0, 0, .45) !important;
-            }
-
-            /* Scrollbar: warna thumb & track sudah theme-aware via var --primary-*
-                                           dan --scrollbar-track (didefinisikan di :root), jadi otomatis mengikuti
-                                           sidebar/accent + tema. Tidak perlu override di sini. */
-
-            /* ── Komponen custom yang memakai putih hardcoded ────────────────────
-                                           Elemen berikut TIDAK memakai class `bg-white` (mereka distyle lewat
-                                           CSS mentah / JS), jadi override class di atas tak menjangkaunya.
-                                           Dipetakan ulang di sini agar ikut tema. */
-
-            /* Native <select> option list */
-            option {
-                background-color: #1f2937 !important;
-                color: #e5e7eb !important;
-            }
-
-            /* Enhanced <select> — public/js/select-enhance.js (.se-*) */
-            .se-btn {
-                background: #374151 !important;
-                border-color: #4b5563 !important;
-                color: #e5e7eb !important;
-            }
-
-            .se-btn:hover {
-                border-color: #6b7280 !important;
-            }
-
-            .se-btn[disabled] {
-                background: #1f2937 !important;
-            }
-
-            .se-label {
-                color: #e5e7eb !important;
-            }
-
-            .se-label.is-placeholder {
-                color: #6b7280 !important;
-            }
-
-            .se-panel {
-                background: #1f2937 !important;
-                border-color: #374151 !important;
-                box-shadow: 0 20px 40px rgba(0, 0, 0, .55) !important;
-            }
-
-            .se-item {
-                color: #d1d5db !important;
-            }
-
-            .se-item:hover,
-            .se-item.is-active {
-                background: #374151 !important;
-                color: #f9fafb !important;
-            }
-
-            .se-item.is-disabled {
-                color: #4b5563 !important;
-            }
-
-            .se-search-head {
-                background: #1f2937 !important;
-                border-color: #374151 !important;
-            }
-
-            /* Custom dropdown — public/js/custom-dropdown.js (.custom-dd-*) */
-            .custom-dd-panel {
-                background: #1f2937 !important;
-                border-color: #374151 !important;
-            }
-
-            .custom-dd-btn {
-                background: #374151 !important;
-                border-color: #4b5563 !important;
-                color: #e5e7eb !important;
-            }
-
-            /* Filter kolom di HEADER tabel juga memakai `.custom-dd-btn`, tapi di sana
-                                           harus TRANSPARAN mengikuti latar header (bg-gray-50 → #0b1120) — jika
-                                           tidak, sel header berdropdown (Customer…Type) tampak lebih terang &
-                                           belang dibanding sel header lain. Hover tetap ditangani utilitas
-                                           `hover:bg-gray-*`. */
-            thead .custom-dd-btn {
-                background: transparent !important;
-            }
-
-            .custom-dd-item {
-                color: #d1d5db !important;
-            }
-
-            .custom-dd-item:hover,
-            .custom-dd-item.is-active,
-            .custom-dd-item.selected {
-                background: #374151 !important;
-                color: #f9fafb !important;
-            }
-
-            /* Reporting → MD Recap (baris grup/anak pakai #f9fafb / #fff mentah) */
-            .recap-emp-row td {
-                background: #111827 !important;
-            }
-
-            .recap-emp-row:hover td {
-                background: #0b1120 !important;
-            }
-
-            .recap-sub-row td {
-                background: #1f2937 !important;
-            }
-
-            .recap-sub-row:hover td {
-                background: #374151 !important;
-            }
-
-            /* Reporting → Collection Outlook (.co-*) */
-            .co-select {
-                background: #374151 !important;
-                border-color: #4b5563 !important;
-                color: #e5e7eb !important;
-            }
-
-            .co-th {
-                background: #111827 !important;
-                color: #9ca3af !important;
-                border-bottom-color: #374151 !important;
-                border-right-color: #374151 !important;
-            }
-
-            .co-td {
-                border-bottom-color: #374151 !important;
-                border-right-color: #374151 !important;
-                color: #d1d5db !important;
-            }
-
-            thead .co-sticky-cust,
-            thead .co-sticky-proj,
-            thead .co-sticky-top {
-                background: #0b1120 !important;
-            }
-
-            tbody .co-sticky-cust,
-            tbody .co-sticky-proj,
-            tbody .co-sticky-top {
-                background: #111827 !important;
-            }
-
-            tbody tr:hover .co-sticky-cust,
-            tbody tr:hover .co-sticky-proj,
-            tbody tr:hover .co-sticky-top {
-                background: #1f2937 !important;
-            }
-
-            .co-amount-btn:hover {
-                background: #374151 !important;
-            }
-
-            /* Nilai amount di sel — dicerahkan agar terbaca di latar gelap */
-            .co-open {
-                color: #cbd5e1 !important;
-            }
-
-            .co-paid {
-                color: #4ade80 !important;
-            }
-
-            .co-delay {
-                color: #fbbf24 !important;
-            }
-
-            .co-paid:hover {
-                background: rgba(34, 197, 94, .18) !important;
-            }
-
-            .co-delay:hover {
-                background: rgba(245, 158, 11, .18) !important;
-            }
-
-            /* Delivery → Project Detail: sticky section nav + tab hover/active
-                                           (#sectionNav putih translucent; .section-tab hover #f9fafb). */
-            #sectionNav {
-                background: rgba(17, 24, 39, .92) !important;
-                border-bottom-color: #374151 !important;
-            }
-
-            .section-tab:hover {
-                background-color: #374151 !important;
-                color: #e5e7eb !important;
-            }
-
-            .section-tab.active {
-                color: #f87171 !important;
-            }
-
-            /* Delivery → Phase Management: redupkan gradient pekat (header indigo, bar
-                                           amber, bar biru) agar tidak menyilaukan. Scoped ke `.phase-mgmt-page`
-                                           supaya halaman lain tak terpengaruh. */
-            .phase-mgmt-page .from-blue-600.to-indigo-600 {
-                background-image: linear-gradient(to right, #21375a, #2b295c) !important;
-            }
-
-            .phase-mgmt-page .from-amber-400.to-orange-500 {
-                background-image: linear-gradient(to right, #a16207, #b45309) !important;
-            }
-
-            .phase-mgmt-page .from-blue-500.to-indigo-600 {
-                background-image: linear-gradient(to right, #1e40af, #3730a3) !important;
-            }
-
-            /* Track bar */
-            .phase-mgmt-page .bg-amber-100 {
-                background-color: rgba(245, 158, 11, .16) !important;
-            }
-
-            .phase-mgmt-page .bg-gray-200 {
-                background-color: #374151 !important;
-            }
-
-            /* Delivery → Gantt chart: banyak warna terang hardcoded (panel putih, header,
-                                           sel hari putih, kolom weekend cream #fef3c7, border terang). Dipetakan
-                                           ulang agar menyatu dengan tema gelap. Bar tugas (warna dinamis) & garis
-                                           "Today" merah dibiarkan. */
-            .gantt-wrapper {
-                background-color: #1f2937 !important;
-            }
-
-            .gantt-sidebar {
-                background-color: #111827 !important;
-                border-right-color: #374151 !important;
-            }
-
-            .gantt-sidebar-header,
-            .gantt-timeline-header {
-                background-color: #111827 !important;
-                border-bottom-color: #374151 !important;
-            }
-
-            .gantt-header-col {
-                color: #cbd5e1 !important;
-            }
-
-            .gantt-week-cell {
-                background-color: #111827 !important;
-                border-right-color: #374151 !important;
-                color: #9ca3af !important;
-            }
-
-            .gantt-week-row {
-                border-bottom-color: #374151 !important;
-            }
-
-            .gantt-day-cell {
-                background-color: #1f2937 !important;
-                border-right-color: #374151 !important;
-                color: #cbd5e1 !important;
-            }
-
-            .gantt-day-cell.weekend,
-            .gantt-grid-cell.weekend {
-                background-color: rgba(245, 158, 11, .10) !important;
-            }
-
-            .gantt-day-cell.today {
-                background-color: rgba(59, 130, 246, .22) !important;
-                color: #93c5fd !important;
-            }
-
-            .gantt-phase-row,
-            .gantt-timeline-row.gantt-phase-bg {
-                background-color: #111827 !important;
-                border-bottom-color: #374151 !important;
-            }
-
-            .gantt-activity-row {
-                border-bottom-color: #374151 !important;
-            }
-
-            .gantt-activity-row:hover {
-                background-color: #374151 !important;
-            }
-
-            .gantt-grid-cell {
-                border-right-color: #374151 !important;
-            }
-
-            .gantt-toggle-button:hover {
-                background-color: rgba(255, 255, 255, .08) !important;
-            }
-
-            .gantt-timeline::-webkit-scrollbar-track,
-            .gantt-sidebar-body::-webkit-scrollbar-track {
-                background: #111827 !important;
-            }
-
-            .gantt-timeline::-webkit-scrollbar-thumb,
-            .gantt-sidebar-body::-webkit-scrollbar-thumb {
-                background: #4b5563 !important;
-            }
-
-            /* Baris tabel ber-gradasi TERANG (mis. Project Planning phase/group rows,
-                                           header banner from-*-50/100) → diratakan jadi permukaan gelap. Gradasi
-                                           gelap/pekat (from-blue-600, from-*-500, dsb.) sengaja dibiarkan. */
-            .from-gray-50,
-            .from-gray-100,
-            .from-blue-50,
-            .from-indigo-50,
-            .from-purple-50,
-            .from-indigo-100,
-            .from-purple-100,
-            .from-amber-50,
-            .from-orange-50 {
-                --tw-gradient-from: #1f2937 !important;
-                --tw-gradient-to: #1f2937 !important;
-                --tw-gradient-stops: #1f2937, #1f2937 !important;
-            }
-
-            .to-gray-50,
-            .to-gray-100,
-            .to-blue-50,
-            .to-indigo-50,
-            .to-purple-50,
-            .to-indigo-100,
-            .to-purple-100,
-            .to-orange-50 {
-                --tw-gradient-to: #1f2937 !important;
-                --tw-gradient-stops: var(--tw-gradient-from), #1f2937 !important;
-            }
-
-            .hover\:from-purple-100:hover,
-            .hover\:to-indigo-100:hover {
-                --tw-gradient-from: #374151 !important;
-                --tw-gradient-to: #374151 !important;
-                --tw-gradient-stops: #374151, #374151 !important;
-            }
-
-            /* Master → Employee/Customer list: hover baris (#fef2f2 pink !important) */
-            body .employee-row:hover,
-            body .customer-row:hover {
-                background-color: #374151 !important;
-            }
-
-            /* Master → Employee/Customer detail: field read-only (.profile-readonly).
-                                           Prefiks `body` menaikkan spesifisitas agar menang atas aturan halaman
-                                           yang memakai !important dengan spesifisitas sama (CSS halaman dimuat
-                                           belakangan lewat stack styles di head). */
-            body .profile-readonly input,
-            body .profile-readonly textarea,
-            body .profile-readonly select,
-            body .profile-readonly .se-btn {
-                background: #111827 !important;
-                color: #9ca3af !important;
-                border-color: #374151 !important;
-            }
-
-            /* Ticket list (Support Tickets) — toggle aktif, stat-card aktif, baris unread */
-            #btnViewAll.active,
-            #btnViewMy.active,
-            #btnViewAllHd.active,
-            #btnViewUnassigned.active {
-                background: #374151 !important;
-                color: #f9fafb !important;
-            }
-
-            body .stat-card.active-filter {
-                background: rgba(220, 38, 38, .16) !important;
-                border-top-color: #7f1d1d !important;
-                border-right-color: #7f1d1d !important;
-                border-bottom-color: #7f1d1d !important;
-            }
-
-            #ticketsListBody tr:hover {
-                background: #374151 !important;
-            }
-
-            /* Dua kolom sticky (Last Update & Ticket#) memakai background PUTIH inline
-                                           (style="background:#ffffff") pada tiap baris — timpa jadi gelap. Baris
-                                           unread punya selector lebih spesifik di bawah sehingga tetap menang.
-                                           PENTING: kolom sticky di-FREEZE dan mengambang di atas kolom lain yang
-                                           di-scroll horizontal, jadi latarnya WAJIB OPAQUE — jika translucent
-                                           (rgba), konten kolom di belakang akan tembus. Tint unread karena itu
-                                           dipakai sebagai warna SOLID hasil blend di atas permukaan #1f2937,
-                                           bukan rgba. */
-            #ticketsListBody tr td:first-child,
-            #ticketsListBody tr td:nth-child(2) {
-                background: #1f2937 !important;
-            }
-
-            #ticketsListBody tr:hover td:first-child,
-            #ticketsListBody tr:hover td:nth-child(2) {
-                background: #374151 !important;
-            }
-
-            #ticketsListBody tr.ticket-unread-customer,
-            #ticketsListBody tr.ticket-unread-customer td:first-child,
-            #ticketsListBody tr.ticket-unread-customer td:nth-child(2) {
-                background: #233550 !important;
-            }
-
-            #ticketsListBody tr.ticket-unread-customer:hover,
-            #ticketsListBody tr.ticket-unread-customer:hover td:first-child,
-            #ticketsListBody tr.ticket-unread-customer:hover td:nth-child(2) {
-                background: #253d61 !important;
-            }
-
-            #ticketsListBody tr.ticket-unread-internal,
-            #ticketsListBody tr.ticket-unread-internal td:first-child,
-            #ticketsListBody tr.ticket-unread-internal td:nth-child(2) {
-                background: #393b35 !important;
-            }
-
-            #ticketsListBody tr.ticket-unread-internal:hover,
-            #ticketsListBody tr.ticket-unread-internal:hover td:first-child,
-            #ticketsListBody tr.ticket-unread-internal:hover td:nth-child(2) {
-                background: #4b4733 !important;
-            }
-
-            /* Calendar → Timesheet: stat cards (Total/Draft/Submitted/Approved/Rejected).
-                                           Semua pakai `bg-white`, tapi ditegaskan lewat ID (spesifisitas tertinggi)
-                                           agar dijamin gelap meski ada override lain. */
-            #cardAll,
-            #cardDraft,
-            #cardSubmitted,
-            #cardApproved,
-            #cardRejected {
-                background-color: #1f2937 !important;
-            }
-
-            /* SLA → SLA Report: kolom sticky putih (.sc #ffffff), group header band
-                                           (.grp-info/resp/res), badge SLA (.sla-badge-*) — semua warna mentah. */
-            .sla-table tbody .sc {
-                background: #1f2937 !important;
-            }
-
-            .sla-table tbody tr:hover .sc {
-                background: #374151 !important;
-            }
-
-            .sla-table tbody tr.row-pending .sc {
-                background: rgba(245, 158, 11, .12) !important;
-            }
-
-            .sla-table tbody tr.row-pending:hover .sc {
-                background: rgba(245, 158, 11, .20) !important;
-            }
-
-            .grp-info {
-                background: #111827 !important;
-            }
-
-            .grp-resp {
-                background: rgba(59, 130, 246, .10) !important;
-            }
-
-            .grp-res {
-                background: rgba(34, 197, 94, .10) !important;
-            }
-
-            .sla-badge-met {
-                background: rgba(34, 197, 94, .18) !important;
-                color: #86efac !important;
-            }
-
-            .sla-badge-breached {
-                background: rgba(153, 27, 27, .30) !important;
-                color: #fca5a5 !important;
-            }
-
-            .sla-badge-pending {
-                background: rgba(59, 130, 246, .18) !important;
-                color: #93c5fd !important;
-            }
-
-            .sla-badge-paused {
-                background: rgba(245, 158, 11, .18) !important;
-                color: #fcd34d !important;
-            }
-
-            .sla-badge-pv {
-                background: #374151 !important;
-                color: #cbd5e1 !important;
-            }
-
-            .sla-check-none {
-                color: #6b7280 !important;
-            }
-
-            /* Header sticky tabel SLA + tabel kedua (bg-gray-50/80) */
-            .sla-table thead th {
-                background-color: #111827 !important;
-            }
-
-            .sla-table thead .grp-resp {
-                background: rgba(59, 130, 246, .10) !important;
-            }
-
-            .sla-table thead .grp-res {
-                background: rgba(34, 197, 94, .10) !important;
-            }
-
-            .bg-gray-50\/70,
-            .bg-gray-50\/80,
-            .bg-gray-50\/90 {
-                background-color: #111827 !important;
-            }
-
-        @endif
-
-        /* ── Global Form Input Reset ─────────────────────────────────────────
-           Tailwind v4 preflight sets border-width:0 and no padding on all
-           elements. Restore a consistent, comfortable appearance site-wide.
-           Using :where() keeps specificity at (0,0,0) so any Tailwind utility
-           class or inline style can still override without needing !important. */
-        :where(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"])),
-        :where(select),
-        :where(textarea) {
-            border-width: 1px;
-            border-style: solid;
-            padding: 0.5rem 0.75rem;
-            /* py-2 px-3 — comfortable touch target */
-            line-height: 1.5rem;
-            border-radius: 0.375rem;
-            /* rounded-md */
-        }
-
-        :where(textarea) {
-            padding: 0.625rem 0.75rem;
-            /* slightly taller for multiline */
-            line-height: 1.625rem;
-        }
-
-        /* primary-focus — consistent focus ring matching brand colour */
-        .primary-focus:focus,
-        .primary-focus:focus-visible {
-            outline: none;
-            border-color: rgb(var(--primary-rgb));
-            box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15);
-        }
-
-        /* ── Responsive form grids ───────────────────────────────────────────
-           Master data section forms use a dense `grid-cols-6` layout for
-           desktop. Add `form-grid` alongside it: below the lg breakpoint the
-           column count steps down and every field spans a single cell, so the
-           mixed col-span-1/2/3/4/6 children never overflow or misalign.
-           At >= 1024px the original grid-cols-6 + col-span-* rules apply. */
-        @media (max-width: 1023px) {
-            .form-grid>* {
-                grid-column: auto !important;
-            }
-        }
-
-        @media (min-width: 768px) and (max-width: 1023px) {
-            .form-grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            }
-        }
-
-        @media (min-width: 480px) and (max-width: 767px) {
-            .form-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            }
-        }
-
-        @media (max-width: 479px) {
-            .form-grid {
-                grid-template-columns: minmax(0, 1fr) !important;
-            }
-        }
-
-        /* Card hover effect */
-        .card-hover {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .card-hover:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
-        }
-    </style>
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '{{ $primaryColor }}',
-                        'primary-dark': 'rgb({{ $primaryDarkRgb }})',
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        #toast-container {
-            position: fixed;
-            top: 1.5rem;
-            right: 1.5rem;
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            max-width: 22rem;
-            width: 100%;
-            pointer-events: none;
-        }
-
-        .toast {
-            pointer-events: all;
-            border-radius: 0.875rem;
-            padding: 1rem 1rem 0 1rem;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-            overflow: hidden;
-            transform: translateX(110%);
-            opacity: 0;
-            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
-        }
-
-        .toast.show {
-            transform: translateX(0);
-            opacity: 1;
-        }
-
-        .toast.hide {
-            transform: translateX(110%);
-            opacity: 0;
-            transition: transform 0.35s ease-in, opacity 0.3s ease-in;
-        }
-
-        .toast-body {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.75rem;
-            padding-bottom: 0.875rem;
-        }
-
-        .toast-icon {
-            flex-shrink: 0;
-            width: 2rem;
-            height: 2rem;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .toast-content {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .toast-title {
-            font-size: 0.8125rem;
-            font-weight: 700;
-            line-height: 1.2;
-        }
-
-        .toast-message {
-            font-size: 0.8125rem;
-            margin-top: 0.2rem;
-            line-height: 1.4;
-        }
-
-        .toast-close {
-            flex-shrink: 0;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 0.1rem;
-            border-radius: 0.375rem;
-            opacity: 0.5;
-            transition: opacity 0.2s;
-            line-height: 1;
-        }
-
-        .toast-close:hover {
-            opacity: 1;
-        }
-
-        .toast-progress {
-            height: 3px;
-            border-radius: 0 0 0.875rem 0.875rem;
-            margin: 0 -1rem;
-            transform-origin: left;
-            animation: toast-progress-shrink linear forwards;
-        }
-
-        @keyframes toast-progress-shrink {
-            from {
-                transform: scaleX(1);
-            }
-
-            to {
-                transform: scaleX(0);
-            }
-        }
-
-        .toast-success {
-            background: #f0fdf4;
-            border: 1.5px solid #86efac;
-        }
-
-        .toast-success .toast-icon {
-            background: #dcfce7;
-        }
-
-        .toast-success .toast-icon svg {
-            color: #16a34a;
-        }
-
-        .toast-success .toast-title {
-            color: #14532d;
-        }
-
-        .toast-success .toast-message {
-            color: #15803d;
-        }
-
-        .toast-success .toast-close {
-            color: #14532d;
-        }
-
-        .toast-success .toast-progress {
-            background: #22c55e;
-        }
-
-        .toast-error {
-            background: #fff1f1;
-            border: 1.5px solid #fca5a5;
-        }
-
-        .toast-error .toast-icon {
-            background: #fee2e2;
-        }
-
-        .toast-error .toast-icon svg {
-            color: #dc2626;
-        }
-
-        .toast-error .toast-title {
-            color: #991b1b;
-        }
-
-        .toast-error .toast-message {
-            color: #b91c1c;
-        }
-
-        .toast-error .toast-close {
-            color: #991b1b;
-        }
-
-        .toast-error .toast-progress {
-            background: #ef4444;
-        }
-
-        .toast-warning {
-            background: #fffbeb;
-            border: 1.5px solid #fcd34d;
-        }
-
-        .toast-warning .toast-icon {
-            background: #fef9c3;
-        }
-
-        .toast-warning .toast-icon svg {
-            color: #d97706;
-        }
-
-        .toast-warning .toast-title {
-            color: #78350f;
-        }
-
-        .toast-warning .toast-message {
-            color: #92400e;
-        }
-
-        .toast-warning .toast-close {
-            color: #78350f;
-        }
-
-        .toast-warning .toast-progress {
-            background: #f59e0b;
-        }
-
-        .toast-info {
-            background: #eff6ff;
-            border: 1.5px solid #93c5fd;
-        }
-
-        .toast-info .toast-icon {
-            background: #dbeafe;
-        }
-
-        .toast-info .toast-icon svg {
-            color: #2563eb;
-        }
-
-        .toast-info .toast-title {
-            color: #1e3a8a;
-        }
-
-        .toast-info .toast-message {
-            color: #1d4ed8;
-        }
-
-        .toast-info .toast-close {
-            color: #1e3a8a;
-        }
-
-        .toast-info .toast-progress {
-            background: #3b82f6;
-        }
-
-        /* Modal backdrop blur — applied automatically when overlay is visible */
-        .modal-blur-active {
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-        }
-    </style>
-    @stack('styles')
-</head>
-
-<body class="text-gray-900 min-h-screen" style="background-color: var(--bg-color);">
-    <div id="toast-container"></div>
-    <div class="flex min-h-screen">
-
-        <!-- Mobile sidebar backdrop (only visible when drawer is open on < lg) -->
-        <div id="sidebarOverlay" onclick="closeSidebar()" class="fixed inset-0 z-40 hidden lg:hidden"
-            style="background-color: rgba(0,0,0,0.5);"></div>
-
-        <!-- Sidebar - Modern Design -->
-        <aside id="sidebar"
-            class="sidebar-transition fixed inset-y-0 left-0 h-screen overflow-y-auto {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
-            <!-- Logo Section -->
-            <div class="sidebar-logo p-5 pb-2 flex items-center justify-center">
-                <div class="w-full rounded-xl p-3 backdrop-blur-sm">
-                    <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="w-full h-auto" />
-                </div>
-            </div>
-
             <!-- Navigation Menu -->
             @hasSection('sidebar-nav')
                 @yield('sidebar-nav')
             @else
-                <nav class="py-4 px-3 space-y-1">
-                    @php
-                        $essConfig = \App\Http\Controllers\Management\EssSettingsController::getEssSettings();
-                    @endphp
+            <nav class="py-6 px-4">
+                <!-- HOME - Visible to all roles -->
+                <div class="mb-2">
+                    <a href="{{ route('dashboard') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('dashboard') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-home"></i>
+                        </span>
+                        <span class="nav-text font-medium">Home</span>
+                    </a>
+                </div>
+                
+                @if($can('calendar'))
+                <!-- CALENDAR Dropdown -->
+                <div class="mb-2">
+                    <button onclick="toggleCalendarDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('calendar*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-calendar-alt"></i>
+                        </span>
+                        <span class="nav-text flex-1 font-medium">Calendar</span>
+                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="calendarChevron"></i>
+                    </button>
+                    <div id="calendarDropdown" class="nav-text {{ Request::is('calendar*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        @if($can('calendar.events'))
+                        <a href="{{ route('calendar.events') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/events*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-calendar-check text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Events</span>
+                        </a>
+                        @endif
+                        @if($can('calendar.timesheets'))
+                        <a href="{{ route('calendar.timesheets') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/timesheets*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-clock text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Timesheets</span>
+                        </a>
+                        @endif
+                    </div>
+                </div>
+                @endif
+                
+                @if($can('reporting'))
+                <!-- REPORTING Dropdown -->
+                <div class="mb-2">
+                    <button onclick="toggleReportingDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('reporting*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-chart-line"></i>
+                        </span>
+                        <span class="nav-text flex-1 font-medium">Reporting</span>
+                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="reportingChevron"></i>
+                    </button>
+                    <div id="reportingDropdown" class="nav-text {{ Request::is('reporting*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        @if($can('reporting.validation'))
+                        <a href="{{ route('reporting') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting') && !Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-check-circle text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">MD Validation</span>
+                        </a>
+                        @endif
+                        @if($can('reporting.md-recap'))
+                        <a href="{{ route('reporting.md-recap') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-table text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">MD Recap</span>
+                        </a>
+                        @endif
+                        @if($can('reporting.collection-outlook'))
+                        <a href="{{ route('reporting.collection-outlook') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ (Request::is('reporting/collection-outlook') || Request::is('reporting/collection-outlook/*')) ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-hand-holding-usd text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Collection Outlook</span>
+                        </a>
+                        @endif
+                        @if($can('reporting.collection-outlook-support'))
+                        <a href="{{ route('reporting.collection-outlook-support') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/collection-outlook-support*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-hand-holding-usd text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Collection Outlook (Support)</span>
+                        </a>
+                        @endif
+                        @if($can('reporting.ticketing-overview'))
+                        <a href="{{ route('reporting.ticketing-overview') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/ticketing-overview*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-headset text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Ticketing Overview</span>
+                        </a>
+                        @endif
+                        @if($can('reporting.ticket-by-module'))
+                        <a href="{{ route('reporting.ticket-by-module') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/ticket-by-module*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-puzzle-piece text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Ticket by Modul</span>
+                        </a>
+                        @endif
+                        @if($can('reporting.log-shifting'))
+                        <a href="{{ route('reporting.log-shifting') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/log-shifting*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-clock text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Log Shifting</span>
+                        </a>
+                        @endif
+                        @if($can('reporting.resolution-days'))
+                        <a href="{{ route('reporting.resolution-days') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/resolution-days*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-hourglass-half text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Resolution Days</span>
+                        </a>
+                        @endif
+                    </div>
+                </div>
+                @endif
 
-                    @if(!empty($essConfig['home']))
-                        <div class="mb-2">
-                            <a href="{{ route('dashboard') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('dashboard') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-home"></i>
-                                </span>
-                                <span class="nav-text font-medium">Home</span>
-                            </a>
-                        </div>
-                    @endif
+                @if($can('master'))
+                <!-- MASTER Dropdown -->
+                <div class="mb-2">
+                    <button onclick="toggleMasterDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('master*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-database"></i>
+                        </span>
+                        <span class="nav-text flex-1 font-medium">Master</span>
+                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="masterChevron"></i>
+                    </button>
+                    <div id="masterDropdown" class="nav-text {{ Request::is('master*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        @if($can('master.employee'))
+                        <a href="{{ route('master.employee.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-users text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Employee</span>
+                        </a>
+                        @endif
+                        @if($can('master.customer'))
+                        <a href="{{ route('master.customer.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/customer*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-user-tie text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Business Partner</span>
+                        </a>
+                        @endif
+                    </div>
+                </div>
+                @endif
 
-                    @if(!empty($essConfig['my_profile']))
-                        <div class="mb-2">
-                            <a href="{{ route('profile.my') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('my-profile*') || Request::is('profile*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-user-circle"></i>
-                                </span>
-                                <span class="nav-text font-medium">My Profile</span>
-                            </a>
-                        </div>
-                    @endif
+                @if($can('financial'))
+                <!-- FINANCIAL -->
+                <div class="mb-2">
+                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('financial') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-coins"></i>
+                        </span>
+                        <span class="nav-text font-medium">Financial</span>
+                    </a>
+                </div>
+                @endif
 
-                    @if(!empty($essConfig['my_attendance']))
-                        <div class="mb-2">
-                            <a href="{{ route('coming-soon', ['feature' => 'My Attendance']) }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-user-clock"></i>
-                                </span>
-                                <span class="nav-text font-medium">My Attendance</span>
-                            </a>
-                        </div>
-                    @endif
+                @php
+                    // "My Attendance" sengaja TIDAK menyalakan dropdown ini: ia
+                    // dirender sebagai item tingkat atas tersendiri di bawah,
+                    // karena seluruh karyawan melakukan presensi sementara hanya
+                    // sebagian yang mengakses modul HR.
+                    // Halaman general/settings/* juga tidak: menunya berada di
+                    // Management > HR & General.
+                    // `general/reimbursement*` sengaja TIDAK di sini: sejak
+                    // migrasi 2026_08_25_000001, Reimbursement Management adalah
+                    // item tingkat atas, bukan isi dropdown ini.
+                    $generalActive = Request::is('general')
+                        || Request::is('general/attendance*')
+                        || Request::is('general/overtime*');
 
-                    @if(!empty($essConfig['my_leave_permit']))
-                        <div class="mb-2">
-                            <a href="{{ route('my-leave-permit') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('my-leave-permit*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-calendar-check"></i>
-                                </span>
-                                <span class="nav-text font-medium">My Leave & Permit</span>
-                            </a>
-                        </div>
-                    @endif
+                    // Dropdown hanya ditampilkan bila ADA isinya. Tanpa penjagaan
+                    // ini, role yang hanya diberi "My Attendance" tetap melihat
+                    // "HR & General" di sidebar lalu mendapati dropdown terbuka
+                    // kosong — menu yang tidak bisa dipakai lebih membingungkan
+                    // daripada menu yang tidak ditampilkan sama sekali.
+                    $hasGeneralChildren = $can('general.attendance')
+                        || $can('general.attendance.correction')
+                        || $can('general.overtime');
+                @endphp
+                @if($can('general') && $hasGeneralChildren)
+                <!-- HR & GENERAL Dropdown -->
+                <div class="mb-2">
+                    <button onclick="toggleGeneralDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $generalActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-users-cog"></i>
+                        </span>
+                        <span class="nav-text flex-1 font-medium">HR &amp; General</span>
+                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="generalChevron"></i>
+                    </button>
+                    <div id="generalDropdown" class="nav-text {{ $generalActive ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        @if($can('general.attendance'))
+                        <a href="{{ route('general.attendance.daily') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance') || Request::is('general/attendance/monthly*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-calendar-check text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Attendance</span>
+                        </a>
+                        @endif
+                        @if($can('general.attendance.correction'))
+                        <a href="{{ route('general.attendance.corrections.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance/corrections*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-clock-rotate-left text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Attendance Corrections</span>
+                        </a>
+                        @endif
+                        @if($can('general.overtime'))
+                        <a href="{{ route('general.overtime.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/overtime*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-business-time text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Overtime Management</span>
+                        </a>
+                        @endif
+                    </div>
+                </div>
+                @endif
 
-                    @if(!empty($essConfig['overtime']))
-                        <div class="mb-2">
-                            <a href="{{ route('coming-soon', ['feature' => 'Overtime']) }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-business-time"></i>
-                                </span>
-                                <span class="nav-text font-medium">Overtime</span>
-                            </a>
-                        </div>
-                    @endif
+                @if($can('general.my-attendance'))
+                <!-- MY ATTENDANCE -->
+                {{-- Sengaja item TINGKAT ATAS, bukan di dalam dropdown HR & General:
+                     setiap karyawan melakukan presensi, sementara hanya sebagian
+                     yang mengakses modul HR. --}}
+                <div class="mb-2">
+                    <a href="{{ route('general.my-attendance.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-attendance*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-fingerprint"></i>
+                        </span>
+                        <span class="nav-text font-medium">My Attendance</span>
+                    </a>
+                </div>
+                @endif
 
-                    @if(!empty($essConfig['paystub']))
-                        <div class="mb-2">
-                            <a href="{{ route('coming-soon', ['feature' => 'Paystub']) }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-file-invoice-dollar"></i>
-                                </span>
-                                <span class="nav-text font-medium">Paystub</span>
-                            </a>
-                        </div>
-                    @endif
+                @if($can('general.my-overtime'))
+                <!-- OVERTIME (sisi karyawan) -->
+                {{-- Item TINGKAT ATAS dengan alasan yang sama seperti My Attendance:
+                     setiap karyawan dapat mengajukan lembur, sementara hanya
+                     sebagian yang meninjau.
 
-                    @if(!empty($essConfig['expense_reimbursement']))
-                        <div class="mb-2">
-                            <a href="{{ route('coming-soon', ['feature' => 'Expense Reimbursement']) }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-receipt"></i>
-                                </span>
-                                <span class="nav-text font-medium">Expense Reimbursement</span>
-                            </a>
-                        </div>
-                    @endif
+                     Namanya cukup "Overtime" — sisi HR bernama "Overtime
+                     Management" di dalam dropdown, jadi keduanya tidak bertabrakan.
+                     Slug-nya tetap `general.my-overtime`: itu identitas fungsional
+                     yang terikat tabel `menu`, bukan nama yang dilihat pengguna. --}}
+                <div class="mb-2">
+                    <a href="{{ route('general.my-overtime.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-overtime*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-hourglass-half"></i>
+                        </span>
+                        <span class="nav-text font-medium">Overtime</span>
+                    </a>
+                </div>
+                @endif
 
-                    @if(!empty($essConfig['purchase_request']))
-                        <div class="mb-2">
-                            <a href="{{ route('coming-soon', ['feature' => 'Purchase Request']) }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-shopping-cart"></i>
-                                </span>
-                                <span class="nav-text font-medium">Purchase Request</span>
-                            </a>
-                        </div>
-                    @endif
+                @if($can('general.my-reimbursement'))
+                <!-- REIMBURSEMENT (sisi karyawan) -->
+                {{-- Item TINGKAT ATAS dengan alasan yang sama seperti My Attendance
+                     dan Overtime: setiap karyawan dapat mengajukan penggantian
+                     biaya, sementara hanya sebagian yang meninjau.
 
-                    @if(!empty($essConfig['advance_payment_ca']))
-                        <div class="mb-2">
-                            <a href="{{ route('coming-soon', ['feature' => 'Advance Payment (CA)']) }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-hand-holding-usd"></i>
-                                </span>
-                                <span class="nav-text font-medium">Advance Payment (CA)</span>
-                            </a>
-                        </div>
-                    @endif
+                     Slug-nya tetap `general.my-reimbursement`; sisi HR bernama
+                     "Reimbursement Management" di dalam dropdown, jadi keduanya
+                     tidak bertabrakan. --}}
+                <div class="mb-2">
+                    <a href="{{ route('general.my-reimbursement.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-reimbursement*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-receipt"></i>
+                        </span>
+                        <span class="nav-text font-medium">Reimbursement</span>
+                    </a>
+                </div>
+                @endif
 
-                    @if(!empty($essConfig['advance_payment_car']))
-                        <div class="mb-2">
-                            <a href="{{ route('coming-soon', ['feature' => 'Advance Payment Report (CAR)']) }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-file-contract"></i>
-                                </span>
-                                <span class="nav-text font-medium">Advance Payment Report (CAR)</span>
-                            </a>
-                        </div>
-                    @endif
+                @if($can('general.reimbursement'))
+                <!-- REIMBURSEMENT MANAGEMENT (sisi HR / GA / Finance) -->
+                {{-- Item TINGKAT ATAS, sengaja BUKAN di dalam dropdown HR & General
+                     (migrasi 2026_08_25_000001). Alasannya hak sekecil mungkin:
+                     selama ia bersarang, setiap penyetuju reimbursement terpaksa
+                     ikut diberi slug induk `general` — padahal mereka orang GA dan
+                     Finance yang tidak punya urusan dengan Attendance maupun
+                     Overtime. Sekarang cukup `general.reimbursement` saja.
 
-                    @if(!empty($essConfig['loans']))
-                        <div class="mb-2">
-                            <a href="{{ route('coming-soon', ['feature' => 'Loans']) }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-landmark"></i>
-                                </span>
-                                <span class="nav-text font-medium">Loans</span>
-                            </a>
-                        </div>
-                    @endif
+                     "Overtime Management" SENGAJA tetap di dalam dropdown: modul
+                     itu sudah selesai dan teruji, memindahkannya adalah perubahan
+                     tersendiri. --}}
+                <div class="mb-2">
+                    <a href="{{ route('general.reimbursement.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/reimbursement*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                        </span>
+                        <span class="nav-text font-medium">Reimbursement Management</span>
+                    </a>
+                </div>
+                @endif
 
-                    @if(!empty($essConfig['my_kpis']))
-                        <div class="mb-2">
-                            <a href="{{ route('coming-soon', ['feature' => 'My KPIs']) }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-chart-line"></i>
-                                </span>
-                                <span class="nav-text font-medium">My KPIs</span>
-                            </a>
-                        </div>
-                    @endif
-
-                    @if(!empty($essConfig['ai_menu']))
-                        <div class="mb-2">
-                            <a href="{{ route('coming-soon', ['feature' => 'AI Menu']) }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-robot"></i>
-                                </span>
-                                <span class="nav-text font-medium">AI Menu</span>
-                            </a>
-                        </div>
-                    @endif
+                @if($can('business'))
+                <!-- BUSINESS DEV -->
+                <div class="mb-2">
+                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('business') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-briefcase"></i>
+                        </span>
+                        <span class="nav-text font-medium">Business Dev</span>
+                    </a>
+                </div>
+                @endif
 
                     @php
                         $showEvents = !empty($essConfig['events_calendar']) && ($can('calendar.events') || Auth::check());
@@ -2400,20 +1209,58 @@
                                 @endif
                             </div>
                         </div>
-                    @endif
+                        @endif
 
-                    <!-- Divider -->
-                    <div class="my-6 border-t border-white border-opacity-10"></div>
-
-                    <!-- SETTINGS - Visible to all roles -->
-                    <div class="mb-2">
-                        <a href="{{ route('settings.index') }}"
-                            class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('settings*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                <i class="fas fa-cog"></i>
-                            </span>
-                            <span class="nav-text font-medium">Settings</span>
-                        </a>
+                        @php
+                            // Konfigurasi modul HR & General dikumpulkan di sini
+                            // agar seluruh pengaturan sistem berada di satu tempat,
+                            // sementara dropdown HR & General di atas hanya berisi
+                            // menu operasional harian.
+                            $hrGeneralSettingsActive = Request::is('general/settings*');
+                        @endphp
+                        @if($can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance') || $can('general.settings.overtime') || $can('general.settings.reimbursement'))
+                        <div class="mt-1">
+                            <button onclick="toggleHrGeneralMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $hrGeneralSettingsActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-users-cog text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm flex-1">HR &amp; General</span>
+                                <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $hrGeneralSettingsActive ? 'rotate-180' : '' }}" id="hrGeneralMgmtChevron"></i>
+                            </button>
+                            <div id="hrGeneralMgmtDropdown" class="nav-text {{ $hrGeneralSettingsActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                                @if($can('general.settings.branches'))
+                                <a href="{{ route('general.settings.branches.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/branches*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-map-marker-alt text-xs"></i></span>
+                                    <span class="nav-text text-xs">Branches</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.shifts'))
+                                <a href="{{ route('general.settings.shifts.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/shifts*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-clock text-xs"></i></span>
+                                    <span class="nav-text text-xs">Shifts</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.attendance'))
+                                <a href="{{ route('general.settings.attendance.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/attendance*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-sliders text-xs"></i></span>
+                                    <span class="nav-text text-xs">Attendance Settings</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.overtime'))
+                                <a href="{{ route('general.settings.overtime.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/overtime*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-business-time text-xs"></i></span>
+                                    <span class="nav-text text-xs">Overtime Settings</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.reimbursement'))
+                                <a href="{{ route('general.settings.reimbursement.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/reimbursement*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-receipt text-xs"></i></span>
+                                    <span class="nav-text text-xs">Reimbursement Settings</span>
+                                </a>
+                                @endif
+                            </div>
+                        </div>
+                        @endif
                     </div>
                 </nav>
             @endif
@@ -2576,6 +1423,15 @@
     <script>
         var isCollapsed = false;
         var isMasterDropdownOpen = {{ Request::is('master*') ? 'true' : 'false' }};
+        {{-- Memakai ulang $generalActive yang sudah dihitung di blok sidebar,
+             bukan menyalin ulang daftar Request::is(). Sebelumnya keduanya
+             ditulis terpisah dan sempat berbeda: dropdown ter-render terbuka di
+             halaman Overtime Management, tetapi variabel ini bernilai false,
+             sehingga klik pertama pada tombolnya tidak menutup panel. Satu
+             sumber kebenaran menutup kemungkinan itu terulang saat sub-modul
+             berikutnya ditambahkan. --}}
+        var isGeneralDropdownOpen = {{ $generalActive ? 'true' : 'false' }};
+        var isHrGeneralMgmtDropdownOpen = {{ Request::is('general/settings*') ? 'true' : 'false' }};
         var isDeliveryDropdownOpen = {{ Request::is('project*') || Request::is('support*') ? 'true' : 'false' }};
         var isReportingDropdownOpen = {{ Request::is('reporting*') ? 'true' : 'false' }};
 
@@ -2645,6 +1501,19 @@
         function toggleMasterDropdown() {
             isMasterDropdownOpen = !isMasterDropdownOpen;
             document.getElementById('masterDropdown').classList.toggle('hidden', !isMasterDropdownOpen);
+        }
+
+        function toggleGeneralDropdown() {
+            isGeneralDropdownOpen = !isGeneralDropdownOpen;
+            document.getElementById('generalDropdown').classList.toggle('hidden', !isGeneralDropdownOpen);
+        }
+
+        function toggleHrGeneralMgmtDropdown() {
+            isHrGeneralMgmtDropdownOpen = !isHrGeneralMgmtDropdownOpen;
+            const panel   = document.getElementById('hrGeneralMgmtDropdown');
+            const chevron = document.getElementById('hrGeneralMgmtChevron');
+            panel.classList.toggle('hidden', !isHrGeneralMgmtDropdownOpen);
+            chevron.classList.toggle('rotate-180', isHrGeneralMgmtDropdownOpen);
         }
 
         function toggleReportingDropdown() {

@@ -11,22 +11,9 @@
     $recentTkts  = $data['recent_tickets']  ?? collect();
     $stagingPend = $data['staging_pending'] ?? 0;
 
-    $hour      = now()->hour;
-    $greeting  = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
-    $firstName = explode(' ', $user['name'] ?? 'User')[0];
-    $roleName  = $user['role']['name'] ?? 'User';
-
-    $roleColors = [
-        'EC Administrator'                   => 'text-red-700 bg-red-50 border-red-100',
-        'EC User'                            => 'text-purple-700 bg-purple-50 border-purple-100',
-        'Delivery Support User'              => 'text-green-700 bg-green-50 border-green-100',
-        'Delivery Support Head'              => 'text-blue-700 bg-blue-50 border-blue-100',
-        'Delivery Support Manager'           => 'text-indigo-700 bg-indigo-50 border-indigo-100',
-        'Delivery Support Service Helpdesk'  => 'text-teal-700 bg-teal-50 border-teal-100',
-        'Delivery RPMO Head'                 => 'text-cyan-700 bg-cyan-50 border-cyan-100',
-        'Delivery Project Head'              => 'text-violet-700 bg-violet-50 border-violet-100',
-    ];
-    $roleBadge = $roleColors[$roleName] ?? 'text-gray-700 bg-gray-100 border-gray-200';
+    // Sapaan, nama depan, dan badge peran pindah ke kartu hero milik modul
+    // HR & General yang disisipkan di bawah. Variabelnya dihapus dari sini
+    // supaya tidak ada dua sumber untuk teks yang sama.
 
     $statusCfg = [
         'open'                    => ['label' => 'Open',           'dot' => 'bg-blue-500',   'text' => 'text-blue-700',   'bg' => 'bg-blue-50'  ],
@@ -57,28 +44,22 @@
 
 <div class="space-y-5">
 
-{{-- ── Row 1: Greeting ──────────────────────────────────────────────────────── --}}
-<div class="flex items-center justify-between">
-    <div>
-        <div class="flex items-center gap-2 flex-wrap">
-            <h2 class="text-xl font-bold text-gray-800">{{ $greeting }}, {{ $firstName }}</h2>
-            <span class="text-xs font-semibold border px-2.5 py-0.5 rounded-full {{ $roleBadge }}">{{ $roleName }}</span>
-        </div>
-        <p class="text-xs text-gray-400 mt-0.5">
-            {{ now()->isoFormat('dddd, D MMMM Y') }}
-            @if(!empty($user['position'])) &mdash; {{ $user['position'] }}@endif
-        </p>
-    </div>
-    <div class="hidden sm:flex items-center gap-3">
-        @if($stagingPend > 0 && $can('tickets.staging'))
-        <a href="{{ route('staging.index') }}"
-            class="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-amber-100 transition">
-            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-            {{ $stagingPend }} pending validation
-        </a>
-        @endif
-        <span class="text-xs text-gray-400 font-mono" id="dashClock"></span>
-    </div>
+{{-- ── Row 1: Greeting + Attendance ─────────────────────────────────────────
+     Sapaan teks polos digantikan kartu hero bertema milik modul HR & General.
+     Seluruh isinya ada di berkas partial tersebut, bukan di sini, supaya
+     dashboard tidak perlu tahu apa pun tentang presensi — bila modul itu
+     dimatikan, cukup satu baris ini yang dihapus. --}}
+@include('HR_General.dashboard.attendance')
+
+<div class="flex items-center justify-end gap-3">
+    @if($stagingPend > 0 && $can('tickets.staging'))
+    <a href="{{ route('staging.index') }}"
+        class="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-amber-100 transition">
+        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+        {{ $stagingPend }} pending validation
+    </a>
+    @endif
+    <span class="text-xs text-gray-400 font-mono" id="dashClock"></span>
 </div>
 
 {{-- ── Row 2: KPI Cards ──────────────────────────────────────────────────────── --}}
