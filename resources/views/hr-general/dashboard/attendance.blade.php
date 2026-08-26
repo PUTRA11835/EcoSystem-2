@@ -28,6 +28,17 @@
     $canSelf    = $can('general.my-attendance');
     $canRecap   = $can('general.attendance');
 
+    // Leave & Permit adalah modul TIM, bukan modul ini, jadi penjagaannya
+    // meniru persis apa yang dipakai sidebar — bukan aturan baru buatan sendiri:
+    //   sisi HR       -> slug `general` / `hr_general.leave_permit`
+    //   sisi karyawan -> sakelar ESS `my_leave_permit`
+    // `$essConfig` hanya hidup di layout (Blade merender bagian halaman anak
+    // SEBELUM layout dijalankan), jadi sakelarnya dibaca ulang di sini dari
+    // sumber yang sama, bukan ditebak.
+    $canLeaveAdmin = $can('general') || $can('hr_general.leave_permit');
+    $essMenu       = \App\Http\Controllers\Management\EssSettingsController::getEssSettings();
+    $canLeaveSelf  = !empty($essMenu['my_leave_permit']);
+
     // Kartu statistik pribadi. Label & satuannya disamakan persis dengan
     // halaman My Attendance supaya angka yang sama tidak pernah muncul
     // dengan dua nama berbeda.
@@ -50,15 +61,18 @@
     if ($can('general.attendance.correction')) {
         $hrTiles[] = ['href' => route('general.attendance.corrections.index'), 'icon' => 'fa-pen-to-square', 'bg' => 'bg-amber-50', 'color' => 'text-amber-600', 'title' => 'Attendance Corrections', 'desc' => 'Review time corrections submitted by employees.', 'badge' => 'dashAttPendingBadge'];
     }
+    if ($canLeaveAdmin) {
+        $hrTiles[] = ['href' => route('hr-general.leave-permit'), 'icon' => 'fa-calendar-minus', 'bg' => 'bg-pink-50', 'color' => 'text-pink-600', 'title' => 'Leave & Permit', 'desc' => 'Review leave and permit applications from employees.'];
+    }
     if ($can('general.settings.attendance')) {
         $hrTiles[] = ['href' => route('general.settings.attendance.edit'), 'icon' => 'fa-sliders', 'bg' => 'bg-gray-100', 'color' => 'text-gray-600', 'title' => 'Attendance Settings', 'desc' => 'Geofence mode, tolerance, and attendance rules.'];
     }
 
-    // Pintasan sisi karyawan — ATTENDANCE SAJA.
+    // Pintasan sisi karyawan — presensi + Leave & Permit.
     //
     // Overtime dan Reimbursement SENGAJA tidak ada di sini meski slug-nya
-    // dimiliki hampir semua karyawan: blok ini berfokus pada presensi, dan
-    // keduanya sudah punya item tingkat atas sendiri di sidebar. Menaruhnya
+    // dimiliki hampir semua karyawan: blok ini berfokus pada kehadiran harian,
+    // dan keduanya sudah punya item tingkat atas sendiri di sidebar. Menaruhnya
     // lagi di sini hanya menggandakan pintu yang sama.
     $selfTiles = [];
     if ($canSelf) {
@@ -67,6 +81,9 @@
     }
     if ($can('hr_general.leave_permit') || $can('general')) {
         $selfTiles[] = ['href' => route('my-leave-permit'), 'icon' => 'fa-calendar-check', 'bg' => 'bg-purple-50', 'color' => 'text-purple-600', 'title' => 'Leave & Permit', 'desc' => 'Apply for leave, permit, or view request history.'];
+    }
+    if ($canLeaveSelf) {
+        $selfTiles[] = ['href' => route('my-leave-permit'), 'icon' => 'fa-calendar-minus', 'bg' => 'bg-pink-50', 'color' => 'text-pink-600', 'title' => 'Leave & Permit', 'desc' => 'Submit a leave or permit request and track its approval.'];
     }
 
     $tileClass = 'group relative flex flex-col gap-2 p-4 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 transition-all';

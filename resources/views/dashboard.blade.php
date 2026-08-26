@@ -70,30 +70,32 @@
         }
 
         :root {
-            --primary-color:
-                {{ $primaryColor }}
-            ;
-            --primary-rgb:
-                {{ $primaryRgb }}
-            ;
-            --primary-dark-rgb:
-                {{ $primaryDarkRgb }}
-            ;
-            --font-size-base:
-                {{ $baseFontSize }}
-            ;
-            --bg-color:
-                {{ $bgColor }}
-            ;
-            --text-color:
-                {{ $textColor }}
-            ;
-            --card-bg:
-                {{ $cardBg }}
-            ;
-            --scrollbar-track:
-                {{ $preferences['theme'] === 'dark' ? '#111827' : '#f1f1f1' }}
-            ;
+            --primary-color: {{ $primaryColor }};
+            --primary-rgb: {{ $primaryRgb }};
+            --primary-dark-rgb: {{ $primaryDarkRgb }};
+            --font-size-base: {{ $baseFontSize }};
+            --bg-color: {{ $bgColor }};
+            --text-color: {{ $textColor }};
+            --card-bg: {{ $cardBg }};
+            --scrollbar-track: {{ $preferences['theme'] === 'dark' ? '#111827' : '#f1f1f1' }};
+
+            /* Latar "permukaan bertema" untuk kartu utama di dalam halaman —
+               misalnya kartu identitas pada My Attendance.
+
+               Nilainya PERSIS mengikuti pilihan Sidebar style, sehingga kartu
+               tersebut ikut berubah begitu Accent color atau gaya sidebar
+               diganti di Settings. Ditulis sebagai custom property agar halaman
+               anak cukup memakai kelas `.primary-surface` tanpa perlu tahu
+               preferensi pengguna — variabel $preferences hanya hidup di layout
+               ini, tidak ikut terbawa ke bagian konten halaman anak.
+
+               CATATAN: jangan menulis nama direktif Blade berawalan "at" di
+               dalam komentar CSS mana pun pada berkas ini. Blade memproses
+               direktif tanpa peduli konteks komentar CSS, sehingga teks
+               tersebut ikut dikompilasi dan menghasilkan galat 500. */
+            --primary-surface: {{ $preferences['sidebar_style'] === 'gradient'
+                ? 'linear-gradient(135deg, rgb(var(--primary-dark-rgb)), rgb(var(--primary-rgb)))'
+                : 'rgb(var(--primary-rgb))' }};
         }
 
         body {
@@ -130,10 +132,10 @@
                     rgb(var(--primary-rgb))) !important;
         }
 
+        /* Kartu bertema di dalam halaman. Satu sumber warna dengan sidebar:
+           keduanya berakar pada --primary-rgb, jadi tidak mungkin melenceng. */
         .primary-surface {
-            background: linear-gradient(135deg,
-                    rgb(var(--primary-dark-rgb)),
-                    rgb(var(--primary-rgb))) !important;
+            background: var(--primary-surface) !important;
         }
 
         .primary-solid {
@@ -1826,15 +1828,6 @@
             document.getElementById('masterDropdown').classList.toggle('hidden', !isMasterDropdownOpen);
         }
 
-        let isHrGeneralDropdownOpen = {{ Request::is('hr-general*') ? 'true' : 'false' }};
-        function toggleHrGeneralDropdown() {
-            isHrGeneralDropdownOpen = !isHrGeneralDropdownOpen;
-            const dropdown = document.getElementById('hrGeneralDropdown');
-            const chevron  = document.getElementById('hrGeneralChevron');
-            if (dropdown) dropdown.classList.toggle('hidden', !isHrGeneralDropdownOpen);
-            if (chevron) chevron.classList.toggle('rotate-180', isHrGeneralDropdownOpen);
-        }
-
         function toggleHrGeneralMgmtDropdown() {
             isHrGeneralMgmtDropdownOpen = !isHrGeneralMgmtDropdownOpen;
             const panel   = document.getElementById('hrGeneralMgmtDropdown');
@@ -2643,30 +2636,6 @@
                         }
                     };
                 })();
-
-                function toggleSidebar() {
-                    var sidebar = document.getElementById('sidebar');
-                    if (sidebar) {
-                        sidebar.classList.toggle('-translate-x-full');
-                    }
-                }
-
-                function toggleUserDropdown() {
-                    var userDd = document.getElementById('userDropdown');
-                    if (userDd) {
-                        userDd.classList.toggle('hidden');
-                    }
-                }
-
-                function toggleBellDropdown() {
-                    var bellDd = document.getElementById('bellDropdown');
-                    if (bellDd) {
-                        bellDd.classList.toggle('hidden');
-                        if (!bellDd.classList.contains('hidden') && typeof loadBellNotifications === 'function') {
-                            loadBellNotifications();
-                        }
-                    }
-                }
             </script>
 
             @if(!config('app.debug'))

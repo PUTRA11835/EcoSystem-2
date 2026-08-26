@@ -155,7 +155,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // ==================== HR & GENERAL ====================
     Route::get('/general', function () {
-        return view('HR_General.HR_General', ['user' => session('user')]);
+        // Nama view mengikuti rename folder pada merge staging_al_naf:
+        // resources/views/HR_General/HR_General.blade.php -> hr-general/hr-general.blade.php
+        return view('hr-general.hr-general', ['user' => session('user')]);
     })->name('general')->middleware('menu:general');
 
     // ==================== BUSINESS ====================
