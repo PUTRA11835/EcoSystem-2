@@ -98,7 +98,7 @@
             @error('supporting_url')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
         </div>
 
-        @include('HR_General.reimbursement._item_rows', ['existingItems' => null])
+        @include('hr-general.reimbursement._item_rows', ['existingItems' => null])
 
         {{-- Aturan yang sedang berlaku. Ditampilkan apa adanya supaya pengguna
              tidak menebak-nebak batas yang tak terlihat. --}}
@@ -157,7 +157,7 @@
 @endsection
 
 @push('scripts')
-@include('HR_General.reimbursement._item_rows_script')
+@include('hr-general.reimbursement._item_rows_script')
 <script>
     // Konfirmasi sebelum kirim. Karena karyawan tidak dapat membatalkan
     // dokumennya (Keputusan D111), inilah kesempatan terakhir memeriksa nominal.

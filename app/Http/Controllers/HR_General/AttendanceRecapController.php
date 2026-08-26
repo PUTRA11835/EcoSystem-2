@@ -39,7 +39,7 @@ class AttendanceRecapController extends Controller
         $filters = $this->dailyFilters($request);
         $records = $this->dailyRecords($filters);
 
-        return view('HR_General.attendance.daily', [
+        return view('hr-general.attendance.daily', [
             'records'     => $records,
             'filters'     => $filters,
             'departments' => $this->departmentOptions(),
@@ -65,7 +65,7 @@ class AttendanceRecapController extends Controller
         $filters = $this->monthlyFilters($request);
         $data    = $this->monthlyMatrix($filters, $holidays);
 
-        return view('HR_General.attendance.monthly', array_merge($data, [
+        return view('hr-general.attendance.monthly', array_merge($data, [
             'filters'  => $filters,
             'branches' => Branch::active()->orderBy('name')->get(['id', 'name']),
         ]));

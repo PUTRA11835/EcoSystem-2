@@ -26,7 +26,7 @@ class MyReimbursementController extends Controller
         $employeeId = (int) session('user.id');
         $now        = now();
 
-        return view('HR_General.reimbursement.my_reimbursement', [
+        return view('hr-general.reimbursement.my-reimbursement', [
             'requests' => $reimbursement->history($employeeId),
             'summary'  => $reimbursement->monthlySummary($employeeId, (int) $now->format('Y'), (int) $now->format('n')),
             'settings' => ReimbursementSetting::current(),
@@ -43,7 +43,7 @@ class MyReimbursementController extends Controller
         // — pengguna tidak menemui penolakan setelah menekan kirim.
         $today = now()->startOfDay();
 
-        return view('HR_General.reimbursement.submit', [
+        return view('hr-general.reimbursement.submit', [
             'settings' => $settings,
             'branches' => $reimbursement->branchOptions(),
             'steps'    => $reimbursement->activeSteps(),
@@ -77,7 +77,7 @@ class MyReimbursementController extends Controller
 
         $reimbursementRequest->load(['items.branch', 'approvals.actor.basicData', 'approvals.role', 'employee.basicData']);
 
-        return view('HR_General.reimbursement.show', [
+        return view('hr-general.reimbursement.show', [
             'request'      => $reimbursementRequest,
             'signatories'  => $reimbursement->signatories($reimbursementRequest),
             'backRoute'    => route('general.my-reimbursement.index'),
@@ -103,7 +103,7 @@ class MyReimbursementController extends Controller
     {
         $request->load(['items.branch', 'approvals.actor.basicData', 'employee.basicData']);
 
-        return view('HR_General.reimbursement.print', [
+        return view('hr-general.reimbursement.print', [
             'request'     => $request,
             'heading'     => $reimbursement->documentHeading($request),
             'signatories' => $reimbursement->signatories($request),

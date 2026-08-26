@@ -58,7 +58,7 @@ class ReimbursementController extends Controller
             ->pluck('id')
             ->all();
 
-        return view('HR_General.reimbursement.index', [
+        return view('hr-general.reimbursement.index', [
             'requests'    => $requests,
             'filters'     => $filters,
             'mineIds'     => $mineIds,
@@ -84,7 +84,7 @@ class ReimbursementController extends Controller
 
         $actorId = (int) session('user.id');
 
-        return view('HR_General.reimbursement.show', [
+        return view('hr-general.reimbursement.show', [
             'request'      => $reimbursementRequest,
             'signatories'  => $reimbursement->signatories($reimbursementRequest),
             'backRoute'    => route('general.reimbursement.index'),
@@ -170,7 +170,7 @@ class ReimbursementController extends Controller
         $settings = ReimbursementSetting::current();
         $today    = now()->startOfDay();
 
-        return view('HR_General.reimbursement.form', [
+        return view('hr-general.reimbursement.form', [
             'mode'      => 'create',
             'request'   => null,
             'settings'  => $settings,
@@ -219,7 +219,7 @@ class ReimbursementController extends Controller
 
         $reimbursementRequest->load('items');
 
-        return view('HR_General.reimbursement.form', [
+        return view('hr-general.reimbursement.form', [
             'mode'      => 'edit',
             'request'   => $reimbursementRequest,
             'settings'  => ReimbursementSetting::current(),

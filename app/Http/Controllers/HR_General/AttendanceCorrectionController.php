@@ -118,7 +118,7 @@ class AttendanceCorrectionController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        return view('HR_General.attendance.corrections', [
+        return view('hr-general.attendance.corrections', [
             'corrections' => $corrections,
             'search'      => $search,
             'status'      => $status,

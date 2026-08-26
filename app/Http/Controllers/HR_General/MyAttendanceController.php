@@ -29,7 +29,7 @@ class MyAttendanceController extends Controller
         $employee = Employee::with('basicData')->find($employeeId);
         $now      = now();
 
-        return view('HR_General.attendance.my_attendance', [
+        return view('hr-general.attendance.my-attendance', [
             'employee'      => $employee,
             'shift'         => $attendance->activeShift($employeeId),
             'record'        => $attendance->todayRecord($employeeId),

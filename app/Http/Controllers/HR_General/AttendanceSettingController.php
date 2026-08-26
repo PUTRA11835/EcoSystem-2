@@ -21,7 +21,7 @@ class AttendanceSettingController extends Controller
 {
     public function edit()
     {
-        return view('HR_General.settings.attendance', [
+        return view('hr-general.settings.attendance', [
             'settings' => AttendanceSetting::current(),
             'sources'  => AttendanceSource::ordered()->get(),
         ]);

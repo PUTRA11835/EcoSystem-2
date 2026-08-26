@@ -30,7 +30,7 @@ class OvertimeSettingController extends Controller
 {
     public function edit()
     {
-        return view('HR_General.settings.overtime', [
+        return view('hr-general.settings.overtime', [
             'settings' => OvertimeSetting::current(),
             'steps'    => OvertimeApprovalStep::forOvertime()
                 ->with('role')
