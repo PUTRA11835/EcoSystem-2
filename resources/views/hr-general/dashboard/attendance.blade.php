@@ -79,7 +79,7 @@
         $selfTiles[] = ['href' => route('general.my-attendance.index'), 'icon' => 'fa-fingerprint', 'bg' => 'bg-green-50', 'color' => 'text-green-600', 'title' => 'Check-in / Check-out', 'desc' => "Check in, check out, and view today's attendance status."];
         $selfTiles[] = ['href' => route('general.my-attendance.index'), 'icon' => 'fa-clock-rotate-left', 'bg' => 'bg-sky-50', 'color' => 'text-sky-600', 'title' => 'Attendance History', 'desc' => 'View your personal history and submit corrections.'];
     }
-    if ($can('hr_general.leave_permit') || $can('general')) {
+    if ($can('my-leave-permit') || $can('hr_general.leave_permit') || $can('general')) {
         $selfTiles[] = ['href' => route('my-leave-permit'), 'icon' => 'fa-calendar-check', 'bg' => 'bg-purple-50', 'color' => 'text-purple-600', 'title' => 'Leave & Permit', 'desc' => 'Apply for leave, permit, or view request history.'];
     }
     if ($canLeaveSelf) {
@@ -108,7 +108,7 @@
 
             <!-- Quick Access Buttons (Mobile & Desktop) -->
             <div class="mt-4 flex flex-wrap gap-2">
-                @if($can('hr_general.leave_permit') || $can('general'))
+                @if($can('my-leave-permit') || $can('hr_general.leave_permit') || $can('general'))
                 <a href="{{ route('my-leave-permit') }}"
                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-semibold transition backdrop-blur-sm shadow-sm border border-white/25 active:scale-95">
                     <i class="fas fa-calendar-check text-xs"></i> Apply Leave & Permit
@@ -155,7 +155,7 @@
             </a>
 
             <!-- Dedicated div below attendance for Leave & Permit -->
-            @if($can('hr_general.leave_permit') || $can('general'))
+            @if($can('my-leave-permit') || $can('hr_general.leave_permit') || $can('general'))
             <div class="mt-3 pt-3 border-t border-gray-100">
                 <a href="{{ route('my-leave-permit') }}"
                    class="flex items-center justify-between gap-2 w-full px-3.5 py-2.5 bg-purple-50 border border-purple-200 text-purple-800 hover:bg-purple-100 rounded-lg transition-all text-xs font-semibold group shadow-sm active:scale-95">
