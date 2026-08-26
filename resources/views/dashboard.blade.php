@@ -1616,7 +1616,22 @@
                 @yield('sidebar-nav')
             @else
             <nav class="py-6 px-4">
+                @php
+                    // DIKEMBALIKAN 26 Agu 2026. Baris ini ikut terhapus oleh merge
+                    // 11975ed, padahal SELURUH menu ESS milik tim bergantung
+                    // padanya. Tanpa definisi ini `$essConfig` tidak pernah ada,
+                    // sehingga setiap `@if(!empty($essConfig[...]))` bernilai
+                    // salah — dan menu Calendar, My Profile, serta tombol
+                    // Sign Out menghilang tanpa pesan galat apa pun.
+                    $essConfig = \App\Http\Controllers\Management\EssSettingsController::getEssSettings();
+                @endphp
+
                 <!-- HOME - Visible to all roles -->
+                {{-- Penjagaan $essConfig['home'] ditambahkan 26 Agu 2026. Sakelar
+                     "Home" sudah lama ada di Management > ESS Settings, tetapi
+                     item ini tidak pernah membacanya — sakelar yang tidak
+                     mengubah apa pun lebih buruk daripada sakelar yang tidak ada. --}}
+                @if(!empty($essConfig['home']))
                 <div class="mb-2">
                     <a href="{{ route('dashboard') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('dashboard') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
@@ -1625,220 +1640,30 @@
                         <span class="nav-text font-medium">Home</span>
                     </a>
                 </div>
-                
-                @if($can('calendar'))
-                <!-- CALENDAR Dropdown -->
-                <div class="mb-2">
-                    <button onclick="toggleCalendarDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('calendar*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-calendar-alt"></i>
-                        </span>
-                        <span class="nav-text flex-1 font-medium">Calendar</span>
-                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="calendarChevron"></i>
-                    </button>
-                    <div id="calendarDropdown" class="nav-text {{ Request::is('calendar*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
-                        @if($can('calendar.events'))
-                        <a href="{{ route('calendar.events') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/events*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-calendar-check text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Events</span>
-                        </a>
-                        @endif
-                        @if($can('calendar.timesheets'))
-                        <a href="{{ route('calendar.timesheets') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/timesheets*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-clock text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Timesheets</span>
-                        </a>
-                        @endif
-                    </div>
-                </div>
                 @endif
                 
-                @if($can('reporting'))
-                <!-- REPORTING Dropdown -->
-                <div class="mb-2">
-                    <button onclick="toggleReportingDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('reporting*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-chart-line"></i>
-                        </span>
-                        <span class="nav-text flex-1 font-medium">Reporting</span>
-                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="reportingChevron"></i>
-                    </button>
-                    <div id="reportingDropdown" class="nav-text {{ Request::is('reporting*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
-                        @if($can('reporting.validation'))
-                        <a href="{{ route('reporting') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting') && !Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-check-circle text-xs"></i>
+
+                {{-- ── MENU ESS (Employee Self Service) ──────────────────────────
+                     DIKEMBALIKAN 26 Agu 2026; seluruh blok ini terhapus oleh merge
+                     11975ed. Sakelarnya ada di Management > ESS Settings, dibaca
+                     lewat $essConfig di atas.
+
+                     My Attendance, Overtime, dan Expense Reimbursement SENGAJA
+                     tidak ikut dikembalikan: ketiganya hanya tautan
+                     route('coming-soon'), sementara versi sungguhannya sudah
+                     berjalan sebagai item tingkat atas di bawah. Dua menu dengan
+                     nama sama — satu asli, satu "coming soon" — memaksa orang
+                     menebak mana yang benar. --}}
+                @if(!empty($essConfig['my_profile']))
+                    <div class="mb-2">
+                        <a href="{{ route('profile.my') }}"
+                            class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('my-profile*') || Request::is('profile*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                <i class="fas fa-user-circle"></i>
                             </span>
-                            <span class="nav-text text-sm">MD Validation</span>
+                            <span class="nav-text font-medium">My Profile</span>
                         </a>
-                        @endif
-                        @if($can('reporting.md-recap'))
-                        <a href="{{ route('reporting.md-recap') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-table text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">MD Recap</span>
-                        </a>
-                        @endif
-                        @if($can('reporting.collection-outlook'))
-                        <a href="{{ route('reporting.collection-outlook') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ (Request::is('reporting/collection-outlook') || Request::is('reporting/collection-outlook/*')) ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-hand-holding-usd text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Collection Outlook</span>
-                        </a>
-                        @endif
-                        @if($can('reporting.collection-outlook-support'))
-                        <a href="{{ route('reporting.collection-outlook-support') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/collection-outlook-support*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-hand-holding-usd text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Collection Outlook (Support)</span>
-                        </a>
-                        @endif
-                        @if($can('reporting.ticketing-overview'))
-                        <a href="{{ route('reporting.ticketing-overview') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/ticketing-overview*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-headset text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Ticketing Overview</span>
-                        </a>
-                        @endif
-                        @if($can('reporting.ticket-by-module'))
-                        <a href="{{ route('reporting.ticket-by-module') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/ticket-by-module*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-puzzle-piece text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Ticket by Modul</span>
-                        </a>
-                        @endif
-                        @if($can('reporting.log-shifting'))
-                        <a href="{{ route('reporting.log-shifting') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/log-shifting*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-clock text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Log Shifting</span>
-                        </a>
-                        @endif
-                        @if($can('reporting.resolution-days'))
-                        <a href="{{ route('reporting.resolution-days') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/resolution-days*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-hourglass-half text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Resolution Days</span>
-                        </a>
-                        @endif
                     </div>
-                </div>
-                @endif
-
-                @if($can('master'))
-                <!-- MASTER Dropdown -->
-                <div class="mb-2">
-                    <button onclick="toggleMasterDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('master*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-database"></i>
-                        </span>
-                        <span class="nav-text flex-1 font-medium">Master</span>
-                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="masterChevron"></i>
-                    </button>
-                    <div id="masterDropdown" class="nav-text {{ Request::is('master*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
-                        @if($can('master.employee'))
-                        <a href="{{ route('master.employee.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-users text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Employee</span>
-                        </a>
-                        @endif
-                        @if($can('master.customer'))
-                        <a href="{{ route('master.customer.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/customer*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-user-tie text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Business Partner</span>
-                        </a>
-                        @endif
-                    </div>
-                </div>
-                @endif
-
-                @if($can('financial'))
-                <!-- FINANCIAL -->
-                <div class="mb-2">
-                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('financial') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-coins"></i>
-                        </span>
-                        <span class="nav-text font-medium">Financial</span>
-                    </a>
-                </div>
-                @endif
-
-                @php
-                    // "My Attendance" sengaja TIDAK menyalakan dropdown ini: ia
-                    // dirender sebagai item tingkat atas tersendiri di bawah,
-                    // karena seluruh karyawan melakukan presensi sementara hanya
-                    // sebagian yang mengakses modul HR.
-                    // Halaman general/settings/* juga tidak: menunya berada di
-                    // Management > HR & General.
-                    // `general/reimbursement*` sengaja TIDAK di sini: sejak
-                    // migrasi 2026_08_25_000001, Reimbursement Management adalah
-                    // item tingkat atas, bukan isi dropdown ini.
-                    $generalActive = Request::is('general')
-                        || Request::is('general/attendance*')
-                        || Request::is('general/overtime*');
-
-                    // Dropdown hanya ditampilkan bila ADA isinya. Tanpa penjagaan
-                    // ini, role yang hanya diberi "My Attendance" tetap melihat
-                    // "HR & General" di sidebar lalu mendapati dropdown terbuka
-                    // kosong — menu yang tidak bisa dipakai lebih membingungkan
-                    // daripada menu yang tidak ditampilkan sama sekali.
-                    $hasGeneralChildren = $can('general.attendance')
-                        || $can('general.attendance.correction')
-                        || $can('general.overtime');
-                @endphp
-                @if($can('general') && $hasGeneralChildren)
-                <!-- HR & GENERAL Dropdown -->
-                <div class="mb-2">
-                    <button onclick="toggleGeneralDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $generalActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-users-cog"></i>
-                        </span>
-                        <span class="nav-text flex-1 font-medium">HR &amp; General</span>
-                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="generalChevron"></i>
-                    </button>
-                    <div id="generalDropdown" class="nav-text {{ $generalActive ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
-                        @if($can('general.attendance'))
-                        <a href="{{ route('general.attendance.daily') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance') || Request::is('general/attendance/monthly*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-calendar-check text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Attendance</span>
-                        </a>
-                        @endif
-                        @if($can('general.attendance.correction'))
-                        <a href="{{ route('general.attendance.corrections.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance/corrections*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-clock-rotate-left text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Attendance Corrections</span>
-                        </a>
-                        @endif
-                        @if($can('general.overtime'))
-                        <a href="{{ route('general.overtime.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/overtime*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-business-time text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Overtime Management</span>
-                        </a>
-                        @endif
-                    </div>
-                </div>
                 @endif
 
                 @if($can('general.my-attendance'))
@@ -1854,6 +1679,18 @@
                         <span class="nav-text font-medium">My Attendance</span>
                     </a>
                 </div>
+                @endif
+
+                @if(!empty($essConfig['my_leave_permit']))
+                    <div class="mb-2">
+                        <a href="{{ route('my-leave-permit') }}"
+                            class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('my-leave-permit*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                <i class="fas fa-calendar-check"></i>
+                            </span>
+                            <span class="nav-text font-medium">My Leave & Permit</span>
+                        </a>
+                    </div>
                 @endif
 
                 @if($can('general.my-overtime'))
@@ -1876,6 +1713,18 @@
                 </div>
                 @endif
 
+                @if(!empty($essConfig['paystub']))
+                    <div class="mb-2">
+                        <a href="{{ route('coming-soon', ['feature' => 'Paystub']) }}"
+                            class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                            <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                <i class="fas fa-file-invoice-dollar"></i>
+                            </span>
+                            <span class="nav-text font-medium">Paystub</span>
+                        </a>
+                    </div>
+                @endif
+
                 @if($can('general.my-reimbursement'))
                 <!-- REIMBURSEMENT (sisi karyawan) -->
                 {{-- Item TINGKAT ATAS dengan alasan yang sama seperti My Attendance
@@ -1895,38 +1744,76 @@
                 </div>
                 @endif
 
-                @if($can('general.reimbursement'))
-                <!-- REIMBURSEMENT MANAGEMENT (sisi HR / GA / Finance) -->
-                {{-- Item TINGKAT ATAS, sengaja BUKAN di dalam dropdown HR & General
-                     (migrasi 2026_08_25_000001). Alasannya hak sekecil mungkin:
-                     selama ia bersarang, setiap penyetuju reimbursement terpaksa
-                     ikut diberi slug induk `general` — padahal mereka orang GA dan
-                     Finance yang tidak punya urusan dengan Attendance maupun
-                     Overtime. Sekarang cukup `general.reimbursement` saja.
-
-                     "Overtime Management" SENGAJA tetap di dalam dropdown: modul
-                     itu sudah selesai dan teruji, memindahkannya adalah perubahan
-                     tersendiri. --}}
-                <div class="mb-2">
-                    <a href="{{ route('general.reimbursement.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/reimbursement*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-file-invoice-dollar"></i>
-                        </span>
-                        <span class="nav-text font-medium">Reimbursement Management</span>
-                    </a>
-                </div>
+                @if(!empty($essConfig['purchase_request']))
+                    <div class="mb-2">
+                        <a href="{{ route('coming-soon', ['feature' => 'Purchase Request']) }}"
+                            class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                            <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                <i class="fas fa-shopping-cart"></i>
+                            </span>
+                            <span class="nav-text font-medium">Purchase Request</span>
+                        </a>
+                    </div>
                 @endif
 
-                @if($can('business'))
-                <!-- BUSINESS DEV -->
-                <div class="mb-2">
-                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('business') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-briefcase"></i>
-                        </span>
-                        <span class="nav-text font-medium">Business Dev</span>
-                    </a>
-                </div>
+                @if(!empty($essConfig['advance_payment_ca']))
+                    <div class="mb-2">
+                        <a href="{{ route('coming-soon', ['feature' => 'Advance Payment (CA)']) }}"
+                            class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                            <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                <i class="fas fa-hand-holding-usd"></i>
+                            </span>
+                            <span class="nav-text font-medium">Advance Payment (CA)</span>
+                        </a>
+                    </div>
+                @endif
+
+                @if(!empty($essConfig['advance_payment_car']))
+                    <div class="mb-2">
+                        <a href="{{ route('coming-soon', ['feature' => 'Advance Payment Report (CAR)']) }}"
+                            class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                            <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                <i class="fas fa-file-contract"></i>
+                            </span>
+                            <span class="nav-text font-medium">Advance Payment Report (CAR)</span>
+                        </a>
+                    </div>
+                @endif
+
+                @if(!empty($essConfig['loans']))
+                    <div class="mb-2">
+                        <a href="{{ route('coming-soon', ['feature' => 'Loans']) }}"
+                            class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                            <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                <i class="fas fa-landmark"></i>
+                            </span>
+                            <span class="nav-text font-medium">Loans</span>
+                        </a>
+                    </div>
+                @endif
+
+                @if(!empty($essConfig['my_kpis']))
+                    <div class="mb-2">
+                        <a href="{{ route('coming-soon', ['feature' => 'My KPIs']) }}"
+                            class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                            <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                <i class="fas fa-chart-line"></i>
+                            </span>
+                            <span class="nav-text font-medium">My KPIs</span>
+                        </a>
+                    </div>
+                @endif
+
+                @if(!empty($essConfig['ai_menu']))
+                    <div class="mb-2">
+                        <a href="{{ route('coming-soon', ['feature' => 'AI Menu']) }}"
+                            class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                            <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                <i class="fas fa-robot"></i>
+                            </span>
+                            <span class="nav-text font-medium">AI Menu</span>
+                        </a>
+                    </div>
                 @endif
 
                     @php
@@ -2107,31 +1994,115 @@
                         </div>
                     @endif
 
-                    @if($can('general') || $can('hr_general.leave_permit'))
-                        <!-- HR & GENERAL -->
-                        @php $hrGeneralOpen = Request::is('hr-general*'); @endphp
-                        <div class="mb-2">
-                            <button onclick="toggleHrGeneralDropdown()"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $hrGeneralOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-users-cog"></i>
-                                </span>
-                                <span class="nav-text flex-1 font-medium">HR & General</span>
-                                <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $hrGeneralOpen ? 'rotate-180' : '' }}"
-                                    id="hrGeneralChevron"></i>
-                            </button>
-                            <div id="hrGeneralDropdown"
-                                class="nav-text {{ $hrGeneralOpen ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
-                                <a href="{{ route('hr-general.leave-permit') }}"
-                                    class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('hr-general/leave-permit*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                    <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                        <i class="fas fa-calendar-minus text-xs"></i>
-                                    </span>
-                                    <span class="nav-text text-sm">Leave & Permit</span>
-                                </a>
-                            </div>
-                        </div>
-                    @endif
+                @php
+                    // "My Attendance" sengaja TIDAK menyalakan dropdown ini: ia
+                    // dirender sebagai item tingkat atas tersendiri di bawah,
+                    // karena seluruh karyawan melakukan presensi sementara hanya
+                    // sebagian yang mengakses modul HR.
+                    // Halaman general/settings/* juga tidak: menunya berada di
+                    // Management > HR & General.
+                    // `general/reimbursement*` sengaja TIDAK di sini: sejak
+                    // migrasi 2026_08_25_000001, Reimbursement Management adalah
+                    // item tingkat atas, bukan isi dropdown ini.
+                    $generalActive = Request::is('general')
+                        || Request::is('general/attendance*')
+                        || Request::is('general/overtime*')
+                        // Rute modul Leave & Permit milik tim ikut menyalakan
+                        // dropdown ini, karena menunya sekarang ada di dalamnya.
+                        || Request::is('hr-general*');
+
+                    // Dropdown hanya ditampilkan bila ADA isinya. Tanpa penjagaan
+                    // ini, role yang hanya diberi "My Attendance" tetap melihat
+                    // "HR & General" di sidebar lalu mendapati dropdown terbuka
+                    // kosong — menu yang tidak bisa dipakai lebih membingungkan
+                    // daripada menu yang tidak ditampilkan sama sekali.
+                    $canLeavePermit = $can('general') || $can('hr_general.leave_permit');
+
+                    $hasGeneralChildren = $can('general.attendance')
+                        || $can('general.attendance.correction')
+                        || $can('general.overtime')
+                        || $canLeavePermit;
+                @endphp
+                @if(($can('general') || $can('hr_general.leave_permit')) && $hasGeneralChildren)
+                <!-- HR & GENERAL Dropdown -->
+                <div class="mb-2">
+                    <button onclick="toggleGeneralDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $generalActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-users-cog"></i>
+                        </span>
+                        <span class="nav-text flex-1 font-medium">HR &amp; General</span>
+                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="generalChevron"></i>
+                    </button>
+                    <div id="generalDropdown" class="nav-text {{ $generalActive ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        @if($can('general.attendance'))
+                        <a href="{{ route('general.attendance.daily') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance') || Request::is('general/attendance/monthly*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-calendar-check text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Attendance</span>
+                        </a>
+                        @endif
+                        @if($can('general.attendance.correction'))
+                        <a href="{{ route('general.attendance.corrections.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance/corrections*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-clock-rotate-left text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Attendance Corrections</span>
+                        </a>
+                        @endif
+                        @if($can('general.overtime'))
+                        <a href="{{ route('general.overtime.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/overtime*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-business-time text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Overtime Management</span>
+                        </a>
+                        @endif
+                        @if($canLeavePermit)
+                        {{-- Leave & Permit milik modul tim (rute hr-general/*).
+                             Digabungkan KE DALAM dropdown ini, bukan berdiri
+                             sebagai dropdown "HR & General" kedua: dua menu
+                             bernama sama di satu sidebar memaksa orang menebak
+                             isi mana yang mereka butuhkan.
+
+                             Slug `hr_general.leave_permit` BELUM terdaftar di
+                             tabel `menu` (diperiksa 26 Agu 2026), sehingga
+                             penjagaannya masih menumpang slug induk `general` —
+                             persis perilaku sebelum digabung. Begitu tim
+                             mendaftarkan slug-nya lewat MenuRegistrar,
+                             penjagaan ini langsung bekerja tanpa disunting. --}}
+                        <a href="{{ route('hr-general.leave-permit') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('hr-general/leave-permit*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-calendar-minus text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm">Leave &amp; Permit</span>
+                        </a>
+                        @endif
+                    </div>
+                </div>
+                @endif
+
+                @if($can('general.reimbursement'))
+                <!-- REIMBURSEMENT MANAGEMENT (sisi HR / GA / Finance) -->
+                {{-- Item TINGKAT ATAS, sengaja BUKAN di dalam dropdown HR & General
+                     (migrasi 2026_08_25_000001). Alasannya hak sekecil mungkin:
+                     selama ia bersarang, setiap penyetuju reimbursement terpaksa
+                     ikut diberi slug induk `general` — padahal mereka orang GA dan
+                     Finance yang tidak punya urusan dengan Attendance maupun
+                     Overtime. Sekarang cukup `general.reimbursement` saja.
+
+                     "Overtime Management" SENGAJA tetap di dalam dropdown: modul
+                     itu sudah selesai dan teruji, memindahkannya adalah perubahan
+                     tersendiri. --}}
+                <div class="mb-2">
+                    <a href="{{ route('general.reimbursement.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/reimbursement*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                        </span>
+                        <span class="nav-text font-medium">Reimbursement Management</span>
+                    </a>
+                </div>
+                @endif
 
                     @if($can('business'))
                         <!-- BUSINESS DEV -->
@@ -2559,9 +2530,6 @@
                                         </div>
                                     </div>
                                 @endif
-                            </div>
-                        </div>
-                        @endif
 
                         @php
                             // Konfigurasi modul HR & General dikumpulkan di sini
@@ -2613,7 +2581,25 @@
                             </div>
                         </div>
                         @endif
-                    </div>
+                            </div>
+                        </div>
+                        @endif
+
+                <!-- Divider -->
+                <div class="my-6 border-t border-white border-opacity-10"></div>
+
+                {{-- SETTINGS — DIKEMBALIKAN 26 Agu 2026, ikut terhapus merge 11975ed.
+                     Tanpa item ini pengguna tidak punya jalan menuju halaman
+                     preferensi, padahal di sanalah Accent color dan tema diatur. --}}
+                <div class="mb-2">
+                    <a href="{{ route('settings.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('settings*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-cog"></i>
+                        </span>
+                        <span class="nav-text font-medium">Settings</span>
+                    </a>
+                </div>
                 </nav>
             @endif
         </aside>
@@ -2762,14 +2748,15 @@
             dropdown.classList.toggle('hidden', !isCalendarDropdownOpen);
         }
 
-        var isHrGeneralDropdownOpen = {{ Request::is('hr-general*') ? 'true' : 'false' }};
-        function toggleHrGeneralDropdown() {
-            var dropdown = document.getElementById('hrGeneralDropdown');
-            var chevron = document.getElementById('hrGeneralChevron');
-            isHrGeneralDropdownOpen = !isHrGeneralDropdownOpen;
-            if (dropdown) dropdown.classList.toggle('hidden', !isHrGeneralDropdownOpen);
-            if (chevron) chevron.classList.toggle('rotate-180', isHrGeneralDropdownOpen);
-        }
+        {{-- toggleHrGeneralDropdown() DIHAPUS 26 Agu 2026.
+
+             Fungsi itu menggerakkan dropdown "HR & General" KEDUA yang berisi
+             Leave & Permit. Menunya kini menjadi anak di dalam dropdown HR &
+             General yang sudah ada, sehingga elemen `hrGeneralDropdown` tidak
+             pernah dirender lagi dan tidak ada satu pun pemanggil fungsi ini —
+             sudah diperiksa ke seluruh berkas Blade.
+
+             Penggantinya: toggleGeneralDropdown() di blok skrip berikutnya. --}}
     </script>
 
     <script>
