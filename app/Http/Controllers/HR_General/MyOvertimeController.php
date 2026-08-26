@@ -23,7 +23,7 @@ class MyOvertimeController extends Controller
         $employeeId = (int) session('user.id');
         $now        = now();
 
-        return view('HR_General.overtime.my_overtime', [
+        return view('hr-general.overtime.my-overtime', [
             'requests' => $overtime->history($employeeId),
             'summary'  => $overtime->monthlySummary($employeeId, (int) $now->format('Y'), (int) $now->format('n')),
             'settings' => OvertimeSetting::current(),
@@ -40,7 +40,7 @@ class MyOvertimeController extends Controller
         // service — pengguna tidak menemui penolakan setelah menekan kirim.
         $today = now()->startOfDay();
 
-        return view('HR_General.overtime.submit', [
+        return view('hr-general.overtime.submit', [
             'settings' => $settings,
             'minDate'  => $settings->hasBackdateLimit()
                 ? $today->copy()->subDays($settings->max_backdate_days)->toDateString()

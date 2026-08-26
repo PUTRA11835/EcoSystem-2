@@ -222,10 +222,10 @@
     </div>
 </div>
 
-@include('HR_General.attendance.partials.punch_map')
+@include('hr-general.attendance.partials.punch_map')
 @endsection
 
 @push('scripts')
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-@include('HR_General.attendance.partials.punch_map_script')
+@include('hr-general.attendance.partials.punch_map_script')
 @endpush

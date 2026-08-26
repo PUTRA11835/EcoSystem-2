@@ -237,9 +237,9 @@ class HrSync extends Command
 
         return [
             'controllers'   => $count('app/Http/Controllers/HR_General/*.php'),
-            'views'         => count(File::glob(base_path('resources/views/HR_General/*/*.blade.php')))
-                             + count(File::glob(base_path('resources/views/HR_General/*/*/*.blade.php')))
-                             + count(File::glob(base_path('resources/views/HR_General/*.blade.php'))),
+            'views'         => count(File::glob(base_path('resources/views/hr-general/*/*.blade.php')))
+                             + count(File::glob(base_path('resources/views/hr-general/*/*/*.blade.php')))
+                             + count(File::glob(base_path('resources/views/hr-general/*.blade.php'))),
             'models_att'    => $count('app/Models/Attendance/*.php'),
             'models_ot'     => $count('app/Models/Overtime/*.php'),
             'models_rb'     => $count('app/Models/Reimbursement/*.php'),

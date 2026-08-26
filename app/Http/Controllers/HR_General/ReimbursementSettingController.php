@@ -37,7 +37,7 @@ class ReimbursementSettingController extends Controller
             ->orderBy('order_seq')
             ->get();
 
-        return view('HR_General.settings.reimbursement', [
+        return view('hr-general.settings.reimbursement', [
             'settings' => ReimbursementSetting::current(),
             'steps'    => $steps,
 

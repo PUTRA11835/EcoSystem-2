@@ -43,7 +43,7 @@ class ReimbursementImportController extends Controller
 
     public function form()
     {
-        return view('HR_General.reimbursement.import', [
+        return view('hr-general.reimbursement.import', [
             'columns'  => self::COLUMNS,
             'settings' => ReimbursementSetting::current(),
         ]);
