@@ -20,6 +20,7 @@ use App\Http\Controllers\CustomerContactController;
 use App\Http\Controllers\CustomerIdentificationController;
 use App\Http\Controllers\CustomerBankController;
 use App\Http\Controllers\CustomerAttachmentController;
+use App\Http\Controllers\CustomerReportTemplateController;
 use App\Http\Controllers\CustomerHistoryController;
 use App\Http\Controllers\CustomerCredentialController;
 use App\Http\Controllers\CustomerGroupController;
@@ -351,6 +352,14 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/{attachmentId}', [CustomerAttachmentController::class, 'destroy'])->middleware('customer.section:attachment');
         Route::post('/{attachmentId}/delete', [CustomerAttachmentController::class, 'destroy'])->middleware('customer.section:attachment');
         Route::get('/{attachmentId}/download', [CustomerAttachmentController::class, 'download']);
+    });
+
+    // Customer Report Templates endpoints (library template Word Report Generator)
+    Route::prefix('customers/{customerId}/report-templates')->group(function () {
+        Route::get('/', [CustomerReportTemplateController::class, 'index'])->middleware('customer.section:report_templates,view');
+        Route::post('/', [CustomerReportTemplateController::class, 'store'])->middleware('customer.section:report_templates');
+        Route::delete('/{reportTemplate}', [CustomerReportTemplateController::class, 'destroy'])->middleware('customer.section:report_templates');
+        Route::get('/{reportTemplate}/download', [CustomerReportTemplateController::class, 'download'])->middleware('customer.section:report_templates,view');
     });
 
     // Customer Credential endpoints

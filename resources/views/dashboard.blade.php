@@ -757,6 +757,18 @@
                 </div>
                 @endif
 
+                @if($can('word-report-generator'))
+                <!-- WORD REPORT GENERATOR -->
+                <div class="mb-2">
+                    <a href="{{ route('reports.generate.page') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('reports/generate*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-file-word"></i>
+                        </span>
+                        <span class="nav-text font-medium">Word Report Generator</span>
+                    </a>
+                </div>
+                @endif
+
                 @if($can('calendar'))
                 <!-- CALENDAR Dropdown -->
                 <div class="mb-2">

@@ -113,6 +113,7 @@ class MenuSeeder extends Seeder
             // ── AI Assistant ─────────────────────────────────────────────────────
             ['slug' => 'ai-assistant',                 'name' => 'AI Assistant',            'type' => 'page',     'parent_slug' => null,          'route_name' => 'ai-assistant',                 'icon' => 'fa-robot',             'order_seq' => 2],
             ['slug' => 'ai-research',                  'name' => 'AI Research',             'type' => 'page',     'parent_slug' => null,          'route_name' => 'ai-research',                  'icon' => 'fa-magnifying-glass-chart', 'order_seq' => 3],
+            ['slug' => 'word-report-generator',        'name' => 'Word Report Generator',   'type' => 'page',     'parent_slug' => null,          'route_name' => 'reports.generate.page',        'icon' => 'fa-file-word',         'order_seq' => 4],
 
             // ── Calendar ─────────────────────────────────────────────────────────
             ['slug' => 'calendar',                  'name' => 'Calendar',                'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-calendar-alt',      'order_seq' => 2],
@@ -315,6 +316,8 @@ class MenuSeeder extends Seeder
             'ai-assistant'                => [self::ADMIN=>$v],
             // AI Research — menu baru: admin saja, role lain lewat Menu Access.
             'ai-research'                 => [self::ADMIN=>$v],
+            // Word Report Generator — menu baru: admin saja, role lain lewat Menu Access.
+            'word-report-generator'       => [self::ADMIN=>$v],
             // Calendar
             'calendar'              => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'calendar.events'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],

@@ -108,6 +108,7 @@
             'bank'           => ['bank',           'Bank Account',   'bank'],
             'credential'     => ['credential',     'Credential',     'credential'],
             'attachment'     => ['attachment',     'Attachment',     'attachment'],
+            'report_templates' => ['report-templates', 'Report Templates', 'report-templates'],
         ];
         $hidden = $sectionHidden   ?? [];
         $ro     = $sectionReadonly ?? [];

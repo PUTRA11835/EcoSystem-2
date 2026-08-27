@@ -3,6 +3,7 @@
 namespace App\Services\Ai\Drivers;
 
 use App\Services\Ai\Drivers\Contracts\ChatDriver;
+use App\Services\Ai\Drivers\Contracts\ReportGenerationDriver;
 use App\Services\Ai\Drivers\Contracts\ResearchDriver;
 use App\Services\Ai\Drivers\Contracts\TicketAnalysisDriver;
 use Illuminate\Contracts\Container\Container;
@@ -39,6 +40,13 @@ class AiDriverFactory
     {
         return $this->container->make(
             'openai' === $provider ? OpenAiTicketAnalysisDriver::class : AnthropicTicketAnalysisDriver::class
+        );
+    }
+
+    public function report(string $provider): ReportGenerationDriver
+    {
+        return $this->container->make(
+            'openai' === $provider ? OpenAiReportDriver::class : AnthropicReportDriver::class
         );
     }
 }
