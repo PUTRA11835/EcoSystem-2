@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\RoleId;
 use App\Exports\TicketExport;
 use App\Http\Controllers\EmailController;
+use App\Models\AuditLog;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Customer;
@@ -691,9 +692,7 @@ class TicketController extends Controller
             abort(401);
         }
 
-        $roleId = $sessionUser['role']['id'];
-        $allowed = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_HELPDESK->value];
-        if (!in_array($roleId, $allowed, true)) {
+        if (!\App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.export')) {
             abort(403);
         }
 
@@ -2005,7 +2004,7 @@ class TicketController extends Controller
             }
 
             // Buat confirmation request
-            DB::table('ticket_confirmation')->insert([
+            $confirmationId = DB::table('ticket_confirmation')->insertGetId([
                 'ticket_id' => $id,
                 'employee_id' => $employeeId,
                 'member_ids' => json_encode($request->member_ids ?? []),
@@ -2014,6 +2013,23 @@ class TicketController extends Controller
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
+
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketConfirmation',
+                auditableId: $confirmationId,
+                event: 'created',
+                recordLabel: "Confirmation for Ticket #{$ticket->ticket_number}",
+                description: "requested to take Ticket — Ticket #{$ticket->ticket_number}",
+                old: null,
+                new: [
+                    'ticket_id' => $id,
+                    'employee_id' => $employeeId,
+                    'member_ids' => $request->member_ids ?? [],
+                    'man_days' => $request->man_days,
+                    'status' => 'pending',
+                ],
+            );
 
             return response()->json([
                 'success' => true,
@@ -2150,8 +2166,10 @@ class TicketController extends Controller
                     'start_date'     => now(),
                 ]);
 
-                // Attach members
+                // Attach members — sync() is a pivot-table operation, it never instantiates
+                // TicketMember or fires its model events, so it needs an explicit audit call below.
                 $memberIds = json_decode($confirmation->member_ids, true);
+                $oldMemberIds = $ticket->members()->pluck('employee.employee_id')->all();
                 if ($memberIds) {
                     $ticket->members()->sync($memberIds);
                 }
@@ -2165,6 +2183,30 @@ class TicketController extends Controller
                         'confirmed_at' => now(),
                         'updated_at' => now()
                     ]);
+
+                if ($memberIds) {
+                    AuditLog::recordAction(
+                        module: 'Ticket',
+                        auditableType: 'TicketMember',
+                        auditableId: $ticket->ticket_id,
+                        event: 'updated',
+                        recordLabel: "Ticket #{$ticket->ticket_number} members",
+                        description: "confirmed assignment and synced members on Ticket — Ticket #{$ticket->ticket_number}",
+                        old: ['member_ids' => $oldMemberIds],
+                        new: ['member_ids' => $memberIds],
+                    );
+                }
+
+                AuditLog::recordAction(
+                    module: 'Ticket',
+                    auditableType: 'TicketConfirmation',
+                    auditableId: $confirmationId,
+                    event: 'updated',
+                    recordLabel: "Confirmation for Ticket #{$ticket->ticket_number}",
+                    description: "confirmed take-ticket request on Ticket — Ticket #{$ticket->ticket_number}",
+                    old: ['status' => 'pending'],
+                    new: ['status' => 'confirmed', 'confirmed_by' => $sessionUser['id']],
+                );
             } else {
                 // Reject
                 DB::table('ticket_confirmation')
@@ -2175,6 +2217,18 @@ class TicketController extends Controller
                         'confirmed_at' => now(),
                         'updated_at' => now()
                     ]);
+
+                $rejectedTicket = Ticket::find($confirmation->ticket_id);
+                AuditLog::recordAction(
+                    module: 'Ticket',
+                    auditableType: 'TicketConfirmation',
+                    auditableId: $confirmationId,
+                    event: 'updated',
+                    recordLabel: $rejectedTicket ? "Confirmation for Ticket #{$rejectedTicket->ticket_number}" : "Confirmation #{$confirmationId}",
+                    description: 'rejected take-ticket request' . ($rejectedTicket ? " on Ticket — Ticket #{$rejectedTicket->ticket_number}" : ''),
+                    old: ['status' => 'pending'],
+                    new: ['status' => 'rejected', 'confirmed_by' => $sessionUser['id']],
+                );
             }
 
             DB::commit();
@@ -3143,6 +3197,20 @@ class TicketController extends Controller
             $addedName = $added
                 ? trim(($added->basicData->first_name ?? '') . ' ' . ($added->basicData->last_name ?? ''))
                 : "Employee #{$empId}";
+
+            // is_active raw update / pivot attach() above never fires TicketMember's model
+            // events, so AuditObserver never runs for it — log it explicitly here instead.
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketMember',
+                auditableId: $ticket->ticket_id,
+                event: $isReactivation ? 'updated' : 'created',
+                recordLabel: "{$addedName} on Ticket #{$ticket->ticket_number}",
+                description: ($isReactivation ? 'reactivated member ' : 'added member ') . "{$addedName} on Ticket — Ticket #{$ticket->ticket_number}",
+                old: $isReactivation ? ['employee_id' => $empId, 'is_active' => false] : null,
+                new: ['employee_id' => $empId, 'is_active' => true],
+            );
+
             $this->sendMemberNotifications($ticket, $actorId, $actorName, $empId, $addedName, $isReactivation ? 'reactivated' : 'added');
 
             return response()->json([
@@ -3278,10 +3346,23 @@ class TicketController extends Controller
         }
 
         try {
-            // Sync members (akan replace existing)
+            // Sync members (akan replace existing) — sync() is a pivot-table operation,
+            // it never fires TicketMember's model events, so it needs an explicit audit call.
+            $oldMemberIds = $ticket->members()->pluck('employee.employee_id')->all();
             $ticket->members()->sync($request->member_ids);
             $ticket->refreshPlaceholderManDays();
             $ticket->syncDraftResolutionMembers();
+
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketMember',
+                auditableId: $ticket->ticket_id,
+                event: 'updated',
+                recordLabel: "Ticket #{$ticket->ticket_number} members",
+                description: "updated members on Ticket — Ticket #{$ticket->ticket_number}",
+                old: ['member_ids' => $oldMemberIds],
+                new: ['member_ids' => $request->member_ids],
+            );
 
             return response()->json([
                 'success' => true,
@@ -3410,6 +3491,17 @@ class TicketController extends Controller
                 ->where('employee_id', $employeeId)
                 ->update(['is_active' => false, 'updated_at' => now()]);
 
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketMember',
+                auditableId: $ticket->ticket_id,
+                event: 'updated',
+                recordLabel: ($memberName ?? "Employee #{$employeeId}") . " on Ticket #{$ticket->ticket_number}",
+                description: 'deactivated member ' . ($memberName ?? "#{$employeeId}") . " on Ticket — Ticket #{$ticket->ticket_number}",
+                old: ['employee_id' => (int) $employeeId, 'is_active' => true],
+                new: ['employee_id' => (int) $employeeId, 'is_active' => false],
+            );
+
             $ticket->refreshPlaceholderManDays();
             $ticket->syncDraftResolutionMembers();
             $ticket->load('allMembers.basicData');
@@ -3532,6 +3624,11 @@ class TicketController extends Controller
             if ($action === 'approve') {
                 $ticket = Ticket::findOrFail($changeRequest->ticket_id);
                 $memberIds = json_decode($changeRequest->member_ids, true);
+                $oldActiveMemberIds = DB::table('ticket_member')
+                    ->where('ticket_id', $ticket->ticket_id)
+                    ->where('is_active', true)
+                    ->pluck('employee_id')
+                    ->all();
 
                 if ($changeRequest->change_type === 'update') {
                     // Nonaktifkan semua yang tidak ada di list baru, aktifkan yang ada
@@ -3554,6 +3651,20 @@ class TicketController extends Controller
                         ->whereIn('employee_id', $memberIds)
                         ->update(['is_active' => false, 'updated_at' => now()]);
                 }
+
+                AuditLog::recordAction(
+                    module: 'Ticket',
+                    auditableType: 'TicketMember',
+                    auditableId: $ticket->ticket_id,
+                    event: 'updated',
+                    recordLabel: "Ticket #{$ticket->ticket_number} members",
+                    description: "approved member change request ({$changeRequest->change_type}) on Ticket — Ticket #{$ticket->ticket_number}",
+                    old: ['active_employee_ids' => $oldActiveMemberIds],
+                    new: [
+                        'change_type' => $changeRequest->change_type,
+                        'requested_employee_ids' => $memberIds,
+                    ],
+                );
 
                 $ticket->refreshPlaceholderManDays();
                 $ticket->syncDraftResolutionMembers();
@@ -3902,8 +4013,9 @@ class TicketController extends Controller
             ]);
 
             // Create planning entry if group exists
+            $planningId = null;
             if ($group) {
-                DB::table('delivery_support_planning')->insert([
+                $planningId = DB::table('delivery_support_planning')->insertGetId([
                     'delivery_support_id' => $supportId,
                     'phase_id' => $phase->id,
                     'parent_id' => $group->id,
@@ -3940,6 +4052,23 @@ class TicketController extends Controller
             // Note: The ticket table has a delivery_support relationship via DeliverySupport model
 
             DB::commit();
+
+            AuditLog::recordAction(
+                module: 'Delivery Support',
+                auditableType: 'DeliverySupport',
+                auditableId: $supportId,
+                event: 'updated',
+                recordLabel: $support->name ?? "Delivery Support #{$supportId}",
+                description: "assigned Ticket #{$ticket->ticket_number} to Delivery Support: " . ($support->name ?? "#{$supportId}"),
+                old: null,
+                new: [
+                    'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'activity_id' => $activityId,
+                    'planning_id' => $planningId,
+                    'phase_id' => $phase->id,
+                ],
+            );
 
             // Now that the ticket is linked to a delivery support, apply the SLA policy
             // (policy could not be matched at validation time because DS was not yet assigned)
@@ -4165,6 +4294,27 @@ class TicketController extends Controller
             }
 
             DB::commit();
+
+            AuditLog::recordAction(
+                module: 'Delivery Support',
+                auditableType: 'DeliverySupport',
+                auditableId: $supportId,
+                event: 'created',
+                recordLabel: $request->name,
+                description: "added Delivery Support: {$request->name} (from Ticket #{$ticket->ticket_number})",
+                old: null,
+                new: [
+                    'name' => $request->name,
+                    'type' => $request->type,
+                    'support_method' => $request->support_method,
+                    'client_id' => $ticket->customer_id,
+                    'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'phase_id' => $phaseId,
+                    'group_id' => $groupId,
+                    'activity_id' => $activityId,
+                ],
+            );
 
             // Apply SLA policy now that ticket is linked to a delivery support
             app(\App\Services\SlaService::class)->syncPolicy($ticket);

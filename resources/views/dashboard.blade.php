@@ -757,6 +757,18 @@
                 </div>
                 @endif
 
+                @if($can('word-report-generator'))
+                <!-- WORD REPORT GENERATOR -->
+                <div class="mb-2">
+                    <a href="{{ route('reports.generate.page') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('reports/generate*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-file-word"></i>
+                        </span>
+                        <span class="nav-text font-medium">Word Report Generator</span>
+                    </a>
+                </div>
+                @endif
+
                 @if($can('calendar'))
                 <!-- CALENDAR Dropdown -->
                 <div class="mb-2">
@@ -805,7 +817,7 @@
                         // Catatan: 'reporting/collection-outlook*' TIDAK dipakai untuk grup
                         // Project karena wildcard-nya ikut menangkap collection-outlook-support.
                         $repCoProject     = Request::is('reporting/collection-outlook') || Request::is('reporting/collection-outlook/*');
-                        $repProjectActive = $repCoProject || Request::is('reporting/consultant-assignment*');
+                        $repProjectActive = $repCoProject || Request::is('reporting/consultant-assignment*') || Request::is('reporting/resource-timeline*');
                         $repSupportActive = Request::is('reporting')
                             || Request::is('reporting/md-recap*')
                             || Request::is('reporting/collection-outlook-support*')
@@ -813,7 +825,7 @@
                             || Request::is('reporting/ticket-by-module*')
                             || Request::is('reporting/log-shifting*')
                             || Request::is('reporting/resolution-days*');
-                        $canRepProject = $can('reporting.collection-outlook') || $can('reporting.consultant-assignment');
+                        $canRepProject = $can('reporting.collection-outlook') || $can('reporting.consultant-assignment') || $can('reporting.resource-timeline');
                         $canRepSupport = $can('reporting.validation')
                             || $can('reporting.md-recap')
                             || $can('reporting.collection-outlook-support')
@@ -848,6 +860,14 @@
                                         <i class="fas fa-users text-xs"></i>
                                     </span>
                                     <span class="nav-text text-sm">Consultant Assignment</span>
+                                </a>
+                                @endif
+                                @if($can('reporting.resource-timeline'))
+                                <a href="{{ route('reporting.resource-timeline') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/resource-timeline*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                        <i class="fas fa-calendar-alt text-xs"></i>
+                                    </span>
+                                    <span class="nav-text text-sm">Resource Timeline</span>
                                 </a>
                                 @endif
                             </div>

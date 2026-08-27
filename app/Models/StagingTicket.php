@@ -40,12 +40,18 @@ class StagingTicket extends Model
         'client',
         'created_at',
         'updated_at',
+        'ai_analysis',
+        'ai_analysis_generated_at',
+        'ai_analysis_generated_by',
+        'ai_analysis_status',
     ];
 
     protected $casts = [
-        'validated_at'    => 'datetime',
-        'has_attachments' => 'boolean',
-        'cc_emails'       => 'array',
+        'validated_at'             => 'datetime',
+        'has_attachments'          => 'boolean',
+        'cc_emails'                => 'array',
+        'ai_analysis'              => 'array',
+        'ai_analysis_generated_at' => 'datetime',
     ];
 
     // ─── Scopes ──────────────────────────────────────────────────────────────

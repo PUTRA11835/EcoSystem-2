@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiConversation;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Services\Ai\AiResearchService;
 use App\Support\AiTextAttachment;
@@ -174,6 +175,20 @@ class AiResearchController extends Controller
         if ($rejection = $this->rejectIfContextFull($employee, $conversationId, $attachments)) {
             return $rejection;
         }
+
+        $sessionUser = session('user');
+        AuditLog::logAiPrompt(
+            module: 'AI Research',
+            auditableType: 'AiResearchPrompt',
+            actorId: $employee->employee_id,
+            actorRoleId: $sessionUser['role']['id'] ?? null,
+            actorName: $sessionUser['name'] ?? null,
+            conversationId: $conversationId,
+            message: $message,
+            attachmentCount: count($attachments),
+            modelTier: $modelTier,
+            resume: $resume,
+        );
 
         // Lepas lock session sebelum stream panjang, supaya tab/request lain
         // milik user yang sama tidak ikut terblokir.

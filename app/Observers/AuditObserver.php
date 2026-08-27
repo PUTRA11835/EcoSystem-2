@@ -18,6 +18,9 @@ class AuditObserver
 
     private const IGNORED_ATTRIBUTES = ['updated_at', 'created_at'];
 
+    /** Beyond this many changed fields, the inline summary switches from "Field: old → new" to a bare field-name list. */
+    private const MAX_INLINE_CHANGE_FIELDS = 3;
+
     public function created(Model $model): void
     {
         $attributes = $this->stripIgnored($model->getAttributes());
@@ -62,7 +65,7 @@ class AuditObserver
                 'module'         => $model->auditModuleLabel(),
                 'event'          => $event,
                 'record_label'   => $model->auditRecordLabel(),
-                'description'    => $this->buildDescription($model, $event, $new),
+                'description'    => $this->buildDescription($model, $event, $old, $new),
                 'actor_id'       => $actorId,
                 'actor_role_id'  => $actorRoleId,
                 'actor_name'     => $actorName,
@@ -81,10 +84,11 @@ class AuditObserver
 
     /**
      * Human-readable one-liner, e.g. "marked Customer Mandays as Approved
-     * — Ticket #1234" or "added Employee: Budi Santoso". Shown next to the
-     * Actor column so the row reads as a sentence (Actor + description).
+     * (Chat Notes: empty → Called customer) — Ticket #1234" or "added
+     * Employee: Budi Santoso". Shown next to the Actor column so the row
+     * reads as a sentence (Actor + description).
      */
-    private function buildDescription(Model $model, string $event, ?array $new): string
+    private function buildDescription(Model $model, string $event, ?array $old, ?array $new): string
     {
         // Deliberately the specific record type (e.g. "Delivery Project Risk"),
         // not the coarse module/domain grouping — using the domain label here
@@ -100,13 +104,78 @@ class AuditObserver
             return "deleted {$subject}{$suffix}";
         }
 
-        $statusKey = $this->statusLikeKey($new ?? []);
+        $old ??= [];
+        $new ??= [];
+
+        $statusKey = $this->statusLikeKey($new);
         if ($statusKey !== null) {
             $qualifier = $statusKey === 'status' ? '' : ' ' . $this->humanizeFieldName($statusKey);
-            return "marked {$subject}{$qualifier} as " . $this->humanizeStatus($new[$statusKey]) . $suffix;
+            $rest = $this->summarizeChanges(
+                array_diff_key($old, [$statusKey => true]),
+                array_diff_key($new, [$statusKey => true])
+            );
+            $restText = $rest !== '' ? " ({$rest})" : '';
+
+            return "marked {$subject}{$qualifier} as " . $this->humanizeStatus($new[$statusKey]) . $restText . $suffix;
         }
 
-        return "updated {$subject}{$suffix}";
+        $summary = $this->summarizeChanges($old, $new);
+        $summaryText = $summary !== '' ? " ({$summary})" : '';
+
+        return "updated {$subject}{$summaryText}{$suffix}";
+    }
+
+    /**
+     * Short human summary of what changed, e.g. "Priority: Low → High" for
+     * one or two fields, or a bare field-name list once there are more than
+     * MAX_INLINE_CHANGE_FIELDS — the full before/after values for every
+     * field are still available via the Changes modal (old_values/
+     * new_values), this is just enough to read the row at a glance without
+     * opening it.
+     */
+    private function summarizeChanges(array $old, array $new): string
+    {
+        $keys = array_keys($new);
+
+        if (empty($keys)) {
+            return '';
+        }
+
+        if (count($keys) <= self::MAX_INLINE_CHANGE_FIELDS) {
+            $parts = array_map(
+                fn ($key) => $this->humanizeFieldName($key) . ': '
+                    . $this->formatChangeValue($old[$key] ?? null) . ' → ' . $this->formatChangeValue($new[$key]),
+                $keys
+            );
+
+            return implode(', ', $parts);
+        }
+
+        $shown = array_slice($keys, 0, self::MAX_INLINE_CHANGE_FIELDS);
+        $labels = array_map(fn ($key) => $this->humanizeFieldName($key), $shown);
+        $remaining = count($keys) - count($shown);
+
+        return implode(', ', $labels) . " +{$remaining} more";
+    }
+
+    /** Trims a raw attribute value down to something that reads well inline in a sentence. */
+    private function formatChangeValue(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return 'empty';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        if (is_array($value)) {
+            $value = json_encode($value);
+        }
+
+        $value = (string) $value;
+
+        return mb_strlen($value) > 40 ? mb_substr($value, 0, 40) . '…' : $value;
     }
 
     /**
@@ -141,16 +210,35 @@ class AuditObserver
         return trim(preg_replace('/(?<!^)[A-Z]/', ' $0', class_basename($model)));
     }
 
-    /** " — Ticket #1234" when the record references a ticket, else ": {label}". */
+    /** " — Ticket #26080012" when the record references a ticket, else ": {label}". */
     private function subjectSuffix(Model $model): string
     {
         $ticketId = $model->getAttribute('ticket_id');
 
         if ($ticketId) {
-            return ' — Ticket #' . $ticketId;
+            return ' — Ticket #' . $this->resolveTicketNumber($model, $ticketId);
         }
 
         return ': ' . $model->auditRecordLabel();
+    }
+
+    /**
+     * ticket_id is the internal auto-increment PK — it's never shown
+     * anywhere in the product. Every screen (ticket list, ticket detail,
+     * notifications) identifies a ticket by its human-facing ticket_number
+     * (e.g. "26080012", see TicketNumberService), so the audit trail has to
+     * resolve to the same value or admins can't cross-reference a row here
+     * against what they see on screen.
+     */
+    private function resolveTicketNumber(Model $model, int|string $ticketId): string
+    {
+        if ($model instanceof \App\Models\Ticket) {
+            return (string) ($model->getAttribute('ticket_number') ?? $ticketId);
+        }
+
+        $ticketNumber = \App\Models\Ticket::where('ticket_id', $ticketId)->value('ticket_number');
+
+        return (string) ($ticketNumber ?? $ticketId);
     }
 
     private function humanizeStatus(string $status): string

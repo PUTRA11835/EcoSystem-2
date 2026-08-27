@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Models\AuditLog;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Employee;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 
 class ConsultantWorkloadController extends Controller
 {
-    private const ACTIVE_STATUSES = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
+    public const ACTIVE_STATUSES = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
 
     public function index()
     {
@@ -81,7 +82,7 @@ class ConsultantWorkloadController extends Controller
                     'eci'          => $emp->eci,
                     'name'         => $name,
                     'roles'        => $roles,
-                    'personnel_area'      => $emp->basicData?->personnel_area,
+                    'personnel_subarea'   => $emp->basicData?->personnel_subarea,
                     'current_assignment'  => $emp->basicData?->current_assignment,
                     'modules'      => $modulesMap[$emp->employee_id] ?? '-',
                     'ticket_count' => $ticketCount,
@@ -445,6 +446,14 @@ class ConsultantWorkloadController extends Controller
                 ], 403);
             }
 
+            // Snapshot "before" progress fields for every detail about to be touched. The
+            // update below is an Eloquent mass update via query builder
+            // (ConsultantMandaysDetail::where(...)->update(...)) — Laravel never fires model
+            // events for that (only single-instance $model->save() does), so AuditObserver
+            // (wired via ConsultantMandaysDetail's Auditable trait) never sees it.
+            $detailsBeforeUpdate = ConsultantMandaysDetail::whereIn('id', $ownDetailIds)->get()->keyBy('id');
+            $actorName = session('user.name');
+
             foreach ($validated['progresses'] as $item) {
                 ConsultantMandaysDetail::where('id', $item['detail_id'])->update([
                     'progress_percentage' => $item['progress_percentage'],
@@ -452,6 +461,28 @@ class ConsultantWorkloadController extends Controller
                     'progress_updated_at' => $now,
                     'progress_updated_by' => $empId,
                 ]);
+
+                $beforeDetail = $detailsBeforeUpdate->get($item['detail_id']);
+                if ($beforeDetail) {
+                    $employeeLabel = $actorName ?: "Employee #{$empId}";
+
+                    AuditLog::recordAction(
+                        module: 'Mandays', // matches ConsultantMandaysDetail::$auditModule so these rows group together
+                        auditableType: 'ConsultantMandaysDetail',
+                        auditableId: $beforeDetail->id,
+                        event: 'updated',
+                        recordLabel: $employeeLabel,
+                        description: "updated Consultant Mandays Detail progress: {$item['progress_percentage']}% for {$employeeLabel}",
+                        old: [
+                            'progress_percentage' => $beforeDetail->progress_percentage,
+                            'progress_note'       => $beforeDetail->progress_note,
+                        ],
+                        new: [
+                            'progress_percentage' => $item['progress_percentage'],
+                            'progress_note'       => $item['progress_note'] ?? null,
+                        ],
+                    );
+                }
             }
 
             // Recalculate ticket.progress_percentage sebagai rata-rata sederhana progress

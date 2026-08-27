@@ -102,6 +102,21 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
     Route::post('/ai-assistant/chat', [\App\Http\Controllers\AiAssistantController::class, 'chat'])->name('ai-assistant.chat')->middleware('menu:ai-assistant');
 
+    // ==================== WORD REPORT GENERATOR ====================
+    // Menu slug 'word-report-generator' didaftarkan lewat migration
+    // add_word_report_generator_menu -- otomatis ikut `php artisan migrate`,
+    // tidak perlu command seeder terpisah.
+    // Halaman uji coba sementara — bukan UI final, cuma form upload + poll status.
+    Route::get('/reports/generate', [\App\Http\Controllers\ReportGeneratorController::class, 'index'])->name('reports.generate.page')->middleware('menu:word-report-generator');
+    Route::get('/reports/templates', [\App\Http\Controllers\ReportGeneratorController::class, 'templates'])->name('reports.templates')->middleware('menu:word-report-generator');
+    Route::get('/reports/history', [\App\Http\Controllers\ReportGeneratorController::class, 'history'])->name('reports.history')->middleware('menu:word-report-generator');
+    Route::post('/reports/generate', [\App\Http\Controllers\ReportGeneratorController::class, 'generate'])->name('reports.generate')->middleware('menu:word-report-generator');
+    Route::get('/reports/{report}/status', [\App\Http\Controllers\ReportGeneratorController::class, 'status'])->name('reports.status')->middleware('menu:word-report-generator');
+    Route::post('/reports/{report}/answer', [\App\Http\Controllers\ReportGeneratorController::class, 'answer'])->name('reports.answer')->middleware('menu:word-report-generator');
+    Route::post('/reports/{report}/retry', [\App\Http\Controllers\ReportGeneratorController::class, 'retry'])->name('reports.retry')->middleware('menu:word-report-generator');
+    Route::get('/reports/{report}/download/{type}', [\App\Http\Controllers\ReportGeneratorController::class, 'download'])->name('reports.download')->middleware('menu:word-report-generator');
+    Route::get('/reports/{report}/preview/{type}', [\App\Http\Controllers\ReportGeneratorController::class, 'preview'])->name('reports.preview')->middleware('menu:word-report-generator');
+
     // ==================== AI RESEARCH (pencarian eksternal) ====================
     Route::get('/ai-research', [\App\Http\Controllers\AiResearchController::class, 'index'])->name('ai-research')->middleware('menu:ai-research');
     Route::post('/ai-research/chat', [\App\Http\Controllers\AiResearchController::class, 'chat'])->name('ai-research.chat')->middleware('menu:ai-research');
@@ -136,6 +151,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/consultant-assignment',        [\App\Http\Controllers\ReportingController::class, 'consultantAssignmentIndex'])->name('reporting.consultant-assignment')->middleware('menu:reporting.consultant-assignment');
     Route::get('/reporting/consultant-assignment/export', [\App\Http\Controllers\ReportingController::class, 'exportConsultantAssignment'])->name('reporting.consultant-assignment.export')->middleware('menu:reporting.consultant-assignment');
     Route::get('/reporting/diagram-report',              [\App\Http\Controllers\ReportingController::class, 'diagramReportIndex'])->name('reporting.diagram-report')->middleware('menu:reporting.diagram-report');
+    Route::get('/reporting/resource-timeline',            [\App\Http\Controllers\ResourceTimelineController::class, 'index'])->name('reporting.resource-timeline')->middleware('menu:reporting.resource-timeline');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
@@ -562,7 +578,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::prefix('ticket')->name('ticket.')->group(function () {
         Route::get('/', [TicketViewController::class, 'index'])->name('index')->middleware('menu:tickets.inbox');
         Route::get('/create', [TicketViewController::class, 'create'])->name('create');
-        Route::get('/export', [TicketController::class, 'exportToExcel'])->name('export');
+        Route::get('/export', [TicketController::class, 'exportToExcel'])->name('export')->middleware('menu:ticket.export');
         Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload')->middleware('menu:ticket.consultant-workload');
         Route::get('/task', [TaskController::class, 'index'])->name('task')->middleware('menu:ticket.my-tasks');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');

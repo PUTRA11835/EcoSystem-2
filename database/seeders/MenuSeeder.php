@@ -113,6 +113,7 @@ class MenuSeeder extends Seeder
             // ── AI Assistant ─────────────────────────────────────────────────────
             ['slug' => 'ai-assistant',                 'name' => 'AI Assistant',            'type' => 'page',     'parent_slug' => null,          'route_name' => 'ai-assistant',                 'icon' => 'fa-robot',             'order_seq' => 2],
             ['slug' => 'ai-research',                  'name' => 'AI Research',             'type' => 'page',     'parent_slug' => null,          'route_name' => 'ai-research',                  'icon' => 'fa-magnifying-glass-chart', 'order_seq' => 3],
+            ['slug' => 'word-report-generator',        'name' => 'Word Report Generator',   'type' => 'page',     'parent_slug' => null,          'route_name' => 'reports.generate.page',        'icon' => 'fa-file-word',         'order_seq' => 4],
 
             // ── Calendar ─────────────────────────────────────────────────────────
             ['slug' => 'calendar',                  'name' => 'Calendar',                'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-calendar-alt',      'order_seq' => 2],
@@ -137,6 +138,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'reporting.resolution-days',    'name' => 'Resolution Days',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.resolution-days',    'icon' => null,                   'order_seq' => 7],
             ['slug' => 'reporting.consultant-assignment', 'name' => 'Consultant Assignment', 'type' => 'page',   'parent_slug' => 'reporting',   'route_name' => 'reporting.consultant-assignment', 'icon' => null,                'order_seq' => 8],
             ['slug' => 'reporting.diagram-report',     'name' => 'Diagram Report',          'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.diagram-report',     'icon' => null,                   'order_seq' => 8],
+            ['slug' => 'reporting.resource-timeline',  'name' => 'Resource Timeline',       'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.resource-timeline',  'icon' => null,                   'order_seq' => 9],
 
             // ── Master ────────────────────────────────────────────────────────────
             ['slug' => 'master',                       'name' => 'Master',                  'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-database',          'order_seq' => 4],
@@ -182,6 +184,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'ticket.eligible-ticket-member',     'name' => 'Eligible as Ticket Member','type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 24],
             ['slug' => 'ticket.sla-log',                    'name' => 'Log SLA',                  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 25],
             ['slug' => 'ticket.shifting-log',                'name' => 'Log Shifting',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 26],
+            ['slug' => 'ticket.export',                      'name' => 'Export Ticket',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 27],
 
             // ── Room Chat (ticket detail sidebar toggles) ───────────────────────────
             ['slug' => 'room-chat',                    'name' => 'Room Chat',               'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-comments',          'order_seq' => 8],
@@ -315,6 +318,8 @@ class MenuSeeder extends Seeder
             'ai-assistant'                => [self::ADMIN=>$v],
             // AI Research — menu baru: admin saja, role lain lewat Menu Access.
             'ai-research'                 => [self::ADMIN=>$v],
+            // Word Report Generator — menu baru: admin saja, role lain lewat Menu Access.
+            'word-report-generator'       => [self::ADMIN=>$v],
             // Calendar
             'calendar'              => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'calendar.events'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],

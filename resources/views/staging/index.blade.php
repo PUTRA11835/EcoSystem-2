@@ -156,6 +156,9 @@ let currentPage = 1;
 let meta = {};
 let currentStagingId = null;
 let currentStagingData = null;
+let _lastAiAnalysis = null;
+let _aiProgressTimer = null;
+let _aiProgressStart = null;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -503,6 +506,7 @@ function fillModal(s) {
     let validationHtml = '';
     if (isUnvalidated) {
         validationHtml = `
+        ${aiAnalysisPanelHtml(s)}
         <div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
             <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
                 <i class="fas fa-clipboard-check text-gray-500 text-xs"></i>
@@ -514,13 +518,7 @@ function fillModal(s) {
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-500">*</span></label>
                     <select id="approveTicketType"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
-                        <option value="">Select type…</option>
-                        <option value="Incident">Incident</option>
-                        <option value="Change Request">Change Request</option>
-                        <option value="Service Request">Service Request</option>
-                        <option value="EWA">EWA</option>
-                        <option value="RISE">RISE</option>
-                        <option value="Consult">Consult</option>
+                        ${buildOptionsHtml(TICKET_TYPES, 'Select type…')}
                     </select>
                     <p id="typeError" class="hidden mt-1 text-xs text-red-500">Required.</p>
                 </div>
@@ -528,11 +526,7 @@ function fillModal(s) {
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority <span class="text-red-500">*</span></label>
                     <select id="approvePriority"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
-                        <option value="">Select priority…</option>
-                        <option value="Very High">Very High</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
+                        ${buildOptionsHtml(TICKET_PRIORITIES, 'Select priority…')}
                     </select>
                     <p id="priorityError" class="hidden mt-1 text-xs text-red-500">Required.</p>
                 </div>
@@ -541,10 +535,7 @@ function fillModal(s) {
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Scale</label>
                     <select id="approveScale"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
-                        <option value="">Select scale…</option>
-                        <option value="Simple">Simple</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Complex">Complex</option>
+                        ${buildOptionsHtml(TICKET_SCALES, 'Select scale…')}
                     </select>
                     <p class="mt-1 text-[11px] text-gray-400">Optional</p>
                 </div>
@@ -746,12 +737,332 @@ function fillModal(s) {
             selectStagingDs(dsOptions[0].id, dsOptions[0].name);
         }
 
+        // Analisa AI: otomatis sekali saat modal dibuka pertama kali, admin
+        // bisa memicu ulang manual lewat tombol Re-analyze (lihat komentar di
+        // aiAnalysisPanelHtml()). Kalau sudah ada hasil tersimpan, isi field
+        // yang masih kosong. Kalau belum pernah dicoba sama sekali (status
+        // null), picu sekarang — panel sudah terlanjur nampilin state loading
+        // dari aiAnalysisPanelHtml() di atas. Status 'pending'/'failed' TIDAK
+        // memicu apa pun di sini secara otomatis (lihat catatan di aiAnalysisPanelHtml()).
+        _lastAiAnalysis = s.ai_analysis || null;
+        if (s.ai_analysis) {
+            autoFillEmptyFromAi(s.ai_analysis);
+        } else if (!s.ai_analysis_status) {
+            runAiAnalysis(s.id);
+        }
+
         // ── "For customer": tampil hanya jika customer ter-match adalah parent
         //    yang punya end-customers (kasus tiket email di-route via domain). ──
         if (s.customer_id) {
             loadForCustomerOptions(s.customer_id, s.end_customer_id);
         }
     }
+}
+
+// ─── AI Ticket Analyzer ───────────────────────────────────────────────────────
+
+// Analisa AI otomatis dipicu saat modal validasi dibuka (fillModal() →
+// runAiAnalysis()) — tapi admin juga bisa memicu ulang secara sengaja lewat
+// tombol "Re-analyze" (muncul begitu ada hasil atau status failed) yang
+// memanggil runAiAnalysis(id, true).
+//
+// Urutan prioritas SENGAJA begini, bukan sekadar dua flag independen:
+//   1. status === 'pending'  → SEDANG berjalan (request ini atau tab/admin
+//      lain) — SELALU tampil loading & tombol Re-analyze disembunyikan,
+//      APAPUN isi s.ai_analysis. Awalnya urutan ini kebalik (hasResult
+//      dicek duluan) — akibatnya re-analyze pada tiket yang sudah punya
+//      hasil lama tetap menampilkan hasil lama itu SELAMA request berjalan,
+//      dan tombol Re-analyze tetap bisa diklik. User yang tidak melihat
+//      indikasi apa pun sedang terjadi lalu klik dua kali, dan klik kedua
+//      itu yang menabrak klaim atomic pertama (lihat
+///     StagingTicketController::analyze()) dengan pesan "already running".
+//   2. s.ai_analysis ada     → hasil tersedia (status completed, ATAU staging
+//      lama dari sebelum kolom ai_analysis_status ditambahkan — migration
+//      2026_08_24_000002 — yang punya ai_analysis terisi tapi status masih
+//      NULL, lihat staging #316).
+//   3. status === 'failed'   → gagal, tombol Re-analyze tersedia.
+//   4. lainnya (null, belum ada hasil) → belum dicoba, akan dipicu fillModal.
+function aiAnalysisPanelHtml(s) {
+    const status = s.ai_analysis_status || null;
+    const isRunning = 'pending' === status;
+    const hasResult = !isRunning && !!s.ai_analysis;
+    const timeNote = (hasResult && s.ai_analysis_generated_at)
+        ? `<span class="text-[11px] text-gray-400 ml-2">Analyzed ${timeAgo(s.ai_analysis_generated_at)}</span>`
+        : '';
+    const reanalyzeBtn = (hasResult || status === 'failed')
+        ? `<button type="button" onclick="runAiAnalysis(${s.id}, true)" class="ml-auto text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
+               <i class="fas fa-rotate-right text-[10px]"></i> Re-analyze
+           </button>`
+        : '';
+
+    let bodyHtml;
+    if (hasResult) {
+        bodyHtml = renderAiAnalysisBody(s.ai_analysis);
+    } else if ('failed' === status) {
+        bodyHtml = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> AI analysis failed for this ticket. Click Re-analyze to try again, or fill in the classification (Type/Priority/Scale/Module) manually.</p>`;
+    } else {
+        // null (belum dicoba, akan dipicu fillModal) atau pending (sedang jalan).
+        // Progress bar-nya ESTIMASI (bukan progress asli dari provider — API
+        // ticket analysis bukan streaming), diisi lewat startAiProgressAnimation()
+        // yang jalan di luar re-render ini supaya tidak ke-reset tiap kali panel
+        // di-render ulang.
+        bodyHtml = `
+            <div class="flex items-center gap-2 text-sm text-gray-400 py-1"><i class="fas fa-spinner fa-spin"></i> Analyzing ticket…</div>
+            <div class="w-full h-1.5 bg-indigo-100 rounded-full overflow-hidden mt-2">
+                <div id="aiAnalysisProgressFill" class="h-full bg-indigo-500 transition-all duration-300 ease-out" style="width:2%"></div>
+            </div>`;
+    }
+
+    return `
+    <div class="border border-indigo-200 rounded-xl overflow-hidden mb-5 bg-indigo-50/40">
+        <div class="px-4 py-2.5 border-b border-indigo-100 bg-indigo-50 flex items-center gap-2">
+            <i class="fas fa-wand-magic-sparkles text-indigo-500 text-xs"></i>
+            <span class="text-xs font-semibold text-indigo-700">AI Ticket Analyzer</span>
+            ${timeNote}
+            ${reanalyzeBtn}
+        </div>
+        <div id="aiAnalysisBody" class="px-4 py-4">
+            ${bodyHtml}
+        </div>
+    </div>`;
+}
+
+// Satu pola visual dipakai berulang di semua section supaya konsisten
+// (sebelumnya tiap section pakai ukuran/struktur beda-beda — itu yang bikin
+// panel ini terlihat berantakan).
+const AI_LABEL_CLS = 'text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5';
+const AI_BODY_CLS  = 'text-sm text-gray-700 leading-relaxed';
+const AI_SECTION_CLS = 'pt-3 mt-3 border-t border-indigo-100/70 first:pt-0 first:mt-0 first:border-0';
+
+function aiSection(label, innerHtml) {
+    return `<div class="${AI_SECTION_CLS}">
+        <p class="${AI_LABEL_CLS}">${label}</p>
+        ${innerHtml}
+    </div>`;
+}
+
+function renderAiAnalysisBody(data) {
+    const confidencePct = (data.confidence !== null && data.confidence !== undefined)
+        ? Math.round(data.confidence * 100) : null;
+
+    // ── Ringkasan saran klasifikasi + confidence, sebagai chip di paling atas ──
+    const chip = (text, cls) => text
+        ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cls}">${escHtml(text)}</span>` : '';
+    const chipsHtml = [
+        chip(data.suggested_ticket_type, 'bg-white text-gray-600 border-gray-200'),
+        chip(data.suggested_priority,    'bg-white text-gray-600 border-gray-200'),
+        chip(data.suggested_scale,       'bg-white text-gray-600 border-gray-200'),
+        chip(data.suggested_module_name ? `Module: ${data.suggested_module_name}` : '', 'bg-white text-gray-600 border-gray-200'),
+        confidencePct !== null ? chip(`Confidence ${confidencePct}%`, 'bg-indigo-600 text-white border-indigo-600') : '',
+    ].filter(Boolean).join('');
+
+    // ── Langkah penyelesaian: nomor bulat + teks, semua text-sm konsisten ──
+    const steps = data.resolution_steps || [];
+    const stepsHtml = steps.length
+        ? `<ol class="space-y-2">${steps.map((step, i) => `
+            <li class="flex gap-2.5">
+                <span class="shrink-0 w-5 h-5 mt-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center justify-center">${i + 1}</span>
+                <span class="${AI_BODY_CLS}">${escHtml(step)}</span>
+            </li>`).join('')}</ol>`
+        : `<p class="${AI_BODY_CLS} text-gray-400">No specific steps provided by AI.</p>`;
+
+    // ── Risiko/catatan ──
+    const risks = data.risks || [];
+    const risksHtml = risks.length
+        ? `<ul class="space-y-1.5">${risks.map(r => `
+            <li class="flex gap-2 text-sm text-amber-800 leading-relaxed">
+                <i class="fas fa-triangle-exclamation text-amber-500 mt-0.5 text-xs shrink-0"></i>
+                <span>${escHtml(r)}</span>
+            </li>`).join('')}</ul>`
+        : '';
+
+    // ── Suggested assignee: selalu tampil, dengan empty-state yang jelas ──
+    const assignees = data.suggested_assignees || [];
+    let assigneesInner;
+    if (assignees.length) {
+        assigneesInner = `<div class="space-y-1.5">
+            ${assignees.map(a => {
+                const wp = Math.round(a.workload_pct ?? 0);
+                const wColor = a.warning ? 'text-red-600' : (wp >= 50 ? 'text-amber-600' : 'text-green-600');
+                return `<div class="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-lg px-3 py-2">
+                    <span class="font-semibold text-gray-800">${escHtml(a.name)}</span>
+                    <span class="text-gray-400 text-xs">(${escHtml(a.eci ?? '-')})</span>
+                    ${a.is_module_lead ? '<span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-semibold">Module Lead</span>' : ''}
+                    ${a.qualification_level ? `<span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-semibold">${escHtml(a.qualification_level)}</span>` : ''}
+                    <span class="ml-auto font-semibold text-xs ${wColor}">${wp}% workload</span>
+                    ${a.warning ? `<i class="fas fa-triangle-exclamation text-red-500 text-xs" title="${escHtml(a.warning_message || '')}"></i>` : ''}
+                </div>`;
+            }).join('')}
+        </div>`;
+    } else if (data.suggested_module_name) {
+        assigneesInner = `<p class="text-sm text-gray-400">No Module Lead or certified consultant registered in the system for module <span class="font-semibold text-gray-500">${escHtml(data.suggested_module_name)}</span>.</p>`;
+    } else {
+        assigneesInner = `<p class="text-sm text-gray-400">AI did not identify a clear module, so no assignee suggestion is available.</p>`;
+    }
+
+    return `
+        ${chipsHtml ? `<div class="flex flex-wrap items-center gap-1.5 mb-3">${chipsHtml}</div>` : ''}
+        ${aiSection('Overview', `<p class="${AI_BODY_CLS}">${escHtml(data.overview || '-')}</p>`)}
+        ${data.root_cause_hypothesis ? aiSection('Root Cause Hypothesis', `<p class="${AI_BODY_CLS}">${escHtml(data.root_cause_hypothesis)}</p>`) : ''}
+        ${aiSection('Resolution Steps', stepsHtml)}
+        ${risks.length ? aiSection('Notes / Risks', risksHtml) : ''}
+        ${aiSection('Suggested Assignee', assigneesInner)}
+        <div class="pt-3 mt-3 border-t border-indigo-100/70">
+            <button type="button" onclick="applyAiSuggestions()" class="text-xs font-semibold text-indigo-700 hover:underline">
+                <i class="fas fa-arrow-turn-down text-[10px]"></i> Apply suggestion to form
+            </button>
+        </div>`;
+}
+
+// Dipanggil OTOMATIS dari fillModal() saat modal validasi dibuka untuk tiket
+// yang belum pernah dianalisa, dan juga dipanggil MANUAL dari tombol
+// "Re-analyze" di panel (force=true) untuk memicu ulang setelah completed/
+// failed. Endpoint-nya sendiri yang menegakkan aturan klaim (lihat
+// StagingTicketController::analyze()) — force cuma dikirim sebagai niat,
+// server tetap menolak kalau ternyata sedang 'pending' di request lain.
+//
+// _aiAnalysisInFlight menjaga tab INI sendiri tidak menembak dua request
+// sekaligus buat tiket yang sama — insiden nyata: staging #316 dan #317
+// sama-sama sukses dianalisa (ada di audit log), TAPI ai_analysis_status
+// balik lagi ke 'pending' segera sesudahnya dan macet berjam-jam, pola yang
+// paling cocok dengan klik Re-analyze kedua menembak SELAGI klik pertama
+// masih berjalan (server sisi klaim atomic tetap benar — masalahnya baris
+// ini yang membiarkan tab yang sama memicu request kedua sama sekali).
+// Ini pelengkap, bukan pengganti, klaim atomic & stale-reclaim di server:
+// kalau tab LAIN atau admin lain yang memicu bersamaan, itu tetap ditangani
+// di sana.
+let _aiAnalysisInFlight = null;
+
+async function runAiAnalysis(id, force = false) {
+    if (_aiAnalysisInFlight === id) {
+        return;
+    }
+    _aiAnalysisInFlight = id;
+
+    if (currentStagingData && currentStagingData.id === id) {
+        currentStagingData.ai_analysis_status = 'pending';
+    }
+    refreshAiAnalysisPanel(id);
+    startAiProgressAnimation();
+
+    try {
+        const res = await apiFetch(`/api/staging-tickets/${id}/analyze`, 'POST', force ? { force: true } : null);
+        _lastAiAnalysis = res.data;
+        if (currentStagingData && currentStagingData.id === id) {
+            currentStagingData.ai_analysis = res.data;
+            currentStagingData.ai_analysis_status = 'completed';
+            currentStagingData.ai_analysis_generated_at = new Date().toISOString();
+        }
+        autoFillEmptyFromAi(res.data);
+
+        // Snap progress bar ke 100% sekilas sebelum panel di-render ulang
+        // dengan hasil sebenarnya — cuma flourish visual, tidak mempengaruhi
+        // data (progress-nya sendiri sudah selalu estimasi, bukan real).
+        stopAiProgressAnimation();
+        const fillEl = document.getElementById('aiAnalysisProgressFill');
+        if (fillEl) fillEl.style.width = '100%';
+        await new Promise(resolve => setTimeout(resolve, 200));
+        refreshAiAnalysisPanel(id);
+    } catch (e) {
+        stopAiProgressAnimation();
+        if (currentStagingData && currentStagingData.id === id) {
+            currentStagingData.ai_analysis_status = 'failed';
+        }
+        // Refresh dulu (supaya header ikut ter-render ulang — kalau tidak,
+        // tombol Re-analyze tetap hilang karena disembunyikan saat status
+        // sempat 'pending' di atas), baru timpa isi body dengan pesan
+        // spesifik dari server (mis. rate limit/config) alih-alih pesan
+        // generik "gagal" dari aiAnalysisPanelHtml().
+        refreshAiAnalysisPanel(id);
+        const freshBody = document.getElementById('aiAnalysisBody');
+        if (freshBody) freshBody.innerHTML = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> ${escHtml(e.message || 'AI analysis failed. Please fill in the classification manually.')}</p>`;
+    } finally {
+        // WAJIB finally, bukan ditaruh lepas di akhir try/catch: harus tetap
+        // kelepas apa pun jalur keluarnya (sukses, gagal, atau exception tak
+        // terduga lain), atau tab ini tidak akan pernah bisa memicu
+        // analyze() lagi buat tiket ini sampai halaman di-reload.
+        _aiAnalysisInFlight = null;
+    }
+}
+
+// Progress bar ESTIMASI (bukan progress asli dari provider — API ticket
+// analysis bukan streaming, jadi tidak ada angka progress nyata untuk
+// ditampilkan). Naik cepat di awal lalu melambat mendekati asimtot 92%
+// (kurva 1 - e^-t/tau) supaya tidak pernah terlihat "selesai" sebelum
+// respons beneran datang — endpoint-nya sendiri biasanya makan belasan
+// detik sampai ±1 menit tergantung effort/model yang aktif di AI Settings.
+// Interval jalan lepas dari siklus render aiAnalysisPanelHtml() supaya
+// tidak ke-reset tiap panel di-render ulang — cukup update elemen fill
+// lewat getElementById tiap tick, dan diam kalau elemennya sudah tidak ada
+// (modal ditutup/di-render ulang ke state lain).
+function startAiProgressAnimation() {
+    stopAiProgressAnimation();
+    _aiProgressStart = Date.now();
+
+    const TAU_MS = 18000;
+    const CAP_PCT = 92;
+
+    const tick = () => {
+        const el = document.getElementById('aiAnalysisProgressFill');
+        if (!el) return;
+        const elapsed = Date.now() - _aiProgressStart;
+        const pct = CAP_PCT * (1 - Math.exp(-elapsed / TAU_MS));
+        el.style.width = pct.toFixed(1) + '%';
+    };
+
+    tick();
+    _aiProgressTimer = setInterval(tick, 200);
+}
+
+function stopAiProgressAnimation() {
+    if (_aiProgressTimer) {
+        clearInterval(_aiProgressTimer);
+        _aiProgressTimer = null;
+    }
+}
+
+// Render ulang seluruh panel (header dengan tombol Re-analyze + body) —
+// dipakai setelah status berubah supaya tombol Re-analyze langsung
+// tampil/hilang sesuai status terbaru, bukan cuma isi body-nya.
+function refreshAiAnalysisPanel(id) {
+    if (!currentStagingData || currentStagingData.id !== id) return;
+    const panel = document.getElementById('aiAnalysisBody')?.closest('div.border-indigo-200');
+    if (panel) panel.outerHTML = aiAnalysisPanelHtml(currentStagingData);
+}
+
+// Isi field klasifikasi HANYA yang masih kosong — tidak menimpa input admin.
+function autoFillEmptyFromAi(data) {
+    [
+        ['approveTicketType', data.suggested_ticket_type],
+        ['approvePriority',   data.suggested_priority],
+        ['approveScale',      data.suggested_scale],
+        ['approveModule',     data.suggested_module_name],
+    ].forEach(([id, val]) => {
+        if (!val) return;
+        const el = document.getElementById(id);
+        if (el && !el.value) el.value = val;
+    });
+}
+
+// Paksa terapkan saran AI terakhir ke form (dipanggil manual dari panel).
+function applyAiSuggestions() {
+    if (!_lastAiAnalysis) return;
+    const d = _lastAiAnalysis;
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    setVal('approveTicketType', d.suggested_ticket_type);
+    setVal('approvePriority',   d.suggested_priority);
+    setVal('approveScale',      d.suggested_scale);
+    setVal('approveModule',     d.suggested_module_name);
+    showNotif('AI suggestions applied to form.', 'success');
+}
+
+function timeAgo(iso) {
+    if (!iso) return '';
+    const diffSec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (diffSec < 60) return 'just now';
+    if (diffSec < 3600) return Math.floor(diffSec / 60) + ' min ago';
+    if (diffSec < 86400) return Math.floor(diffSec / 3600) + ' hr ago';
+    return Math.floor(diffSec / 86400) + ' d ago';
 }
 
 async function loadForCustomerOptions(parentId, selectedEndCustomerId) {
@@ -1139,6 +1450,18 @@ async function fetchEmailInbox(silent = false) {
 // ── Delivery Support combobox (validation modal) ──────────────────────────────
 
 const DELIVERY_SUPPORTS = @json($deliverySupportsJson);
+
+// Type/Priority/Scale enums — sumbernya App\Support\TicketClassification (PHP),
+// dikirim lewat controller supaya <option> di sini tidak jadi salinan lepas yang
+// bisa diam-diam beda dari validasi server / schema AI Ticket Analyzer.
+const TICKET_TYPES      = @json($ticketClassification['types']);
+const TICKET_PRIORITIES = @json($ticketClassification['priorities']);
+const TICKET_SCALES     = @json($ticketClassification['scales']);
+
+function buildOptionsHtml(values, placeholder) {
+    const opts = values.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+    return `<option value="">${escHtml(placeholder)}</option>${opts}`;
+}
 
 let _stagingDsSelected = { id: null, name: '' };
 

@@ -17,14 +17,15 @@ class CustomerController extends Controller
      * customer.section.{key}.view / .update.
      */
     const SECTIONS = [
-        'basic_data'     => 'Basic Data',
-        'address'        => 'Address',
-        'contact'        => 'Contact',
-        'identification' => 'Identification',
-        'bank'           => 'Bank Account',
-        'credential'     => 'Credential',
-        'history'        => 'History',
-        'attachment'     => 'Attachment',
+        'basic_data'       => 'Basic Data',
+        'address'          => 'Address',
+        'contact'          => 'Contact',
+        'identification'   => 'Identification',
+        'bank'             => 'Bank Account',
+        'credential'       => 'Credential',
+        'history'          => 'History',
+        'attachment'       => 'Attachment',
+        'report_templates' => 'Report Templates',
     ];
 
     /**
