@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Ticket;
 use App\Services\Ai\AiTicketSummaryService;
 use App\Services\Ai\TicketSummaryContext;
+use App\Support\AiModelSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -16,14 +17,14 @@ use Throwable;
  * Tombol "AI Summarize" di daftar tiket.
  *
  * Hasilnya di-stream sebagai Server-Sent Events, pola yang sama dengan AI
- * Assistant, lalu disimpan ke cache dengan kunci ticket_id + SIDIK JARI ISI
- * TIKET (lihat TicketSummaryContext::fingerprint).
+ * Assistant, lalu disimpan ke cache dengan kunci ticket_id + MODEL AKTIF +
+ * SIDIK JARI ISI TIKET (lihat TicketSummaryContext::fingerprint).
  *
  * Empat jenis event ke browser: `meta` (dari cache atau tidak), `delta` (potongan
  * teks), `status` (progres riset dokumentasi luar), dan `sources` (daftar rujukan
- * yang dibuka model) — dua yang terakhir berasal dari server tool web_search /
- * web_fetch di AiTicketSummaryService. Karena itu yang masuk cache adalah ARRAY
- * {text, sources}, bukan string; lihat CACHE_VERSION.
+ * yang dibuka model) — dua yang terakhir berasal dari server tool web search
+ * milik provider yang sedang aktif (lihat AiTicketSummaryService). Karena itu
+ * yang masuk cache adalah ARRAY {text, sources}, bukan string; lihat CACHE_VERSION.
  *
  * Kenapa sidik jari dan bukan TTL saja: begitu tiket menerima pembaruan apa pun
  * - pesan baru, status berubah, activity log bertambah, deliverable di-update,
@@ -49,8 +50,18 @@ class AiTicketSummaryController extends Controller
      * v2 (24 Agu 2026): "Cara Penyelesaian" kini hasil riset dokumentasi luar
      * dan ringkasannya membawa daftar rujukan, jadi baris v1 (string polos,
      * penyelesaian dari work log) tidak boleh dipakai lagi.
+     *
+     * v3 (27 Agu 2026): heading berganti ke Issue / Resolution Steps /
+     * Conclusion. Baris v2 memuat heading Indonesia yang TIDAK dikenali
+     * pemecah bagian di modal — kalau dipakai lagi, seluruh isinya menumpuk di
+     * satu kartu.
+     *
+     * v4 (27 Agu 2026): isi ringkasan kembali ditulis Bahasa Indonesia (heading
+     * tetap Inggris). Baris v3 berisi jawaban berbahasa Inggris seutuhnya —
+     * strukturnya masih terbaca, jadi tanpa naik versi ia akan disajikan
+     * bertahun-tahun berikutnya seolah sudah sesuai.
      */
-    private const CACHE_VERSION = 'v2';
+    private const CACHE_VERSION = 'v4';
 
     /** Ukuran potongan saat memutar ulang ringkasan dari cache. */
     private const REPLAY_CHUNK = 240;
@@ -74,7 +85,14 @@ class AiTicketSummaryController extends Controller
         $ticket = Ticket::findOrFail($ticketId);
 
         $fingerprint = $context->fingerprint($ticket);
-        $cacheKey = "ai_ticket_summary:" . self::CACHE_VERSION . ":{$ticket->ticket_id}:{$fingerprint}";
+        // Model IKUT masuk kunci, di samping sidik jari isi tiket: mengganti
+        // model/provider di Control Center → AI Settings adalah perubahan di
+        // sisi kita, yang tidak tertangkap sidik jari tiket. Tanpa ini, admin
+        // memindahkan ringkasan dari Claude ke GPT lalu tetap disuguhi hasil
+        // Claude selama 14 hari ke depan untuk setiap tiket yang sudah pernah
+        // diringkas — dan tidak ada satu tombol pun untuk membatalkannya.
+        $model = AiModelSettings::resolve(AiModelSettings::TICKET_SUMMARY)['model'];
+        $cacheKey = "ai_ticket_summary:" . self::CACHE_VERSION . ":{$model}:{$ticket->ticket_id}:{$fingerprint}";
         $cached = Cache::get($cacheKey);
         $cached = is_array($cached) ? $cached : null;
 
@@ -131,10 +149,32 @@ class AiTicketSummaryController extends Controller
                     fn(string $event, array $payload) => $send($event, $payload),
                 );
 
-                // Teks kosong = dibatalkan di tengah jalan. Menyimpannya berarti
-                // klik berikutnya memutar ulang ringkasan yang terpotong.
-                if ('' !== $result['text']) {
+                // DUA alasan sebuah hasil tidak layak disimpan, dan keduanya
+                // bermuara ke hal yang sama — klik berikutnya akan memutar ulang
+                // ringkasan yang tidak utuh, dan tidak ada cara bagi user untuk
+                // memaksa ringkasan ulang selama isi tiketnya belum berubah:
+                //   - teks kosong  : dibatalkan/koneksi putus di tengah jalan;
+                //   - truncated    : jawaban mentok di plafon token, biasanya
+                //                    putus di tengah langkah Resolution Steps.
+                // Hasil truncated TETAP dikirim ke layar (sebagian besar isinya
+                // masih berguna), hanya tidak dipaku ke cache 14 hari.
+                $keep = '' !== $result['text'] && !$result['truncated'];
+
+                if ($keep) {
                     Cache::put($cacheKey, $result, now()->addDays(self::CACHE_TTL_DAYS));
+                }
+
+                if ($result['truncated']) {
+                    Log::warning('AI ticket summary hit the output ceiling', [
+                        'ticket_id' => $ticket->ticket_id,
+                        'chars' => mb_strlen($result['text']),
+                    ]);
+
+                    $send('notice', [
+                        'message' => 'This summary stopped at the model output limit, so it may be cut off '
+                            . 'mid-step. It was not saved — reopen to generate it again, or raise the token '
+                            . 'ceiling in Control Center → AI Settings.',
+                    ]);
                 }
 
                 $send('done', ['cached' => false]);
@@ -144,7 +184,7 @@ class AiTicketSummaryController extends Controller
                     'message' => $e->getMessage(),
                 ]);
 
-                $send('error', ['message' => 'Ringkasan gagal dibuat. Coba lagi sebentar lagi.']);
+                $send('error', ['message' => 'The summary could not be generated. Please try again in a moment.']);
             }
         }, 200, [
             'Content-Type' => 'text/event-stream',
