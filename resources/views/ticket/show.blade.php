@@ -169,7 +169,7 @@
                     || $ticket->ticket_lead_id == $user->id
                     || $ticket->members->contains('employee_id', $user->id);
             @endphp
-            @if($canViewCredential && $ticket->customer_id)
+            @if($canViewCredential && ($ticket->end_customer_id || $ticket->customer_id))
             <button onclick="openCredentialModal()"
                 title="Customer Credential"
                 class="ml-4 flex-shrink-0 h-9 px-3 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
@@ -722,7 +722,7 @@
                         $picOptions[] = ['name' => $leadName, 'label' => $leadName . ' (Ticket Lead)'];
                     }
                     foreach ($ticket->allMembers as $m) {
-                        if ($m->pivot->is_active && $m->basicData) {
+                        if ($m->pivot->is_active && $m->basicData && $m->employee_id != $ticket->ticket_lead_id) {
                             $mName = trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? ''));
                             $picOptions[] = ['name' => $mName, 'label' => $mName];
                         }
@@ -757,8 +757,14 @@
                 @endphp
                 <div class="pt-3 border-t border-gray-200">
                     <label class="text-xs font-semibold text-gray-500 mb-2 block">Team Members</label>
+                    @php
+                        // Ticket lead sudah ditampilkan terpisah sebagai PIC — jangan tampilkan
+                        // lagi row ticket_member miliknya (aktif/nonaktif) di sini, karena tombol
+                        // aktifkan-kembali untuk row itu selalu gagal (PIC tidak boleh jadi member).
+                        $visibleMembers = $ticket->allMembers->where('employee_id', '!=', $ticket->ticket_lead_id);
+                    @endphp
                     <div id="membersList" class="space-y-1 mb-2">
-                        @forelse($ticket->allMembers as $member)
+                        @forelse($visibleMembers as $member)
                             @php
                                 $mName    = trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? ''));
                                 $mActive  = (bool) $member->pivot->is_active;
@@ -1712,8 +1718,9 @@
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Days — working days">Days</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Days proposed by PIC">Add.</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Approved Days — base days approved by Head">Appr. Days</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Approved Additional — extra days approved by Head">Appr. Add.</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Days + Approved Additional">Total Days</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Approved Days + Approved Additional">Total Days</th>
                     </tr>
                 </thead>
                 <tbody id="resolutionBody"></tbody>
@@ -1723,6 +1730,7 @@
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterDays">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterAdd">0</td>
                         <td class="px-3 py-2 border border-gray-200"></td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterApprovedDays">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterApprAdd">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resolutionFooterTotal">0</td>
                     </tr>
@@ -3101,10 +3109,18 @@
     }
 
     // â"€â"€ @mention state â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-    let pendingMentions   = [];   // [{ type:'employee'|'role', id, display }]
+    let pendingMentions   = [];   // [{ type:'employee'|'role', id, display }] — main compose editor
+    let editNotePendingMentions = []; // same shape — edit internal note modal editor
     let mentionQuery      = null; // null = not in mention mode
     let mentionStartIndex = -1;   // character index where '@' was typed
     let mentionFetchTimer = null;
+    // Editor yang sedang aktif ber-mention (composer utama atau modal edit note) —
+    // detectMention/insertMention/renderMentionDropdown beroperasi atas instance ini
+    // alih-alih hardcode quillEditor, supaya dropdown @mention yang sama bisa dipakai
+    // oleh editor manapun yang sedang difokus.
+    let activeMentionQuill   = null;   // di-set null s/d salah satu editor terinisialisasi
+    let activeMentionEditorElId = 'quillEditor';
+    let activeMentionPending = null;   // reference ke pendingMentions atau editNotePendingMentions
     // Cache untuk menghilangkan delay: roles disimpan penuh (server balikan semua saat q kosong),
     // employee di-cache per query. Bila sebuah query hasilnya "lengkap" (< limit server),
     // query yang lebih spesifik cukup difilter di client → instan tanpa network.
@@ -3355,20 +3371,11 @@
         initReplyEditorResize();
 
         // â"€â"€ @mention: detect @ in quill text-change â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        activeMentionQuill = quillEditor;
+        activeMentionEditorElId = 'quillEditor';
+        activeMentionPending = pendingMentions;
         quillEditor.on('text-change', function (delta, oldDelta, source) {
-            // Only react to direct user input — ignore API-triggered changes (e.g. from insertMention)
-            if (source !== 'user') return;
-
-            const selection = quillEditor.getSelection();
-            if (!selection) return;
-
-            const m = detectMention(selection.index);
-            if (!m) { closeMentionDropdown(); return; }
-
-            mentionQuery      = m.query;
-            mentionStartIndex = m.startIndex;
-
-            showMentions(m.query);
+            handleMentionTextChange(quillEditor, 'quillEditor', pendingMentions, source);
         });
 
         // â"€â"€ Auto-link: detect URL saat user ketik spasi/enter setelah URL â"€â"€â"€â"€â"€â"€
@@ -3376,20 +3383,7 @@
         // Gunakan posisi dari delta.ops (bukan getSelection) agar lebih reliable.
         // setTimeout untuk menghindari masalah re-entrancy Quill.
         quillEditor.on('text-change', function (delta, oldDelta, source) {
-            // Cegah format mention (warna+bold) "bocor" ke teks lanjutan.
-            // Chip mention diberi warna+bold lalu diikuti spasi netral sebagai pemisah;
-            // jika spasi pemisah itu dihapus user, kursor menempel tepat di belakang teks
-            // berwarna sehingga Quill melanjutkan format tsb saat mengetik lagi.
-            if (source === 'user') {
-                const sel = quillEditor.getSelection();
-                if (sel && sel.length === 0) {
-                    const fmt = quillEditor.getFormat(sel.index);
-                    if (MENTION_COLORS.includes(fmt.color)) {
-                        quillEditor.format('color', false);
-                        if (fmt.bold) quillEditor.format('bold', false);
-                    }
-                }
-            }
+            if (source === 'user') clearMentionFormatIfNeeded(quillEditor);
         });
 
         quillEditor.on('text-change', function(delta, _old, source) {
@@ -3469,14 +3463,56 @@
         if (match) scrollToMessage(match[1]);
     }
 
+    // Cegah format mention (warna+bold) "bocor" ke teks lanjutan — dipakai oleh
+    // composer utama & modal edit internal note (dipanggil dari text-change, source
+    // 'user' saja). Chip mention diberi warna+bold lalu diikuti spasi netral sebagai
+    // pemisah; jika spasi pemisah itu dihapus/hilang, kursor menempel tepat di belakang
+    // teks berwarna sehingga Quill melanjutkan format tsb saat mengetik lagi.
+    // NOTE: JANGAN panggil ini dari 'selection-change' — quill.format() pada selection
+    // kosong yang formatnya BERBEDA dari ambient bisa menyisipkan Cursor blot (embed
+    // placeholder internal Quill) ke dalam dokumen, yang bikin detectMention() (yang
+    // berhenti begitu ketemu op non-string / embed) langsung gagal mendeteksi '@'.
+    function clearMentionFormatIfNeeded(quill) {
+        const sel = quill.getSelection();
+        if (!sel || sel.length !== 0) return;
+        const fmt = quill.getFormat(sel.index);
+        if (MENTION_COLORS.includes(fmt.color)) {
+            quill.format('color', false);
+            if (fmt.bold) quill.format('bold', false);
+        }
+    }
+
     // ==================== @MENTION AUTOCOMPLETE ====================
+    // Handler bersama dipakai oleh SEMUA editor Quill yang mendukung @mention
+    // (composer utama & modal edit internal note). Menandai editor pemanggil sebagai
+    // "aktif" dulu supaya detectMention/insertMention/dropdown beroperasi atas
+    // instance & pending-list yang benar, baru jalankan deteksi @ seperti biasa.
+    function handleMentionTextChange(quillInstance, editorElId, pendingList, source) {
+        if (source !== 'user') return;
+
+        activeMentionQuill      = quillInstance;
+        activeMentionEditorElId = editorElId;
+        activeMentionPending    = pendingList;
+
+        const selection = quillInstance.getSelection();
+        if (!selection) return;
+
+        const m = detectMention(selection.index);
+        if (!m) { closeMentionDropdown(); return; }
+
+        mentionQuery      = m.query;
+        mentionStartIndex = m.startIndex;
+
+        showMentions(m.query);
+    }
+
     // Deteksi mention berbasis INDEX DOKUMEN (bukan getText, yang mengabaikan embed
     // gambar/tabel sehingga index meleset). Jalan mundur dari cursor mengumpulkan
     // teks sampai ketemu '@'. Berhenti bila kena spasi/newline/embed → bukan mention.
     // Return { startIndex, query } dalam koordinat dokumen Quill, atau null.
     function detectMention(cursorPos) {
         if (!cursorPos || cursorPos <= 0) return null;
-        const contents = quillEditor.getContents(0, cursorPos);
+        const contents = activeMentionQuill.getContents(0, cursorPos);
         let docIndex = cursorPos;
         let query = '';
         const ops = contents.ops || [];
@@ -3593,15 +3629,15 @@
         });
 
         // Anchor tepat DI ATAS posisi '@' yang sedang diketik (bukan selebar editor).
-        const editorEl = document.getElementById('quillEditor');
+        const editorEl = document.getElementById(activeMentionEditorElId);
         if (editorEl) {
             const rect      = editorEl.getBoundingClientRect();
             const anchorIdx = mentionStartIndex >= 0
                 ? mentionStartIndex
-                : (quillEditor.getSelection()?.index ?? 0);
+                : (activeMentionQuill.getSelection()?.index ?? 0);
             let caretLeft = rect.left, caretTop = rect.top;
             try {
-                const b = quillEditor.getBounds(anchorIdx);
+                const b = activeMentionQuill.getBounds(anchorIdx);
                 caretLeft = rect.left + b.left;
                 caretTop  = rect.top + b.top;
             } catch (_) {}
@@ -3627,20 +3663,22 @@
         if (startIdx < 0) return;
 
         const replaceLen = 1 + (savedQuery?.length ?? 0); // '@' + typed query
+        const quill      = activeMentionQuill;
+        const pending     = activeMentionPending || pendingMentions;
 
         // Delete the '@...' text
-        quillEditor.deleteText(startIdx, replaceLen);
+        quill.deleteText(startIdx, replaceLen);
 
         // Insert a leading space if the character immediately before the '@' wasn't whitespace.
         // Pakai getContents (bukan getText) agar embed gambar/tabel sebelum '@' dianggap
         // batas dan tidak salah hitung.
         let needsLeadSpace = false;
         if (startIdx > 0) {
-            const prevOp = quillEditor.getContents(startIdx - 1, 1).ops[0];
+            const prevOp = quill.getContents(startIdx - 1, 1).ops[0];
             needsLeadSpace = !!prevOp && typeof prevOp.insert === 'string' && !/\s$/.test(prevOp.insert);
         }
         if (needsLeadSpace) {
-            quillEditor.insertText(startIdx, ' ', { color: false, bold: false });
+            quill.insertText(startIdx, ' ', { color: false, bold: false });
         }
 
         const chipPos = needsLeadSpace ? startIdx + 1 : startIdx;
@@ -3649,16 +3687,16 @@
         const chip    = display.startsWith('@') ? display : `@${display}`;
 
         // Insert chip with colour + bold, then trailing space with plain formatting
-        quillEditor.insertText(chipPos, chip, {
+        quill.insertText(chipPos, chip, {
             color: type === 'role' ? '#7c3aed' : '#1d4ed8',
             bold: true,
         });
-        quillEditor.insertText(chipPos + chip.length, ' ', { color: false, bold: false });
-        quillEditor.setSelection(chipPos + chip.length + 1);
+        quill.insertText(chipPos + chip.length, ' ', { color: false, bold: false });
+        quill.setSelection(chipPos + chip.length + 1);
 
         // Track for payload
-        const already = pendingMentions.find(m => m.type === type && m.id === id);
-        if (!already) pendingMentions.push({ type, id, display });
+        const already = pending.find(m => m.type === type && m.id === id);
+        if (!already) pending.push({ type, id, display });
 
         closeMentionDropdown();
     }
@@ -5152,6 +5190,8 @@
     // ==================== TEAM MEMBERS ====================
     const allEmployees  = @json($employees);
     const canManageMembers = {{ $canManageMembers ? 'true' : 'false' }};
+    const ticketLeadId   = {{ $ticket->ticket_lead_id ?? 'null' }};
+    const ticketLeadName = @json($ticket->ticketLead && $ticket->ticketLead->basicData ? trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : null);
 
     function escHtmlMember(str) {
         const d = document.createElement('div');
@@ -5165,10 +5205,16 @@
 
         // All member IDs (active + inactive) — excluded from "add" dropdown
         const allMemberIds = new Set(members.map(m => m.employee_id));
-        if (members.length === 0) {
+
+        // Ticket lead sudah ditampilkan terpisah sebagai PIC — jangan tampilkan lagi
+        // row ticket_member miliknya di sini (tombol aktifkan-kembali untuk row itu
+        // selalu gagal karena PIC tidak boleh jadi member).
+        const visibleMembers = members.filter(m => m.employee_id != ticketLeadId);
+
+        if (visibleMembers.length === 0) {
             list.innerHTML = '<p class="text-xs text-gray-400 italic" id="noMembersText">No members assigned.</p>';
         } else {
-            list.innerHTML = members.map(m => {
+            list.innerHTML = visibleMembers.map(m => {
                 const isActive = m.is_active;
                 const chipBg   = isActive ? 'bg-blue-50' : 'bg-gray-100';
                 const nameCls  = isActive ? 'text-xs text-blue-700 font-medium truncate' : 'text-xs text-gray-400 font-medium truncate line-through';
@@ -5201,7 +5247,7 @@
             const itemCls = 'custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors';
             let itemsHtml = `<button type="button" class="${itemCls}" data-value="">-- Add member --</button>`;
             allEmployees.forEach(emp => {
-                if (!allMemberIds.has(emp.employee_id) && emp.employee_id != {{ $ticket->ticket_lead_id ?? 'null' }}) {
+                if (!allMemberIds.has(emp.employee_id) && emp.employee_id != ticketLeadId) {
                     itemsHtml += `<button type="button" class="${itemCls}" data-value="${escAttr(emp.employee_id)}">${escTxt(emp.name)}</button>`;
                 }
             });
@@ -5218,6 +5264,41 @@
                 label.className   = 'custom-dd-label text-gray-500 truncate';
             }
         }
+
+        rebuildPicDropdown(members);
+    }
+
+    // PIC (In Charge) dropdown options harus ikut berubah begitu member
+    // dinonaktifkan/diaktifkan-kembali — tanpa ini opsi PIC jadi basi sampai
+    // halaman di-refresh manual (member yang sudah di-remove masih bisa dipilih
+    // jadi PIC, dan member yang baru direaktivasi belum muncul sbg opsi).
+    function rebuildPicDropdown(members) {
+        const picPanel = document.querySelector('[data-onchange="onPicDropdownChange"] .custom-dd-panel');
+        if (!picPanel) return;
+
+        // Panel bisa sudah auto-inject search bar (kalau opsi > 7 saat init) —
+        // pertahankan node itu, jangan sampai innerHTML replace bikin referensi
+        // panel._ddSearch/_ddEmpty jadi stale.
+        const searchWrap = picPanel.querySelector('.custom-dd-search-wrap');
+        const emptyEl    = picPanel.querySelector('.custom-dd-empty');
+
+        const currentPic = document.getElementById('picSelectHidden')?.value || '';
+        const escAttr = (s) => String(s).replace(/"/g, '&quot;');
+        const escTxt  = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const itemCls = (name) => `custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 ${currentPic === name ? 'bg-gray-50 font-medium text-gray-900' : ''}`;
+
+        let itemsHtml = '';
+        if (ticketLeadName) {
+            itemsHtml += `<button type="button" class="${itemCls(ticketLeadName)}" data-value="${escAttr(ticketLeadName)}">${escTxt(ticketLeadName)} (Ticket Lead)</button>`;
+        }
+        members.filter(m => m.is_active).forEach(m => {
+            itemsHtml += `<button type="button" class="${itemCls(m.name)}" data-value="${escAttr(m.name)}">${escTxt(m.name)}</button>`;
+        });
+
+        picPanel.innerHTML = '';
+        if (searchWrap) picPanel.appendChild(searchWrap);
+        picPanel.insertAdjacentHTML('beforeend', itemsHtml);
+        if (emptyEl) picPanel.appendChild(emptyEl);
     }
 
     async function addMemberBtn() {
@@ -6876,6 +6957,7 @@
             const existing = valueMap[person.employee_id] || {};
             const md  = existing.mandays || 0;
             const add = existing.additional_mandays || 0;
+            const apprDays = existing.approved_mandays || 0;
             const appAdd = existing.approved_additional || 0;
             // Inputs always show what was proposed (md/add), unchanged — so the consultant
             // can see exactly what they asked for. But while the proposal is still approved
@@ -6883,9 +6965,10 @@
             // (approved_mandays + approved_additional), not the raw proposed amount — so the
             // consultant can see what was NOT approved. Once they start typing a revision,
             // resolutionUpdateRowTotal() takes over and previews the new draft instead.
-            const totalMd = status === 'approved' ? ((existing.approved_mandays || 0) + appAdd) : (md + appAdd);
+            const totalMd = status === 'approved' ? (apprDays + appAdd) : (md + appAdd);
             const mdVal  = md  > 0 ? md  : '';
             const addVal = add > 0 ? add : '';
+            const apprDaysDisplay = apprDays > 0 ? apprDays.toFixed(1) : '—';
             const apprAddDisplay = appAdd > 0 ? appAdd.toFixed(1) : '—';
             html += `<tr>
                 <td class="px-3 py-2 border border-gray-200 font-medium text-gray-700">${person.name}</td>
@@ -6908,6 +6991,7 @@
                         placeholder="notes..."
                         oninput="internalClearNoteHighlight(this)">
                 </td>
+                <td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50 text-gray-500" data-emp-apprdays="${person.employee_id}">${apprDaysDisplay}</td>
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50 text-gray-500" data-emp-appr="${person.employee_id}">${apprAddDisplay}</td>
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center font-semibold bg-gray-50" data-emp-total="${person.employee_id}">${totalMd > 0 ? totalMd.toFixed(1) : '—'}</td>
             </tr>`;
@@ -6940,13 +7024,15 @@
         const footer = document.getElementById('resolutionFooterTotal');
         if (footer) footer.textContent = total.toFixed(1);
 
-        let days = 0, add = 0, apprAdd = 0;
+        let days = 0, add = 0, apprDays = 0, apprAdd = 0;
         document.querySelectorAll('.internal-md-cell').forEach(inp => { days += parseFloat(inp.value) || 0; });
         document.querySelectorAll('.internal-add-cell').forEach(inp => { add += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('[data-emp-apprdays]').forEach(cell => { apprDays += parseFloat(cell.textContent) || 0; });
         document.querySelectorAll('[data-emp-appr]').forEach(cell => { apprAdd += parseFloat(cell.textContent) || 0; });
-        document.getElementById('resFooterDays').textContent    = days.toFixed(1);
-        document.getElementById('resFooterAdd').textContent     = add.toFixed(1);
-        document.getElementById('resFooterApprAdd').textContent = apprAdd.toFixed(1);
+        document.getElementById('resFooterDays').textContent        = days.toFixed(1);
+        document.getElementById('resFooterAdd').textContent         = add.toFixed(1);
+        document.getElementById('resFooterApprovedDays').textContent = apprDays.toFixed(1);
+        document.getElementById('resFooterApprAdd').textContent     = apprAdd.toFixed(1);
     }
 
     function resolutionPicGetPayload() {
@@ -7757,7 +7843,10 @@
 
     // ==================== CUSTOMER CREDENTIAL MODAL ====================
     @if($canViewCredential ?? false)
-    const _credentialCustomerId = {{ $ticket->customer_id ?? 'null' }};
+    // Prioritas end_customer_id (anak) di atas customer_id (induk) — ticket bisa
+    // ditujukan ke anak perusahaan spesifik dalam grup, dan credential-nya berbeda
+    // per entitas walau induknya sama.
+    const _credentialCustomerId = {{ $ticket->end_customer_id ?? $ticket->customer_id ?? 'null' }};
 
     async function openCredentialModal() {
         if (!_credentialCustomerId) return;
@@ -7823,6 +7912,7 @@
 
         editNoteId = msgId;
         editNoteRemovedAttachmentIds = [];
+        editNotePendingMentions = []; // reset — hanya mention BARU yang ditambahkan selama sesi edit ini
 
         // Lazy-init Quill editor for the edit modal
         if (!editNoteQuill) {
@@ -7860,6 +7950,15 @@
             });
             // Pertahankan tabel yang di-paste di editor edit internal note juga
             addTablePasteMatcher(editNoteQuill);
+
+            // â"€â"€ @mention: sama seperti composer utama, pakai dropdown #mentionDropdown
+            // bersama (hanya satu editor aktif dalam satu waktu — modal ini modal overlay). â"€â"€
+            editNoteQuill.on('text-change', function (delta, oldDelta, source) {
+                handleMentionTextChange(editNoteQuill, 'editNoteEditorContainer', editNotePendingMentions, source);
+            });
+            editNoteQuill.on('text-change', function (delta, oldDelta, source) {
+                if (source === 'user') clearMentionFormatIfNeeded(editNoteQuill);
+            });
         }
 
         // Pre-fill content
@@ -7915,6 +8014,15 @@
         const msgHtml  = editNoteQuill.root.innerHTML;
         const formData = new FormData();
         formData.append('message_html', msgHtml);
+
+        // Mention baru yang ditambahkan selama edit ini (mention lama tidak perlu dikirim
+        // ulang — backend union-kan dengan yang sudah tersimpan di message).
+        editNotePendingMentions
+            .filter(m => m.type === 'employee')
+            .forEach(m => formData.append('mentioned_employee_ids[]', m.id));
+        editNotePendingMentions
+            .filter(m => m.type === 'role')
+            .forEach(m => formData.append('mentioned_role_ids[]', m.id));
 
         editNoteRemovedAttachmentIds.forEach(id => formData.append('remove_attachment_ids[]', id));
 
@@ -7989,7 +8097,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-500">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                 </svg>
-                <h3 class="text-base font-bold text-gray-900">Customer Credential — {{ $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</h3>
+                <h3 class="text-base font-bold text-gray-900">Customer Credential — {{ $ticket->endCustomer?->basicData?->name_1 ?? $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</h3>
             </div>
             <button onclick="closeCredentialModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">

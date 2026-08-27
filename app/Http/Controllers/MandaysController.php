@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Enums\RoleId;
+use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\Customer;
@@ -1076,6 +1077,20 @@ class MandaysController extends Controller
             }
         }
 
+        // Snapshot "before" approved_mandays/approved_additional for every detail about to be
+        // touched. The update below is an Eloquent mass update via query builder
+        // ($proposal->details()->where(...)->update(...)) — Laravel never fires model events
+        // for that (only single-instance $model->save() does), so AuditObserver (wired via
+        // ConsultantMandaysDetail's Auditable trait) never sees it. This is the actual
+        // approved-mandays billing number, so it's logged manually below once the
+        // transaction has committed.
+        $touchedEmployeeIds  = collect($request->approved_details)->pluck('employee_id')->map(fn ($id) => (int) $id);
+        $detailsBeforeUpdate = $proposal->details()
+            ->with('employee.basicData')
+            ->whereIn('employee_id', $touchedEmployeeIds)
+            ->get()
+            ->keyBy(fn ($d) => (int) $d->employee_id);
+
         DB::beginTransaction();
         try {
             // Update approved_mandays + approved_additional per employee
@@ -1113,6 +1128,38 @@ class MandaysController extends Controller
             DB::rollBack();
             Log::error('approveResolutionProposal error', ['e' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Failed to approve the resolution days proposal. Please try again.'], 500);
+        }
+
+        // Audit trail: one row per employee whose approved_mandays/approved_additional was
+        // just locked in — recordAction() is fire-and-forget, so a logging hiccup here can
+        // never affect the approval that already committed above.
+        foreach ($request->approved_details as $ad) {
+            $beforeDetail = $detailsBeforeUpdate->get((int) $ad['employee_id']);
+            if (!$beforeDetail) {
+                continue; // employee_id isn't part of this proposal's details — the update above was a no-op
+            }
+
+            $employeeName = trim(
+                ($beforeDetail->employee?->basicData?->first_name ?? '') . ' ' . ($beforeDetail->employee?->basicData?->last_name ?? '')
+            );
+            $employeeLabel = $employeeName !== '' ? $employeeName : "Employee #{$ad['employee_id']}";
+
+            AuditLog::recordAction(
+                module: 'Mandays', // matches ConsultantMandaysDetail::$auditModule so these rows group together
+                auditableType: 'ConsultantMandaysDetail',
+                auditableId: $beforeDetail->id,
+                event: 'updated',
+                recordLabel: $employeeLabel,
+                description: "approved Consultant Mandays Detail: {$ad['approved_mandays']} MD for {$employeeLabel}",
+                old: [
+                    'approved_mandays'    => $beforeDetail->approved_mandays,
+                    'approved_additional' => $beforeDetail->approved_additional,
+                ],
+                new: [
+                    'approved_mandays'    => $ad['approved_mandays'],
+                    'approved_additional' => $ad['approved_additional'],
+                ],
+            );
         }
 
         return response()->json([

@@ -156,6 +156,7 @@ let currentPage = 1;
 let meta = {};
 let currentStagingId = null;
 let currentStagingData = null;
+let _lastAiAnalysis = null;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -490,9 +491,20 @@ function fillModal(s) {
     }
 
     // ── Validation panel ──
+    // Delivery support milik customer tiket ini. Aturan bisnis:
+    //   • customer punya ≥1 delivery support  → WAJIB dipilih (tak ada opsi kosong)
+    //   • tepat 1                             → langsung terisi otomatis
+    //   • tidak punya sama sekali             → field dikunci & approve tetap boleh
+    const dsOptions  = DELIVERY_SUPPORTS.filter(ds => ds.client_id == s.customer_id);
+    const dsRequired = dsOptions.length > 0;
+
+    // Reset pilihan setiap kali modal dibuka supaya tidak bocor dari staging sebelumnya.
+    _stagingDsSelected = { id: null, name: '' };
+
     let validationHtml = '';
     if (isUnvalidated) {
         validationHtml = `
+        ${aiAnalysisPanelHtml(s)}
         <div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
             <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
                 <i class="fas fa-clipboard-check text-gray-500 text-xs"></i>
@@ -504,13 +516,7 @@ function fillModal(s) {
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-500">*</span></label>
                     <select id="approveTicketType"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
-                        <option value="">Select type…</option>
-                        <option value="Incident">Incident</option>
-                        <option value="Change Request">Change Request</option>
-                        <option value="Service Request">Service Request</option>
-                        <option value="EWA">EWA</option>
-                        <option value="RISE">RISE</option>
-                        <option value="Consult">Consult</option>
+                        ${buildOptionsHtml(TICKET_TYPES, 'Select type…')}
                     </select>
                     <p id="typeError" class="hidden mt-1 text-xs text-red-500">Required.</p>
                 </div>
@@ -518,11 +524,7 @@ function fillModal(s) {
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority <span class="text-red-500">*</span></label>
                     <select id="approvePriority"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
-                        <option value="">Select priority…</option>
-                        <option value="Very High">Very High</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
+                        ${buildOptionsHtml(TICKET_PRIORITIES, 'Select priority…')}
                     </select>
                     <p id="priorityError" class="hidden mt-1 text-xs text-red-500">Required.</p>
                 </div>
@@ -531,40 +533,38 @@ function fillModal(s) {
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Scale</label>
                     <select id="approveScale"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
-                        <option value="">Select scale…</option>
-                        <option value="Simple">Simple</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Complex">Complex</option>
+                        ${buildOptionsHtml(TICKET_SCALES, 'Select scale…')}
                     </select>
                     <p class="mt-1 text-[11px] text-gray-400">Optional</p>
                 </div>
             </div>
             <div class="border-t border-gray-100 px-4 pt-3 pb-3">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Delivery Support <span class="text-gray-400 font-normal">(optional — for SLA matching)</span></label>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Delivery Support
+                    ${dsRequired
+                        ? '<span class="text-red-500">*</span>'
+                        : '<span class="text-gray-400 font-normal">(no delivery support registered for this customer)</span>'}
+                </label>
                 <input type="hidden" id="stagingDsHidden" value="">
                 <div id="stagingDsDd" class="relative">
                     <input type="text" id="stagingDsSearch"
-                        placeholder="Select delivery support…"
+                        placeholder="${dsRequired ? 'Select delivery support…' : 'Not available for this customer'}"
                         autocomplete="off"
+                        ${dsRequired ? '' : 'disabled'}
                         oninput="filterStagingDs(this.value)"
                         onfocus="openStagingDsDd()"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm ${dsRequired ? 'bg-white' : 'bg-gray-50 text-gray-400 cursor-not-allowed'} focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
                     <div id="stagingDsPanel" class="hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-y-auto" style="max-height:200px;">
-                        <button type="button" class="staging-ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-400 italic hover:bg-gray-50 transition"
-                            onclick="selectStagingDs(this.dataset.id, this.dataset.name)" data-id="" data-name="">— No delivery support</button>
-                        ${(() => {
-                            const filtered = DELIVERY_SUPPORTS.filter(ds => ds.client_id == s.customer_id);
-                            if (!filtered.length) {
-                                return '<div class="px-3 py-2.5 text-xs text-gray-400 italic">No delivery support found for this customer.</div>';
-                            }
-                            return filtered.map(ds =>
-                                '<button type="button" class="staging-ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition" ' +
-                                'onclick="selectStagingDs(this.dataset.id, this.dataset.name)" ' +
-                                'data-id="' + ds.id + '" data-name="' + escHtml(ds.name) + '">' + escHtml(ds.name) + '</button>'
-                            ).join('');
-                        })()}
+                        ${dsOptions.map(ds =>
+                            '<button type="button" class="staging-ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition" ' +
+                            'onclick="selectStagingDs(this.dataset.id, this.dataset.name)" ' +
+                            'data-id="' + ds.id + '" data-name="' + escHtml(ds.name) + '">' + escHtml(ds.name) + '</button>'
+                        ).join('')}
                     </div>
                 </div>
+                <p id="dsError" class="hidden mt-1 text-xs text-red-500">Delivery support is required.</p>
+                ${dsRequired && dsOptions.length > 1
+                    ? '<p class="mt-1 text-[11px] text-gray-400">This customer has ' + dsOptions.length + ' delivery supports — choose the right one.</p>'
+                    : ''}
             </div>
             <div id="forCustomerWrap" class="hidden border-t border-gray-100 px-4 pt-3 pb-3">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">For customer <span class="text-gray-400 font-normal">(end-customer under this parent)</span></label>
@@ -729,12 +729,217 @@ function fillModal(s) {
             if (scaleEl) scaleEl.value = s.scale;
         }
 
+        // Delivery support: kalau customer hanya punya satu, langsung pilihkan —
+        // validator tetap jalan, tapi user tak perlu memilih manual.
+        if (dsOptions.length === 1) {
+            selectStagingDs(dsOptions[0].id, dsOptions[0].name);
+        }
+
+        // Analisa AI: otomatis, sekali seumur tiket (lihat komentar di
+        // aiAnalysisPanelHtml()). Kalau sudah ada hasil tersimpan, isi field
+        // yang masih kosong. Kalau belum pernah dicoba sama sekali (status
+        // null), picu sekarang — panel sudah terlanjur nampilin state loading
+        // dari aiAnalysisPanelHtml() di atas. Status 'pending'/'failed' TIDAK
+        // memicu apa pun di sini (lihat catatan di aiAnalysisPanelHtml()).
+        _lastAiAnalysis = s.ai_analysis || null;
+        if (s.ai_analysis) {
+            autoFillEmptyFromAi(s.ai_analysis);
+        } else if (!s.ai_analysis_status) {
+            runAiAnalysis(s.id);
+        }
+
         // ── "For customer": tampil hanya jika customer ter-match adalah parent
         //    yang punya end-customers (kasus tiket email di-route via domain). ──
         if (s.customer_id) {
             loadForCustomerOptions(s.customer_id, s.end_customer_id);
         }
     }
+}
+
+// ─── AI Ticket Analyzer ───────────────────────────────────────────────────────
+
+// Analisa AI sekarang otomatis (dipicu saat modal validasi dibuka, lewat
+// fillModal() → runAiAnalysis()) dan HANYA SEKALI seumur tiket — tidak ada
+// tombol "Analisa"/"Re-analyze" lagi. Statusnya (kolom ai_analysis_status)
+// yang menentukan apa yang ditampilkan panel ini:
+//   null      → belum pernah dicoba (fillModal akan langsung memicu runAiAnalysis)
+//   pending   → sedang berjalan (request ini sendiri, atau tab/admin lain)
+//   completed → hasil sudah ada di s.ai_analysis
+//   failed    → sudah dicoba & gagal permanen, tidak ada jalan mengulang
+function aiAnalysisPanelHtml(s) {
+    const status = s.ai_analysis_status || null;
+    const timeNote = (status === 'completed' && s.ai_analysis_generated_at)
+        ? `<span class="text-[11px] text-gray-400 ml-2">Dianalisa ${timeAgo(s.ai_analysis_generated_at)}</span>`
+        : '';
+
+    let bodyHtml;
+    if ('completed' === status && s.ai_analysis) {
+        bodyHtml = renderAiAnalysisBody(s.ai_analysis);
+    } else if ('failed' === status) {
+        bodyHtml = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> Analisa AI untuk tiket ini gagal dan tidak bisa diulang otomatis. Silakan isi klasifikasi (Type/Priority/Scale/Module) secara manual.</p>`;
+    } else {
+        // null (belum dicoba, akan dipicu fillModal) atau pending (sedang jalan)
+        bodyHtml = `<div class="flex items-center gap-2 text-sm text-gray-400 py-1"><i class="fas fa-spinner fa-spin"></i> Menganalisa tiket…</div>`;
+    }
+
+    return `
+    <div class="border border-indigo-200 rounded-xl overflow-hidden mb-5 bg-indigo-50/40">
+        <div class="px-4 py-2.5 border-b border-indigo-100 bg-indigo-50 flex items-center gap-2">
+            <i class="fas fa-wand-magic-sparkles text-indigo-500 text-xs"></i>
+            <span class="text-xs font-semibold text-indigo-700">AI Ticket Analyzer</span>
+            ${timeNote}
+        </div>
+        <div id="aiAnalysisBody" class="px-4 py-4">
+            ${bodyHtml}
+        </div>
+    </div>`;
+}
+
+// Satu pola visual dipakai berulang di semua section supaya konsisten
+// (sebelumnya tiap section pakai ukuran/struktur beda-beda — itu yang bikin
+// panel ini terlihat berantakan).
+const AI_LABEL_CLS = 'text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5';
+const AI_BODY_CLS  = 'text-sm text-gray-700 leading-relaxed';
+const AI_SECTION_CLS = 'pt-3 mt-3 border-t border-indigo-100/70 first:pt-0 first:mt-0 first:border-0';
+
+function aiSection(label, innerHtml) {
+    return `<div class="${AI_SECTION_CLS}">
+        <p class="${AI_LABEL_CLS}">${label}</p>
+        ${innerHtml}
+    </div>`;
+}
+
+function renderAiAnalysisBody(data) {
+    const confidencePct = (data.confidence !== null && data.confidence !== undefined)
+        ? Math.round(data.confidence * 100) : null;
+
+    // ── Ringkasan saran klasifikasi + confidence, sebagai chip di paling atas ──
+    const chip = (text, cls) => text
+        ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cls}">${escHtml(text)}</span>` : '';
+    const chipsHtml = [
+        chip(data.suggested_ticket_type, 'bg-white text-gray-600 border-gray-200'),
+        chip(data.suggested_priority,    'bg-white text-gray-600 border-gray-200'),
+        chip(data.suggested_scale,       'bg-white text-gray-600 border-gray-200'),
+        chip(data.suggested_module_name ? `Module: ${data.suggested_module_name}` : '', 'bg-white text-gray-600 border-gray-200'),
+        confidencePct !== null ? chip(`Confidence ${confidencePct}%`, 'bg-indigo-600 text-white border-indigo-600') : '',
+    ].filter(Boolean).join('');
+
+    // ── Langkah penyelesaian: nomor bulat + teks, semua text-sm konsisten ──
+    const steps = data.resolution_steps || [];
+    const stepsHtml = steps.length
+        ? `<ol class="space-y-2">${steps.map((step, i) => `
+            <li class="flex gap-2.5">
+                <span class="shrink-0 w-5 h-5 mt-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center justify-center">${i + 1}</span>
+                <span class="${AI_BODY_CLS}">${escHtml(step)}</span>
+            </li>`).join('')}</ol>`
+        : `<p class="${AI_BODY_CLS} text-gray-400">Tidak ada langkah spesifik dari AI.</p>`;
+
+    // ── Risiko/catatan ──
+    const risks = data.risks || [];
+    const risksHtml = risks.length
+        ? `<ul class="space-y-1.5">${risks.map(r => `
+            <li class="flex gap-2 text-sm text-amber-800 leading-relaxed">
+                <i class="fas fa-triangle-exclamation text-amber-500 mt-0.5 text-xs shrink-0"></i>
+                <span>${escHtml(r)}</span>
+            </li>`).join('')}</ul>`
+        : '';
+
+    // ── Suggested assignee: selalu tampil, dengan empty-state yang jelas ──
+    const assignees = data.suggested_assignees || [];
+    let assigneesInner;
+    if (assignees.length) {
+        assigneesInner = `<div class="space-y-1.5">
+            ${assignees.map(a => {
+                const wp = Math.round(a.workload_pct ?? 0);
+                const wColor = a.warning ? 'text-red-600' : (wp >= 50 ? 'text-amber-600' : 'text-green-600');
+                return `<div class="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-lg px-3 py-2">
+                    <span class="font-semibold text-gray-800">${escHtml(a.name)}</span>
+                    <span class="text-gray-400 text-xs">(${escHtml(a.eci ?? '-')})</span>
+                    ${a.is_module_lead ? '<span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-semibold">Module Lead</span>' : ''}
+                    ${a.qualification_level ? `<span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-semibold">${escHtml(a.qualification_level)}</span>` : ''}
+                    <span class="ml-auto font-semibold text-xs ${wColor}">${wp}% workload</span>
+                    ${a.warning ? `<i class="fas fa-triangle-exclamation text-red-500 text-xs" title="${escHtml(a.warning_message || '')}"></i>` : ''}
+                </div>`;
+            }).join('')}
+        </div>`;
+    } else if (data.suggested_module_name) {
+        assigneesInner = `<p class="text-sm text-gray-400">Belum ada Module Lead atau konsultan bersertifikasi modul <span class="font-semibold text-gray-500">${escHtml(data.suggested_module_name)}</span> yang terdaftar di sistem.</p>`;
+    } else {
+        assigneesInner = `<p class="text-sm text-gray-400">AI tidak menentukan modul yang jelas, jadi belum ada saran assignee.</p>`;
+    }
+
+    return `
+        ${chipsHtml ? `<div class="flex flex-wrap items-center gap-1.5 mb-3">${chipsHtml}</div>` : ''}
+        ${aiSection('Overview', `<p class="${AI_BODY_CLS}">${escHtml(data.overview || '-')}</p>`)}
+        ${data.root_cause_hypothesis ? aiSection('Dugaan Akar Masalah', `<p class="${AI_BODY_CLS}">${escHtml(data.root_cause_hypothesis)}</p>`) : ''}
+        ${aiSection('Langkah Penyelesaian', stepsHtml)}
+        ${risks.length ? aiSection('Catatan / Risiko', risksHtml) : ''}
+        ${aiSection('Suggested Assignee', assigneesInner)}
+        <div class="pt-3 mt-3 border-t border-indigo-100/70">
+            <button type="button" onclick="applyAiSuggestions()" class="text-xs font-semibold text-indigo-700 hover:underline">
+                <i class="fas fa-arrow-turn-down text-[10px]"></i> Apply suggestion ke form
+            </button>
+        </div>`;
+}
+
+// Dipanggil OTOMATIS dari fillModal() saat modal validasi dibuka untuk tiket
+// yang belum pernah dianalisa — bukan dari tombol. Tidak ada parameter force:
+// endpoint-nya sendiri menolak dipanggil dua kali (lihat
+// StagingTicketController::analyze() — klaim atomic ai_analysis_status).
+async function runAiAnalysis(id) {
+    const body = document.getElementById('aiAnalysisBody');
+
+    try {
+        const res = await apiFetch(`/api/staging-tickets/${id}/analyze`, 'POST');
+        _lastAiAnalysis = res.data;
+        if (currentStagingData && currentStagingData.id === id) {
+            currentStagingData.ai_analysis = res.data;
+            currentStagingData.ai_analysis_status = 'completed';
+            currentStagingData.ai_analysis_generated_at = new Date().toISOString();
+        }
+        if (body) body.innerHTML = renderAiAnalysisBody(res.data);
+        autoFillEmptyFromAi(res.data);
+    } catch (e) {
+        if (currentStagingData && currentStagingData.id === id) {
+            currentStagingData.ai_analysis_status = 'failed';
+        }
+        if (body) body.innerHTML = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> ${escHtml(e.message || 'Analisa AI gagal. Silakan isi klasifikasi secara manual.')}</p>`;
+    }
+}
+
+// Isi field klasifikasi HANYA yang masih kosong — tidak menimpa input admin.
+function autoFillEmptyFromAi(data) {
+    [
+        ['approveTicketType', data.suggested_ticket_type],
+        ['approvePriority',   data.suggested_priority],
+        ['approveScale',      data.suggested_scale],
+        ['approveModule',     data.suggested_module_name],
+    ].forEach(([id, val]) => {
+        if (!val) return;
+        const el = document.getElementById(id);
+        if (el && !el.value) el.value = val;
+    });
+}
+
+// Paksa terapkan saran AI terakhir ke form (dipanggil manual dari panel).
+function applyAiSuggestions() {
+    if (!_lastAiAnalysis) return;
+    const d = _lastAiAnalysis;
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    setVal('approveTicketType', d.suggested_ticket_type);
+    setVal('approvePriority',   d.suggested_priority);
+    setVal('approveScale',      d.suggested_scale);
+    setVal('approveModule',     d.suggested_module_name);
+    showNotif('Saran AI diterapkan ke form.', 'success');
+}
+
+function timeAgo(iso) {
+    if (!iso) return '';
+    const diffSec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (diffSec < 60) return 'barusan';
+    if (diffSec < 3600) return Math.floor(diffSec / 60) + ' menit lalu';
+    if (diffSec < 86400) return Math.floor(diffSec / 3600) + ' jam lalu';
+    return Math.floor(diffSec / 86400) + ' hari lalu';
 }
 
 async function loadForCustomerOptions(parentId, selectedEndCustomerId) {
@@ -903,6 +1108,7 @@ async function submitApprove(id) {
 
     const typeErr = document.getElementById('typeError');
     const prioErr = document.getElementById('priorityError');
+    const dsErr   = document.getElementById('dsError');
     let valid = true;
 
     if (!ticketType) { typeErr?.classList.remove('hidden'); valid = false; }
@@ -910,6 +1116,11 @@ async function submitApprove(id) {
 
     if (!priority)    { prioErr?.classList.remove('hidden'); valid = false; }
     else              { prioErr?.classList.add('hidden'); }
+
+    // Wajib hanya bila customer memang punya delivery support terdaftar.
+    const dsAvailable = document.querySelectorAll('#stagingDsPanel .staging-ds-opt').length > 0;
+    if (dsAvailable && !deliverySupportId) { dsErr?.classList.remove('hidden'); valid = false; }
+    else                                   { dsErr?.classList.add('hidden'); }
 
     if (!valid) return;
 
@@ -1116,6 +1327,18 @@ async function fetchEmailInbox(silent = false) {
 // ── Delivery Support combobox (validation modal) ──────────────────────────────
 
 const DELIVERY_SUPPORTS = @json($deliverySupportsJson);
+
+// Type/Priority/Scale enums — sumbernya App\Support\TicketClassification (PHP),
+// dikirim lewat controller supaya <option> di sini tidak jadi salinan lepas yang
+// bisa diam-diam beda dari validasi server / schema AI Ticket Analyzer.
+const TICKET_TYPES      = @json($ticketClassification['types']);
+const TICKET_PRIORITIES = @json($ticketClassification['priorities']);
+const TICKET_SCALES     = @json($ticketClassification['scales']);
+
+function buildOptionsHtml(values, placeholder) {
+    const opts = values.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+    return `<option value="">${escHtml(placeholder)}</option>${opts}`;
+}
 
 let _stagingDsSelected = { id: null, name: '' };
 

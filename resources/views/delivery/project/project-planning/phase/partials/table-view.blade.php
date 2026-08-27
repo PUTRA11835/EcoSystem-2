@@ -311,6 +311,7 @@
         row.style.borderLeftColor = phase.color;
         row.dataset.phaseId = phase.id;
         row.dataset.level = 0;
+        row.dataset.nodeKey = 'phase-' + phase.id;
         
         const progress = parseFloat(phase.progress) || 0;
         
@@ -318,7 +319,7 @@
             <td class="px-2 sm:px-3 py-3 sm:py-4 sticky left-0 bg-gradient-to-r from-indigo-100 to-purple-100 z-10 min-w-[250px] sm:min-w-[400px]">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center min-w-0 flex-1">
-                        <button onclick="togglePhase(${phase.id}, this)" class="phase-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-indigo-200 transition flex-shrink-0">
+                        <button onclick="togglePhase(${phase.id}, this)" data-toggle-key="phase-${phase.id}" class="phase-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-indigo-200 transition flex-shrink-0">
                             <svg class="w-4 h-4 sm:w-5 sm:h-5 transition-transform transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                             </svg>
@@ -370,6 +371,7 @@
     function createEmptyPhaseRow(phase) {
         const row = document.createElement('tr');
         row.className = 'phase-child-' + phase.id;
+        row.dataset.parentKey = 'phase-' + phase.id;
         row.style.display = 'table-row';
         
         row.innerHTML = `
@@ -392,10 +394,13 @@
         row.dataset.groupId = group.id;
         row.dataset.phaseId = phaseId;
         row.dataset.level = level + 1;
+        row.dataset.nodeKey = `group-${group.id}`;
+        row.dataset.parentKey = `phase-${phaseId}`;
         row.style.display = 'table-row';
         
         if (group.parent_id) {
             row.classList.add(`group-child-${group.parent_id}`);
+            row.dataset.parentKey = `group-${group.parent_id}`;
             row.style.display = 'none';
         }
         
@@ -409,7 +414,7 @@
                 <div class="flex items-center justify-between group">
                     <div class="flex items-center flex-1 min-w-0">
                         ${hasChildren ? `
-                        <button onclick="toggleGroup(${group.id}, this)" class="group-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-purple-200 transition flex-shrink-0">
+                        <button onclick="toggleGroup(${group.id}, this)" data-toggle-key="group-${group.id}" class="group-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-purple-200 transition flex-shrink-0">
                             <svg class="w-3 h-3 sm:w-4 sm:h-4 transition-transform transform rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                             </svg>
@@ -530,6 +535,8 @@
         row.style.display = 'none';
         row.dataset.stageId = stage.id;
         row.dataset.groupId = groupId;
+        row.dataset.nodeKey = `stage-${stage.id}`;
+        row.dataset.parentKey = `group-${groupId}`;
         
         const weight = parseFloat(stage.weight) || 0;
         const progress = parseFloat(stage.progress) || 0;
@@ -543,7 +550,7 @@
                 <div class="flex items-center justify-between group">
                     <div class="flex items-center flex-1 min-w-0">
                         ${hasActivities ? `
-                        <button onclick="toggleStage(${stage.id}, this)" class="stage-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-yellow-200 transition flex-shrink-0">
+                        <button onclick="toggleStage(${stage.id}, this)" data-toggle-key="stage-${stage.id}" class="stage-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-yellow-200 transition flex-shrink-0">
                             <svg class="w-3 h-3 transition-transform transform rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                             </svg>
@@ -620,6 +627,7 @@
         row.style.display = 'none';
         row.dataset.activityId = activity.id;
         row.dataset.stageId = stageId;
+        row.dataset.parentKey = `stage-${stageId}`;
 
         if (activity.parent_id) {
             row.classList.add(`activity-child-${activity.parent_id}`);
@@ -732,6 +740,7 @@
         row.style.display = 'none';
         row.dataset.activityId = activity.id;
         row.dataset.groupId = groupId;
+        row.dataset.parentKey = `group-${groupId}`;
 
         const weight = parseFloat(activity.weight) || 0;
         const progress = parseFloat(activity.progress_percentage) || 0;
@@ -841,60 +850,84 @@
     // TOGGLE FUNCTIONS
     // =========================================================================
     
-    window.togglePhase = function(phaseId, buttonElement) {
-        const childRows = document.querySelectorAll(`.phase-child-${phaseId}`);
-        const icon = buttonElement.querySelector('svg');
-        const isCollapsed = icon.classList.contains('rotate-0');
+    /**
+     * Hierarki baris di-track lewat data-parent-key / data-node-key.
+     * Menutup satu node ikut menutup SELURUH turunannya (group, stage, activity),
+     * dan membuka node hanya menampilkan anak LANGSUNG-nya (turunan tetap tertutup).
+     */
+    function getToggleButton(nodeKey) {
+        return document.querySelector(`[data-toggle-key="${nodeKey}"]`);
+    }
 
-        childRows.forEach(function(row) {
-            row.style.display = isCollapsed ? 'table-row' : 'none';
+    function getDirectChildRows(nodeKey) {
+        const tbody = document.getElementById('activitiesTableBody');
+        if (!tbody) return [];
+        return Array.from(tbody.querySelectorAll(`tr[data-parent-key="${nodeKey}"]`));
+    }
+
+    function setToggleIconState(nodeKey, expanded) {
+        const button = getToggleButton(nodeKey);
+        if (!button) return;
+        const icon = button.querySelector('svg');
+        if (!icon) return;
+        icon.classList.toggle('rotate-90', expanded);
+        icon.classList.toggle('rotate-0', !expanded);
+    }
+
+    function isNodeExpanded(nodeKey) {
+        const button = getToggleButton(nodeKey);
+        if (!button) return false;
+        const icon = button.querySelector('svg');
+        return !!icon && icon.classList.contains('rotate-90');
+    }
+
+    function collapseNode(nodeKey) {
+        getDirectChildRows(nodeKey).forEach(function(row) {
+            row.style.display = 'none';
+            if (row.dataset.nodeKey) {
+                collapseNode(row.dataset.nodeKey);
+            }
         });
+        setToggleIconState(nodeKey, false);
+    }
 
-        icon.classList.toggle('rotate-0');
-        icon.classList.toggle('rotate-90');
-    };
-    
-    window.toggleGroup = function(groupId, buttonElement) {
-        const childRows = document.querySelectorAll(`.group-child-${groupId}`);
-        const icon = buttonElement.querySelector('svg');
-        const isCollapsed = icon.classList.contains('rotate-0');
-
-        childRows.forEach(function(row) {
-            row.style.display = isCollapsed ? 'table-row' : 'none';
+    function expandNode(nodeKey) {
+        getDirectChildRows(nodeKey).forEach(function(row) {
+            row.style.display = 'table-row';
         });
+        setToggleIconState(nodeKey, true);
+    }
 
-        icon.classList.toggle('rotate-0');
-        icon.classList.toggle('rotate-90');
+    function toggleNode(nodeKey) {
+        if (isNodeExpanded(nodeKey)) {
+            collapseNode(nodeKey);
+        } else {
+            expandNode(nodeKey);
+        }
+    }
+
+    window.togglePhase = function(phaseId) {
+        toggleNode(`phase-${phaseId}`);
     };
-    
-    window.toggleStage = function(stageId, buttonElement) {
-        const childRows = document.querySelectorAll(`.stage-child-${stageId}`);
-        const icon = buttonElement.querySelector('svg');
-        const isCollapsed = icon.classList.contains('rotate-0');
 
-        childRows.forEach(function(row) {
-            row.style.display = isCollapsed ? 'table-row' : 'none';
-        });
-
-        icon.classList.toggle('rotate-0');
-        icon.classList.toggle('rotate-90');
+    window.toggleGroup = function(groupId) {
+        toggleNode(`group-${groupId}`);
     };
-    
+
+    window.toggleStage = function(stageId) {
+        toggleNode(`stage-${stageId}`);
+    };
+
     window.expandAll = function() {
-        document.querySelectorAll('.phase-toggle, .group-toggle, .stage-toggle').forEach(function(button) {
-            const icon = button.querySelector('svg');
-            if (icon && icon.classList.contains('rotate-0')) {
-                button.click();
-            }
+        // Urutan DOM = urutan hierarki (parent selalu sebelum anak), jadi aman top-down.
+        document.querySelectorAll('[data-toggle-key]').forEach(function(button) {
+            expandNode(button.dataset.toggleKey);
         });
     };
-    
+
     window.collapseAll = function() {
-        document.querySelectorAll('.phase-toggle, .group-toggle, .stage-toggle').forEach(function(button) {
-            const icon = button.querySelector('svg');
-            if (icon && icon.classList.contains('rotate-90')) {
-                button.click();
-            }
+        document.querySelectorAll('[data-toggle-key]').forEach(function(button) {
+            collapseNode(button.dataset.toggleKey);
         });
     };
     

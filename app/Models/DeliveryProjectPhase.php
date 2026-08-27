@@ -5,11 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;  
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\Auditable;
 
 class DeliveryProjectPhase extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
+
+    protected static ?string $auditModule = 'Delivery Project';
 
     protected $table = 'delivery_project_phases';
 

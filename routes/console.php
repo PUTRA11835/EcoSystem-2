@@ -25,3 +25,18 @@ Schedule::command('notifications:project-reminders')->dailyAt('07:00');
 Schedule::command('onedrive:audit-links --fix')
     ->dailyAt('02:30')
     ->withoutOverlapping();
+
+// Buang percakapan AI yang kedaluwarsa. Cache file Laravel hanya menghapus entri
+// kedaluwarsa saat kuncinya dibaca lagi, jadi percakapan yang ditinggalkan (tab
+// ditutup, tidak pernah kembali) menetap di disk selamanya — termasuk lampiran
+// gambarnya yang ikut tersimpan di dalam riwayat.
+//
+// DUA KALI SEHARI, bukan sekali (20 Agu 2026): TTL konteks naik dari 1 jam ke
+// 12 jam, jadi berkasnya hidup 12× lebih lama DAN mati di jam yang tersebar
+// sepanjang hari. Dengan jadwal harian, percakapan yang kedaluwarsa pukul 16:00
+// baru dibersihkan pukul 03:00 esoknya — belasan jam memegang byte gambar yang
+// sudah tidak ada gunanya. Pemangkasan arsip DB yang menumpang command ini
+// berumur bulan, jadi ikut jalan dua kali sehari sama sekali tidak masalah.
+Schedule::command('ai:prune-conversations --apply')
+    ->twiceDailyAt(3, 15, 0)
+    ->withoutOverlapping();

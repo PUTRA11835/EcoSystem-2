@@ -34,6 +34,11 @@ const _STATUS_DD_ITEMS = `
     <button type="button" class="${DD_ITEM}" data-value="approved">Approved</button>
     <button type="button" class="${DD_ITEM}" data-value="rejected">Rejected</button>`;
 
+const _TYPE_DD_ITEMS = `
+    <button type="button" class="${DD_ITEM}" data-value="">All</button>
+    <button type="button" class="${DD_ITEM}" data-value="internal">Internal</button>
+    <button type="button" class="${DD_ITEM}" data-value="non_internal">Non Internal</button>`;
+
 const _ACT_TEXT_PANEL = `<div id="tsTextPanel_ActivityType" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
     <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search activity type</label>
     <input type="text" id="colFilterTsActivityType" placeholder="e.g. Development…" oninput="applyColFilter()" onclick="event.stopPropagation()"
@@ -87,6 +92,7 @@ const _CUST_TEXT_PANEL = `<div id="tsTextPanel_Customer" class="hidden absolute 
 </div>`;
 
 function _mkStatusDd() { return `<div class="custom-dd relative w-full" id="ddColFilterTsStatus" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Status</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsStatus" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:150px;">${_STATUS_DD_ITEMS}</div></div>`; }
+function _mkTypeDd()   { return `<div class="custom-dd relative w-full" id="ddColFilterTsType" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Type</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsType" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:150px;min-width:140px;">${_TYPE_DD_ITEMS}</div></div>`; }
 function _mkMonthDd()  { return `<div class="custom-dd relative w-full" id="ddColFilterTsMonth" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Month</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsMonth" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:120px;">${_MONTH_DD_ITEMS}</div></div>`; }
 // Year dropdown: panel items are filled dynamically from the loaded data
 // (years vary by dataset, unlike Month's fixed 12-item list) — see _populateTsYearDd().
@@ -114,7 +120,8 @@ const _DATE_FILTER_PANEL = `<div id="tsDateFilterPanel" class="hidden absolute t
 
 const SUPPORT_THEAD_HTML = `<tr>
     <th class="${TH_PLAIN}" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
-    <th class="${TH_FILT}" style="min-width:110px; position:relative;"><button type="button" onclick="toggleTsDatePanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Date</span>${CHEVRON_SVG}${FUNNEL_SVG('tsDateFilterIcon')}<span id="tsSortDateIcon" onclick="event.stopPropagation(); toggleTsDateSort()" title="Click to toggle sort (descending ↔ ascending)" class="cursor-pointer text-[10px] text-red-500 font-bold shrink-0 ml-auto hover:text-red-700 transition-colors">↓</span></button>${_DATE_FILTER_PANEL}</th>
+    <th class="${TH_FILT}" style="min-width:110px; position:relative;"><button type="button" onclick="toggleTsDatePanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Submit Date</span>${CHEVRON_SVG}${FUNNEL_SVG('tsDateFilterIcon')}<span id="tsSortDateIcon" onclick="event.stopPropagation(); toggleTsDateSort()" title="Click to toggle sort (descending ↔ ascending)" class="cursor-pointer text-[10px] text-red-500 font-bold shrink-0 ml-auto hover:text-red-700 transition-colors">↓</span></button>${_DATE_FILTER_PANEL}</th>
+    <th class="${TH_PLAIN}" style="min-width:100px;">Activity Date</th>
     <th class="${TH_FILT}" style="min-width:85px;">${_mkMonthDd()}</th>
     <th class="${TH_FILT}" style="min-width:70px;">${_mkYearDd()}</th>
     <th class="${TH_FILT}" style="min-width:150px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Employee')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Name</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Employee')}<span id="tsSortEmpIcon" onclick="event.stopPropagation(); toggleTsEmpSort()" title="Click to toggle sort (A–Z ↔ Z–A)" class="cursor-pointer text-[10px] text-gray-300 font-bold shrink-0 ml-auto hover:text-red-500 transition-colors">⇅</span></button>${_EMP_TEXT_PANEL}</th>
@@ -122,6 +129,7 @@ const SUPPORT_THEAD_HTML = `<tr>
     <th class="${TH_FILT}" style="min-width:150px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Ticket')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Ticket</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Ticket')}</button>${_TKT_TEXT_PANEL}</th>
     <th class="${TH_PLAIN}" style="min-width:180px;">Description</th>
     <th class="${TH_FILT}" style="min-width:130px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Customer')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Customer</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Customer')}</button>${_CUST_TEXT_PANEL}</th>
+    <th class="${TH_FILT}" style="min-width:110px;">${_mkTypeDd()}</th>
     <th class="${TH_PLAIN}" style="min-width:80px;">Quota MD</th>
     ${_mkActivityTextTh()}
     <th class="${TH_PLAIN}" style="min-width:90px;">MD Consumed</th>
@@ -663,6 +671,15 @@ function handleTimesheetTypeChange() {
                     </div>
                     <input type="hidden" id="timesheetTicket">
                 </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                    Activity Date <span class="text-red-500">*</span>
+                </label>
+                <input type="date" id="supportActivityDate" required value="${formatDate(new Date())}"
+                    class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50 hover:bg-white transition-colors">
+                <p class="mt-1 text-xs text-gray-400">When the work actually happened — any date, no period restriction.</p>
             </div>
 
             <div class="grid grid-cols-3 gap-2">
@@ -1209,6 +1226,7 @@ function applyStatusFilter() {
     const colCustomer = (document.getElementById('colFilterTsCustomer')?.value    || '').toLowerCase().trim();
     const colMonth    =  document.getElementById('colFilterTsMonth')?.value        || '';
     const colYear     =  document.getElementById('colFilterTsYear')?.value         || '';
+    const colType     =  document.getElementById('colFilterTsType')?.value         || '';
 
     if (colEmp)      result = result.filter(t => (t.employee_name || '').toLowerCase().includes(colEmp));
     if (colStatus)   result = result.filter(t => t.status === colStatus);
@@ -1217,6 +1235,7 @@ function applyStatusFilter() {
     if (colCustomer) result = result.filter(t => (t.customer_name || '').toLowerCase().includes(colCustomer));
     if (colMonth)    result = result.filter(t => String(t.period_month) === colMonth);
     if (colYear)     result = result.filter(t => String(t.period_year) === colYear);
+    if (colType)     result = result.filter(t => t.ticket_id && (colType === 'internal' ? t.ticket_type === 'Internal' : t.ticket_type !== 'Internal'));
 
     // Date range filter (Date column From/To — sama seperti view ticket)
     const dateFrom = document.getElementById('tsDateFrom')?.value || '';
@@ -1517,6 +1536,7 @@ function resetFilters() {
         setCustomDropdownValue('colFilterTsStatus', '');
         setCustomDropdownValue('colFilterTsMonth', '');
         setCustomDropdownValue('colFilterTsYear', '');
+        setCustomDropdownValue('colFilterTsType', '');
     }
 
     // 3. Clear text search inputs
@@ -1603,7 +1623,7 @@ function resetFilters() {
 // membuat timesheet baru.
 function tsHasActiveFilters() {
     const ids = ['colFilterTsEmployee', 'colFilterTsTicket', 'colFilterTsCustomer', 'colFilterTsActivityType',
-                 'colFilterTsStatus', 'colFilterTsMonth', 'colFilterTsYear', 'tsDateFrom', 'tsDateTo'];
+                 'colFilterTsStatus', 'colFilterTsMonth', 'colFilterTsYear', 'colFilterTsType', 'tsDateFrom', 'tsDateTo'];
     if (ids.some(id => !!(document.getElementById(id)?.value))) return true;
     return !!(currentFilters.status || currentFilters.activity_type);
 }
@@ -1695,6 +1715,8 @@ function renderTimesheetRows() {
 
             var dObj  = ts.date ? new Date(ts.date + 'T00:00:00') : null;
             var dFmt  = dObj ? dObj.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '/') : '-';
+            var adObj = ts.activity_date ? new Date(ts.activity_date + 'T00:00:00') : null;
+            var adFmt = adObj ? adObj.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '/') : '-';
             // Use server-assigned period if available (handles overridden closed periods), else compute client-side
             var bln, thn;
             if (ts.period_month != null && ts.period_year != null) {
@@ -1709,6 +1731,11 @@ function renderTimesheetRows() {
             var tkt   = ts.ticket_number ? ('#' + escapeHtml(ts.ticket_number)) : (ts.ticket_id ? ('#' + ts.ticket_id) : '-');
             var tdesc = escapeHtml(ts.ticket_description || '-');
             var cust  = escapeHtml(ts.customer_name || '-');
+            var typeCell = '-';
+            if (ts.ticket_id) {
+                var isInternalTkt = ts.ticket_type === 'Internal';
+                typeCell = '<span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ' + (isInternalTkt ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700') + '">' + (isInternalTkt ? 'Internal' : 'Non Internal') + '</span>';
+            }
             var jmd   = ts.jatah_md   != null ? formatMdTrim(ts.jatah_md)   : '-';
             var akt   = escapeHtml(ts.description || '-');
             var mdc   = ts.md_consumed != null ? formatMdTrim(ts.md_consumed) : '-';
@@ -1756,6 +1783,7 @@ function renderTimesheetRows() {
             rows += '<tr class="' + rowClass + '" ' + trClick + '>'
                 + '<td class="px-3 py-2 border-b border-gray-100">' + firstTd + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">' + dFmt + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">' + adFmt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + bln + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + thn + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-800 font-medium">' + nam + '</td>'
@@ -1763,6 +1791,7 @@ function renderTimesheetRows() {
                 + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs font-semibold text-purple-700"><i class="fas fa-ticket-alt mr-1 opacity-60"></i>' + tkt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-600 max-w-[180px]" title="' + escapeHtml(ts.ticket_description || '') + '">' + tdesc + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700">' + cust + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">' + typeCell + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">' + jmd + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700 max-w-[180px]" title="' + escapeHtml(ts.description || '') + '">' + akt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">' + mdc + '</td>'
@@ -2208,6 +2237,8 @@ function editTimesheet(id) {
                 if (onSiteEl) onSiteEl.checked = timesheet.presence === 'onsite';
                 const mdEl = document.getElementById('supportMdConsumed');
                 if (mdEl) mdEl.value = timesheet.md_consumed != null ? timesheet.md_consumed : '';
+                const activityDateEl = document.getElementById('supportActivityDate');
+                if (activityDateEl) activityDateEl.value = timesheet.activity_date || '';
             }, 400);
         }
     }, 150);
@@ -2555,13 +2586,14 @@ function closeBulkSubmitModal() {
 
 async function confirmBulkSubmit() {
     const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
-    
+
     let successCount = 0;
     let failCount = 0;
-    
+    const failReasons = new Set();
+
     for (const checkbox of checkboxes) {
         const id = checkbox.getAttribute('data-id');
-        
+
         try {
             const response = await fetch(`/api/timesheets/${id}/submit`, {
                 method: 'POST',
@@ -2570,27 +2602,34 @@ async function confirmBulkSubmit() {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                 }
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 successCount++;
             } else {
                 failCount++;
+                failReasons.add(data.message || 'Unknown reason');
             }
         } catch (error) {
             failCount++;
+            failReasons.add('A network error occurred');
         }
     }
-    
+
     closeBulkSubmitModal();
     await loadTimesheets();
     await loadStatistics();
-    
+
     if (successCount > 0) {
         showNotification(`Submitted ${successCount} timesheet(s) successfully${failCount > 0 ? `, ${failCount} failed` : ''}!`, 'success');
-    } else {
-        showNotification('Failed to submit timesheets', 'error');
+    }
+    if (failCount > 0) {
+        // Surface the actual backend reason(s) instead of a blank generic message —
+        // e.g. "Customer Mandays status is not approved yet" — so users know what to
+        // fix instead of just seeing a dead-end failure.
+        const reasonText = Array.from(failReasons).join(' — ');
+        showNotification(`Failed to submit ${failCount} timesheet(s): ${reasonText}`, 'error');
     }
 }
 
@@ -2702,6 +2741,7 @@ async function handleFormSubmit(e) {
 
         timesheetData.delivery_projects_id = null;
         timesheetData.ticket_id = document.getElementById('timesheetTicket')?.value || null;
+        timesheetData.activity_date = document.getElementById('supportActivityDate')?.value || null;
         timesheetData.activity_type = 'support';
         timesheetData.presence = onSite ? 'onsite' : 'remote';
         timesheetData.location = null;

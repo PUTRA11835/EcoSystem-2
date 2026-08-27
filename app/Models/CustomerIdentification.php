@@ -3,9 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class CustomerIdentification extends Model
 {
+    use Auditable;
+
+    protected static ?string $auditModule = 'Customer';
+    protected static array $auditExcept = ['identification_number'];
+
     protected $table = 'customer_identification';
     protected $primaryKey = 'identification_id';
     public $timestamps = true;

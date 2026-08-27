@@ -438,7 +438,17 @@ class SlaService
      */
     public function liveResolutionMetrics(TicketSla $sla, ?\Illuminate\Support\Collection $pauses = null, bool $includeOngoing = false): array
     {
-        $isFinal = $sla->isClosed() && $sla->resolved_at;
+        // Finality is normally driven by the SLA record's own resolution_status (met/breached),
+        // set by closeTicketSla() when the ticket transitions to closed/cancelled. That
+        // transition can occasionally get stuck — e.g. handleStatusChange() is called from a
+        // non-fatal try/catch in TicketController::updateTicketStatus() — leaving
+        // resolution_status frozen at pending/paused and resolved_at null even though the
+        // ticket itself is already closed. Treat the ticket's own status as authoritative too,
+        // so those tickets don't show a blank verdict forever (consistent with this report's
+        // live-recompute-instead-of-backfill approach elsewhere).
+        $ticket       = $sla->ticket;
+        $ticketClosed = $ticket && in_array($ticket->status, self::END_STATUSES, true);
+        $isFinal      = $ticketClosed || ($sla->isClosed() && $sla->resolved_at);
 
         if (!$isFinal && !$includeOngoing) {
             return ['net_hours' => null, 'status' => $sla->resolution_status, 'is_final' => false];
@@ -452,14 +462,15 @@ class SlaService
             return ['net_hours' => null, 'status' => $sla->resolution_status, 'is_final' => false];
         }
 
-        $gross = $this->calcHours($resolutionStart, $isFinal ? $sla->resolved_at : now(), $is24h, $policy);
-        $net   = max(0.0, $gross - $this->liveTotalWaitingHours($sla, $pauses));
+        $closedAt = $sla->resolved_at ?? $ticket?->end_date ?? $ticket?->updated_at ?? now();
+        $gross    = $this->calcHours($resolutionStart, $isFinal ? $closedAt : now(), $is24h, $policy);
+        $net      = max(0.0, $gross - $this->liveTotalWaitingHours($sla, $pauses));
 
         if (!$isFinal) {
             return ['net_hours' => round($net, 2), 'status' => $sla->resolution_status, 'is_final' => false];
         }
 
-        $isCancelled = $sla->ticket?->status === 'cancelled';
+        $isCancelled = $ticket?->status === 'cancelled';
         $status      = ($isCancelled || !$policy || $sla->sla_mode === 'response_only')
             ? 'met'
             : ($net <= (float) $policy->resolution_hours ? 'met' : 'breached');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -9,6 +10,26 @@ use Illuminate\Support\Facades\Validator;
 
 class CustomerIdentificationController extends Controller
 {
+    /**
+     * Redact the identification number before it goes into an audit log
+     * snapshot. Mirrors CustomerIdentification's own
+     * $auditExcept = ['identification_number'] so a raw DB::table() write
+     * logs identically to what AuditObserver would have written had this
+     * gone through Eloquent.
+     */
+    private function redactIdentificationRow(?array $row): ?array
+    {
+        if ($row === null) {
+            return null;
+        }
+
+        if (array_key_exists('identification_number', $row)) {
+            $row['identification_number'] = '***redacted***';
+        }
+
+        return $row;
+    }
+
     /**
      * Get all identifications for a customer
      */
@@ -130,7 +151,7 @@ class CustomerIdentificationController extends Controller
                 ], 404);
             }
 
-            $identificationId = DB::table('customer_identification')->insertGetId([
+            $identificationData = [
                 'customer_id' => $customerId,
                 'identification_type' => $request->identification_type,
                 'identification_number' => $request->identification_number,
@@ -144,7 +165,22 @@ class CustomerIdentificationController extends Controller
                 'verify_link' => $request->verify_link,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
+
+            $identificationId = DB::table('customer_identification')->insertGetId($identificationData);
+
+            $label = $request->identification_type ?: "Identification #{$identificationId}";
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerIdentification's own $auditModule so these rows group together
+                auditableType: 'CustomerIdentification',
+                auditableId: $identificationId,
+                event: 'created',
+                recordLabel: $label,
+                description: "added Customer Identification: {$label} — Customer #{$customerId}",
+                old: null,
+                new: $this->redactIdentificationRow($identificationData),
+            );
 
             Log::info('=== API: CUSTOMER IDENTIFICATION CREATED SUCCESSFULLY ===', [
                 'identification_id' => $identificationId
@@ -202,22 +238,30 @@ class CustomerIdentificationController extends Controller
         }
 
         try {
+            // Snapshot before update — needed for the audit log entry below.
+            $existingIdentification = DB::table('customer_identification')
+                ->where('customer_id', $customerId)
+                ->where('identification_id', $identificationId)
+                ->first();
+
+            $updateData = [
+                'identification_type' => $request->identification_type,
+                'identification_number' => $request->identification_number,
+                'responsible_institution' => $request->responsible_institution,
+                'country' => $request->country,
+                'region' => $request->region,
+                'entry_date' => $request->entry_date,
+                'valid_from' => $request->valid_from,
+                'valid_to' => $request->valid_to,
+                'drive_link' => $request->drive_link,
+                'verify_link' => $request->verify_link,
+                'updated_at' => now(),
+            ];
+
             $updated = DB::table('customer_identification')
                 ->where('customer_id', $customerId)
                 ->where('identification_id', $identificationId)
-                ->update([
-                    'identification_type' => $request->identification_type,
-                    'identification_number' => $request->identification_number,
-                    'responsible_institution' => $request->responsible_institution,
-                    'country' => $request->country,
-                    'region' => $request->region,
-                    'entry_date' => $request->entry_date,
-                    'valid_from' => $request->valid_from,
-                    'valid_to' => $request->valid_to,
-                    'drive_link' => $request->drive_link,
-                    'verify_link' => $request->verify_link,
-                    'updated_at' => now(),
-                ]);
+                ->update($updateData);
 
             if ($updated === 0) {
                 return response()->json([
@@ -225,6 +269,19 @@ class CustomerIdentificationController extends Controller
                     'message' => 'Identification not found'
                 ], 404);
             }
+
+            $label = $updateData['identification_type'] ?? ($existingIdentification->identification_type ?? "Identification #{$identificationId}");
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerIdentification's own $auditModule so these rows group together
+                auditableType: 'CustomerIdentification',
+                auditableId: $identificationId,
+                event: 'updated',
+                recordLabel: $label,
+                description: "updated Customer Identification: {$label} — Customer #{$customerId}",
+                old: $this->redactIdentificationRow((array) $existingIdentification),
+                new: $this->redactIdentificationRow($updateData),
+            );
 
             Log::info('=== API: CUSTOMER IDENTIFICATION UPDATED SUCCESSFULLY ===');
 
@@ -257,6 +314,12 @@ class CustomerIdentificationController extends Controller
         ]);
 
         try {
+            // Snapshot before delete — needed for the audit log entry below.
+            $existingIdentification = DB::table('customer_identification')
+                ->where('customer_id', $customerId)
+                ->where('identification_id', $identificationId)
+                ->first();
+
             $deleted = DB::table('customer_identification')
                 ->where('customer_id', $customerId)
                 ->where('identification_id', $identificationId)
@@ -268,6 +331,19 @@ class CustomerIdentificationController extends Controller
                     'message' => 'Identification not found'
                 ], 404);
             }
+
+            $label = $existingIdentification->identification_type ?? "Identification #{$identificationId}";
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerIdentification's own $auditModule so these rows group together
+                auditableType: 'CustomerIdentification',
+                auditableId: $identificationId,
+                event: 'deleted',
+                recordLabel: $label,
+                description: "deleted Customer Identification: {$label} — Customer #{$customerId}",
+                old: $this->redactIdentificationRow((array) $existingIdentification),
+                new: null,
+            );
 
             Log::info('=== API: CUSTOMER IDENTIFICATION DELETED SUCCESSFULLY ===');
 

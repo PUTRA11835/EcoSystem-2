@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -105,7 +106,7 @@ class CustomerHistoryController extends Controller
                 ], 404);
             }
 
-            $historyId = DB::table('customer_history')->insertGetId([
+            $historyData = [
                 'customer_id' => $customerId,
                 'action' => $request->action ?? 'update',
                 'description' => $request->description ?? '',
@@ -116,7 +117,22 @@ class CustomerHistoryController extends Controller
                 'user_agent' => $request->userAgent(),
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
+
+            $historyId = DB::table('customer_history')->insertGetId($historyData);
+
+            $label = "History #{$historyId}" . ($historyData['action'] ? " ({$historyData['action']})" : '');
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerHistory's own $auditModule so these rows group together
+                auditableType: 'CustomerHistory',
+                auditableId: $historyId,
+                event: 'created',
+                recordLabel: $label,
+                description: "added Customer History: {$label} — Customer #{$customerId}",
+                old: null,
+                new: $historyData,
+            );
 
             Log::info('=== API: CUSTOMER HISTORY RECORD CREATED SUCCESSFULLY ===', [
                 'history_id' => $historyId
@@ -205,10 +221,29 @@ class CustomerHistoryController extends Controller
 
         try {
             $days = $request->get('days', 365); // Default: delete records older than 1 year
+            $cutoff = now()->subDays($days);
             $deletedCount = DB::table('customer_history')
                 ->where('customer_id', $customerId)
-                ->where('created_at', '<', now()->subDays($days))
+                ->where('created_at', '<', $cutoff)
                 ->delete();
+
+            // One summary row per cleanup run rather than one per deleted
+            // history record — individual rows were already bulk-deleted
+            // above so there's nothing left to snapshot per-row anyway.
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerHistory's own $auditModule so these rows group together
+                auditableType: 'CustomerHistory',
+                auditableId: $customerId,
+                event: 'deleted',
+                recordLabel: "Cleanup ({$deletedCount} record(s))",
+                description: "deleted {$deletedCount} old Customer History record(s) older than {$days} days — Customer #{$customerId}",
+                old: null,
+                new: [
+                    'deleted_count' => $deletedCount,
+                    'older_than_days' => $days,
+                    'cutoff' => $cutoff->toDateTimeString(),
+                ],
+            );
 
             Log::info('=== API: CUSTOMER HISTORY CLEANED UP SUCCESSFULLY ===', [
                 'deleted_count' => $deletedCount

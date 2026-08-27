@@ -48,6 +48,9 @@
 
     $currentSupportManagerIds   = old('support_manager_ids', $support->supportManagers->pluck('employee_id')->implode(','));
     $currentSupportManagerLabel = $support->supportManagers->pluck('basicData.full_name')->filter()->join(', ');
+
+    $currentModuleIds   = old('module_ids', $support->modules->pluck('id')->implode(','));
+    $currentModuleLabel = $support->modules->pluck('name')->filter()->join(', ');
 @endphp
 
 <div class="min-h-screen bg-gray-50">
@@ -180,6 +183,29 @@
                                     @foreach(['Remote','On-Site','Hybrid'] as $m)
                                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $m }}">{{ $m }}</button>
                                     @endforeach
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="module_ids" class="block text-sm font-medium text-gray-700 mb-1">Modules</label>
+                            <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Select module(s)">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label {{ $currentModuleLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentModuleLabel ?: 'Select module(s)' }}</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" name="module_ids" id="module_ids" value="{{ $currentModuleIds }}">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                    <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                        <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search module…" autocomplete="off" spellcheck="false">
+                                    </div>
+                                    @foreach($modules ?? [] as $module)
+                                        <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $module->id }}">
+                                            <span class="custom-dd-item-text">{{ $module->name }}</span>
+                                            <svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        </button>
+                                    @endforeach
+                                    <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
                                 </div>
                             </div>
                         </div>
