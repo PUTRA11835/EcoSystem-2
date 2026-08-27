@@ -1886,7 +1886,7 @@ async function submitSlaEditPolicy(e) {
 }
 
 async function deleteSlaPolicy(id) {
-    if (!confirm('Delete this SLA policy?')) return;
+    if (!await showConfirm('Delete this SLA policy?', 'Delete SLA Policy', 'danger')) return;
     try {
         const res  = await fetch(`/api/admin/sla/policies/${id}/delete`, {
             method: 'POST',
@@ -2305,14 +2305,7 @@ function escHtml(str) {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function showToast(msg, type) {
-    // Gunakan notifikasi bawaan sistem jika tersedia, fallback ke alert
-    if (typeof showNotification === 'function') {
-        showNotification(msg, type);
-    } else {
-        alert(msg);
-    }
-}
+// showToast() dipakai langsung dari definisi global di dashboard.blade.php.
 
 // Auto-load panel saat halaman siap
 document.addEventListener('DOMContentLoaded', () => loadCustomerPicPanel());

@@ -582,6 +582,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload')->middleware('menu:ticket.consultant-workload');
         Route::get('/task', [TaskController::class, 'index'])->name('task')->middleware('menu:ticket.my-tasks');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');
+        // Ringkasan AI per tiket (SSE). POST karena memicu generate, bukan sekadar baca.
+        Route::post('/{id}/ai-summary', [\App\Http\Controllers\AiTicketSummaryController::class, 'stream'])
+            ->name('ai-summary')
+            ->middleware('menu:tickets.inbox');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 

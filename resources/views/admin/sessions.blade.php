@@ -194,13 +194,13 @@ function closeModal() {
 
 document.getElementById('modalForceLogout').addEventListener('click', async () => {
     if (!selectedSessionId) return;
-    if (!confirm('Force logout this session?')) return;
+    if (!await showConfirm('Force logout this session?', 'Force Logout', 'danger')) return;
     await forceLogout(selectedSessionId);
     closeModal();
 });
 
 document.getElementById('btnLogoutAll').addEventListener('click', async () => {
-    if (!confirm('Force logout ALL other sessions? This cannot be undone.')) return;
+    if (!await showConfirm('Force logout ALL other sessions? This cannot be undone.', 'Force Logout All', 'danger')) return;
     try {
         const res = await fetch('/api/admin/sessions/delete-all', {
             method: 'POST',

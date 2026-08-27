@@ -646,7 +646,7 @@ async function saveSettings() {
     } catch { showNotification('Network error.','error'); }
 }
 async function resetSettings() {
-    if (!confirm('Reset all settings to default values?')) return;
+    if (!await showConfirm('Reset all settings to default values?', 'Reset Settings', 'danger')) return;
     try {
         const r = await fetch('/settings/reset',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrf()}});
         const d = await r.json();

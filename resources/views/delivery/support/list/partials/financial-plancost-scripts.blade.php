@@ -439,7 +439,7 @@
             const costType = document.querySelector('input[name="costTypeRadio"]:checked')?.value ?? 'direct';
             const name     = document.getElementById('costNameInput').value.trim();
 
-            if (!name) { alert('Item name is required.'); return; }
+            if (!name) { showPlanCostToast('Item name is required.', 'warning'); return; }
 
             function getRawVal(inputId) {
                 const v = document.getElementById(inputId).value.replace(/\./g, '').replace(',', '.');
