@@ -3,9 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class PeriodLateException extends Model
 {
+    use Auditable;
+
+    protected static ?string $auditModule = 'Reporting Period';
+
     protected $fillable = [
         'period_id',
         'employee_id',

@@ -21,7 +21,7 @@ class TimesheetSupportExport implements
     WithStyles,
     ShouldAutoSize
 {
-    private const LAST_COL = 'M';
+    private const LAST_COL = 'O';
 
     protected Collection $rows;
     protected array $jatahMap;
@@ -43,12 +43,14 @@ class TimesheetSupportExport implements
             return [
                 'employee'           => $employeeName ?: '-',
                 'date'               => $ts->date?->format('d M Y') ?? '-',
+                'activity_date'      => $ts->activity_date?->format('d M Y') ?? '-',
                 'month'              => $ts->period_month ?? '-',
                 'year'               => $ts->period_year  ?? '-',
                 'status'             => ucfirst($ts->status ?? '-'),
                 'ticket'             => $ts->ticket?->ticket_number ?? ($ts->ticket_id ? "#{$ts->ticket_id}" : '-'),
                 'ticket_description' => $ts->ticket?->description ?? '-',
                 'customer'           => $ts->ticket?->customer?->basicData?->name_1 ?? '-',
+                'type'               => $ts->ticket_id ? (($ts->ticket?->ticket_type === 'Internal') ? 'Internal' : 'Non Internal') : '-',
                 'delivery_support'   => $ts->ticket_id ? ($this->deliveryMap[$ts->ticket_id] ?? '-') : '-',
                 'quota_md'           => $ts->ticket_id ? ($this->jatahMap[$jatahKey] ?? '-') : '-',
                 'activity'           => $ts->description ?? '-',
@@ -63,12 +65,14 @@ class TimesheetSupportExport implements
         return [
             'Employee',
             'Date',
+            'Activity Date',
             'Month',
             'Year',
             'Status',
             'Ticket',
             'Description',
             'Customer',
+            'Type',
             'Delivery Support',
             'Quota MD',
             'Activity',

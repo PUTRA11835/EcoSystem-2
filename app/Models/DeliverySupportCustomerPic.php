@@ -3,9 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class DeliverySupportCustomerPic extends Model
 {
+    use Auditable;
+
+    protected static ?string $auditModule = 'Delivery Support';
+
     protected $table = 'delivery_support_customer_pics';
 
     protected $fillable = [

@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class EmployeeBasicData extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
+
+    protected static ?string $auditModule = 'Employee';
 
     protected $table = 'employee_basic_data';
     protected $primaryKey = 'basic_data_id';
@@ -41,6 +44,7 @@ class EmployeeBasicData extends Model
         'employee_group',
         'employee_subgroup',
         'position',
+        'current_assignment',
         'division',
         'department',
         'direct_supervision',

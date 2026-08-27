@@ -3,9 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class CustomerBank extends Model
 {
+    use Auditable;
+
+    protected static ?string $auditModule = 'Customer';
+    protected static array $auditExcept = ['account_number'];
+
     protected $table = 'customer_bank';
     protected $primaryKey = 'bank_id';
     public $timestamps = true;

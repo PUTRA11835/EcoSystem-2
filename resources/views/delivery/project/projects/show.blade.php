@@ -865,8 +865,9 @@
         $teamPeople->push($fb['emp']->basicData->full_name ?? null);
     }
     foreach ($teamPivotRows as $tpRow) {
-        $tpEmp = $employees->firstWhere('employee_id', $tpRow->employee_id);
-        $teamPeople->push($tpEmp?->basicData->full_name);
+        // Anggota vendor tidak ada di master employee — pakai nama di baris pivot.
+        $tpEmp = $tpRow->employee_id ? $employees->firstWhere('employee_id', $tpRow->employee_id) : null;
+        $teamPeople->push($tpEmp?->basicData->full_name ?: $tpRow->member_name);
     }
     $teamPeople = $teamPeople->filter()->unique()->sort()->values();
 
@@ -887,7 +888,7 @@
 
 {{-- Team Section WITH CHECKBOX SELECTION --}}
 @if($can('delivery-project.team.view'))
-<section id="team" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.team.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.team.manage') ? '1' : '0' }}">
+<section id="team" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.team.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.team.manage') ? '1' : '0' }}" data-perm-delete="{{ $can('delivery-project.team.delete') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-700">Team Members</h2>
@@ -904,31 +905,48 @@
             {{-- Team Members Table --}}
             <div>
             @if($hasAnyTeam)
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200" id="teamMembersTable">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left">
+                @php
+                    // Badge role & employee type — dipakai kedua blok baris di bawah.
+                    $teamRoleBadge = [
+                        'Project Manager'    => 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+                        'Co Project Manager' => 'bg-sky-50 text-sky-700 ring-sky-200',
+                        'Project Admin'      => 'bg-violet-50 text-violet-700 ring-violet-200',
+                        'Lead'               => 'bg-amber-50 text-amber-700 ring-amber-200',
+                        'Member'             => 'bg-gray-50 text-gray-600 ring-gray-200',
+                    ];
+                    $teamTypeBadge = [
+                        'Internal' => 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+                        'External' => 'bg-orange-50 text-orange-700 ring-orange-200',
+                        'Vendor'   => 'bg-rose-50 text-rose-700 ring-rose-200',
+                    ];
+                @endphp
+                <div class="overflow-x-auto -mx-6 px-6">
+                    <table class="min-w-full text-xs" id="teamMembersTable">
+                        <thead>
+                            <tr class="bg-gray-50 border-y border-gray-200">
+                                <th class="px-3 py-2 text-left w-8">
                                     <input type="checkbox" id="selectAllTeam" class="row-checkbox" onchange="toggleSelectAll('team')">
                                 </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Module</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee Type</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Name</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Position</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Module</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Role</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Period</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Notes</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody class="divide-y divide-gray-100">
 
                             {{-- ── FK-fallback rows: legacy projects without pivot entries ── --}}
                             @foreach($fkFallbacks as $fb)
                             @php $fbKey = $fb['emp']->employee_id . '::' . $fb['role']; @endphp
                             <tr class="hover:bg-gray-50 team-row" data-member-id="{{ $fb['emp']->employee_id }}">
-                                <td class="px-6 py-4">
+                                <td class="px-3 py-2 align-middle">
                                     <input type="checkbox" class="row-checkbox team-checkbox"
                                            data-id="{{ $fbKey }}"
+                                           {{-- Tanpa baris pivot: tidak ada entri yang bisa diedit. --}}
+                                           data-row-id=""
                                            data-employee-id="{{ $fb['emp']->employee_id }}"
                                            data-name="{{ $fb['emp']->basicData->full_name ?? '-' }}"
                                            data-position="{{ $fb['emp']->basicData->position ?? '-' }}"
@@ -942,29 +960,41 @@
                                            data-employee-name="{{ $fb['emp']->basicData->full_name ?? '-' }}"
                                            onchange="handleRowSelection('team')">
                                 </td>
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $fb['emp']->basicData->full_name ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $fb['emp']->basicData->position ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">—</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $fb['role'] }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">—</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">—</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">—</td>
+                                <td class="px-3 py-2 align-middle font-medium text-gray-900 whitespace-nowrap">{{ $fb['emp']->basicData->full_name ?? '-' }}</td>
+                                <td class="px-3 py-2 align-middle text-gray-500 whitespace-nowrap">{{ $fb['emp']->basicData->position ?? '-' }}</td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
+                                <td class="px-3 py-2 align-middle whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ring-inset {{ $teamRoleBadge[$fb['role']] ?? 'bg-gray-50 text-gray-600 ring-gray-200' }}">{{ $fb['role'] }}</span>
+                                </td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
                             </tr>
                             @endforeach
 
                             {{-- ── All pivot rows (one table row per pivot entry) ── --}}
                             @foreach($teamPivotRows as $row)
                             @php
-                                $rEmp   = $employees->firstWhere('employee_id', $row->employee_id);
-                                $rowKey = $row->employee_id . '::' . $row->role;
+                                $rEmp   = $row->employee_id ? $employees->firstWhere('employee_id', $row->employee_id) : null;
+                                // Anggota vendor tidak ada di master employee: nama & posisinya
+                                // tersimpan di baris pivot (member_name / member_position).
+                                $rowName     = $rEmp?->basicData->full_name ?: ($row->member_name ?: '-');
+                                $rowPosition = $rEmp?->basicData->position ?: ($row->member_position ?: '-');
+                                $rowKey = $row->id;
+                                // Module disimpan sebagai string ("FI, TR") — dipecah jadi chip biar terbaca.
+                                $rowModules = collect(explode(',', (string) ($row->module ?? '')))
+                                    ->map(fn ($m) => trim($m))
+                                    ->filter()
+                                    ->values();
                             @endphp
                             <tr class="hover:bg-gray-50 team-row" data-member-id="{{ $row->employee_id }}">
-                                <td class="px-6 py-4">
+                                <td class="px-3 py-2 align-middle">
                                     <input type="checkbox" class="row-checkbox team-checkbox"
                                            data-id="{{ $rowKey }}"
+                                           data-row-id="{{ $row->id }}"
                                            data-employee-id="{{ $row->employee_id }}"
-                                           data-name="{{ $rEmp?->basicData->full_name ?? '-' }}"
-                                           data-position="{{ $rEmp?->basicData->position ?? '-' }}"
+                                           data-name="{{ $rowName }}"
+                                           data-position="{{ $rowPosition }}"
                                            data-module="{{ $row->module ?? '' }}"
                                            data-role="{{ $row->role ?? '' }}"
                                            data-employee-type="{{ $row->employee_type ?? 'Internal' }}"
@@ -972,29 +1002,53 @@
                                            data-start-date="{{ $row->start_date ?? '' }}"
                                            data-end-date="{{ $row->end_date ?? '' }}"
                                            data-notes="{{ $row->notes ?? '' }}"
-                                           data-employee-name="{{ $rEmp?->basicData->full_name ?? '-' }}"
+                                           data-employee-name="{{ $rowName }}"
                                            onchange="handleRowSelection('team')">
                                 </td>
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $rEmp?->basicData->full_name ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $rEmp?->basicData->position ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $row->module ?? '—' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $row->role ?? '—' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">
-                                    {{ $row->employee_type ?? '—' }}
-                                    @if(($row->employee_type ?? '') === 'Vendor' && $row->vendor_name)
-                                        <span class="text-gray-400">({{ $row->vendor_name }})</span>
+                                <td class="px-3 py-2 align-middle font-medium text-gray-900 whitespace-nowrap">{{ $rowName }}</td>
+                                <td class="px-3 py-2 align-middle text-gray-500 whitespace-nowrap">{{ $rowPosition }}</td>
+                                <td class="px-3 py-2 align-middle">
+                                    @if($rowModules->isNotEmpty())
+                                        <span class="flex flex-wrap gap-1">
+                                            @foreach($rowModules as $mod)
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px] font-medium">{{ $mod }}</span>
+                                            @endforeach
+                                        </span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
                                     @endif
                                 </td>
-                                <td class="px-6 py-4 text-sm text-gray-500">
-                                    {{ $row->start_date ? \Carbon\Carbon::parse($row->start_date)->format('d M Y') : '—' }}
-                                    –
-                                    {{ $row->end_date ? \Carbon\Carbon::parse($row->end_date)->format('d M Y') : 'Present' }}
+                                <td class="px-3 py-2 align-middle whitespace-nowrap">
+                                    @if($row->role)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ring-inset {{ $teamRoleBadge[$row->role] ?? 'bg-gray-50 text-gray-600 ring-gray-200' }}">{{ $row->role }}</span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
                                 </td>
-                                <td class="px-6 py-4 text-sm text-gray-500 max-w-xs">
+                                <td class="px-3 py-2 align-middle whitespace-nowrap">
+                                    @if($row->employee_type)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ring-inset {{ $teamTypeBadge[$row->employee_type] ?? 'bg-gray-50 text-gray-600 ring-gray-200' }}">{{ $row->employee_type }}</span>
+                                        @if($row->employee_type === 'Vendor' && $row->vendor_name)
+                                            <span class="text-gray-400">{{ $row->vendor_name }}</span>
+                                        @endif
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 align-middle text-gray-500 whitespace-nowrap tabular-nums">
+                                    {{ $row->start_date ? \Carbon\Carbon::parse($row->start_date)->format('d M Y') : '—' }}
+                                    <span class="text-gray-300">–</span>
+                                    @if($row->end_date)
+                                        {{ \Carbon\Carbon::parse($row->end_date)->format('d M Y') }}
+                                    @else
+                                        <span class="text-emerald-600 font-medium">Present</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 align-middle text-gray-500 max-w-[14rem]">
                                     @if($row->notes)
                                         <span class="block truncate" title="{{ $row->notes }}">{{ $row->notes }}</span>
                                     @else
-                                        —
+                                        <span class="text-gray-400">—</span>
                                     @endif
                                 </td>
                             </tr>
@@ -1268,7 +1322,10 @@
             </svg>
             <span>Edit</span>
         </button>
-        {{-- Delete: disembunyikan untuk Team Member (hanya tampil untuk document/issue) --}}
+        {{-- Delete: toolbar ini berada DI LUAR <section>, jadi skrip izin
+             per-section tidak menjangkaunya. Izin per jenis baris dikirim ke JS
+             lewat DELETE_PERMISSION, dan tombolnya disembunyikan kalau jenis
+             yang sedang dipilih tidak boleh dihapus oleh role ini. --}}
         <button id="toolbarDeleteBtn" onclick="handleBulkDelete()" class="flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-400 rounded-md transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -3711,29 +3768,126 @@
             </div>
             <form id="addTeamMemberForm" action="{{ route('projects.team.store', $project->id) }}" method="POST">
                 @csrf
+                {{-- Jalur pengisian: "employee" (master Employee) atau "vendor" (orang
+                     vendor yang tidak terdaftar sebagai employee). Menentukan field
+                     mana yang tampil DAN cabang mana yang dipakai di server. --}}
+                <input type="hidden" name="member_source" id="member_source" value="employee">
                 <div class="modal-body p-6 overflow-y-auto">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {{-- Pemilih sumber anggota --}}
+                    <div class="mb-4">
+                        <span class="block text-sm font-medium text-gray-900 mb-1.5">Member Source</span>
+                        <div class="inline-flex rounded-lg border border-gray-300 p-0.5 bg-gray-50">
+                            <button type="button" id="srcBtnEmployee" onclick="setTeamMemberSource('employee')"
+                                    class="px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200">
+                                Employee
+                            </button>
+                            <button type="button" id="srcBtnVendor" onclick="setTeamMemberSource('vendor')"
+                                    class="px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200">
+                                Vendor
+                            </button>
+                        </div>
+                        <p id="srcHint" class="text-xs text-gray-400 mt-1.5"></p>
+                    </div>
+
+                    {{-- ── Pane EMPLOYEE ─────────────────────────────────────── --}}
+                    <div id="teamPaneEmployee" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-900 mb-1">Consultant</label>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Consultant <span class="text-red-500">*</span></label>
                             <select name="employee_id" id="employee_id" required data-searchable="true"
                                     class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                                 <option value="">-- Select Employee --</option>
                                 @foreach($employees as $employee)
+                                    @php
+                                        // Module diambil dari kualifikasi employee (employee_qualification → modules),
+                                        // bukan lagi diketik manual. Dipisah "|" agar aman untuk nama bermuatan koma.
+                                        $empModules = $employee->qualifications
+                                            ->map(fn ($q) => trim((string) ($q->module->name ?? '')))
+                                            ->filter()
+                                            ->unique()
+                                            ->sort()
+                                            ->values();
+                                    @endphp
                                     <option value="{{ $employee->employee_id }}"
                                             data-department="{{ $employee->basicData->department ?? '' }}"
                                             data-whatsapp="{{ $employee->addresses->first()->cell_phone ?? '' }}"
-                                            data-email="{{ $employee->addresses->first()->email_work ?? '' }}">
+                                            data-email="{{ $employee->addresses->first()->email_work ?? '' }}"
+                                            data-position="{{ $employee->basicData->position ?? '' }}"
+                                            data-employee-type="{{ $employee->basicData->employee_type ?? 'Internal' }}"
+                                            data-modules="{{ $empModules->implode('|') }}">
                                         {{ $employee->basicData->full_name ?? 'N/A' }}
                                     </option>
                                 @endforeach
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-900 mb-1">Module</label>
-                            <input type="text" name="module" id="modul"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                                   placeholder="e.g. FI, CO, MM">
+                            <label class="block text-sm font-medium text-gray-900 mb-1">
+                                Employee Type
+                                <span class="text-xs text-gray-400 font-normal">— from employee data</span>
+                            </label>
+                            <input type="text" id="employee_type_display" readonly
+                                   placeholder="Select a consultant first"
+                                   class="block w-full py-2.5 px-3 border border-gray-200 rounded-md shadow-sm text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
                         </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">
+                                Module
+                                <span class="text-xs text-gray-400 font-normal">— from consultant qualification</span>
+                            </label>
+                            {{-- Nilai akhir (nama modul dipisah koma) dikirim lewat hidden input ini. --}}
+                            <input type="hidden" name="module" id="modul">
+                            <div id="module_picker"
+                                 class="block w-full min-h-[42px] max-h-28 overflow-y-auto py-2 px-3 border border-gray-300 rounded-md shadow-sm bg-white">
+                                <p id="module_placeholder" class="text-sm text-gray-400">Select a consultant first.</p>
+                                <div id="module_options" class="flex flex-wrap gap-x-4 gap-y-1"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">WhatsApp</label>
+                            <input type="text" id="whatsapp_number" readonly
+                                   class="block w-full py-2.5 px-3 border border-gray-200 rounded-md shadow-sm text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
+                        </div>
+                    </div>
+
+                    {{-- ── Pane VENDOR ───────────────────────────────────────── --}}
+                    <div id="teamPaneVendor" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" style="display:none;">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-900 mb-1">
+                                Vendor <span class="text-red-500">*</span>
+                                <span class="text-xs text-gray-400 font-normal">— from Business Partner (type Vendor)</span>
+                            </label>
+                            <select name="vendor_id" id="vendor_id" data-searchable="true" disabled
+                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                                <option value="">-- Select Vendor --</option>
+                                @foreach($vendors as $vendor)
+                                    <option value="{{ $vendor->customer_id }}">{{ $vendor->basicData->name_1 ?? $vendor->customer_code }}</option>
+                                @endforeach
+                            </select>
+                            @if($vendors->isEmpty())
+                                <p class="text-xs text-amber-600 mt-1">No Business Partner of type Vendor yet — add one in Master → Business Partner.</p>
+                            @endif
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Consultant Name <span class="text-red-500">*</span></label>
+                            <input type="text" name="member_name" id="member_name" disabled maxlength="255"
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                   placeholder="Vendor consultant name">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Position <span class="text-xs text-gray-400 font-normal">— optional</span></label>
+                            <input type="text" name="member_position" id="member_position" disabled maxlength="255"
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                   placeholder="e.g. SAP Consultant">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Module <span class="text-xs text-gray-400 font-normal">— optional, comma separated</span></label>
+                            <input type="text" name="vendor_module" id="vendor_module" disabled maxlength="255"
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                   placeholder="e.g. FI, CO">
+                        </div>
+                    </div>
+
+                    {{-- ── Field bersama ─────────────────────────────────────── --}}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Role <span class="text-red-500">*</span></label>
                             <select name="role" required
@@ -3745,27 +3899,6 @@
                                 <option value="Lead">Lead</option>
                                 <option value="Member">Member</option>
                             </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-900 mb-1">WhatsApp</label>
-                            <input type="text" id="whatsapp_number" readonly
-                                   class="block w-full py-2.5 px-3 border border-gray-200 rounded-md shadow-sm text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-900 mb-1">Employee Type <span class="text-red-500">*</span></label>
-                            <select name="employee_type" id="employee_type" required
-                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                                    onchange="toggleVendorName('vendor_name_wrap', this.value)">
-                                <option value="Internal">Internal</option>
-                                <option value="External">External</option>
-                                <option value="Vendor">Vendor</option>
-                            </select>
-                        </div>
-                        <div id="vendor_name_wrap" style="display:none;">
-                            <label class="block text-sm font-medium text-gray-900 mb-1">Vendor Name</label>
-                            <input type="text" name="vendor_name" id="vendor_name"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                                   placeholder="Vendor name">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Start Date <span class="text-red-500">*</span></label>
@@ -3816,8 +3949,6 @@
             <form id="editTeamMemberForm" method="POST">
                 @csrf
                 @method('PUT')
-                {{-- Hidden: menyimpan old_role untuk identifikasi baris pivot --}}
-                <input type="hidden" id="edit_old_role" name="old_role">
                 <div class="modal-body p-6 overflow-y-auto">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {{-- Consultant (disabled) --}}
@@ -5466,6 +5597,17 @@ function handleRowSelection(type) {
     updateSelectionToolbar(type);
 }
 
+// Izin hapus per jenis baris yang bisa dipilih di tabel. Ini lapisan UI saja —
+// penegakan sebenarnya ada di middleware `menu:` pada route hapus masing-masing
+// (delivery-project.team.delete / delivery-project.documents.manage).
+const DELETE_PERMISSION = {
+    team:     @json($can('delivery-project.team.delete')),
+    document: @json($can('delivery-project.documents.manage')),
+};
+
+// Label yang dipakai di dialog konfirmasi hapus.
+const DELETE_LABEL = { team: 'team member', document: 'document' };
+
 function updateSelectionToolbar(type) {
     const toolbar = document.getElementById('selectionToolbar');
     const count = selectedItems[type].size;
@@ -5476,9 +5618,8 @@ function updateSelectionToolbar(type) {
         toolbar.classList.add('show');
         countSpan.textContent = `${count} item${count > 1 ? 's' : ''} selected`;
         currentType = type;
-        // Team members cannot be deleted — only edited (role/end_date/notes)
         if (deleteBtn) {
-            deleteBtn.style.display = (type === 'team') ? 'none' : '';
+            deleteBtn.style.display = DELETE_PERMISSION[type] ? '' : 'none';
         }
     } else {
         toolbar.classList.remove('show');
@@ -5532,10 +5673,15 @@ function handleBulkDelete() {
         return;
     }
     
+    if (!DELETE_PERMISSION[currentType]) {
+        showNotification('You do not have permission to delete this data', 'error');
+        return;
+    }
+
     const count = selectedItems[currentType].size;
-    const itemType = currentType.charAt(0).toUpperCase() + currentType.slice(1);
-    
-    document.getElementById('deleteMessage').textContent = 
+    const itemType = DELETE_LABEL[currentType] || currentType;
+
+    document.getElementById('deleteMessage').textContent =
         `Are you sure you want to delete ${count} ${itemType}${count > 1 ? 's' : ''}? This action cannot be undone.`;
     
     openModal('deleteModal');
@@ -5547,11 +5693,18 @@ function handleBulkDelete() {
 
 async function executeBulkDelete() {
     const selectedIds = Array.from(selectedItems[currentType]);
-    
+    const type = currentType;
+
+    let deleted = 0;
+    let skipped = 0;
+    let failed = 0;
+
     for (const id of selectedIds) {
+        const cb = document.querySelector(`.${type}-checkbox[data-id="${id}"]`);
+
         try {
             let url;
-            let fetchOptions = {
+            const fetchOptions = {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -5559,29 +5712,54 @@ async function executeBulkDelete() {
                 }
             };
 
-            if (currentType === 'document') {
+            if (type === 'document') {
                 url = `/project/documents/${id}/delete`;
+            } else if (type === 'team') {
+                // Baris pivot diidentifikasi lewat ID barisnya: anggota vendor
+                // tidak punya employee_id. Baris FK-fallback (PM/Co PM lama yang
+                // hanya tersimpan di kolom project) tidak punya baris pivot,
+                // jadi tidak ada yang bisa dihapus dari sini.
+                const rowId = cb?.dataset.rowId || '';
+                if (!rowId) {
+                    skipped++;
+                    continue;
+                }
+                url = `/projects/{{ $project->id }}/team-rows/${rowId}/delete`;
             } else {
-                // Team members cannot be deleted — delete button is hidden for type 'team'
                 continue;
             }
 
             const response = await fetch(url, fetchOptions);
 
             if (response.ok) {
-                // Remove the specific row that was selected
-                const cb = document.querySelector(`.${currentType}-checkbox[data-id="${id}"]`);
+                deleted++;
                 if (cb) cb.closest('tr')?.remove();
+            } else {
+                failed++;
+                console.error('Delete failed:', url, response.status);
             }
         } catch (error) {
+            failed++;
             console.error('Delete error:', error);
         }
     }
 
-    showNotification(`Successfully deleted ${selectedIds.length} item(s)`, 'success');
+    if (deleted > 0) {
+        showNotification(`Successfully deleted ${deleted} item(s)`, 'success');
+    }
+    if (skipped > 0) {
+        showNotification(`${skipped} legacy entr${skipped > 1 ? 'ies are' : 'y is'} stored on the project itself and cannot be deleted here.`, 'warning');
+    }
+    if (failed > 0) {
+        showNotification(`${failed} item(s) could not be deleted. Please check your permission and try again.`, 'error');
+    }
+
     clearAllSelections();
     closeModal('deleteModal');
-    setTimeout(() => location.reload(), 800);
+
+    if (deleted > 0) {
+        setTimeout(() => location.reload(), 800);
+    }
 }
 
 // ============================================
@@ -5632,15 +5810,6 @@ function onDocTypeChange() {
     toggleOthersInput(val, 'doc_others_wrap');
 }
 
-function toggleVendorName(wrapId, type) {
-    const wrap = document.getElementById(wrapId);
-    if (!wrap) return;
-    const show = type === 'Vendor';
-    wrap.style.display = show ? '' : 'none';
-    const input = wrap.querySelector('input[name="vendor_name"]');
-    if (input) input.required = show;
-}
-
 // Auto-fill Position field when Consultant select changes in edit modal
 function updateEditPosition(select) {
     const opt = select.options[select.selectedIndex];
@@ -5649,9 +5818,16 @@ function updateEditPosition(select) {
 }
 
 function openEditTeamMemberModal(checkbox) {
-    // data-id is now a composite "employee_id::role" key used for row tracking.
-    // For the URL we need the plain employee_id stored in data-employee-id.
-    const employeeId   = checkbox.dataset.employeeId || checkbox.dataset.id;
+    // Baris pivot diidentifikasi lewat ID barisnya (data-row-id): anggota vendor
+    // tidak punya employee_id sama sekali. Baris FK-fallback (PM/Co PM/Project
+    // Admin lama yang hanya tersimpan di kolom project) tidak punya baris pivot,
+    // jadi tidak ada yang bisa diedit.
+    const rowId = checkbox.dataset.rowId || '';
+    if (!rowId) {
+        showNotification('This role is stored on the project itself (legacy entry) and has no team record to edit. Re-add the person as a team member to manage the period.', 'error');
+        return;
+    }
+
     const employeeName = checkbox.dataset.employeeName  || '-';
     const position     = checkbox.dataset.position      || '';
     const module       = checkbox.dataset.module        || '';
@@ -5662,11 +5838,8 @@ function openEditTeamMemberModal(checkbox) {
     const endDate      = checkbox.dataset.endDate       || '';
     const notes        = checkbox.dataset.notes         || '';
 
-    // Set form action URL (employee ID di URL)
-    document.getElementById('editTeamMemberForm').action = `/projects/{{ $project->id }}/team-members/${employeeId}`;
-
-    // Simpan old_role untuk identifikasi baris pivot di server
-    document.getElementById('edit_old_role').value = role;
+    // Set form action URL (ID baris pivot di URL)
+    document.getElementById('editTeamMemberForm').action = `/projects/{{ $project->id }}/team-rows/${rowId}`;
 
     // Populate disabled fields
     document.getElementById('edit_employee_name_display').value = employeeName;
@@ -5711,7 +5884,7 @@ function openEditTeamMemberModal(checkbox) {
 }
 
 // Edit Team Member Form Submit
-// Hanya mengirim: old_role (identifikasi), role (baru), end_date, notes
+// Baris diidentifikasi dari URL (ID baris pivot); body cukup role, end_date, notes.
 document.getElementById('editTeamMemberForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const form = e.target;
@@ -5729,11 +5902,13 @@ document.getElementById('editTeamMemberForm')?.addEventListener('submit', async 
             headers: {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 'Accept': 'application/json',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                // Body JSON: `_method` di body TIDAK dibaca sebagai method spoofing
+                // (Symfony hanya melihat form-encoded), jadi override lewat header.
+                'X-HTTP-Method-Override': 'PUT'
             },
             body: JSON.stringify({
                 _method:  'PUT',
-                old_role: formData.get('old_role'),
                 role:     role,
                 end_date: formData.get('end_date') || null,
                 notes:    formData.get('notes')    || null,
@@ -5771,13 +5946,22 @@ document.getElementById('addTeamMemberForm')?.addEventListener('submit', async f
     }
 
     try {
+        const payload = new FormData(form);
+
+        // Mode vendor: modulnya free text (input terpisah) — pindahkan ke field
+        // `module` yang dibaca server.
+        if (document.getElementById('member_source')?.value === 'vendor') {
+            payload.set('module', document.getElementById('vendor_module')?.value || '');
+            payload.delete('vendor_module');
+        }
+
         const response = await fetch(form.action, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
                 'X-CSRF-TOKEN': '{{ csrf_token() }}',
             },
-            body: new FormData(form),
+            body: payload,
         });
 
         const data = await response.json();
@@ -5893,6 +6077,17 @@ function openModal(modalId) {
     if (modal) {
         modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
+    }
+
+    // Add Team Member: mulai selalu dari mode Employee dan samakan daftar Module
+    // dengan consultant yang sedang terpilih (kosong = placeholder), supaya tidak
+    // menyisakan pilihan dari sesi sebelumnya.
+    if (modalId === 'teamModal' && typeof renderTeamModuleOptions === 'function') {
+        setTeamMemberSource('employee');
+        const sel = document.getElementById('employee_id');
+        const opt = sel && sel.value ? sel.options[sel.selectedIndex] : null;
+        renderTeamModuleOptions(opt ? (opt.dataset.modules || '') : null);
+        document.getElementById('employee_type_display').value = opt ? (opt.dataset.employeeType || 'Internal') : '';
     }
 }
 
@@ -6216,11 +6411,106 @@ function closeContractWarningModal() {
 // ============================================
 // OTHER EXISTING FUNCTIONS
 // ============================================
+// ── Module picker (Add Team Member) ──────────────────────────────────────────
+// Modul TIDAK lagi diketik manual: daftarnya berasal dari kualifikasi consultant
+// yang dipilih (data-modules pada <option>, dipisah "|"). Checkbox yang dicentang
+// digabung ke hidden input #modul sebagai "FI, CO".
+function syncTeamModuleValue() {
+    const hidden = document.getElementById('modul');
+    if (!hidden) return;
+    const picked = Array.from(document.querySelectorAll('.team-module-option:checked')).map(cb => cb.value);
+    hidden.value = picked.join(', ');
+}
+
+function renderTeamModuleOptions(rawModules) {
+    const box    = document.getElementById('module_options');
+    const ph     = document.getElementById('module_placeholder');
+    const hidden = document.getElementById('modul');
+    if (!box || !ph || !hidden) return;
+
+    hidden.value = '';
+    box.innerHTML = '';
+
+    const modules = (rawModules || '').split('|').map(m => m.trim()).filter(Boolean);
+
+    if (!modules.length) {
+        ph.textContent = rawModules === null
+            ? 'Select a consultant first.'
+            : 'No module found in this consultant\'s qualification.';
+        ph.classList.remove('hidden');
+        return;
+    }
+
+    ph.classList.add('hidden');
+    modules.forEach(function (name) {
+        const label = document.createElement('label');
+        label.className = 'inline-flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer';
+        const cb = document.createElement('input');
+        cb.type      = 'checkbox';
+        cb.value     = name;
+        cb.className = 'team-module-option rounded border-gray-300';
+        cb.addEventListener('change', syncTeamModuleValue);
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(name));
+        box.appendChild(label);
+    });
+}
+
+// ── Member source: Employee vs Vendor (Add Team Member) ──────────────────────
+// Employee  → orang dari master Employee; Employee Type & Module ikut datanya.
+// Vendor    → orang vendor yang tidak ada di master Employee: vendor dipilih dari
+//             master Business Partner (type Vendor), sisanya diketik manual.
+// Field pane yang tersembunyi selalu di-`disabled` agar (a) tidak ikut terkirim
+// dan (b) tidak memicu validasi HTML pada elemen yang tak terlihat.
+function setTeamMemberSource(source) {
+    const isVendor = source === 'vendor';
+    const srcInput = document.getElementById('member_source');
+    if (!srcInput) return;
+    srcInput.value = isVendor ? 'vendor' : 'employee';
+
+    const paneEmp = document.getElementById('teamPaneEmployee');
+    const paneVen = document.getElementById('teamPaneVendor');
+    if (paneEmp) paneEmp.style.display = isVendor ? 'none' : 'grid';
+    if (paneVen) paneVen.style.display = isVendor ? 'grid' : 'none';
+
+    const empSel = document.getElementById('employee_id');
+    if (empSel) { empSel.disabled = isVendor; empSel.required = !isVendor; }
+
+    const vendorSel = document.getElementById('vendor_id');
+    if (vendorSel) { vendorSel.disabled = !isVendor; vendorSel.required = isVendor; }
+
+    const memberName = document.getElementById('member_name');
+    if (memberName) { memberName.disabled = !isVendor; memberName.required = isVendor; }
+
+    ['member_position', 'vendor_module'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !isVendor;
+    });
+
+    // Tombol segmented
+    const active   = 'px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 bg-white text-gray-900 shadow-sm';
+    const inactive = 'px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 text-gray-500 hover:text-gray-700';
+    const btnEmp = document.getElementById('srcBtnEmployee');
+    const btnVen = document.getElementById('srcBtnVendor');
+    if (btnEmp) btnEmp.className = isVendor ? inactive : active;
+    if (btnVen) btnVen.className = isVendor ? active : inactive;
+
+    const hint = document.getElementById('srcHint');
+    if (hint) {
+        hint.textContent = isVendor
+            ? 'Vendor is taken from Master Business Partner (type Vendor); the consultant details are typed in manually.'
+            : 'Consultant comes from Master Employee — Employee Type and Module follow their data.';
+    }
+}
+
 // Employee selection auto-fill
 document.getElementById('employee_id')?.addEventListener('change', function() {
     const selectedOption = this.options[this.selectedIndex];
-    document.getElementById('modul').value = selectedOption.dataset.modul || '';
-    document.getElementById('whatsapp_number').value = selectedOption.dataset.whatsapp || '';
+    const picked  = selectedOption && selectedOption.value ? selectedOption : null;
+    renderTeamModuleOptions(picked ? (picked.dataset.modules || '') : null);
+    document.getElementById('whatsapp_number').value = picked?.dataset.whatsapp || '';
+    // Employee Type murni turunan data employee (Internal / External) — read-only.
+    document.getElementById('employee_type_display').value = picked ? (picked.dataset.employeeType || 'Internal') : '';
 });
 
 // Initialize page on load

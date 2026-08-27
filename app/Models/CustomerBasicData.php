@@ -3,9 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class CustomerBasicData extends Model
 {
+    use Auditable;
+
+    protected static ?string $auditModule = 'Customer';
+
     protected $table = 'customer_basic_data';
     protected $primaryKey = 'basic_data_id';
     public $timestamps = true;

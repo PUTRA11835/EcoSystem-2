@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -33,7 +34,9 @@ class MenuSeeder extends Seeder
         ['base' => 'delivery-project.general',       'name' => 'General Information',        'actions' => ['view', 'edit']],
         ['base' => 'delivery-project.delivery-data', 'name' => 'Delivery Data',              'actions' => ['view', 'edit']],
         ['base' => 'delivery-project.delivery-info', 'name' => 'Delivery Information & TOP', 'actions' => ['view', 'edit', 'manage']],
-        ['base' => 'delivery-project.team',          'name' => 'Team Members',               'actions' => ['view', 'edit', 'manage']],
+        // Team Members: hapus anggota dipisah dari tambah, karena ada role yang
+        // boleh menghapus tapi tidak boleh menambah (dan sebaliknya).
+        ['base' => 'delivery-project.team',          'name' => 'Team Members',               'actions' => ['view', 'edit', 'manage', 'delete'], 'labels' => ['manage' => 'Create']],
         ['base' => 'delivery-project.documents',     'name' => 'Documents',                  'actions' => ['view', 'edit', 'manage']],
         ['base' => 'delivery-project.issue-log',     'name' => 'Issue Log',                  'actions' => ['view', 'edit', 'manage']],
         ['base' => 'delivery-project.risk',          'name' => 'Risk Register',              'actions' => ['view', 'edit', 'manage']],
@@ -54,7 +57,7 @@ class MenuSeeder extends Seeder
         ['base' => 'delivery-support.documents',    'name' => 'Documents & Folder',          'actions' => ['view', 'edit', 'manage']],
     ];
 
-    const ACTION_LABEL = ['view' => 'View', 'edit' => 'Edit', 'manage' => 'Create / Delete'];
+    const ACTION_LABEL = ['view' => 'View', 'edit' => 'Edit', 'manage' => 'Create / Delete', 'delete' => 'Delete'];
 
     /** Baris $menus untuk seluruh slug section granular. */
     private static function sectionMenus(): array
@@ -67,7 +70,9 @@ class MenuSeeder extends Seeder
                 foreach ($section['actions'] as $action) {
                     $rows[] = [
                         'slug'        => $section['base'] . '.' . $action,
-                        'name'        => $section['name'] . ' — ' . self::ACTION_LABEL[$action],
+                        // Label boleh dioverride per section (mis. Team Members
+                        // memakai "Create" karena "Delete"-nya slug terpisah).
+                        'name'        => $section['name'] . ' — ' . ($section['labels'][$action] ?? self::ACTION_LABEL[$action]),
                         'type'        => 'function',
                         'parent_slug' => $parent,
                         'route_name'  => null,
@@ -105,8 +110,12 @@ class MenuSeeder extends Seeder
             // ── Home ────────────────────────────────────────────────────────────
             ['slug' => 'dashboard',                    'name' => 'Home',                    'type' => 'page',     'parent_slug' => null,          'route_name' => 'dashboard',                    'icon' => 'fa-home',              'order_seq' => 1],
 
+            // ── AI Assistant ─────────────────────────────────────────────────────
+            ['slug' => 'ai-assistant',                 'name' => 'AI Assistant',            'type' => 'page',     'parent_slug' => null,          'route_name' => 'ai-assistant',                 'icon' => 'fa-robot',             'order_seq' => 2],
+            ['slug' => 'ai-research',                  'name' => 'AI Research',             'type' => 'page',     'parent_slug' => null,          'route_name' => 'ai-research',                  'icon' => 'fa-magnifying-glass-chart', 'order_seq' => 3],
+
             // ── Calendar ─────────────────────────────────────────────────────────
-            ['slug' => 'calendar',                     'name' => 'Calendar',                'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-calendar-alt',      'order_seq' => 2],
+            ['slug' => 'calendar',                  'name' => 'Calendar',                'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-calendar-alt',      'order_seq' => 2],
             ['slug' => 'calendar.events',              'name' => 'Events',                  'type' => 'page',     'parent_slug' => 'calendar',    'route_name' => 'calendar.events',              'icon' => null,                   'order_seq' => 1],
             ['slug' => 'calendar.events.create',       'name' => 'Create Event',            'type' => 'function', 'parent_slug' => 'calendar.events', 'route_name' => null,                      'icon' => null,                   'order_seq' => 1],
             ['slug' => 'calendar.timesheets',          'name' => 'Timesheets',              'type' => 'page',     'parent_slug' => 'calendar',    'route_name' => 'calendar.timesheets',          'icon' => null,                   'order_seq' => 2],
@@ -126,6 +135,8 @@ class MenuSeeder extends Seeder
             ['slug' => 'reporting.ticket-by-module',   'name' => 'Ticket by Modul',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.ticket-by-module',   'icon' => null,                   'order_seq' => 5],
             ['slug' => 'reporting.log-shifting',       'name' => 'Log Shifting',            'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.log-shifting',       'icon' => null,                   'order_seq' => 6],
             ['slug' => 'reporting.resolution-days',    'name' => 'Resolution Days',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.resolution-days',    'icon' => null,                   'order_seq' => 7],
+            ['slug' => 'reporting.consultant-assignment', 'name' => 'Consultant Assignment', 'type' => 'page',   'parent_slug' => 'reporting',   'route_name' => 'reporting.consultant-assignment', 'icon' => null,                'order_seq' => 8],
+            ['slug' => 'reporting.diagram-report',     'name' => 'Diagram Report',          'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.diagram-report',     'icon' => null,                   'order_seq' => 8],
 
             // ── Master ────────────────────────────────────────────────────────────
             ['slug' => 'master',                       'name' => 'Master',                  'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-database',          'order_seq' => 4],
@@ -153,12 +164,10 @@ class MenuSeeder extends Seeder
             ['slug' => 'ticket.all-tickets',            'name' => 'All Tickets',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 4],
             ['slug' => 'ticket.unassigned',             'name' => 'Unassigned Ticket',       'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 5],
             ['slug' => 'ticket.assign-pic',            'name' => 'Assign PIC',              'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 6],
-            ['slug' => 'ticket.confirm-assignment',    'name' => 'Confirm Assignment',      'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 7],
             ['slug' => 'ticket.take',                  'name' => 'Take Ticket',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 8],
             ['slug' => 'ui.ticket.edit-fields',        'name' => 'Edit Status/Priority/Type','type' => 'function','parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 9],
             ['slug' => 'ui.ticket.edit-additional-info','name' => 'Edit Additional Info',    'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 19],
             ['slug' => 'ui.ticket.manage-members',     'name' => 'Manage Members',          'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 10],
-            ['slug' => 'ui.ticket.internal-notes',     'name' => 'Internal Notes',          'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 11],
             ['slug' => 'ticket.assign-delivery-support', 'name' => 'Assign to Delivery Support', 'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                    'icon' => null,                   'order_seq' => 12],
             ['slug' => 'ticket.review-mandays',   'name' => 'Review Mandays Proposal',   'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 14],
             ['slug' => 'ticket.head-mandays',     'name' => 'Head Mandays & Resolution', 'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 15],
@@ -198,18 +207,19 @@ class MenuSeeder extends Seeder
             ['slug' => 'delivery-project.close-project',      'name' => 'Close / Reopen Project',    'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 12],
             ['slug' => 'delivery.support',             'name' => 'Support',                 'type' => 'page',     'parent_slug' => 'delivery',    'route_name' => 'delivery.support.index',       'icon' => null,                   'order_seq' => 2],
             ['slug' => 'delivery-support.add-new',     'name' => 'Add Delivery Support',    'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                     'icon' => null,                   'order_seq' => 1],
-            ['slug' => 'delivery-support.edit-type',   'name' => 'Edit Field Type',         'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                     'icon' => null,                   'order_seq' => 2],
             ['slug' => 'delivery-support.delete-support', 'name' => 'Delete Delivery Support', 'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                  'icon' => null,                   'order_seq' => 10],
 
             // ── Control Center (Admin) ────────────────────────────────────────────
             ['slug' => 'control-center',               'name' => 'Control Center',          'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-server',            'order_seq' => 12],
             ['slug' => 'control-center.overview',      'name' => 'Overview',                'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.index',              'icon' => null,                   'order_seq' => 1],
             ['slug' => 'control-center.activity-log',  'name' => 'Activity Log',            'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.activity-log',       'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'control-center.audit-log',     'name' => 'Audit Log',               'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.audit-log',          'icon' => null,                   'order_seq' => 8],
             ['slug' => 'control-center.login-log',     'name' => 'Login Log',               'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.login-log',          'icon' => null,                   'order_seq' => 7],
             ['slug' => 'control-center.sessions',      'name' => 'Active Sessions',         'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.sessions',           'icon' => null,                   'order_seq' => 3],
             ['slug' => 'control-center.failed-jobs',   'name' => 'Failed Jobs',             'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.failed-jobs',        'icon' => null,                   'order_seq' => 4],
             ['slug' => 'control-center.backup',        'name' => 'Backup & Export',         'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.backup',             'icon' => null,                   'order_seq' => 5],
             ['slug' => 'control-center.sounds',        'name' => 'Notif Sounds',            'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.sounds',             'icon' => null,                   'order_seq' => 6],
+            ['slug' => 'control-center.ai-settings',   'name' => 'AI Settings',             'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.ai-settings',        'icon' => null,                   'order_seq' => 8],
 
             // ── SLA ───────────────────────────────────────────────────────────────
             ['slug' => 'sla',                          'name' => 'SLA',                     'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-stopwatch',         'order_seq' => 13],
@@ -250,6 +260,7 @@ class MenuSeeder extends Seeder
 
         // ── Upsert menus (idempotent) ────────────────────────────────────────────
         $inserted = [];
+        $newSlugs = []; // slug yang baru lahir di run ini — cuma ini yang boleh dapat default matrix di bawah
         foreach ($menus as $menu) {
             $parentId = isset($menu['parent_slug']) && $menu['parent_slug']
                 ? ($inserted[$menu['parent_slug']] ?? null)
@@ -270,6 +281,7 @@ class MenuSeeder extends Seeder
                 ]);
                 $id = $existing->id;
             } else {
+                $newSlugs[$menu['slug']] = true;
                 $id = DB::table('menu')->insertGetId([
                     'parent_id'  => $parentId,
                     'name'       => $menu['name'],
@@ -299,8 +311,12 @@ class MenuSeeder extends Seeder
         $matrix = [
             // Home
             'dashboard'                   => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
+            // AI Assistant — menu baru: admin saja, role lain lewat Menu Access.
+            'ai-assistant'                => [self::ADMIN=>$v],
+            // AI Research — menu baru: admin saja, role lain lewat Menu Access.
+            'ai-research'                 => [self::ADMIN=>$v],
             // Calendar
-            'calendar'                    => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
+            'calendar'              => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'calendar.events'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'calendar.events.create'      => [self::ADMIN=>$v],
             'calendar.timesheets'         => [self::ADMIN=>$vced, self::EMPLOYEE=>$vce, self::INTERN=>$vc,  self::HOP=>$vce,  self::HOS=>$vce],
@@ -339,11 +355,9 @@ class MenuSeeder extends Seeder
             'ticket.all-tickets'           => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v, self::MANAGER=>$v],
             'ticket.unassigned'            => [self::HELPDESK=>$v],
             'ticket.assign-pic'           => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v, self::MANAGER=>$v],
-            'ticket.confirm-assignment'   => [self::ADMIN=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'ticket.take'                 => [self::EMPLOYEE=>$v],
             'ui.ticket.edit-fields'       => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
             'ui.ticket.manage-members'    => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HOS=>$v,    self::HELPDESK=>$v, self::RPMO=>$v],
-            'ui.ticket.internal-notes'    => [self::ADMIN=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'ticket.assign-delivery-support' => [self::ADMIN=>$v, self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
             'ticket.review-mandays'   => [self::HELPDESK=>$v, self::RPMO=>$v],
             'ticket.head-mandays'     => [self::HOS=>$v],
@@ -379,17 +393,18 @@ class MenuSeeder extends Seeder
             'delivery-project.close-project'      => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'delivery.support'            => [self::ADMIN=>$vced, self::HOS=>$vce,      self::HELPDESK=>$v, self::RPMO=>$vced],
             'delivery-support.add-new'    => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
-            'delivery-support.edit-type'  => [self::ADMIN=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
             'delivery-support.delete-support' => [self::ADMIN=>$v, self::HOS=>$v,       self::RPMO=>$v],
             // Control Center
             'control-center'              => [self::ADMIN=>$v],
             'control-center.overview'     => [self::ADMIN=>$v],
             'control-center.activity-log' => [self::ADMIN=>$v],
+            'control-center.audit-log'    => [self::ADMIN=>$v],
             'control-center.login-log'    => [self::ADMIN=>$v],
             'control-center.sessions'     => [self::ADMIN=>$v],
             'control-center.failed-jobs'  => [self::ADMIN=>$v],
             'control-center.backup'       => [self::ADMIN=>$v],
             'control-center.sounds'       => [self::ADMIN=>$v],
+            'control-center.ai-settings'  => [self::ADMIN=>$v],
             // SLA
             'sla'                         => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
             'sla.report'                  => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
@@ -432,23 +447,64 @@ class MenuSeeder extends Seeder
             $matrix[$slug] = $supportSectionRoles;
         }
 
+        // Hapus anggota tim adalah aksi baru dan destruktif: lahir HANYA untuk
+        // EC Administrator (lihat App\Support\MenuRegistrar). Pemberian ke role
+        // lain diputuskan lewat Control Center -> Menu Access.
+        $matrix['delivery-project.team.delete'] = [self::ADMIN => $v];
+
+        // Seeder ini rutin dijalankan ulang di production tiap kali ada slug baru
+        // (lihat MULTI_ROLE_SYSTEM.md). Matrix di atas cuma boleh diterapkan untuk
+        // slug yang BARU LAHIR di run ini ($newSlugs). Slug yang sudah ada sebelum
+        // run ini SAMA SEKALI tidak disentuh lagi — bukan cuma soal tidak menimpa
+        // baris yang ada, tapi juga tidak mengisi baris yang HILANG karena role
+        // tersebut sengaja "Revoke Access" via Control Center → Menu Access.
+        // Revoke di UI itu men-detach() baris role_menu (dihapus, bukan
+        // can_view=false), jadi kalau matrix tetap diterapkan ke slug lama,
+        // baris yang hilang itu akan dianggap "belum ada" dan diisi ulang dengan
+        // nilai baku — persis gejala "slug balik ke default padahal sudah
+        // dicabut" yang dilaporkan. Aturannya sama seperti App\Support\
+        // MenuRegistrar: sekali sebuah slug lahir, Control Center adalah satu-
+        // satunya sumber kebenaran untuk role_menu-nya.
+        $existingPairs = DB::table('role_menu')
+            ->get(['role_id', 'menu_id'])
+            ->map(fn ($row) => "{$row->role_id}-{$row->menu_id}")
+            ->flip();
+
+        $newlyGrantedRoleIds = [];
+
         foreach ($matrix as $slug => $rolePerms) {
             $menuId = $inserted[$slug] ?? null;
-            if (!$menuId) continue;
+            if (!$menuId || !isset($newSlugs[$slug])) continue;
 
             foreach ($rolePerms as $roleId => $perms) {
-                DB::table('role_menu')->updateOrInsert(
-                    ['role_id' => $roleId, 'menu_id' => $menuId],
-                    [
-                        'can_view'   => $perms[0],
-                        'can_create' => $perms[1],
-                        'can_edit'   => $perms[2],
-                        'can_delete' => $perms[3],
-                        'updated_at' => $now,
-                        'created_at' => $now,
-                    ]
-                );
+                $key = "{$roleId}-{$menuId}";
+                if (isset($existingPairs[$key])) {
+                    continue;
+                }
+
+                DB::table('role_menu')->insert([
+                    'role_id'    => $roleId,
+                    'menu_id'    => $menuId,
+                    'can_view'   => $perms[0],
+                    'can_create' => $perms[1],
+                    'can_edit'   => $perms[2],
+                    'can_delete' => $perms[3],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                $newlyGrantedRoleIds[] = $roleId;
             }
+        }
+
+        // Buang cache perm_slugs milik employee yang baru dapat grant, supaya slug
+        // baru langsung muncul tanpa nunggu TTL 60 menit (lihat ShareMenuPermissions).
+        if (!empty($newlyGrantedRoleIds)) {
+            DB::table('employee_role_assignment')
+                ->whereIn('role_id', array_unique($newlyGrantedRoleIds))
+                ->pluck('employee_id')
+                ->unique()
+                ->each(fn ($empId) => Cache::forget("perm_slugs_{$empId}"));
         }
     }
 }

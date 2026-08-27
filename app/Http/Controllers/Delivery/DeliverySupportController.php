@@ -15,6 +15,7 @@ use App\Models\Customer;
 use App\Models\CustomerContact;
 use App\Models\DeliverySupportCustomerPic;
 use App\Models\Employee;
+use App\Models\Module;
 use App\Models\Ticket;
 use App\Models\AuthUser;
 use App\Services\OneDriveService;
@@ -142,8 +143,9 @@ class DeliverySupportController extends Controller
         $clients = Customer::with('basicData')->customers()->get();
         $vendors = $this->vendorOptions();
         $employees = Employee::with('basicData')->where('is_active', true)->get();
+        $modules = Module::active()->orderBy('name')->get();
 
-        return view('delivery.support.list.create', compact('clients', 'vendors', 'employees'));
+        return view('delivery.support.list.create', compact('clients', 'vendors', 'employees', 'modules'));
     }
 
     /**
@@ -184,6 +186,7 @@ class DeliverySupportController extends Controller
             'approval_name' => 'nullable|string|max:255',
             'service_window_start' => 'nullable|date_format:H:i',
             'service_window_end' => 'nullable|date_format:H:i|after_or_equal:service_window_start',
+            'module_ids' => 'nullable|string',
         ], [
             'io_number.unique' => 'IO Number ini sudah digunakan oleh delivery support lain.',
         ]);
@@ -218,6 +221,7 @@ class DeliverySupportController extends Controller
             ]);
 
             $support->supportManagers()->sync($this->parseEmployeeIdList($validated['support_manager_ids'] ?? null));
+            $support->modules()->sync($this->parseEmployeeIdList($validated['module_ids'] ?? null));
 
             // Create default view configuration
             DeliverySupportViewConfiguration::create([
@@ -259,13 +263,15 @@ class DeliverySupportController extends Controller
             'coPm.basicData',
             'supportAdmin.basicData',
             'sales.basicData',
+            'modules',
         ]);
 
         $clients   = Customer::with('basicData')->customers()->get();
         $vendors   = $this->vendorOptions();
         $employees = Employee::with('basicData')->where('is_active', true)->get();
+        $modules   = Module::active()->orderBy('name')->get();
 
-        return view('delivery.support.list.edit', compact('support', 'clients', 'vendors', 'employees'));
+        return view('delivery.support.list.edit', compact('support', 'clients', 'vendors', 'employees', 'modules'));
     }
 
     /**
@@ -297,6 +303,7 @@ class DeliverySupportController extends Controller
             'approval_name'        => 'nullable|string|max:255',
             'service_window_start' => 'nullable|date_format:H:i',
             'service_window_end'   => 'nullable|date_format:H:i|after_or_equal:service_window_start',
+            'module_ids'           => 'nullable|string',
         ];
         if ($canEditType) {
             $rules['type'] = 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal';
@@ -332,6 +339,7 @@ class DeliverySupportController extends Controller
 
             $support->update($updateData);
             $support->supportManagers()->sync($this->parseEmployeeIdList($validated['support_manager_ids'] ?? null));
+            $support->modules()->sync($this->parseEmployeeIdList($validated['module_ids'] ?? null));
 
             return redirect()
                 ->route('delivery.support.show', $support)
@@ -363,6 +371,7 @@ class DeliverySupportController extends Controller
             'coPm.basicData',
             'supportAdmin.basicData',
             'sales.basicData',
+            'modules',
             'phases' => function ($q) {
                 $q->orderBy('order_sequence');
             },
@@ -377,6 +386,9 @@ class DeliverySupportController extends Controller
         $employees = Employee::with('basicData')
             ->where('is_active', true)
             ->get();
+
+        // Get modules for the Support Information edit modal
+        $modules = Module::active()->orderBy('name')->get();
 
         // Get clients for modal form (Business Partner bertipe Customer saja)
         $clients = Customer::with('basicData')->customers()->get();
@@ -413,7 +425,7 @@ class DeliverySupportController extends Controller
                 ])
             : collect();
 
-        return view('delivery.support.list.show', compact('support', 'employees', 'clients', 'vendors', 'canManage', 'isEcAdmin', 'linkedTickets', 'actualCost'));
+        return view('delivery.support.list.show', compact('support', 'employees', 'modules', 'clients', 'vendors', 'canManage', 'isEcAdmin', 'linkedTickets', 'actualCost'));
     }
 
     /**
@@ -463,6 +475,7 @@ class DeliverySupportController extends Controller
                         'total_mandays' => 'nullable|integer|min:0',
                         'service_window_start' => 'nullable|date_format:H:i',
                         'service_window_end' => 'nullable|date_format:H:i|after_or_equal:service_window_start',
+                        'module_ids' => 'nullable|string',
                     ];
                     if ($canEditType) {
                         $rules['type'] = 'nullable|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal';
@@ -486,6 +499,7 @@ class DeliverySupportController extends Controller
                     }
 
                     $support->update($updateData);
+                    $support->modules()->sync($this->parseEmployeeIdList($validated['module_ids'] ?? null));
                     break;
 
                 case 'approval-info':

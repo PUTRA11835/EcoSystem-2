@@ -56,4 +56,28 @@ return [
         'api_key' => env('EXTERNAL_TICKET_API_KEY'),
     ],
 
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+        // Skill ID Agent Skills custom "sap-ticket-analyzer" (dibuat di Anthropic
+        // Console) — dipakai AiTicketAnalyzerService untuk fitur Analisa AI di
+        // validasi Staging Ticket.
+        'ticket_analyzer_skill_id' => env('ANTHROPIC_TICKET_ANALYZER_SKILL_ID'),
+    ],
+
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+    ],
+
+    'ai' => [
+        /*
+         * Retensi arsip percakapan AI (tabel ai_conversations), dalam hari,
+         * dihitung dari pesan terakhir. 0 = simpan selamanya.
+         *
+         * Angkanya dibuat konfigurasi karena ini keputusan kebijakan, bukan
+         * teknis: isinya bisa memuat tangkapan layar sistem customer, dan
+         * seberapa lama itu layak disimpan bisa berubah tanpa perlu ubah kode.
+         */
+        'retention_days' => (int) env('AI_HISTORY_RETENTION_DAYS', 90),
+    ],
+
 ];

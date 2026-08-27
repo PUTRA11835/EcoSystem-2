@@ -5,14 +5,31 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
+use App\Traits\Auditable;
 
 class Ticket extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
     use \App\Models\Concerns\HasOneDriveShareLink;
+
+    protected static ?string $auditModule = 'Ticket';
 
     protected $table = 'ticket';
     protected $primaryKey = 'ticket_id';
+
+    protected static function booted(): void
+    {
+        // Ticket list endpoints sort by last_message_at directly (not
+        // COALESCE(last_message_at, created_at)) so the index on that column
+        // stays usable. Any creation path that forgets to set it (e.g. bulk
+        // import) would otherwise sort to the bottom instead of falling back
+        // to created_at.
+        static::creating(function (Ticket $ticket) {
+            if (!$ticket->last_message_at) {
+                $ticket->last_message_at = $ticket->created_at ?? now();
+            }
+        });
+    }
 
     protected $fillable = [
         'ticket_number',
@@ -341,6 +358,7 @@ class Ticket extends Model
 
         $memberIds = \Illuminate\Support\Facades\DB::table('ticket_member')
             ->where('employee_id', $employeeId)
+            ->where('is_active', true)
             ->pluck('ticket_id');
 
         $mandaysIds = \Illuminate\Support\Facades\DB::table('consultant_mandays_detail as cmd')
