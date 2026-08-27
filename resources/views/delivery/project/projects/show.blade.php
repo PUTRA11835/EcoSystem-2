@@ -3225,7 +3225,7 @@
             const name     = document.getElementById('costNameInput').value.trim();
 
             if (!name) {
-                alert('Item name is required.');
+                showNotification('Item name is required.', 'warning');
                 return;
             }
 
@@ -6149,7 +6149,7 @@ document.getElementById('roleModalForm').addEventListener('submit', async functi
 });
 
 async function clearRole(field, roleName) {
-    if (!confirm('Clear ' + roleName + ' assignment?')) return;
+    if (!await showConfirm('Clear ' + roleName + ' assignment?', 'Clear Assignment', 'danger')) return;
     try {
         const fd = new FormData();
         fd.append('_method', 'PATCH');

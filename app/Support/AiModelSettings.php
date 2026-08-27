@@ -204,6 +204,18 @@ final class AiModelSettings
         return array_filter(self::CATALOG, static fn (array $m) => $m['server_tools']);
     }
 
+    /**
+     * Apakah model ini mendukung server tool web_search/web_fetch (_20260209)?
+     *
+     * Dipakai fitur yang WAJIB mencari ke luar — AI Research, dan AI Summarize
+     * pada daftar tiket — untuk memastikan pilihan admin tidak menjatuhkan
+     * fiturnya dengan 400 dari API.
+     */
+    public static function supportsServerTools(string $model): bool
+    {
+        return (bool) (self::CATALOG[$model]['server_tools'] ?? false);
+    }
+
     public static function catalog(): array
     {
         return self::CATALOG;

@@ -491,7 +491,7 @@ window.openStageModal = function(activityId, activityName, groupId = null) {
 /**
  * ✅ Close Stage Modal with confirmation if there are unsaved changes
  */
-window.closeStageModal = function() {
+window.closeStageModal = async function() {
 
     // Check if there are unsaved changes
     const hasChanges = window.stageChanges.toCreate.length > 0 ||
@@ -499,7 +499,7 @@ window.closeStageModal = function() {
                       Object.keys(window.stageChanges.toUpdate).length > 0;
 
     if (hasChanges) {
-        if (!confirm('You have unsaved changes. Are you sure you want to close?')) {
+        if (!await showConfirm('You have unsaved changes. Are you sure you want to close?', 'Discard Changes', 'danger')) {
             return;
         }
     }

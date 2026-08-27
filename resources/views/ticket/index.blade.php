@@ -3,6 +3,14 @@
 @section('page-title', 'Support Tickets')
 @section('page-subtitle', 'Manage and track all support requests')
 @section('content')
+@php
+    // Kolom "AI Summarize" duduk paling kiri dan ikut sticky. Lebarnya dipakai
+    // ulang untuk menggeser offset `left:` kolom Last Update dan Tiket di
+    // bawah — kalau kolomnya tidak tampil (tak punya izin), offsetnya nol dan
+    // tata letak kembali persis seperti sebelum fitur ini ada.
+    $canAiSummarize = $can('ui.ticket.btn-ai-summarize');
+    $aiColW = $canAiSummarize ? 44 : 0;
+@endphp
 {{-- Quill.js (untuk editor pesan di modal Create Ticket) --}}
 @if($can('ui.ticket.btn-create'))
 <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
@@ -199,16 +207,26 @@
             <table class="w-full text-sm border-collapse" style="min-width: 2200px;">
                 <thead class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
                     <tr>
+                        @if($canAiSummarize)
+                        {{-- AI SUMMARIZE: kolom paling kiri, tanpa label supaya tetap ramping --}}
+                        <th class="px-2 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200 sticky left-0 bg-gray-50 z-20"
+                            style="min-width:{{ $aiColW }}px;width:{{ $aiColW }}px;" title="AI Summarize">
+                            <span class="sr-only">AI</span>
+                            <svg class="w-3.5 h-3.5 mx-auto text-gray-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="M10 1.5l1.6 4.2 4.4 1.3-4.4 1.3L10 12.5 8.4 8.3 4 7l4.4-1.3L10 1.5zM15.5 12l.9 2.3 2.6.7-2.6.7-.9 2.3-.9-2.3-2.6-.7 2.6-.7.9-2.3zM4.5 11l.7 1.8 2 .5-2 .5-.7 1.8-.7-1.8-2-.5 2-.5.7-1.8z" />
+                            </svg>
+                        </th>
+                        @endif
                         {{-- LAST UPDATE: sortable --}}
-                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200 sticky left-0 bg-gray-50 z-20 th-sortable cursor-pointer transition-colors"
-                            style="min-width:110px;" onclick="sortTickets('last_update')" title="Sort by Last Update">
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20 th-sortable cursor-pointer transition-colors"
+                            style="min-width:110px;left:{{ $aiColW }}px;" onclick="sortTickets('last_update')" title="Sort by Last Update">
                             <div class="flex items-center gap-1">
                                 <span>Last Update</span>
                                 <span id="sort-icon-last_update" class="sort-icon text-gray-300 font-normal normal-case tracking-normal">⇅</span>
                             </div>
                         </th>
                         {{-- TIKET: sortable + keyword filter --}}
-                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20" style="min-width:120px;left:110px;">
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20" style="min-width:120px;left:{{ 110 + $aiColW }}px;">
                             <button type="button" id="ticketFilterBtn" onclick="toggleTicketFilter(event)"
                                 class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Tiket</span>
@@ -1605,15 +1623,27 @@
             '#ffffff';
 
         return `<tr class="${unreadCls} border-b border-gray-100" data-ticket-num="${(ticket.ticket_number||'').replace(/"/g,'')}" onclick="window.location='/ticket/${ticket.ticket_id}'" oncontextmenu="openTicketContextMenu(event,${ticket.ticket_id},this)">
+            @if($canAiSummarize)
+            {{-- AI Summarize --}}
+            <td class="px-2 py-3 whitespace-nowrap sticky left-0 text-center" style="background:${rowBg}">
+                <button type="button" title="AI Summarize"
+                    onclick="event.stopPropagation(); openTicketSummary(${ticket.ticket_id}, '${(ticket.ticket_number || '').replace(/'/g, '')}')"
+                    class="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M10 1.5l1.6 4.2 4.4 1.3-4.4 1.3L10 12.5 8.4 8.3 4 7l4.4-1.3L10 1.5zM15.5 12l.9 2.3 2.6.7-2.6.7-.9 2.3-.9-2.3-2.6-.7 2.6-.7.9-2.3zM4.5 11l.7 1.8 2 .5-2 .5-.7 1.8-.7-1.8-2-.5 2-.5.7-1.8z" />
+                    </svg>
+                </button>
+            </td>
+            @endif
             {{-- Last Update --}}
-            <td class="px-3 py-3 whitespace-nowrap sticky left-0" style="background:${rowBg}" title="${lastUpdateTitle}">
+            <td class="px-3 py-3 whitespace-nowrap sticky" style="left:{{ $aiColW }}px;background:${rowBg}" title="${lastUpdateTitle}">
                 <div class="flex items-center gap-1.5">
                     ${dot}
                     <span class="text-xs ${timeColor}">${lastUpdateStr}</span>
                 </div>
             </td>
             {{-- Ticket # --}}
-            <td class="px-3 py-3 whitespace-nowrap sticky border-r border-gray-100" style="left:110px;background:${rowBg}">
+            <td class="px-3 py-3 whitespace-nowrap sticky border-r border-gray-100" style="left:{{ 110 + $aiColW }}px;background:${rowBg}">
                 <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 font-mono text-xs font-bold ${numColor}">${ticket.ticket_number || '—'}</span>
             </td>
             {{-- Description --}}
@@ -2810,7 +2840,7 @@
 
     async function hideTicketFromList(ticketId, event) {
         event.stopPropagation();
-        if (!confirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.')) return;
+        if (!await showConfirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.', 'Hide Ticket', 'danger')) return;
         try {
             const res = await fetch(`/api/tickets/${ticketId}/hide`, {
                 method: 'PATCH',
@@ -3294,7 +3324,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
         };
 
         window.deleteAlLog = async function(logId) {
-            if (!confirm('Delete this activity entry? This cannot be undone.')) return;
+            if (!await showConfirm('Delete this activity entry? This cannot be undone.', 'Delete Activity', 'danger')) return;
             try {
                 const res = await fetch(`/api/tickets/${_alTicketId}/activity-logs/${logId}/delete`, {
                     method: 'POST',
@@ -3411,6 +3441,309 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
     function lstEsc(str) {
         return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
+</script>
+@endif
+
+{{-- ══════════════════ AI SUMMARIZE ══════════════════ --}}
+@if($canAiSummarize)
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+
+<style>
+    /* Preflight Tailwind mematikan marker list dan ukuran heading. Markdown
+       hasil AI butuh keduanya kembali — dibatasi ke dalam .ai-sum-body saja
+       supaya tidak bocor ke tabel tiket. Sengaja tanpa warna: pewarnaan tetap
+       lewat utility Tailwind di elemen induk, jadi dark mode global ikut. */
+    .ai-sum-body ul { list-style: disc; padding-left: 1.15rem; margin: .25rem 0; }
+    .ai-sum-body ol { list-style: decimal; padding-left: 1.35rem; margin: .25rem 0; }
+    .ai-sum-body li { margin: .2rem 0; }
+    .ai-sum-body p { margin: .35rem 0; }
+    .ai-sum-body p:first-child { margin-top: 0; }
+    .ai-sum-body strong { font-weight: 600; }
+    .ai-sum-body code { font-family: ui-monospace, monospace; font-size: .85em; }
+    /* Tautan rujukan dokumentasi luar; preflight Tailwind menanggalkan garis
+       bawahnya, jadi dikembalikan di sini supaya terbaca sebagai tautan. */
+    .ai-sum-body a { text-decoration: underline; text-underline-offset: 2px; word-break: break-word; }
+</style>
+
+<div id="ticketSummaryModal" class="hidden fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-4">
+    {{-- Lebar 5xl: isinya kini langkah teknis bernomor berikut TCODE, nama tabel,
+         dan URL rujukan — kolom sempit membuat satu langkah pecah jadi 6-7 baris. --}}
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+        {{-- Header --}}
+        <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <span class="shrink-0 w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M10 1.5l1.6 4.2 4.4 1.3-4.4 1.3L10 12.5 8.4 8.3 4 7l4.4-1.3L10 1.5zM15.5 12l.9 2.3 2.6.7-2.6.7-.9 2.3-.9-2.3-2.6-.7 2.6-.7.9-2.3zM4.5 11l.7 1.8 2 .5-2 .5-.7 1.8-.7-1.8-2-.5 2-.5.7-1.8z" />
+                    </svg>
+                </span>
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-gray-800">AI Summarize</h3>
+                    <p id="ticketSummaryTicketNo" class="text-xs text-gray-500 truncate">—</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <span id="ticketSummaryStatus" class="text-[11px] text-gray-400"></span>
+                <button type="button" onclick="closeTicketSummary()" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        {{-- Body: tiga kartu tetap, diisi sambil teksnya mengalir --}}
+        <div class="overflow-y-auto px-5 py-4 space-y-3">
+            <div id="ticketSummaryError" class="hidden rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700"></div>
+
+            @foreach ([
+                ['key' => 'isu',        'label' => 'Isu',              'tone' => 'amber'],
+                ['key' => 'penyelesaian','label' => 'Cara Penyelesaian','tone' => 'blue'],
+                ['key' => 'kesimpulan', 'label' => 'Kesimpulan',       'tone' => 'emerald'],
+            ] as $sec)
+            <div class="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+                <div class="px-4 py-2 border-b border-gray-100 bg-{{ $sec['tone'] }}-50">
+                    <span class="text-[11px] font-bold uppercase tracking-widest text-{{ $sec['tone'] }}-700">{{ $sec['label'] }}</span>
+                </div>
+                <div id="ticketSummary-{{ $sec['key'] }}" class="ai-sum-body px-4 py-3 text-sm text-gray-700 leading-relaxed">
+                    <span class="text-gray-300 italic">Menunggu…</span>
+                </div>
+                @if ('penyelesaian' === $sec['key'])
+                {{-- Rujukan dokumentasi luar yang benar-benar dibuka model saat
+                     menyusun langkah penyelesaian. Diisi dari event 'sources'. --}}
+                <div id="ticketSummarySources" class="hidden px-4 pb-3 pt-0 border-t border-gray-100">
+                    <div class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mt-2.5 mb-1.5">Sumber dokumentasi</div>
+                    <ul id="ticketSummarySourcesList" class="space-y-1"></ul>
+                </div>
+                @endif
+            </div>
+            @endforeach
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    // Judul heading di bawah adalah KONTRAK dengan system prompt di
+    // App\Services\Ai\AiTicketSummaryService::systemPrompt(). Kalau di sana
+    // berubah, ubah juga di sini — kalau tidak, teksnya mengalir masuk ke kartu
+    // yang salah (atau tidak masuk sama sekali).
+    const TICKET_SUMMARY_SECTIONS = {
+        'isu': 'isu',
+        'cara penyelesaian': 'penyelesaian',
+        'kesimpulan': 'kesimpulan',
+    };
+
+    let summaryAbort = null;
+
+    function el(id) { return document.getElementById(id); }
+
+    function mdToHtml(text) {
+        return DOMPurify.sanitize(marked.parse(String(text ?? '')));
+    }
+
+    /**
+     * Pecah teks yang sedang mengalir pada heading "## ", lalu render tiap
+     * bagian ke kartunya. Dipanggil ulang setiap delta: heading terakhir
+     * mungkin masih setengah tertulis, dan itu tidak apa-apa — bagian yang
+     * belum dikenali cukup diabaikan sampai barisnya utuh.
+     */
+    function renderSummary(full) {
+        const buckets = { isu: '', penyelesaian: '', kesimpulan: '' };
+        let current = null;
+        let preamble = '';
+
+        // Di sela pencarian, model kadang menulis satu kalimat kerja ("Ada hasil
+        // bagus. Mari fetch halaman berikutnya.") lalu menyambung heading TANPA
+        // baris baru — jadi "…langkah.## Isu". Tanpa dipisahkan, heading itu tak
+        // pernah cocok dan seluruh jawaban menumpuk di satu kartu.
+        const normalized = String(full).replace(/([^\n])(#{1,3}\s*(?:Isu|Cara Penyelesaian|Kesimpulan)\b)/gi, '$1\n$2');
+
+        normalized.split('\n').forEach(line => {
+            const heading = line.match(/^\s*#{1,3}\s*(.+?)\s*$/);
+            if (heading) {
+                const key = TICKET_SUMMARY_SECTIONS[heading[1].trim().toLowerCase()];
+                if (key) { current = key; return; }
+            }
+            // Teks sebelum heading pertama ditahan dulu, JANGAN langsung
+            // ditumpahkan ke kartu Isu: itu biasanya narasi kerja model di sela
+            // pencarian, bukan isi ringkasan. Baru dipakai kalau sampai akhir
+            // tidak ada satu pun heading yang dikenali (lihat di bawah).
+            if (!current) { preamble += line + '\n'; return; }
+            buckets[current] += line + '\n';
+        });
+
+        // Belum ada heading sama sekali — tampilkan apa adanya di kartu Isu
+        // supaya streaming tetap terlihat bergerak, bukan diam "Menunggu…".
+        if (!current && preamble.trim()) {
+            buckets.isu = preamble;
+        }
+
+        Object.keys(buckets).forEach(key => {
+            const target = el('ticketSummary-' + key);
+            const body = buckets[key].trim();
+            if (body) {
+                target.innerHTML = mdToHtml(body);
+                // Tautan rujukan di dalam langkah penyelesaian mengarah ke luar
+                // sistem — jangan menimpa halaman daftar tiket yang sedang dibuka.
+                target.querySelectorAll('a[href]').forEach(a => {
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                });
+            }
+        });
+    }
+
+    /**
+     * Daftar rujukan dokumentasi luar. Judul & URL datang dari hasil web_search
+     * di sisi server — dianggap teks asing, jadi judulnya di-set lewat
+     * textContent dan hanya URL http(s) yang boleh menjadi href.
+     */
+    function renderSources(items) {
+        const box = el('ticketSummarySources');
+        const list = el('ticketSummarySourcesList');
+        list.innerHTML = '';
+
+        (items || []).forEach(item => {
+            if (!/^https?:\/\//i.test(item.url || '')) return;
+
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.href = item.url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.className = 'text-xs text-indigo-600 hover:underline break-all';
+            a.textContent = item.title || item.url;
+            li.appendChild(a);
+            list.appendChild(li);
+        });
+
+        box.classList.toggle('hidden', list.children.length === 0);
+    }
+
+    function resetSummary() {
+        el('ticketSummaryError').classList.add('hidden');
+        el('ticketSummaryError').textContent = '';
+        renderSources([]);
+        ['isu', 'penyelesaian', 'kesimpulan'].forEach(key => {
+            el('ticketSummary-' + key).innerHTML = '<span class="text-gray-300 italic">Menunggu…</span>';
+        });
+    }
+
+    function showSummaryError(message) {
+        const box = el('ticketSummaryError');
+        box.textContent = message;
+        box.classList.remove('hidden');
+    }
+
+    window.openTicketSummary = async function (ticketId, ticketNumber) {
+        if (summaryAbort) summaryAbort.abort();
+
+        el('ticketSummaryTicketNo').textContent = ticketNumber || ('#' + ticketId);
+        el('ticketSummaryModal').classList.remove('hidden');
+        el('ticketSummaryStatus').textContent = 'Menganalisis…';
+        resetSummary();
+
+        summaryAbort = new AbortController();
+        const controller = summaryAbort;
+
+        let full = '';
+
+        try {
+            const response = await fetch('/ticket/' + ticketId + '/ai-summary', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'text/event-stream',
+                },
+                signal: controller.signal,
+            });
+
+            if (!response.ok || !response.body) {
+                throw new Error('Tidak bisa menghubungi AI (HTTP ' + response.status + ').');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let sawError = null;
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                let boundary;
+                while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                    const frame = buffer.slice(0, boundary);
+                    buffer = buffer.slice(boundary + 2);
+
+                    let eventName = 'message';
+                    let dataLine = '';
+                    frame.split('\n').forEach(line => {
+                        if (line.startsWith('event:')) eventName = line.slice(6).trim();
+                        if (line.startsWith('data:')) dataLine = line.slice(5).trim();
+                    });
+                    if (!dataLine) continue;
+
+                    let payload;
+                    try { payload = JSON.parse(dataLine); } catch { continue; }
+
+                    if (eventName === 'meta') {
+                        el('ticketSummaryStatus').textContent = payload.cached ? 'Ringkasan tersimpan' : 'Menganalisis…';
+                    } else if (eventName === 'status') {
+                        // Progres riset dokumentasi luar: "Mencari dokumentasi…",
+                        // "Membuka dokumentasi…", "Menyusun ringkasan…".
+                        if (payload.label) el('ticketSummaryStatus').textContent = payload.label;
+                    } else if (eventName === 'sources') {
+                        renderSources(payload.items);
+                    } else if (eventName === 'delta' && payload.text) {
+                        full += payload.text;
+                        renderSummary(full);
+                    } else if (eventName === 'error') {
+                        sawError = payload.message || 'Terjadi kesalahan.';
+                    } else if (eventName === 'done') {
+                        el('ticketSummaryStatus').textContent = payload.cached ? 'Ringkasan tersimpan' : 'Selesai';
+                    }
+                }
+            }
+
+            if (sawError) throw new Error(sawError);
+
+            // Model membalas tanpa satu pun heading yang dikenali: jangan biarkan
+            // ketiga kartu diam bertuliskan "Menunggu…" seolah masih memuat.
+            if (!full.trim()) {
+                showSummaryError('AI tidak mengembalikan ringkasan apa pun. Coba lagi.');
+                el('ticketSummaryStatus').textContent = '';
+            }
+        } catch (e) {
+            if (e.name === 'AbortError') return;
+            showSummaryError(e.message);
+            el('ticketSummaryStatus').textContent = '';
+        } finally {
+            if (summaryAbort === controller) summaryAbort = null;
+        }
+    };
+
+    window.closeTicketSummary = function () {
+        // Batalkan stream yang masih jalan — tanpa ini koneksi SSE-nya menggantung
+        // di server sampai model selesai bicara ke modal yang sudah tertutup.
+        if (summaryAbort) { summaryAbort.abort(); summaryAbort = null; }
+        el('ticketSummaryModal').classList.add('hidden');
+    };
+
+    document.getElementById('ticketSummaryModal').addEventListener('click', function (e) {
+        if (e.target === this) closeTicketSummary();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !el('ticketSummaryModal').classList.contains('hidden')) {
+            closeTicketSummary();
+        }
+    });
+})();
 </script>
 @endif
 

@@ -1773,6 +1773,10 @@
             });
         })();
     </script>
+    {{-- Global confirm modal — replaces browser native confirm() everywhere.
+         Usage: if (await showConfirm('msg', 'title', 'danger')) { ... } --}}
+    @include('partials.confirm-modal')
+
     @stack('scripts')
 
     {{-- ==================== GLOBAL SELECT ENHANCER ====================
@@ -2419,8 +2423,5 @@
     </script>
     @endif
 
-    {{-- Global confirm modal — replaces browser native confirm() everywhere.
-         Usage: if (await showConfirm('msg', 'title', 'danger')) { ... } --}}
-    @include('partials.confirm-modal')
 </body>
 </html>

@@ -645,7 +645,7 @@ async function rdReviewApprove(confirmNegative = false) {
         }
         if (data.requires_confirmation) {
             const lines = (data.warnings || []).map(w => `- ${w.employee_name}: remaining would be ${w.remaining} MD`);
-            const proceed = confirm(`Some employees will go negative if you approve these numbers:\n\n${lines.join('\n')}\n\nApprove anyway?`);
+            const proceed = await showConfirm(`Some employees will go negative if you approve these numbers:\n\n${lines.join('\n')}\n\nApprove anyway?`, 'Approve Anyway?', 'danger');
             if (proceed) {
                 await rdReviewApprove(true);
             } else {

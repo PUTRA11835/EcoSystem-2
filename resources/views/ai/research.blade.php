@@ -1761,7 +1761,7 @@ async function airOpenConversation(id, silent = false) {
 }
 
 async function airDeleteConversation(id, title) {
-    if (!confirm('Delete "' + title + '"? This cannot be undone.')) return;
+    if (!await showConfirm('Delete "' + title + '"? This cannot be undone.', 'Delete Conversation', 'danger')) return;
 
     try {
         const res = await fetch(AIR_DELETE_ENDPOINT.replace('__ID__', encodeURIComponent(id)), {
