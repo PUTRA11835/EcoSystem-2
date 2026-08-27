@@ -568,6 +568,14 @@ Route::middleware(['web'])->group(function () {
         // Izinnya diperiksa di controller lewat Employee::canAccessMenu().
         Route::get('/consultant-assignment', [\App\Http\Controllers\ReportingController::class, 'consultantAssignment']);
         Route::get('/consultant-assignment/filter-options', [\App\Http\Controllers\ReportingController::class, 'consultantAssignmentFilterOptions']);
+
+        // Resource Timeline — grid bulanan lokasi consultant + CRUD entry.
+        // Izinnya diperiksa di controller lewat Employee::canAccessMenu().
+        Route::get('/resource-timeline/consultants',   [\App\Http\Controllers\ResourceTimelineController::class, 'consultants']);
+        Route::get('/resource-timeline/grid',          [\App\Http\Controllers\ResourceTimelineController::class, 'grid']);
+        Route::get('/resource-timeline/entries',       [\App\Http\Controllers\ResourceTimelineController::class, 'entries']);
+        Route::post('/resource-timeline/entries',      [\App\Http\Controllers\ResourceTimelineController::class, 'upsertEntries']);
+        Route::post('/resource-timeline/entries/delete', [\App\Http\Controllers\ResourceTimelineController::class, 'deleteEntries']);
     });
 
     // ==================== NOTIFICATION ROUTES ====================

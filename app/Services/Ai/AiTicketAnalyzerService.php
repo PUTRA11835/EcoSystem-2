@@ -29,11 +29,14 @@ use Throwable;
  * Dipicu OTOMATIS sekali saat admin membuka staging ticket unvalidated untuk
  * divalidasi (bukan tombol manual) — lihat StagingTicketController::analyze(),
  * yang meng-klaim ai_analysis_status='pending' secara atomic sebelum memanggil
- * method ini, supaya cuma ada TEPAT SATU pemanggilan API nyata per tiket
- * selama-lamanya (tidak ada re-analyze). Karena tidak ada jalan untuk mencoba
- * lagi, satu kegagalan transient (rate limit/server sibuk/koneksi putus) tidak
- * boleh langsung menghabiskan jatah — analyze() sendiri retry SEKALI untuk
- * kelas error itu sebelum benar-benar menyerah (lihat callDriverWithRetry()).
+ * method ini, supaya cuma ada TEPAT SATU pemanggilan API otomatis per tiket.
+ * Admin bisa memicu ulang secara sengaja lewat tombol Re-analyze di panel
+ * (klaim ulang lewat parameter force di controller) — pemanggilan itu tetap
+ * lewat method analyze() yang sama, cukup menimpa ai_analysis yang lama.
+ * Karena tidak ada retry OTOMATIS dari sisi sistem, satu kegagalan transient
+ * (rate limit/server sibuk/koneksi putus) tidak boleh langsung menghabiskan
+ * jatah — analyze() sendiri retry SEKALI untuk kelas error itu sebelum benar-
+ * benar menyerah (lihat callDriverWithRetry()).
  */
 class AiTicketAnalyzerService
 {
@@ -155,9 +158,10 @@ class AiTicketAnalyzerService
 
     /**
      * Panggil driver, retry SEKALI (setelah jeda singkat) kalau exception-nya
-     * termasuk RETRYABLE_EXCEPTIONS. Karena tidak ada tombol re-analyze lagi,
-     * ini satu-satunya kesempatan tiket ini punya untuk pulih dari gangguan
-     * sesaat sebelum status jatuh ke 'failed' secara permanen.
+     * termasuk RETRYABLE_EXCEPTIONS. Ini bukan satu-satunya kesempatan pulih
+     * lagi (admin bisa pakai tombol Re-analyze setelah status jatuh ke
+     * 'failed'), tapi tetap dilakukan supaya gangguan sesaat tidak langsung
+     * memaksa admin klik ulang secara manual.
      */
     private function callDriverWithRetry(
         \App\Services\Ai\Drivers\Contracts\TicketAnalysisDriver $driver,

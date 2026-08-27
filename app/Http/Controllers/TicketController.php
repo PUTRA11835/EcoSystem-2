@@ -692,9 +692,7 @@ class TicketController extends Controller
             abort(401);
         }
 
-        $roleId = $sessionUser['role']['id'];
-        $allowed = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_HELPDESK->value];
-        if (!in_array($roleId, $allowed, true)) {
+        if (!\App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.export')) {
             abort(403);
         }
 

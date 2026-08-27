@@ -122,7 +122,7 @@
 
     {{-- Table Card --}}
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
+        <div class="overflow-auto" style="max-height: calc(100vh - 320px); min-height: 200px;">
             <table class="w-full text-sm" id="taskTable">
                 <thead>
                     <tr class="border-b border-gray-100 bg-gray-50/70">
