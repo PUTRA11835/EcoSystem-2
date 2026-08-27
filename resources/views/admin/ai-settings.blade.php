@@ -32,16 +32,74 @@
         </p>
     </div>
 
+    @php
+        /*
+         * Ikon, warna, dan satu kalimat penjelas per asisten. Dulu ini cuma
+         * percabangan dua arah (Research vs "yang lain"), sehingga setiap
+         * asisten baru — Ticket Analyzer, AI Summarize, dua fase Word Report —
+         * ikut dilabeli "Internal EcoSystem data only", yang untuk sebagian
+         * besar dari mereka justru salah: mereka memang mencari ke web dan
+         * ikut menagih biaya pencarian.
+         *
+         * Kelas warna ditulis LENGKAP (bukan "bg-{$tone}-50" hasil sambungan
+         * string) supaya tetap terbaca sebagai kelas utuh oleh Tailwind.
+         */
+        $assistantMeta = [
+            \App\Support\AiModelSettings::RESEARCH => [
+                'icon' => 'fa-magnifying-glass-chart',
+                'tone' => 'bg-indigo-50 text-indigo-600',
+                'desc' => 'External lookup on the web. Each answer may also trigger billable web searches.',
+            ],
+            \App\Support\AiModelSettings::INTERNAL => [
+                'icon' => 'fa-robot',
+                'tone' => 'bg-emerald-50 text-emerald-600',
+                'desc' => 'Internal EcoSystem data only, via local tools.',
+            ],
+            \App\Support\AiModelSettings::TICKET_ANALYZER => [
+                'icon' => 'fa-clipboard-check',
+                'tone' => 'bg-amber-50 text-amber-600',
+                'desc' => 'Staging ticket validation. One structured analysis per ticket reviewed.',
+            ],
+            \App\Support\AiModelSettings::TICKET_SUMMARY => [
+                'icon' => 'fa-wand-magic-sparkles',
+                'tone' => 'bg-sky-50 text-sky-600',
+                'desc' => 'The AI Summarize button on the ticket list. Reads the ticket internally, then searches vendor documentation for the fix — the highest-volume assistant here, so model price matters most on this row.',
+            ],
+            \App\Support\AiModelSettings::WORD_REPORT => [
+                'icon' => 'fa-file-word',
+                'tone' => 'bg-blue-50 text-blue-600',
+                'desc' => 'Word report generator, phases 1-2: reads the template structure and collects the data.',
+            ],
+            \App\Support\AiModelSettings::WORD_REPORT_DOCUMENT => [
+                'icon' => 'fa-file-arrow-down',
+                'tone' => 'bg-violet-50 text-violet-600',
+                'desc' => 'Word report generator, phase 3: assembles the document via code execution. Heaviest phase; kept on its own model so it does not share a rate-limit pool with the phases above.',
+            ],
+        ];
+
+        // Asisten yang ditambahkan di AiModelSettings tapi belum diberi entri di
+        // atas tetap tampil dan tetap bisa diatur — tanpa ini halamannya mati
+        // dengan undefined index hanya karena kurang label.
+        $assistantMetaFallback = [
+            'icon' => 'fa-robot',
+            'tone' => 'bg-gray-100 text-gray-600',
+            'desc' => 'AI assistant.',
+        ];
+    @endphp
+
     <form method="POST" action="{{ route('admin.ai-settings.update') }}" class="space-y-6">
         @csrf
 
         @foreach ($assistants as $assistantKey => $assistantName)
             @php
                 $config = $settings[$assistantKey];
-                $isResearch = $assistantKey === \App\Support\AiModelSettings::RESEARCH;
-                $allowed = $isResearch
-                    ? array_filter($catalog, fn ($m) => $m['server_tools'])
-                    : $catalog;
+
+                // Penyaringan model TIDAK lagi dihitung di sini: controller
+                // sudah mengirim daftar per asisten dari AiModelSettings::catalogFor(),
+                // satu-satunya sumber yang sama dengan yang menegakkan di sisi simpan.
+                $allowed = $allowedByAssistant[$assistantKey];
+                $needsWeb = $requiresWebByAssistant[$assistantKey];
+                $meta = $assistantMeta[$assistantKey] ?? $assistantMetaFallback;
 
                 // Dikelompokkan per provider untuk <optgroup>: bukan cuma kosmetik,
                 // provider menentukan driver mana yang benar-benar dipanggil
@@ -56,20 +114,16 @@
 
             <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                 <header class="flex items-center gap-3 border-b border-gray-100 px-6 py-4">
-                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {{ $isResearch ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600' }}">
-                        <i class="fas {{ $isResearch ? 'fa-magnifying-glass-chart' : 'fa-robot' }} text-sm"></i>
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {{ $meta['tone'] }}">
+                        <i class="fas {{ $meta['icon'] }} text-sm"></i>
                     </div>
                     <div class="min-w-0 flex-1">
                         <h2 class="text-sm font-semibold text-gray-900">{{ $assistantName }}</h2>
-                        <p class="text-xs text-gray-500">
-                            {{ $isResearch
-                                ? 'External lookup on the web. Each answer may also trigger billable web searches.'
-                                : 'Internal EcoSystem data only, via local tools.' }}
-                        </p>
+                        <p class="text-xs text-gray-500">{{ $meta['desc'] }}</p>
                     </div>
                 </header>
 
-                @if ($isResearch)
+                @if ($needsWeb)
                     <div class="flex items-start gap-2.5 px-6 pt-4">
                         <i class="fas fa-triangle-exclamation mt-0.5 text-xs text-amber-500"></i>
                         <p class="text-xs leading-relaxed text-amber-700">

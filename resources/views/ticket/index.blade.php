@@ -3485,6 +3485,20 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
             </div>
             <div class="flex items-center gap-2 shrink-0">
                 <span id="ticketSummaryStatus" class="text-[11px] text-gray-400"></span>
+                {{-- Copy: ringkasan hanya hidup di modal ini, dan sengaja dibuat
+                     ulang setiap kali isi tiket berubah (lihat AiTicketSummaryController).
+                     Tanpa tombol ini satu-satunya cara membawa hasilnya ke chat,
+                     email, atau work log adalah blok-seret manual melintasi tiga
+                     kartu — yang justru kehilangan penanda markdown-nya. Yang
+                     disalin adalah markdown MENTAH, bukan HTML yang terlihat. --}}
+                <button type="button" id="ticketSummaryCopy" onclick="copyTicketSummary()" disabled
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2v-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                    <span id="ticketSummaryCopyLabel">Copy</span>
+                </button>
                 <button type="button" onclick="closeTicketSummary()" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -3496,24 +3510,28 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
         {{-- Body: tiga kartu tetap, diisi sambil teksnya mengalir --}}
         <div class="overflow-y-auto px-5 py-4 space-y-3">
             <div id="ticketSummaryError" class="hidden rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700"></div>
+            {{-- Peringatan, bukan kegagalan: ringkasan yang mentok di plafon token
+                 tetap ditampilkan (sebagian besar isinya masih berguna) tapi tidak
+                 disimpan, jadi warnanya amber dan terpisah dari kotak error merah. --}}
+            <div id="ticketSummaryNotice" class="hidden rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800"></div>
 
             @foreach ([
-                ['key' => 'isu',        'label' => 'Isu',              'tone' => 'amber'],
-                ['key' => 'penyelesaian','label' => 'Cara Penyelesaian','tone' => 'blue'],
-                ['key' => 'kesimpulan', 'label' => 'Kesimpulan',       'tone' => 'emerald'],
+                ['key' => 'issue',      'label' => 'Issue',            'tone' => 'amber'],
+                ['key' => 'resolution', 'label' => 'Resolution Steps', 'tone' => 'blue'],
+                ['key' => 'conclusion', 'label' => 'Conclusion',       'tone' => 'emerald'],
             ] as $sec)
             <div class="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
                 <div class="px-4 py-2 border-b border-gray-100 bg-{{ $sec['tone'] }}-50">
                     <span class="text-[11px] font-bold uppercase tracking-widest text-{{ $sec['tone'] }}-700">{{ $sec['label'] }}</span>
                 </div>
                 <div id="ticketSummary-{{ $sec['key'] }}" class="ai-sum-body px-4 py-3 text-sm text-gray-700 leading-relaxed">
-                    <span class="text-gray-300 italic">Menunggu…</span>
+                    <span class="text-gray-300 italic">Waiting…</span>
                 </div>
-                @if ('penyelesaian' === $sec['key'])
+                @if ('resolution' === $sec['key'])
                 {{-- Rujukan dokumentasi luar yang benar-benar dibuka model saat
                      menyusun langkah penyelesaian. Diisi dari event 'sources'. --}}
                 <div id="ticketSummarySources" class="hidden px-4 pb-3 pt-0 border-t border-gray-100">
-                    <div class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mt-2.5 mb-1.5">Sumber dokumentasi</div>
+                    <div class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mt-2.5 mb-1.5">Documentation sources</div>
                     <ul id="ticketSummarySourcesList" class="space-y-1"></ul>
                 </div>
                 @endif
@@ -3530,12 +3548,30 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
     // berubah, ubah juga di sini — kalau tidak, teksnya mengalir masuk ke kartu
     // yang salah (atau tidak masuk sama sekali).
     const TICKET_SUMMARY_SECTIONS = {
-        'isu': 'isu',
-        'cara penyelesaian': 'penyelesaian',
-        'kesimpulan': 'kesimpulan',
+        'issue': 'issue',
+        'resolution steps': 'resolution',
+        'conclusion': 'conclusion',
+
+        // Alias heading Indonesia dari ringkasan versi lama. Prompt sudah lama
+        // berbahasa Inggris, tapi ringkasan yang terlanjur tersimpan di cache
+        // (atau sedang ditampilkan dari tab yang belum di-reload) masih memakai
+        // judul lama — tanpa alias ini seluruh isinya jatuh ke satu kartu.
+        'isu': 'issue',
+        'cara penyelesaian': 'resolution',
+        'kesimpulan': 'conclusion',
     };
 
     let summaryAbort = null;
+
+    // Markdown mentah ringkasan yang sedang ditampilkan, plus rujukannya —
+    // dipegang di sini supaya tombol Copy punya sesuatu untuk disalin setelah
+    // stream selesai. Ringkasan sengaja TIDAK disimpan permanen (isinya wajib
+    // ikut berubah setiap kali tiket berubah), jadi menyalin adalah satu-satunya
+    // cara membawanya keluar dari modal ini.
+    let summaryText = '';
+    let summarySources = [];
+    let summaryTicketNo = '';
+    let summaryCopyTimer = null;
 
     function el(id) { return document.getElementById(id); }
 
@@ -3550,7 +3586,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
      * belum dikenali cukup diabaikan sampai barisnya utuh.
      */
     function renderSummary(full) {
-        const buckets = { isu: '', penyelesaian: '', kesimpulan: '' };
+        const buckets = { issue: '', resolution: '', conclusion: '' };
         let current = null;
         let preamble = '';
 
@@ -3558,7 +3594,10 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
         // bagus. Mari fetch halaman berikutnya.") lalu menyambung heading TANPA
         // baris baru — jadi "…langkah.## Isu". Tanpa dipisahkan, heading itu tak
         // pernah cocok dan seluruh jawaban menumpuk di satu kartu.
-        const normalized = String(full).replace(/([^\n])(#{1,3}\s*(?:Isu|Cara Penyelesaian|Kesimpulan)\b)/gi, '$1\n$2');
+        const normalized = String(full).replace(
+            /([^\n])(#{1,3}\s*(?:Issue|Resolution Steps|Conclusion|Isu|Cara Penyelesaian|Kesimpulan)\b)/gi,
+            '$1\n$2'
+        );
 
         normalized.split('\n').forEach(line => {
             const heading = line.match(/^\s*#{1,3}\s*(.+?)\s*$/);
@@ -3574,10 +3613,10 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
             buckets[current] += line + '\n';
         });
 
-        // Belum ada heading sama sekali — tampilkan apa adanya di kartu Isu
-        // supaya streaming tetap terlihat bergerak, bukan diam "Menunggu…".
+        // Belum ada heading sama sekali — tampilkan apa adanya di kartu Issue
+        // supaya streaming tetap terlihat bergerak, bukan diam "Waiting…".
         if (!current && preamble.trim()) {
-            buckets.isu = preamble;
+            buckets.issue = preamble;
         }
 
         Object.keys(buckets).forEach(key => {
@@ -3604,6 +3643,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
         const box = el('ticketSummarySources');
         const list = el('ticketSummarySourcesList');
         list.innerHTML = '';
+        summarySources = (items || []).filter(item => /^https?:\/\//i.test(item.url || ''));
 
         (items || []).forEach(item => {
             if (!/^https?:\/\//i.test(item.url || '')) return;
@@ -3625,9 +3665,13 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
     function resetSummary() {
         el('ticketSummaryError').classList.add('hidden');
         el('ticketSummaryError').textContent = '';
+        el('ticketSummaryNotice').classList.add('hidden');
+        el('ticketSummaryNotice').textContent = '';
         renderSources([]);
-        ['isu', 'penyelesaian', 'kesimpulan'].forEach(key => {
-            el('ticketSummary-' + key).innerHTML = '<span class="text-gray-300 italic">Menunggu…</span>';
+        summaryText = '';
+        setCopyEnabled(false);
+        ['issue', 'resolution', 'conclusion'].forEach(key => {
+            el('ticketSummary-' + key).innerHTML = '<span class="text-gray-300 italic">Waiting…</span>';
         });
     }
 
@@ -3637,12 +3681,84 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
         box.classList.remove('hidden');
     }
 
+    /**
+     * Copy baru hidup setelah ada teks: menyalin ringkasan setengah jadi
+     * menghasilkan catatan yang terpotong di tengah langkah, dan itu justru
+     * paling berbahaya di bagian Resolution Steps.
+     */
+    function setCopyEnabled(enabled) {
+        const btn = el('ticketSummaryCopy');
+        if (!btn) return;
+        btn.disabled = !enabled;
+        if (!enabled) {
+            clearTimeout(summaryCopyTimer);
+            el('ticketSummaryCopyLabel').textContent = 'Copy';
+        }
+    }
+
+    /** Markdown mentah + daftar rujukan, siap ditempel ke work log atau email. */
+    function buildSummaryClipboardText() {
+        const parts = [];
+
+        if (summaryTicketNo) parts.push('AI Summary — Ticket ' + summaryTicketNo);
+        parts.push(summaryText.trim());
+
+        if (summarySources.length) {
+            parts.push('## Documentation sources\n' + summarySources
+                .map(item => '- ' + (item.title || item.url) + ' — ' + item.url)
+                .join('\n'));
+        }
+
+        return parts.filter(Boolean).join('\n\n') + '\n';
+    }
+
+    window.copyTicketSummary = async function () {
+        if (!summaryText.trim()) return;
+
+        const text = buildSummaryClipboardText();
+        let ok = false;
+
+        try {
+            // navigator.clipboard hanya ada di secure context (https/localhost).
+            // Deployment internal sering diakses lewat http di jaringan kantor,
+            // jadi jalur execCommand di bawah BUKAN sekadar dukungan browser
+            // lama — di sanalah tombol ini benar-benar bekerja.
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                ok = true;
+            }
+        } catch (e) {
+            ok = false;
+        }
+
+        if (!ok) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            // Di luar viewport, tapi tetap fokusable — readOnly mencegah
+            // keyboard virtual muncul di perangkat sentuh.
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '-1000px';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            document.body.removeChild(ta);
+        }
+
+        const label = el('ticketSummaryCopyLabel');
+        label.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+        clearTimeout(summaryCopyTimer);
+        summaryCopyTimer = setTimeout(() => { label.textContent = 'Copy'; }, 1800);
+    };
+
     window.openTicketSummary = async function (ticketId, ticketNumber) {
         if (summaryAbort) summaryAbort.abort();
 
-        el('ticketSummaryTicketNo').textContent = ticketNumber || ('#' + ticketId);
+        summaryTicketNo = ticketNumber || ('#' + ticketId);
+        el('ticketSummaryTicketNo').textContent = summaryTicketNo;
         el('ticketSummaryModal').classList.remove('hidden');
-        el('ticketSummaryStatus').textContent = 'Menganalisis…';
+        el('ticketSummaryStatus').textContent = 'Analyzing…';
         resetSummary();
 
         summaryAbort = new AbortController();
@@ -3661,7 +3777,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
             });
 
             if (!response.ok || !response.body) {
-                throw new Error('Tidak bisa menghubungi AI (HTTP ' + response.status + ').');
+                throw new Error('Could not reach the AI service (HTTP ' + response.status + ').');
             }
 
             const reader = response.body.getReader();
@@ -3692,20 +3808,32 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
                     try { payload = JSON.parse(dataLine); } catch { continue; }
 
                     if (eventName === 'meta') {
-                        el('ticketSummaryStatus').textContent = payload.cached ? 'Ringkasan tersimpan' : 'Menganalisis…';
+                        // 'cached' = tiket belum berubah sejak ringkasan terakhir,
+                        // jadi yang diputar ulang ini persis hasil sebelumnya —
+                        // bukan hasil baru yang kebetulan mirip.
+                        el('ticketSummaryStatus').textContent = payload.cached ? 'Saved summary' : 'Analyzing…';
                     } else if (eventName === 'status') {
-                        // Progres riset dokumentasi luar: "Mencari dokumentasi…",
-                        // "Membuka dokumentasi…", "Menyusun ringkasan…".
+                        // Progres riset dokumentasi luar dari driver provider:
+                        // "Searching the web…", "Reading the results…".
                         if (payload.label) el('ticketSummaryStatus').textContent = payload.label;
                     } else if (eventName === 'sources') {
                         renderSources(payload.items);
                     } else if (eventName === 'delta' && payload.text) {
                         full += payload.text;
+                        summaryText = full;
                         renderSummary(full);
+                        setCopyEnabled(true);
+                    } else if (eventName === 'notice') {
+                        // Ringkasan mentok di plafon token: tampil, tapi tidak disimpan.
+                        const box = el('ticketSummaryNotice');
+                        box.textContent = payload.message || '';
+                        box.classList.toggle('hidden', !payload.message);
                     } else if (eventName === 'error') {
-                        sawError = payload.message || 'Terjadi kesalahan.';
+                        sawError = payload.message || 'Something went wrong.';
                     } else if (eventName === 'done') {
-                        el('ticketSummaryStatus').textContent = payload.cached ? 'Ringkasan tersimpan' : 'Selesai';
+                        el('ticketSummaryStatus').textContent = payload.cached
+                            ? 'Saved summary · regenerated when the ticket changes'
+                            : 'Done';
                     }
                 }
             }
@@ -3715,8 +3843,9 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
             // Model membalas tanpa satu pun heading yang dikenali: jangan biarkan
             // ketiga kartu diam bertuliskan "Menunggu…" seolah masih memuat.
             if (!full.trim()) {
-                showSummaryError('AI tidak mengembalikan ringkasan apa pun. Coba lagi.');
+                showSummaryError('The AI returned no summary at all. Please try again.');
                 el('ticketSummaryStatus').textContent = '';
+                setCopyEnabled(false);
             }
         } catch (e) {
             if (e.name === 'AbortError') return;
