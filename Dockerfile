@@ -1,6 +1,6 @@
 FROM php:8.4-fpm
 RUN apt-get update && apt-get install -y \
-    git curl zip unzip \
+    git curl zip unzip supervisor \
     libpng-dev libonig-dev libxml2-dev libzip-dev \
     && docker-php-ext-install pdo pdo_mysql mbstring gd zip bcmath
 
@@ -17,3 +17,12 @@ RUN composer install --no-interaction --prefer-dist --optimize-autoloader || com
 
 RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
+
+# php-fpm DAN queue worker Laravel (php artisan queue:work) dijalankan
+# bersama di container ini lewat supervisord -- lihat docker/supervisord.conf.
+# Tanpa ini job yang di-queue (mis. Word Report Generator) tidak pernah
+# diproses di production karena tidak ada yang menjalankan queue:work.
+# Deploy tetap sama seperti sebelumnya (rebuild + restart container ini),
+# tidak ada container/langkah server tambahan.
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
