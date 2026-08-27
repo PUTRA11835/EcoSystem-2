@@ -8,6 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -46,6 +47,36 @@ class GenerateWordReportJob implements ShouldQueue
 
     public function __construct(private int $wordReportId)
     {
+        // Antrean SENDIRI, dikerjakan worker terpisah (lihat docker/supervisord.conf)
+        // -- satu generate laporan bisa 5-10 menit; kalau menumpang antrean
+        // 'default' ia memblokir semua job lain (email, notifikasi, event SLA)
+        // di belakangnya selama itu.
+        $this->onQueue('reports');
+    }
+
+    /**
+     * Kunci per-laporan: HARAM ada dua job untuk WordReport yang sama jalan
+     * bersamaan. Tanpa ini, `retry_after` queue yang lebih pendek dari durasi
+     * job (job bisa 5-10 menit, default retry_after 90s) membuat queue menaruh
+     * ulang job yang "kelihatan nyangkut" padahal masih jalan -- satu laporan
+     * jadi di-generate berkali-kali paralel, tiap salinan bikin rantai
+     * panggilan AI sendiri, dan rate limit provider langsung meledak.
+     *
+     * expireAfter(1800): kalau proses pemegang kunci mati mendadak (OOM /
+     * container restart) tanpa sempat melepas, kunci otomatis kedaluwarsa 30
+     * menit kemudian -- di atas $timeout job (900s) + jeda retry, jadi tidak
+     * pernah memblokir attempt yang sah. dontRelease(): job yang kena kunci
+     * tidak diantre ulang (yang sah sudah jalan / akan retry sendiri).
+     *
+     * @return array<int, object>
+     */
+    public function middleware(): array
+    {
+        return [
+            (new WithoutOverlapping($this->wordReportId))
+                ->expireAfter(1800)
+                ->dontRelease(),
+        ];
     }
 
     public function handle(ReportGeneratorService $service): void
@@ -102,6 +133,38 @@ class GenerateWordReportJob implements ShouldQueue
                 'error_message' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Dipanggil Laravel saat job benar-benar menyerah: attempt terakhir
+     * melempar exception, ATAU job kena timeout keras ($timeout) / dianggap
+     * "attempted too many times". Tanpa handler ini, kasus timeout membuat
+     * status nyangkut selamanya di "processing" (handle()::catch tidak pernah
+     * jalan) -- user melihat loading yang tidak pernah selesai.
+     */
+    public function failed(?Throwable $e): void
+    {
+        $report = WordReport::find($this->wordReportId);
+
+        if (!$report || in_array($report->status, [WordReport::STATUS_COMPLETED, WordReport::STATUS_AWAITING_INPUT], true)) {
+            return;
+        }
+
+        if ($e && $this->isResumableRateLimit($e)) {
+            $report->update([
+                'status' => WordReport::STATUS_PAUSED,
+                'error_message' => 'Layanan AI sedang sibuk (batas pemakaian sesaat tercapai). '
+                    . 'Progres yang sudah selesai tersimpan — klik "Lanjutkan" untuk meneruskan.',
+            ]);
+
+            return;
+        }
+
+        $report->update([
+            'status' => WordReport::STATUS_FAILED,
+            'error_message' => $e?->getMessage()
+                ?? 'Proses berhenti sebelum selesai (kemungkinan melebihi batas waktu). Coba lagi.',
+        ]);
     }
 
     /**

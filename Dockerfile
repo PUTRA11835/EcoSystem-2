@@ -2,7 +2,13 @@ FROM php:8.4-fpm
 RUN apt-get update && apt-get install -y \
     git curl zip unzip supervisor \
     libpng-dev libonig-dev libxml2-dev libzip-dev \
-    && docker-php-ext-install pdo pdo_mysql mbstring gd zip bcmath
+    && docker-php-ext-install pdo pdo_mysql mbstring gd zip bcmath pcntl
+
+# pcntl WAJIB untuk queue worker: tanpa itu `php artisan queue:work` tidak bisa
+# menegakkan --timeout / $job->timeout (pakai pcntl_alarm) maupun menangani
+# sinyal restart. Efeknya satu job yang menggantung (mis. panggilan HTTP ke
+# provider AI yang tidak kunjung balas) membekukan SATU-SATUNYA worker
+# selamanya -- seluruh antrean berhenti. Lihat docker/supervisord.conf.
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
