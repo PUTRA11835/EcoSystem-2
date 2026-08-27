@@ -82,10 +82,43 @@ class GenerateWordReportJob implements ShouldQueue
                 throw $e;
             }
 
+            // Rate limit provider yang masih habis setelah SEMUA retry (internal
+            // driver + $tries job): bukan kegagalan permanen -- fase yang sudah
+            // sukses tetap tersimpan, user tinggal menekan "Lanjutkan". Ditandai
+            // "paused", bukan "failed", supaya UI tidak menampilkan pesan error
+            // mentah (lihat WordReport::STATUS_PAUSED).
+            if ($this->isResumableRateLimit($e)) {
+                $report->update([
+                    'status' => WordReport::STATUS_PAUSED,
+                    'error_message' => 'Layanan AI sedang sibuk (batas pemakaian sesaat tercapai). '
+                        . 'Progres yang sudah selesai tersimpan — klik "Lanjutkan" untuk meneruskan.',
+                ]);
+
+                return;
+            }
+
             $report->update([
                 'status' => WordReport::STATUS_FAILED,
                 'error_message' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Apakah exception ini rate limit provider (aman dilanjutkan)? Cek kelas
+     * exception-nya sendiri DAN `previous`-nya -- OpenAiReportDriver membungkus
+     * OpenAI\Exceptions\RateLimitException jadi RuntimeException setelah retry
+     * internalnya habis, jadi yang menjalar ke sini adalah wrapper-nya.
+     */
+    private function isResumableRateLimit(Throwable $e): bool
+    {
+        for ($cur = $e; null !== $cur; $cur = $cur->getPrevious()) {
+            $class = $cur::class;
+            if (str_contains($class, 'RateLimit') || str_contains($class, 'Overloaded')) {
+                return true;
+            }
+        }
+
+        return str_contains($e->getMessage(), 'Rate limit');
     }
 }

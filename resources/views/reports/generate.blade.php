@@ -142,6 +142,18 @@
                 </button>
             </div>
 
+            <div id="wrPausedState" class="hidden flex-1 flex flex-col items-center justify-center text-center py-6">
+                <div class="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 mb-3">
+                    <i class="fas fa-circle-pause"></i>
+                </div>
+                <p class="text-sm font-semibold text-gray-900">Dijeda sementara</p>
+                <p id="wrPausedText" class="text-xs text-gray-500 mt-1 max-w-sm">Layanan AI sedang sibuk. Progres yang sudah selesai tersimpan.</p>
+                <button type="button" id="wrContinueBtn" onclick="submitRetry()"
+                        class="mt-3 px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-all">
+                    <i class="fas fa-play text-[10px] mr-1"></i>Lanjutkan
+                </button>
+            </div>
+
             <div id="wrAwaitingState" class="hidden flex-1 flex flex-col items-center justify-center text-center py-6">
                 <div class="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-500 mb-3">
                     <i class="fas fa-circle-question"></i>
@@ -244,6 +256,9 @@
     const wrErrorState = document.getElementById('wrErrorState');
     const wrErrorText = document.getElementById('wrErrorText');
     const wrRetryBtn = document.getElementById('wrRetryBtn');
+    const wrPausedState = document.getElementById('wrPausedState');
+    const wrPausedText = document.getElementById('wrPausedText');
+    const wrContinueBtn = document.getElementById('wrContinueBtn');
     const wrAwaitingState = document.getElementById('wrAwaitingState');
     const wrResultState = document.getElementById('wrResultState');
     const wrDocxLink = document.getElementById('wrDocxLink');
@@ -276,7 +291,7 @@
 
     // ── Preview state helpers ────────────────────────────────────────
     function showState(state) {
-        [wrEmptyState, wrProcessingState, wrErrorState, wrAwaitingState, wrResultState].forEach(el => el.classList.add('hidden'));
+        [wrEmptyState, wrProcessingState, wrErrorState, wrPausedState, wrAwaitingState, wrResultState].forEach(el => el.classList.add('hidden'));
         wrRetryBtn.classList.add('hidden');
         state.classList.remove('hidden');
     }
@@ -286,6 +301,7 @@
             pending:         ['Menunggu', 'bg-gray-100 text-gray-500'],
             processing:      ['Diproses', 'bg-amber-50 text-amber-700'],
             awaiting_input:  ['Butuh Jawaban', 'bg-indigo-50 text-indigo-700'],
+            paused:          ['Dijeda', 'bg-amber-50 text-amber-700'],
             completed:       ['Selesai', 'bg-emerald-50 text-emerald-700'],
             failed:          ['Gagal', 'bg-red-50 text-red-700'],
         };
@@ -321,6 +337,9 @@
             } else if (i === currentIndex && 'failed' === status) {
                 el.classList.add('is-error');
                 dot.innerHTML = '<i class="fas fa-xmark text-[10px]"></i>';
+            } else if (i === currentIndex && 'paused' === status) {
+                el.classList.add('is-active');
+                dot.innerHTML = '<i class="fas fa-pause text-[10px]"></i>';
             } else if (i === currentIndex) {
                 el.classList.add('is-active');
                 dot.innerHTML = '<i class="fas fa-spinner fa-spin text-[10px]"></i>';
@@ -509,7 +528,7 @@
             wrHistoryList.innerHTML = json.data.map(r => {
                 const title = r.template_name || 'Laporan #' + r.id;
                 const sub = r.customer_name || 'Umum / Internal';
-                const dot = { pending: 'bg-gray-300', processing: 'bg-amber-400', awaiting_input: 'bg-indigo-500', completed: 'bg-emerald-500', failed: 'bg-red-500' }[r.status] || 'bg-gray-300';
+                const dot = { pending: 'bg-gray-300', processing: 'bg-amber-400', awaiting_input: 'bg-indigo-500', paused: 'bg-amber-500', completed: 'bg-emerald-500', failed: 'bg-red-500' }[r.status] || 'bg-gray-300';
                 return `
                 <div class="wr-history-item flex items-start gap-2 p-2.5 rounded-xl border border-transparent hover:bg-gray-50 cursor-pointer transition-all"
                      data-id="${r.id}">
@@ -660,9 +679,10 @@
         if (!activeReportId) return;
 
         wrRetryBtn.disabled = true;
-        wrHeaderSub.textContent = 'Mencoba lagi...';
+        wrContinueBtn.disabled = true;
+        wrHeaderSub.textContent = 'Melanjutkan...';
         showState(wrProcessingState);
-        wrProcessingText.textContent = 'Mencoba lagi...';
+        wrProcessingText.textContent = 'Melanjutkan...';
 
         try {
             const res = await fetch('{{ url('/reports') }}/' + activeReportId + '/retry', {
@@ -682,6 +702,7 @@
             wrRetryBtn.classList.remove('hidden');
         } finally {
             wrRetryBtn.disabled = false;
+            wrContinueBtn.disabled = false;
         }
     };
 
@@ -736,6 +757,17 @@
                 if (json.pdf_url) { wrPdfLink.href = json.pdf_url; wrPdfLink.classList.remove('hidden'); } else { wrPdfLink.classList.add('hidden'); }
                 wrPdfFrame.src = json.pdf_preview_url || '';
                 showState(wrResultState);
+                return;
+            }
+
+            if (json.status === 'paused') {
+                submitBtn.disabled = false;
+                wrHeaderSub.textContent = 'Dijeda sementara';
+                showState(wrPausedState);
+                wrPausedText.textContent = json.error_message
+                    || 'Layanan AI sedang sibuk. Progres yang sudah selesai tersimpan — klik "Lanjutkan" untuk meneruskan.';
+                if (pendingId) wrUpdateAssistantBubble(pendingId, json.error_message
+                    || 'Dijeda sementara — klik "Lanjutkan" untuk meneruskan.', false);
                 return;
             }
 
