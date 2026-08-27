@@ -15,7 +15,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
     <!-- Filter Section -->
     <div class="bg-gray-50 rounded-lg p-5 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Status</label>
                 <div class="custom-dd relative" data-onchange="applyFilters">
@@ -69,6 +69,22 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                     </div>
                 </div>
             </div>
+            <div class="flex flex-col">
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Position</label>
+                <div class="custom-dd relative" id="ddFilterPosition" data-multi="true" data-onchange="applyFilters">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">All Position</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="filterPosition" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Position</button>
+                        @foreach(($positionOptions ?? []) as $pos)
+                        <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pos }}"><span class="custom-dd-item-text">{{ $pos }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="flex gap-3 justify-end">
             <button onclick="applyFilters()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
@@ -103,15 +119,16 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         </div>
 
         <div id="employeeTableWrapper" class="overflow-x-auto border border-gray-200 rounded-lg">
-            <table class="w-full" style="min-width:1350px;">
+            <table class="w-full" style="min-width:1600px;">
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:100px;">ECI</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:200px;">Full Name</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Position</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Module</th>
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:130px;">Employee Group</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Division</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Department</th>
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:220px;">Department</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Home Base</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Since Date</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Status</th>
@@ -375,6 +392,11 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                     @endforeach
                                 </div>
                             </div>
+                        </div>
+
+                        <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Current Assignment</label>
+                            <input type="text" id="currentAssignment" placeholder="e.g., Project X" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                         </div>
 
                         <div class="flex flex-col">
@@ -802,6 +824,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             department: document.getElementById('filterDepartment').value,
             modules: document.getElementById('filterModules').value,
             home_base: document.getElementById('filterHomeBase').value,
+            position: document.getElementById('filterPosition').value,
         };
     }
 
@@ -844,7 +867,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         if (data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="10" class="px-4 py-16 text-center">
+                    <td colspan="11" class="px-4 py-16 text-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                         </svg>
@@ -880,11 +903,14 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             return `
             <tr class="employee-row" onclick="navigateToDetail(${emp.id}, event)">
                 <td class="px-4 py-3.5 text-sm" style="min-width:100px;"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
-                <td class="px-4 py-3.5 text-sm text-gray-600" style="min-width:200px;">${fullName}${emp.employee_type === 'External' ? ' <span class="inline-block ml-1.5 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 align-middle">External</span>' : ''}</td>
+                <td class="px-4 py-3.5 text-sm text-gray-600" style="min-width:200px;">${fullName}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.position || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${(emp.modules && emp.modules.length) ? emp.modules.join(', ') : '-'}</td>
+                <td class="px-4 py-3.5 text-sm">${renderEmployeeGroup(emp.employee_group)}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.division || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.employee_subgroup || '-'}</td>
+                {{-- Kolom Department membaca eb.department. Sebelumnya keliru
+                     merender employee_subgroup sehingga selalu tampil "-". --}}
+                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.department || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.home_base || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${emp.since_date || '-'}</td>
                 <td class="px-4 py-3.5 text-sm">
@@ -904,6 +930,24 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             </tr>
         `;
         }).join('');
+    }
+
+    /**
+     * Employee Group (INTERNAL / EXTERNAL / INTERNSHIP) — penanda jenis employee
+     * yang menggantikan pemakaian Home Base "Others" sebagai indikator lama.
+     */
+    function renderEmployeeGroup(group) {
+        const value = (group || '').trim();
+        if (!value) return '<span class="text-gray-600">-</span>';
+
+        const palette = {
+            'INTERNAL'  : 'bg-blue-100 text-blue-700',
+            'EXTERNAL'  : 'bg-amber-100 text-amber-700',
+            'INTERNSHIP': 'bg-purple-100 text-purple-700',
+        };
+        const cls = palette[value.toUpperCase()] || 'bg-gray-100 text-gray-700';
+        const safe = value.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+        return `<span class="inline-block px-2.5 py-0.5 text-[11px] font-semibold rounded-full ${cls}">${safe}</span>`;
     }
 
     function getStatusInfo(emp) {
@@ -1132,6 +1176,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 document.getElementById('cellPhone').value = emp.cell_phone || '';
                 
                 // SECTION 3: ORGANIZATIONAL DATA
+                document.getElementById('currentAssignment').value = emp.current_assignment || '';
                 if (typeof setCustomDropdownValue === 'function') {
                     setCustomDropdownValue('personnelArea', emp.personnel_area || '');
                     setCustomDropdownValue('position', emp.position || '');
@@ -1210,6 +1255,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             // SECTION 3: ORGANIZATIONAL DATA
             personnel_area: document.getElementById('personnelArea').value,
             position: document.getElementById('position').value,
+            current_assignment: document.getElementById('currentAssignment').value,
             employee_group: document.getElementById('employeeGroup').value,
             employee_subgroup: document.getElementById('employeeSubgroup').value,
             division: document.getElementById('division').value,
@@ -1334,9 +1380,11 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         if (typeof clearCustomDropdownMulti === 'function') {
             clearCustomDropdownMulti('filterModules');
             clearCustomDropdownMulti('filterHomeBase');
+            clearCustomDropdownMulti('filterPosition');
         } else {
             document.getElementById('filterModules').value = '';
             document.getElementById('filterHomeBase').value = '';
+            document.getElementById('filterPosition').value = '';
         }
         currentPage = 1;
         fetchEmployees({});
@@ -1591,12 +1639,13 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             sessionStorage.removeItem(EMP_FILTER_STORAGE_KEY);
         }
 
-        // Set hidden input values SEBELUM initCustomDropdowns() supaya Home Base
-        // (multi-select statis) langsung ke-sync visual/label-nya saat init jalan.
+        // Set hidden input values SEBELUM initCustomDropdowns() supaya Home Base &
+        // Position (multi-select statis) langsung ke-sync visual/label-nya saat init jalan.
         if (restored) {
             document.getElementById('filterEmployee').value   = restored.employee   || '';
             document.getElementById('filterDepartment').value = restored.department || '';
             document.getElementById('filterHomeBase').value   = restored.home_base  || '';
+            document.getElementById('filterPosition').value   = restored.position   || '';
             document.getElementById('filterModules').value    = restored.modules    || '';
             if (restored.page) currentPage = restored.page;
         }

@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Enums\RoleId;
 use App\Exports\TicketExport;
 use App\Http\Controllers\EmailController;
+use App\Models\AuditLog;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Customer;
 use App\Models\Employee;
+use App\Models\ModuleLead;
 use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
@@ -62,6 +64,13 @@ class TicketController extends Controller
     }
 
     /**
+     * Bump this when SlaService::calcHours() (or anything else liveSlaSummary() depends
+     * on) changes, so every cached summary below is invalidated immediately instead of
+     * waiting out its TTL.
+     */
+    private const SLA_CALC_VERSION = 1;
+
+    /**
      * Live SLA summary for ticket-list endpoints (index/myTickets/unassignedTickets) — uses
      * the same live-recompute methods as the admin SLA report (SlaService::responseDurationHours()
      * etc.) instead of reading the stored validation_duration_hours/net_resolution_hours/
@@ -72,6 +81,15 @@ class TicketController extends Controller
      * `ticket` relation manually — Eloquent doesn't auto-populate the inverse belongsTo
      * when eager-loading Ticket::with('sla'), so without this, liveResolutionMetrics()'s
      * `$sla->ticket?->status` check would lazy-load a query per row (N+1 on an unbounded list).
+     *
+     * calcHours() walks day-by-day for business-hours policies, which measured out as the
+     * single biggest cost on /api/tickets (~700ms-2s across ~1300 tickets) — bigger than the
+     * SQL query itself — because it's recomputed from scratch on every request, including the
+     * 20s poll every open tab fires. Its inputs (sla_start_at/first_responded_at/resolved_at,
+     * each pause's started_at/ended_at) are immutable once written, so the result is cached
+     * keyed on $sla->updated_at + a pause fingerprint — any edit to either naturally busts the
+     * key. TTL is bounded (not forever) so a formula change still self-heals even without
+     * remembering to bump SLA_CALC_VERSION.
      */
     private function liveSlaSummary($sla, ?Ticket $ticket = null, ?\Illuminate\Support\Collection $pauses = null): ?array
     {
@@ -83,19 +101,195 @@ class TicketController extends Controller
             $sla->setRelation('ticket', $ticket);
         }
 
-        $slaService        = app(SlaService::class);
-        $resolutionMetrics = $slaService->liveResolutionMetrics($sla, $pauses);
+        $pausesFingerprint = $pauses && $pauses->isNotEmpty()
+            ? $pauses->count() . ':' . optional($pauses->max('ended_at'))->format('YmdHisu')
+            : '0:';
 
-        return [
-            'target_response_hours'   => $sla->policy?->response_hours,
-            'response_time_hours'     => $slaService->responseDurationHours($sla),
-            'response_status'         => $slaService->responseStatusLive($sla),
-            'target_resolution_hours' => $sla->policy?->resolution_hours,
-            'resolution_due_at'       => $sla->resolution_due_at,
-            'resolution_time_hours'   => $resolutionMetrics['net_hours'],
-            'resolution_status'       => $resolutionMetrics['status'],
-            'resolved_at'             => $sla->resolved_at,
-        ];
+        $cacheKey = sprintf(
+            'ticket_sla_summary:v%d:%d:%d:%s',
+            self::SLA_CALC_VERSION,
+            $sla->id,
+            $sla->updated_at?->timestamp ?? 0,
+            $pausesFingerprint
+        );
+
+        return Cache::remember($cacheKey, now()->addHours(6), function () use ($sla, $pauses) {
+            $slaService        = app(SlaService::class);
+            $resolutionMetrics = $slaService->liveResolutionMetrics($sla, $pauses);
+
+            return [
+                'target_response_hours'   => $sla->policy?->response_hours,
+                'response_time_hours'     => $slaService->responseDurationHours($sla),
+                'response_status'         => $slaService->responseStatusLive($sla),
+                'target_resolution_hours' => $sla->policy?->resolution_hours,
+                'resolution_due_at'       => $sla->resolution_due_at,
+                'resolution_time_hours'   => $resolutionMetrics['net_hours'],
+                'resolution_status'       => $resolutionMetrics['status'],
+                'resolved_at'             => $sla->resolved_at,
+            ];
+        });
+    }
+
+    /**
+     * Rank maps mirroring PRIORITY_RANK/SCALE_RANK in ticket/index.blade.php — kept in one
+     * place so the SQL CASE expressions in applyTicketListSort() stay in sync with the
+     * client's old in-memory sort order.
+     */
+    private const PRIORITY_RANK = ['Very High' => 4, 'High' => 3, 'Medium' => 2, 'Low' => 1];
+    private const SCALE_RANK    = ['Complex' => 3, 'Medium' => 2, 'Simple' => 1];
+
+    /**
+     * Server-side equivalent of the column filters + keyword search that ticket/index.blade.php
+     * used to apply in-memory over the full unpaginated list (getColumnFilteredBase()). Has to
+     * live here now that /api/tickets is paginated — filtering after paginate() would only
+     * search within whatever page happened to be loaded instead of the whole table.
+     */
+    private function applyTicketListFilters($query, Request $request)
+    {
+        // Columns are qualified with "ticket." throughout — applyTicketListSort() may add a
+        // leftJoin to customer/ticket_sla (both of which also have customer_id/created_at/etc.),
+        // so an unqualified column here would become ambiguous once that join is present.
+        if ($request->filled('customer_id')) {
+            $query->where('ticket.customer_id', (int) $request->input('customer_id'));
+        }
+
+        if ($request->filled('pic_id')) {
+            $pic = $request->input('pic_id');
+            if ($pic === 'unassigned') {
+                $query->whereNull('ticket.ticket_lead_id');
+            } else {
+                $query->where('ticket.ticket_lead_id', (int) $pic);
+            }
+        }
+
+        $csvFilter = function ($query, string $column, ?string $raw) {
+            $values = array_filter(explode(',', (string) $raw), fn ($v) => $v !== '');
+            if (!empty($values)) {
+                $query->whereIn($column, $values);
+            }
+        };
+        $csvFilter($query, 'ticket.ticket_priority', $request->input('priority'));
+        $csvFilter($query, 'ticket.scale', $request->input('scale'));
+        $csvFilter($query, 'ticket.status', $request->input('status'));
+        $csvFilter($query, 'ticket.ticket_type', $request->input('type'));
+
+        // Tanggal dibaca sebagai kalender Asia/Jakarta (WIB) — sama seperti versi lama di
+        // browser (`new Date(dateFrom + 'T00:00:00+07:00')`).
+        if ($request->filled('date_from')) {
+            $query->where('ticket.created_at', '>=', \Carbon\Carbon::parse($request->input('date_from') . ' 00:00:00', 'Asia/Jakarta'));
+        }
+        if ($request->filled('date_to')) {
+            $query->where('ticket.created_at', '<=', \Carbon\Carbon::parse($request->input('date_to') . ' 23:59:59', 'Asia/Jakarta'));
+        }
+
+        if ($request->filled('description')) {
+            $query->where('ticket.description', 'like', '%' . $request->input('description') . '%');
+        }
+        if ($request->filled('ticket_number')) {
+            $query->where('ticket.ticket_number', 'like', '%' . $request->input('ticket_number') . '%');
+        }
+
+        return $query;
+    }
+
+    /**
+     * "Card status" filter — separate from the `status` column filter above because
+     * updateStats() intentionally excludes this one when counting badge totals (clicking
+     * the "Closed" card shouldn't make every other card's count collapse to 0). Kept as its
+     * own step so callers can capture stats between the two.
+     */
+    private function applyCardStatusFilter($query, Request $request)
+    {
+        $cardStatus = $request->input('card_status');
+        if ($cardStatus && $cardStatus !== 'all') {
+            $query->where('ticket.status', $cardStatus);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Aggregate counts per status for the status-card badges (Open/In Process/.../Closed),
+     * scoped to whatever column filters + search are active but NOT the card_status filter
+     * itself — mirrors the old client-side updateStats(base) semantics where `base` was the
+     * column-filtered set before the currentFilter card was applied. Pattern follows
+     * ActivityLogController::getData()'s separate $statsQuery.
+     */
+    private function buildTicketListStats($filteredQuery): array
+    {
+        $rows = (clone $filteredQuery)
+            ->reorder()
+            ->select('ticket.status', DB::raw('count(*) as total'))
+            ->groupBy('ticket.status')
+            ->pluck('total', 'status');
+
+        $statuses = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold', 'cancelled', 'closed'];
+        $stats = ['total' => (int) $rows->sum()];
+        foreach ($statuses as $status) {
+            $stats[$status] = (int) ($rows[$status] ?? 0);
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Server-side equivalent of applyTicketSort(list) in ticket/index.blade.php. Has to run
+     * in SQL (not PHP after fetch) so sorting applies across the whole filtered set, not just
+     * whatever page is loaded. Rank maps and the day_on_close formula are kept in exact sync
+     * with their JS counterparts (PRIORITY_RANK/SCALE_RANK/dayOnCloseValue()) so switching a
+     * request from unpaginated to paginated doesn't change perceived ordering.
+     */
+    private function applyTicketListSort($query, Request $request)
+    {
+        $key = $request->input('sort_key', 'last_update');
+        $dir = strtolower($request->input('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        switch ($key) {
+            case 'ticket_number':
+                return $query->orderByRaw(
+                    "CASE WHEN ticket_number REGEXP '^[0-9]+$' THEN CAST(ticket_number AS UNSIGNED) ELSE ticket_id END $dir"
+                );
+            case 'date':
+                return $query->orderBy('created_at', $dir);
+            case 'day_on_close':
+                // Mirrors dayOnCloseValue() in ticket/index.blade.php exactly: ceil(elapsed
+                // seconds / 86400), not a calendar-date DATEDIFF() (which would round
+                // differently for same-day spans and near midnight boundaries).
+                return $query
+                    ->leftJoin('ticket_sla', 'ticket_sla.ticket_id', '=', 'ticket.ticket_id')
+                    ->select('ticket.*')
+                    ->orderByRaw(
+                        "GREATEST(0, CEIL(TIMESTAMPDIFF(SECOND, ticket.created_at,
+                            CASE WHEN ticket.status = 'closed'
+                                THEN COALESCE(ticket_sla.resolved_at, ticket.updated_at)
+                                ELSE NOW()
+                            END
+                        ) / 86400)) $dir"
+                    );
+            case 'description':
+                return $query->orderBy('description', $dir);
+            case 'customer':
+                return $query
+                    ->leftJoin('customer', 'customer.customer_id', '=', 'ticket.customer_id')
+                    ->leftJoin('customer_basic_data', 'customer_basic_data.customer_id', '=', 'customer.customer_id')
+                    ->select('ticket.*')
+                    ->orderByRaw('COALESCE(customer_basic_data.name_1, customer.email) ' . $dir);
+            case 'priority':
+                $cases = collect(self::PRIORITY_RANK)->map(fn ($rank, $val) => "WHEN '$val' THEN $rank")->implode(' ');
+                return $query->orderByRaw("CASE ticket_priority $cases ELSE 0 END $dir");
+            case 'scale':
+                $cases = collect(self::SCALE_RANK)->map(fn ($rank, $val) => "WHEN '$val' THEN $rank")->implode(' ');
+                return $query->orderByRaw("CASE scale $cases ELSE 0 END $dir");
+            case 'status':
+                // status is a MySQL ENUM — plain ORDER BY sorts by declaration ordinal, not
+                // alphabetically. Cast to CHAR to match the old JS localeCompare() ordering.
+                return $query->orderByRaw("CAST(ticket.status AS CHAR) $dir");
+            case 'type':
+                return $query->orderBy('ticket_type', $dir);
+            case 'last_update':
+            default:
+                return $query->orderBy('last_message_at', $dir);
+        }
     }
 
     /**
@@ -113,13 +307,47 @@ class TicketController extends Controller
     }
 
     /**
+     * Distinct customers/PICs that actually have a (visible) ticket, for the Customer/PIC
+     * filter dropdowns in ticket/index.blade.php. Needed once the ticket list is paginated —
+     * the dropdowns used to be populated by scanning every ticket already loaded client-side,
+     * which only ever contained the current page after pagination. Cheap DISTINCT query,
+     * much lighter than fetching full ticket rows just to read two columns off them.
+     */
+    public function filterOptions()
+    {
+        $customers = DB::table('ticket')
+            ->join('customer', 'customer.customer_id', '=', 'ticket.customer_id')
+            ->leftJoin('customer_basic_data', 'customer_basic_data.customer_id', '=', 'customer.customer_id')
+            ->whereNull('ticket.is_hidden')
+            ->select('customer.customer_id as id', DB::raw('COALESCE(customer_basic_data.name_1, customer.email) as name'))
+            ->distinct()
+            ->orderBy('name')
+            ->get();
+
+        $pics = DB::table('ticket')
+            ->join('employee', 'employee.employee_id', '=', 'ticket.ticket_lead_id')
+            ->leftJoin('employee_basic_data', 'employee_basic_data.employee_id', '=', 'employee.employee_id')
+            ->whereNull('ticket.is_hidden')
+            ->select('employee.employee_id as id', DB::raw('COALESCE(employee_basic_data.nick_name, employee_basic_data.first_name) as name'))
+            ->distinct()
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'customers' => $customers,
+            'pics' => $pics,
+        ]);
+    }
+
+    /**
      * Display a listing of tickets
      */
     public function index(Request $request)
     {
         try {
             $sessionUser = session('user');
-        
+
             if (!$sessionUser) {
                 Log::error('No user in session');
                 return response()->json([
@@ -156,26 +384,22 @@ class TicketController extends Controller
             if ($isRestrictedExternal) {
                 Log::info('External employee viewing own tickets only', ['employee_id' => $sessionUser['id']]);
                 $employeeId = $sessionUser['id'];
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
-                    ->whereNull('is_hidden')
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
+                    ->whereNull('ticket.is_hidden')
                     ->where(function ($q) use ($employeeId) {
-                        $q->where('ticket_lead_id', $employeeId)
+                        $q->where('ticket.ticket_lead_id', $employeeId)
                           ->orWhereHas('members', fn ($i) => $i->where('ticket_member.employee_id', $employeeId));
-                    })
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                    ->get();
+                    });
 
             // Admin: bisa lihat semua ticket, atau filter unassigned jika ?unassigned=1
             } elseif ($sessionUser['role']['id'] === RoleId::EC_ADMINISTRATOR->value) {
                 Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
-                    ->whereNull('is_hidden')
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                    ->whereNull('ticket.is_hidden');
                 if ($filterUnassigned) {
-                    $query->whereNull('ticket_lead_id');
+                    $query->whereNull('ticket.ticket_lead_id');
                 }
-                $tickets = $query->get();
 
             // Employee (DS User): "All Tickets" = semua tiket organisasi (sama seperti role lain),
             // atau filter unassigned jika ?unassigned=1. Tab "Unassigned Ticket" terpisah (permission
@@ -184,12 +408,10 @@ class TicketController extends Controller
                 Log::info('Employee viewing all tickets', ['unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                    ->whereNull('is_hidden')
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                    ->whereNull('ticket.is_hidden');
                 if ($filterUnassigned) {
-                    $query->whereNull('ticket_lead_id');
+                    $query->whereNull('ticket.ticket_lead_id');
                 }
-                $tickets = $query->get();
 
             // Helpdesk, RPMO, Head of Project, Head of Support:
             // lihat semua ticket organisasi, atau filter unassigned jika ?unassigned=1
@@ -201,12 +423,10 @@ class TicketController extends Controller
                 Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
-                    ->whereNull('is_hidden')
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                    ->whereNull('ticket.is_hidden');
                 if ($filterUnassigned) {
-                    $query->whereNull('ticket_lead_id');
+                    $query->whereNull('ticket.ticket_lead_id');
                 }
-                $tickets = $query->get();
 
             // Support Manager: "All Tickets" = semua tiket organisasi (sama seperti Head)
             // "My Tickets" = hanya tiket dari delivery yang dia kelola (/api/tickets/my)
@@ -214,13 +434,11 @@ class TicketController extends Controller
                 Log::info('Support Manager viewing all tickets', ['employee_id' => $sessionUser['id']]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
-                    ->whereNull('is_hidden')
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                    ->whereNull('ticket.is_hidden');
 
                 if ($filterUnassigned) {
-                    $query->whereNull('ticket_lead_id');
+                    $query->whereNull('ticket.ticket_lead_id');
                 }
-                $tickets = $query->get();
 
             } else {
                 // Fallback: cek apakah role punya izin `tickets.inbox` di tabel role_menu
@@ -239,11 +457,57 @@ class TicketController extends Controller
                 ]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
-                    ->whereNull('is_hidden')
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                    ->whereNull('ticket.is_hidden');
                 if ($filterUnassigned) {
-                    $query->whereNull('ticket_lead_id');
+                    $query->whereNull('ticket.ticket_lead_id');
                 }
+            }
+
+            // "Ticket Modul" tab — dibatasi ke tiket yang lead/member-nya adalah
+            // konsultan dari module yang dipimpin employee ini (module_leads).
+            // Diterapkan di atas query yang sudah dibangun per-role di atas, supaya
+            // tidak perlu duplikasi logic di tiap cabang role.
+            if ($request->boolean('module_team')) {
+                $employeeId = $sessionUser['id'];
+                $ledModuleIds = ModuleLead::where('employee_id', $employeeId)->pluck('module_id');
+
+                if ($ledModuleIds->isEmpty()) {
+                    // Bukan lead module manapun — tab ini seharusnya tidak tampil
+                    // di UI untuk employee ini, tapi kalau tetap diakses langsung
+                    // lewat API, jangan bocorkan tiket siapa pun.
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $memberIds = DB::table('employee_qualification')
+                        ->whereIn('module_id', $ledModuleIds)
+                        ->pluck('employee_id')
+                        ->push($employeeId)
+                        ->unique()
+                        ->values();
+
+                    $query->where(function ($q) use ($memberIds) {
+                        $q->whereIn('ticket.ticket_lead_id', $memberIds)
+                          ->orWhereHas('members', fn ($i) => $i->whereIn('ticket_member.employee_id', $memberIds));
+                    });
+                }
+            }
+
+            $this->applyTicketListFilters($query, $request);
+            $stats = $this->buildTicketListStats($query);
+            $this->applyCardStatusFilter($query, $request);
+            $this->applyTicketListSort($query, $request);
+
+            $meta = null;
+            if ($request->filled('page')) {
+                $perPage   = max(1, min((int) $request->input('per_page', 200), 500));
+                $paginator = $query->paginate($perPage, ['*'], 'page', (int) $request->input('page'));
+                $tickets   = $paginator->getCollection();
+                $meta = [
+                    'current_page' => $paginator->currentPage(),
+                    'per_page'     => $paginator->perPage(),
+                    'total'        => $paginator->total(),
+                    'last_page'    => $paginator->lastPage(),
+                ];
+            } else {
                 $tickets = $query->get();
             }
 
@@ -297,6 +561,16 @@ class TicketController extends Controller
                 ->groupBy('ticket_id')
                 ->map(fn($group) => $group->sum('total_mandays'));
 
+            // Latest activity date logged against each ticket's support timesheets
+            // (user-entered "when did the work happen", separate from the timesheet's
+            // submit date). Excludes rejected entries — those aren't verified work.
+            $activityDateMap = \App\Models\Timesheet::whereIn('ticket_id', $ticketIds)
+                ->whereNotNull('activity_date')
+                ->whereIn('status', ['draft', 'submitted', 'approved'])
+                ->get()
+                ->groupBy('ticket_id')
+                ->map(fn($group) => $group->max('activity_date')?->format('Y-m-d'));
+
             // Batch-load semua pending confirmations sekaligus (hindari N+1)
             $confirmationMap = DB::table('ticket_confirmation')
                 ->whereIn('ticket_id', $ticketIds)
@@ -310,7 +584,7 @@ class TicketController extends Controller
                 ->groupBy('ticket_id');
 
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap, $pausesByTicket) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $activityDateMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap, $pausesByTicket) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -338,6 +612,7 @@ class TicketController extends Controller
                     'end_date' => $ticket->end_date,
                     'man_days' => $ticket->man_days,
                     'customer_mandays' => $customerMandaysMap[$ticket->ticket_id] ?? null,
+                    'activity_date' => $activityDateMap[$ticket->ticket_id] ?? null,
                     'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
                     'all_consultant_progress' => $allProgress,
                     'wait_close' => $ticket->wait_close,
@@ -392,6 +667,8 @@ class TicketController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $ticketsData,
+                'meta' => $meta,
+                'stats' => $stats,
                 'message' => 'Tickets retrieved successfully'
             ]);
         } catch (\Exception $e) {
@@ -445,6 +722,10 @@ class TicketController extends Controller
         if ($request->filled('type')) {
             $query->whereIn('ticket_type', explode(',', $request->type));
         }
+        // Module (comma-separated untuk multi-select)
+        if ($request->filled('module')) {
+            $query->whereIn('module_id', explode(',', $request->module));
+        }
         // Ticket number keyword
         if ($request->filled('ticket_number')) {
             $query->where('ticket_number', 'like', '%' . $request->ticket_number . '%');
@@ -472,15 +753,26 @@ class TicketController extends Controller
                   });
             });
         }
-        // Customer name (exact match, case-insensitive — sesuai frontend)
-        if ($request->filled('customer')) {
+        // Customer — filter kolom di ticket/index.blade.php sekarang mengirim customer_id
+        // (bukan nama) sejak dropdown-nya diisi dari /api/tickets/filter-options.
+        if ($request->filled('customer_id')) {
+            $query->where('customer_id', (int) $request->input('customer_id'));
+        } elseif ($request->filled('customer')) {
+            // Kompatibilitas untuk link lama yang masih mengirim nama.
             $customerName = $request->customer;
             $query->whereHas('customer.basicData', function ($q) use ($customerName) {
                 $q->whereRaw('LOWER(name_1) = LOWER(?)', [$customerName]);
             });
         }
-        // Ticket Lead / PIC name (by first_name, exact match — sesuai frontend)
-        if ($request->filled('pic')) {
+        // Ticket Lead / PIC — sama, sekarang berbasis employee_id.
+        if ($request->filled('pic_id')) {
+            $pic = $request->input('pic_id');
+            if ($pic === 'unassigned') {
+                $query->whereNull('ticket_lead_id');
+            } else {
+                $query->where('ticket_lead_id', (int) $pic);
+            }
+        } elseif ($request->filled('pic')) {
             $picName = $request->pic;
             if ($picName === '__unassigned__') {
                 $query->whereNull('ticket_lead_id');
@@ -1063,7 +1355,7 @@ class TicketController extends Controller
     /**
      * Get my tickets (for customer and employee)
      */
-    public function myTickets()
+    public function myTickets(Request $request)
     {
         try {
             $sessionUser = session('user');
@@ -1083,14 +1375,12 @@ class TicketController extends Controller
             if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
                 $employeeId = $sessionUser['id'];
                 Log::info('My Tickets - External employee', ['employee_id' => $employeeId]);
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
-                    ->whereNull('is_hidden')
-                    ->where(function ($query) use ($employeeId) {
-                        $query->where('ticket.ticket_lead_id', $employeeId)
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
+                    ->whereNull('ticket.is_hidden')
+                    ->where(function ($q) use ($employeeId) {
+                        $q->where('ticket.ticket_lead_id', $employeeId)
                             ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId));
-                    })
-                    ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
-                    ->get();
+                    });
 
             // Internal roles: query variant ditentukan oleh permission menu 'ticket.my-tickets.*'
             // di Role & Menu Access (bukan lagi hardcode RoleId), supaya admin bisa pilih per role
@@ -1115,27 +1405,43 @@ class TicketController extends Controller
                         ->unique()
                         ->values();
 
-                    $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                        ->whereNull('is_hidden')
-                        ->whereIn('ticket_id', $managedTicketIds)
-                        ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
-                        ->get();
+                    $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                        ->whereNull('ticket.is_hidden')
+                        ->whereIn('ticket.ticket_id', $managedTicketIds);
                 } else {
                     // DS User scope (default fallback juga, untuk role custom tanpa permission eksplisit):
                     // tiket dimana employee jadi PIC atau member.
                     Log::info('My Tickets - DS User scope', ['employee_id' => $employeeId, 'explicit_permission' => $isDsUserScope]);
 
-                    $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                        ->whereNull('is_hidden')
-                        ->where(function ($query) use ($employeeId) {
-                            $query->where('ticket.ticket_lead_id', $employeeId)
+                    $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                        ->whereNull('ticket.is_hidden')
+                        ->where(function ($q) use ($employeeId) {
+                            $q->where('ticket.ticket_lead_id', $employeeId)
                                 ->orWhereHas('members', function ($inner) use ($employeeId) {
                                     $inner->where('ticket_member.employee_id', $employeeId);
                                 });
-                        })
-                        ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
-                        ->get();
+                        });
                 }
+            }
+
+            $this->applyTicketListFilters($query, $request);
+            $myStats = $this->buildTicketListStats($query);
+            $this->applyCardStatusFilter($query, $request);
+            $this->applyTicketListSort($query, $request);
+
+            $myMeta = null;
+            if ($request->filled('page')) {
+                $perPage    = max(1, min((int) $request->input('per_page', 200), 500));
+                $myPaginator = $query->paginate($perPage, ['*'], 'page', (int) $request->input('page'));
+                $tickets    = $myPaginator->getCollection();
+                $myMeta = [
+                    'current_page' => $myPaginator->currentPage(),
+                    'per_page'     => $myPaginator->perPage(),
+                    'total'        => $myPaginator->total(),
+                    'last_page'    => $myPaginator->lastPage(),
+                ];
+            } else {
+                $tickets = $query->get();
             }
 
             Log::info('My Tickets fetched', ['count' => $tickets->count()]);
@@ -1188,22 +1494,24 @@ class TicketController extends Controller
                 ->get()
                 ->groupBy('ticket_id');
 
+            // Batch-load semua pending confirmations sekaligus (hindari N+1)
+            $myConfirmationMap = DB::table('ticket_confirmation')
+                ->whereIn('ticket_id', $myTicketIds)
+                ->where('status', 'pending')
+                ->get()
+                ->groupBy('ticket_id');
+
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature, $myDeliverySupportMap, $myPausesByTicket) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature, $myDeliverySupportMap, $myPausesByTicket, $myConfirmationMap) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
                 // ✅ Hitung pending confirmations
-                $pendingCount = DB::table('ticket_confirmation')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->where('status', 'pending')
-                    ->count();
+                $myPendingConfirmations = $myConfirmationMap->get($ticket->ticket_id, collect());
+                $pendingCount           = $myPendingConfirmations->count();
 
                 // ✅ Get pending confirmation detail
-                $pendingConfirmation = DB::table('ticket_confirmation')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->where('status', 'pending')
-                    ->first();
+                $pendingConfirmation = $myPendingConfirmations->first();
 
                 return [
                     'ticket_id' => $ticket->ticket_id,
@@ -1271,6 +1579,8 @@ class TicketController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $ticketsData,
+                'meta' => $myMeta,
+                'stats' => $myStats,
                 'message' => 'My tickets retrieved successfully'
             ]);
             
@@ -1351,7 +1661,7 @@ class TicketController extends Controller
 
             $tickets = $scopedQuery
                 ->with(['customer.basicData'])
-                ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
+                ->orderBy('ticket.last_message_at', 'desc')
                 ->get(['ticket_id', 'ticket_number', 'customer_id', 'description']);
 
             $ticketIds = $tickets->pluck('ticket_id');
@@ -1438,7 +1748,7 @@ class TicketController extends Controller
      * separate from "My Ticket" and "All Ticket". Gated by the
      * 'ticket.unassigned' menu permission in Role & Menu Access.
      */
-    public function unassignedTickets()
+    public function unassignedTickets(Request $request)
     {
         try {
             $sessionUser = session('user');
@@ -1458,11 +1768,29 @@ class TicketController extends Controller
                 ], 403);
             }
 
-            $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
-                ->whereNull('is_hidden')
-                ->whereNull('ticket_lead_id')
-                ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                ->get();
+            $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                ->whereNull('ticket.is_hidden')
+                ->whereNull('ticket.ticket_lead_id');
+
+            $this->applyTicketListFilters($query, $request);
+            $unassignedStats = $this->buildTicketListStats($query);
+            $this->applyCardStatusFilter($query, $request);
+            $this->applyTicketListSort($query, $request);
+
+            $unassignedMeta = null;
+            if ($request->filled('page')) {
+                $perPage           = max(1, min((int) $request->input('per_page', 200), 500));
+                $unassignedPaginator = $query->paginate($perPage, ['*'], 'page', (int) $request->input('page'));
+                $tickets           = $unassignedPaginator->getCollection();
+                $unassignedMeta = [
+                    'current_page' => $unassignedPaginator->currentPage(),
+                    'per_page'     => $unassignedPaginator->perPage(),
+                    'total'        => $unassignedPaginator->total(),
+                    'last_page'    => $unassignedPaginator->lastPage(),
+                ];
+            } else {
+                $tickets = $query->get();
+            }
 
             Log::info('Unassigned Tickets fetched', ['count' => $tickets->count(), 'employee_id' => $sessionUser['id']]);
 
@@ -1510,19 +1838,20 @@ class TicketController extends Controller
                 ->get()
                 ->groupBy('ticket_id');
 
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $readAtMap, $canReadFeature, $deliverySupportMap, $pausesByTicket) {
+            // Batch-load semua pending confirmations sekaligus (hindari N+1)
+            $confirmationMap = DB::table('ticket_confirmation')
+                ->whereIn('ticket_id', $ticketIds)
+                ->where('status', 'pending')
+                ->get()
+                ->groupBy('ticket_id');
+
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $readAtMap, $canReadFeature, $deliverySupportMap, $pausesByTicket, $confirmationMap) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
-                $pendingCount = DB::table('ticket_confirmation')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->where('status', 'pending')
-                    ->count();
-
-                $pendingConfirmation = DB::table('ticket_confirmation')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->where('status', 'pending')
-                    ->first();
+                $pendingConfirmations = $confirmationMap->get($ticket->ticket_id, collect());
+                $pendingCount         = $pendingConfirmations->count();
+                $pendingConfirmation  = $pendingConfirmations->first();
 
                 return [
                     'ticket_id' => $ticket->ticket_id,
@@ -1588,6 +1917,8 @@ class TicketController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $ticketsData,
+                'meta' => $unassignedMeta,
+                'stats' => $unassignedStats,
                 'message' => 'Unassigned tickets retrieved successfully'
             ]);
 
@@ -1675,7 +2006,7 @@ class TicketController extends Controller
             }
 
             // Buat confirmation request
-            DB::table('ticket_confirmation')->insert([
+            $confirmationId = DB::table('ticket_confirmation')->insertGetId([
                 'ticket_id' => $id,
                 'employee_id' => $employeeId,
                 'member_ids' => json_encode($request->member_ids ?? []),
@@ -1684,6 +2015,23 @@ class TicketController extends Controller
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
+
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketConfirmation',
+                auditableId: $confirmationId,
+                event: 'created',
+                recordLabel: "Confirmation for Ticket #{$ticket->ticket_number}",
+                description: "requested to take Ticket — Ticket #{$ticket->ticket_number}",
+                old: null,
+                new: [
+                    'ticket_id' => $id,
+                    'employee_id' => $employeeId,
+                    'member_ids' => $request->member_ids ?? [],
+                    'man_days' => $request->man_days,
+                    'status' => 'pending',
+                ],
+            );
 
             return response()->json([
                 'success' => true,
@@ -1820,8 +2168,10 @@ class TicketController extends Controller
                     'start_date'     => now(),
                 ]);
 
-                // Attach members
+                // Attach members — sync() is a pivot-table operation, it never instantiates
+                // TicketMember or fires its model events, so it needs an explicit audit call below.
                 $memberIds = json_decode($confirmation->member_ids, true);
+                $oldMemberIds = $ticket->members()->pluck('employee.employee_id')->all();
                 if ($memberIds) {
                     $ticket->members()->sync($memberIds);
                 }
@@ -1835,6 +2185,30 @@ class TicketController extends Controller
                         'confirmed_at' => now(),
                         'updated_at' => now()
                     ]);
+
+                if ($memberIds) {
+                    AuditLog::recordAction(
+                        module: 'Ticket',
+                        auditableType: 'TicketMember',
+                        auditableId: $ticket->ticket_id,
+                        event: 'updated',
+                        recordLabel: "Ticket #{$ticket->ticket_number} members",
+                        description: "confirmed assignment and synced members on Ticket — Ticket #{$ticket->ticket_number}",
+                        old: ['member_ids' => $oldMemberIds],
+                        new: ['member_ids' => $memberIds],
+                    );
+                }
+
+                AuditLog::recordAction(
+                    module: 'Ticket',
+                    auditableType: 'TicketConfirmation',
+                    auditableId: $confirmationId,
+                    event: 'updated',
+                    recordLabel: "Confirmation for Ticket #{$ticket->ticket_number}",
+                    description: "confirmed take-ticket request on Ticket — Ticket #{$ticket->ticket_number}",
+                    old: ['status' => 'pending'],
+                    new: ['status' => 'confirmed', 'confirmed_by' => $sessionUser['id']],
+                );
             } else {
                 // Reject
                 DB::table('ticket_confirmation')
@@ -1845,6 +2219,18 @@ class TicketController extends Controller
                         'confirmed_at' => now(),
                         'updated_at' => now()
                     ]);
+
+                $rejectedTicket = Ticket::find($confirmation->ticket_id);
+                AuditLog::recordAction(
+                    module: 'Ticket',
+                    auditableType: 'TicketConfirmation',
+                    auditableId: $confirmationId,
+                    event: 'updated',
+                    recordLabel: $rejectedTicket ? "Confirmation for Ticket #{$rejectedTicket->ticket_number}" : "Confirmation #{$confirmationId}",
+                    description: 'rejected take-ticket request' . ($rejectedTicket ? " on Ticket — Ticket #{$rejectedTicket->ticket_number}" : ''),
+                    old: ['status' => 'pending'],
+                    new: ['status' => 'rejected', 'confirmed_by' => $sessionUser['id']],
+                );
             }
 
             DB::commit();
@@ -2813,6 +3199,20 @@ class TicketController extends Controller
             $addedName = $added
                 ? trim(($added->basicData->first_name ?? '') . ' ' . ($added->basicData->last_name ?? ''))
                 : "Employee #{$empId}";
+
+            // is_active raw update / pivot attach() above never fires TicketMember's model
+            // events, so AuditObserver never runs for it — log it explicitly here instead.
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketMember',
+                auditableId: $ticket->ticket_id,
+                event: $isReactivation ? 'updated' : 'created',
+                recordLabel: "{$addedName} on Ticket #{$ticket->ticket_number}",
+                description: ($isReactivation ? 'reactivated member ' : 'added member ') . "{$addedName} on Ticket — Ticket #{$ticket->ticket_number}",
+                old: $isReactivation ? ['employee_id' => $empId, 'is_active' => false] : null,
+                new: ['employee_id' => $empId, 'is_active' => true],
+            );
+
             $this->sendMemberNotifications($ticket, $actorId, $actorName, $empId, $addedName, $isReactivation ? 'reactivated' : 'added');
 
             return response()->json([
@@ -2826,14 +3226,21 @@ class TicketController extends Controller
         }
     }
 
-    /** Format allMembers collection untuk response JSON */
+    /**
+     * Format allMembers collection untuk response JSON.
+     * Ticket lead ditampilkan terpisah sebagai PIC — row ticket_member miliknya
+     * (kalau ada, aktif/nonaktif) tidak diikutkan agar UI tidak menampilkan tombol
+     * "aktifkan kembali" yang pasti gagal karena PIC tidak boleh jadi member.
+     */
     private function formatAllMembers(Ticket $ticket): array
     {
-        return $ticket->allMembers->map(fn ($m) => [
-            'employee_id' => $m->employee_id,
-            'name'        => trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? '')),
-            'is_active'   => (bool) $m->pivot->is_active,
-        ])->values()->toArray();
+        return $ticket->allMembers
+            ->filter(fn ($m) => $m->employee_id != $ticket->ticket_lead_id)
+            ->map(fn ($m) => [
+                'employee_id' => $m->employee_id,
+                'name'        => trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? '')),
+                'is_active'   => (bool) $m->pivot->is_active,
+            ])->values()->toArray();
     }
 
     /**
@@ -2941,10 +3348,23 @@ class TicketController extends Controller
         }
 
         try {
-            // Sync members (akan replace existing)
+            // Sync members (akan replace existing) — sync() is a pivot-table operation,
+            // it never fires TicketMember's model events, so it needs an explicit audit call.
+            $oldMemberIds = $ticket->members()->pluck('employee.employee_id')->all();
             $ticket->members()->sync($request->member_ids);
             $ticket->refreshPlaceholderManDays();
             $ticket->syncDraftResolutionMembers();
+
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketMember',
+                auditableId: $ticket->ticket_id,
+                event: 'updated',
+                recordLabel: "Ticket #{$ticket->ticket_number} members",
+                description: "updated members on Ticket — Ticket #{$ticket->ticket_number}",
+                old: ['member_ids' => $oldMemberIds],
+                new: ['member_ids' => $request->member_ids],
+            );
 
             return response()->json([
                 'success' => true,
@@ -3073,6 +3493,17 @@ class TicketController extends Controller
                 ->where('employee_id', $employeeId)
                 ->update(['is_active' => false, 'updated_at' => now()]);
 
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketMember',
+                auditableId: $ticket->ticket_id,
+                event: 'updated',
+                recordLabel: ($memberName ?? "Employee #{$employeeId}") . " on Ticket #{$ticket->ticket_number}",
+                description: 'deactivated member ' . ($memberName ?? "#{$employeeId}") . " on Ticket — Ticket #{$ticket->ticket_number}",
+                old: ['employee_id' => (int) $employeeId, 'is_active' => true],
+                new: ['employee_id' => (int) $employeeId, 'is_active' => false],
+            );
+
             $ticket->refreshPlaceholderManDays();
             $ticket->syncDraftResolutionMembers();
             $ticket->load('allMembers.basicData');
@@ -3195,6 +3626,11 @@ class TicketController extends Controller
             if ($action === 'approve') {
                 $ticket = Ticket::findOrFail($changeRequest->ticket_id);
                 $memberIds = json_decode($changeRequest->member_ids, true);
+                $oldActiveMemberIds = DB::table('ticket_member')
+                    ->where('ticket_id', $ticket->ticket_id)
+                    ->where('is_active', true)
+                    ->pluck('employee_id')
+                    ->all();
 
                 if ($changeRequest->change_type === 'update') {
                     // Nonaktifkan semua yang tidak ada di list baru, aktifkan yang ada
@@ -3217,6 +3653,20 @@ class TicketController extends Controller
                         ->whereIn('employee_id', $memberIds)
                         ->update(['is_active' => false, 'updated_at' => now()]);
                 }
+
+                AuditLog::recordAction(
+                    module: 'Ticket',
+                    auditableType: 'TicketMember',
+                    auditableId: $ticket->ticket_id,
+                    event: 'updated',
+                    recordLabel: "Ticket #{$ticket->ticket_number} members",
+                    description: "approved member change request ({$changeRequest->change_type}) on Ticket — Ticket #{$ticket->ticket_number}",
+                    old: ['active_employee_ids' => $oldActiveMemberIds],
+                    new: [
+                        'change_type' => $changeRequest->change_type,
+                        'requested_employee_ids' => $memberIds,
+                    ],
+                );
 
                 $ticket->refreshPlaceholderManDays();
                 $ticket->syncDraftResolutionMembers();
@@ -3565,8 +4015,9 @@ class TicketController extends Controller
             ]);
 
             // Create planning entry if group exists
+            $planningId = null;
             if ($group) {
-                DB::table('delivery_support_planning')->insert([
+                $planningId = DB::table('delivery_support_planning')->insertGetId([
                     'delivery_support_id' => $supportId,
                     'phase_id' => $phase->id,
                     'parent_id' => $group->id,
@@ -3603,6 +4054,23 @@ class TicketController extends Controller
             // Note: The ticket table has a delivery_support relationship via DeliverySupport model
 
             DB::commit();
+
+            AuditLog::recordAction(
+                module: 'Delivery Support',
+                auditableType: 'DeliverySupport',
+                auditableId: $supportId,
+                event: 'updated',
+                recordLabel: $support->name ?? "Delivery Support #{$supportId}",
+                description: "assigned Ticket #{$ticket->ticket_number} to Delivery Support: " . ($support->name ?? "#{$supportId}"),
+                old: null,
+                new: [
+                    'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'activity_id' => $activityId,
+                    'planning_id' => $planningId,
+                    'phase_id' => $phase->id,
+                ],
+            );
 
             // Now that the ticket is linked to a delivery support, apply the SLA policy
             // (policy could not be matched at validation time because DS was not yet assigned)
@@ -3829,6 +4297,27 @@ class TicketController extends Controller
 
             DB::commit();
 
+            AuditLog::recordAction(
+                module: 'Delivery Support',
+                auditableType: 'DeliverySupport',
+                auditableId: $supportId,
+                event: 'created',
+                recordLabel: $request->name,
+                description: "added Delivery Support: {$request->name} (from Ticket #{$ticket->ticket_number})",
+                old: null,
+                new: [
+                    'name' => $request->name,
+                    'type' => $request->type,
+                    'support_method' => $request->support_method,
+                    'client_id' => $ticket->customer_id,
+                    'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'phase_id' => $phaseId,
+                    'group_id' => $groupId,
+                    'activity_id' => $activityId,
+                ],
+            );
+
             // Apply SLA policy now that ticket is linked to a delivery support
             app(\App\Services\SlaService::class)->syncPolicy($ticket);
 
@@ -3962,7 +4451,7 @@ class TicketController extends Controller
         try {
             $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData'])
                 ->where('is_hidden', 1)
-                ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                ->orderBy('last_message_at', 'desc')
                 ->get();
 
             $data = $tickets->map(function ($ticket) {

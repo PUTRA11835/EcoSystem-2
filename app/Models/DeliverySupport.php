@@ -4,11 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class DeliverySupport extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
     use \App\Models\Concerns\HasOneDriveShareLink;
+
+    protected static ?string $auditModule = 'Delivery Support';
 
     protected $table = 'delivery_support';
 
@@ -101,6 +104,12 @@ class DeliverySupport extends Model
     public function supportManagers()
     {
         return $this->belongsToMany(Employee::class, 'delivery_support_managers', 'delivery_support_id', 'employee_id', 'id', 'employee_id')
+            ->withTimestamps();
+    }
+
+    public function modules()
+    {
+        return $this->belongsToMany(Module::class, 'delivery_support_modules', 'delivery_support_id', 'module_id')
             ->withTimestamps();
     }
 

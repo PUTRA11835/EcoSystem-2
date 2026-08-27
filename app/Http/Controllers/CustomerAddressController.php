@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -9,6 +10,16 @@ use Illuminate\Support\Facades\Validator;
 
 class CustomerAddressController extends Controller
 {
+    /**
+     * Human-readable label for an address row, used by audit log entries.
+     */
+    private function addressLabel($city, $street, $addressId): string
+    {
+        $label = trim(collect([$city, $street])->filter()->implode(', '));
+
+        return $label !== '' ? $label : "Address #{$addressId}";
+    }
+
     /**
      * Sync customer.email dari alamat pertama yang punya email.
      * Dipanggil setelah create/update/delete alamat.
@@ -173,7 +184,7 @@ class CustomerAddressController extends Controller
                 ], 404);
             }
 
-            $addressId = DB::table('customer_address')->insertGetId([
+            $addressData = [
                 'customer_id' => $customerId,
                 'address_type' => $request->address_type,
                 'country' => $request->country,
@@ -202,9 +213,24 @@ class CustomerAddressController extends Controller
                 'valid_to' => $request->valid_to,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
+
+            $addressId = DB::table('customer_address')->insertGetId($addressData);
 
             $this->syncCustomerEmail((int) $customerId);
+
+            $label = $this->addressLabel($request->city, $request->street, $addressId);
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerAddress's own $auditModule so these rows group together
+                auditableType: 'CustomerAddress',
+                auditableId: $addressId,
+                event: 'created',
+                recordLabel: $label,
+                description: "added Customer Address: {$label} — Customer #{$customerId}",
+                old: null,
+                new: $addressData,
+            );
 
             Log::info('=== API: CUSTOMER ADDRESS CREATED SUCCESSFULLY ===', [
                 'address_id' => $addressId
@@ -277,37 +303,45 @@ class CustomerAddressController extends Controller
         }
 
         try {
+            // Snapshot before update — needed for the audit log entry below.
+            $existingAddress = DB::table('customer_address')
+                ->where('customer_id', $customerId)
+                ->where('address_id', $addressId)
+                ->first();
+
+            $updateData = [
+                'address_type' => $request->address_type,
+                'country' => $request->country,
+                'region' => $request->region,
+                'city' => $request->city,
+                'district' => $request->district,
+                'rural_urban_village' => $request->rural_urban_village,
+                'street' => $request->street,
+                'house_number' => $request->house_number,
+                'building_name' => $request->building_name,
+                'full_address' => $request->full_address,
+                'postal_code' => $request->postal_code,
+                'language' => $request->language,
+                'cell_phone_country' => $request->cell_phone_country,
+                'telephone_country' => $request->telephone_country,
+                'fax_country' => $request->fax_country,
+                'email' => $request->email,
+                'website' => $request->website,
+                'preferred_communication' => $request->preferred_communication,
+                'cell_phone' => $request->cell_phone,
+                'telephone' => $request->telephone,
+                'fax' => $request->fax,
+                'telephone_extension' => $request->telephone_extension,
+                'fax_extension' => $request->fax_extension,
+                'valid_from' => $request->valid_from,
+                'valid_to' => $request->valid_to,
+                'updated_at' => now(),
+            ];
+
             $updated = DB::table('customer_address')
                 ->where('customer_id', $customerId)
                 ->where('address_id', $addressId)
-                ->update([
-                    'address_type' => $request->address_type,
-                    'country' => $request->country,
-                    'region' => $request->region,
-                    'city' => $request->city,
-                    'district' => $request->district,
-                    'rural_urban_village' => $request->rural_urban_village,
-                    'street' => $request->street,
-                    'house_number' => $request->house_number,
-                    'building_name' => $request->building_name,
-                    'full_address' => $request->full_address,
-                    'postal_code' => $request->postal_code,
-                    'language' => $request->language,
-                    'cell_phone_country' => $request->cell_phone_country,
-                    'telephone_country' => $request->telephone_country,
-                    'fax_country' => $request->fax_country,
-                    'email' => $request->email,
-                    'website' => $request->website,
-                    'preferred_communication' => $request->preferred_communication,
-                    'cell_phone' => $request->cell_phone,
-                    'telephone' => $request->telephone,
-                    'fax' => $request->fax,
-                    'telephone_extension' => $request->telephone_extension,
-                    'fax_extension' => $request->fax_extension,
-                    'valid_from' => $request->valid_from,
-                    'valid_to' => $request->valid_to,
-                    'updated_at' => now(),
-                ]);
+                ->update($updateData);
 
             if ($updated === 0) {
                 return response()->json([
@@ -317,6 +351,19 @@ class CustomerAddressController extends Controller
             }
 
             $this->syncCustomerEmail((int) $customerId);
+
+            $label = $this->addressLabel($request->city, $request->street, $addressId);
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerAddress's own $auditModule so these rows group together
+                auditableType: 'CustomerAddress',
+                auditableId: $addressId,
+                event: 'updated',
+                recordLabel: $label,
+                description: "updated Customer Address: {$label} — Customer #{$customerId}",
+                old: (array) $existingAddress,
+                new: $updateData,
+            );
 
             Log::info('=== API: CUSTOMER ADDRESS UPDATED SUCCESSFULLY ===');
 
@@ -349,6 +396,12 @@ class CustomerAddressController extends Controller
         ]);
 
         try {
+            // Snapshot before delete — needed for the audit log entry below.
+            $existingAddress = DB::table('customer_address')
+                ->where('customer_id', $customerId)
+                ->where('address_id', $addressId)
+                ->first();
+
             $deleted = DB::table('customer_address')
                 ->where('customer_id', $customerId)
                 ->where('address_id', $addressId)
@@ -362,6 +415,19 @@ class CustomerAddressController extends Controller
             }
 
             $this->syncCustomerEmail((int) $customerId);
+
+            $label = $this->addressLabel($existingAddress->city ?? null, $existingAddress->street ?? null, $addressId);
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerAddress's own $auditModule so these rows group together
+                auditableType: 'CustomerAddress',
+                auditableId: $addressId,
+                event: 'deleted',
+                recordLabel: $label,
+                description: "deleted Customer Address: {$label} — Customer #{$customerId}",
+                old: (array) $existingAddress,
+                new: null,
+            );
 
             Log::info('=== API: CUSTOMER ADDRESS DELETED SUCCESSFULLY ===');
 

@@ -57,12 +57,20 @@ class TicketViewController extends Controller
 
         $modules = Module::active()->orderBy('name')->get(['id', 'name'])->toArray();
 
+        // Tab "Ticket Modul" hanya relevan untuk employee yang jadi lead di
+        // minimal satu module — dicek di sini (bukan lewat menu permission)
+        // karena ini murni data, bukan keputusan role.
+        $isModuleLead = $employee
+            ? \App\Models\ModuleLead::where('employee_id', $employee->employee_id)->exists()
+            : false;
+
         return view('ticket.index', [
             'user'               => $user,
             'customers'          => $customers,
             'currentEmployeeId'  => $user->id,
             'isExternalEmployee' => $isExternalEmployee,
             'modules'            => $modules,
+            'isModuleLead'       => $isModuleLead,
         ]);
     }
 

@@ -7,6 +7,7 @@ use App\Enums\EmployeeGroup;
 use App\Enums\EmployeeSubgroup;
 use App\Enums\HomeBase;
 use App\Enums\PersonnelArea;
+use App\Enums\PersonnelSubarea;
 use App\Enums\RoleId;
 use App\Models\Department;
 use App\Models\Grade;
@@ -25,6 +26,48 @@ class AppServiceProvider extends ServiceProvider
         if (env('OPENSSL_CONF') && !getenv('OPENSSL_CONF')) {
             putenv('OPENSSL_CONF=' . env('OPENSSL_CONF'));
         }
+
+        $this->app->singleton(\Anthropic\Client::class, function () {
+            // anthropic-ai/sdk's own `timeout` RequestOption is advisory-only — it is
+            // never read by the SDK, enforcement is entirely up to whatever PSR-18
+            // client gets auto-discovered (see vendor/anthropic-ai/sdk/src/RequestOptions.php).
+            // That auto-discovery resolves to a bare `new GuzzleHttp\Client()`, whose
+            // default `timeout`/`connect_timeout` are both 0 (wait forever). A slow or
+            // stalled Anthropic response (e.g. the Agent Skills code-execution container
+            // path used by AiTicketAnalyzerService) then hangs the PHP process/worker
+            // indefinitely instead of failing. Pass an explicit Guzzle transporter with
+            // real bounds so a stuck call fails with a catchable exception instead.
+            // 600s matches the SDK's own documented "intended default" (see the
+            // RequestOptions docblock above) — restoring that intent rather than
+            // inventing a shorter arbitrary bound, so existing long-running streaming
+            // turns (AiChatService/AiResearchService tool loops) keep the headroom
+            // they always assumed they had.
+            return new \Anthropic\Client(
+                apiKey: config('services.anthropic.api_key'),
+                requestOptions: [
+                    'transporter' => new \GuzzleHttp\Client([
+                        'connect_timeout' => 15,
+                        'timeout' => 600,
+                    ]),
+                ],
+            );
+        });
+
+        // Sama alasannya dengan binding Anthropic\Client di atas: openai-php/client
+        // mengandalkan PSR-18 HTTP Client Discovery bila tidak diberi httpClient
+        // eksplisit, yang berujung ke `new GuzzleHttp\Client()` tanpa batas waktu.
+        // Server tool web_search & giliran streaming panjang butuh timeout eksplisit
+        // supaya panggilan yang macet gagal dengan exception yang bisa ditangkap,
+        // bukan menggantung worker PHP selamanya.
+        $this->app->singleton(\OpenAI\Client::class, function () {
+            return \OpenAI::factory()
+                ->withApiKey((string) config('services.openai.api_key'))
+                ->withHttpClient(new \GuzzleHttp\Client([
+                    'connect_timeout' => 15,
+                    'timeout' => 600,
+                ]))
+                ->make();
+        });
     }
 
     public function boot(): void
@@ -66,6 +109,7 @@ class AppServiceProvider extends ServiceProvider
                      ->with('departmentOptions', $departmentOptions)
                      ->with('divisionOptions', Division::options())
                      ->with('personnelAreaOptions', PersonnelArea::options())
+                     ->with('personnelSubareaOptions', PersonnelSubarea::options())
                      ->with('employeeGroupOptions', EmployeeGroup::options())
                      ->with('employeeSubgroupOptions', EmployeeSubgroup::options());
             }

@@ -9,6 +9,17 @@
       .edit    → boleh mengubah data yang sudah ada.
       .manage  → boleh menambah & menghapus data.
 
+    Beberapa section memecah hapus jadi aksi sendiri karena role yang boleh
+    menghapus tidak sama dengan yang boleh menambah:
+
+      .manage  → boleh menambah (label menu jadi "Create")
+      .delete  → boleh menghapus  (mis. `delivery-project.team.delete`)
+
+    Section seperti itu menulis `data-perm-delete` juga. Skrip di bawah TIDAK
+    memakainya (tombol hapusnya ada di toolbar mengambang, di luar <section>) —
+    atributnya penanda supaya izinnya terbaca dari markup; pemagarannya ada di
+    view masing-masing lewat @if($can(...)) / flag JS.
+
     Tiap <section> menandai izinnya lewat atribut:
 
       <section id="team"

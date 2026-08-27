@@ -1434,26 +1434,45 @@ class TicketMessageController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'message_html'            => 'nullable|string',
-            'remove_attachment_ids'   => 'nullable|array',
-            'remove_attachment_ids.*' => 'integer',
-            'attachments'             => 'nullable|array',
-            'attachments.*'           => 'file|max:10240',
+            'message_html'             => 'nullable|string',
+            'remove_attachment_ids'    => 'nullable|array',
+            'remove_attachment_ids.*'  => 'integer',
+            'attachments'              => 'nullable|array',
+            'attachments.*'            => 'file|max:10240',
+            'mentioned_employee_ids'   => 'nullable|array',
+            'mentioned_employee_ids.*' => 'integer',
+            'mentioned_role_ids'       => 'nullable|array',
+            'mentioned_role_ids.*'     => 'integer',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
+        // Mentions yang sudah ada di note sebelum diedit — dipakai untuk diff
+        // (union ke kolom, dan supaya orang yang sudah pernah di-mention tidak
+        // dinotifikasi ulang tiap kali note ini diedit).
+        $originalEmployeeIds = $message->mentioned_employee_ids ?? [];
+        $originalRoleIds     = $message->mentioned_role_ids ?? [];
+        $incomingEmployeeIds = array_map('intval', $request->input('mentioned_employee_ids', []));
+        $incomingRoleIds     = array_map('intval', $request->input('mentioned_role_ids', []));
+        $newEmployeeIds      = array_values(array_diff($incomingEmployeeIds, $originalEmployeeIds));
+        $newRoleIds          = array_values(array_diff($incomingRoleIds, $originalRoleIds));
+
         try {
-            DB::transaction(function () use ($request, $message, $ticketId, $sessionUser) {
+            DB::transaction(function () use ($request, $message, $ticketId, $sessionUser, $originalEmployeeIds, $originalRoleIds, $incomingEmployeeIds, $incomingRoleIds) {
                 $messageHtml  = MessageHtmlSanitizerService::sanitize($request->input('message_html', ''));
                 $messagePlain = trim(strip_tags($messageHtml));
 
+                $mergedEmployeeIds = array_values(array_unique(array_merge($originalEmployeeIds, $incomingEmployeeIds)));
+                $mergedRoleIds     = array_values(array_unique(array_merge($originalRoleIds, $incomingRoleIds)));
+
                 $message->update([
-                    'message'      => $messagePlain,
-                    'message_html' => $messageHtml,
-                    'edited_at'    => now(),
+                    'message'                => $messagePlain,
+                    'message_html'           => $messageHtml,
+                    'edited_at'               => now(),
+                    'mentioned_employee_ids' => !empty($mergedEmployeeIds) ? $mergedEmployeeIds : null,
+                    'mentioned_role_ids'     => !empty($mergedRoleIds) ? $mergedRoleIds : null,
                 ]);
 
                 // Remove attachments.
@@ -1488,6 +1507,22 @@ class TicketMessageController extends Controller
 
             $message->refresh();
             $message->load('attachments');
+
+            // Notifikasi mention hanya untuk employee/role yang BARU ditambahkan saat edit ini
+            // (yang sudah di-mention sebelumnya sudah dapat notifikasi saat note pertama dibuat).
+            if (!empty($newEmployeeIds) || !empty($newRoleIds)) {
+                $ticket = Ticket::find($ticketId);
+                if ($ticket) {
+                    $this->createMentionNotifications(
+                        $message,
+                        $ticket,
+                        (int) $sessionUser['id'],
+                        $sessionUser['name'] ?? 'Helpdesk Support',
+                        $newEmployeeIds,
+                        $newRoleIds
+                    );
+                }
+            }
 
             return response()->json([
                 'success' => true,

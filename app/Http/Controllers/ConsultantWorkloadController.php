@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Models\AuditLog;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Employee;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 
 class ConsultantWorkloadController extends Controller
 {
-    private const ACTIVE_STATUSES = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
+    public const ACTIVE_STATUSES = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
 
     public function index()
     {
@@ -32,6 +33,7 @@ class ConsultantWorkloadController extends Controller
             $consultants = Employee::with(['basicData', 'roles'])
                 ->where('is_active', true)
                 ->withAnyRole([RoleId::DELIVERY_SUPPORT_USER->value])
+                ->whereHas('basicData', fn ($q) => $q->byPosition('SAP CONSULTANT'))
                 ->get();
 
             // Pre-load weighted progress per ticket dari consultant_mandays_detail
@@ -80,6 +82,8 @@ class ConsultantWorkloadController extends Controller
                     'eci'          => $emp->eci,
                     'name'         => $name,
                     'roles'        => $roles,
+                    'personnel_subarea'   => $emp->basicData?->personnel_subarea,
+                    'current_assignment'  => $emp->basicData?->current_assignment,
                     'modules'      => $modulesMap[$emp->employee_id] ?? '-',
                     'ticket_count' => $ticketCount,
                     'total_days'   => round($totalAllocMd, 2),
@@ -270,6 +274,7 @@ class ConsultantWorkloadController extends Controller
                 'eq.qualification_modules',
                 'cmd.mandays',
                 'cmd.approved_mandays',
+                'cmd.additional_mandays',
                 'cmd.approved_additional',
                 'cmd.progress_percentage as consultant_progress',
                 'cmd.progress_note as consultant_progress_note',
@@ -283,10 +288,14 @@ class ConsultantWorkloadController extends Controller
             $tid        = (int) $row->ticket_id;
             $isApproved = $row->proposal_status === 'approved';
 
-            // Sebelum Head approve, MD yang ditampilkan tetap placeholder (1 MD, tanpa
-            // additional) — biar tidak ikut berubah begitu PIC edit draft proposal-nya.
-            $mandays     = $isApproved ? (float) ($row->approved_mandays ?? 0) : 1.0;
-            $additional  = $isApproved ? (float) $row->approved_additional : 0.0;
+            // Sebelum Head approve, tampilkan MD yang diajukan PIC (cmd.mandays) —
+            // sengaja ikut berubah live seiring draft proposal di-edit, supaya Alloc Days
+            // dan turunannya (remain, workload %, load score) mencerminkan proposal terkini.
+            $mandays     = $isApproved ? (float) ($row->approved_mandays ?? 0) : (float) ($row->mandays ?? 0);
+            // Sama untuk additional: sebelum approve pakai angka yang diajukan (additional_mandays),
+            // bukan 0 — beberapa proposal murni pengajuan top-up (mandays=0, additional_mandays>0),
+            // jadi kalau di-nol-kan Alloc Days tampak 0.00 padahal ada draft yang menunggu approval.
+            $additional  = $isApproved ? (float) $row->approved_additional : (float) ($row->additional_mandays ?? 0);
             $effectiveMd = $mandays + $additional;
             $consultantPct = (float) ($row->consultant_progress ?? 0);
             $remainShare = round($effectiveMd * (1 - $consultantPct / 100), 2);
@@ -437,6 +446,14 @@ class ConsultantWorkloadController extends Controller
                 ], 403);
             }
 
+            // Snapshot "before" progress fields for every detail about to be touched. The
+            // update below is an Eloquent mass update via query builder
+            // (ConsultantMandaysDetail::where(...)->update(...)) — Laravel never fires model
+            // events for that (only single-instance $model->save() does), so AuditObserver
+            // (wired via ConsultantMandaysDetail's Auditable trait) never sees it.
+            $detailsBeforeUpdate = ConsultantMandaysDetail::whereIn('id', $ownDetailIds)->get()->keyBy('id');
+            $actorName = session('user.name');
+
             foreach ($validated['progresses'] as $item) {
                 ConsultantMandaysDetail::where('id', $item['detail_id'])->update([
                     'progress_percentage' => $item['progress_percentage'],
@@ -444,6 +461,28 @@ class ConsultantWorkloadController extends Controller
                     'progress_updated_at' => $now,
                     'progress_updated_by' => $empId,
                 ]);
+
+                $beforeDetail = $detailsBeforeUpdate->get($item['detail_id']);
+                if ($beforeDetail) {
+                    $employeeLabel = $actorName ?: "Employee #{$empId}";
+
+                    AuditLog::recordAction(
+                        module: 'Mandays', // matches ConsultantMandaysDetail::$auditModule so these rows group together
+                        auditableType: 'ConsultantMandaysDetail',
+                        auditableId: $beforeDetail->id,
+                        event: 'updated',
+                        recordLabel: $employeeLabel,
+                        description: "updated Consultant Mandays Detail progress: {$item['progress_percentage']}% for {$employeeLabel}",
+                        old: [
+                            'progress_percentage' => $beforeDetail->progress_percentage,
+                            'progress_note'       => $beforeDetail->progress_note,
+                        ],
+                        new: [
+                            'progress_percentage' => $item['progress_percentage'],
+                            'progress_note'       => $item['progress_note'] ?? null,
+                        ],
+                    );
+                }
             }
 
             // Recalculate ticket.progress_percentage sebagai rata-rata sederhana progress

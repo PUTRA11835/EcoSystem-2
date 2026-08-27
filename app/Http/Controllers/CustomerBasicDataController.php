@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -138,9 +139,10 @@ class CustomerBasicDataController extends Controller
         DB::beginTransaction();
 
         try {
-            // Check if customer exists
-            $customerExists = DB::table('customer')->where('customer_id', $customerId)->exists();
-            if (!$customerExists) {
+            // Check if customer exists — kept as the full row (not just exists()) since
+            // it also doubles as the "before" snapshot for the audit log entry below.
+            $oldCustomer = DB::table('customer')->where('customer_id', $customerId)->first();
+            if (!$oldCustomer) {
                 DB::rollBack();
                 return response()->json([
                     'success' => false,
@@ -289,6 +291,27 @@ class CustomerBasicDataController extends Controller
 
             DB::commit();
 
+            $newCustomerFields = [
+                'customer_code'      => $request->filled('customer_code') ? strtoupper($request->customer_code) : ($oldCustomer->customer_code ?? null),
+                'type'               => $request->filled('type') ? $request->type : ($oldCustomer->type ?? null),
+                'domain'             => $request->has('domain') ? \App\Models\Customer::normalizeDomain($request->domain) : ($oldCustomer->domain ?? null),
+                'email'              => $request->has('email') ? ($request->email ?: null) : ($oldCustomer->email ?? null),
+                'parent_customer_id' => $request->has('parent_customer_id') ? ($request->parent_customer_id ?: null) : ($oldCustomer->parent_customer_id ?? null),
+                'customer_group_id'  => $hasGroupField ? $groupId : ($oldCustomer->customer_group_id ?? null),
+            ];
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches Customer/CustomerBasicData's own $auditModule so these rows group together
+                auditableType: 'Customer',
+                auditableId: $customerId,
+                event: $action === 'create' ? 'created' : 'updated',
+                recordLabel: $data['name_1'] ?? ($oldCustomer->customer_code ?? "Customer #{$customerId}"),
+                description: ($action === 'create' ? 'added Business Partner: ' : 'updated Business Partner: ')
+                    . ($data['name_1'] ?? '') . ' (' . ($newCustomerFields['customer_code'] ?? '-') . ')',
+                old: $action === 'create' ? null : array_merge((array) $oldCustomer, (array) ($existingData ?: [])),
+                new: array_merge($newCustomerFields, $data),
+            );
+
             Log::info('=== API: CUSTOMER BASIC DATA STORED SUCCESSFULLY ===', [
                 'customer_id' => $customerId,
                 'action' => $action,
@@ -332,6 +355,9 @@ class CustomerBasicDataController extends Controller
         DB::beginTransaction();
 
         try {
+            // Snapshot before delete — needed for the audit log entry below.
+            $existingData = DB::table('customer_basic_data')->where('customer_id', $customerId)->first();
+
             $deleted = DB::table('customer_basic_data')
                 ->where('customer_id', $customerId)
                 ->delete();
@@ -354,6 +380,17 @@ class CustomerBasicDataController extends Controller
             ]);
 
             DB::commit();
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches Customer/CustomerBasicData's own $auditModule so these rows group together
+                auditableType: 'CustomerBasicData',
+                auditableId: $customerId,
+                event: 'deleted',
+                recordLabel: $existingData->name_1 ?? "Customer #{$customerId}",
+                description: 'deleted Business Partner Basic Data: ' . ($existingData->name_1 ?? "Customer #{$customerId}"),
+                old: (array) $existingData,
+                new: null,
+            );
 
             Log::info('=== API: CUSTOMER BASIC DATA DELETED SUCCESSFULLY ===');
 

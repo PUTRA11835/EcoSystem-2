@@ -11,10 +11,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\CustomerCredential;
 use Illuminate\Support\Facades\DB;
+use App\Traits\Auditable;
 
 class Customer extends Authenticatable
 {
-    use HasApiTokens, Notifiable;
+    use HasApiTokens, Notifiable, Auditable;
+
+    protected static ?string $auditModule = 'Customer';
 
     /**
      * Business Partner type. Satu master (`customer`) dipakai untuk dua jenis

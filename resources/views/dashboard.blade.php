@@ -1841,6 +1841,26 @@
             document.getElementById('reportingDropdown').classList.toggle('hidden', !isReportingDropdownOpen);
         }
 
+        // Sub-grup Reporting (Project / Support). State dibaca dari DOM — bukan
+        // variabel — supaya tetap sinkron dengan kondisi awal yang di-render Blade
+        // (grup yang memuat halaman aktif dibuka otomatis).
+        function _toggleReportingGroup(submenuId, chevronId) {
+            const submenu = document.getElementById(submenuId);
+            const chevron = document.getElementById(chevronId);
+            if (!submenu) return;
+            const isOpen = !submenu.classList.contains('hidden');
+            submenu.classList.toggle('hidden', isOpen);
+            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
+        }
+
+        function toggleReportingProjectDropdown() {
+            _toggleReportingGroup('reportingProjectDropdown', 'reportingProjectChevron');
+        }
+
+        function toggleReportingSupportDropdown() {
+            _toggleReportingGroup('reportingSupportDropdown', 'reportingSupportChevron');
+        }
+
         function toggleDeliveryDropdown() {
             isDeliveryDropdownOpen = !isDeliveryDropdownOpen;
             document.getElementById('deliveryDropdown').classList.toggle('hidden', !isDeliveryDropdownOpen);
