@@ -157,6 +157,8 @@ let meta = {};
 let currentStagingId = null;
 let currentStagingData = null;
 let _lastAiAnalysis = null;
+let _aiProgressTimer = null;
+let _aiProgressStart = null;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -735,12 +737,13 @@ function fillModal(s) {
             selectStagingDs(dsOptions[0].id, dsOptions[0].name);
         }
 
-        // Analisa AI: otomatis, sekali seumur tiket (lihat komentar di
+        // Analisa AI: otomatis sekali saat modal dibuka pertama kali, admin
+        // bisa memicu ulang manual lewat tombol Re-analyze (lihat komentar di
         // aiAnalysisPanelHtml()). Kalau sudah ada hasil tersimpan, isi field
         // yang masih kosong. Kalau belum pernah dicoba sama sekali (status
         // null), picu sekarang — panel sudah terlanjur nampilin state loading
         // dari aiAnalysisPanelHtml() di atas. Status 'pending'/'failed' TIDAK
-        // memicu apa pun di sini (lihat catatan di aiAnalysisPanelHtml()).
+        // memicu apa pun di sini secara otomatis (lihat catatan di aiAnalysisPanelHtml()).
         _lastAiAnalysis = s.ai_analysis || null;
         if (s.ai_analysis) {
             autoFillEmptyFromAi(s.ai_analysis);
@@ -758,28 +761,56 @@ function fillModal(s) {
 
 // ─── AI Ticket Analyzer ───────────────────────────────────────────────────────
 
-// Analisa AI sekarang otomatis (dipicu saat modal validasi dibuka, lewat
-// fillModal() → runAiAnalysis()) dan HANYA SEKALI seumur tiket — tidak ada
-// tombol "Analisa"/"Re-analyze" lagi. Statusnya (kolom ai_analysis_status)
-// yang menentukan apa yang ditampilkan panel ini:
-//   null      → belum pernah dicoba (fillModal akan langsung memicu runAiAnalysis)
-//   pending   → sedang berjalan (request ini sendiri, atau tab/admin lain)
-//   completed → hasil sudah ada di s.ai_analysis
-//   failed    → sudah dicoba & gagal permanen, tidak ada jalan mengulang
+// Analisa AI otomatis dipicu saat modal validasi dibuka (fillModal() →
+// runAiAnalysis()) — tapi admin juga bisa memicu ulang secara sengaja lewat
+// tombol "Re-analyze" (muncul begitu ada hasil atau status failed) yang
+// memanggil runAiAnalysis(id, true).
+//
+// Urutan prioritas SENGAJA begini, bukan sekadar dua flag independen:
+//   1. status === 'pending'  → SEDANG berjalan (request ini atau tab/admin
+//      lain) — SELALU tampil loading & tombol Re-analyze disembunyikan,
+//      APAPUN isi s.ai_analysis. Awalnya urutan ini kebalik (hasResult
+//      dicek duluan) — akibatnya re-analyze pada tiket yang sudah punya
+//      hasil lama tetap menampilkan hasil lama itu SELAMA request berjalan,
+//      dan tombol Re-analyze tetap bisa diklik. User yang tidak melihat
+//      indikasi apa pun sedang terjadi lalu klik dua kali, dan klik kedua
+//      itu yang menabrak klaim atomic pertama (lihat
+///     StagingTicketController::analyze()) dengan pesan "already running".
+//   2. s.ai_analysis ada     → hasil tersedia (status completed, ATAU staging
+//      lama dari sebelum kolom ai_analysis_status ditambahkan — migration
+//      2026_08_24_000002 — yang punya ai_analysis terisi tapi status masih
+//      NULL, lihat staging #316).
+//   3. status === 'failed'   → gagal, tombol Re-analyze tersedia.
+//   4. lainnya (null, belum ada hasil) → belum dicoba, akan dipicu fillModal.
 function aiAnalysisPanelHtml(s) {
     const status = s.ai_analysis_status || null;
-    const timeNote = (status === 'completed' && s.ai_analysis_generated_at)
-        ? `<span class="text-[11px] text-gray-400 ml-2">Dianalisa ${timeAgo(s.ai_analysis_generated_at)}</span>`
+    const isRunning = 'pending' === status;
+    const hasResult = !isRunning && !!s.ai_analysis;
+    const timeNote = (hasResult && s.ai_analysis_generated_at)
+        ? `<span class="text-[11px] text-gray-400 ml-2">Analyzed ${timeAgo(s.ai_analysis_generated_at)}</span>`
+        : '';
+    const reanalyzeBtn = (hasResult || status === 'failed')
+        ? `<button type="button" onclick="runAiAnalysis(${s.id}, true)" class="ml-auto text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
+               <i class="fas fa-rotate-right text-[10px]"></i> Re-analyze
+           </button>`
         : '';
 
     let bodyHtml;
-    if ('completed' === status && s.ai_analysis) {
+    if (hasResult) {
         bodyHtml = renderAiAnalysisBody(s.ai_analysis);
     } else if ('failed' === status) {
-        bodyHtml = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> Analisa AI untuk tiket ini gagal dan tidak bisa diulang otomatis. Silakan isi klasifikasi (Type/Priority/Scale/Module) secara manual.</p>`;
+        bodyHtml = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> AI analysis failed for this ticket. Click Re-analyze to try again, or fill in the classification (Type/Priority/Scale/Module) manually.</p>`;
     } else {
-        // null (belum dicoba, akan dipicu fillModal) atau pending (sedang jalan)
-        bodyHtml = `<div class="flex items-center gap-2 text-sm text-gray-400 py-1"><i class="fas fa-spinner fa-spin"></i> Menganalisa tiket…</div>`;
+        // null (belum dicoba, akan dipicu fillModal) atau pending (sedang jalan).
+        // Progress bar-nya ESTIMASI (bukan progress asli dari provider — API
+        // ticket analysis bukan streaming), diisi lewat startAiProgressAnimation()
+        // yang jalan di luar re-render ini supaya tidak ke-reset tiap kali panel
+        // di-render ulang.
+        bodyHtml = `
+            <div class="flex items-center gap-2 text-sm text-gray-400 py-1"><i class="fas fa-spinner fa-spin"></i> Analyzing ticket…</div>
+            <div class="w-full h-1.5 bg-indigo-100 rounded-full overflow-hidden mt-2">
+                <div id="aiAnalysisProgressFill" class="h-full bg-indigo-500 transition-all duration-300 ease-out" style="width:2%"></div>
+            </div>`;
     }
 
     return `
@@ -788,6 +819,7 @@ function aiAnalysisPanelHtml(s) {
             <i class="fas fa-wand-magic-sparkles text-indigo-500 text-xs"></i>
             <span class="text-xs font-semibold text-indigo-700">AI Ticket Analyzer</span>
             ${timeNote}
+            ${reanalyzeBtn}
         </div>
         <div id="aiAnalysisBody" class="px-4 py-4">
             ${bodyHtml}
@@ -832,7 +864,7 @@ function renderAiAnalysisBody(data) {
                 <span class="shrink-0 w-5 h-5 mt-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center justify-center">${i + 1}</span>
                 <span class="${AI_BODY_CLS}">${escHtml(step)}</span>
             </li>`).join('')}</ol>`
-        : `<p class="${AI_BODY_CLS} text-gray-400">Tidak ada langkah spesifik dari AI.</p>`;
+        : `<p class="${AI_BODY_CLS} text-gray-400">No specific steps provided by AI.</p>`;
 
     // ── Risiko/catatan ──
     const risks = data.risks || [];
@@ -863,48 +895,139 @@ function renderAiAnalysisBody(data) {
             }).join('')}
         </div>`;
     } else if (data.suggested_module_name) {
-        assigneesInner = `<p class="text-sm text-gray-400">Belum ada Module Lead atau konsultan bersertifikasi modul <span class="font-semibold text-gray-500">${escHtml(data.suggested_module_name)}</span> yang terdaftar di sistem.</p>`;
+        assigneesInner = `<p class="text-sm text-gray-400">No Module Lead or certified consultant registered in the system for module <span class="font-semibold text-gray-500">${escHtml(data.suggested_module_name)}</span>.</p>`;
     } else {
-        assigneesInner = `<p class="text-sm text-gray-400">AI tidak menentukan modul yang jelas, jadi belum ada saran assignee.</p>`;
+        assigneesInner = `<p class="text-sm text-gray-400">AI did not identify a clear module, so no assignee suggestion is available.</p>`;
     }
 
     return `
         ${chipsHtml ? `<div class="flex flex-wrap items-center gap-1.5 mb-3">${chipsHtml}</div>` : ''}
         ${aiSection('Overview', `<p class="${AI_BODY_CLS}">${escHtml(data.overview || '-')}</p>`)}
-        ${data.root_cause_hypothesis ? aiSection('Dugaan Akar Masalah', `<p class="${AI_BODY_CLS}">${escHtml(data.root_cause_hypothesis)}</p>`) : ''}
-        ${aiSection('Langkah Penyelesaian', stepsHtml)}
-        ${risks.length ? aiSection('Catatan / Risiko', risksHtml) : ''}
+        ${data.root_cause_hypothesis ? aiSection('Root Cause Hypothesis', `<p class="${AI_BODY_CLS}">${escHtml(data.root_cause_hypothesis)}</p>`) : ''}
+        ${aiSection('Resolution Steps', stepsHtml)}
+        ${risks.length ? aiSection('Notes / Risks', risksHtml) : ''}
         ${aiSection('Suggested Assignee', assigneesInner)}
         <div class="pt-3 mt-3 border-t border-indigo-100/70">
             <button type="button" onclick="applyAiSuggestions()" class="text-xs font-semibold text-indigo-700 hover:underline">
-                <i class="fas fa-arrow-turn-down text-[10px]"></i> Apply suggestion ke form
+                <i class="fas fa-arrow-turn-down text-[10px]"></i> Apply suggestion to form
             </button>
         </div>`;
 }
 
 // Dipanggil OTOMATIS dari fillModal() saat modal validasi dibuka untuk tiket
-// yang belum pernah dianalisa — bukan dari tombol. Tidak ada parameter force:
-// endpoint-nya sendiri menolak dipanggil dua kali (lihat
-// StagingTicketController::analyze() — klaim atomic ai_analysis_status).
-async function runAiAnalysis(id) {
-    const body = document.getElementById('aiAnalysisBody');
+// yang belum pernah dianalisa, dan juga dipanggil MANUAL dari tombol
+// "Re-analyze" di panel (force=true) untuk memicu ulang setelah completed/
+// failed. Endpoint-nya sendiri yang menegakkan aturan klaim (lihat
+// StagingTicketController::analyze()) — force cuma dikirim sebagai niat,
+// server tetap menolak kalau ternyata sedang 'pending' di request lain.
+//
+// _aiAnalysisInFlight menjaga tab INI sendiri tidak menembak dua request
+// sekaligus buat tiket yang sama — insiden nyata: staging #316 dan #317
+// sama-sama sukses dianalisa (ada di audit log), TAPI ai_analysis_status
+// balik lagi ke 'pending' segera sesudahnya dan macet berjam-jam, pola yang
+// paling cocok dengan klik Re-analyze kedua menembak SELAGI klik pertama
+// masih berjalan (server sisi klaim atomic tetap benar — masalahnya baris
+// ini yang membiarkan tab yang sama memicu request kedua sama sekali).
+// Ini pelengkap, bukan pengganti, klaim atomic & stale-reclaim di server:
+// kalau tab LAIN atau admin lain yang memicu bersamaan, itu tetap ditangani
+// di sana.
+let _aiAnalysisInFlight = null;
+
+async function runAiAnalysis(id, force = false) {
+    if (_aiAnalysisInFlight === id) {
+        return;
+    }
+    _aiAnalysisInFlight = id;
+
+    if (currentStagingData && currentStagingData.id === id) {
+        currentStagingData.ai_analysis_status = 'pending';
+    }
+    refreshAiAnalysisPanel(id);
+    startAiProgressAnimation();
 
     try {
-        const res = await apiFetch(`/api/staging-tickets/${id}/analyze`, 'POST');
+        const res = await apiFetch(`/api/staging-tickets/${id}/analyze`, 'POST', force ? { force: true } : null);
         _lastAiAnalysis = res.data;
         if (currentStagingData && currentStagingData.id === id) {
             currentStagingData.ai_analysis = res.data;
             currentStagingData.ai_analysis_status = 'completed';
             currentStagingData.ai_analysis_generated_at = new Date().toISOString();
         }
-        if (body) body.innerHTML = renderAiAnalysisBody(res.data);
         autoFillEmptyFromAi(res.data);
+
+        // Snap progress bar ke 100% sekilas sebelum panel di-render ulang
+        // dengan hasil sebenarnya — cuma flourish visual, tidak mempengaruhi
+        // data (progress-nya sendiri sudah selalu estimasi, bukan real).
+        stopAiProgressAnimation();
+        const fillEl = document.getElementById('aiAnalysisProgressFill');
+        if (fillEl) fillEl.style.width = '100%';
+        await new Promise(resolve => setTimeout(resolve, 200));
+        refreshAiAnalysisPanel(id);
     } catch (e) {
+        stopAiProgressAnimation();
         if (currentStagingData && currentStagingData.id === id) {
             currentStagingData.ai_analysis_status = 'failed';
         }
-        if (body) body.innerHTML = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> ${escHtml(e.message || 'Analisa AI gagal. Silakan isi klasifikasi secara manual.')}</p>`;
+        // Refresh dulu (supaya header ikut ter-render ulang — kalau tidak,
+        // tombol Re-analyze tetap hilang karena disembunyikan saat status
+        // sempat 'pending' di atas), baru timpa isi body dengan pesan
+        // spesifik dari server (mis. rate limit/config) alih-alih pesan
+        // generik "gagal" dari aiAnalysisPanelHtml().
+        refreshAiAnalysisPanel(id);
+        const freshBody = document.getElementById('aiAnalysisBody');
+        if (freshBody) freshBody.innerHTML = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> ${escHtml(e.message || 'AI analysis failed. Please fill in the classification manually.')}</p>`;
+    } finally {
+        // WAJIB finally, bukan ditaruh lepas di akhir try/catch: harus tetap
+        // kelepas apa pun jalur keluarnya (sukses, gagal, atau exception tak
+        // terduga lain), atau tab ini tidak akan pernah bisa memicu
+        // analyze() lagi buat tiket ini sampai halaman di-reload.
+        _aiAnalysisInFlight = null;
     }
+}
+
+// Progress bar ESTIMASI (bukan progress asli dari provider — API ticket
+// analysis bukan streaming, jadi tidak ada angka progress nyata untuk
+// ditampilkan). Naik cepat di awal lalu melambat mendekati asimtot 92%
+// (kurva 1 - e^-t/tau) supaya tidak pernah terlihat "selesai" sebelum
+// respons beneran datang — endpoint-nya sendiri biasanya makan belasan
+// detik sampai ±1 menit tergantung effort/model yang aktif di AI Settings.
+// Interval jalan lepas dari siklus render aiAnalysisPanelHtml() supaya
+// tidak ke-reset tiap panel di-render ulang — cukup update elemen fill
+// lewat getElementById tiap tick, dan diam kalau elemennya sudah tidak ada
+// (modal ditutup/di-render ulang ke state lain).
+function startAiProgressAnimation() {
+    stopAiProgressAnimation();
+    _aiProgressStart = Date.now();
+
+    const TAU_MS = 18000;
+    const CAP_PCT = 92;
+
+    const tick = () => {
+        const el = document.getElementById('aiAnalysisProgressFill');
+        if (!el) return;
+        const elapsed = Date.now() - _aiProgressStart;
+        const pct = CAP_PCT * (1 - Math.exp(-elapsed / TAU_MS));
+        el.style.width = pct.toFixed(1) + '%';
+    };
+
+    tick();
+    _aiProgressTimer = setInterval(tick, 200);
+}
+
+function stopAiProgressAnimation() {
+    if (_aiProgressTimer) {
+        clearInterval(_aiProgressTimer);
+        _aiProgressTimer = null;
+    }
+}
+
+// Render ulang seluruh panel (header dengan tombol Re-analyze + body) —
+// dipakai setelah status berubah supaya tombol Re-analyze langsung
+// tampil/hilang sesuai status terbaru, bukan cuma isi body-nya.
+function refreshAiAnalysisPanel(id) {
+    if (!currentStagingData || currentStagingData.id !== id) return;
+    const panel = document.getElementById('aiAnalysisBody')?.closest('div.border-indigo-200');
+    if (panel) panel.outerHTML = aiAnalysisPanelHtml(currentStagingData);
 }
 
 // Isi field klasifikasi HANYA yang masih kosong — tidak menimpa input admin.
@@ -930,16 +1053,16 @@ function applyAiSuggestions() {
     setVal('approvePriority',   d.suggested_priority);
     setVal('approveScale',      d.suggested_scale);
     setVal('approveModule',     d.suggested_module_name);
-    showNotif('Saran AI diterapkan ke form.', 'success');
+    showNotif('AI suggestions applied to form.', 'success');
 }
 
 function timeAgo(iso) {
     if (!iso) return '';
     const diffSec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-    if (diffSec < 60) return 'barusan';
-    if (diffSec < 3600) return Math.floor(diffSec / 60) + ' menit lalu';
-    if (diffSec < 86400) return Math.floor(diffSec / 3600) + ' jam lalu';
-    return Math.floor(diffSec / 86400) + ' hari lalu';
+    if (diffSec < 60) return 'just now';
+    if (diffSec < 3600) return Math.floor(diffSec / 60) + ' min ago';
+    if (diffSec < 86400) return Math.floor(diffSec / 3600) + ' hr ago';
+    return Math.floor(diffSec / 86400) + ' d ago';
 }
 
 async function loadForCustomerOptions(parentId, selectedEndCustomerId) {

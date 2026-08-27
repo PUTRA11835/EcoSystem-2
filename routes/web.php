@@ -151,6 +151,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/consultant-assignment',        [\App\Http\Controllers\ReportingController::class, 'consultantAssignmentIndex'])->name('reporting.consultant-assignment')->middleware('menu:reporting.consultant-assignment');
     Route::get('/reporting/consultant-assignment/export', [\App\Http\Controllers\ReportingController::class, 'exportConsultantAssignment'])->name('reporting.consultant-assignment.export')->middleware('menu:reporting.consultant-assignment');
     Route::get('/reporting/diagram-report',              [\App\Http\Controllers\ReportingController::class, 'diagramReportIndex'])->name('reporting.diagram-report')->middleware('menu:reporting.diagram-report');
+    Route::get('/reporting/resource-timeline',            [\App\Http\Controllers\ResourceTimelineController::class, 'index'])->name('reporting.resource-timeline')->middleware('menu:reporting.resource-timeline');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
@@ -577,7 +578,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::prefix('ticket')->name('ticket.')->group(function () {
         Route::get('/', [TicketViewController::class, 'index'])->name('index')->middleware('menu:tickets.inbox');
         Route::get('/create', [TicketViewController::class, 'create'])->name('create');
-        Route::get('/export', [TicketController::class, 'exportToExcel'])->name('export');
+        Route::get('/export', [TicketController::class, 'exportToExcel'])->name('export')->middleware('menu:ticket.export');
         Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload')->middleware('menu:ticket.consultant-workload');
         Route::get('/task', [TaskController::class, 'index'])->name('task')->middleware('menu:ticket.my-tasks');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');

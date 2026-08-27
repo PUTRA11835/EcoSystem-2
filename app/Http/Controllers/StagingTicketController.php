@@ -30,6 +30,14 @@ use Illuminate\Support\Facades\Storage;
  */
 class StagingTicketController extends Controller
 {
+    /**
+     * Ambang "terlantar" untuk klaim ai_analysis_status='pending' — lihat
+     * docblock analyze(). Margin di atas set_time_limit(630) (~10.5 menit)
+     * yang dipasang di bawah untuk pemanggilan AI itu sendiri, supaya baris
+     * yang MEMANG masih berjalan wajar tidak ikut ke-reclaim.
+     */
+    private const STALE_PENDING_MINUTES = 15;
+
     public function __construct(private StagingTicketService $service) {}
 
     // ─── Web view (admin) ─────────────────────────────────────────────────────
@@ -468,12 +476,25 @@ class StagingTicketController extends Controller
      * dugaan akar masalah, saran klasifikasi, dan saran assignee.
      *
      * Dipanggil OTOMATIS oleh frontend begitu admin membuka satu staging
-     * ticket unvalidated (bukan tombol manual) — dan HANYA BOLEH benar-benar
-     * memanggil AI TEPAT SEKALI seumur hidup tiket itu, tidak ada re-analyze.
-     * Itu ditegakkan lewat klaim atomic di kolom ai_analysis_status: baris ini
-     * cuma sukses meng-update kalau statusnya masih NULL, jadi walau dua admin
-     * buka tiket yang sama bersamaan (atau frontend keliru memanggil dua kali),
-     * cuma satu yang benar-benar sampai memanggil provider AI.
+     * ticket unvalidated (bukan tombol manual) — dan secara default cuma
+     * benar-benar memanggil AI SEKALI (ditegakkan lewat klaim atomic di
+     * kolom ai_analysis_status: baris klaim di bawah cuma sukses kalau
+     * statusnya masih NULL, jadi walau dua admin buka tiket yang sama
+     * bersamaan, cuma satu yang benar-benar sampai memanggil provider AI).
+     *
+     * Admin/validator bisa memicu ulang secara sengaja lewat tombol
+     * "Re-analyze" di panel — itu mengirim `force: true` di body request,
+     * yang mengizinkan klaim ulang selama status SAAT INI bukan 'pending'
+     * (supaya tidak menabrak request lain yang sedang berjalan). Hasil
+     * re-analyze menimpa ai_analysis/ai_analysis_generated_at/_by yang lama.
+     *
+     * 'pending' yang TERLANTAR (baris ini diklaim, lalu proses yang
+     * mengklaimnya mati di tengah jalan — timeout, worker di-recycle, PHP
+     * fatal error yang lolos dari try/catch di bawah — sebelum sempat
+     * menulis 'completed'/'failed') SEBALIKNYA HARUS bisa diklaim ulang,
+     * oleh auto-trigger maupun Re-analyze, atau tiket itu terkunci selamanya
+     * — insiden nyata: staging #316 macet di 'pending' >6 jam karena ini.
+     * Lihat STALE_PENDING_MINUTES.
      */
     public function analyze(Request $request, $id, \App\Services\Ai\AiTicketAnalyzerService $analyzer)
     {
@@ -492,19 +513,40 @@ class StagingTicketController extends Controller
         if ($staging->isProcessed()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ticket sudah divalidasi/ditolak, analisa tidak relevan lagi.',
+                'message' => 'Ticket has already been validated/rejected — analysis is no longer relevant.',
             ], 422);
         }
 
+        $forceReanalyze = $request->boolean('force');
+        $staleBefore = now()->subMinutes(self::STALE_PENDING_MINUTES);
+
+        // Auto trigger: klaim kalau belum pernah dicoba sama sekali (NULL),
+        // ATAU 'pending' tapi sudah terlantar lebih lama dari ambang di atas.
+        // Re-analyze manual: itu plus status completed/failed (jadi semuanya
+        // boleh dipicu ulang KECUALI 'pending' yang masih segar).
+        //
+        // Semua kondisi dibungkus SATU closure di bawah supaya AND id=? tetap
+        // mengikat SELURUH sisi OR — tanpa ini, salah satu orWhere() lepas
+        // dari scope id dan bisa ikut meng-klaim baris staging ticket lain.
         $claimed = StagingTicket::where('id', $id)
-            ->whereNull('ai_analysis_status')
+            ->where(function ($q) use ($forceReanalyze, $staleBefore) {
+                $q->whereNull('ai_analysis_status')
+                    ->orWhere(function ($stale) use ($staleBefore) {
+                        $stale->where('ai_analysis_status', 'pending')
+                            ->where('updated_at', '<', $staleBefore);
+                    });
+
+                if ($forceReanalyze) {
+                    $q->orWhereIn('ai_analysis_status', ['completed', 'failed']);
+                }
+            })
             ->update(['ai_analysis_status' => 'pending']);
 
         if (!$claimed) {
             // Sudah pernah diklaim sebelumnya (oleh request ini sendiri yang
             // dipanggil dobel, request lain yang sedang berjalan, atau memang
-            // sudah selesai/gagal permanen) — jangan panggil AI lagi, cukup
-            // laporkan state yang ada sekarang.
+            // sudah selesai/gagal dan ini bukan re-analyze) — jangan panggil
+            // AI lagi, cukup laporkan state yang ada sekarang.
             $staging->refresh();
 
             if ('completed' === $staging->ai_analysis_status && $staging->ai_analysis) {
@@ -514,17 +556,39 @@ class StagingTicketController extends Controller
             if ('pending' === $staging->ai_analysis_status) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Analisa AI untuk tiket ini sedang berjalan, mohon tunggu.',
+                    'message' => 'AI analysis for this ticket is already running, please wait a moment and try '
+                        . 'again. (If this message keeps appearing for several minutes, the previous attempt likely '
+                        . 'stalled — it will automatically become retryable after '
+                        . self::STALE_PENDING_MINUTES . ' minutes.)',
                     'status'  => 'pending',
                 ], 409);
             }
 
             return response()->json([
                 'success' => false,
-                'message' => 'Analisa AI untuk tiket ini sudah pernah dicoba dan gagal — tidak bisa diulang otomatis. Silakan isi klasifikasi secara manual.',
+                'message' => 'AI analysis for this ticket has already been tried and failed. Use the Re-analyze button to try again, or fill in the classification manually.',
                 'status'  => 'failed',
             ], 409);
         }
+
+        // $staging di atas (baris findOrFail) dimuat SEBELUM klaim di atas —
+        // klaimnya sendiri jalan lewat query builder terpisah (StagingTicket::
+        // where(...)->update(...)), yang mengubah barisnya di DB tapi TIDAK
+        // pernah menyentuh object $staging yang sudah telanjur ada di memori.
+        // Tanpa refresh ini, atribut ai_analysis_status di $staging masih versi
+        // LAMA (mis. 'completed' dari analisa sebelumnya, pada re-analyze) —
+        // dan saat AiTicketAnalyzerService::analyze() nanti memanggil
+        // $staging->update(['ai_analysis_status' => 'completed', ...]),
+        // Eloquent membandingkan ke atribut lama itu, melihat 'completed' →
+        // 'completed' TIDAK berubah, dan diam-diam MEMBUANG kolom itu dari
+        // SQL UPDATE yang sungguhan dijalankan — kolom lain (ai_analysis,
+        // generated_at/_by) tetap tersimpan karena isinya memang beda, tapi
+        // status-nya nyangkut di 'pending' hasil klaim di atas SELAMANYA
+        // (baris berhasil dianalisa AI-nya, tapi UI tidak pernah tahu).
+        // Insiden nyata: staging #316 & #317 — audit log membuktikan
+        // analisanya sukses, tapi ai_analysis_status tetap 'pending' berjam-
+        // jam sesudahnya, tepat pola bug ini.
+        $staging->refresh();
 
         // Agent Skill via code-execution container bisa makan waktu beberapa menit
         // (provisioning container + Claude baca file skill + reasoning effort tinggi)
@@ -582,12 +646,13 @@ class StagingTicketController extends Controller
 
     /**
      * Satu titik keluar untuk semua kegagalan analyze() — menandai
-     * ai_analysis_status='failed' (permanen, tidak ada re-analyze), lalu log
+     * ai_analysis_status='failed' (admin masih bisa memicu ulang lewat tombol
+     * Re-analyze, tapi TIDAK ada retry otomatis dari sisi sistem), lalu log
      * level & pesan diagnostik dibedakan berdasarkan apakah penyebabnya
-     * genuinely transient ($retryable, buat dipantau ops — bukan buat user
-     * mencoba lagi, karena jalur retry-nya sudah tidak ada) atau butuh campur
+     * genuinely transient ($retryable, buat dipantau ops) atau butuh campur
      * tangan admin sistem (billing/config). Pesan yang dilihat admin yang lagi
-     * validasi tiket TETAP sama di kedua kasus: analisa gagal, isi manual.
+     * validasi tiket TETAP sama di kedua kasus: analisa gagal, isi manual atau
+     * Re-analyze.
      */
     private function analyzeFailureResponse(int|string $stagingId, \Throwable $e, bool $retryable)
     {
@@ -607,7 +672,7 @@ class StagingTicketController extends Controller
 
         return response()->json([
             'success' => false,
-            'message' => 'Analisa AI untuk tiket ini gagal dan tidak bisa diulang otomatis. Silakan isi klasifikasi (Type/Priority/Scale/Module) secara manual.',
+            'message' => 'AI analysis failed for this ticket. Use the Re-analyze button to try again, or fill in the classification (Type/Priority/Scale/Module) manually.',
             'status'  => 'failed',
         ], $retryable ? 503 : 502);
     }
