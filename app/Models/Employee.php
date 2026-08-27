@@ -99,6 +99,19 @@ class Employee extends Model
     /** Cek apakah employee boleh akses menu berdasarkan slug */
     public function canAccessMenu(string $slug): bool
     {
+        // ESS self-service slugs are accessible to all active employees by default
+        $essSlugs = [
+            'general.my-attendance',
+            'my-leave-permit',
+            'general.my-overtime',
+            'general.my-reimbursement',
+            'profile.my',
+        ];
+
+        if (in_array($slug, $essSlugs, true)) {
+            return true;
+        }
+
         $roleIds = $this->roles()->pluck('employee_role.id');
 
         return Menu::where('slug', $slug)
@@ -138,13 +151,23 @@ class Employee extends Model
     {
         $roleIds = $this->roles()->pluck('employee_role.id');
 
-        return Menu::whereHas('roles', function ($q) use ($roleIds) {
+        $slugs = Menu::whereHas('roles', function ($q) use ($roleIds) {
                 $q->whereIn('employee_role.id', $roleIds)
                   ->where('role_menu.can_view', true);
             })
             ->where('is_active', true)
             ->pluck('slug')
             ->toArray();
+
+        $essDefaults = [
+            'general.my-attendance',
+            'my-leave-permit',
+            'general.my-overtime',
+            'general.my-reimbursement',
+            'profile.my',
+        ];
+
+        return array_values(array_unique(array_merge($slugs, $essDefaults)));
     }
 
     public function basicData()

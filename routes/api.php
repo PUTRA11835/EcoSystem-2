@@ -511,6 +511,28 @@ Route::middleware(['web'])->group(function () {
     });
 
     // ==================== TIMESHEET ROUTES ====================
+    
+    // ==================== HR & GENERAL LEAVE & PERMIT API ====================
+    Route::prefix('hr-general/leave-permit')->group(function () {
+        Route::get('/employees-list',               [\App\Http\Controllers\HR\LeavePermitController::class, 'getEmployeesList']);
+        Route::get('/user-quotas',                      [\App\Http\Controllers\HR\LeavePermitController::class, 'getUserQuotas']);
+        Route::get('/all-employees-quotas',            [\App\Http\Controllers\HR\LeavePermitController::class, 'getAllEmployeesQuotas']);
+        Route::get('/employee-quota-detail/{employee_id}', [\App\Http\Controllers\HR\LeavePermitController::class, 'getEmployeeQuotaDetail']);
+        
+        Route::get('/master-types',                        [\App\Http\Controllers\HR\LeavePermitController::class, 'getMasterTypes']);
+        Route::post('/master-types',                       [\App\Http\Controllers\HR\LeavePermitController::class, 'storeType']);
+        Route::post('/master-types/{id}/update',            [\App\Http\Controllers\HR\LeavePermitController::class, 'updateType']);
+        Route::post('/master-types/{id}/toggle-active',     [\App\Http\Controllers\HR\LeavePermitController::class, 'toggleTypeActive']);
+
+        Route::get('/applications',               [\App\Http\Controllers\HR\LeavePermitController::class, 'getApplications']);
+        Route::post('/applications',              [\App\Http\Controllers\HR\LeavePermitController::class, 'storeApplication']);
+        Route::post('/applications/{id}/update',   [\App\Http\Controllers\HR\LeavePermitController::class, 'updateApplication']);
+        Route::post('/applications/{id}/approve',  [\App\Http\Controllers\HR\LeavePermitController::class, 'approve']);
+        Route::post('/applications/{id}/reject',   [\App\Http\Controllers\HR\LeavePermitController::class, 'reject']);
+        Route::post('/applications/{id}/revision', [\App\Http\Controllers\HR\LeavePermitController::class, 'requestRevision']);
+        
+        Route::get('/reports', [\App\Http\Controllers\HR\LeavePermitController::class, 'getReport']);
+    });
     Route::prefix('timesheets')->group(function () {
         Route::get('/', [TimesheetController::class, 'index']);
         Route::get('/statistics', [TimesheetController::class, 'statistics']);

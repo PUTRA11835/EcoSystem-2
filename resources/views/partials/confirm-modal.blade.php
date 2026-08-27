@@ -62,7 +62,7 @@
      * @param {string} message
      * @param {string} [title='Confirm']
      * @param {'default'|'primary'|'danger'} [variant='default']
-     * @param {{okText?: string, cancelText?: string}} [opts]
+     * @param {Object} [opts] Options object containing okText, cancelText
      */
     window.showConfirm = function (message, title, variant, opts) {
         title   = title   || 'Confirm';

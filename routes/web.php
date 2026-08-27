@@ -97,6 +97,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== DASHBOARD ROUTES ====================
     
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('menu:dashboard');
+    Route::get('/coming-soon', function (\Illuminate\Http\Request $request) {
+        $feature = $request->query('feature', 'Feature');
+        return view('coming-soon', compact('feature'));
+    })->name('coming-soon');
 
     // ==================== AI ASSISTANT ====================
     Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
@@ -155,13 +159,22 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     });
 
     // ==================== FINANCIAL ====================
+    
+    // ==================== HR & GENERAL ====================
+    Route::prefix('hr-general')->name('hr-general.')->group(function () {
+        Route::get('/leave-permit', [\App\Http\Controllers\HR\LeavePermitController::class, 'index'])
+            ->name('leave-permit')
+            ->middleware('menu:hr_general.leave_permit');
+    });
     Route::get('/financial', function () {
         return view('financial.financial', ['user' => session('user')]);
     })->name('financial')->middleware('menu:financial');
 
     // ==================== HR & GENERAL ====================
     Route::get('/general', function () {
-        return view('general.general', ['user' => session('user')]);
+        // Nama view mengikuti rename folder pada merge staging_al_naf:
+        // resources/views/HR_General/HR_General.blade.php -> hr-general/hr-general.blade.php
+        return view('hr-general.hr-general', ['user' => session('user')]);
     })->name('general')->middleware('menu:general');
 
     // ==================== BUSINESS ====================
@@ -582,6 +595,13 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             ->middleware('menu:management.permissions')
             ->name('permissions.index');
 
+        Route::get('/ess-settings', [\App\Http\Controllers\Management\EssSettingsController::class, 'index'])
+            ->middleware('menu:management.permissions')
+            ->name('ess-settings.index');
+        Route::post('/ess-settings', [\App\Http\Controllers\Management\EssSettingsController::class, 'update'])
+            ->middleware('menu:management.permissions')
+            ->name('ess-settings.update');
+
         Route::get('/holidays', [\App\Http\Controllers\HolidayManagementController::class, 'page'])
             ->middleware('menu:management.holidays')
             ->name('holidays.index');
@@ -613,6 +633,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/attachments/{id}', [AttachmentController::class, 'show'])
         ->name('attachments.show')
         ->where('id', '[0-9]+');
+
+    // ==================== LEAVE & PERMIT ATTENDANCE ROUTES ====================
+    Route::get('/my-leave-permit', [\App\Http\Controllers\HR\LeavePermitController::class, 'myLeavePermitIndex'])->name('my-leave-permit');
+    Route::get('/hr-general/leave-permit', [\App\Http\Controllers\HR\LeavePermitController::class, 'index'])->name('hr-general.leave-permit');
 });
 
 // ==================== ROOT REDIRECT ====================
@@ -631,3 +655,7 @@ require __DIR__ . '/delivery.php';
 // ==================== DELIVERY SUPPORT ROUTES ====================
 // Include delivery support module routes
 require __DIR__ . '/delivery-support.php';
+
+// ==================== HR & GENERAL ROUTES ====================
+// Include HR & General module routes (Attendance, Branches, Shifts)
+require __DIR__ . '/HR_General.php';

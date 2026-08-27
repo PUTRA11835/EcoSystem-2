@@ -1452,7 +1452,7 @@
 .message-content a, .email-html-body a, .ql-editor a { color: #60a5fa !important; }
 .message-content a:hover               { color: #93c5fd !important; }
 
-/* Chip @mention (internal note) disisipkan Quill dengan inline color PEKAT
+/* Chip at-mention (internal note) disisipkan Quill dengan inline color PEKAT
    (#1d4ed8 employee / #7c3aed role) — di latar gelap terlihat menyolok /
    kontras berlebih. Lembutkan ke tone pastel tema (biru/ungu) agar tetap jelas
    sebagai mention tapi menyatu. Quill menserialisasi warna ke `rgb(...)` saat

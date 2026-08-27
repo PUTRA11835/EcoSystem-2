@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,9 +8,10 @@
     <meta name="user-data" content='@json(session("user"))'>
     <title>@yield('title', 'Dashboard') - EcoSystem</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     @php
         $preferences = session('user_preferences', [
             'theme' => 'light',
@@ -19,18 +21,18 @@
             'compact_mode' => false,
             'show_animations' => true,
         ]);
-        
+
         // Convert hex to RGB for Tailwind
         $primaryColor = $preferences['primary_color'];
         $rgb = sscanf($primaryColor, "#%02x%02x%02x");
         $primaryRgb = implode(', ', $rgb);
-        
+
         // Calculate darker shade
         $darkR = max(0, $rgb[0] - 40);
         $darkG = max(0, $rgb[1] - 40);
         $darkB = max(0, $rgb[2] - 40);
         $primaryDarkRgb = "$darkR, $darkG, $darkB";
-        
+
         // Font sizes
         $fontSizes = [
             'small' => '14px',
@@ -38,35 +40,35 @@
             'large' => '18px'
         ];
         $baseFontSize = $fontSizes[$preferences['font_size']];
-        
+
         // Theme colors
         $bgColor = $preferences['theme'] === 'dark' ? '#111827' : '#f9fafb';
         $textColor = $preferences['theme'] === 'dark' ? '#f9fafb' : '#111827';
         $cardBg = $preferences['theme'] === 'dark' ? '#1f2937' : '#ffffff';
-        
+
         // Get user from session
         $user = session('user', []);
-        $userRoleId   = $user['role']['id']   ?? 1;
+        $userRoleId = $user['role']['id'] ?? 1;
         $userRoleName = $user['role']['name'] ?? '';
 
         // $permSlugs dan $can di-share oleh ShareMenuPermissions middleware
         $permSlugs = $permSlugs ?? [];
-        $can       = $can       ?? fn(string $slug) => in_array($slug, $permSlugs);
+        $can = $can ?? fn(string $slug) => in_array($slug, $permSlugs);
 
         // Backward compat variables (dipakai di beberapa tempat lain di view ini)
-        $showAllMenus     = $can('management');
-        $showMasterMenu   = $can('master');
-        $showRpmoMenu     = $can('rpmo');
-        $showSlaMenu      = $can('sla');
+        $showAllMenus = $can('management');
+        $showMasterMenu = $can('master');
+        $showRpmoMenu = $can('rpmo');
+        $showSlaMenu = $can('sla');
         $showLimitedMenus = false; // tidak dipakai lagi
-        $canManageSla     = $can('sla.config');
+        $canManageSla = $can('sla.config');
     @endphp
-    
+
     <style>
-        * { 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
-        
+
         :root {
             --primary-color: {{ $primaryColor }};
             --primary-rgb: {{ $primaryRgb }};
@@ -76,44 +78,70 @@
             --text-color: {{ $textColor }};
             --card-bg: {{ $cardBg }};
             --scrollbar-track: {{ $preferences['theme'] === 'dark' ? '#111827' : '#f1f1f1' }};
+
+            /* Latar "permukaan bertema" untuk kartu utama di dalam halaman —
+               misalnya kartu identitas pada My Attendance.
+
+               Nilainya PERSIS mengikuti pilihan Sidebar style, sehingga kartu
+               tersebut ikut berubah begitu Accent color atau gaya sidebar
+               diganti di Settings. Ditulis sebagai custom property agar halaman
+               anak cukup memakai kelas `.primary-surface` tanpa perlu tahu
+               preferensi pengguna — variabel $preferences hanya hidup di layout
+               ini, tidak ikut terbawa ke bagian konten halaman anak.
+
+               CATATAN: jangan menulis nama direktif Blade berawalan "at" di
+               dalam komentar CSS mana pun pada berkas ini. Blade memproses
+               direktif tanpa peduli konteks komentar CSS, sehingga teks
+               tersebut ikut dikompilasi dan menghasilkan galat 500. */
+            --primary-surface: {{ $preferences['sidebar_style'] === 'gradient'
+                ? 'linear-gradient(135deg, rgb(var(--primary-dark-rgb)), rgb(var(--primary-rgb)))'
+                : 'rgb(var(--primary-rgb))' }};
         }
-        
+
         body {
             font-size: var(--font-size-base);
             background-color: var(--bg-color) !important;
             color: var(--text-color) !important;
         }
-        
-        .sidebar-transition { 
-            transition: all {{ $preferences['show_animations'] ? '0.3s' : '0s' }} cubic-bezier(0.4, 0, 0.2, 1); 
+
+        .sidebar-transition {
+            transition: all
+                {{ $preferences['show_animations'] ? '0.3s' : '0s' }}
+                cubic-bezier(0.4, 0, 0.2, 1);
         }
-        
+
         .primary-bg {
             background-color: var(--primary-color) !important;
         }
-        
+
         .primary-text {
             color: var(--primary-color) !important;
         }
-        
+
         .primary-border {
             border-color: var(--primary-color) !important;
         }
-        
+
         .primary-hover:hover {
             background-color: var(--primary-color) !important;
         }
-        
+
         .primary-gradient {
-            background: linear-gradient(135deg, 
-                rgb(var(--primary-dark-rgb)), 
-                rgb(var(--primary-rgb))) !important;
+            background: linear-gradient(135deg,
+                    rgb(var(--primary-dark-rgb)),
+                    rgb(var(--primary-rgb))) !important;
         }
-        
+
+        /* Kartu bertema di dalam halaman. Satu sumber warna dengan sidebar:
+           keduanya berakar pada --primary-rgb, jadi tidak mungkin melenceng. */
+        .primary-surface {
+            background: var(--primary-surface) !important;
+        }
+
         .primary-solid {
             background-color: rgb(var(--primary-rgb)) !important;
         }
-        
+
         /* Smooth scrollbar */
         ::-webkit-scrollbar {
             width: 4px;
@@ -126,7 +154,10 @@
         }
 
         /* Firefox: tipis + thumb = accent, track = theme */
-        * { scrollbar-width: thin; scrollbar-color: rgb(var(--primary-rgb)) var(--scrollbar-track, #f1f1f1); }
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgb(var(--primary-rgb)) var(--scrollbar-track, #f1f1f1);
+        }
 
         /* Thumb mengikuti warna sidebar/accent (var --primary-*), bukan merah tetap.
            Gradient meniru sidebar `.primary-gradient`; ganti warna Accent di Settings
@@ -140,438 +171,1113 @@
         ::-webkit-scrollbar-thumb:hover {
             background: rgb(var(--primary-rgb));
         }
-        
+
         /* Navbar animation */
         @keyframes slideIn {
             from {
                 opacity: 0;
                 transform: translateX(-10px);
             }
+
             to {
                 opacity: 1;
                 transform: translateX(0);
             }
         }
-        
+
         .nav-link {
             animation: slideIn 0.3s ease-out;
         }
-        
+
         /* Hover effects */
         .nav-link:hover {
             transform: translateX(4px);
         }
-        
+
         .nav-link.active {
             box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
         }
-        
+
         @if($preferences['compact_mode'])
-        .p-6 { padding: 1rem !important; }
-        .p-8 { padding: 1.5rem !important; }
-        .gap-6 { gap: 1rem !important; }
-        .space-y-6 > * + * { margin-top: 1rem !important; }
+            .p-6 {
+                padding: 1rem !important;
+            }
+
+            .p-8 {
+                padding: 1.5rem !important;
+            }
+
+            .gap-6 {
+                gap: 1rem !important;
+            }
+
+            .space-y-6>*+* {
+                margin-top: 1rem !important;
+            }
+
         @endif
-        
         @if($preferences['theme'] === 'dark')
-        /* ── Dark mode ────────────────────────────────────────────────────────
-           Palet permukaan (surface) berlapis agar tidak "belang":
-             page   #0b1120  — latar terjauh (bg-gray-50)
-             raised #1f2937  — kartu / panel (bg-white)
-             sunken #111827  — area tenggelam (bg-gray-100/200)
-           Warna teks, border, divider, hover, placeholder, shadow, dan latar
-           bertint merah muda semuanya dipetakan ulang. Elemen ber-brand
-           (primary-*, gradient sidebar) sengaja TIDAK diubah. */
+            /* ── Dark mode ────────────────────────────────────────────────────────
+                                           Palet permukaan (surface) berlapis agar tidak "belang":
+                                             page   #0b1120  — latar terjauh (bg-gray-50)
+                                             raised #1f2937  — kartu / panel (bg-white)
+                                             sunken #111827  — area tenggelam (bg-gray-100/200)
+                                           Warna teks, border, divider, hover, placeholder, shadow, dan latar
+                                           bertint merah muda semuanya dipetakan ulang. Elemen ber-brand
+                                           (primary-*, gradient sidebar) sengaja TIDAK diubah. */
 
-        /* Surfaces */
-        .bg-white            { background-color: #1f2937 !important; }
-        .bg-gray-50          { background-color: #0b1120 !important; }
-        .bg-gray-100,
-        .bg-gray-200         { background-color: #111827 !important; }
-        .bg-gray-800,
-        .bg-gray-900         { background-color: #030712 !important; }
-        /* Latar semi-transparan yang umum dipakai untuk header/kartu lembut */
-        .bg-gray-50\/50,
-        .bg-gray-50\/60,
-        .bg-white\/10        { background-color: rgba(255,255,255,.04) !important; }
+            /* Surfaces */
+            .bg-white {
+                background-color: #1f2937 !important;
+            }
 
-        /* Latar bertint merah (badge/active state ringan) → merah gelap lembut */
-        .bg-red-50,
-        .bg-red-50\/50,
-        .bg-red-100          { background-color: rgba(153,27,27,.22) !important; }
+            .bg-gray-50 {
+                background-color: #0b1120 !important;
+            }
 
-        /* Pastel -50/-100 lain (Quick Navigation, badge status/role, chip ikon)
-           → tint gelap sesuai hue agar tak menyilaukan di atas latar gelap. */
-        .bg-blue-50    { background-color: rgba(59,130,246,.14) !important; }
-        .bg-sky-50     { background-color: rgba(14,165,233,.14) !important; }
-        .bg-indigo-50  { background-color: rgba(99,102,241,.14) !important; }
-        .bg-green-50   { background-color: rgba(34,197,94,.14) !important; }
-        .bg-emerald-50 { background-color: rgba(16,185,129,.14) !important; }
-        .bg-teal-50    { background-color: rgba(20,184,166,.14) !important; }
-        .bg-amber-50   { background-color: rgba(245,158,11,.14) !important; }
-        .bg-yellow-50  { background-color: rgba(234,179,8,.14) !important; }
-        .bg-orange-50  { background-color: rgba(249,115,22,.14) !important; }
-        .bg-purple-50  { background-color: rgba(168,85,247,.14) !important; }
-        .bg-pink-50    { background-color: rgba(236,72,153,.14) !important; }
-        .bg-blue-100   { background-color: rgba(59,130,246,.20) !important; }
-        .bg-sky-100    { background-color: rgba(14,165,233,.20) !important; }
-        .bg-indigo-100 { background-color: rgba(99,102,241,.20) !important; }
-        .bg-green-100  { background-color: rgba(34,197,94,.20) !important; }
-        .bg-emerald-100{ background-color: rgba(16,185,129,.20) !important; }
-        .bg-amber-100  { background-color: rgba(245,158,11,.20) !important; }
-        .bg-yellow-100 { background-color: rgba(234,179,8,.20) !important; }
-        .bg-orange-100 { background-color: rgba(249,115,22,.20) !important; }
-        .bg-purple-100 { background-color: rgba(168,85,247,.20) !important; }
-        /* Shade -200 (mis. chip WEIGHT % `bg-purple-200 text-purple-800` di tabel
-           Planning) → tint gelap agar teks (yg dicerahkan) terbaca. */
-        .bg-blue-200   { background-color: rgba(59,130,246,.26) !important; }
-        .bg-sky-200    { background-color: rgba(14,165,233,.26) !important; }
-        .bg-indigo-200 { background-color: rgba(99,102,241,.26) !important; }
-        .bg-green-200  { background-color: rgba(34,197,94,.26) !important; }
-        .bg-emerald-200{ background-color: rgba(16,185,129,.26) !important; }
-        .bg-teal-200   { background-color: rgba(20,184,166,.26) !important; }
-        .bg-amber-200  { background-color: rgba(245,158,11,.26) !important; }
-        .bg-yellow-200 { background-color: rgba(234,179,8,.26) !important; }
-        .bg-orange-200 { background-color: rgba(249,115,22,.26) !important; }
-        .bg-purple-200 { background-color: rgba(168,85,247,.26) !important; }
-        .bg-pink-200   { background-color: rgba(236,72,153,.26) !important; }
-        .bg-red-200    { background-color: rgba(153,27,27,.30) !important; }
+            .bg-gray-100,
+            .bg-gray-200 {
+                background-color: #111827 !important;
+            }
 
-        /* Varian OPACITY pastel (mis. `bg-orange-50/40`, `bg-blue-50/40` di kolom
-           Plan Cost) — class berbeda dari `bg-orange-50`, ditangkap via atribut. */
-        [class*="bg-blue-50/"]    { background-color: rgba(59,130,246,.15) !important; }
-        [class*="bg-sky-50/"]     { background-color: rgba(14,165,233,.15) !important; }
-        [class*="bg-indigo-50/"]  { background-color: rgba(99,102,241,.15) !important; }
-        [class*="bg-green-50/"]   { background-color: rgba(34,197,94,.15) !important; }
-        [class*="bg-emerald-50/"] { background-color: rgba(16,185,129,.15) !important; }
-        [class*="bg-orange-50/"]  { background-color: rgba(249,115,22,.15) !important; }
-        [class*="bg-amber-50/"]   { background-color: rgba(245,158,11,.15) !important; }
-        [class*="bg-yellow-50/"]  { background-color: rgba(234,179,8,.15) !important; }
-        [class*="bg-purple-50/"]  { background-color: rgba(168,85,247,.15) !important; }
-        [class*="bg-red-50/"]     { background-color: rgba(153,27,27,.20) !important; }
+            .bg-gray-800,
+            .bg-gray-900 {
+                background-color: #030712 !important;
+            }
 
-        /* Teks warna gelap (badge `-700/-800`) → dicerahkan agar terbaca di gelap.
-           Ikon `-600` sudah cukup jenuh, dibiarkan. */
-        .text-blue-700,   .text-blue-800   { color: #93c5fd !important; }
-        .text-sky-700,    .text-sky-800    { color: #7dd3fc !important; }
-        .text-indigo-700, .text-indigo-800 { color: #a5b4fc !important; }
-        .text-green-700,  .text-green-800  { color: #86efac !important; }
-        .text-emerald-700,.text-emerald-800{ color: #6ee7b7 !important; }
-        .text-teal-600,   .text-teal-700,   .text-teal-800   { color: #5eead4 !important; }
-        .text-cyan-700,   .text-cyan-800   { color: #67e8f9 !important; }
-        .text-amber-700,  .text-amber-800  { color: #fcd34d !important; }
-        .text-yellow-700, .text-yellow-800 { color: #fde047 !important; }
-        .text-orange-700, .text-orange-800 { color: #fdba74 !important; }
-        .text-purple-700, .text-purple-800 { color: #d8b4fe !important; }
-        .text-red-700,    .text-red-800    { color: #fca5a5 !important; }
-        /* Shade -900 (teks paling gelap, dipakai di chip `bg-*-200 text-*-900`) */
-        .text-blue-900   { color: #93c5fd !important; }
-        .text-sky-900    { color: #7dd3fc !important; }
-        .text-indigo-900 { color: #a5b4fc !important; }
-        .text-green-900  { color: #86efac !important; }
-        .text-emerald-900{ color: #6ee7b7 !important; }
-        .text-teal-900   { color: #5eead4 !important; }
-        .text-amber-900  { color: #fcd34d !important; }
-        .text-yellow-900 { color: #fde047 !important; }
-        .text-orange-900 { color: #fdba74 !important; }
-        .text-purple-900 { color: #d8b4fe !important; }
-        .text-red-900    { color: #fca5a5 !important; }
+            /* Latar semi-transparan yang umum dipakai untuk header/kartu lembut */
+            .bg-gray-50\/50,
+            .bg-gray-50\/60,
+            .bg-white\/10 {
+                background-color: rgba(255, 255, 255, .04) !important;
+            }
 
-        /* Aksen merah brand (.primary-text = var(--primary-color) #991b1b) terlalu
-           gelap di latar gelap → dicerahkan. `body` agar menang atas aturan halaman
-           `.primary-text{color:var(--primary-color)!important}`. */
-        body .primary-text { color: #f87171 !important; }
+            /* Latar bertint merah (badge/active state ringan) → merah gelap lembut */
+            .bg-red-50,
+            .bg-red-50\/50,
+            .bg-red-100 {
+                background-color: rgba(153, 27, 27, .22) !important;
+            }
 
-        /* Badge SOLID terang (mis. `bg-yellow-400 text-gray-900` = badge count di
-           sidebar) — latarnya tetap terang, jadi teks HARUS tetap gelap; jangan
-           ikut dicerahkan seperti `.text-gray-900` biasa. Compound (0,2,0) menang. */
-        .bg-yellow-300.text-gray-900, .bg-yellow-400.text-gray-900, .bg-yellow-500.text-gray-900,
-        .bg-amber-300.text-gray-900,  .bg-amber-400.text-gray-900,  .bg-amber-500.text-gray-900,
-        .bg-lime-400.text-gray-900,   .bg-green-400.text-gray-900,   .bg-orange-400.text-gray-900,
-        .bg-yellow-400.text-gray-800, .bg-amber-400.text-gray-800 { color: #111827 !important; }
+            /* Pastel -50/-100 lain (Quick Navigation, badge status/role, chip ikon)
+                                           → tint gelap sesuai hue agar tak menyilaukan di atas latar gelap. */
+            .bg-blue-50 {
+                background-color: rgba(59, 130, 246, .14) !important;
+            }
 
-        /* Text */
-        .text-gray-900,
-        .text-black          { color: #f3f4f6 !important; }
-        .text-gray-800       { color: #e5e7eb !important; }
-        .text-gray-700       { color: #d1d5db !important; }
-        .text-gray-600       { color: #cbd1d9 !important; }
-        .text-gray-500       { color: #9ca3af !important; }
-        .text-gray-400       { color: #8b93a1 !important; }
-        .text-gray-300       { color: #6b7280 !important; }
+            .bg-sky-50 {
+                background-color: rgba(14, 165, 233, .14) !important;
+            }
 
-        /* Borders & dividers */
-        .border-gray-100     { border-color: #1f2937 !important; }
-        .border-gray-200     { border-color: #374151 !important; }
-        .border-gray-300     { border-color: #4b5563 !important; }
-        .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #1f2937 !important; }
-        .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: #374151 !important; }
+            .bg-indigo-50 {
+                background-color: rgba(99, 102, 241, .14) !important;
+            }
 
-        /* ── Hover states ──────────────────────────────────────────────────
-           Samakan SEMUA hover latar terang ke #374151 (seperti Master Employee),
-           termasuk varian opacity (mis. `hover:bg-gray-50/80`) & shade lain.
-           Selektor atribut menangkap semua varian; `!important` menang atas
-           utilitas hover Tailwind (yang non-important). */
-        [class*="hover:bg-gray-"]:hover,
-        [class*="hover:bg-slate-"]:hover,
-        [class*="hover:bg-zinc-"]:hover,
-        [class*="hover:bg-neutral-"]:hover,
-        [class*="hover:bg-stone-"]:hover,
-        [class*="hover:bg-white"]:hover { background-color: #374151 !important; }
+            .bg-green-50 {
+                background-color: rgba(34, 197, 94, .14) !important;
+            }
 
-        /* Hover pastel berwarna (khusus shade -50/-100 via ~= agar TIDAK kena
-           tombol solid -500/-600/-700) → tint gelap sesuai hue, tetap subtle. */
-        [class~="hover:bg-blue-50"]:hover,   [class~="hover:bg-blue-100"]:hover   { background-color: rgba(59,130,246,.22) !important; }
-        [class~="hover:bg-sky-50"]:hover,    [class~="hover:bg-sky-100"]:hover    { background-color: rgba(14,165,233,.22) !important; }
-        [class~="hover:bg-indigo-50"]:hover, [class~="hover:bg-indigo-100"]:hover { background-color: rgba(99,102,241,.22) !important; }
-        [class~="hover:bg-green-50"]:hover,  [class~="hover:bg-green-100"]:hover  { background-color: rgba(34,197,94,.22) !important; }
-        [class~="hover:bg-emerald-50"]:hover,[class~="hover:bg-emerald-100"]:hover{ background-color: rgba(16,185,129,.22) !important; }
-        [class~="hover:bg-teal-50"]:hover,   [class~="hover:bg-teal-100"]:hover   { background-color: rgba(20,184,166,.22) !important; }
-        [class~="hover:bg-amber-50"]:hover,  [class~="hover:bg-amber-100"]:hover  { background-color: rgba(245,158,11,.22) !important; }
-        [class~="hover:bg-yellow-50"]:hover, [class~="hover:bg-yellow-100"]:hover { background-color: rgba(234,179,8,.22) !important; }
-        [class~="hover:bg-orange-50"]:hover, [class~="hover:bg-orange-100"]:hover { background-color: rgba(249,115,22,.22) !important; }
-        [class~="hover:bg-purple-50"]:hover, [class~="hover:bg-purple-100"]:hover { background-color: rgba(168,85,247,.22) !important; }
-        [class~="hover:bg-pink-50"]:hover,   [class~="hover:bg-pink-100"]:hover   { background-color: rgba(236,72,153,.22) !important; }
-        [class~="hover:bg-red-50"]:hover,    [class~="hover:bg-red-100"]:hover    { background-color: rgba(153,27,27,.30) !important; }
+            .bg-emerald-50 {
+                background-color: rgba(16, 185, 129, .14) !important;
+            }
 
-        /* Chip ikon dengan group-hover (mis. Quick Navigation) — samakan pola */
-        .group:hover [class*="group-hover:bg-gray-"],
-        .group:hover [class*="group-hover:bg-slate-"] { background-color: #374151 !important; }
-        .group:hover [class~="group-hover:bg-blue-100"]    { background-color: rgba(59,130,246,.26) !important; }
-        .group:hover [class~="group-hover:bg-sky-100"]     { background-color: rgba(14,165,233,.26) !important; }
-        .group:hover [class~="group-hover:bg-indigo-100"]  { background-color: rgba(99,102,241,.26) !important; }
-        .group:hover [class~="group-hover:bg-green-100"]   { background-color: rgba(34,197,94,.26) !important; }
-        .group:hover [class~="group-hover:bg-emerald-100"] { background-color: rgba(16,185,129,.26) !important; }
-        .group:hover [class~="group-hover:bg-amber-100"]   { background-color: rgba(245,158,11,.26) !important; }
-        .group:hover [class~="group-hover:bg-purple-100"]  { background-color: rgba(168,85,247,.26) !important; }
-        .group:hover [class~="group-hover:bg-red-100"]     { background-color: rgba(153,27,27,.34) !important; }
+            .bg-teal-50 {
+                background-color: rgba(20, 184, 166, .14) !important;
+            }
 
-        /* Sidebar = permukaan ber-ACCENT (bukan gelap). Nav pakai overlay putih
-           transparan (active `bg-white/opacity-15`, hover `hover:bg-white/opacity-10`).
-           Kembalikan overlay itu agar tidak diubah jadi abu/gelap oleh aturan generik
-           di atas — `#sidebar` (ID) menang spesifisitas. */
-        #sidebar .bg-white { background-color: rgba(255,255,255,0.15) !important; }
-        #sidebar [class*="hover:bg-white"]:hover { background-color: rgba(255,255,255,0.10) !important; }
+            .bg-amber-50 {
+                background-color: rgba(245, 158, 11, .14) !important;
+            }
 
-        /* Form controls */
-        input, select, textarea {
-            background-color: #374151 !important;
-            color: #f9fafb !important;
-            border-color: #4b5563 !important;
-        }
-        input:read-only,
-        input:disabled, select:disabled, textarea:disabled {
-            background-color: #1f2937 !important;
-            color: #9ca3af !important;
-        }
-        input::placeholder, textarea::placeholder { color: #6b7280 !important; }
+            .bg-yellow-50 {
+                background-color: rgba(234, 179, 8, .14) !important;
+            }
 
-        /* Shadow lebih dalam agar kartu tetap terbaca di atas latar gelap */
-        .shadow-sm, .shadow, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl {
-            box-shadow: 0 4px 16px rgba(0,0,0,.45) !important;
-        }
+            .bg-orange-50 {
+                background-color: rgba(249, 115, 22, .14) !important;
+            }
 
-        /* Scrollbar: warna thumb & track sudah theme-aware via var --primary-*
-           dan --scrollbar-track (didefinisikan di :root), jadi otomatis mengikuti
-           sidebar/accent + tema. Tidak perlu override di sini. */
+            .bg-purple-50 {
+                background-color: rgba(168, 85, 247, .14) !important;
+            }
 
-        /* ── Komponen custom yang memakai putih hardcoded ────────────────────
-           Elemen berikut TIDAK memakai class `bg-white` (mereka distyle lewat
-           CSS mentah / JS), jadi override class di atas tak menjangkaunya.
-           Dipetakan ulang di sini agar ikut tema. */
+            .bg-pink-50 {
+                background-color: rgba(236, 72, 153, .14) !important;
+            }
 
-        /* Native <select> option list */
-        option { background-color: #1f2937 !important; color: #e5e7eb !important; }
+            .bg-blue-100 {
+                background-color: rgba(59, 130, 246, .20) !important;
+            }
 
-        /* Enhanced <select> — public/js/select-enhance.js (.se-*) */
-        .se-btn            { background: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
-        .se-btn:hover      { border-color: #6b7280 !important; }
-        .se-btn[disabled]  { background: #1f2937 !important; }
-        .se-label          { color: #e5e7eb !important; }
-        .se-label.is-placeholder { color: #6b7280 !important; }
-        .se-panel          { background: #1f2937 !important; border-color: #374151 !important;
-                             box-shadow: 0 20px 40px rgba(0,0,0,.55) !important; }
-        .se-item           { color: #d1d5db !important; }
-        .se-item:hover,
-        .se-item.is-active { background: #374151 !important; color: #f9fafb !important; }
-        .se-item.is-disabled { color: #4b5563 !important; }
-        .se-search-head    { background: #1f2937 !important; border-color: #374151 !important; }
+            .bg-sky-100 {
+                background-color: rgba(14, 165, 233, .20) !important;
+            }
 
-        /* Custom dropdown — public/js/custom-dropdown.js (.custom-dd-*) */
-        .custom-dd-panel   { background: #1f2937 !important; border-color: #374151 !important; }
-        .custom-dd-btn     { background: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
-        /* Filter kolom di HEADER tabel juga memakai `.custom-dd-btn`, tapi di sana
-           harus TRANSPARAN mengikuti latar header (bg-gray-50 → #0b1120) — jika
-           tidak, sel header berdropdown (Customer…Type) tampak lebih terang &
-           belang dibanding sel header lain. Hover tetap ditangani utilitas
-           `hover:bg-gray-*`. */
-        thead .custom-dd-btn { background: transparent !important; }
-        .custom-dd-item    { color: #d1d5db !important; }
-        .custom-dd-item:hover,
-        .custom-dd-item.is-active,
-        .custom-dd-item.selected { background: #374151 !important; color: #f9fafb !important; }
+            .bg-indigo-100 {
+                background-color: rgba(99, 102, 241, .20) !important;
+            }
 
-        /* Reporting → MD Recap (baris grup/anak pakai #f9fafb / #fff mentah) */
-        .recap-emp-row td       { background: #111827 !important; }
-        .recap-emp-row:hover td { background: #0b1120 !important; }
-        .recap-sub-row td       { background: #1f2937 !important; }
-        .recap-sub-row:hover td { background: #374151 !important; }
+            .bg-green-100 {
+                background-color: rgba(34, 197, 94, .20) !important;
+            }
 
-        /* Reporting → Collection Outlook (.co-*) */
-        .co-select { background: #374151 !important; border-color: #4b5563 !important; color: #e5e7eb !important; }
-        .co-th     { background: #111827 !important; color: #9ca3af !important;
-                     border-bottom-color: #374151 !important; border-right-color: #374151 !important; }
-        .co-td     { border-bottom-color: #374151 !important; border-right-color: #374151 !important; color: #d1d5db !important; }
-        thead .co-sticky-cust, thead .co-sticky-proj, thead .co-sticky-top { background: #0b1120 !important; }
-        tbody .co-sticky-cust, tbody .co-sticky-proj, tbody .co-sticky-top { background: #111827 !important; }
-        tbody tr:hover .co-sticky-cust,
-        tbody tr:hover .co-sticky-proj,
-        tbody tr:hover .co-sticky-top { background: #1f2937 !important; }
-        .co-amount-btn:hover { background: #374151 !important; }
-        /* Nilai amount di sel — dicerahkan agar terbaca di latar gelap */
-        .co-open   { color: #cbd5e1 !important; }
-        .co-paid   { color: #4ade80 !important; }
-        .co-delay  { color: #fbbf24 !important; }
-        .co-paid:hover  { background: rgba(34,197,94,.18) !important; }
-        .co-delay:hover { background: rgba(245,158,11,.18) !important; }
+            .bg-emerald-100 {
+                background-color: rgba(16, 185, 129, .20) !important;
+            }
 
-        /* Delivery → Project Detail: sticky section nav + tab hover/active
-           (#sectionNav putih translucent; .section-tab hover #f9fafb). */
-        #sectionNav { background: rgba(17,24,39,.92) !important; border-bottom-color: #374151 !important; }
-        .section-tab:hover { background-color: #374151 !important; color: #e5e7eb !important; }
-        .section-tab.active { color: #f87171 !important; }
+            .bg-amber-100 {
+                background-color: rgba(245, 158, 11, .20) !important;
+            }
 
-        /* Delivery → Phase Management: redupkan gradient pekat (header indigo, bar
-           amber, bar biru) agar tidak menyilaukan. Scoped ke `.phase-mgmt-page`
-           supaya halaman lain tak terpengaruh. */
-        .phase-mgmt-page .from-blue-600.to-indigo-600  { background-image: linear-gradient(to right, #21375a, #2b295c) !important; }
-        .phase-mgmt-page .from-amber-400.to-orange-500 { background-image: linear-gradient(to right, #a16207, #b45309) !important; }
-        .phase-mgmt-page .from-blue-500.to-indigo-600  { background-image: linear-gradient(to right, #1e40af, #3730a3) !important; }
-        /* Track bar */
-        .phase-mgmt-page .bg-amber-100 { background-color: rgba(245,158,11,.16) !important; }
-        .phase-mgmt-page .bg-gray-200  { background-color: #374151 !important; }
+            .bg-yellow-100 {
+                background-color: rgba(234, 179, 8, .20) !important;
+            }
 
-        /* Delivery → Gantt chart: banyak warna terang hardcoded (panel putih, header,
-           sel hari putih, kolom weekend cream #fef3c7, border terang). Dipetakan
-           ulang agar menyatu dengan tema gelap. Bar tugas (warna dinamis) & garis
-           "Today" merah dibiarkan. */
-        .gantt-wrapper { background-color: #1f2937 !important; }
-        .gantt-sidebar { background-color: #111827 !important; border-right-color: #374151 !important; }
-        .gantt-sidebar-header,
-        .gantt-timeline-header { background-color: #111827 !important; border-bottom-color: #374151 !important; }
-        .gantt-header-col { color: #cbd5e1 !important; }
-        .gantt-week-cell { background-color: #111827 !important; border-right-color: #374151 !important; color: #9ca3af !important; }
-        .gantt-week-row { border-bottom-color: #374151 !important; }
-        .gantt-day-cell { background-color: #1f2937 !important; border-right-color: #374151 !important; color: #cbd5e1 !important; }
-        .gantt-day-cell.weekend,
-        .gantt-grid-cell.weekend { background-color: rgba(245,158,11,.10) !important; }
-        .gantt-day-cell.today { background-color: rgba(59,130,246,.22) !important; color: #93c5fd !important; }
-        .gantt-phase-row,
-        .gantt-timeline-row.gantt-phase-bg { background-color: #111827 !important; border-bottom-color: #374151 !important; }
-        .gantt-activity-row { border-bottom-color: #374151 !important; }
-        .gantt-activity-row:hover { background-color: #374151 !important; }
-        .gantt-grid-cell { border-right-color: #374151 !important; }
-        .gantt-toggle-button:hover { background-color: rgba(255,255,255,.08) !important; }
-        .gantt-timeline::-webkit-scrollbar-track,
-        .gantt-sidebar-body::-webkit-scrollbar-track { background: #111827 !important; }
-        .gantt-timeline::-webkit-scrollbar-thumb,
-        .gantt-sidebar-body::-webkit-scrollbar-thumb { background: #4b5563 !important; }
+            .bg-orange-100 {
+                background-color: rgba(249, 115, 22, .20) !important;
+            }
 
-        /* Baris tabel ber-gradasi TERANG (mis. Project Planning phase/group rows,
-           header banner from-*-50/100) → diratakan jadi permukaan gelap. Gradasi
-           gelap/pekat (from-blue-600, from-*-500, dsb.) sengaja dibiarkan. */
-        .from-gray-50, .from-gray-100, .from-blue-50, .from-indigo-50, .from-purple-50,
-        .from-indigo-100, .from-purple-100, .from-amber-50, .from-orange-50 {
-            --tw-gradient-from: #1f2937 !important;
-            --tw-gradient-to:   #1f2937 !important;
-            --tw-gradient-stops: #1f2937, #1f2937 !important;
-        }
-        .to-gray-50, .to-gray-100, .to-blue-50, .to-indigo-50, .to-purple-50,
-        .to-indigo-100, .to-purple-100, .to-orange-50 {
-            --tw-gradient-to: #1f2937 !important;
-            --tw-gradient-stops: var(--tw-gradient-from), #1f2937 !important;
-        }
-        .hover\:from-purple-100:hover, .hover\:to-indigo-100:hover {
-            --tw-gradient-from: #374151 !important;
-            --tw-gradient-to:   #374151 !important;
-            --tw-gradient-stops: #374151, #374151 !important;
-        }
+            .bg-purple-100 {
+                background-color: rgba(168, 85, 247, .20) !important;
+            }
 
-        /* Master → Employee/Customer list: hover baris (#fef2f2 pink !important) */
-        body .employee-row:hover, body .customer-row:hover { background-color: #374151 !important; }
+            /* Shade -200 (mis. chip WEIGHT % `bg-purple-200 text-purple-800` di tabel
+                                           Planning) → tint gelap agar teks (yg dicerahkan) terbaca. */
+            .bg-blue-200 {
+                background-color: rgba(59, 130, 246, .26) !important;
+            }
 
-        /* Master → Employee/Customer detail: field read-only (.profile-readonly).
-           Prefiks `body` menaikkan spesifisitas agar menang atas aturan halaman
-           yang memakai !important dengan spesifisitas sama (CSS halaman dimuat
-           belakangan lewat stack styles di head). */
-        body .profile-readonly input,
-        body .profile-readonly textarea,
-        body .profile-readonly select,
-        body .profile-readonly .se-btn {
-            background: #111827 !important; color: #9ca3af !important; border-color: #374151 !important;
-        }
+            .bg-sky-200 {
+                background-color: rgba(14, 165, 233, .26) !important;
+            }
 
-        /* Ticket list (Support Tickets) — toggle aktif, stat-card aktif, baris unread */
-        #btnViewAll.active, #btnViewMy.active, #btnViewAllHd.active, #btnViewUnassigned.active {
-            background: #374151 !important; color: #f9fafb !important;
-        }
-        body .stat-card.active-filter {
-            background: rgba(220,38,38,.16) !important;
-            border-top-color: #7f1d1d !important; border-right-color: #7f1d1d !important; border-bottom-color: #7f1d1d !important;
-        }
-        #ticketsListBody tr:hover { background: #374151 !important; }
-        /* Dua kolom sticky (Last Update & Ticket#) memakai background PUTIH inline
-           (style="background:#ffffff") pada tiap baris — timpa jadi gelap. Baris
-           unread punya selector lebih spesifik di bawah sehingga tetap menang.
-           PENTING: kolom sticky di-FREEZE dan mengambang di atas kolom lain yang
-           di-scroll horizontal, jadi latarnya WAJIB OPAQUE — jika translucent
-           (rgba), konten kolom di belakang akan tembus. Tint unread karena itu
-           dipakai sebagai warna SOLID hasil blend di atas permukaan #1f2937,
-           bukan rgba. */
-        #ticketsListBody tr td:first-child,
-        #ticketsListBody tr td:nth-child(2) { background: #1f2937 !important; }
-        #ticketsListBody tr:hover td:first-child,
-        #ticketsListBody tr:hover td:nth-child(2) { background: #374151 !important; }
-        #ticketsListBody tr.ticket-unread-customer,
-        #ticketsListBody tr.ticket-unread-customer td:first-child,
-        #ticketsListBody tr.ticket-unread-customer td:nth-child(2) { background: #233550 !important; }
-        #ticketsListBody tr.ticket-unread-customer:hover,
-        #ticketsListBody tr.ticket-unread-customer:hover td:first-child,
-        #ticketsListBody tr.ticket-unread-customer:hover td:nth-child(2) { background: #253d61 !important; }
-        #ticketsListBody tr.ticket-unread-internal,
-        #ticketsListBody tr.ticket-unread-internal td:first-child,
-        #ticketsListBody tr.ticket-unread-internal td:nth-child(2) { background: #393b35 !important; }
-        #ticketsListBody tr.ticket-unread-internal:hover,
-        #ticketsListBody tr.ticket-unread-internal:hover td:first-child,
-        #ticketsListBody tr.ticket-unread-internal:hover td:nth-child(2) { background: #4b4733 !important; }
+            .bg-indigo-200 {
+                background-color: rgba(99, 102, 241, .26) !important;
+            }
 
-        /* Calendar → Timesheet: stat cards (Total/Draft/Submitted/Approved/Rejected).
-           Semua pakai `bg-white`, tapi ditegaskan lewat ID (spesifisitas tertinggi)
-           agar dijamin gelap meski ada override lain. */
-        #cardAll, #cardDraft, #cardSubmitted, #cardApproved, #cardRejected { background-color: #1f2937 !important; }
+            .bg-green-200 {
+                background-color: rgba(34, 197, 94, .26) !important;
+            }
 
-        /* SLA → SLA Report: kolom sticky putih (.sc #ffffff), group header band
-           (.grp-info/resp/res), badge SLA (.sla-badge-*) — semua warna mentah. */
-        .sla-table tbody .sc                     { background: #1f2937 !important; }
-        .sla-table tbody tr:hover .sc            { background: #374151 !important; }
-        .sla-table tbody tr.row-pending .sc      { background: rgba(245,158,11,.12) !important; }
-        .sla-table tbody tr.row-pending:hover .sc{ background: rgba(245,158,11,.20) !important; }
-        .grp-info { background: #111827 !important; }
-        .grp-resp { background: rgba(59,130,246,.10) !important; }
-        .grp-res  { background: rgba(34,197,94,.10) !important; }
-        .sla-badge-met      { background: rgba(34,197,94,.18) !important; color: #86efac !important; }
-        .sla-badge-breached { background: rgba(153,27,27,.30) !important; color: #fca5a5 !important; }
-        .sla-badge-pending  { background: rgba(59,130,246,.18) !important; color: #93c5fd !important; }
-        .sla-badge-paused   { background: rgba(245,158,11,.18) !important; color: #fcd34d !important; }
-        .sla-badge-pv       { background: #374151 !important; color: #cbd5e1 !important; }
-        .sla-check-none     { color: #6b7280 !important; }
-        /* Header sticky tabel SLA + tabel kedua (bg-gray-50/80) */
-        .sla-table thead th          { background-color: #111827 !important; }
-        .sla-table thead .grp-resp   { background: rgba(59,130,246,.10) !important; }
-        .sla-table thead .grp-res    { background: rgba(34,197,94,.10) !important; }
-        .bg-gray-50\/70, .bg-gray-50\/80, .bg-gray-50\/90 { background-color: #111827 !important; }
+            .bg-emerald-200 {
+                background-color: rgba(16, 185, 129, .26) !important;
+            }
+
+            .bg-teal-200 {
+                background-color: rgba(20, 184, 166, .26) !important;
+            }
+
+            .bg-amber-200 {
+                background-color: rgba(245, 158, 11, .26) !important;
+            }
+
+            .bg-yellow-200 {
+                background-color: rgba(234, 179, 8, .26) !important;
+            }
+
+            .bg-orange-200 {
+                background-color: rgba(249, 115, 22, .26) !important;
+            }
+
+            .bg-purple-200 {
+                background-color: rgba(168, 85, 247, .26) !important;
+            }
+
+            .bg-pink-200 {
+                background-color: rgba(236, 72, 153, .26) !important;
+            }
+
+            .bg-red-200 {
+                background-color: rgba(153, 27, 27, .30) !important;
+            }
+
+            /* Varian OPACITY pastel (mis. `bg-orange-50/40`, `bg-blue-50/40` di kolom
+                                           Plan Cost) — class berbeda dari `bg-orange-50`, ditangkap via atribut. */
+            [class*="bg-blue-50/"] {
+                background-color: rgba(59, 130, 246, .15) !important;
+            }
+
+            [class*="bg-sky-50/"] {
+                background-color: rgba(14, 165, 233, .15) !important;
+            }
+
+            [class*="bg-indigo-50/"] {
+                background-color: rgba(99, 102, 241, .15) !important;
+            }
+
+            [class*="bg-green-50/"] {
+                background-color: rgba(34, 197, 94, .15) !important;
+            }
+
+            [class*="bg-emerald-50/"] {
+                background-color: rgba(16, 185, 129, .15) !important;
+            }
+
+            [class*="bg-orange-50/"] {
+                background-color: rgba(249, 115, 22, .15) !important;
+            }
+
+            [class*="bg-amber-50/"] {
+                background-color: rgba(245, 158, 11, .15) !important;
+            }
+
+            [class*="bg-yellow-50/"] {
+                background-color: rgba(234, 179, 8, .15) !important;
+            }
+
+            [class*="bg-purple-50/"] {
+                background-color: rgba(168, 85, 247, .15) !important;
+            }
+
+            [class*="bg-red-50/"] {
+                background-color: rgba(153, 27, 27, .20) !important;
+            }
+
+            /* Teks warna gelap (badge `-700/-800`) → dicerahkan agar terbaca di gelap.
+                                           Ikon `-600` sudah cukup jenuh, dibiarkan. */
+            .text-blue-700,
+            .text-blue-800 {
+                color: #93c5fd !important;
+            }
+
+            .text-sky-700,
+            .text-sky-800 {
+                color: #7dd3fc !important;
+            }
+
+            .text-indigo-700,
+            .text-indigo-800 {
+                color: #a5b4fc !important;
+            }
+
+            .text-green-700,
+            .text-green-800 {
+                color: #86efac !important;
+            }
+
+            .text-emerald-700,
+            .text-emerald-800 {
+                color: #6ee7b7 !important;
+            }
+
+            .text-teal-600,
+            .text-teal-700,
+            .text-teal-800 {
+                color: #5eead4 !important;
+            }
+
+            .text-cyan-700,
+            .text-cyan-800 {
+                color: #67e8f9 !important;
+            }
+
+            .text-amber-700,
+            .text-amber-800 {
+                color: #fcd34d !important;
+            }
+
+            .text-yellow-700,
+            .text-yellow-800 {
+                color: #fde047 !important;
+            }
+
+            .text-orange-700,
+            .text-orange-800 {
+                color: #fdba74 !important;
+            }
+
+            .text-purple-700,
+            .text-purple-800 {
+                color: #d8b4fe !important;
+            }
+
+            .text-red-700,
+            .text-red-800 {
+                color: #fca5a5 !important;
+            }
+
+            /* Shade -900 (teks paling gelap, dipakai di chip `bg-*-200 text-*-900`) */
+            .text-blue-900 {
+                color: #93c5fd !important;
+            }
+
+            .text-sky-900 {
+                color: #7dd3fc !important;
+            }
+
+            .text-indigo-900 {
+                color: #a5b4fc !important;
+            }
+
+            .text-green-900 {
+                color: #86efac !important;
+            }
+
+            .text-emerald-900 {
+                color: #6ee7b7 !important;
+            }
+
+            .text-teal-900 {
+                color: #5eead4 !important;
+            }
+
+            .text-amber-900 {
+                color: #fcd34d !important;
+            }
+
+            .text-yellow-900 {
+                color: #fde047 !important;
+            }
+
+            .text-orange-900 {
+                color: #fdba74 !important;
+            }
+
+            .text-purple-900 {
+                color: #d8b4fe !important;
+            }
+
+            .text-red-900 {
+                color: #fca5a5 !important;
+            }
+
+            /* Aksen merah brand (.primary-text = var(--primary-color) #991b1b) terlalu
+                                           gelap di latar gelap → dicerahkan. `body` agar menang atas aturan halaman
+                                           `.primary-text{color:var(--primary-color)!important}`. */
+            body .primary-text {
+                color: #f87171 !important;
+            }
+
+            /* Badge SOLID terang (mis. `bg-yellow-400 text-gray-900` = badge count di
+                                           sidebar) — latarnya tetap terang, jadi teks HARUS tetap gelap; jangan
+                                           ikut dicerahkan seperti `.text-gray-900` biasa. Compound (0,2,0) menang. */
+            .bg-yellow-300.text-gray-900,
+            .bg-yellow-400.text-gray-900,
+            .bg-yellow-500.text-gray-900,
+            .bg-amber-300.text-gray-900,
+            .bg-amber-400.text-gray-900,
+            .bg-amber-500.text-gray-900,
+            .bg-lime-400.text-gray-900,
+            .bg-green-400.text-gray-900,
+            .bg-orange-400.text-gray-900,
+            .bg-yellow-400.text-gray-800,
+            .bg-amber-400.text-gray-800 {
+                color: #111827 !important;
+            }
+
+            /* Text */
+            .text-gray-900,
+            .text-black {
+                color: #f3f4f6 !important;
+            }
+
+            .text-gray-800 {
+                color: #e5e7eb !important;
+            }
+
+            .text-gray-700 {
+                color: #d1d5db !important;
+            }
+
+            .text-gray-600 {
+                color: #cbd1d9 !important;
+            }
+
+            .text-gray-500 {
+                color: #9ca3af !important;
+            }
+
+            .text-gray-400 {
+                color: #8b93a1 !important;
+            }
+
+            .text-gray-300 {
+                color: #6b7280 !important;
+            }
+
+            /* Borders & dividers */
+            .border-gray-100 {
+                border-color: #1f2937 !important;
+            }
+
+            .border-gray-200 {
+                border-color: #374151 !important;
+            }
+
+            .border-gray-300 {
+                border-color: #4b5563 !important;
+            }
+
+            .divide-gray-100> :not([hidden])~ :not([hidden]) {
+                border-color: #1f2937 !important;
+            }
+
+            .divide-gray-200> :not([hidden])~ :not([hidden]) {
+                border-color: #374151 !important;
+            }
+
+            /* ── Hover states ──────────────────────────────────────────────────
+                                           Samakan SEMUA hover latar terang ke #374151 (seperti Master Employee),
+                                           termasuk varian opacity (mis. `hover:bg-gray-50/80`) & shade lain.
+                                           Selektor atribut menangkap semua varian; `!important` menang atas
+                                           utilitas hover Tailwind (yang non-important). */
+            [class*="hover:bg-gray-"]:hover,
+            [class*="hover:bg-slate-"]:hover,
+            [class*="hover:bg-zinc-"]:hover,
+            [class*="hover:bg-neutral-"]:hover,
+            [class*="hover:bg-stone-"]:hover,
+            [class*="hover:bg-white"]:hover {
+                background-color: #374151 !important;
+            }
+
+            /* Hover pastel berwarna (khusus shade -50/-100 via ~= agar TIDAK kena
+                                           tombol solid -500/-600/-700) → tint gelap sesuai hue, tetap subtle. */
+            [class~="hover:bg-blue-50"]:hover,
+            [class~="hover:bg-blue-100"]:hover {
+                background-color: rgba(59, 130, 246, .22) !important;
+            }
+
+            [class~="hover:bg-sky-50"]:hover,
+            [class~="hover:bg-sky-100"]:hover {
+                background-color: rgba(14, 165, 233, .22) !important;
+            }
+
+            [class~="hover:bg-indigo-50"]:hover,
+            [class~="hover:bg-indigo-100"]:hover {
+                background-color: rgba(99, 102, 241, .22) !important;
+            }
+
+            [class~="hover:bg-green-50"]:hover,
+            [class~="hover:bg-green-100"]:hover {
+                background-color: rgba(34, 197, 94, .22) !important;
+            }
+
+            [class~="hover:bg-emerald-50"]:hover,
+            [class~="hover:bg-emerald-100"]:hover {
+                background-color: rgba(16, 185, 129, .22) !important;
+            }
+
+            [class~="hover:bg-teal-50"]:hover,
+            [class~="hover:bg-teal-100"]:hover {
+                background-color: rgba(20, 184, 166, .22) !important;
+            }
+
+            [class~="hover:bg-amber-50"]:hover,
+            [class~="hover:bg-amber-100"]:hover {
+                background-color: rgba(245, 158, 11, .22) !important;
+            }
+
+            [class~="hover:bg-yellow-50"]:hover,
+            [class~="hover:bg-yellow-100"]:hover {
+                background-color: rgba(234, 179, 8, .22) !important;
+            }
+
+            [class~="hover:bg-orange-50"]:hover,
+            [class~="hover:bg-orange-100"]:hover {
+                background-color: rgba(249, 115, 22, .22) !important;
+            }
+
+            [class~="hover:bg-purple-50"]:hover,
+            [class~="hover:bg-purple-100"]:hover {
+                background-color: rgba(168, 85, 247, .22) !important;
+            }
+
+            [class~="hover:bg-pink-50"]:hover,
+            [class~="hover:bg-pink-100"]:hover {
+                background-color: rgba(236, 72, 153, .22) !important;
+            }
+
+            [class~="hover:bg-red-50"]:hover,
+            [class~="hover:bg-red-100"]:hover {
+                background-color: rgba(153, 27, 27, .30) !important;
+            }
+
+            /* Chip ikon dengan group-hover (mis. Quick Navigation) — samakan pola */
+            .group:hover [class*="group-hover:bg-gray-"],
+            .group:hover [class*="group-hover:bg-slate-"] {
+                background-color: #374151 !important;
+            }
+
+            .group:hover [class~="group-hover:bg-blue-100"] {
+                background-color: rgba(59, 130, 246, .26) !important;
+            }
+
+            .group:hover [class~="group-hover:bg-sky-100"] {
+                background-color: rgba(14, 165, 233, .26) !important;
+            }
+
+            .group:hover [class~="group-hover:bg-indigo-100"] {
+                background-color: rgba(99, 102, 241, .26) !important;
+            }
+
+            .group:hover [class~="group-hover:bg-green-100"] {
+                background-color: rgba(34, 197, 94, .26) !important;
+            }
+
+            .group:hover [class~="group-hover:bg-emerald-100"] {
+                background-color: rgba(16, 185, 129, .26) !important;
+            }
+
+            .group:hover [class~="group-hover:bg-amber-100"] {
+                background-color: rgba(245, 158, 11, .26) !important;
+            }
+
+            .group:hover [class~="group-hover:bg-purple-100"] {
+                background-color: rgba(168, 85, 247, .26) !important;
+            }
+
+            .group:hover [class~="group-hover:bg-red-100"] {
+                background-color: rgba(153, 27, 27, .34) !important;
+            }
+
+            /* Sidebar = permukaan ber-ACCENT (bukan gelap). Nav pakai overlay putih
+                                           transparan (active `bg-white/opacity-15`, hover `hover:bg-white/opacity-10`).
+                                           Kembalikan overlay itu agar tidak diubah jadi abu/gelap oleh aturan generik
+                                           di atas — `#sidebar` (ID) menang spesifisitas. */
+            #sidebar .bg-white {
+                background-color: rgba(255, 255, 255, 0.15) !important;
+            }
+
+            #sidebar [class*="hover:bg-white"]:hover {
+                background-color: rgba(255, 255, 255, 0.10) !important;
+            }
+
+            /* Form controls */
+            input,
+            select,
+            textarea {
+                background-color: #374151 !important;
+                color: #f9fafb !important;
+                border-color: #4b5563 !important;
+            }
+
+            input:read-only,
+            input:disabled,
+            select:disabled,
+            textarea:disabled {
+                background-color: #1f2937 !important;
+                color: #9ca3af !important;
+            }
+
+            input::placeholder,
+            textarea::placeholder {
+                color: #6b7280 !important;
+            }
+
+            /* Shadow lebih dalam agar kartu tetap terbaca di atas latar gelap */
+            .shadow-sm,
+            .shadow,
+            .shadow-md,
+            .shadow-lg,
+            .shadow-xl,
+            .shadow-2xl {
+                box-shadow: 0 4px 16px rgba(0, 0, 0, .45) !important;
+            }
+
+            /* Scrollbar: warna thumb & track sudah theme-aware via var --primary-*
+                                           dan --scrollbar-track (didefinisikan di :root), jadi otomatis mengikuti
+                                           sidebar/accent + tema. Tidak perlu override di sini. */
+
+            /* ── Komponen custom yang memakai putih hardcoded ────────────────────
+                                           Elemen berikut TIDAK memakai class `bg-white` (mereka distyle lewat
+                                           CSS mentah / JS), jadi override class di atas tak menjangkaunya.
+                                           Dipetakan ulang di sini agar ikut tema. */
+
+            /* Native <select> option list */
+            option {
+                background-color: #1f2937 !important;
+                color: #e5e7eb !important;
+            }
+
+            /* Enhanced <select> — public/js/select-enhance.js (.se-*) */
+            .se-btn {
+                background: #374151 !important;
+                border-color: #4b5563 !important;
+                color: #e5e7eb !important;
+            }
+
+            .se-btn:hover {
+                border-color: #6b7280 !important;
+            }
+
+            .se-btn[disabled] {
+                background: #1f2937 !important;
+            }
+
+            .se-label {
+                color: #e5e7eb !important;
+            }
+
+            .se-label.is-placeholder {
+                color: #6b7280 !important;
+            }
+
+            .se-panel {
+                background: #1f2937 !important;
+                border-color: #374151 !important;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, .55) !important;
+            }
+
+            .se-item {
+                color: #d1d5db !important;
+            }
+
+            .se-item:hover,
+            .se-item.is-active {
+                background: #374151 !important;
+                color: #f9fafb !important;
+            }
+
+            .se-item.is-disabled {
+                color: #4b5563 !important;
+            }
+
+            .se-search-head {
+                background: #1f2937 !important;
+                border-color: #374151 !important;
+            }
+
+            /* Custom dropdown — public/js/custom-dropdown.js (.custom-dd-*) */
+            .custom-dd-panel {
+                background: #1f2937 !important;
+                border-color: #374151 !important;
+            }
+
+            .custom-dd-btn {
+                background: #374151 !important;
+                border-color: #4b5563 !important;
+                color: #e5e7eb !important;
+            }
+
+            /* Filter kolom di HEADER tabel juga memakai `.custom-dd-btn`, tapi di sana
+                                           harus TRANSPARAN mengikuti latar header (bg-gray-50 → #0b1120) — jika
+                                           tidak, sel header berdropdown (Customer…Type) tampak lebih terang &
+                                           belang dibanding sel header lain. Hover tetap ditangani utilitas
+                                           `hover:bg-gray-*`. */
+            thead .custom-dd-btn {
+                background: transparent !important;
+            }
+
+            .custom-dd-item {
+                color: #d1d5db !important;
+            }
+
+            .custom-dd-item:hover,
+            .custom-dd-item.is-active,
+            .custom-dd-item.selected {
+                background: #374151 !important;
+                color: #f9fafb !important;
+            }
+
+            /* Reporting → MD Recap (baris grup/anak pakai #f9fafb / #fff mentah) */
+            .recap-emp-row td {
+                background: #111827 !important;
+            }
+
+            .recap-emp-row:hover td {
+                background: #0b1120 !important;
+            }
+
+            .recap-sub-row td {
+                background: #1f2937 !important;
+            }
+
+            .recap-sub-row:hover td {
+                background: #374151 !important;
+            }
+
+            /* Reporting → Collection Outlook (.co-*) */
+            .co-select {
+                background: #374151 !important;
+                border-color: #4b5563 !important;
+                color: #e5e7eb !important;
+            }
+
+            .co-th {
+                background: #111827 !important;
+                color: #9ca3af !important;
+                border-bottom-color: #374151 !important;
+                border-right-color: #374151 !important;
+            }
+
+            .co-td {
+                border-bottom-color: #374151 !important;
+                border-right-color: #374151 !important;
+                color: #d1d5db !important;
+            }
+
+            thead .co-sticky-cust,
+            thead .co-sticky-proj,
+            thead .co-sticky-top {
+                background: #0b1120 !important;
+            }
+
+            tbody .co-sticky-cust,
+            tbody .co-sticky-proj,
+            tbody .co-sticky-top {
+                background: #111827 !important;
+            }
+
+            tbody tr:hover .co-sticky-cust,
+            tbody tr:hover .co-sticky-proj,
+            tbody tr:hover .co-sticky-top {
+                background: #1f2937 !important;
+            }
+
+            .co-amount-btn:hover {
+                background: #374151 !important;
+            }
+
+            /* Nilai amount di sel — dicerahkan agar terbaca di latar gelap */
+            .co-open {
+                color: #cbd5e1 !important;
+            }
+
+            .co-paid {
+                color: #4ade80 !important;
+            }
+
+            .co-delay {
+                color: #fbbf24 !important;
+            }
+
+            .co-paid:hover {
+                background: rgba(34, 197, 94, .18) !important;
+            }
+
+            .co-delay:hover {
+                background: rgba(245, 158, 11, .18) !important;
+            }
+
+            /* Delivery → Project Detail: sticky section nav + tab hover/active
+                                           (#sectionNav putih translucent; .section-tab hover #f9fafb). */
+            #sectionNav {
+                background: rgba(17, 24, 39, .92) !important;
+                border-bottom-color: #374151 !important;
+            }
+
+            .section-tab:hover {
+                background-color: #374151 !important;
+                color: #e5e7eb !important;
+            }
+
+            .section-tab.active {
+                color: #f87171 !important;
+            }
+
+            /* Delivery → Phase Management: redupkan gradient pekat (header indigo, bar
+                                           amber, bar biru) agar tidak menyilaukan. Scoped ke `.phase-mgmt-page`
+                                           supaya halaman lain tak terpengaruh. */
+            .phase-mgmt-page .from-blue-600.to-indigo-600 {
+                background-image: linear-gradient(to right, #21375a, #2b295c) !important;
+            }
+
+            .phase-mgmt-page .from-amber-400.to-orange-500 {
+                background-image: linear-gradient(to right, #a16207, #b45309) !important;
+            }
+
+            .phase-mgmt-page .from-blue-500.to-indigo-600 {
+                background-image: linear-gradient(to right, #1e40af, #3730a3) !important;
+            }
+
+            /* Track bar */
+            .phase-mgmt-page .bg-amber-100 {
+                background-color: rgba(245, 158, 11, .16) !important;
+            }
+
+            .phase-mgmt-page .bg-gray-200 {
+                background-color: #374151 !important;
+            }
+
+            /* Delivery → Gantt chart: banyak warna terang hardcoded (panel putih, header,
+                                           sel hari putih, kolom weekend cream #fef3c7, border terang). Dipetakan
+                                           ulang agar menyatu dengan tema gelap. Bar tugas (warna dinamis) & garis
+                                           "Today" merah dibiarkan. */
+            .gantt-wrapper {
+                background-color: #1f2937 !important;
+            }
+
+            .gantt-sidebar {
+                background-color: #111827 !important;
+                border-right-color: #374151 !important;
+            }
+
+            .gantt-sidebar-header,
+            .gantt-timeline-header {
+                background-color: #111827 !important;
+                border-bottom-color: #374151 !important;
+            }
+
+            .gantt-header-col {
+                color: #cbd5e1 !important;
+            }
+
+            .gantt-week-cell {
+                background-color: #111827 !important;
+                border-right-color: #374151 !important;
+                color: #9ca3af !important;
+            }
+
+            .gantt-week-row {
+                border-bottom-color: #374151 !important;
+            }
+
+            .gantt-day-cell {
+                background-color: #1f2937 !important;
+                border-right-color: #374151 !important;
+                color: #cbd5e1 !important;
+            }
+
+            .gantt-day-cell.weekend,
+            .gantt-grid-cell.weekend {
+                background-color: rgba(245, 158, 11, .10) !important;
+            }
+
+            .gantt-day-cell.today {
+                background-color: rgba(59, 130, 246, .22) !important;
+                color: #93c5fd !important;
+            }
+
+            .gantt-phase-row,
+            .gantt-timeline-row.gantt-phase-bg {
+                background-color: #111827 !important;
+                border-bottom-color: #374151 !important;
+            }
+
+            .gantt-activity-row {
+                border-bottom-color: #374151 !important;
+            }
+
+            .gantt-activity-row:hover {
+                background-color: #374151 !important;
+            }
+
+            .gantt-grid-cell {
+                border-right-color: #374151 !important;
+            }
+
+            .gantt-toggle-button:hover {
+                background-color: rgba(255, 255, 255, .08) !important;
+            }
+
+            .gantt-timeline::-webkit-scrollbar-track,
+            .gantt-sidebar-body::-webkit-scrollbar-track {
+                background: #111827 !important;
+            }
+
+            .gantt-timeline::-webkit-scrollbar-thumb,
+            .gantt-sidebar-body::-webkit-scrollbar-thumb {
+                background: #4b5563 !important;
+            }
+
+            /* Baris tabel ber-gradasi TERANG (mis. Project Planning phase/group rows,
+                                           header banner from-*-50/100) → diratakan jadi permukaan gelap. Gradasi
+                                           gelap/pekat (from-blue-600, from-*-500, dsb.) sengaja dibiarkan. */
+            .from-gray-50,
+            .from-gray-100,
+            .from-blue-50,
+            .from-indigo-50,
+            .from-purple-50,
+            .from-indigo-100,
+            .from-purple-100,
+            .from-amber-50,
+            .from-orange-50 {
+                --tw-gradient-from: #1f2937 !important;
+                --tw-gradient-to: #1f2937 !important;
+                --tw-gradient-stops: #1f2937, #1f2937 !important;
+            }
+
+            .to-gray-50,
+            .to-gray-100,
+            .to-blue-50,
+            .to-indigo-50,
+            .to-purple-50,
+            .to-indigo-100,
+            .to-purple-100,
+            .to-orange-50 {
+                --tw-gradient-to: #1f2937 !important;
+                --tw-gradient-stops: var(--tw-gradient-from), #1f2937 !important;
+            }
+
+            .hover\:from-purple-100:hover,
+            .hover\:to-indigo-100:hover {
+                --tw-gradient-from: #374151 !important;
+                --tw-gradient-to: #374151 !important;
+                --tw-gradient-stops: #374151, #374151 !important;
+            }
+
+            /* Master → Employee/Customer list: hover baris (#fef2f2 pink !important) */
+            body .employee-row:hover,
+            body .customer-row:hover {
+                background-color: #374151 !important;
+            }
+
+            /* Master → Employee/Customer detail: field read-only (.profile-readonly).
+                                           Prefiks `body` menaikkan spesifisitas agar menang atas aturan halaman
+                                           yang memakai !important dengan spesifisitas sama (CSS halaman dimuat
+                                           belakangan lewat stack styles di head). */
+            body .profile-readonly input,
+            body .profile-readonly textarea,
+            body .profile-readonly select,
+            body .profile-readonly .se-btn {
+                background: #111827 !important;
+                color: #9ca3af !important;
+                border-color: #374151 !important;
+            }
+
+            /* Ticket list (Support Tickets) — toggle aktif, stat-card aktif, baris unread */
+            #btnViewAll.active,
+            #btnViewMy.active,
+            #btnViewAllHd.active,
+            #btnViewUnassigned.active {
+                background: #374151 !important;
+                color: #f9fafb !important;
+            }
+
+            body .stat-card.active-filter {
+                background: rgba(220, 38, 38, .16) !important;
+                border-top-color: #7f1d1d !important;
+                border-right-color: #7f1d1d !important;
+                border-bottom-color: #7f1d1d !important;
+            }
+
+            #ticketsListBody tr:hover {
+                background: #374151 !important;
+            }
+
+            /* Dua kolom sticky (Last Update & Ticket#) memakai background PUTIH inline
+                                           (style="background:#ffffff") pada tiap baris — timpa jadi gelap. Baris
+                                           unread punya selector lebih spesifik di bawah sehingga tetap menang.
+                                           PENTING: kolom sticky di-FREEZE dan mengambang di atas kolom lain yang
+                                           di-scroll horizontal, jadi latarnya WAJIB OPAQUE — jika translucent
+                                           (rgba), konten kolom di belakang akan tembus. Tint unread karena itu
+                                           dipakai sebagai warna SOLID hasil blend di atas permukaan #1f2937,
+                                           bukan rgba. */
+            #ticketsListBody tr td:first-child,
+            #ticketsListBody tr td:nth-child(2) {
+                background: #1f2937 !important;
+            }
+
+            #ticketsListBody tr:hover td:first-child,
+            #ticketsListBody tr:hover td:nth-child(2) {
+                background: #374151 !important;
+            }
+
+            #ticketsListBody tr.ticket-unread-customer,
+            #ticketsListBody tr.ticket-unread-customer td:first-child,
+            #ticketsListBody tr.ticket-unread-customer td:nth-child(2) {
+                background: #233550 !important;
+            }
+
+            #ticketsListBody tr.ticket-unread-customer:hover,
+            #ticketsListBody tr.ticket-unread-customer:hover td:first-child,
+            #ticketsListBody tr.ticket-unread-customer:hover td:nth-child(2) {
+                background: #253d61 !important;
+            }
+
+            #ticketsListBody tr.ticket-unread-internal,
+            #ticketsListBody tr.ticket-unread-internal td:first-child,
+            #ticketsListBody tr.ticket-unread-internal td:nth-child(2) {
+                background: #393b35 !important;
+            }
+
+            #ticketsListBody tr.ticket-unread-internal:hover,
+            #ticketsListBody tr.ticket-unread-internal:hover td:first-child,
+            #ticketsListBody tr.ticket-unread-internal:hover td:nth-child(2) {
+                background: #4b4733 !important;
+            }
+
+            /* Calendar → Timesheet: stat cards (Total/Draft/Submitted/Approved/Rejected).
+                                           Semua pakai `bg-white`, tapi ditegaskan lewat ID (spesifisitas tertinggi)
+                                           agar dijamin gelap meski ada override lain. */
+            #cardAll,
+            #cardDraft,
+            #cardSubmitted,
+            #cardApproved,
+            #cardRejected {
+                background-color: #1f2937 !important;
+            }
+
+            /* SLA → SLA Report: kolom sticky putih (.sc #ffffff), group header band
+                                           (.grp-info/resp/res), badge SLA (.sla-badge-*) — semua warna mentah. */
+            .sla-table tbody .sc {
+                background: #1f2937 !important;
+            }
+
+            .sla-table tbody tr:hover .sc {
+                background: #374151 !important;
+            }
+
+            .sla-table tbody tr.row-pending .sc {
+                background: rgba(245, 158, 11, .12) !important;
+            }
+
+            .sla-table tbody tr.row-pending:hover .sc {
+                background: rgba(245, 158, 11, .20) !important;
+            }
+
+            .grp-info {
+                background: #111827 !important;
+            }
+
+            .grp-resp {
+                background: rgba(59, 130, 246, .10) !important;
+            }
+
+            .grp-res {
+                background: rgba(34, 197, 94, .10) !important;
+            }
+
+            .sla-badge-met {
+                background: rgba(34, 197, 94, .18) !important;
+                color: #86efac !important;
+            }
+
+            .sla-badge-breached {
+                background: rgba(153, 27, 27, .30) !important;
+                color: #fca5a5 !important;
+            }
+
+            .sla-badge-pending {
+                background: rgba(59, 130, 246, .18) !important;
+                color: #93c5fd !important;
+            }
+
+            .sla-badge-paused {
+                background: rgba(245, 158, 11, .18) !important;
+                color: #fcd34d !important;
+            }
+
+            .sla-badge-pv {
+                background: #374151 !important;
+                color: #cbd5e1 !important;
+            }
+
+            .sla-check-none {
+                color: #6b7280 !important;
+            }
+
+            /* Header sticky tabel SLA + tabel kedua (bg-gray-50/80) */
+            .sla-table thead th {
+                background-color: #111827 !important;
+            }
+
+            .sla-table thead .grp-resp {
+                background: rgba(59, 130, 246, .10) !important;
+            }
+
+            .sla-table thead .grp-res {
+                background: rgba(34, 197, 94, .10) !important;
+            }
+
+            .bg-gray-50\/70,
+            .bg-gray-50\/80,
+            .bg-gray-50\/90 {
+                background-color: #111827 !important;
+            }
+
         @endif
-        
+
         /* ── Global Form Input Reset ─────────────────────────────────────────
            Tailwind v4 preflight sets border-width:0 and no padding on all
            elements. Restore a consistent, comfortable appearance site-wide.
@@ -582,12 +1288,16 @@
         :where(textarea) {
             border-width: 1px;
             border-style: solid;
-            padding: 0.5rem 0.75rem;   /* py-2 px-3 — comfortable touch target */
+            padding: 0.5rem 0.75rem;
+            /* py-2 px-3 — comfortable touch target */
             line-height: 1.5rem;
-            border-radius: 0.375rem;   /* rounded-md */
+            border-radius: 0.375rem;
+            /* rounded-md */
         }
+
         :where(textarea) {
-            padding: 0.625rem 0.75rem; /* slightly taller for multiline */
+            padding: 0.625rem 0.75rem;
+            /* slightly taller for multiline */
             line-height: 1.625rem;
         }
 
@@ -606,29 +1316,40 @@
            mixed col-span-1/2/3/4/6 children never overflow or misalign.
            At >= 1024px the original grid-cols-6 + col-span-* rules apply. */
         @media (max-width: 1023px) {
-            .form-grid > * { grid-column: auto !important; }
+            .form-grid>* {
+                grid-column: auto !important;
+            }
         }
+
         @media (min-width: 768px) and (max-width: 1023px) {
-            .form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+            .form-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            }
         }
+
         @media (min-width: 480px) and (max-width: 767px) {
-            .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+            .form-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
         }
+
         @media (max-width: 479px) {
-            .form-grid { grid-template-columns: minmax(0, 1fr) !important; }
+            .form-grid {
+                grid-template-columns: minmax(0, 1fr) !important;
+            }
         }
 
         /* Card hover effect */
         .card-hover {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        
+
         .card-hover:hover {
             transform: translateY(-2px);
             box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
         }
     </style>
-    
+
     <script>
         tailwind.config = {
             theme: {
@@ -643,56 +1364,225 @@
     </script>
     <style>
         #toast-container {
-            position: fixed; top: 1.5rem; right: 1.5rem; z-index: 9999;
-            display: flex; flex-direction: column; gap: 0.75rem;
-            max-width: 22rem; width: 100%; pointer-events: none;
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-width: 22rem;
+            width: 100%;
+            pointer-events: none;
         }
+
         .toast {
-            pointer-events: all; border-radius: 0.875rem;
-            padding: 1rem 1rem 0 1rem; display: flex; flex-direction: column;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15); overflow: hidden;
-            transform: translateX(110%); opacity: 0;
-            transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s ease;
+            pointer-events: all;
+            border-radius: 0.875rem;
+            padding: 1rem 1rem 0 1rem;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            transform: translateX(110%);
+            opacity: 0;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
         }
-        .toast.show { transform: translateX(0); opacity: 1; }
-        .toast.hide { transform: translateX(110%); opacity: 0; transition: transform 0.35s ease-in, opacity 0.3s ease-in; }
-        .toast-body { display: flex; align-items: flex-start; gap: 0.75rem; padding-bottom: 0.875rem; }
-        .toast-icon { flex-shrink: 0; width: 2rem; height: 2rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .toast-content { flex: 1; min-width: 0; }
-        .toast-title { font-size: 0.8125rem; font-weight: 700; line-height: 1.2; }
-        .toast-message { font-size: 0.8125rem; margin-top: 0.2rem; line-height: 1.4; }
-        .toast-close { flex-shrink: 0; background: none; border: none; cursor: pointer; padding: 0.1rem; border-radius: 0.375rem; opacity: 0.5; transition: opacity 0.2s; line-height: 1; }
-        .toast-close:hover { opacity: 1; }
-        .toast-progress { height: 3px; border-radius: 0 0 0.875rem 0.875rem; margin: 0 -1rem; transform-origin: left; animation: toast-progress-shrink linear forwards; }
-        @keyframes toast-progress-shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
-        .toast-success { background: #f0fdf4; border: 1.5px solid #86efac; }
-        .toast-success .toast-icon { background: #dcfce7; }
-        .toast-success .toast-icon svg { color: #16a34a; }
-        .toast-success .toast-title { color: #14532d; }
-        .toast-success .toast-message { color: #15803d; }
-        .toast-success .toast-close { color: #14532d; }
-        .toast-success .toast-progress { background: #22c55e; }
-        .toast-error { background: #fff1f1; border: 1.5px solid #fca5a5; }
-        .toast-error .toast-icon { background: #fee2e2; }
-        .toast-error .toast-icon svg { color: #dc2626; }
-        .toast-error .toast-title { color: #991b1b; }
-        .toast-error .toast-message { color: #b91c1c; }
-        .toast-error .toast-close { color: #991b1b; }
-        .toast-error .toast-progress { background: #ef4444; }
-        .toast-warning { background: #fffbeb; border: 1.5px solid #fcd34d; }
-        .toast-warning .toast-icon { background: #fef9c3; }
-        .toast-warning .toast-icon svg { color: #d97706; }
-        .toast-warning .toast-title { color: #78350f; }
-        .toast-warning .toast-message { color: #92400e; }
-        .toast-warning .toast-close { color: #78350f; }
-        .toast-warning .toast-progress { background: #f59e0b; }
-        .toast-info { background: #eff6ff; border: 1.5px solid #93c5fd; }
-        .toast-info .toast-icon { background: #dbeafe; }
-        .toast-info .toast-icon svg { color: #2563eb; }
-        .toast-info .toast-title { color: #1e3a8a; }
-        .toast-info .toast-message { color: #1d4ed8; }
-        .toast-info .toast-close { color: #1e3a8a; }
-        .toast-info .toast-progress { background: #3b82f6; }
+
+        .toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .toast.hide {
+            transform: translateX(110%);
+            opacity: 0;
+            transition: transform 0.35s ease-in, opacity 0.3s ease-in;
+        }
+
+        .toast-body {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding-bottom: 0.875rem;
+        }
+
+        .toast-icon {
+            flex-shrink: 0;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toast-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .toast-title {
+            font-size: 0.8125rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .toast-message {
+            font-size: 0.8125rem;
+            margin-top: 0.2rem;
+            line-height: 1.4;
+        }
+
+        .toast-close {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.1rem;
+            border-radius: 0.375rem;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+            line-height: 1;
+        }
+
+        .toast-close:hover {
+            opacity: 1;
+        }
+
+        .toast-progress {
+            height: 3px;
+            border-radius: 0 0 0.875rem 0.875rem;
+            margin: 0 -1rem;
+            transform-origin: left;
+            animation: toast-progress-shrink linear forwards;
+        }
+
+        @keyframes toast-progress-shrink {
+            from {
+                transform: scaleX(1);
+            }
+
+            to {
+                transform: scaleX(0);
+            }
+        }
+
+        .toast-success {
+            background: #f0fdf4;
+            border: 1.5px solid #86efac;
+        }
+
+        .toast-success .toast-icon {
+            background: #dcfce7;
+        }
+
+        .toast-success .toast-icon svg {
+            color: #16a34a;
+        }
+
+        .toast-success .toast-title {
+            color: #14532d;
+        }
+
+        .toast-success .toast-message {
+            color: #15803d;
+        }
+
+        .toast-success .toast-close {
+            color: #14532d;
+        }
+
+        .toast-success .toast-progress {
+            background: #22c55e;
+        }
+
+        .toast-error {
+            background: #fff1f1;
+            border: 1.5px solid #fca5a5;
+        }
+
+        .toast-error .toast-icon {
+            background: #fee2e2;
+        }
+
+        .toast-error .toast-icon svg {
+            color: #dc2626;
+        }
+
+        .toast-error .toast-title {
+            color: #991b1b;
+        }
+
+        .toast-error .toast-message {
+            color: #b91c1c;
+        }
+
+        .toast-error .toast-close {
+            color: #991b1b;
+        }
+
+        .toast-error .toast-progress {
+            background: #ef4444;
+        }
+
+        .toast-warning {
+            background: #fffbeb;
+            border: 1.5px solid #fcd34d;
+        }
+
+        .toast-warning .toast-icon {
+            background: #fef9c3;
+        }
+
+        .toast-warning .toast-icon svg {
+            color: #d97706;
+        }
+
+        .toast-warning .toast-title {
+            color: #78350f;
+        }
+
+        .toast-warning .toast-message {
+            color: #92400e;
+        }
+
+        .toast-warning .toast-close {
+            color: #78350f;
+        }
+
+        .toast-warning .toast-progress {
+            background: #f59e0b;
+        }
+
+        .toast-info {
+            background: #eff6ff;
+            border: 1.5px solid #93c5fd;
+        }
+
+        .toast-info .toast-icon {
+            background: #dbeafe;
+        }
+
+        .toast-info .toast-icon svg {
+            color: #2563eb;
+        }
+
+        .toast-info .toast-title {
+            color: #1e3a8a;
+        }
+
+        .toast-info .toast-message {
+            color: #1d4ed8;
+        }
+
+        .toast-info .toast-close {
+            color: #1e3a8a;
+        }
+
+        .toast-info .toast-progress {
+            background: #3b82f6;
+        }
 
         /* Modal backdrop blur — applied automatically when overlay is visible */
         .modal-blur-active {
@@ -702,21 +1592,10 @@
     </style>
     @stack('styles')
 </head>
+
 <body class="text-gray-900 min-h-screen" style="background-color: var(--bg-color);">
     <div id="toast-container"></div>
     <div class="flex min-h-screen">
-        
-        <!-- Mobile sidebar backdrop (only visible when drawer is open on < lg) -->
-        <div id="sidebarOverlay" onclick="closeSidebar()" class="fixed inset-0 z-40 hidden lg:hidden" style="background-color: rgba(0,0,0,0.5);"></div>
-
-        <!-- Sidebar - Modern Design -->
-        <aside id="sidebar" class="sidebar-transition fixed inset-y-0 left-0 h-screen overflow-y-auto {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
-            <!-- Logo Section -->
-            <div class="sidebar-logo p-5 pb-2 flex items-center justify-center">
-                    <div class="w-full rounded-xl p-3 backdrop-blur-sm">
-                        <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="w-full h-auto"/>
-                    </div>
-            </div>
 
             <!-- Navigation Menu -->
             @hasSection('sidebar-nav')
@@ -1385,17 +2264,20 @@
             @endif
         </aside>
 
-        <!-- Main Content -->
         <main id="mainContent" class="sidebar-transition flex-1 ml-0 lg:ml-64 min-w-0">
             <!-- Header - Modern Design -->
-            <header class="sticky top-0 z-40 shadow-sm border-b border-gray-100" style="background-color: var(--card-bg);">
+            <header class="sticky top-0 z-40 shadow-sm border-b border-gray-100"
+                style="background-color: var(--card-bg);">
                 <div class="px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-3">
                     <div class="flex items-center gap-3 sm:gap-4 min-w-0">
-                        <button onclick="toggleSidebar()" class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 rounded-xl hover:bg-opacity-10 primary-hover primary-border transition-all" style="border-color: var(--primary-color); color: var(--text-color);">
+                        <button onclick="toggleSidebar()"
+                            class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 rounded-xl hover:bg-opacity-10 primary-hover primary-border transition-all"
+                            style="border-color: var(--primary-color); color: var(--text-color);">
                             <i class="fas fa-bars"></i>
                         </button>
                         <div class="min-w-0">
-                            <h1 class="text-base sm:text-xl font-bold mb-0.5 truncate" style="color: var(--text-color);">@yield('page-title', 'Dashboard')</h1>
+                            <h1 class="text-base sm:text-xl font-bold mb-0.5 truncate"
+                                style="color: var(--text-color);">@yield('page-title', 'Dashboard')</h1>
                             <p class="text-xs text-gray-500 truncate">@yield('page-subtitle', 'Welcome back')</p>
                         </div>
                     </div>
@@ -1405,38 +2287,44 @@
                         @yield('page-actions')
                         <!-- Notification Bell -->
                         <div class="flex items-center gap-2">
-                            <button id="soundToggleBtn" onclick="toggleNotifSound()"
-                                title="Disable notification sound"
+                            <button id="soundToggleBtn" onclick="toggleNotifSound()" title="Disable notification sound"
                                 class="w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-red-700 hover:text-red-800">
                                 <i id="soundToggleIcon" class="fas fa-volume-up text-sm"></i>
                             </button>
-                        <div class="relative" id="bellWrapper">
-                            <button id="bellBtn" onclick="toggleBellDropdown()"
-                                class="relative w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-gray-600 hover:text-red-800">
-                                <i class="fas fa-bell"></i>
-                                <span id="bellBadge" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 rounded-full border-2 border-white text-white text-[10px] font-bold flex items-center justify-center leading-none"></span>
-                            </button>
+                            <div class="relative" id="bellWrapper">
+                                <button id="bellBtn" onclick="toggleBellDropdown()"
+                                    class="relative w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-gray-600 hover:text-red-800">
+                                    <i class="fas fa-bell"></i>
+                                    <span id="bellBadge"
+                                        class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 rounded-full border-2 border-white text-white text-[10px] font-bold flex items-center justify-center leading-none"></span>
+                                </button>
 
-                            <!-- Notification Dropdown -->
-                            <div id="bellDropdown" class="hidden absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
-                                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                                    <span class="text-sm font-semibold text-gray-800">Notifications</span>
-                                    <div class="flex gap-2">
-                                        <button onclick="markAllNotificationsRead()" class="text-xs text-red-700 hover:underline font-medium">Mark all read</button>
-                                        <a href="{{ route('notifications.index') }}" class="text-xs text-gray-500 hover:underline">View all</a>
+                                <!-- Notification Dropdown -->
+                                <div id="bellDropdown"
+                                    class="hidden absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
+                                    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                                        <span class="text-sm font-semibold text-gray-800">Notifications</span>
+                                        <div class="flex gap-2">
+                                            <button onclick="markAllNotificationsRead()"
+                                                class="text-xs text-red-700 hover:underline font-medium">Mark all
+                                                read</button>
+                                            <a href="{{ route('notifications.index') }}"
+                                                class="text-xs text-gray-500 hover:underline">View all</a>
+                                        </div>
+                                    </div>
+                                    <div id="bellNotifList" class="max-h-80 overflow-y-auto divide-y divide-gray-50">
+                                        <div class="px-4 py-6 text-center text-xs text-gray-400">Loading...</div>
                                     </div>
                                 </div>
-                                <div id="bellNotifList" class="max-h-80 overflow-y-auto divide-y divide-gray-50">
-                                    <div class="px-4 py-6 text-center text-xs text-gray-400">Loading...</div>
-                                </div>
                             </div>
-                        </div>
                         </div>{{-- end flex gap-2 sound+bell wrapper --}}
 
                         <!-- User Menu -->
                         <div class="relative">
-                            <button onclick="toggleUserDropdown()" class="flex items-center gap-3 px-4 py-2.5 border-2 border-gray-200 rounded-xl hover:bg-gray-50 hover:border-red-800 transition-all">
-                                <div class="w-10 h-10 rounded-xl primary-gradient text-white flex items-center justify-center font-bold text-sm shadow-md">
+                            <button onclick="toggleUserDropdown()"
+                                class="flex items-center gap-3 px-4 py-2.5 border-2 border-gray-200 rounded-xl hover:bg-gray-50 hover:border-red-800 transition-all">
+                                <div
+                                    class="w-10 h-10 rounded-xl primary-gradient text-white flex items-center justify-center font-bold text-sm shadow-md">
                                     @if(isset($user['type']) && $user['type'] === 'customer')
                                         {{ strtoupper(substr($user['company_name'] ?? 'C', 0, 2)) }}
                                     @else
@@ -1458,17 +2346,21 @@
                                 <i class="fas fa-chevron-down text-gray-500 text-xs"></i>
                             </button>
 
-                            <div id="userDropdown" class="hidden absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border-2 border-gray-100 p-2 z-50">
-                                <!-- User Info -->
-                                <a href="{{ route('profile.my') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
-                                    <i class="fas fa-user w-5 text-center text-gray-500"></i>
+                            <div id="userDropdown"
+                                class="hidden absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border-2 border-gray-100 p-2 z-50">
+                                <!-- User Profile Links -->
+                                <a href="{{ route('profile.my') }}"
+                                    class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
+                                    <i class="fas fa-user-circle w-5 text-center text-gray-500"></i>
                                     <span>My Profile</span>
                                 </a>
-                                <a href="{{ route('settings.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
+                                <a href="{{ route('settings.index') }}"
+                                    class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
                                     <i class="fas fa-cog w-5 text-center text-gray-500"></i>
                                     <span>Settings</span>
                                 </a>
-                                <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
+                                <a href="#"
+                                    class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
                                     <i class="fas fa-question-circle w-5 text-center text-gray-500"></i>
                                     <span>Help & Support</span>
                                 </a>
@@ -1510,14 +2402,24 @@
             isCalendarDropdownOpen = !isCalendarDropdownOpen;
             dropdown.classList.toggle('hidden', !isCalendarDropdownOpen);
         }
+
+        var isHrGeneralDropdownOpen = {{ Request::is('hr-general*') ? 'true' : 'false' }};
+        function toggleHrGeneralDropdown() {
+            var dropdown = document.getElementById('hrGeneralDropdown');
+            var chevron = document.getElementById('hrGeneralChevron');
+            isHrGeneralDropdownOpen = !isHrGeneralDropdownOpen;
+            if (dropdown) dropdown.classList.toggle('hidden', !isHrGeneralDropdownOpen);
+            if (chevron) chevron.classList.toggle('rotate-180', isHrGeneralDropdownOpen);
+        }
     </script>
 
     <script>
         var isCollapsed = false;
         var isMasterDropdownOpen = {{ Request::is('master*') ? 'true' : 'false' }};
+        var isHrGeneralMgmtDropdownOpen = {{ Request::is('general/settings*') ? 'true' : 'false' }};
         var isDeliveryDropdownOpen = {{ Request::is('project*') || Request::is('support*') ? 'true' : 'false' }};
         var isReportingDropdownOpen = {{ Request::is('reporting*') ? 'true' : 'false' }};
-        
+
         // Desktop = docked sidebar (>= Tailwind lg breakpoint 1024px).
         // Below that we treat the sidebar as a slide-in drawer with a backdrop.
         function isDesktopViewport() { return window.innerWidth >= 1024; }
@@ -1542,7 +2444,7 @@
         }
 
         function toggleSidebar() {
-            var sidebar     = document.getElementById('sidebar');
+            var sidebar = document.getElementById('sidebar');
             var mainContent = document.getElementById('mainContent');
 
             if (isDesktopViewport()) {
@@ -1584,6 +2486,14 @@
         function toggleMasterDropdown() {
             isMasterDropdownOpen = !isMasterDropdownOpen;
             document.getElementById('masterDropdown').classList.toggle('hidden', !isMasterDropdownOpen);
+        }
+
+        function toggleHrGeneralMgmtDropdown() {
+            isHrGeneralMgmtDropdownOpen = !isHrGeneralMgmtDropdownOpen;
+            const panel   = document.getElementById('hrGeneralMgmtDropdown');
+            const chevron = document.getElementById('hrGeneralMgmtChevron');
+            if (panel) panel.classList.toggle('hidden', !isHrGeneralMgmtDropdownOpen);
+            if (chevron) chevron.classList.toggle('rotate-180', isHrGeneralMgmtDropdownOpen);
         }
 
         function toggleReportingDropdown() {
@@ -1666,14 +2576,14 @@
         }
 
         // Close dropdown when clicking outside
-        document.addEventListener('click', function(event) {
+        document.addEventListener('click', function (event) {
             var userMenu = event.target.closest('button[onclick="toggleUserDropdown()"]');
             var dropdown = document.getElementById('userDropdown');
             if (!userMenu && !dropdown.contains(event.target)) {
                 dropdown.classList.add('hidden');
             }
         });
-        
+
         // Smooth scroll behavior
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
@@ -1690,15 +2600,15 @@
     <script>
         const _toastIcons = {
             success: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>`,
-            error:   `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>`,
+            error: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>`,
             warning: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`,
-            info:    `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>`,
+            info: `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>`,
         };
         const _toastLabels = {
             success: 'Success',
-            error:   'Error',
+            error: 'Error',
             warning: 'Warning',
-            info:    'Information',
+            info: 'Information',
         };
 
         function showToast(message, type, duration = 4000) {
@@ -1743,25 +2653,25 @@
 
         // ── Flash messages dari redirect (misal: akses ditolak middleware) ──
         @if(session('error'))
-        document.addEventListener('DOMContentLoaded', function() {
-            showToast(@json(session('error')), 'error', 6000);
-        });
+            document.addEventListener('DOMContentLoaded', function () {
+                showToast(@json(session('error')), 'error', 6000);
+            });
         @endif
         @if(session('success'))
-        document.addEventListener('DOMContentLoaded', function() {
-            showToast(@json(session('success')), 'success', 4000);
-        });
+            document.addEventListener('DOMContentLoaded', function () {
+                showToast(@json(session('success')), 'success', 4000);
+            });
         @endif
         @if(session('warning'))
-        document.addEventListener('DOMContentLoaded', function() {
-            showToast(@json(session('warning')), 'warning', 5000);
-        });
+            document.addEventListener('DOMContentLoaded', function () {
+                showToast(@json(session('warning')), 'warning', 5000);
+            });
         @endif
 
         // â”€â”€ Modal backdrop blur (auto-applied, no per-modal changes needed) â”€â”€
-        (function() {
+        (function () {
             function _syncModalBlur() {
-                document.querySelectorAll('.fixed.inset-0').forEach(function(el) {
+                document.querySelectorAll('.fixed.inset-0').forEach(function (el) {
                     var isOverlay = !el.classList.contains('hidden')
                         && el.id !== 'toast-container'
                         && !el.classList.contains('action-dropdown');
@@ -1776,651 +2686,652 @@
     @stack('scripts')
 
     {{-- ==================== GLOBAL SELECT ENHANCER ====================
-         Auto-styles every native <select> across the app dengan UI bergaya
-         custom-dd (button + panel + chevron animasi). <select> asli tetap di
-         DOM (visually hidden) sehingga form submission, kode legacy yang
-         membaca .value, dan listener change/onchange tetap berfungsi.
-         Opt-out per element: tambahkan atribut `data-no-enhance`. --}}
-    @php
-        $selectEnhancePath = public_path('js/select-enhance.js');
-        $selectEnhanceVer  = file_exists($selectEnhancePath) ? filemtime($selectEnhancePath) : time();
-    @endphp
-    <script src="/js/select-enhance.js?v={{ $selectEnhanceVer }}"></script>
+    Auto-styles every native <select> across the app dengan UI bergaya
+        custom-dd (button + panel + chevron animasi). <select> asli tetap di
+            DOM (visually hidden) sehingga form submission, kode legacy yang
+            membaca .value, dan listener change/onchange tetap berfungsi.
+            Opt-out per element: tambahkan atribut `data-no-enhance`. --}}
+            @php
+                $selectEnhancePath = public_path('js/select-enhance.js');
+                $selectEnhanceVer = file_exists($selectEnhancePath) ? filemtime($selectEnhancePath) : time();
+            @endphp
+            <script src="/js/select-enhance.js?v={{ $selectEnhanceVer }}"></script>
 
-    <!-- ==================== NOTIFICATION BELL JS ==================== -->
-    <script>
-    (function () {
-        var bellOpen = false;
-        var csrf = document.querySelector('meta[name=”csrf-token”]')?.getAttribute('content') || '';
+            <!-- ==================== NOTIFICATION BELL JS ==================== -->
+            <script>
+                (function () {
+                    var bellOpen = false;
+                    var csrf = document.querySelector('meta[name=”csrf-token”]')?.getAttribute('content') || '';
 
-        /* ---- toggle dropdown ---- */
-        function toggleBellDropdown() {
-            bellOpen = !bellOpen;
-            var dropdown = document.getElementById('bellDropdown');
-            if (bellOpen) {
-                dropdown.classList.remove('hidden');
-                loadBellNotifications();
-            } else {
-                dropdown.classList.add('hidden');
-            }
-        }
+                    /* ---- toggle dropdown ---- */
+                    function toggleBellDropdown() {
+                        bellOpen = !bellOpen;
+                        var dropdown = document.getElementById('bellDropdown');
+                        if (bellOpen) {
+                            dropdown.classList.remove('hidden');
+                            loadBellNotifications();
+                        } else {
+                            dropdown.classList.add('hidden');
+                        }
+                    }
 
-        document.addEventListener('click', function (e) {
-            var wrapper = document.getElementById('bellWrapper');
-            if (wrapper && !wrapper.contains(e.target)) {
-                var dropdown = document.getElementById('bellDropdown');
-                if (dropdown) dropdown.classList.add('hidden');
-                bellOpen = false;
-            }
-        });
+                    document.addEventListener('click', function (e) {
+                        var wrapper = document.getElementById('bellWrapper');
+                        if (wrapper && !wrapper.contains(e.target)) {
+                            var dropdown = document.getElementById('bellDropdown');
+                            if (dropdown) dropdown.classList.add('hidden');
+                            bellOpen = false;
+                        }
+                    });
 
-        /* ---- notification sound (HTML Audio — works without immediate user gesture) ---- */
-        var _soundEnabled     = localStorage.getItem('notif_sound_enabled') !== 'false';
-        var _lastUnreadCount  = null;
-        var _lastNonMsgCount  = null;
-        var _lastMessageCount = null;
-        var _pageTitle        = document.title;
+                    /* ---- notification sound (HTML Audio — works without immediate user gesture) ---- */
+                    var _soundEnabled = localStorage.getItem('notif_sound_enabled') !== 'false';
+                    var _lastUnreadCount = null;
+                    var _lastNonMsgCount = null;
+                    var _lastMessageCount = null;
+                    var _pageTitle = document.title;
 
-        // Use <audio> element — simpler and respects Chrome's per-origin user activation,
-        // meaning it works even when triggered by push/postMessage without a direct click.
-        var _defaultSoundFile = 'mixkit-software-interface-back-2575.wav';
-        var _audioTicket  = new Audio('/sounds/' + _defaultSoundFile);
-        var _audioChat    = new Audio('/sounds/' + _defaultSoundFile);
-        var _audioStaging = new Audio('/sounds/' + _defaultSoundFile);
-        _audioTicket.preload  = 'auto';
-        _audioChat.preload    = 'auto';
-        _audioStaging.preload = 'auto';
+                    // Use <audio> element — simpler and respects Chrome's per-origin user activation,
+                    // meaning it works even when triggered by push/postMessage without a direct click.
+                    var _defaultSoundFile = 'mixkit-software-interface-back-2575.wav';
+                    var _audioTicket = new Audio('/sounds/' + _defaultSoundFile);
+                    var _audioChat = new Audio('/sounds/' + _defaultSoundFile);
+                    var _audioStaging = new Audio('/sounds/' + _defaultSoundFile);
+                    _audioTicket.preload = 'auto';
+                    _audioChat.preload = 'auto';
+                    _audioStaging.preload = 'auto';
 
-        // ── Browser autoplay unlock ──────────────────────────────────────────
-        // Browsers block audio.play() until the user has interacted with the page
-        // (click, keydown, touchstart). We silently warm-up both audio elements on
-        // the first interaction so every subsequent play() call succeeds immediately.
-        var _audioUnlocked = false;
-        function _unlockAudio() {
-            if (_audioUnlocked) return;
-            _audioUnlocked = true;
-            [_audioTicket, _audioChat, _audioStaging].forEach(function (el) {
-                var prev = el.volume;
-                el.volume = 0;
-                el.play().then(function () {
-                    el.pause();
-                    el.currentTime = 0;
-                    el.volume = prev;
-                }).catch(function () {
-                    el.volume = prev;
-                });
-            });
-            document.removeEventListener('click',      _unlockAudio);
-            document.removeEventListener('keydown',    _unlockAudio);
-            document.removeEventListener('touchstart', _unlockAudio);
-        }
-        document.addEventListener('click',      _unlockAudio);
-        document.addEventListener('keydown',    _unlockAudio);
-        document.addEventListener('touchstart', _unlockAudio);
+                    // ── Browser autoplay unlock ──────────────────────────────────────────
+                    // Browsers block audio.play() until the user has interacted with the page
+                    // (click, keydown, touchstart). We silently warm-up both audio elements on
+                    // the first interaction so every subsequent play() call succeeds immediately.
+                    var _audioUnlocked = false;
+                    function _unlockAudio() {
+                        if (_audioUnlocked) return;
+                        _audioUnlocked = true;
+                        [_audioTicket, _audioChat, _audioStaging].forEach(function (el) {
+                            var prev = el.volume;
+                            el.volume = 0;
+                            el.play().then(function () {
+                                el.pause();
+                                el.currentTime = 0;
+                                el.volume = prev;
+                            }).catch(function () {
+                                el.volume = prev;
+                            });
+                        });
+                        document.removeEventListener('click', _unlockAudio);
+                        document.removeEventListener('keydown', _unlockAudio);
+                        document.removeEventListener('touchstart', _unlockAudio);
+                    }
+                    document.addEventListener('click', _unlockAudio);
+                    document.addEventListener('keydown', _unlockAudio);
+                    document.addEventListener('touchstart', _unlockAudio);
 
-        function _getSoundFile(key) {
-            var filename = localStorage.getItem(key)
-                || localStorage.getItem('notif_sound')  // legacy single-key fallback
-                || _defaultSoundFile;
-            return filename.includes('.') ? filename : _defaultSoundFile;
-        }
+                    function _getSoundFile(key) {
+                        var filename = localStorage.getItem(key)
+                            || localStorage.getItem('notif_sound')  // legacy single-key fallback
+                            || _defaultSoundFile;
+                        return filename.includes('.') ? filename : _defaultSoundFile;
+                    }
 
-        function _playAudioEl(audioEl, key) {
-            if (!_soundEnabled) return;
-            var file     = _getSoundFile(key);
-            var expected = location.origin + '/sounds/' + file;
-            if (audioEl.src !== expected) {
-                audioEl.src = '/sounds/' + file;
-                audioEl.load();
-            }
-            audioEl.currentTime = 0;
-            audioEl.play().catch(function () {});
-        }
+                    function _playAudioEl(audioEl, key) {
+                        if (!_soundEnabled) return;
+                        var file = _getSoundFile(key);
+                        var expected = location.origin + '/sounds/' + file;
+                        if (audioEl.src !== expected) {
+                            audioEl.src = '/sounds/' + file;
+                            audioEl.load();
+                        }
+                        audioEl.currentTime = 0;
+                        audioEl.play().catch(function () { });
+                    }
 
-        function playTicketSound()  { _playAudioEl(_audioTicket,  'notif_sound_ticket'); }
-        function playChatSound()    { _playAudioEl(_audioChat,    'notif_sound_chat'); }
-        function playStagingSound() { _playAudioEl(_audioStaging, 'notif_sound_staging'); }
-        function playNotifSound()   { playTicketSound(); }
+                    function playTicketSound() { _playAudioEl(_audioTicket, 'notif_sound_ticket'); }
+                    function playChatSound() { _playAudioEl(_audioChat, 'notif_sound_chat'); }
+                    function playStagingSound() { _playAudioEl(_audioStaging, 'notif_sound_staging'); }
+                    function playNotifSound() { playTicketSound(); }
 
-        function _applySoundUi() {
-            var btn  = document.getElementById('soundToggleBtn');
-            var icon = document.getElementById('soundToggleIcon');
-            if (_soundEnabled) {
-                if (icon) icon.className = 'fas fa-volume-up text-sm';
-                if (btn)  { btn.classList.remove('text-gray-400'); btn.classList.add('text-red-700'); btn.title = 'Disable notification sound'; }
-            } else {
-                if (icon) icon.className = 'fas fa-volume-mute text-sm';
-                if (btn)  { btn.classList.remove('text-red-700'); btn.classList.add('text-gray-400'); btn.title = 'Enable notification sound'; }
-            }
-        }
+                    function _applySoundUi() {
+                        var btn = document.getElementById('soundToggleBtn');
+                        var icon = document.getElementById('soundToggleIcon');
+                        if (_soundEnabled) {
+                            if (icon) icon.className = 'fas fa-volume-up text-sm';
+                            if (btn) { btn.classList.remove('text-gray-400'); btn.classList.add('text-red-700'); btn.title = 'Disable notification sound'; }
+                        } else {
+                            if (icon) icon.className = 'fas fa-volume-mute text-sm';
+                            if (btn) { btn.classList.remove('text-red-700'); btn.classList.add('text-gray-400'); btn.title = 'Enable notification sound'; }
+                        }
+                    }
 
-        function toggleNotifSound() {
-            _soundEnabled = !_soundEnabled;
-            localStorage.setItem('notif_sound_enabled', _soundEnabled ? 'true' : 'false');
-            if (_soundEnabled) {
-                // Play immediately as audio unlock + confirmation for user
-                playNotifSound();
-                if ('Notification' in window && Notification.permission === 'default') {
-                    Notification.requestPermission();
-                }
-            }
-            _applySoundUi();
-        }
+                    function toggleNotifSound() {
+                        _soundEnabled = !_soundEnabled;
+                        localStorage.setItem('notif_sound_enabled', _soundEnabled ? 'true' : 'false');
+                        if (_soundEnabled) {
+                            // Play immediately as audio unlock + confirmation for user
+                            playNotifSound();
+                            if ('Notification' in window && Notification.permission === 'default') {
+                                Notification.requestPermission();
+                            }
+                        }
+                        _applySoundUi();
+                    }
 
-        // Sync button UI to persisted state on page load
-        _applySoundUi();
+                    // Sync button UI to persisted state on page load
+                    _applySoundUi();
 
-        /* ---- browser (OS) notification ---- */
-        function showOsNotification(title, body, url) {
-            if (!('Notification' in window) || Notification.permission !== 'granted') return;
-            var n = new Notification(title, {
-                body: body,
-                icon: '/images/logo_nobg.png',
-                tag:  'ecosystem-notif-' + Date.now(),
-            });
-            n.onclick = function () {
-                window.focus();
-                if (url) window.location.href = url;
-                n.close();
-            };
-        }
+                    /* ---- browser (OS) notification ---- */
+                    function showOsNotification(title, body, url) {
+                        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+                        var n = new Notification(title, {
+                            body: body,
+                            icon: '/images/logo_nobg.png',
+                            tag: 'ecosystem-notif-' + Date.now(),
+                        });
+                        n.onclick = function () {
+                            window.focus();
+                            if (url) window.location.href = url;
+                            n.close();
+                        };
+                    }
 
-        /* ---- tab title badge ---- */
-        function updateTabTitle(count) {
-            document.title = count > 0 ? '(' + count + ') ' + _pageTitle : _pageTitle;
-        }
+                    /* ---- tab title badge ---- */
+                    function updateTabTitle(count) {
+                        document.title = count > 0 ? '(' + count + ') ' + _pageTitle : _pageTitle;
+                    }
 
-        /* ---- handle new notifications (sound + OS notif) ---- */
-        function handleNewNotifications() {
-            // Bunyi hanya jika tab aktif dan bukan di halaman ticket show
-            // (halaman ticket punya message polling sendiri yang handle sound)
-            var onTicketPage = /^\/ticket\/\d+/.test(window.location.pathname);
-            if (!document.hidden && !onTicketPage) {
-                playTicketSound();
-            }
-            // OS notification — hanya saat tab background/minimize agar tidak mengganggu saat user sedang aktif
-            if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-                fetch('/api/notifications?limit=1', { credentials: 'same-origin' })
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        if (data.data && data.data.length > 0) {
-                            var n = data.data[0];
-                            var metaParts = [];
-                            if (n.ticket_number) metaParts.push(n.ticket_number);
-                            if (n.customer_name) metaParts.push(n.customer_name);
-                            var body = (metaParts.length ? metaParts.join(' · ') + '\n' : '') + (n.preview || '');
+                    /* ---- handle new notifications (sound + OS notif) ---- */
+                    function handleNewNotifications() {
+                        // Bunyi hanya jika tab aktif dan bukan di halaman ticket show
+                        // (halaman ticket punya message polling sendiri yang handle sound)
+                        var onTicketPage = /^\/ticket\/\d+/.test(window.location.pathname);
+                        if (!document.hidden && !onTicketPage) {
+                            playTicketSound();
+                        }
+                        // OS notification — hanya saat tab background/minimize agar tidak mengganggu saat user sedang aktif
+                        if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+                            fetch('/api/notifications?limit=1', { credentials: 'same-origin' })
+                                .then(function (r) { return r.json(); })
+                                .then(function (data) {
+                                    if (data.data && data.data.length > 0) {
+                                        var n = data.data[0];
+                                        var metaParts = [];
+                                        if (n.ticket_number) metaParts.push(n.ticket_number);
+                                        if (n.customer_name) metaParts.push(n.customer_name);
+                                        var body = (metaParts.length ? metaParts.join(' · ') + '\n' : '') + (n.preview || '');
+                                        showOsNotification(
+                                            getTitle(n),
+                                            body,
+                                            n.link || (n.ticket_id ? '/ticket/' + n.ticket_id : '/notifications')
+                                        );
+                                    }
+                                })
+                                .catch(function () { });
+                        }
+                    }
+
+                    /* ---- fetch immediately when tab becomes visible again ---- */
+                    document.addEventListener('visibilitychange', function () {
+                        if (!document.hidden) fetchUnreadCount();
+                    });
+
+                    window.toggleNotifSound = toggleNotifSound;
+
+                    /* ---- staging new-email cross-tab notification ---- */
+                    // Fires when user is on a page OTHER than staging and a new email arrives.
+                    // BroadcastChannel does not fire in the originating tab, so no double-play
+                    // from that side. localStorage storage event also only fires in OTHER tabs.
+                    function _handleStagingNewEmail(count) {
+                        playStagingSound();
+                        // OS notification hanya saat tab ini tidak terlihat user
+                        if (document.hidden) {
                             showOsNotification(
-                                getTitle(n),
-                                body,
-                                n.link || (n.ticket_id ? '/ticket/' + n.ticket_id : '/notifications')
+                                'Email Baru · Ticket Validation',
+                                count + ' email baru menunggu validasi',
+                                '/staging'
                             );
                         }
-                    })
-                    .catch(function () {});
-            }
-        }
-
-        /* ---- fetch immediately when tab becomes visible again ---- */
-        document.addEventListener('visibilitychange', function () {
-            if (!document.hidden) fetchUnreadCount();
-        });
-
-        window.toggleNotifSound = toggleNotifSound;
-
-        /* ---- staging new-email cross-tab notification ---- */
-        // Fires when user is on a page OTHER than staging and a new email arrives.
-        // BroadcastChannel does not fire in the originating tab, so no double-play
-        // from that side. localStorage storage event also only fires in OTHER tabs.
-        function _handleStagingNewEmail(count) {
-            playStagingSound();
-            // OS notification hanya saat tab ini tidak terlihat user
-            if (document.hidden) {
-                showOsNotification(
-                    'Email Baru · Ticket Validation',
-                    count + ' email baru menunggu validasi',
-                    '/staging'
-                );
-            }
-        }
-        // BroadcastChannel: primary mechanism (all modern browsers)
-        var _stagingBcOk = false;
-        try {
-            var _stagingBc = new BroadcastChannel('ecosystem-staging');
-            _stagingBc.onmessage = function (e) {
-                if (e.data && e.data.type === 'new-staging-email') {
-                    _handleStagingNewEmail(e.data.count);
-                }
-            };
-            _stagingBcOk = true;
-        } catch (_e) {}
-        // localStorage fallback: ONLY when BroadcastChannel is not available
-        // (prevents double-play since both would otherwise fire on the same tab)
-        if (!_stagingBcOk) {
-            window.addEventListener('storage', function (e) {
-                if (e.key !== '_eco_staging_evt' || !e.newValue) return;
-                try {
-                    var d = JSON.parse(e.newValue);
-                    if (d.type === 'new-staging-email' && Date.now() - d.ts < 5000) {
-                        _handleStagingNewEmail(d.count);
                     }
-                } catch (_ex) {}
-            });
-        }
-
-        /* ---- badge count ---- */
-        function fetchUnreadCount() {
-            fetch('/api/notifications/unread-count', { credentials: 'same-origin' })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    var badge = document.getElementById('bellBadge');
-                    if (!badge) return;
-
-                    // Badge now includes chat/message types (ticket replies, internal notes)
-                    // alongside every other notification type.
-                    var count = data.count || 0;
-                    if (count > 0) {
-                        badge.textContent = count > 99 ? '99+' : count;
-                        badge.classList.remove('hidden');
-                    } else {
-                        badge.classList.add('hidden');
+                    // BroadcastChannel: primary mechanism (all modern browsers)
+                    var _stagingBcOk = false;
+                    try {
+                        var _stagingBc = new BroadcastChannel('ecosystem-staging');
+                        _stagingBc.onmessage = function (e) {
+                            if (e.data && e.data.type === 'new-staging-email') {
+                                _handleStagingNewEmail(e.data.count);
+                            }
+                        };
+                        _stagingBcOk = true;
+                    } catch (_e) { }
+                    // localStorage fallback: ONLY when BroadcastChannel is not available
+                    // (prevents double-play since both would otherwise fire on the same tab)
+                    if (!_stagingBcOk) {
+                        window.addEventListener('storage', function (e) {
+                            if (e.key !== '_eco_staging_evt' || !e.newValue) return;
+                            try {
+                                var d = JSON.parse(e.newValue);
+                                if (d.type === 'new-staging-email' && Date.now() - d.ts < 5000) {
+                                    _handleStagingNewEmail(d.count);
+                                }
+                            } catch (_ex) { }
+                        });
                     }
-                    updateTabTitle(count);
 
-                    // Split the delta so message-type increases play the chat sound while
-                    // everything else keeps using the ticket sound + OS notification.
-                    var msgCount    = data.message_sound_count || 0;
-                    var nonMsgCount = count - msgCount;
+                    /* ---- badge count ---- */
+                    function fetchUnreadCount() {
+                        fetch('/api/notifications/unread-count', { credentials: 'same-origin' })
+                            .then(function (r) { return r.json(); })
+                            .then(function (data) {
+                                var badge = document.getElementById('bellBadge');
+                                if (!badge) return;
 
-                    if (_lastNonMsgCount !== null && nonMsgCount > _lastNonMsgCount) {
-                        handleNewNotifications();
+                                // Badge now includes chat/message types (ticket replies, internal notes)
+                                // alongside every other notification type.
+                                var count = data.count || 0;
+                                if (count > 0) {
+                                    badge.textContent = count > 99 ? '99+' : count;
+                                    badge.classList.remove('hidden');
+                                } else {
+                                    badge.classList.add('hidden');
+                                }
+                                updateTabTitle(count);
+
+                                // Split the delta so message-type increases play the chat sound while
+                                // everything else keeps using the ticket sound + OS notification.
+                                var msgCount = data.message_sound_count || 0;
+                                var nonMsgCount = count - msgCount;
+
+                                if (_lastNonMsgCount !== null && nonMsgCount > _lastNonMsgCount) {
+                                    handleNewNotifications();
+                                }
+                                _lastNonMsgCount = nonMsgCount;
+
+                                if (_lastMessageCount !== null && msgCount > _lastMessageCount) {
+                                    var onTicketPage = /^\/ticket\/\d+/.test(window.location.pathname);
+                                    if (!onTicketPage) { playChatSound(); }
+                                }
+                                _lastMessageCount = msgCount;
+
+                                _lastUnreadCount = count;
+                            })
+                            .catch(function () { });
                     }
-                    _lastNonMsgCount = nonMsgCount;
 
-                    if (_lastMessageCount !== null && msgCount > _lastMessageCount) {
-                        var onTicketPage = /^\/ticket\/\d+/.test(window.location.pathname);
-                        if (!onTicketPage) { playChatSound(); }
+                    /* ---- icon config per type ---- */
+                    var TYPE_CFG = {
+                        timesheet_submitted: { bg: '#f3e8ff', color: '#7c3aed', fa: 'fa-file-alt' },
+                        late_exception_submitted: { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-user-clock' },
+                        late_exception_pending_rpmo: { bg: '#dbeafe', color: '#2563eb', fa: 'fa-user-clock' },
+                        late_exception_head_approved: { bg: '#dcfce7', color: '#16a34a', fa: 'fa-check-circle' },
+                        late_exception_head_rejected: { bg: '#fee2e2', color: '#dc2626', fa: 'fa-times-circle' },
+                        late_exception_approved: { bg: '#dcfce7', color: '#16a34a', fa: 'fa-unlock' },
+                        late_exception_rejected: { bg: '#fee2e2', color: '#dc2626', fa: 'fa-ban' },
+                        customer_mandays_canceled: { bg: '#ffedd5', color: '#ea580c', fa: 'fa-times-circle' },
+                        customer_mandays_proposed: { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice' },
+                        resolution_days_proposed: { bg: '#e0e7ff', color: '#4f46e5', fa: 'fa-users' },
+                        contract_end_reminder: { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-file-contract' },
+                        top_invoice_reminder: { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice-dollar' },
+                        ticket_member_added: { bg: '#dcfce7', color: '#16a34a', fa: 'fa-user-plus' },
+                        ticket_member_removed: { bg: '#fee2e2', color: '#dc2626', fa: 'fa-user-minus' },
+                        ticket_member_reactivated: { bg: '#dbeafe', color: '#2563eb', fa: 'fa-user-check' },
+                        ticket_internal_note: { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-sticky-note' },
+                        ticket_reply: { bg: '#dbeafe', color: '#2563eb', fa: 'fa-reply' },
+                        customer_email_reply: { bg: '#dcfce7', color: '#16a34a', fa: 'fa-envelope' }
+                    };
+                    var DEFAULT_CFG = { bg: '#fee2e2', color: '#b91c1c', fa: 'fa-at' };
+
+                    function getTitle(n) {
+                        switch (n.type) {
+                            case 'timesheet_submitted': return (n.from_name || 'Consultant') + ' submitted a timesheet';
+                            case 'late_exception_submitted': return 'Late Access Request from ' + (n.from_name || 'Employee');
+                            case 'late_exception_pending_rpmo': return 'Late Access Request needs your review';
+                            case 'late_exception_head_approved': return 'Late Access Request approved by Head';
+                            case 'late_exception_head_rejected': return 'Late Access Request rejected by Head';
+                            case 'late_exception_approved': return 'Late Access Request approved by RPMO';
+                            case 'late_exception_rejected': return 'Late Access Request rejected by RPMO';
+                            case 'customer_mandays_canceled': return 'Customer Mandays Proposal canceled';
+                            case 'customer_mandays_proposed': return 'Customer Mandays — needs review';
+                            case 'resolution_days_proposed': return 'Resolution Days — needs review';
+                            case 'contract_end_reminder': return 'Contract deadline reminder';
+                            case 'top_invoice_reminder': return 'Invoice submission due';
+                            case 'ticket_member_added': return (n.from_name || 'Someone') + ' added you to a ticket';
+                            case 'ticket_member_removed': return (n.from_name || 'Someone') + ' removed a member from a ticket';
+                            case 'ticket_member_reactivated': return (n.from_name || 'Someone') + ' re-added a member to a ticket';
+                            case 'ticket_internal_note': return (n.from_name || 'Someone') + ' added an internal note';
+                            case 'ticket_reply': return (n.from_name || 'Someone') + ' replied to a ticket';
+                            case 'customer_email_reply': return (n.from_name || 'Customer') + ' replied via email';
+                            default: return (n.from_name || 'Someone') + ' mentioned you';
+                        }
                     }
-                    _lastMessageCount = msgCount;
 
-                    _lastUnreadCount = count;
-                })
-                .catch(function () {});
-        }
-
-        /* ---- icon config per type ---- */
-        var TYPE_CFG = {
-            timesheet_submitted:          { bg: '#f3e8ff', color: '#7c3aed', fa: 'fa-file-alt' },
-            late_exception_submitted:     { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-user-clock' },
-            late_exception_pending_rpmo:  { bg: '#dbeafe', color: '#2563eb', fa: 'fa-user-clock' },
-            late_exception_head_approved: { bg: '#dcfce7', color: '#16a34a', fa: 'fa-check-circle' },
-            late_exception_head_rejected: { bg: '#fee2e2', color: '#dc2626', fa: 'fa-times-circle' },
-            late_exception_approved:      { bg: '#dcfce7', color: '#16a34a', fa: 'fa-unlock' },
-            late_exception_rejected:      { bg: '#fee2e2', color: '#dc2626', fa: 'fa-ban' },
-            customer_mandays_canceled:    { bg: '#ffedd5', color: '#ea580c', fa: 'fa-times-circle' },
-            customer_mandays_proposed:    { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice' },
-            resolution_days_proposed:     { bg: '#e0e7ff', color: '#4f46e5', fa: 'fa-users' },
-            contract_end_reminder:        { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-file-contract' },
-            top_invoice_reminder:         { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice-dollar' },
-            ticket_member_added:          { bg: '#dcfce7', color: '#16a34a', fa: 'fa-user-plus' },
-            ticket_member_removed:        { bg: '#fee2e2', color: '#dc2626', fa: 'fa-user-minus' },
-            ticket_member_reactivated:    { bg: '#dbeafe', color: '#2563eb', fa: 'fa-user-check' },
-            ticket_internal_note:         { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-sticky-note' },
-            ticket_reply:                 { bg: '#dbeafe', color: '#2563eb', fa: 'fa-reply' },
-            customer_email_reply:         { bg: '#dcfce7', color: '#16a34a', fa: 'fa-envelope' }
-        };
-        var DEFAULT_CFG = { bg: '#fee2e2', color: '#b91c1c', fa: 'fa-at' };
-
-        function getTitle(n) {
-            switch (n.type) {
-                case 'timesheet_submitted':          return (n.from_name || 'Consultant') + ' submitted a timesheet';
-                case 'late_exception_submitted':     return 'Late Access Request from ' + (n.from_name || 'Employee');
-                case 'late_exception_pending_rpmo':  return 'Late Access Request needs your review';
-                case 'late_exception_head_approved': return 'Late Access Request approved by Head';
-                case 'late_exception_head_rejected': return 'Late Access Request rejected by Head';
-                case 'late_exception_approved':      return 'Late Access Request approved by RPMO';
-                case 'late_exception_rejected':      return 'Late Access Request rejected by RPMO';
-                case 'customer_mandays_canceled':    return 'Customer Mandays Proposal canceled';
-                case 'customer_mandays_proposed':    return 'Customer Mandays — needs review';
-                case 'resolution_days_proposed':     return 'Resolution Days — needs review';
-                case 'contract_end_reminder':        return 'Contract deadline reminder';
-                case 'top_invoice_reminder':         return 'Invoice submission due';
-                case 'ticket_member_added':       return (n.from_name || 'Someone') + ' added you to a ticket';
-                case 'ticket_member_removed':     return (n.from_name || 'Someone') + ' removed a member from a ticket';
-                case 'ticket_member_reactivated': return (n.from_name || 'Someone') + ' re-added a member to a ticket';
-                case 'ticket_internal_note':      return (n.from_name || 'Someone') + ' added an internal note';
-                case 'ticket_reply':              return (n.from_name || 'Someone') + ' replied to a ticket';
-                case 'customer_email_reply':      return (n.from_name || 'Customer') + ' replied via email';
-                default: return (n.from_name || 'Someone') + ' mentioned you';
-            }
-        }
-
-        function getUrl(n) {
-            var base = n.link
-                ? n.link
-                : (n.type === 'timesheet_submitted'
-                    ? '/calendar/timesheets'
-                    : (n.ticket_id ? '/ticket/' + n.ticket_id : '/notifications'));
-            if (n.message_id && base.indexOf('#') === -1) {
-                base += '#msg-' + n.message_id;
-            }
-            return base;
-        }
-
-        /* ---- build one notification item using createElement (no Tailwind dependency) ---- */
-        function buildItem(n) {
-            var isUnread = !n.is_read;
-            var cfg = TYPE_CFG[n.type] || DEFAULT_CFG;
-
-            /* outer <a> */
-            var a = document.createElement('a');
-            a.href = getUrl(n);
-            a.style.display         = 'flex';
-            a.style.alignItems      = 'flex-start';
-            a.style.gap             = '12px';
-            a.style.padding         = '10px 16px';
-            a.style.textDecoration  = 'none';
-            a.style.borderBottom    = '1px solid #f3f4f6';
-            a.style.transition      = 'background 0.15s';
-            a.style.background      = isUnread ? '#fff1f2' : '#ffffff';
-            a.addEventListener('mouseover', function () { a.style.background = isUnread ? '#ffe4e6' : '#f9fafb'; });
-            a.addEventListener('mouseout',  function () { a.style.background = isUnread ? '#fff1f2' : '#ffffff'; });
-            a.addEventListener('click', function () { markNotifReadBell(n.id); });
-
-            /* icon circle */
-            var circle = document.createElement('div');
-            circle.style.width          = '32px';
-            circle.style.height         = '32px';
-            circle.style.borderRadius   = '50%';
-            circle.style.background     = cfg.bg;
-            circle.style.display        = 'flex';
-            circle.style.alignItems     = 'center';
-            circle.style.justifyContent = 'center';
-            circle.style.flexShrink     = '0';
-            circle.style.marginTop      = '2px';
-
-            var ico = document.createElement('i');
-            ico.className   = 'fas ' + cfg.fa;
-            ico.style.color    = cfg.color;
-            ico.style.fontSize = '12px';
-            circle.appendChild(ico);
-
-            /* text container */
-            var textBox = document.createElement('div');
-            textBox.style.flex     = '1';
-            textBox.style.minWidth = '0';
-            textBox.style.overflow = 'hidden';
-
-            var pTitle = document.createElement('p');
-            pTitle.style.margin        = '0';
-            pTitle.style.fontSize      = '12px';
-            pTitle.style.fontWeight    = '600';
-            pTitle.style.color         = '#111827';
-            pTitle.style.overflow      = 'hidden';
-            pTitle.style.whiteSpace    = 'nowrap';
-            pTitle.style.textOverflow  = 'ellipsis';
-            pTitle.textContent = getTitle(n);
-
-            if (n.ticket_number || n.customer_name) {
-                var pMeta = document.createElement('p');
-                pMeta.style.margin       = '2px 0 0';
-                pMeta.style.fontSize     = '11px';
-                pMeta.style.fontWeight   = '500';
-                pMeta.style.color        = '#374151';
-                pMeta.style.overflow     = 'hidden';
-                pMeta.style.whiteSpace   = 'nowrap';
-                pMeta.style.textOverflow = 'ellipsis';
-                var parts = [];
-                if (n.ticket_number) parts.push(n.ticket_number);
-                if (n.customer_name) parts.push(n.customer_name);
-                pMeta.textContent = parts.join(' · ');
-                textBox.appendChild(pMeta);
-            }
-
-            var pPreview = document.createElement('p');
-            pPreview.style.margin       = '2px 0 0';
-            pPreview.style.fontSize     = '11px';
-            pPreview.style.color        = '#6b7280';
-            pPreview.style.overflow     = 'hidden';
-            pPreview.style.whiteSpace   = 'nowrap';
-            pPreview.style.textOverflow = 'ellipsis';
-            pPreview.textContent = n.preview || '';
-
-            var pTime = document.createElement('p');
-            pTime.style.margin    = '3px 0 0';
-            pTime.style.fontSize  = '10px';
-            pTime.style.color     = '#9ca3af';
-            pTime.textContent = n.created_at || '';
-
-            textBox.appendChild(pTitle);
-            textBox.appendChild(pPreview);
-            textBox.appendChild(pTime);
-
-            /* unread dot */
-            a.appendChild(circle);
-            a.appendChild(textBox);
-            if (isUnread) {
-                var dot = document.createElement('span');
-                dot.style.width        = '8px';
-                dot.style.height       = '8px';
-                dot.style.background   = '#ef4444';
-                dot.style.borderRadius = '50%';
-                dot.style.flexShrink   = '0';
-                dot.style.marginTop    = '4px';
-                dot.style.display      = 'block';
-                a.appendChild(dot);
-            }
-
-            return a;
-        }
-
-        function setListMessage(list, msg) {
-            list.innerHTML = '';
-            var d = document.createElement('div');
-            d.style.padding    = '24px 16px';
-            d.style.textAlign  = 'center';
-            d.style.fontSize   = '12px';
-            d.style.color      = '#9ca3af';
-            d.textContent = msg;
-            list.appendChild(d);
-        }
-
-        /* ---- load notifications into bell dropdown ---- */
-        function loadBellNotifications() {
-            var list = document.getElementById('bellNotifList');
-            if (!list) return;
-            setListMessage(list, 'Loading...');
-            fetch('/api/notifications?limit=10', { credentials: 'same-origin' })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    list.innerHTML = '';
-                    if (!data.success || !data.data || !data.data.length) {
-                        setListMessage(list, 'No notifications');
-                        return;
+                    function getUrl(n) {
+                        var base = n.link
+                            ? n.link
+                            : (n.type === 'timesheet_submitted'
+                                ? '/calendar/timesheets'
+                                : (n.ticket_id ? '/ticket/' + n.ticket_id : '/notifications'));
+                        if (n.message_id && base.indexOf('#') === -1) {
+                            base += '#msg-' + n.message_id;
+                        }
+                        return base;
                     }
-                    data.data.forEach(function (n) { list.appendChild(buildItem(n)); });
-                })
-                .catch(function () { setListMessage(list, 'Failed to load'); });
-        }
 
-        /* ---- fire-and-forget mark-as-read (called on click, navigation proceeds normally) ----
-           Marks this notification read; the backend also marks every other unread
-           notification for the same ticket read in one go, so the badge can drop by more
-           than 1 — re-fetch the real count instead of guessing with a client-side decrement.
-           Still visible (as read) on the full /notifications page. */
-        function markNotifReadBell(id) {
-            fetch('/api/notifications/' + id + '/read', {
-                method: 'PUT',
-                credentials: 'same-origin',
-                headers: { 'X-CSRF-TOKEN': csrf }
-            }).then(function () {
-                fetchUnreadCount();
-            }).catch(function () {});
-        }
+                    /* ---- build one notification item using createElement (no Tailwind dependency) ---- */
+                    function buildItem(n) {
+                        var isUnread = !n.is_read;
+                        var cfg = TYPE_CFG[n.type] || DEFAULT_CFG;
 
-        /* ---- mark all read (does NOT delete — read items remain on the full page) ---- */
-        function markAllNotificationsRead() {
-            var list = document.getElementById('bellNotifList');
-            if (list) setListMessage(list, 'No notifications');
-            var badge = document.getElementById('bellBadge');
-            if (badge) badge.classList.add('hidden');
-            fetch('/api/notifications/read-all', { method: 'PUT', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': csrf } })
-                .catch(function () {});
-        }
+                        /* outer <a> */
+                        var a = document.createElement('a');
+                        a.href = getUrl(n);
+                        a.style.display = 'flex';
+                        a.style.alignItems = 'flex-start';
+                        a.style.gap = '12px';
+                        a.style.padding = '10px 16px';
+                        a.style.textDecoration = 'none';
+                        a.style.borderBottom = '1px solid #f3f4f6';
+                        a.style.transition = 'background 0.15s';
+                        a.style.background = isUnread ? '#fff1f2' : '#ffffff';
+                        a.addEventListener('mouseover', function () { a.style.background = isUnread ? '#ffe4e6' : '#f9fafb'; });
+                        a.addEventListener('mouseout', function () { a.style.background = isUnread ? '#fff1f2' : '#ffffff'; });
+                        a.addEventListener('click', function () { markNotifReadBell(n.id); });
 
-        /* ---- expose globals ---- */
-        window.toggleBellDropdown       = toggleBellDropdown;
-        window.markAllNotificationsRead = markAllNotificationsRead;
-        window.fetchUnreadCount         = fetchUnreadCount;
-        window.playNotifSound           = playNotifSound;
-        window.playTicketSound          = playTicketSound;
-        window.playChatSound            = playChatSound;
-        window.playStagingSound         = playStagingSound;
+                        /* icon circle */
+                        var circle = document.createElement('div');
+                        circle.style.width = '32px';
+                        circle.style.height = '32px';
+                        circle.style.borderRadius = '50%';
+                        circle.style.background = cfg.bg;
+                        circle.style.display = 'flex';
+                        circle.style.alignItems = 'center';
+                        circle.style.justifyContent = 'center';
+                        circle.style.flexShrink = '0';
+                        circle.style.marginTop = '2px';
 
-        /* ---- start ---- */
-        fetchUnreadCount();
-        setInterval(fetchUnreadCount, 15000);
-    })();
-    </script>
+                        var ico = document.createElement('i');
+                        ico.className = 'fas ' + cfg.fa;
+                        ico.style.color = cfg.color;
+                        ico.style.fontSize = '12px';
+                        circle.appendChild(ico);
 
-    <!-- ==================== WEB PUSH SERVICE WORKER ==================== -->
-    <script>
-    (function () {
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+                        /* text container */
+                        var textBox = document.createElement('div');
+                        textBox.style.flex = '1';
+                        textBox.style.minWidth = '0';
+                        textBox.style.overflow = 'hidden';
 
-        var VAPID_PUBLIC_KEY = '{{ config("webpush.vapid_public_key") }}';
+                        var pTitle = document.createElement('p');
+                        pTitle.style.margin = '0';
+                        pTitle.style.fontSize = '12px';
+                        pTitle.style.fontWeight = '600';
+                        pTitle.style.color = '#111827';
+                        pTitle.style.overflow = 'hidden';
+                        pTitle.style.whiteSpace = 'nowrap';
+                        pTitle.style.textOverflow = 'ellipsis';
+                        pTitle.textContent = getTitle(n);
 
-        function urlBase64ToUint8Array(base64String) {
-            var padding = '='.repeat((4 - base64String.length % 4) % 4);
-            var base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-            var raw     = window.atob(base64);
-            var output  = new Uint8Array(raw.length);
-            for (var i = 0; i < raw.length; ++i) output[i] = raw.charCodeAt(i);
-            return output;
-        }
+                        if (n.ticket_number || n.customer_name) {
+                            var pMeta = document.createElement('p');
+                            pMeta.style.margin = '2px 0 0';
+                            pMeta.style.fontSize = '11px';
+                            pMeta.style.fontWeight = '500';
+                            pMeta.style.color = '#374151';
+                            pMeta.style.overflow = 'hidden';
+                            pMeta.style.whiteSpace = 'nowrap';
+                            pMeta.style.textOverflow = 'ellipsis';
+                            var parts = [];
+                            if (n.ticket_number) parts.push(n.ticket_number);
+                            if (n.customer_name) parts.push(n.customer_name);
+                            pMeta.textContent = parts.join(' · ');
+                            textBox.appendChild(pMeta);
+                        }
 
-        function subscribeToPush(registration) {
-            registration.pushManager.getSubscription().then(function (existing) {
-                if (existing) {
-                    sendSubscriptionToServer(existing);
-                    return;
-                }
-                registration.pushManager.subscribe({
-                    userVisibleOnly:      true,
-                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-                }).then(function (sub) {
-                    sendSubscriptionToServer(sub);
-                }).catch(function (err) {
-                    console.warn('[WebPush] Subscribe failed:', err);
-                });
-            });
-        }
+                        var pPreview = document.createElement('p');
+                        pPreview.style.margin = '2px 0 0';
+                        pPreview.style.fontSize = '11px';
+                        pPreview.style.color = '#6b7280';
+                        pPreview.style.overflow = 'hidden';
+                        pPreview.style.whiteSpace = 'nowrap';
+                        pPreview.style.textOverflow = 'ellipsis';
+                        pPreview.textContent = n.preview || '';
 
-        function sendSubscriptionToServer(sub) {
-            var json = sub.toJSON();
-            var csrf = document.querySelector('meta[name="csrf-token"]');
-            fetch('/api/push/subscribe', {
-                method:      'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type':  'application/json',
-                    'X-CSRF-TOKEN':  csrf ? csrf.content : '',
-                    'Accept':        'application/json',
-                },
-                body: JSON.stringify({
-                    endpoint:    json.endpoint,
-                    keys: {
-                        p256dh: json.keys.p256dh,
-                        auth:   json.keys.auth,
-                    },
-                }),
-            }).catch(function () {});
-        }
+                        var pTime = document.createElement('p');
+                        pTime.style.margin = '3px 0 0';
+                        pTime.style.fontSize = '10px';
+                        pTime.style.color = '#9ca3af';
+                        pTime.textContent = n.created_at || '';
 
-        /* Register Service Worker */
-        navigator.serviceWorker.register('/sw.js').then(function (registration) {
-            /* Listen for push messages forwarded from SW (to play custom sound) */
-            navigator.serviceWorker.addEventListener('message', function (event) {
-                if (event.data && event.data.type === 'PUSH_RECEIVED') {
-                    var payload = event.data.payload || {};
-                    var msgTypes = ['ticket_reply', 'ticket_internal_note'];
-                    /* Chat/message types use chat sound; others use ticket/alert sound. */
-                    if (msgTypes.includes(payload.type)) {
-                        if (typeof window.playChatSound === 'function') window.playChatSound();
-                    } else {
-                        if (typeof window.playTicketSound === 'function') window.playTicketSound();
+                        textBox.appendChild(pTitle);
+                        textBox.appendChild(pPreview);
+                        textBox.appendChild(pTime);
+
+                        /* unread dot */
+                        a.appendChild(circle);
+                        a.appendChild(textBox);
+                        if (isUnread) {
+                            var dot = document.createElement('span');
+                            dot.style.width = '8px';
+                            dot.style.height = '8px';
+                            dot.style.background = '#ef4444';
+                            dot.style.borderRadius = '50%';
+                            dot.style.flexShrink = '0';
+                            dot.style.marginTop = '4px';
+                            dot.style.display = 'block';
+                            a.appendChild(dot);
+                        }
+
+                        return a;
                     }
-                    if (typeof window.fetchUnreadCount === 'function') {
-                        window.fetchUnreadCount();
+
+                    function setListMessage(list, msg) {
+                        list.innerHTML = '';
+                        var d = document.createElement('div');
+                        d.style.padding = '24px 16px';
+                        d.style.textAlign = 'center';
+                        d.style.fontSize = '12px';
+                        d.style.color = '#9ca3af';
+                        d.textContent = msg;
+                        list.appendChild(d);
                     }
-                }
-            });
 
-            /* Subscribe to push once notification permission is granted */
-            if (Notification.permission === 'granted') {
-                subscribeToPush(registration);
-            }
-        }).catch(function (err) {
-            console.warn('[SW] Registration failed:', err);
-        });
+                    /* ---- load notifications into bell dropdown ---- */
+                    function loadBellNotifications() {
+                        var list = document.getElementById('bellNotifList');
+                        if (!list) return;
+                        setListMessage(list, 'Loading...');
+                        fetch('/api/notifications?limit=10', { credentials: 'same-origin' })
+                            .then(function (r) { return r.json(); })
+                            .then(function (data) {
+                                list.innerHTML = '';
+                                if (!data.success || !data.data || !data.data.length) {
+                                    setListMessage(list, 'No notifications');
+                                    return;
+                                }
+                                data.data.forEach(function (n) { list.appendChild(buildItem(n)); });
+                            })
+                            .catch(function () { setListMessage(list, 'Failed to load'); });
+                    }
 
-        function unsubscribeFromPush() {
-            navigator.serviceWorker.ready.then(function (registration) {
-                registration.pushManager.getSubscription().then(function (sub) {
-                    if (!sub) return;
-                    var endpoint = sub.endpoint;
-                    sub.unsubscribe().then(function () {
+                    /* ---- fire-and-forget mark-as-read (called on click, navigation proceeds normally) ----
+                       Marks this notification read; the backend also marks every other unread
+                       notification for the same ticket read in one go, so the badge can drop by more
+                       than 1 — re-fetch the real count instead of guessing with a client-side decrement.
+                       Still visible (as read) on the full /notifications page. */
+                    function markNotifReadBell(id) {
+                        fetch('/api/notifications/' + id + '/read', {
+                            method: 'PUT',
+                            credentials: 'same-origin',
+                            headers: { 'X-CSRF-TOKEN': csrf }
+                        }).then(function () {
+                            fetchUnreadCount();
+                        }).catch(function () { });
+                    }
+
+                    /* ---- mark all read (does NOT delete — read items remain on the full page) ---- */
+                    function markAllNotificationsRead() {
+                        var list = document.getElementById('bellNotifList');
+                        if (list) setListMessage(list, 'No notifications');
+                        var badge = document.getElementById('bellBadge');
+                        if (badge) badge.classList.add('hidden');
+                        fetch('/api/notifications/read-all', { method: 'PUT', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': csrf } })
+                            .catch(function () { });
+                    }
+
+                    /* ---- expose globals ---- */
+                    window.toggleBellDropdown = toggleBellDropdown;
+                    window.markAllNotificationsRead = markAllNotificationsRead;
+                    window.fetchUnreadCount = fetchUnreadCount;
+                    window.playNotifSound = playNotifSound;
+                    window.playTicketSound = playTicketSound;
+                    window.playChatSound = playChatSound;
+                    window.playStagingSound = playStagingSound;
+
+                    /* ---- start ---- */
+                    fetchUnreadCount();
+                    setInterval(fetchUnreadCount, 15000);
+                })();
+            </script>
+
+            <!-- ==================== WEB PUSH SERVICE WORKER ==================== -->
+            <script>
+                (function () {
+                    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+                    var VAPID_PUBLIC_KEY = '{{ config("webpush.vapid_public_key") }}';
+
+                    function urlBase64ToUint8Array(base64String) {
+                        var padding = '='.repeat((4 - base64String.length % 4) % 4);
+                        var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+                        var raw = window.atob(base64);
+                        var output = new Uint8Array(raw.length);
+                        for (var i = 0; i < raw.length; ++i) output[i] = raw.charCodeAt(i);
+                        return output;
+                    }
+
+                    function subscribeToPush(registration) {
+                        registration.pushManager.getSubscription().then(function (existing) {
+                            if (existing) {
+                                sendSubscriptionToServer(existing);
+                                return;
+                            }
+                            registration.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+                            }).then(function (sub) {
+                                sendSubscriptionToServer(sub);
+                            }).catch(function (err) {
+                                console.warn('[WebPush] Subscribe failed:', err);
+                            });
+                        });
+                    }
+
+                    function sendSubscriptionToServer(sub) {
+                        var json = sub.toJSON();
                         var csrf = document.querySelector('meta[name="csrf-token"]');
-                        fetch('/api/push/unsubscribe', {
-                            method:      'POST',
+                        fetch('/api/push/subscribe', {
+                            method: 'POST',
                             credentials: 'same-origin',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'X-CSRF-TOKEN': csrf ? csrf.content : '',
-                                'Accept':       'application/json',
+                                'Accept': 'application/json',
                             },
-                            body: JSON.stringify({ endpoint: endpoint }),
-                        }).catch(function () {});
-                    });
-                });
-            });
-        }
+                            body: JSON.stringify({
+                                endpoint: json.endpoint,
+                                keys: {
+                                    p256dh: json.keys.p256dh,
+                                    auth: json.keys.auth,
+                                },
+                            }),
+                        }).catch(function () { });
+                    }
 
-        /* Wrap toggleNotifSound: subscribe on enable, unsubscribe on disable */
-        var _origToggle = window.toggleNotifSound;
-        window.toggleNotifSound = function () {
-            if (typeof _origToggle === 'function') _origToggle();
-            /* Read the new state from localStorage (set by _origToggle) */
-            var nowEnabled = localStorage.getItem('notif_sound_enabled') !== 'false';
-            if (nowEnabled) {
-                if (Notification.permission === 'granted') {
-                    navigator.serviceWorker.ready.then(subscribeToPush);
-                } else if (Notification.permission === 'default') {
-                    Notification.requestPermission().then(function (perm) {
-                        if (perm === 'granted') {
-                            navigator.serviceWorker.ready.then(subscribeToPush);
+                    /* Register Service Worker */
+                    navigator.serviceWorker.register('/sw.js').then(function (registration) {
+                        /* Listen for push messages forwarded from SW (to play custom sound) */
+                        navigator.serviceWorker.addEventListener('message', function (event) {
+                            if (event.data && event.data.type === 'PUSH_RECEIVED') {
+                                var payload = event.data.payload || {};
+                                var msgTypes = ['ticket_reply', 'ticket_internal_note'];
+                                /* Chat/message types use chat sound; others use ticket/alert sound. */
+                                if (msgTypes.includes(payload.type)) {
+                                    if (typeof window.playChatSound === 'function') window.playChatSound();
+                                } else {
+                                    if (typeof window.playTicketSound === 'function') window.playTicketSound();
+                                }
+                                if (typeof window.fetchUnreadCount === 'function') {
+                                    window.fetchUnreadCount();
+                                }
+                            }
+                        });
+
+                        /* Subscribe to push once notification permission is granted */
+                        if (Notification.permission === 'granted') {
+                            subscribeToPush(registration);
                         }
+                    }).catch(function (err) {
+                        console.warn('[SW] Registration failed:', err);
                     });
-                }
-            } else {
-                unsubscribeFromPush();
-            }
-        };
-    })();
-    </script>
 
-    @if(!config('app.debug'))
-    <script>
-        (function () {
-            var noop = function () {};
-            console.log   = noop;
-            console.debug = noop;
-            console.info  = noop;
-        })();
-    </script>
-    @endif
+                    function unsubscribeFromPush() {
+                        navigator.serviceWorker.ready.then(function (registration) {
+                            registration.pushManager.getSubscription().then(function (sub) {
+                                if (!sub) return;
+                                var endpoint = sub.endpoint;
+                                sub.unsubscribe().then(function () {
+                                    var csrf = document.querySelector('meta[name="csrf-token"]');
+                                    fetch('/api/push/unsubscribe', {
+                                        method: 'POST',
+                                        credentials: 'same-origin',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'X-CSRF-TOKEN': csrf ? csrf.content : '',
+                                            'Accept': 'application/json',
+                                        },
+                                        body: JSON.stringify({ endpoint: endpoint }),
+                                    }).catch(function () { });
+                                });
+                            });
+                        });
+                    }
 
-    {{-- Global confirm modal — replaces browser native confirm() everywhere.
-         Usage: if (await showConfirm('msg', 'title', 'danger')) { ... } --}}
-    @include('partials.confirm-modal')
+                    /* Wrap toggleNotifSound: subscribe on enable, unsubscribe on disable */
+                    var _origToggle = window.toggleNotifSound;
+                    window.toggleNotifSound = function () {
+                        if (typeof _origToggle === 'function') _origToggle();
+                        /* Read the new state from localStorage (set by _origToggle) */
+                        var nowEnabled = localStorage.getItem('notif_sound_enabled') !== 'false';
+                        if (nowEnabled) {
+                            if (Notification.permission === 'granted') {
+                                navigator.serviceWorker.ready.then(subscribeToPush);
+                            } else if (Notification.permission === 'default') {
+                                Notification.requestPermission().then(function (perm) {
+                                    if (perm === 'granted') {
+                                        navigator.serviceWorker.ready.then(subscribeToPush);
+                                    }
+                                });
+                            }
+                        } else {
+                            unsubscribeFromPush();
+                        }
+                    };
+                })();
+            </script>
+
+            @if(!config('app.debug'))
+                <script>
+                    (function () {
+                        var noop = function () { };
+                        console.log = noop;
+                        console.debug = noop;
+                        console.info = noop;
+                    })();
+                </script>
+            @endif
+
+            {{-- Global confirm modal — replaces browser native confirm() everywhere.
+            Usage: if (await showConfirm('msg', 'title', 'danger')) { ... } --}}
+            @include('partials.confirm-modal')
 </body>
+
 </html>
