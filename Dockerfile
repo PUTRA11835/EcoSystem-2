@@ -14,24 +14,14 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 RUN echo "upload_max_filesize=25M\npost_max_size=30M" > /usr/local/etc/php/conf.d/uploads.ini
 
-WORKDIR /var/www/ecosystem
+WORKDIR /var/www/html
 
 COPY . .
 
 RUN git config --global --add safe.directory /var/www/ecosystem
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader || composer install --no-interaction --prefer-source --optimize-autoloader
 
-
-# mkdir eksplisit -- jangan andalkan storage/logs/ sudah ada dari `COPY . .`.
-# Laravel sendiri otomatis bikin folder itu saat pertama nulis log, tapi
-# supervisord TIDAK: dia mensyaratkan direktori tujuan stdout_logfile SUDAH
-# ada saat parsing config, dan kalau tidak, supervisord gagal start SAMA
-# SEKALI (bukan cuma satu program yang gagal) -- ini yang bikin container
-# prod Exited(2) total setelah docker/supervisord.conf dipindah dari
-# /dev/stdout ke file di storage/logs/*.log (program queue-worker/
-# queue-worker-reports). mkdir -p aman dipanggil walau foldernya sudah ada.
-RUN mkdir -p storage/logs \
-    && chown -R www-data:www-data storage bootstrap/cache \
+RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
 # php-fpm DAN queue worker Laravel (php artisan queue:work) dijalankan
