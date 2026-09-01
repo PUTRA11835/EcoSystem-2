@@ -437,4 +437,105 @@ Route::prefix('general')
                 Route::get('/search', [GeoLookupController::class, 'search'])->name('search');
                 Route::get('/reverse', [GeoLookupController::class, 'reverse'])->name('reverse');
             });
+
+        // =====================================================================
+        // ESS — MY KPI (presensi mandiri KPI, untuk SELURUH karyawan)
+        // =====================================================================
+        // Setiap karyawan melihat KPI milik DIRINYA SENDIRI. Identitas karyawan
+        // selalu diambil dari sesi, tidak pernah dari parameter rute.
+        // Self-assessment bersifat wajib tetapi order-independent dengan
+        // penilaian supervisor. HR hanya bisa menyetujui setelah KEDUANYA selesai.
+        Route::prefix('my-kpi')
+            ->name('my-kpi.')
+            ->middleware('menu:general.my-kpi')
+            ->group(function () {
+                Route::get('/', [\App\Http\Controllers\HR_General\MyKpiController::class, 'index'])->name('index');
+                Route::get('/{id}/self-assessment', [\App\Http\Controllers\HR_General\MyKpiController::class, 'selfAssessmentForm'])
+                    ->name('self-assessment');
+                Route::post('/{id}/self-assessment', [\App\Http\Controllers\HR_General\MyKpiController::class, 'submitSelfAssessment'])
+                    ->name('self-assessment.submit');
+            });
+
+        // =====================================================================
+        // HR — KPI EVALUATION (dashboard, daftar, review, persetujuan)
+        // =====================================================================
+        Route::prefix('kpi-evaluation')
+            ->name('kpi-evaluation.')
+            ->middleware('menu:general.kpi-evaluation')
+            ->group(function () {
+                // Dashboard
+                Route::get('/', [\App\Http\Controllers\HR\KpiController::class, 'dashboard'])->name('index');
+
+                // Evaluation list (detailed, paginated)
+                Route::get('/list', [\App\Http\Controllers\HR\KpiController::class, 'evaluationList'])->name('list');
+
+                // Create evaluation (HR creates record, assigns employee + supervisor + template)
+                Route::post('/store', [\App\Http\Controllers\HR\KpiController::class, 'storeEvaluation'])
+                    ->name('store')
+                    ->middleware('menu:general.kpi-evaluation.create');
+
+                // Review / supervisor scoring
+                Route::get('/{id}/review', [\App\Http\Controllers\HR\KpiController::class, 'reviewEvaluation'])
+                    ->name('review');
+                Route::post('/{id}/review', [\App\Http\Controllers\HR\KpiController::class, 'submitReview'])
+                    ->name('review.submit')
+                    ->middleware('menu:general.kpi-evaluation.review');
+
+                // Approve / Reject (HR decision — makes result visible to employee)
+                Route::post('/{id}/approve', [\App\Http\Controllers\HR\KpiController::class, 'approveEvaluation'])
+                    ->name('approve')
+                    ->middleware('menu:general.kpi-evaluation.approve');
+                Route::post('/{id}/reject', [\App\Http\Controllers\HR\KpiController::class, 'rejectEvaluation'])
+                    ->name('reject')
+                    ->middleware('menu:general.kpi-evaluation.approve');
+
+                // Delete (draft or rejected only)
+                Route::post('/{id}/delete', [\App\Http\Controllers\HR\KpiController::class, 'deleteEvaluation'])
+                    ->name('delete')
+                    ->middleware('menu:general.kpi-evaluation.create');
+
+                // Update deadline (HR extends missed self/supervisor deadline)
+                Route::post('/{id}/update-deadline', [\App\Http\Controllers\HR\KpiController::class, 'updateDeadline'])
+                    ->name('update-deadline')
+                    ->middleware('menu:general.kpi-evaluation.create');
+
+                // Update template (HR updates assigned template for an evaluation)
+                Route::post('/{id}/update-template', [\App\Http\Controllers\HR\KpiController::class, 'updateTemplate'])
+                    ->name('update-template')
+                    ->middleware('menu:general.kpi-evaluation.create');
+
+                // Export CSV
+                Route::get('/export', [\App\Http\Controllers\HR\KpiController::class, 'exportEvaluations'])
+                    ->name('export')
+                    ->middleware('menu:general.kpi-evaluation.export');
+
+                // AJAX dashboard data
+                Route::get('/dashboard-data', [\App\Http\Controllers\HR\KpiController::class, 'getDashboardData'])
+                    ->name('dashboard-data');
+            });
+
+        // =====================================================================
+        // KPI SETTINGS — Template Management
+        // =====================================================================
+        Route::prefix('settings/kpi')
+            ->name('settings.kpi.')
+            ->middleware('menu:general.settings.kpi')
+            ->group(function () {
+                Route::get('/', [\App\Http\Controllers\HR\KpiTemplateController::class, 'index'])->name('index');
+                Route::post('/store', [\App\Http\Controllers\HR\KpiTemplateController::class, 'store'])
+                    ->name('store')
+                    ->middleware('menu:general.settings.kpi.manage');
+                Route::post('/{id}/update', [\App\Http\Controllers\HR\KpiTemplateController::class, 'update'])
+                    ->name('update')
+                    ->middleware('menu:general.settings.kpi.manage');
+                Route::post('/{id}/toggle', [\App\Http\Controllers\HR\KpiTemplateController::class, 'toggleActive'])
+                    ->name('toggle')
+                    ->middleware('menu:general.settings.kpi.manage');
+                Route::post('/{id}/delete', [\App\Http\Controllers\HR\KpiTemplateController::class, 'delete'])
+                    ->name('delete')
+                    ->middleware('menu:general.settings.kpi.manage');
+                // AJAX: get indicators for a template (for form auto-population)
+                Route::get('/{id}/indicators', [\App\Http\Controllers\HR\KpiTemplateController::class, 'getIndicators'])
+                    ->name('indicators');
+            });
     });
