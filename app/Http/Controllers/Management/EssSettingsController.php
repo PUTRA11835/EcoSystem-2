@@ -47,8 +47,13 @@ class EssSettingsController extends Controller
             'route' => null,
             'icon'  => 'fas fa-file-invoice-dollar',
         ],
+        // Nama tampilan diselaraskan menjadi "Reimbursement" (26 Agu 2026) agar
+        // sama dengan sebutan modulnya di seluruh aplikasi. KUNCI array tetap
+        // `expense_reimbursement` karena kunci itulah yang tersimpan di JSON
+        // `ess_menu_settings`; menggantinya membuat setelan tersimpan tidak lagi
+        // cocok dan sakelarnya diam-diam kembali ke bawaan.
         'expense_reimbursement' => [
-            'name'  => 'Expense Reimbursement',
+            'name'  => 'Reimbursement',
             'route' => 'general.my-reimbursement.index',
             'icon'  => 'fas fa-receipt',
         ],

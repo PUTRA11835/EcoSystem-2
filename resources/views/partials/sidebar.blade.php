@@ -172,6 +172,32 @@
                 </div>
             @endif
 
+
+            {{-- AI Assistant & AI Research menggantikan placeholder ESS "AI Menu" yang hanya menunjuk route('coming-soon'). Pola yang sama dipakai untuk My Attendance, Overtime, dan Reimbursement. --}}
+            @if($can('ai-assistant'))
+            <!-- AI ASSISTANT -->
+            <div class="mb-2">
+                <a href="{{ route('ai-assistant') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ai-assistant*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                        <i class="fas fa-robot"></i>
+                    </span>
+                    <span class="nav-text font-medium">AI Assistant</span>
+                </a>
+            </div>
+            @endif
+
+            @if($can('ai-research'))
+            <!-- AI RESEARCH -->
+            <div class="mb-2">
+                <a href="{{ route('ai-research') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ai-research*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                        <i class="fas fa-magnifying-glass-chart"></i>
+                    </span>
+                    <span class="nav-text font-medium">AI Research</span>
+                </a>
+            </div>
+            @endif
+
             @php
                 $showEvents = !empty($essConfig['events_calendar']) && ($can('calendar.events') || Auth::check());
                 $showTimesheets = !empty($essConfig['my_timesheet']) && ($can('calendar.timesheets') || Auth::check());
@@ -213,22 +239,86 @@
                 </div>
             @endif
 
+
+            {{-- Dropdown Reporting versi lengkap — memuat sub-grup Project & Support beserta Consultant Assignment dan Diagram Report. Fungsi _toggleReportingGroup() yang menggerakkannya ada di dashboard.blade.php. --}}
             @if($can('reporting'))
-                <!-- REPORTING Dropdown -->
-                <div class="mb-2">
-                    <button onclick="toggleReportingDropdown()"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('reporting*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-chart-line"></i>
-                        </span>
-                        <span class="nav-text flex-1 font-medium">Reporting</span>
-                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="reportingChevron"></i>
-                    </button>
-                    <div id="reportingDropdown"
-                        class="nav-text {{ Request::is('reporting*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
-                        @if($can('reporting.validation'))
-                            <a href="{{ route('reporting') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting') && !Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+            <!-- REPORTING Dropdown -->
+            <div class="mb-2">
+                <button onclick="toggleReportingDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('reporting*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                        <i class="fas fa-chart-line"></i>
+                    </span>
+                    <span class="nav-text flex-1 font-medium">Reporting</span>
+                    <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="reportingChevron"></i>
+                </button>
+                @php
+                    // Reporting dipisah jadi dua grup: Project & Support. Grup hanya
+                    // dirender kalau user punya minimal satu laporan di dalamnya —
+                    // tidak ada slug izin baru, murni pengelompokan visual.
+                    // Catatan: 'reporting/collection-outlook*' TIDAK dipakai untuk grup
+                    // Project karena wildcard-nya ikut menangkap collection-outlook-support.
+                    $repCoProject     = Request::is('reporting/collection-outlook') || Request::is('reporting/collection-outlook/*');
+                    $repProjectActive = $repCoProject || Request::is('reporting/consultant-assignment*');
+                    $repSupportActive = Request::is('reporting')
+                        || Request::is('reporting/md-recap*')
+                        || Request::is('reporting/collection-outlook-support*')
+                        || Request::is('reporting/ticketing-overview*')
+                        || Request::is('reporting/ticket-by-module*')
+                        || Request::is('reporting/log-shifting*')
+                        || Request::is('reporting/resolution-days*');
+                    $canRepProject = $can('reporting.collection-outlook') || $can('reporting.consultant-assignment');
+                    $canRepSupport = $can('reporting.validation')
+                        || $can('reporting.md-recap')
+                        || $can('reporting.collection-outlook-support')
+                        || $can('reporting.ticketing-overview')
+                        || $can('reporting.ticket-by-module')
+                        || $can('reporting.log-shifting')
+                        || $can('reporting.resolution-days');
+                @endphp
+                <div id="reportingDropdown" class="nav-text {{ Request::is('reporting*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                    @if($canRepProject)
+                    {{-- Reporting → Project --}}
+                    <div>
+                        <button onclick="toggleReportingProjectDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $repProjectActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-project-diagram text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm flex-1">Project</span>
+                            <i class="fas fa-chevron-down text-[10px] nav-text transition-transform {{ $repProjectActive ? 'rotate-180' : '' }}" id="reportingProjectChevron"></i>
+                        </button>
+                        <div id="reportingProjectDropdown" class="nav-text {{ $repProjectActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                            @if($can('reporting.collection-outlook'))
+                            <a href="{{ route('reporting.collection-outlook') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ $repCoProject ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-hand-holding-usd text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm">Collection Outlook</span>
+                            </a>
+                            @endif
+                            @if($can('reporting.consultant-assignment'))
+                            <a href="{{ route('reporting.consultant-assignment') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/consultant-assignment*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-users text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm">Consultant Assignment</span>
+                            </a>
+                            @endif
+                        </div>
+                    </div>
+                    @endif
+                    @if($canRepSupport)
+                    {{-- Reporting → Support --}}
+                    <div>
+                        <button onclick="toggleReportingSupportDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $repSupportActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                <i class="fas fa-headset text-xs"></i>
+                            </span>
+                            <span class="nav-text text-sm flex-1">Support</span>
+                            <i class="fas fa-chevron-down text-[10px] nav-text transition-transform {{ $repSupportActive ? 'rotate-180' : '' }}" id="reportingSupportChevron"></i>
+                        </button>
+                        <div id="reportingSupportDropdown" class="nav-text {{ $repSupportActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                            @if($can('reporting.validation'))
+                            <a href="{{ route('reporting') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-check-circle text-xs"></i>
                                 </span>
@@ -297,9 +387,20 @@
                                 </span>
                                 <span class="nav-text text-sm">Resolution Days</span>
                             </a>
-                        @endif
+                            @endif
+                        </div>
                     </div>
+                    @endif
+                    @if($can('reporting.diagram-report'))
+                    <a href="{{ route('reporting.diagram-report') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/diagram-report*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                            <i class="fas fa-chart-pie text-xs"></i>
+                        </span>
+                        <span class="nav-text text-sm">Diagram Report</span>
+                    </a>
+                    @endif
                 </div>
+            </div>
             @endif
 
             @if($can('master'))
@@ -313,7 +414,8 @@
                         <span class="nav-text flex-1 font-medium">Master</span>
                         <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="masterChevron"></i>
                     </button>
-                    <div id="masterDropdown" class="nav-text {{ Request::is('master*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                    <div id="masterDropdown"
+                        class="nav-text {{ Request::is('master*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                         @if($can('master.employee'))
                             <a href="{{ route('master.employee.index') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -364,7 +466,8 @@
                         <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $hrGeneralOpen ? 'rotate-180' : '' }}"
                             id="hrGeneralChevron"></i>
                     </button>
-                    <div id="hrGeneralDropdown" class="nav-text {{ $hrGeneralOpen ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                    <div id="hrGeneralDropdown"
+                        class="nav-text {{ $hrGeneralOpen ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                         @if($can('hr_general.leave_permit.admin') || $can('general'))
                             <a href="{{ route('hr-general.leave-permit') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('hr-general/leave-permit*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -576,6 +679,18 @@
                                         class="fas fa-sign-in-alt text-xs"></i></span>
                                 <span class="nav-text text-sm">Login Log</span>
                             </a>
+                        @endif
+                        @if($can('control-center.audit-log'))
+                        <a href="{{ route('admin.audit-log') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/audit-log*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-clipboard-list text-xs"></i></span>
+                            <span class="nav-text text-sm">Audit Log</span>
+                        </a>
+                        @endif
+                        @if($can('control-center.ai-settings'))
+                        <a href="{{ route('admin.ai-settings') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/ai-settings*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-microchip text-xs"></i></span>
+                            <span class="nav-text text-sm">AI Settings</span>
+                        </a>
                         @endif
                         @if($can('control-center.sessions'))
                             <a href="{{ route('admin.sessions') }}"

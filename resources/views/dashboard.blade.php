@@ -29,7 +29,7 @@
 
         // Calculate darker shade
         $darkR = max(0, $rgb[0] - 40);
-        $darkG = max(0, $rgb[1] - 40);
+        $darkG = max(0, $rgb[1] - 40);  
         $darkB = max(0, $rgb[2] - 40);
         $primaryDarkRgb = "$darkR, $darkG, $darkB";
 
