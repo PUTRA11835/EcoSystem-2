@@ -22,6 +22,16 @@ class WordReport extends Model
     public const STATUS_FAILED = 'failed';
 
     /**
+     * Kegagalan yang AMAN DILANJUTKAN: rate limit provider habis setelah semua
+     * retry internal (lihat OpenAiReportDriver::createWithRateLimitRetry dan
+     * $tries di GenerateWordReportJob). Progres per-fase sudah tersimpan, jadi
+     * user tinggal menekan "Lanjutkan" -- generate() resume dari fase terakhir.
+     * Dibedakan dari STATUS_FAILED supaya UI tidak menakut-nakuti dengan pesan
+     * error mentah untuk sesuatu yang cuma perlu diulang.
+     */
+    public const STATUS_PAUSED = 'paused';
+
+    /**
      * Fase generate yang SEDANG/BELUM dikerjakan (lihat ReportGeneratorService) --
      * null berarti semua fase sudah selesai (docx/pdf sudah jadi).
      */

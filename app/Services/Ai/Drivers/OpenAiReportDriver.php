@@ -39,6 +39,20 @@ class OpenAiReportDriver implements ReportGenerationDriver
     /** Fase 2 (tarik data) cuma tool-calling murni, tidak butuh sebanyak fase dokumen. */
     private const MAX_DATA_ITERATIONS = 8;
 
+    /**
+     * Rate limit TPM OpenAI adalah jendela 60 detik yang BERGULIR: token dari
+     * panggilan sebelumnya (mis. fase 2 yang baru selesai di job yang sama)
+     * keluar dari hitungan setelah semenit, jadi menunggu sebentar lalu
+     * mengulang panggilan yang SAMA hampir selalu berhasil -- jauh lebih halus
+     * daripada menggagalkan seluruh job dan menyuruh user menekan tombol.
+     * Baru menyerah (lempar RuntimeException, previous = RateLimitException
+     * supaya GenerateWordReportJob bisa menandainya "paused") setelah ini habis.
+     */
+    private const RATE_LIMIT_MAX_RETRIES = 3;
+
+    /** Plafon jeda per percobaan -- supaya satu panggilan tidak menggantung job sampai timeout (900s). */
+    private const RATE_LIMIT_MAX_WAIT_SECONDS = 12;
+
     public function __construct(private Client $client)
     {
     }
@@ -69,11 +83,7 @@ class OpenAiReportDriver implements ReportGenerationDriver
             $parameters['reasoning'] = ['effort' => $effort];
         }
 
-        try {
-            $response = $this->client->responses()->create($parameters);
-        } catch (RateLimitException $e) {
-            throw new RuntimeException($this->describeRateLimit($e), previous: $e);
-        }
+        $response = $this->createWithRateLimitRetry($parameters);
 
         if ('completed' !== $response->status) {
             throw new RuntimeException($this->describeIncomplete($response));
@@ -117,11 +127,7 @@ class OpenAiReportDriver implements ReportGenerationDriver
                 $parameters['reasoning'] = ['effort' => $effort];
             }
 
-            try {
-                $response = $this->client->responses()->create($parameters);
-            } catch (RateLimitException $e) {
-                throw new RuntimeException($this->describeRateLimit($e), previous: $e);
-            }
+            $response = $this->createWithRateLimitRetry($parameters);
 
             if ('completed' !== $response->status) {
                 throw new RuntimeException($this->describeIncomplete($response));
@@ -197,11 +203,7 @@ class OpenAiReportDriver implements ReportGenerationDriver
                 $parameters['reasoning'] = ['effort' => $effort];
             }
 
-            try {
-                $response = $this->client->responses()->create($parameters);
-            } catch (RateLimitException $e) {
-                throw new RuntimeException($this->describeRateLimit($e), previous: $e);
-            }
+            $response = $this->createWithRateLimitRetry($parameters);
 
             if ('completed' !== $response->status) {
                 throw new RuntimeException($this->describeIncomplete($response));
@@ -295,6 +297,39 @@ class OpenAiReportDriver implements ReportGenerationDriver
             'summary' => $finalText,
             ...$this->downloadGeneratedFiles($filesByContainer),
         ];
+    }
+
+    /**
+     * Panggil Responses API, tapi telan RateLimitException dan ulangi setelah
+     * jeda singkat (lihat RATE_LIMIT_MAX_RETRIES) -- mayoritas rate limit di
+     * sini adalah lonjakan TPM sesaat (fase sebelumnya di job yang sama, atau
+     * asisten lain di model yang sama) yang reda dalam hitungan detik. Kalau
+     * sampai kehabisan percobaan, lempar RuntimeException dengan
+     * RateLimitException sebagai `previous` -- GenerateWordReportJob membaca itu
+     * untuk menandai laporan "paused" (bisa dilanjutkan), bukan "failed".
+     *
+     * @param array<string, mixed> $parameters
+     */
+    private function createWithRateLimitRetry(array $parameters): CreateResponse
+    {
+        $attempt = 0;
+
+        while (true) {
+            try {
+                return $this->client->responses()->create($parameters);
+            } catch (RateLimitException $e) {
+                if (++$attempt > self::RATE_LIMIT_MAX_RETRIES) {
+                    throw new RuntimeException($this->describeRateLimit($e), previous: $e);
+                }
+
+                $header = $e->response->getHeaderLine('retry-after');
+                $suggested = is_numeric($header) ? (float) $header : 0.0;
+                // Kalau API tidak menyebut retry-after, naik bertahap: 3s, 6s, 9s.
+                $wait = min($suggested > 0 ? $suggested : 3.0 * $attempt, self::RATE_LIMIT_MAX_WAIT_SECONDS);
+
+                usleep((int) (($wait + 0.5) * 1_000_000));
+            }
+        }
     }
 
     /**

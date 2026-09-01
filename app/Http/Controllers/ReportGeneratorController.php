@@ -180,7 +180,8 @@ class ReportGeneratorController extends Controller
     }
 
     /**
-     * User menekan "Coba Lagi" di report yang gagal (status failed) ->
+     * User menekan "Coba Lagi" (status failed) atau "Lanjutkan" (status
+     * paused -- rate limit provider, lihat WordReport::STATUS_PAUSED) ->
      * dispatch ulang job TANPA menyentuh phase/structure_map/pulled_data,
      * jadi ReportGeneratorService::generate() resume dari fase terakhir
      * yang sudah tersimpan (bukan mengulang dari fase 1).
@@ -189,7 +190,11 @@ class ReportGeneratorController extends Controller
     {
         $this->authorizeOwner($report);
 
-        abort_if(WordReport::STATUS_FAILED !== $report->status, 409, 'Laporan ini tidak sedang gagal.');
+        abort_if(
+            !in_array($report->status, [WordReport::STATUS_FAILED, WordReport::STATUS_PAUSED], true),
+            409,
+            'Laporan ini tidak sedang gagal atau dijeda.',
+        );
 
         $report->update([
             'status' => WordReport::STATUS_PENDING,
