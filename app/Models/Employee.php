@@ -197,22 +197,6 @@ class Employee extends Model
         return $this->hasMany(EmployeeQualification::class, 'employee_id', 'employee_id');
     }
 
-    /**
-     * Highest consultant grade (sort_order) among this employee's Certification
-     * qualifications, across all modules. Returns null if the employee has no
-     * qualification_level recorded (or none of it maps to a known grade).
-     */
-    public function highestQualificationLevelSortOrder(): ?int
-    {
-        return $this->qualifications()
-            ->where('qualification_type', EmployeeQualification::TYPE_CERTIFICATION)
-            ->whereNotNull('qualification_level')
-            ->pluck('qualification_level')
-            ->map(fn ($level) => Grade::sortOrderForLevel($level))
-            ->filter(fn ($sortOrder) => $sortOrder !== null)
-            ->max();
-    }
-
 
     public function moduleLeaderships()
     {
