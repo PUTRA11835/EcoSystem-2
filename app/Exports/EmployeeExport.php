@@ -17,8 +17,8 @@ class EmployeeExport implements
     WithStyles,
     ShouldAutoSize
 {
-    // Column count: A–I (9 columns)
-    private const LAST_COL = 'I';
+    // Column count: A–X (24 columns)
+    private const LAST_COL = 'X';
 
     protected Collection $rows;
 
@@ -37,11 +37,26 @@ class EmployeeExport implements
         return [
             'ECI',
             'Full Name',
+            'Nick Name',
+            'Title',
+            'Gender',
+            'Religion',
+            'Marital Status',
+            'Birth Date',
+            'Birth Place',
+            'Personnel Area',
+            'Personnel Subarea',
+            'Employee Group',
+            'Employee Subgroup',
             'Position',
-            'Module',
             'Division',
             'Department',
+            'Authorization Group',
+            'Current Assignment',
+            'Direct Supervision',
+            'Manager',
             'Home Base',
+            'Module',
             'Since Date',
             'Status',
         ];

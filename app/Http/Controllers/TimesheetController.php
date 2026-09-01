@@ -15,8 +15,8 @@ use App\Models\CustomerMandays;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectActivity;
 use App\Models\DeliverySupportActivity;
+use App\Enums\PersonnelSubarea;
 use App\Models\Employee;
-use App\Models\Grade;
 use App\Models\Notification;
 use App\Models\ReportingPeriod;
 use App\Models\Ticket;
@@ -673,12 +673,12 @@ class TimesheetController extends Controller
                     return response()->json(['success' => false, 'message' => $quotaError], 422);
                 }
 
-                $levelError = $this->checkConsultantLevelDayLimit(
+                $subareaError = $this->checkPersonnelSubareaDayLimit(
                     (int) $validated['employee_id'],
                     (float) ($validated['md_consumed'] ?? 0)
                 );
-                if ($levelError) {
-                    return response()->json(['success' => false, 'message' => $levelError], 422);
+                if ($subareaError) {
+                    return response()->json(['success' => false, 'message' => $subareaError], 422);
                 }
             }
             // ─────────────────────────────────────────────────────────────────
@@ -821,12 +821,12 @@ class TimesheetController extends Controller
                     return response()->json(['success' => false, 'message' => $quotaError], 422);
                 }
 
-                $levelError = $this->checkConsultantLevelDayLimit(
+                $subareaError = $this->checkPersonnelSubareaDayLimit(
                     (int) $timesheet->employee_id,
                     (float) ($validated['md_consumed'] ?? 0)
                 );
-                if ($levelError) {
-                    return response()->json(['success' => false, 'message' => $levelError], 422);
+                if ($subareaError) {
+                    return response()->json(['success' => false, 'message' => $subareaError], 422);
                 }
             }
             // ─────────────────────────────────────────────────────────────────
@@ -1454,29 +1454,25 @@ class TimesheetController extends Controller
     }
 
     /**
-     * Consultants at Middle level or above may consume at most 1 MD per single
-     * support timesheet entry (no such cap for Associate and below). Level is
-     * the employee's highest Certification qualification_level across all
-     * modules — see Employee::highestQualificationLevelSortOrder().
+     * Personnel whose subarea (Employee > Basic Data > Personnel Subarea) is
+     * "Project" may consume at most 1 MD per single support timesheet entry —
+     * they're expected to be doing support work only occasionally, so it should
+     * be logged in smaller increments rather than one lump entry. No such cap
+     * for Support/Administrasi/Other subareas.
      * Returns an error message if blocked, or null if OK.
      */
-    private function checkConsultantLevelDayLimit(int $employeeId, float $mdConsumed): ?string
+    private function checkPersonnelSubareaDayLimit(int $employeeId, float $mdConsumed): ?string
     {
         if ($mdConsumed <= 1) {
             return null;
         }
 
-        $middleSortOrder = Grade::sortOrderForLevel('Middle');
-        if ($middleSortOrder === null) {
+        $subarea = Employee::find($employeeId)?->basicData?->personnel_subarea;
+        if ($subarea !== PersonnelSubarea::PROJECT->value) {
             return null;
         }
 
-        $levelSortOrder = Employee::find($employeeId)?->highestQualificationLevelSortOrder();
-        if ($levelSortOrder === null || $levelSortOrder < $middleSortOrder) {
-            return null;
-        }
-
-        return 'Consultants at Middle level or above can consume a maximum of 1 MD per timesheet entry. Please split this into multiple entries.';
+        return 'Personnel under the Project subarea can consume a maximum of 1 MD per timesheet entry. Please split this into multiple entries.';
     }
 
     // ── Period helper ─────────────────────────────────────────────────────
