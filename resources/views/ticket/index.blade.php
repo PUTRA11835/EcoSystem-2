@@ -1921,9 +1921,14 @@
     // status cards). Filtering now happens server-side, so this just resets to page 1 and
     // re-fetches — indicator/stats/render updates happen inside loadTickets()'s response
     // handler once the new data is back.
+    // Always silent: the list is already on screen when a filter changes, so there's no
+    // need for loadTickets() to hide #ticketsContainer while it fetches. That container
+    // wraps the keyword-search popovers themselves — hiding it mid-fetch force-blurs
+    // whichever input the user is still typing in (they'd have to click back in after
+    // every debounced search).
     function applyAdvancedFilters() {
         currentPage = 1;
-        loadTickets();
+        loadTickets(true);
     }
 
     // ── Date Range Filter ─────────────────────────────────────────────
