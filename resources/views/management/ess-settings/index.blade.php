@@ -71,14 +71,6 @@
                     </label>
                 @endforeach
             </div>
-
-            <!-- Action Bar -->
-            <div class="mt-6 pt-3.5 border-t border-gray-100 flex justify-end">
-                <button type="submit"
-                    class="px-5 py-2 primary-gradient text-white text-xs font-semibold rounded-lg shadow-md hover:opacity-95 transition-all flex items-center gap-2">
-                    <i class="fas fa-save"></i> Save Settings
-                </button>
-            </div>
         </form>
     </div>
 </div>

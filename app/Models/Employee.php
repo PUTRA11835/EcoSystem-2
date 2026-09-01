@@ -105,6 +105,7 @@ class Employee extends Model
             'my-leave-permit',
             'general.my-overtime',
             'general.my-reimbursement',
+            'general.my-kpi',
             'profile.my',
         ];
 
@@ -164,6 +165,7 @@ class Employee extends Model
             'my-leave-permit',
             'general.my-overtime',
             'general.my-reimbursement',
+            'general.my-kpi',
             'profile.my',
         ];
 
@@ -292,4 +294,21 @@ class Employee extends Model
         return $this->hasMany(Timesheet::class, 'employee_id', 'employee_id');
     }
 
+    /**
+     * Get KPI evaluations for this employee
+     */
+    public function kpiEvaluations()
+    {
+        return $this->hasMany(KpiEvaluation::class, 'employee_id', 'employee_id');
+    }
+
+    /**
+     * Get delivery projects assigned to this employee
+     */
+    public function deliveryProjects()
+    {
+        return $this->belongsToMany(DeliveryProject::class, 'delivery_project_employee', 'employee_id', 'delivery_projects_id', 'employee_id', 'id');
+    }
+
 }
+
