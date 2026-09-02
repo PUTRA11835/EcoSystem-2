@@ -40,17 +40,7 @@
                 </div>
             @endif
 
-            @if(!empty($essConfig['ai_menu']))
-                <div class="mb-2">
-                    <a href="{{ route('coming-soon', ['feature' => 'AI Menu']) }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-robot"></i>
-                        </span>
-                        <span class="nav-text font-medium">AI Menu</span>
-                    </a>
-                </div>
-            @endif
+
 
             @if(!empty($essConfig['my_attendance']))
                 <div class="mb-2">
@@ -182,8 +172,7 @@
             @endif
 
 
-            {{-- AI Assistant & AI Research menggantikan placeholder ESS "AI Menu" yang hanya menunjuk route('coming-soon'). Pola yang sama dipakai untuk My Attendance, Overtime, dan Reimbursement. --}}
-            @if($can('ai-assistant'))
+            @if(!empty($essConfig['ai_assistant']) && $can('ai-assistant'))
             <!-- AI ASSISTANT -->
             <div class="mb-2">
                 <a href="{{ route('ai-assistant') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ai-assistant*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -195,7 +184,7 @@
             </div>
             @endif
 
-            @if($can('ai-research'))
+            @if(!empty($essConfig['ai_research']) && $can('ai-research'))
             <!-- AI RESEARCH -->
             <div class="mb-2">
                 <a href="{{ route('ai-research') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ai-research*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">

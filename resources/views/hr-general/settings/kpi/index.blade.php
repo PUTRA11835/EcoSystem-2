@@ -26,8 +26,8 @@
             </div>
             @if($canManage)
             <button onclick="openCreateModal()"
-                class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-xl shadow hover:opacity-90 transition-all">
-                <i class="fas fa-plus text-xs"></i> New Template
+                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-xl shadow hover:opacity-90 transition-all">
+                New Template
             </button>
             @endif
         </div>
@@ -143,18 +143,17 @@
                     @if($canManage)
                     <div class="flex items-center gap-1.5 shrink-0">
                         <button onclick="openEditModal({{ $tmpl->id }})"
-                            class="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-100 border border-indigo-200 transition-all">
-                            <i class="fas fa-edit text-xs"></i> Edit
+                            class="inline-flex items-center px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-100 border border-indigo-200 transition-all">
+                            Edit
                         </button>
                         <button onclick="toggleTemplate({{ $tmpl->id }})"
-                            class="inline-flex items-center gap-1 px-3 py-1.5 {{ $tmpl->is_active ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-green-50 text-green-700 border-green-200' }} text-xs font-medium rounded-lg border hover:opacity-80 transition-all">
-                            <i class="fas {{ $tmpl->is_active ? 'fa-eye-slash' : 'fa-eye' }} text-xs"></i>
+                            class="inline-flex items-center px-3 py-1.5 {{ $tmpl->is_active ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-green-50 text-green-700 border-green-200' }} text-xs font-medium rounded-lg border hover:opacity-80 transition-all">
                             {{ $tmpl->is_active ? 'Deactivate' : 'Activate' }}
                         </button>
                         @if($tmpl->evaluations_count === 0)
                         <button onclick="deleteTemplate({{ $tmpl->id }}, '{{ addslashes($tmpl->name) }}')"
-                            class="w-8 h-8 flex items-center justify-center bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-200 transition-all">
-                            <i class="fas fa-trash-alt text-xs"></i>
+                            class="inline-flex items-center px-2.5 py-1.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-200 text-xs font-medium transition-all">
+                            Delete
                         </button>
                         @endif
                     </div>
@@ -191,8 +190,8 @@
             <p class="text-gray-700 text-sm font-bold">No matching KPI templates found</p>
             <p class="text-gray-400 text-xs mt-1">Try adjusting your search keywords or clearing filters.</p>
             <a href="{{ route('general.settings.kpi.index') }}"
-               class="mt-3.5 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold bg-[#00c5a2]/15 text-[#008f75] hover:bg-[#00c5a2]/25 transition-all shadow-sm">
-                <i class="fas fa-undo text-[10px]"></i> Reset filters
+               class="mt-3.5 inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-semibold bg-[#00c5a2]/15 text-[#008f75] hover:bg-[#00c5a2]/25 transition-all shadow-sm">
+                Reset filters
             </a>
         </div>
         @else
@@ -204,8 +203,8 @@
             <p class="text-sm text-gray-400 mt-1">Create your first KPI template to start evaluating employees.</p>
             @if($canManage)
             <button onclick="openCreateModal()"
-                class="mt-4 inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-xl shadow hover:opacity-90 transition-all">
-                <i class="fas fa-plus text-xs"></i> Create First Template
+                class="mt-4 inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-xl shadow hover:opacity-90 transition-all">
+                Create First Template
             </button>
             @endif
         </div>
@@ -268,8 +267,8 @@
                     {{-- rows added dynamically --}}
                 </div>
                 <button type="button" onclick="addIndicatorRow()"
-                    class="mt-2 inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-100 transition-all border border-indigo-200">
-                    <i class="fas fa-plus text-xs"></i> Add Indicator
+                    class="mt-2 inline-flex items-center px-3 py-2 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-100 transition-all border border-indigo-200">
+                    Add Indicator
                 </button>
             </div>
 
@@ -277,8 +276,8 @@
                 <button type="button" onclick="closeTemplateModal()"
                     class="px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200">Cancel</button>
                 <button type="submit" id="templateSubmitBtn"
-                    class="inline-flex items-center gap-2 px-6 py-2.5 primary-gradient text-white text-sm font-semibold rounded-xl shadow hover:opacity-90">
-                    <i class="fas fa-save text-xs"></i> <span id="submitBtnLabel">Create Template</span>
+                    class="inline-flex items-center px-6 py-2.5 primary-gradient text-white text-sm font-semibold rounded-xl shadow hover:opacity-90">
+                    <span id="submitBtnLabel">Create Template</span>
                 </button>
             </div>
         </form>
@@ -316,8 +315,8 @@ function addIndicatorRow(data = {}) {
             </div>
             <div class="col-span-2 sm:col-span-1 flex items-center justify-center">
                 <button type="button" onclick="this.closest('.indicator-row').remove(); updateWeightSum();"
-                    class="w-7 h-7 flex items-center justify-center bg-red-100 text-red-500 rounded-lg hover:bg-red-200 transition-all">
-                    <i class="fas fa-times text-xs"></i>
+                    class="px-2 py-1 flex items-center justify-center bg-red-100 text-red-500 rounded-lg hover:bg-red-200 text-xs font-medium transition-all">
+                    Remove
                 </button>
             </div>
             <div class="col-span-12">
@@ -386,7 +385,7 @@ async function submitTemplate(e) {
 
     const btn = document.getElementById('templateSubmitBtn');
     btn.disabled = true;
-    btn.innerHTML = `<i class="fas fa-circle-notch fa-spin text-xs"></i> Saving...`;
+    btn.textContent = 'Saving...';
 
     const url = isEdit
         ? `{{ url('/general/settings/kpi') }}/${editId}/update`
@@ -404,7 +403,7 @@ async function submitTemplate(e) {
         setTimeout(() => location.reload(), 1000);
     } else {
         btn.disabled = false;
-        btn.innerHTML = `<i class="fas fa-save text-xs"></i> <span id="submitBtnLabel">${isEdit ? 'Update Template' : 'Create Template'}</span>`;
+        btn.innerHTML = `<span id="submitBtnLabel">${isEdit ? 'Update Template' : 'Create Template'}</span>`;
     }
 }
 
