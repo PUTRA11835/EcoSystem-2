@@ -483,13 +483,21 @@ class EmployeeController extends Controller
             Log::info('Filter applied: status', ['status' => $request->status]);
         }
 
-        // Filter by employee (ECI or name).
+        // Filter by ECI — separate column filter from Name below (each has its
+        // own header search box on the list page).
+        if ($request->filled('eci')) {
+            $query->where('e.eci', 'like', "%{$request->eci}%");
+            Log::info('Filter applied: eci', ['eci' => $request->eci]);
+        }
+
+        // Filter by name only (first/last/nick/search terms) — independent from
+        // the ECI filter above.
         // Pisahkan jadi per-kata supaya pencarian "Dado Widagdo" cocok walau
         // first_name & nick_name terpisah, dan setiap kata dicari di SEMUA
         // kolom nama (termasuk nick_name + full name gabungan).
-        if ($request->filled('employee')) {
-            $this->applyNameSearch($query, $request->employee);
-            Log::info('Filter applied: employee', ['search' => $request->employee]);
+        if ($request->filled('name')) {
+            $this->applyNameSearch($query, $request->name, false, false);
+            Log::info('Filter applied: name', ['search' => $request->name]);
         }
 
         // Filter by full name — kolom terpisah dari ECI di atas (dedicated Full
@@ -599,21 +607,24 @@ class EmployeeController extends Controller
         }
     }
 
-    private function applyNameSearch($query, string $search, bool $includeOrg = false): void
+    private function applyNameSearch($query, string $search, bool $includeOrg = false, bool $includeEci = true): void
     {
         $terms = preg_split('/\s+/', trim($search), -1, PREG_SPLIT_NO_EMPTY);
 
-        $query->where(function ($outer) use ($terms, $includeOrg) {
+        $query->where(function ($outer) use ($terms, $includeOrg, $includeEci) {
             foreach ($terms as $term) {
                 $like = '%' . $term . '%';
-                $outer->where(function ($q) use ($like, $includeOrg) {
-                    $q->where('e.eci', 'like', $like)
-                      ->orWhere('eb.first_name', 'like', $like)
+                $outer->where(function ($q) use ($like, $includeOrg, $includeEci) {
+                    $q->where('eb.first_name', 'like', $like)
                       ->orWhere('eb.last_name', 'like', $like)
                       ->orWhere('eb.nick_name', 'like', $like)
                       ->orWhere('eb.search_term_1', 'like', $like)
                       ->orWhere('eb.search_term_2', 'like', $like)
                       ->orWhereRaw("CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,'')) LIKE ?", [$like]);
+
+                    if ($includeEci) {
+                        $q->orWhere('e.eci', 'like', $like);
+                    }
 
                     if ($includeOrg) {
                         $q->orWhere('eb.position', 'like', $like)
