@@ -48,7 +48,27 @@
     // Sumber baris, berurutan: isian yang gagal validasi -> data yang sudah ada
     // -> satu baris kosong. Tanpa cabang pertama, isian pengguna hilang setiap
     // kali ada satu field yang salah.
+    //
+    // 🔴 old('items') tersimpan dalam bentuk lama (cost_center_type/branch_id/
+    // delivery_project_id) karena PurchaseRequestService::expandCostCenterInput()
+    // memecah field gabungan `cost_center` SEBELUM validate() memflash-nya. Di
+    // sini disatukan kembali jadi `cost_center` supaya dropdown tunggal tetap
+    // menampilkan pilihan yang gagal validasi.
     $rows = old('items');
+
+    if ($rows !== null) {
+        $rows = collect($rows)->map(function ($row) {
+            if (!is_array($row) || array_key_exists('cost_center', $row)) {
+                return $row;
+            }
+
+            $row['cost_center'] = ($row['cost_center_type'] ?? null) === PurchaseRequestItem::COST_CENTER_PROJECT
+                ? (!empty($row['delivery_project_id']) ? 'project:' . $row['delivery_project_id'] : '')
+                : (!empty($row['branch_id']) ? 'branch:' . $row['branch_id'] : '');
+
+            return $row;
+        })->all();
+    }
 
     if ($rows === null) {
         $rows = collect($existingItems ?? [])->mapWithKeys(fn ($item, $i) => [
@@ -179,6 +199,10 @@
                         </select>
 
                         @error("items.{$key}.cost_center")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+                        {{-- items.*.cost_center_type adalah field yang benar-benar divalidasi —
+                             pesan "Every item needs a cost center type" harus tampil di bawah
+                             dropdown INI, bukan di bawah field lama yang sudah tidak dirender. --}}
+                        @error("items.{$key}.cost_center_type")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                         @error("items.{$key}.branch_id")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                         @error("items.{$key}.delivery_project_id")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                     </td>
