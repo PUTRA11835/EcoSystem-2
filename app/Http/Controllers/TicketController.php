@@ -2631,21 +2631,19 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
 
-        $roleId     = $sessionUser['role']['id'] ?? 0;
-        $isAdmin    = $roleId === RoleId::EC_ADMINISTRATOR->value;
-        $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
-        $isEmployee = $roleId !== RoleId::EC_USER->value && $roleId > 0;
-
         if (!$sessionUser) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        // Permission terpisah & configurable untuk edit Additional Info (name/no_hp/module/client).
-        // Diatur per-role via Manajemen → Roles/Permissions (slug ui.ticket.edit-additional-info).
-        $canEditAddInfo = \App\Models\Employee::find($sessionUser['id'] ?? 0)
-            ?->hasPermission('ui.ticket.edit-additional-info') ?? false;
+        // Otorisasi edit field murni dari Manajemen → Roles/Permissions, tidak ada lagi
+        // grup role hardcode (dulu RoleId::EC_ADMINISTRATOR / TICKET_MANAGER_GROUP) sebagai
+        // fallback — role manapun harus di-assign permission ini agar bisa edit.
+        $canEditFields  = $this->sessionUserCan($sessionUser, 'ui.ticket.edit-fields');
+        $canEditAddInfo = $this->sessionUserCan($sessionUser, 'ui.ticket.edit-additional-info');
 
-        // External employee tidak boleh mengambil unassigned ticket maupun update apapun
+        // Pengecualian employee_type (external/internal) tetap hardcode karena bukan bagian
+        // dari menu Roles/Permissions — EC Administrator dikecualikan dari batasan ini.
+        $isAdmin = ($sessionUser['role']['id'] ?? 0) === RoleId::EC_ADMINISTRATOR->value;
         $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
         if ($isExternalEmployee && !$isAdmin) {
             return response()->json([
@@ -2654,26 +2652,23 @@ class TicketController extends Controller
             ], 403);
         }
 
-        // Employees other than admin/helpdesk may ONLY self-assign PIC on unassigned tickets,
-        // ATAU mengedit Additional Info saja bila punya permission ui.ticket.edit-additional-info.
-        // All other fields require admin or helpdesk.
+        // Tanpa ui.ticket.edit-fields, employee hanya boleh self-assign PIC pada ticket yang
+        // masih unassigned, ATAU mengedit Additional Info saja bila punya ui.ticket.edit-additional-info.
         $ticketForCheck = Ticket::find($id);
         $requestKeys    = array_keys($request->except(['_token', '_method']));
-        $isSelfAssignOnly = !$isAdmin && !$isHelpdesk
-            && $requestKeys === ['ticket_lead_id']
+        $isSelfAssignOnly = $requestKeys === ['ticket_lead_id']
             && $ticketForCheck
             && $ticketForCheck->ticket_lead_id === null;
 
         $addInfoKeys   = ['name', 'no_hp', 'module', 'module_id', 'client'];
-        $isAddInfoOnly = !$isAdmin && !$isHelpdesk
-            && $canEditAddInfo
+        $isAddInfoOnly = $canEditAddInfo
             && $requestKeys !== []
             && count(array_diff($requestKeys, $addInfoKeys)) === 0;
 
-        if (!$isAdmin && !$isHelpdesk && !$isSelfAssignOnly && !$isAddInfoOnly) {
+        if (!$canEditFields && !$isSelfAssignOnly && !$isAddInfoOnly) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only admin or helpdesk can update ticket'
+                'message' => 'You do not have permission to update this ticket'
             ], 403);
         }
 
@@ -2710,13 +2705,13 @@ class TicketController extends Controller
             // Build update data from validated fields
             $updateData = [];
 
-            if ($request->has('ticket_priority') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('ticket_priority') && $canEditFields) {
                 $updateData['ticket_priority'] = $request->ticket_priority;
             }
-            if ($request->has('ticket_type') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('ticket_type') && $canEditFields) {
                 $updateData['ticket_type'] = $request->ticket_type;
             }
-            if ($request->has('scale') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('scale') && $canEditFields) {
                 $updateData['scale'] = $request->scale;
             }
             if ($request->has('ticket_lead_id')) {
@@ -2726,23 +2721,23 @@ class TicketController extends Controller
                     $updateData['status'] = 'inprocess';
                 }
             }
-            if ($request->has('man_days') && $isAdmin) {
+            if ($request->has('man_days') && $canEditFields) {
                 $updateData['man_days'] = $request->man_days;
             }
-            // Additional Info fields: admin/helpdesk ATAU pemegang ui.ticket.edit-additional-info
-            if ($request->has('name') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+            // Additional Info fields: khusus pemegang permission ui.ticket.edit-additional-info
+            if ($request->has('name') && $canEditAddInfo) {
                 $updateData['name'] = $request->name ?: null;
             }
-            if ($request->has('no_hp') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+            if ($request->has('no_hp') && $canEditAddInfo) {
                 $updateData['no_hp'] = $request->no_hp ?: null;
             }
-            if ($request->has('module') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+            if ($request->has('module') && $canEditAddInfo) {
                 $updateData['module'] = $request->module ?: null;
             }
-            if ($request->has('module_id') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+            if ($request->has('module_id') && $canEditAddInfo) {
                 $updateData['module_id'] = $request->module_id ?: null;
             }
-            if ($request->has('client') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+            if ($request->has('client') && $canEditAddInfo) {
                 $updateData['client'] = $request->client ?: null;
             }
 
@@ -2928,11 +2923,19 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
 
-        $roleId = $sessionUser['role']['id'] ?? 0;
-        if (!$sessionUser || !in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true)) {
+        if (!$sessionUser) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only admin or helpdesk can update ticket status'
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
+        // Otorisasi murni dari Manajemen → Roles/Permissions (slug ui.ticket.edit-fields),
+        // tidak ada lagi grup role hardcode (dulu RoleId::TICKET_MANAGER_GROUP) sebagai fallback.
+        if (!$this->sessionUserCan($sessionUser, 'ui.ticket.edit-fields')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to update this ticket status'
             ], 403);
         }
 

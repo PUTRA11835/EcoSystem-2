@@ -39,18 +39,37 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             <table class="w-full" style="min-width:1600px;">
                 <thead class="bg-gray-50">
                     <tr>
-                        {{-- ECI: keyword search filter (ECI or name) --}}
+                        {{-- ECI: keyword search filter (ECI only) --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky left-0 bg-gray-50 z-20" style="min-width:100px;">
-                            <button type="button" id="empFilterBtn" onclick="toggleEmpFilter(event)"
+                            <button type="button" id="eciFilterBtn" onclick="toggleEciFilter(event)"
                                 class="w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">ECI</span>
+                                <svg id="eciFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <div id="eciFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:200px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ECI</label>
+                                <input type="text" id="filterEci" placeholder="e.g. ECI001…"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                    oninput="onEciFilterInput()">
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearEciFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- FULL NAME: keyword search filter (name only) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20" style="min-width:200px;left:100px;">
+                            <button type="button" id="empFilterBtn" onclick="toggleEmpFilter(event)"
+                                class="w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Full Name</span>
                                 <svg id="empFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
                                 </svg>
                             </button>
                             <div id="empFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
-                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search by ECI or name</label>
-                                <input type="text" id="filterEmployee" placeholder="e.g. ECI001 or John…"
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search name</label>
+                                <input type="text" id="filterName" placeholder="e.g. John…"
                                     class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
                                     oninput="onEmpFilterInput()">
                                 <div class="flex justify-end gap-2 mt-3">
@@ -58,8 +77,6 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </th>
-                        {{-- FULL NAME: no filter --}}
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky bg-gray-50 z-20" style="min-width:200px;left:100px;">Full Name</th>
                         {{-- POSITION: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50">
                             <div class="custom-dd relative w-full" id="ddFilterPosition" data-multi="true" data-onchange="applyFilters">
@@ -419,7 +436,19 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Current Assignment</label>
-                            <input type="text" id="currentAssignment" placeholder="e.g., Project X" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <div class="custom-dd relative" data-fixed="true" data-searchable="true" data-search-placeholder="Search customer...">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-500">Select Customer</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="currentAssignment" value="">
+                                <div class="custom-dd-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 overflow-y-auto" style="max-height:220px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Customer</button>
+                                    @foreach(($customerOptions ?? []) as $cust)
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $cust }}">{{ $cust }}</button>
+                                    @endforeach
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex flex-col">
@@ -843,7 +872,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     function getCurrentFilters() {
         return {
             status: document.getElementById('filterStatus').value,
-            employee: document.getElementById('filterEmployee').value,
+            eci: document.getElementById('filterEci').value,
+            name: document.getElementById('filterName').value,
             department: document.getElementById('filterDepartment').value,
             modules: document.getElementById('filterModules').value,
             home_base: document.getElementById('filterHomeBase').value,
@@ -1113,6 +1143,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             setCustomDropdownValue('employeeGroup', '');
             setCustomDropdownValue('employeeSubgroup', '');
             setCustomDropdownValue('division', '');
+            setCustomDropdownValue('currentAssignment', '');
         }
 
         // Set default value for Country + reset rantai dropdown wilayah (kosong).
@@ -1204,8 +1235,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 document.getElementById('cellPhone').value = emp.cell_phone || '';
                 
                 // SECTION 3: ORGANIZATIONAL DATA
-                document.getElementById('currentAssignment').value = emp.current_assignment || '';
                 if (typeof setCustomDropdownValue === 'function') {
+                    setCustomDropdownValue('currentAssignment', emp.current_assignment || '');
                     setCustomDropdownValue('personnelArea', emp.personnel_area || '');
                     setCustomDropdownValue('position', emp.position || '');
                     setCustomDropdownValue('employeeGroup', emp.employee_group || '');
@@ -1213,6 +1244,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                     setCustomDropdownValue('division', emp.division || '');
                     setCustomDropdownValue('homeBase', emp.home_base || '');
                 } else {
+                    document.getElementById('currentAssignment').value = emp.current_assignment || '';
                     document.getElementById('personnelArea').value = emp.personnel_area || '';
                     document.getElementById('position').value = emp.position || '';
                     document.getElementById('employeeGroup').value = emp.employee_group || '';
@@ -1397,7 +1429,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         } else {
             document.getElementById('filterStatus').value = '';
         }
-        document.getElementById('filterEmployee').value = '';
+        document.getElementById('filterEci').value = '';
+        document.getElementById('filterName').value = '';
         document.getElementById('filterDepartment').value = '';
         if (typeof clearCustomDropdownMulti === 'function') {
             clearCustomDropdownMulti('filterModules');
@@ -1408,22 +1441,24 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             document.getElementById('filterHomeBase').value = '';
             document.getElementById('filterPosition').value = '';
         }
+        updateEciFilterIndicator();
         updateEmpFilterIndicator();
         updateDeptFilterIndicator();
         currentPage = 1;
         fetchEmployees({});
     }
 
-    // ── Column Header Filters: ECI/Name & Department (keyword, debounced) ──────
+    // ── Column Header Filters: ECI, Name & Department (keyword, debounced) ─────
     // Mirrors the ticket list's per-column filter pattern (button in <th> that
     // toggles a floating panel) — replaces the old filter box above the table.
-    let _empFilterTimer = null;
+    let _eciFilterTimer = null;
 
-    function toggleEmpFilter(ev) {
+    function toggleEciFilter(ev) {
         ev?.stopPropagation();
-        const panel = document.getElementById('empFilterPanel');
-        const btn = document.getElementById('empFilterBtn');
+        const panel = document.getElementById('eciFilterPanel');
+        const btn = document.getElementById('eciFilterBtn');
         const open = !panel.classList.contains('hidden');
+        closeEmpFilter();
         closeDeptFilter();
         if (open) {
             panel.classList.add('hidden');
@@ -1433,7 +1468,53 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         if (panel.parentElement !== document.body) document.body.appendChild(panel);
         positionPanelUnder(btn, panel);
         panel.classList.remove('hidden');
-        document.getElementById('filterEmployee')?.focus();
+        document.getElementById('filterEci')?.focus();
+    }
+
+    function closeEciFilter() {
+        document.getElementById('eciFilterPanel')?.classList.add('hidden');
+    }
+
+    function onEciFilterInput() {
+        updateEciFilterIndicator();
+        clearTimeout(_eciFilterTimer);
+        _eciFilterTimer = setTimeout(applyFilters, 400);
+    }
+
+    function clearEciFilter() {
+        const input = document.getElementById('filterEci');
+        if (input) input.value = '';
+        updateEciFilterIndicator();
+        applyFilters();
+    }
+
+    function updateEciFilterIndicator() {
+        const kw = (document.getElementById('filterEci')?.value || '').trim();
+        const icon = document.getElementById('eciFilterIcon');
+        if (icon) {
+            icon.classList.toggle('text-red-500', kw !== '');
+            icon.classList.toggle('text-gray-300', kw === '');
+        }
+    }
+
+    let _empFilterTimer = null;
+
+    function toggleEmpFilter(ev) {
+        ev?.stopPropagation();
+        const panel = document.getElementById('empFilterPanel');
+        const btn = document.getElementById('empFilterBtn');
+        const open = !panel.classList.contains('hidden');
+        closeEciFilter();
+        closeDeptFilter();
+        if (open) {
+            panel.classList.add('hidden');
+            return;
+        }
+        // Move to body to escape the sticky-th stacking context so clicks work.
+        if (panel.parentElement !== document.body) document.body.appendChild(panel);
+        positionPanelUnder(btn, panel);
+        panel.classList.remove('hidden');
+        document.getElementById('filterName')?.focus();
     }
 
     function closeEmpFilter() {
@@ -1447,14 +1528,14 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     }
 
     function clearEmpFilter() {
-        const input = document.getElementById('filterEmployee');
+        const input = document.getElementById('filterName');
         if (input) input.value = '';
         updateEmpFilterIndicator();
         applyFilters();
     }
 
     function updateEmpFilterIndicator() {
-        const kw = (document.getElementById('filterEmployee')?.value || '').trim();
+        const kw = (document.getElementById('filterName')?.value || '').trim();
         const icon = document.getElementById('empFilterIcon');
         if (icon) {
             icon.classList.toggle('text-red-500', kw !== '');
@@ -1469,6 +1550,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         const panel = document.getElementById('deptFilterPanel');
         const btn = document.getElementById('deptFilterBtn');
         const open = !panel.classList.contains('hidden');
+        closeEciFilter();
         closeEmpFilter();
         if (open) {
             panel.classList.add('hidden');
@@ -1515,6 +1597,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
     // Close popovers on outside click / Escape
     document.addEventListener('click', (e) => {
+        const xp = document.getElementById('eciFilterPanel');
+        const xb = document.getElementById('eciFilterBtn');
+        if (xp && !xp.classList.contains('hidden') && !xp.contains(e.target) && !xb.contains(e.target)) xp.classList.add('hidden');
         const ep = document.getElementById('empFilterPanel');
         const eb = document.getElementById('empFilterBtn');
         if (ep && !ep.classList.contains('hidden') && !ep.contains(e.target) && !eb.contains(e.target)) ep.classList.add('hidden');
@@ -1524,6 +1609,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     });
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+            closeEciFilter();
             closeEmpFilter();
             closeDeptFilter();
         }
@@ -1781,13 +1867,15 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         // Set hidden input values SEBELUM initCustomDropdowns() supaya Home Base &
         // Position (multi-select statis) langsung ke-sync visual/label-nya saat init jalan.
         if (restored) {
-            document.getElementById('filterEmployee').value   = restored.employee   || '';
+            document.getElementById('filterEci').value        = restored.eci         || '';
+            document.getElementById('filterName').value        = restored.name        || '';
             document.getElementById('filterDepartment').value = restored.department || '';
             document.getElementById('filterHomeBase').value   = restored.home_base  || '';
             document.getElementById('filterPosition').value   = restored.position   || '';
             document.getElementById('filterModules').value    = restored.modules    || '';
             if (restored.page) currentPage = restored.page;
         }
+        updateEciFilterIndicator();
         updateEmpFilterIndicator();
         updateDeptFilterIndicator();
 
