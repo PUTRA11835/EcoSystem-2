@@ -105,6 +105,18 @@ class Employee extends Model
             'my-leave-permit',
             'general.my-overtime',
             'general.my-reimbursement',
+            // Ditambahkan 28 Agu 2026. Purchase Request adalah menu ESS: setiap
+            // karyawan boleh mengajukan permintaan pengadaan untuk dirinya
+            // sendiri, apa pun rolenya — sama seperti empat baris di atas.
+            //
+            // Yang TIDAK ikut terbuka: `general.purchase-request` (rekap &
+            // persetujuan) dan `general.settings.purchase-request` (konfigurasi).
+            // Keduanya tetap menuntut grant dari Control Center → Menu Access.
+            //
+            // Kepemilikan dokumen tetap dijaga terpisah: MyPurchaseRequestController
+            // memanggil abort_if() pada show/print/cancel, karena slug hanya
+            // menjawab "boleh membuka halaman ini?", bukan "dokumen siapa ini?".
+            'general.my-purchase-request',
             'profile.my',
         ];
 
