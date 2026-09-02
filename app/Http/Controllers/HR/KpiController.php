@@ -48,12 +48,14 @@ class KpiController extends Controller
         $canApprove       = $this->can('general.kpi-evaluation.approve');
         $isSupervisorOnly = !($canCreate || $canApprove);
 
-        $filterType   = $request->query('filter_type', 'all');
-        $search       = $request->query('search', '');
-        $statusFilter = $request->query('status', '');
-        $projectId    = $request->query('project_id', '');
+        $filterType     = $request->query('filter_type', 'all');
+        $search         = $request->query('search', '');
+        $statusFilter   = $request->query('status', '');
+        $projectId      = $request->query('project_id', '');
         $positionFilter = $request->query('position', '');
-        $roleId       = $request->query('role_id', '');
+        $roleId         = $request->query('role_id', '');
+        $templateId     = $request->query('template_id', '');
+        $supervisorId   = $request->query('supervisor', $request->query('supervisor_id', ''));
 
         // Scope determination (Supervisor defaults to 'my_team')
         if ($filterType === 'my_team' || $request->query('scope') === 'my_team') {
@@ -92,14 +94,14 @@ class KpiController extends Controller
         $monthlyTrend = $this->getMonthlyTrend(6);
 
         // ── All evaluations for the period (for lookup map) ───────────────────
-        $recentEvaluations = KpiEvaluation::with(['employee.basicData', 'supervisor.basicData', 'template'])
+        $recentEvaluations = KpiEvaluation::with(['employee.basicData', 'supervisor.basicData', 'template', 'details'])
             ->where('period_month', $periodMonth)
             ->get();
 
         // ── Active templates ─────────────────────────────────────────────────
         $activeTemplates = KpiTemplate::where('is_active', true)->withCount('indicators')->get();
 
-        // ── Active employees query for coverage table (with merged filters) ──
+        // ── Active employees query for coverage table (with multi-filter support) ──
         $empQuery = Employee::with(['basicData', 'deliveryProjects', 'kpiEvaluations', 'roles'])
             ->where('is_active', true);
 
@@ -111,21 +113,8 @@ class KpiController extends Controller
             });
         }
 
-        // Unified Filter Category Logic
-        if ($filterType === 'project' && $projectId) {
-            $empQuery->whereHas('deliveryProjects', fn($pq) => $pq->where('delivery_projects.id', $projectId));
-        } elseif ($filterType === 'status' && $statusFilter) {
-            if ($statusFilter === 'not_created') {
-                $empQuery->whereDoesntHave('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth));
-            } else {
-                $empQuery->whereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)->where('status', $statusFilter));
-            }
-        } elseif ($filterType === 'position' && ($positionFilter || $search)) {
-            $targetPos = $positionFilter ?: $search;
-            $empQuery->whereHas('basicData', fn($b) => $b->where('position', 'like', "%{$targetPos}%"));
-        } elseif ($filterType === 'role' && $roleId) {
-            $empQuery->whereHas('roles', fn($rq) => $rq->where('employee_role.id', $roleId));
-        } elseif ($search) {
+        // Filter by Employee Search (Name or ECI)
+        if ($search) {
             $empQuery->where(function ($q) use ($search) {
                 $q->where('eci', 'like', "%{$search}%")
                   ->orWhereHas('basicData', function ($b) use ($search) {
@@ -134,25 +123,54 @@ class KpiController extends Controller
                         ->orWhere('nick_name', 'like', "%{$search}%")
                         ->orWhere('position', 'like', "%{$search}%")
                         ->orWhere('department', 'like', "%{$search}%");
-                  })
-                  ->orWhereHas('deliveryProjects', fn($pq) => $pq->where('name', 'like', "%{$search}%"));
+                  });
             });
         }
 
-        // Additional fallback filters
-        if ($filterType === 'all') {
-            if ($projectId) {
-                $empQuery->whereHas('deliveryProjects', fn($pq) => $pq->where('delivery_projects.id', $projectId));
-            }
-            if ($roleId) {
-                $empQuery->whereHas('roles', fn($rq) => $rq->where('employee_role.id', $roleId));
-            }
-            if ($statusFilter) {
-                if ($statusFilter === 'not_created') {
-                    $empQuery->whereDoesntHave('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth));
-                } else {
-                    $empQuery->whereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)->where('status', $statusFilter));
-                }
+        // Filter by Position
+        if ($positionFilter) {
+            $empQuery->whereHas('basicData', fn($b) => $b->where('position', $positionFilter));
+        }
+
+        // Filter by Supervisor (text search by name, ECI, or employee_id)
+        if ($supervisorId) {
+            $matchedSupIds = Employee::where(function ($sq) use ($supervisorId) {
+                $sq->where('eci', 'like', "%{$supervisorId}%")
+                   ->orWhere('employee_id', $supervisorId)
+                   ->orWhereHas('basicData', function ($b) use ($supervisorId) {
+                       $b->where('first_name', 'like', "%{$supervisorId}%")
+                         ->orWhere('last_name', 'like', "%{$supervisorId}%")
+                         ->orWhere('nick_name', 'like', "%{$supervisorId}%");
+                   });
+            })->pluck('employee_id');
+
+            $empQuery->where(function ($q) use ($matchedSupIds, $periodMonth) {
+                $q->whereHas('basicData', fn($b) => $b->whereIn('direct_supervision', $matchedSupIds))
+                  ->orWhereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)->whereIn('supervisor_id', $matchedSupIds));
+            });
+        }
+
+        // Filter by Template
+        if ($templateId) {
+            $empQuery->whereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)->where('template_id', $templateId));
+        }
+
+        // Filter by Role
+        if ($roleId) {
+            $empQuery->whereHas('roles', fn($rq) => $rq->where('employee_role.id', $roleId));
+        }
+
+        // Filter by Project
+        if ($projectId) {
+            $empQuery->whereHas('deliveryProjects', fn($pq) => $pq->where('delivery_projects.id', $projectId));
+        }
+
+        // Filter by Status
+        if ($statusFilter) {
+            if ($statusFilter === 'not_created') {
+                $empQuery->whereDoesntHave('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth));
+            } else {
+                $empQuery->whereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)->where('status', $statusFilter));
             }
         }
 
@@ -223,6 +241,8 @@ class KpiController extends Controller
             'projectId',
             'positionFilter',
             'roleId',
+            'templateId',
+            'supervisorId',
             'perPage',
             'projects',
             'positions',
@@ -662,20 +682,42 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
 
     private function getScoreByDepartment(string $periodMonth): array
     {
-        return KpiEvaluation::join('employee_basic_data', 'kpi_evaluations.employee_id', '=', 'employee_basic_data.employee_id')
-            ->where('kpi_evaluations.period_month', $periodMonth)
-            ->where('kpi_evaluations.status', KpiEvaluation::STATUS_HR_APPROVED)
-            ->whereNotNull('kpi_evaluations.overall_score')
-            ->selectRaw('employee_basic_data.department, AVG(kpi_evaluations.overall_score) as avg_score, COUNT(*) as count')
-            ->groupBy('employee_basic_data.department')
-            ->orderByDesc('avg_score')
-            ->get()
-            ->map(fn($r) => [
-                'department' => $r->department ?: 'No Department',
-                'avg_score'  => round((float) $r->avg_score, 1),
-                'count'      => (int) $r->count,
-            ])
-            ->toArray();
+        $evals = KpiEvaluation::with(['employee.basicData', 'details'])
+            ->where('period_month', $periodMonth)
+            ->get();
+
+        $groupData = [];
+        foreach ($evals as $eval) {
+            $bd   = $eval->employee?->basicData;
+            $name = $bd?->position ?: ($bd?->department ?: 'Unassigned');
+
+            $score = $eval->overall_score;
+            if ($score === null && $eval->details->isNotEmpty()) {
+                $score = $eval->details->whereNotNull('supervisor_score')->avg('supervisor_score')
+                    ?? $eval->details->whereNotNull('self_achievement')->avg('self_achievement');
+            }
+
+            if ($score !== null) {
+                if (!isset($groupData[$name])) {
+                    $groupData[$name] = ['sum' => 0, 'count' => 0];
+                }
+                $groupData[$name]['sum'] += (float) $score;
+                $groupData[$name]['count'] += 1;
+            }
+        }
+
+        $result = [];
+        foreach ($groupData as $name => $d) {
+            $result[] = [
+                'position'   => $name,
+                'department' => $name,
+                'avg_score'  => round($d['sum'] / $d['count'], 1),
+                'count'      => $d['count'],
+            ];
+        }
+
+        usort($result, fn($a, $b) => $b['avg_score'] <=> $a['avg_score']);
+        return $result;
     }
 
     private function getMonthlyTrend(int $months = 6): array
@@ -683,9 +725,23 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         $trend = [];
         for ($i = $months - 1; $i >= 0; $i--) {
             $period = Carbon::now()->subMonths($i)->format('Y-m');
-            $avg    = KpiEvaluation::where('period_month', $period)
-                ->where('status', KpiEvaluation::STATUS_HR_APPROVED)
-                ->avg('overall_score');
+            $evals  = KpiEvaluation::with('details')
+                ->where('period_month', $period)
+                ->get();
+
+            $scores = [];
+            foreach ($evals as $e) {
+                $sc = $e->overall_score;
+                if ($sc === null && $e->details->isNotEmpty()) {
+                    $sc = $e->details->whereNotNull('supervisor_score')->avg('supervisor_score')
+                        ?? $e->details->whereNotNull('self_achievement')->avg('self_achievement');
+                }
+                if ($sc !== null) {
+                    $scores[] = (float) $sc;
+                }
+            }
+
+            $avg = count($scores) > 0 ? (array_sum($scores) / count($scores)) : null;
 
             $trend[] = [
                 'period'    => $period,
@@ -711,10 +767,24 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
             // Last 5 years
             $data = [];
             for ($y = 4; $y >= 0; $y--) {
-                $year = Carbon::now()->subYears($y)->year;
-                $avg  = KpiEvaluation::whereYear('created_at', $year)
-                    ->where('status', KpiEvaluation::STATUS_HR_APPROVED)
-                    ->avg('overall_score');
+                $year  = Carbon::now()->subYears($y)->year;
+                $evals = KpiEvaluation::with('details')
+                    ->where('period_month', 'like', "{$year}-%")
+                    ->get();
+
+                $scores = [];
+                foreach ($evals as $e) {
+                    $sc = $e->overall_score;
+                    if ($sc === null && $e->details->isNotEmpty()) {
+                        $sc = $e->details->whereNotNull('supervisor_score')->avg('supervisor_score')
+                            ?? $e->details->whereNotNull('self_achievement')->avg('self_achievement');
+                    }
+                    if ($sc !== null) {
+                        $scores[] = (float) $sc;
+                    }
+                }
+
+                $avg = count($scores) > 0 ? (array_sum($scores) / count($scores)) : null;
                 $data[] = ['label' => (string) $year, 'avg_score' => $avg ? round((float) $avg, 1) : null];
             }
             return $data;
