@@ -324,7 +324,7 @@
     async function saveModule() {
         const id   = document.getElementById('editModuleId').value;
         const name = document.getElementById('moduleName').value.trim().toUpperCase();
-        if (!name) { alert('Module name is required.'); return; }
+        if (!name) { showNotification('Module name is required.', 'warning'); return; }
 
         const payload = {
             name,
@@ -353,10 +353,10 @@
                 showNotification(id ? 'Module updated successfully.' : 'Module added successfully.', 'success');
             } else {
                 const err = data.errors ? Object.values(data.errors).flat().join('\n') : data.message;
-                alert(err);
+                showNotification(err, 'error');
             }
         } catch (e) {
-            alert('An error occurred. Please try again.');
+            showNotification('An error occurred. Please try again.', 'error');
         }
     }
 
@@ -388,10 +388,10 @@
                 loadModules();
                 showNotification('Module deleted successfully.', 'success');
             } else {
-                alert(data.message);
+                showNotification(data.message, 'error');
             }
         } catch (e) {
-            alert('An error occurred. Please try again.');
+            showNotification('An error occurred. Please try again.', 'error');
         }
     }
 

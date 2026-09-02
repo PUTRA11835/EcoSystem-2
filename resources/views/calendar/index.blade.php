@@ -531,8 +531,8 @@
         document.body.style.overflow = 'hidden';
     }
 
-    function deleteEvent() {
-        if (!confirm('Are you sure you want to delete this event?')) return;
+    async function deleteEvent() {
+        if (!await showConfirm('Are you sure you want to delete this event?', 'Delete Event', 'danger')) return;
         
         events = events.filter(e => e.id !== selectedEventId);
         closeDetailsModal();

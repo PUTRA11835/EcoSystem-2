@@ -25,10 +25,27 @@ class AiSettingsController extends Controller
 {
     public function index()
     {
+        $assistants = AiModelSettings::assistants();
+
         return view('admin.ai-settings', [
             'settings' => AiModelSettings::all(),
-            'assistants' => AiModelSettings::assistants(),
+            'assistants' => $assistants,
             'catalog' => AiModelSettings::catalog(),
+
+            // Daftar model yang boleh dipilih DIHITUNG PER ASISTEN di sini,
+            // bukan disaring ulang di Blade. Sebelumnya Blade hanya menyaring
+            // baris AI Research, padahal AiModelSettings::sanitize() menolak
+            // model tanpa server tool untuk Ticket Analyzer, AI Summarize, dan
+            // kedua fase Word Report juga — jadi form menawarkan pilihan yang
+            // diam-diam dikembalikan ke bawaan begitu disimpan.
+            'allowedByAssistant' => array_map(
+                static fn ($key) => AiModelSettings::catalogFor($key),
+                array_combine(array_keys($assistants), array_keys($assistants))
+            ),
+            'requiresWebByAssistant' => array_map(
+                static fn ($key) => AiModelSettings::requiresServerTools($key),
+                array_combine(array_keys($assistants), array_keys($assistants))
+            ),
         ]);
     }
 
@@ -44,10 +61,13 @@ class AiSettingsController extends Controller
 
         // Dicatat karena ini keputusan yang mempengaruhi tagihan: kalau biaya
         // melonjak bulan depan, jejak siapa mengubah apa ada di sini.
+        // Seluruh $applied dicatat, bukan cuma research+internal seperti dulu:
+        // setiap asisten yang ditambahkan ke AiModelSettings ikut menagih, dan
+        // daftar tetap di sini membuat asisten baru (mis. AI Summarize) hilang
+        // dari jejak audit tanpa ada yang sadar.
         Log::info('AI model settings updated', [
             'by' => session('user.name'),
-            'research' => $applied[AiModelSettings::RESEARCH],
-            'internal' => $applied[AiModelSettings::INTERNAL],
+            'settings' => $applied,
         ]);
 
         return redirect()

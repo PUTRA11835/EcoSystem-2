@@ -558,7 +558,7 @@ window.addEventListener('resize', () => document.getElementById('dateFilterPanel
 function exportToExcel() {
     const tickets = _filteredTickets;
     if (!tickets.length) {
-        alert('Tidak ada data untuk diekspor.');
+        showNotification('Tidak ada data untuk diekspor.', 'warning');
         return;
     }
 

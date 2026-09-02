@@ -102,6 +102,21 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
     Route::post('/ai-assistant/chat', [\App\Http\Controllers\AiAssistantController::class, 'chat'])->name('ai-assistant.chat')->middleware('menu:ai-assistant');
 
+    // ==================== WORD REPORT GENERATOR ====================
+    // Menu slug 'word-report-generator' didaftarkan lewat migration
+    // add_word_report_generator_menu -- otomatis ikut `php artisan migrate`,
+    // tidak perlu command seeder terpisah.
+    // Halaman uji coba sementara — bukan UI final, cuma form upload + poll status.
+    Route::get('/reports/generate', [\App\Http\Controllers\ReportGeneratorController::class, 'index'])->name('reports.generate.page')->middleware('menu:word-report-generator');
+    Route::get('/reports/templates', [\App\Http\Controllers\ReportGeneratorController::class, 'templates'])->name('reports.templates')->middleware('menu:word-report-generator');
+    Route::get('/reports/history', [\App\Http\Controllers\ReportGeneratorController::class, 'history'])->name('reports.history')->middleware('menu:word-report-generator');
+    Route::post('/reports/generate', [\App\Http\Controllers\ReportGeneratorController::class, 'generate'])->name('reports.generate')->middleware('menu:word-report-generator');
+    Route::get('/reports/{report}/status', [\App\Http\Controllers\ReportGeneratorController::class, 'status'])->name('reports.status')->middleware('menu:word-report-generator');
+    Route::post('/reports/{report}/answer', [\App\Http\Controllers\ReportGeneratorController::class, 'answer'])->name('reports.answer')->middleware('menu:word-report-generator');
+    Route::post('/reports/{report}/retry', [\App\Http\Controllers\ReportGeneratorController::class, 'retry'])->name('reports.retry')->middleware('menu:word-report-generator');
+    Route::get('/reports/{report}/download/{type}', [\App\Http\Controllers\ReportGeneratorController::class, 'download'])->name('reports.download')->middleware('menu:word-report-generator');
+    Route::get('/reports/{report}/preview/{type}', [\App\Http\Controllers\ReportGeneratorController::class, 'preview'])->name('reports.preview')->middleware('menu:word-report-generator');
+
     // ==================== AI RESEARCH (pencarian eksternal) ====================
     Route::get('/ai-research', [\App\Http\Controllers\AiResearchController::class, 'index'])->name('ai-research')->middleware('menu:ai-research');
     Route::post('/ai-research/chat', [\App\Http\Controllers\AiResearchController::class, 'chat'])->name('ai-research.chat')->middleware('menu:ai-research');
@@ -567,6 +582,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload')->middleware('menu:ticket.consultant-workload');
         Route::get('/task', [TaskController::class, 'index'])->name('task')->middleware('menu:ticket.my-tasks');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');
+        // Ringkasan AI per tiket (SSE). POST karena memicu generate, bukan sekadar baca.
+        Route::post('/{id}/ai-summary', [\App\Http\Controllers\AiTicketSummaryController::class, 'stream'])
+            ->name('ai-summary')
+            ->middleware('menu:tickets.inbox');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 

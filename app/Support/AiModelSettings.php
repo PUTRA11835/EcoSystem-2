@@ -61,6 +61,35 @@ final class AiModelSettings
     public const INTERNAL = 'internal';
     public const TICKET_ANALYZER = 'ticket_analyzer';
 
+    /**
+     * Tombol "AI Summarize" di daftar tiket (AiTicketSummaryService).
+     *
+     * Punya entri SENDIRI sejak Agustus 2026. Sebelumnya fitur ini menumpang
+     * konfigurasi AI Assistant (INTERNAL) dan diam-diam jatuh ke konfigurasi AI
+     * Research kalau model INTERNAL kebetulan tidak punya server tool. Akibatnya
+     * admin yang mengubah AI Assistant ikut mengubah biaya & latensi ringkasan
+     * tiket tanpa tahu, dan sebaliknya tidak ada cara mengatur ringkasan tiket
+     * sendiri. Beban kerjanya juga jelas berbeda dari chat internal: satu
+     * giliran, keluaran pendek berstruktur tetap, tapi WAJIB memakai web search.
+     * Layak punya barisnya sendiri di Control Center.
+     */
+    public const TICKET_SUMMARY = 'ticket_summary';
+
+    public const WORD_REPORT = 'word_report';
+
+    /**
+     * Fase 3 Word Report Generator (assembleDocument -- lihat
+     * ReportGeneratorService) sengaja punya entri model TERPISAH dari
+     * WORD_REPORT (fase 1/2, structure/data): fase itu satu-satunya yang
+     * butuh code execution/code_interpreter (paling berat, paling banyak
+     * token), dan kalau model-nya SAMA dengan fase 1/2, ketiganya berebut
+     * TPM pool yang sama -- lebih parah lagi kalau assistant lain (Research/
+     * Ticket Analyzer) juga dipasang ke model yang sama. Memisah entrinya
+     * biar admin bisa taruh fase 3 di model dengan TPM pool sendiri tanpa
+     * mengubah fase 1/2 yang sudah terbukti murah & jarang gagal.
+     */
+    public const WORD_REPORT_DOCUMENT = 'word_report_document';
+
     /** Skala effort Claude (output_config.effort). */
     private const CLAUDE_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 
@@ -162,6 +191,23 @@ final class AiModelSettings
         ],
     ];
 
+    /**
+     * Asisten yang HANYA boleh memakai model ber-`server_tools`.
+     *
+     * Satu daftar, dipakai dua kali: catalogFor() (apa yang ditawarkan form
+     * admin) dan sanitize() (apa yang benar-benar diterima saat disimpan &
+     * dibaca). Dulu daftarnya ditulis ulang di kedua tempat, jadi menambah
+     * asisten baru berarti harus ingat mengubah dua tempat -- kalau yang
+     * pertama terlewat, form menawarkan model yang diam-diam ditolak.
+     */
+    private const NEEDS_SERVER_TOOLS = [
+        self::RESEARCH,
+        self::TICKET_ANALYZER,
+        self::TICKET_SUMMARY,
+        self::WORD_REPORT,
+        self::WORD_REPORT_DOCUMENT,
+    ];
+
     /** Plafon max_tokens terendah yang masih masuk akal untuk sebuah jawaban. */
     private const MIN_MAX_TOKENS = 512;
 
@@ -188,6 +234,41 @@ final class AiModelSettings
             'model' => 'claude-opus-5',
             'max_tokens' => 4096,
             'effort' => 'high',
+        ],
+        self::TICKET_SUMMARY => [
+            // OpenAI, bukan Claude: ringkasan tiket adalah fitur bervolume
+            // paling tinggi di antara semua asisten (satu klik per tiket, oleh
+            // siapa pun yang membuka daftar tiket), dan gpt-5.6-terra memberi
+            // web search yang sama dengan harga per token jauh di bawah Opus 5.
+            'model' => 'gpt-5.6-terra',
+            // 16000 = angka yang dulu dipatok mati di dalam
+            // AiTicketSummaryService (SUMMARY_MAX_TOKENS). Tiga bagian pendek
+            // tidak pernah butuh lebih, tapi sekarang angkanya terlihat dan
+            // bisa diubah admin tanpa deploy.
+            'max_tokens' => 16000,
+            // 'medium', bukan 'high' -- ini tombol latensi paling berpengaruh:
+            // effort tinggi membuat model berpikir lama sebelum dan di antara
+            // pencarian, sementara user menatap modal menunggu.
+            'effort' => 'medium',
+        ],
+        self::WORD_REPORT => [
+            'model' => 'claude-opus-5',
+            // 32000, bukan 16000 -- tugas ini multi-giliran (baca template,
+            // beberapa tool call, code execution/interpreter) dan pada GPT
+            // reasoning effort tinggi ikut memakan jatah max_output_tokens,
+            // jadi 16000 gampang bikin satu giliran berhenti 'incomplete'
+            // di tengah jalan sebelum sempat menghasilkan file.
+            'max_tokens' => 32000,
+            'effort' => 'high',
+        ],
+        self::WORD_REPORT_DOCUMENT => [
+            // Model default beda dari WORD_REPORT (lihat docblock konstanta
+            // ini) -- gpt-5.6-terra, bukan gpt-5.6-luna, supaya fase paling
+            // berat ini punya TPM pool sendiri, terpisah dari fase 1/2 dan
+            // dari assistant lain yang kebetulan dipasang ke luna juga.
+            'model' => 'gpt-5.6-terra',
+            'max_tokens' => 32000,
+            'effort' => 'medium',
         ],
     ];
 
@@ -261,25 +342,54 @@ final class AiModelSettings
     public static function catalogFor(string $assistant): array
     {
         // Research genuinely butuh flag `server_tools` ini (web_search/web_fetch).
-        // Ticket Analyzer dipinjamkan filter yang SAMA sebagai proxy kasar, tapi
-        // alasannya beda per provider — jangan disamakan kalau nanti diubah:
-        //   - Sisi Anthropic: AnthropicTicketAnalysisDriver butuh Agent Skills +
-        //     code execution container. Belum ada konfirmasi model mana saja yang
-        //     mendukungnya di luar Opus 5/Sonnet 5/Fable 5, jadi sementara ikut
-        //     disaring ke katalog "server tools" biar tidak sengaja kepilih model
-        //     yang belum tentu jalan (mis. Haiku 4.5).
+        // Ticket Analyzer & Word Report dipinjamkan filter yang SAMA sebagai proxy
+        // kasar, tapi alasannya beda per provider — jangan disamakan kalau nanti diubah:
+        //   - Sisi Anthropic: AnthropicTicketAnalysisDriver/AnthropicReportDriver
+        //     butuh Agent Skills + code execution container. Belum ada konfirmasi
+        //     model mana saja yang mendukungnya di luar Opus 5/Sonnet 5/Fable 5,
+        //     jadi sementara ikut disaring ke katalog "server tools" biar tidak
+        //     sengaja kepilih model yang belum tentu jalan (mis. Haiku 4.5).
         //   - Sisi OpenAI: OpenAiTicketAnalysisDriver TIDAK butuh web_search sama
-        //     sekali — cuma butuh Structured Outputs, yang didukung hampir semua
-        //     model GPT modern. Filter ini kebetulan tidak menyingkirkan model apa
-        //     pun di katalog OpenAI hari ini (semua entri gpt-5.6-* punya
-        //     server_tools:true), tapi kalau suatu saat ada model GPT tanpa web
-        //     search ditambahkan ke katalog, ia akan tersaring keluar dari Ticket
-        //     Analyzer tanpa alasan teknis yang valid.
-        if (!in_array($assistant, [self::RESEARCH, self::TICKET_ANALYZER], true)) {
+        //     sekali — cuma butuh Structured Outputs, dan OpenAiReportDriver cuma
+        //     butuh tool `code_interpreter` bawaan Responses API — keduanya
+        //     didukung hampir semua model GPT modern. Filter ini kebetulan tidak
+        //     menyingkirkan model apa pun di katalog OpenAI hari ini (semua entri
+        //     gpt-5.6-* punya server_tools:true), tapi kalau suatu saat ada model
+        //     GPT tanpa web search ditambahkan ke katalog, ia akan tersaring keluar
+        //     dari Ticket Analyzer/Word Report tanpa alasan teknis yang valid.
+        if (!in_array($assistant, self::NEEDS_SERVER_TOOLS, true)) {
             return self::CATALOG;
         }
 
         return array_filter(self::CATALOG, static fn (array $m) => $m['server_tools']);
+    }
+
+    /**
+     * Apakah model ini mendukung server tool web search milik providernya?
+     *
+     * Satu-satunya pemakainya dulu adalah AiTicketSummaryService, yang memeriksa
+     * model AI Assistant lalu diam-diam jatuh ke konfigurasi AI Research bila
+     * modelnya tidak punya web search. Sejak AI Summarize punya entri sendiri
+     * (TICKET_SUMMARY, dijamin ber-server-tool oleh sanitize()), pemeriksaan itu
+     * tidak dibutuhkan lagi — tapi helper-nya dipertahankan karena ini satu-
+     * satunya cara membaca flag `server_tools` untuk SATU model dari luar kelas
+     * ini (requiresServerTools() menjawab pertanyaan berbeda: per asisten).
+     */
+    public static function supportsServerTools(string $model): bool
+    {
+        return (bool) (self::CATALOG[$model]['server_tools'] ?? false);
+    }
+
+    /**
+     * Apakah asisten ini dibatasi ke model ber-server-tool?
+     *
+     * Dipakai form admin supaya keterangan "cuma model dengan web search yang
+     * ditawarkan" muncul di baris yang memang dibatasi — tanpa menyalin lagi
+     * daftar NEEDS_SERVER_TOOLS ke dalam Blade.
+     */
+    public static function requiresServerTools(string $assistant): bool
+    {
+        return in_array($assistant, self::NEEDS_SERVER_TOOLS, true);
     }
 
     public static function catalog(): array
@@ -293,6 +403,9 @@ final class AiModelSettings
             self::RESEARCH => 'AI Research',
             self::INTERNAL => 'AI Assistant',
             self::TICKET_ANALYZER => 'Ticket Analyzer',
+            self::TICKET_SUMMARY => 'AI Summarize (Daftar Tiket)',
+            self::WORD_REPORT => 'Word Report Generator (Struktur & Data)',
+            self::WORD_REPORT_DOCUMENT => 'Word Report Generator (Susun Dokumen)',
         ];
     }
 
@@ -316,10 +429,12 @@ final class AiModelSettings
 
             $model = (string) ($given['model'] ?? $defaults['model']);
 
-            // Model tak dikenal, atau model tanpa server tool untuk Research /
-            // Ticket Analyzer: kembalikan ke bawaan asisten ini — bukan ke model
-            // lain yang kebetulan tersedia, supaya hasilnya bisa ditebak.
-            $needsServerTools = in_array($assistant, [self::RESEARCH, self::TICKET_ANALYZER], true);
+            // Model tak dikenal, atau model tanpa server tool untuk assistant yang
+            // butuh code execution/web tool (Research, Ticket Analyzer, dan kedua
+            // fase Word Report Generator -- lihat catalogFor()): kembalikan ke
+            // bawaan asisten ini — bukan ke model lain yang kebetulan tersedia,
+            // supaya hasilnya bisa ditebak.
+            $needsServerTools = in_array($assistant, self::NEEDS_SERVER_TOOLS, true);
             if (!isset(self::CATALOG[$model])
                 || ($needsServerTools && !self::CATALOG[$model]['server_tools'])) {
                 $model = $defaults['model'];

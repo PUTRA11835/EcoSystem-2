@@ -19,6 +19,7 @@ use App\Models\Timesheet;
 use App\Services\SlaService;
 use App\Services\StagingTicketService;
 use App\Services\TicketNumberService;
+use App\Support\TicketTeamAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
@@ -2268,14 +2269,30 @@ class TicketController extends Controller
     /**
      * Get available Ticket Leads (employees with DSM qualification) — for admin/helpdesk/head assign
      */
-    public function getAvailableTicketLeads()
+    public function getAvailableTicketLeads(Request $request)
     {
         $sessionUser = session('user');
         if (!$sessionUser) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        if (!$this->sessionUserCan($sessionUser, 'ticket.assign-pic')) {
+        $canAssignPic = $this->sessionUserCan($sessionUser, 'ticket.assign-pic');
+
+        // Jalur "team lead": ?ticket_id= diberikan dan user adalah Ticket Lead
+        // tiket tsb / Module Lead di module mana pun (tapi bukan role manajemen).
+        // Kandidat = anggota module tiket (kalau ada module_id), else daftar penuh.
+        if (!$canAssignPic && $request->filled('ticket_id')) {
+            $ticket = Ticket::find($request->input('ticket_id'));
+
+            if ($ticket && TicketTeamAccess::canManageAsLead((int) $sessionUser['id'], $ticket)) {
+                return response()->json([
+                    'success' => true,
+                    'data'    => TicketTeamAccess::candidatesForTicket($ticket, 'ticket.eligible-ticket-lead'),
+                ]);
+            }
+        }
+
+        if (!$canAssignPic) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -2307,7 +2324,13 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        if (!$this->sessionUserCan($sessionUser, 'ticket.assign-pic')) {
+        $ticket = Ticket::findOrFail($id);
+
+        $canAssignPic = $this->sessionUserCan($sessionUser, 'ticket.assign-pic');
+        $isLeadPath   = !$canAssignPic
+            && TicketTeamAccess::canManageAsLead((int) $sessionUser['id'], $ticket);
+
+        if (!$canAssignPic && !$isLeadPath) {
             return response()->json(['success' => false, 'message' => 'You do not have permission to assign a Ticket Lead'], 403);
         }
 
@@ -2318,9 +2341,17 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        try {
-            $ticket = Ticket::findOrFail($id);
+        // Ticket Lead / Module Lead hanya boleh menunjuk lead dari anggota module tiket ini.
+        // (Hanya berlaku untuk tiket yang sudah punya module_id.)
+        if ($isLeadPath && $ticket->module_id
+            && !in_array((int) $request->ticket_lead_id, TicketTeamAccess::moduleCandidateIds($ticket->module_id), true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ticket Lead harus dipilih dari anggota module tiket ini.',
+            ], 422);
+        }
 
+        try {
             $isFirstAssign = $ticket->ticket_lead_id === null;
 
             $leadName = DB::table('employee')
@@ -2378,7 +2409,8 @@ class TicketController extends Controller
             [RoleId::DELIVERY_SUPPORT_HEAD->value]
         ), true)
             || $ticket->ticket_lead_id == $userId
-            || $ticket->members->contains('employee_id', $userId);
+            || $ticket->members->contains('employee_id', $userId)
+            || TicketTeamAccess::canManageAsLead((int) $userId, $ticket); // Ticket Lead tiket ini / Module Lead
 
         if (!$isTeamMember) {
             return response()->json(['success' => false, 'message' => 'Only team members can update PIC'], 403);
@@ -3142,8 +3174,11 @@ class TicketController extends Controller
         $isAdmin    = (bool) array_intersect($roleIds, [RoleId::EC_ADMINISTRATOR->value]);
         $isHelpdesk = (bool) array_intersect($roleIds, RoleId::TICKET_MANAGER_GROUP);
         $isPic      = in_array(RoleId::DELIVERY_SUPPORT_USER->value, $roleIds, true) && $ticket->ticket_lead_id == $sessionUser['id'];
+        // Jalur "team lead": Ticket Lead tiket ini (role apa pun) atau Module Lead module tiket.
+        $isLeadPath = !$isAdmin && !$isHelpdesk
+            && TicketTeamAccess::canManageAsLead((int) $sessionUser['id'], $ticket);
 
-        if (!$isAdmin && !$isHelpdesk && !$isPic) {
+        if (!$isAdmin && !$isHelpdesk && !$isPic && !$isLeadPath) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only Admin, Helpdesk, or the assigned PIC can add members.',
@@ -3156,6 +3191,16 @@ class TicketController extends Controller
 
         try {
             $empId = (int) $request->employee_id;
+
+            // Ticket Lead / Module Lead hanya boleh menambah member dari anggota module tiket ini.
+            // (Hanya berlaku untuk tiket yang sudah punya module_id.)
+            if ($isLeadPath && $ticket->module_id
+                && !in_array($empId, TicketTeamAccess::moduleCandidateIds($ticket->module_id), true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Member harus dipilih dari anggota module tiket ini.',
+                ], 422);
+            }
 
             // Prevent adding PIC as member
             if ($ticket->ticket_lead_id == $empId) {
@@ -3328,8 +3373,11 @@ class TicketController extends Controller
         $isAdmin    = $roleId === RoleId::EC_ADMINISTRATOR->value;
         $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
         $isPic      = $roleId === RoleId::DELIVERY_SUPPORT_USER->value && $ticket->ticket_lead_id == $sessionUser['id'];
+        // Jalur "team lead": Ticket Lead tiket ini (role apa pun) atau Module Lead module tiket.
+        $isLeadPath = !$isAdmin && !$isHelpdesk
+            && TicketTeamAccess::canManageAsLead((int) $sessionUser['id'], $ticket);
 
-        if (!$isAdmin && !$isHelpdesk && !$isPic) {
+        if (!$isAdmin && !$isHelpdesk && !$isPic && !$isLeadPath) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only Admin, Helpdesk, or the assigned PIC can manage members.'
@@ -3346,6 +3394,18 @@ class TicketController extends Controller
                 'success' => false,
                 'errors' => $validator->errors()
             ], 422);
+        }
+
+        // Jalur lead: semua member_ids harus anggota module tiket ini.
+        if ($isLeadPath && $ticket->module_id) {
+            $allowed = TicketTeamAccess::moduleCandidateIds($ticket->module_id);
+            $invalid = array_diff(array_map('intval', $request->member_ids), $allowed);
+            if (!empty($invalid)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Member harus dipilih dari anggota module tiket ini.',
+                ], 422);
+            }
         }
 
         try {
@@ -3473,8 +3533,10 @@ class TicketController extends Controller
         $isManager  = in_array(RoleId::DELIVERY_SUPPORT_MANAGER->value, $roleIds, true);
         $isHelpdesk = (bool) array_intersect($roleIds, RoleId::HELPDESK_GROUP);
         $isPic      = in_array(RoleId::DELIVERY_SUPPORT_USER->value, $roleIds, true) && $ticket->ticket_lead_id == $sessionUser['id'];
+        // Jalur "team lead": Ticket Lead tiket ini (role apa pun) atau Module Lead module tiket.
+        $isLeadPath = TicketTeamAccess::canManageAsLead((int) $sessionUser['id'], $ticket);
 
-        if (!$isAdmin && !$isHoS && !$isManager && !$isHelpdesk && !$isPic) {
+        if (!$isAdmin && !$isHoS && !$isManager && !$isHelpdesk && !$isPic && !$isLeadPath) {
             return response()->json([
                 'success' => false,
                 'message' => 'Tidak memiliki akses untuk menghapus member.'

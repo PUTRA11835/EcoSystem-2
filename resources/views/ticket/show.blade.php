@@ -445,6 +445,10 @@
         $canTakeTicket     = $can('ticket.take') && !$ticketAssigned;
         $canAssignPic      = $can('ticket.assign-pic');
         $canAssignDelivery = $can('ticket.assign-delivery-support');
+        // Ticket Lead tiket ini / Module Lead (module mana pun) → boleh assign Ticket
+        // Lead & kelola member walau tanpa permission manajemen (data-driven).
+        $canManageTicketTeam  = $canManageTicketTeam ?? false;
+        $canAssignTicketLead  = $canAssignPic || $canManageTicketTeam;
         // Change Request tickets: only the ticket's team lead (not other members) may
         // propose Customer Mandays. Head-level permission bypasses this restriction.
         $isChangeRequestTicket  = $ticket->ticket_type === 'Change Request';
@@ -459,7 +463,7 @@
         // (jika punya keduanya, Helpdesk block sudah cukup — hindari duplikasi Customer Mandays di sidebar)
         $isHeadCustomerMandays  = $isHead && !$isHelpdesk && $ticketAssigned;
         $hasMandaysSection = $isPicCustomerMandays || $isPicResolutionDays || $isHelpdeskMandays || $isHeadMandays || $isHeadCustomerMandays
-                           || $canTakeTicket || $canAssignPic || $canAssignDelivery;
+                           || $canTakeTicket || $canAssignTicketLead || $canAssignDelivery;
     @endphp
 
     <div id="rightSidePanel" class="hidden xl:flex xl:flex-col w-64 gap-3 flex-shrink-0 overflow-y-auto" style="transition: width 0.25s ease, opacity 0.25s ease;">
@@ -541,8 +545,8 @@
                     </button>
                 </div>
                 @endif
-                {{-- Assign / Change Ticket Lead (TICKET_MANAGER_GROUP) --}}
-                @if($canAssignPic)
+                {{-- Assign / Change Ticket Lead (TICKET_MANAGER_GROUP, atau Ticket Lead tiket ini / Module Lead) --}}
+                @if($canAssignTicketLead)
                 <div>
                     <button onclick="openAssignTicketLeadModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         {{ $ticketAssigned ? 'Change Ticket Lead' : 'Assign Ticket Lead' }}
@@ -715,7 +719,8 @@
                 @php
                     $canEditPic = $can('ticket.assign-pic')
                         || $ticket->ticket_lead_id == $user->id
-                        || $ticket->members->contains('employee_id', $user->id);
+                        || $ticket->members->contains('employee_id', $user->id)
+                        || ($canManageTicketTeam ?? false); // Ticket Lead tiket ini / Module Lead
                     $picOptions = [];
                     if ($ticket->ticketLead && $ticket->ticketLead->basicData) {
                         $leadName = trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? ''));
@@ -749,10 +754,11 @@
                 </div>
                 {{-- Team Members --}}
                 @php
-                    $canManageMembers = $can('ui.ticket.manage-members') && (
+                    $canManageMembers = ($can('ui.ticket.manage-members') && (
                             !$user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value) // non-DS-User roles: always OK
                             || $ticket->ticket_lead_id == $user->id                          // DS User: only if they are the lead
-                        );
+                        ))
+                        || $canManageTicketTeam; // Ticket Lead tiket ini / Module Lead (data-driven)
                     $allMemberIds = $ticket->allMembers->pluck('employee_id')->toArray();
                 @endphp
                 <div class="pt-3 border-t border-gray-200">
@@ -1755,8 +1761,8 @@
 </div>
 @endif
 
-{{-- Assign Ticket Lead Modal (Admin / Helpdesk / Delivery Support Head) --}}
-@if($canAssignPic)
+{{-- Assign Ticket Lead Modal (Admin / Helpdesk / Delivery Support Head, atau Ticket Lead tiket ini / Module Lead) --}}
+@if($canAssignTicketLead)
 <div id="assignTicketLeadModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl flex flex-col">
         <div class="flex justify-between items-center px-5 py-4 border-b border-gray-200">
@@ -5590,7 +5596,7 @@
     }
 
     async function deleteMeetingTemplate(id) {
-        if (!confirm('Hapus template ini?')) return;
+        if (!await showConfirm('Hapus template ini?', 'Hapus Template', 'danger')) return;
         try {
             const res  = await fetch(`/api/tickets/${ticketId}/meeting-templates/${id}/delete`, { method: 'POST', headers: getHeaders(), credentials: 'same-origin' });
             const data = await res.json();
@@ -5853,7 +5859,7 @@
 
         if (assignTicketLeadList.length === 0) {
             try {
-                const res  = await fetch('/api/tickets/available-ticket-leads', { headers: getHeaders(), credentials: 'same-origin' });
+                const res  = await fetch(`/api/tickets/available-ticket-leads?ticket_id=${ticketId}`, { headers: getHeaders(), credentials: 'same-origin' });
                 const data = await res.json();
                 assignTicketLeadList = data.data || [];
             } catch (e) {
@@ -5943,7 +5949,7 @@
     });
 
     async function hideTicket() {
-        if (!confirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.')) return;
+        if (!await showConfirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.', 'Hide Ticket', 'danger')) return;
         try {
             const res = await fetch(`/api/tickets/${ticketId}/hide`, {
                 method: 'PATCH',
@@ -5966,7 +5972,7 @@
     }
 
     async function unhideTicket() {
-        if (!confirm('Tampilkan kembali tiket ini? Tiket akan muncul di daftar utama.')) return;
+        if (!await showConfirm('Tampilkan kembali tiket ini? Tiket akan muncul di daftar utama.', 'Unhide Ticket', 'primary')) return;
         try {
             const res = await fetch(`/api/tickets/${ticketId}/unhide`, {
                 method: 'PATCH',
@@ -5989,7 +5995,7 @@
     }
 
     async function deleteTicket() {
-        if (!confirm('Are you sure you want to delete this ticket?')) return;
+        if (!await showConfirm('Are you sure you want to delete this ticket?', 'Delete Ticket', 'danger')) return;
         try {
             const response = await fetch(`/api/tickets/${ticketId}/delete`, {
                 method: 'POST',
@@ -6830,7 +6836,7 @@
 
     async function picDeleteDraft() {
         if (!picDraftData || picDraftData.status !== 'draft') return;
-        if (!confirm('Delete this draft? This cannot be undone.')) return;
+        if (!await showConfirm('Delete this draft? This cannot be undone.', 'Delete Draft', 'danger')) return;
         const btn = document.getElementById('picBtnDeleteDraft');
         btn.disabled = true; btn.textContent = 'Deleting...';
         try {
@@ -7769,7 +7775,7 @@
             }
             if (data.requires_confirmation) {
                 const lines = (data.warnings || []).map(w => `- ${w.employee_name}: remaining would be ${w.remaining} MD`);
-                const proceed = confirm(`Some employees will go negative if you approve these numbers:\n\n${lines.join('\n')}\n\nApprove anyway?`);
+                const proceed = await showConfirm(`Some employees will go negative if you approve these numbers:\n\n${lines.join('\n')}\n\nApprove anyway?`, 'Approve Anyway?', 'danger');
                 if (proceed) {
                     await headResolutionApprove(true);
                 } else {
@@ -8120,30 +8126,7 @@
 {{-- OneDrive folder generation dihapus — folder ticket kini otomatis dibuat di bawah
      folder Customer Deliverable milik customer ticket saat upload deliverable. --}}
 
-{{-- ==================== REUSABLE CONFIRM MODAL ==================== --}}
-<div id="confirmModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4">
-        <div class="px-6 pt-6 pb-3">
-            <div class="flex items-start gap-3">
-                <div id="confirmIconWrap" class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5"></div>
-                <div>
-                    <h3 id="confirmTitle" class="text-sm font-bold text-gray-900 mb-1">Confirm</h3>
-                    <p id="confirmMessage" class="text-sm text-gray-600 leading-relaxed"></p>
-                </div>
-            </div>
-        </div>
-        <div class="px-6 pb-5 pt-2 flex gap-2 justify-end">
-            <button id="confirmCancelBtn"
-                class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium">
-                Cancel
-            </button>
-            <button id="confirmOkBtn"
-                class="px-4 py-2 text-sm font-semibold text-white rounded-lg transition">
-                OK
-            </button>
-        </div>
-    </div>
-</div>
+{{-- Confirm modal dipakai dari partial global: resources/views/partials/confirm-modal.blade.php --}}
 
 {{-- ==================== SLA MESSAGE MODAL ==================== --}}
 <div id="slaMsgModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeSlaModal()">
@@ -8776,58 +8759,7 @@ async function _loadLogShiftingData() {
 </div>
 
 <script>
-// ==================== REUSABLE CONFIRM HELPER ====================
-/**
- * Tampilkan modal konfirmasi custom (mengganti browser confirm()).
- * @param {string} message   - Isi pesan konfirmasi
- * @param {string} title     - Judul modal (default: 'Confirm')
- * @param {string} variant   - 'danger' (tombol merah) | 'primary' (tombol biru) | default abu-abu
- * @returns {Promise<boolean>}
- */
-function showConfirm(message, title = 'Confirm', variant = 'default') {
-    return new Promise(resolve => {
-        const modal     = document.getElementById('confirmModal');
-        const titleEl   = document.getElementById('confirmTitle');
-        const msgEl     = document.getElementById('confirmMessage');
-        const okBtn     = document.getElementById('confirmOkBtn');
-        const cancelBtn = document.getElementById('confirmCancelBtn');
-        const iconWrap  = document.getElementById('confirmIconWrap');
-
-        titleEl.textContent = title;
-        msgEl.textContent   = message;
-
-        // Icon & warna tombol sesuai variant
-        if (variant === 'danger') {
-            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-red-100';
-            iconWrap.innerHTML = `<svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`;
-            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-red-700 hover:bg-red-800 rounded-lg transition';
-        } else if (variant === 'primary') {
-            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-blue-100';
-            iconWrap.innerHTML = `<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>`;
-            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition';
-        } else {
-            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-gray-100';
-            iconWrap.innerHTML = `<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>`;
-            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 rounded-lg transition';
-        }
-
-        modal.classList.remove('hidden');
-
-        function cleanup() {
-            modal.classList.add('hidden');
-            okBtn.removeEventListener('click', onOk);
-            cancelBtn.removeEventListener('click', onCancel);
-            modal.removeEventListener('click', onBackdrop);
-        }
-        function onOk()      { cleanup(); resolve(true); }
-        function onCancel()  { cleanup(); resolve(false); }
-        function onBackdrop(e) { if (e.target === modal) onCancel(); }
-
-        okBtn.addEventListener('click', onOk);
-        cancelBtn.addEventListener('click', onCancel);
-        modal.addEventListener('click', onBackdrop);
-    });
-}
+// showConfirm() disediakan global oleh partials/confirm-modal.blade.php
 
 // ==================== DELIVERABLE JS ====================
 const DELIV_TICKET_ID = {{ $ticket->ticket_id }};

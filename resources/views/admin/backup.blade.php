@@ -1058,7 +1058,7 @@ document.getElementById('btnCreateBackup').addEventListener('click', async () =>
 });
 
 async function deleteBackup(filename) {
-    if (!confirm('Delete backup: ' + filename + '?')) return;
+    if (!await showConfirm('Delete backup: ' + filename + '?', 'Delete Backup', 'danger')) return;
     try {
         const res  = await fetch('/api/admin/backup/' + encodeURIComponent(filename) + '/delete', {
             method: 'POST',

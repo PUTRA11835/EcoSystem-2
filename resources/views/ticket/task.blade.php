@@ -735,11 +735,11 @@
                 btn.className   = btn.className.replace(/bg-indigo-\d+\s+hover:bg-indigo-\d+/, 'bg-emerald-500');
                 setTimeout(() => { closeCpModal(); loadTasks(); }, 900);
             } else {
-                alert('Gagal: ' + (json.message ?? 'Error'));
+                showNotification('Gagal: ' + (json.message ?? 'Error'), 'error');
                 btn.disabled = false; btn.textContent = 'Simpan';
             }
         } catch (e) {
-            alert('Error: ' + e.message);
+            showNotification('Error: ' + e.message, 'error');
             btn.disabled = false; btn.textContent = 'Simpan';
         }
     }

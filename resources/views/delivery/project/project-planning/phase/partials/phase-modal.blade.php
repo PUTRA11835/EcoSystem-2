@@ -851,7 +851,7 @@ window.saveAllPhaseChanges = async function() {
 /**
  * ✅ Close modal and reset
  */
-window.closePhaseConfigModal = function() {
+window.closePhaseConfigModal = async function() {
     
     const modal = document.getElementById('phaseConfigModal');
     if (modal) {
@@ -861,7 +861,7 @@ window.closePhaseConfigModal = function() {
                           window.phaseChanges.modified.size > 0;
         
         if (hasChanges) {
-            if (!confirm('You have unsaved changes. Are you sure you want to close without saving?')) {
+            if (!await showConfirm('You have unsaved changes. Are you sure you want to close without saving?', 'Discard Changes', 'danger')) {
                 return;
             }
         }
