@@ -213,10 +213,16 @@ class EmployeeController extends Controller
                     'eb.gender',
                     'eb.birth_date',
                     'eb.position',
+                    'eb.personnel_area',
+                    'eb.personnel_subarea',
                     'eb.employee_group',
                     'eb.employee_subgroup',
                     'eb.division',
                     'eb.department',
+                    'eb.authorization_group',
+                    'eb.current_assignment',
+                    'eb.direct_supervision',
+                    'eb.manager',
                     'eb.home_base',
                     'eb.since_date',
                     'eb.employee_type',
@@ -486,13 +492,68 @@ class EmployeeController extends Controller
             Log::info('Filter applied: employee', ['search' => $request->employee]);
         }
 
-        // Filter by department.
-        // filled() mencegah filter jalan saat nilai null/'' — kalau tidak,
-        // "LIKE '%%'" akan MEMBUANG semua baris dengan department NULL (mis.
-        // hasil import yang kolom department-nya kosong).
+        // Filter by full name — kolom terpisah dari ECI di atas (dedicated Full
+        // Name column filter), jadi HANYA cocokkan nama, bukan ECI/nick name,
+        // supaya perilakunya jelas per-kolom bagi user.
+        if ($request->filled('full_name')) {
+            $this->applyFullNameSearch($query, $request->full_name);
+            Log::info('Filter applied: full_name', ['search' => $request->full_name]);
+        }
+
+        // Filter by employee group (multi-select, comma-separated).
+        if ($request->filled('employee_group')) {
+            $groups = array_values(array_filter(array_map('trim', explode(',', $request->employee_group)), fn ($g) => $g !== ''));
+            if (!empty($groups)) {
+                $query->whereIn('eb.employee_group', $groups);
+                Log::info('Filter applied: employee_group', ['employee_group' => $groups]);
+            }
+        }
+
+        // Filter by department (multi-select, comma-separated) — sama semantik dengan
+        // home_base/position: dropdown pilihan dari daftar department yang ada, bukan
+        // lagi free-text partial match.
         if ($request->filled('department')) {
-            $query->where('eb.department', 'like', "%{$request->department}%");
-            Log::info('Filter applied: department', ['department' => $request->department]);
+            $departments = array_values(array_filter(array_map('trim', explode(',', $request->department)), fn ($d) => $d !== ''));
+            if (!empty($departments)) {
+                $query->whereIn('eb.department', $departments);
+                Log::info('Filter applied: department', ['department' => $departments]);
+            }
+        }
+
+        // Filter by division (multi-select, comma-separated) — sama semantik dengan home_base/position.
+        if ($request->filled('division')) {
+            $divisions = array_values(array_filter(array_map('trim', explode(',', $request->division)), fn ($d) => $d !== ''));
+            if (!empty($divisions)) {
+                $query->whereIn('eb.division', $divisions);
+                Log::info('Filter applied: division', ['division' => $divisions]);
+            }
+        }
+
+        // Filter by personnel area (multi-select, comma-separated).
+        if ($request->filled('personnel_area')) {
+            $areas = array_values(array_filter(array_map('trim', explode(',', $request->personnel_area)), fn ($a) => $a !== ''));
+            if (!empty($areas)) {
+                $query->whereIn('eb.personnel_area', $areas);
+                Log::info('Filter applied: personnel_area', ['personnel_area' => $areas]);
+            }
+        }
+
+        // Filter by personnel subarea (multi-select, comma-separated).
+        if ($request->filled('personnel_subarea')) {
+            $subareas = array_values(array_filter(array_map('trim', explode(',', $request->personnel_subarea)), fn ($s) => $s !== ''));
+            if (!empty($subareas)) {
+                $query->whereIn('eb.personnel_subarea', $subareas);
+                Log::info('Filter applied: personnel_subarea', ['personnel_subarea' => $subareas]);
+            }
+        }
+
+        // Filter by employee type (multi-select, comma-separated) — fixed set: Internal / External.
+        if ($request->filled('employee_type')) {
+            $types = array_values(array_filter(array_map('trim', explode(',', $request->employee_type)), fn ($t) => $t !== ''));
+            if (!empty($types)) {
+                $query->whereIn('eb.employee_type', $types);
+                Log::info('Filter applied: employee_type', ['employee_type' => $types]);
+            }
         }
 
         // Global search
@@ -560,6 +621,28 @@ class EmployeeController extends Controller
                           ->orWhere('eb.department', 'like', $like)
                           ->orWhere('eb.employee_subgroup', 'like', $like);
                     }
+                });
+            }
+        });
+    }
+
+    /**
+     * Filter dedicated untuk kolom Full Name di tabel — sama pola per-kata
+     * (AND antar-kata, OR antar-kolom) dengan applyNameSearch(), tapi HANYA
+     * mencocokkan kolom nama (bukan ECI/nick name/org fields) supaya
+     * perilakunya jelas terpisah dari filter ECI di kolom sebelahnya.
+     */
+    private function applyFullNameSearch($query, string $search): void
+    {
+        $terms = preg_split('/\s+/', trim($search), -1, PREG_SPLIT_NO_EMPTY);
+
+        $query->where(function ($outer) use ($terms) {
+            foreach ($terms as $term) {
+                $like = '%' . $term . '%';
+                $outer->where(function ($q) use ($like) {
+                    $q->where('eb.first_name', 'like', $like)
+                      ->orWhere('eb.last_name', 'like', $like)
+                      ->orWhereRaw("CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,'')) LIKE ?", [$like]);
                 });
             }
         });
