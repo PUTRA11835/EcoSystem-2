@@ -40,7 +40,15 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
              `sticky top-0` on the <th> cells below freezes the header while the body
              scrolls, without having to offset against the app's own sticky top bar. --}}
         <div id="employeeTableWrapper" class="overflow-auto border border-gray-200 rounded-lg" style="max-height:75vh;">
-            <table class="w-full" style="min-width:2800px;">
+            {{-- `border-collapse: separate; border-spacing: 0` overrides Tailwind Preflight's
+                 default `border-collapse: collapse` on this table specifically. `position: sticky`
+                 on a table cell that needs to stick on BOTH axes at once (top AND left — the ECI/
+                 Full Name header cells, which are simultaneously the frozen header row AND the
+                 frozen left columns) is documented as unreliable across browsers when the table is
+                 border-collapsed; single-axis sticky cells (every other header/column here) aren't
+                 affected, which matches those columns working fine while only this "pinned corner"
+                 breaks. `border-spacing: 0` keeps the visual result identical to collapsed. --}}
+            <table class="w-full" style="min-width:2800px; border-collapse:separate; border-spacing:0;">
                 <thead class="bg-gray-50">
                     <tr>
                         {{-- ECI: keyword search filter (ECI or name) --}}
@@ -50,7 +58,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky top-0 left-0 bg-gray-50" style="min-width:100px;">
                             <button type="button" id="empFilterBtn" onclick="toggleEmpFilter(event)"
                                 class="w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">ECI</span>
+                                <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">ECI</span>
                                 <svg id="empFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
                                 </svg>
@@ -71,7 +79,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50" style="min-width:200px;left:100px;">
                             <button type="button" id="fullNameFilterBtn" onclick="toggleFullNameFilter(event)"
                                 class="w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Full Name</span>
+                                <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Full Name</span>
                                 <svg id="fullNameFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
                                 </svg>
@@ -93,7 +101,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterPosition" data-multi="true" data-fixed="true" data-onchange="applyFilters">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Position</span>
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Position</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
                                 <input type="hidden" id="filterPosition" value="">
@@ -118,7 +126,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                  never add the search box at all. --}}
                             <div class="custom-dd relative w-full" id="ddFilterModules" data-multi="true" data-fixed="true" data-searchable="true" data-search-placeholder="Search module..." data-onchange="applyFilters">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Module</span>
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Module</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
                                 <input type="hidden" id="filterModules" value="">
@@ -136,7 +144,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style="min-width:130px;">
                             <div class="custom-dd relative w-full" id="ddFilterEmployeeGroup" data-multi="true" data-fixed="true" data-onchange="applyFilters">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Employee Group</span>
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Employee Group</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
                                 <input type="hidden" id="filterEmployeeGroup" value="">
@@ -155,7 +163,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterDivision" data-multi="true" data-fixed="true" data-onchange="applyFilters">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Division</span>
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Division</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
                                 <input type="hidden" id="filterDivision" value="">
@@ -176,7 +184,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style="min-width:220px;">
                             <div class="custom-dd relative w-full" id="ddFilterDepartment" data-multi="true" data-fixed="true" data-onchange="applyFilters">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Department</span>
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Department</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
                                 <input type="hidden" id="filterDepartment" value="">
@@ -195,7 +203,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterHomeBase" data-multi="true" data-fixed="true" data-onchange="applyFilters">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Home Base</span>
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Home Base</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
                                 <input type="hidden" id="filterHomeBase" value="">
@@ -211,7 +219,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                             </div>
                         </th>
                         {{-- SINCE DATE: no filter --}}
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Since Date</th>
+                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Since Date</th>
                         {{-- Remaining Employee Information columns (from the "Organizational Data" section
                              of the employee record) — everything except `block` and `deletion_flag` (those
                              only drive the Status column, moved to just before Actions below), and except
@@ -221,7 +229,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterPersonnelArea" data-multi="true" data-fixed="true" data-onchange="applyFilters">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Personnel Area</span>
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Personnel Area</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
                                 <input type="hidden" id="filterPersonnelArea" value="">
@@ -240,7 +248,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterPersonnelSubarea" data-multi="true" data-fixed="true" data-onchange="applyFilters">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Personnel Subarea</span>
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Personnel Subarea</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
                                 <input type="hidden" id="filterPersonnelSubarea" value="">
@@ -255,12 +263,12 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Employee Subgroup</th>
+                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Employee Subgroup</th>
                         {{-- EMPLOYEE TYPE: column filter dropdown (fixed set: Internal / External) --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterEmployeeType" data-multi="true" data-fixed="true" data-onchange="applyFilters">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Employee Type</span>
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Employee Type</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
                                 <input type="hidden" id="filterEmployeeType" value="">
@@ -274,16 +282,16 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Authorization Group</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Current Assignment</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Direct Supervision</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Manager</th>
+                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Authorization Group</th>
+                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Current Assignment</th>
+                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Direct Supervision</th>
+                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Manager</th>
                         {{-- STATUS: column filter dropdown (single-select) — moved to right before
                              Actions, per request. --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterStatus" data-fixed="true" data-onchange="applyFilters">
                                 <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Status</span>
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Status</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
                                 <input type="hidden" id="filterStatus" value="">
@@ -298,7 +306,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                             </div>
                         </th>
                         {{-- ACTIONS: no filter --}}
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Actions</th>
+                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Actions</th>
                     </tr>
                 </thead>
                 {{-- `uppercase` here is CSS-only (text-transform) — display formatting, the
