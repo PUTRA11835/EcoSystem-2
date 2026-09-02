@@ -655,3 +655,98 @@ sudah benar.
   Verifikasi statis: `php -l` OK, Blade compile OK, `<th>`=19=`<td>`, id
   `filterFullName`/`filterEmployeeGroup` masing-masing muncul 1x.
   BELUM diverifikasi visual.
+
+---
+
+## Sesi baru: dilaporkan dari server DEV (bukan lagi 127.0.0.1) — eclectic.co.id:44478
+
+2026-09-03 — User deploy ke server dev (`eclectic.co.id:44478`, production-like)
+dan lapor 3 bug, SEMUA spesifik ke kolom ECI & Full Name (kolom pertama &
+kedua, sekaligus frozen-column DAN frozen-header — "pinned corner cell").
+User eksplisit minta: **diagnosis dulu, jangan asal tebak, laporkan root
+cause sebelum patch** (menyinggung frustrasi dari sesi-sesi sebelumnya).
+
+### Investigasi (dengan bukti kode, bukan tebakan)
+
+1. **Cek apakah ini masalah deployment/sync, bukan bug kode**: `git log`
+   dicek — SELURUH pekerjaan sesi sebelumnya (rekap "FilterMasterEmployee")
+   sudah ter-commit & ter-merge ke `aldy_eco`. Screenshot user sendiri
+   membuktikan kode di server dev SUDAH versi terbaru (Module/Division/
+   Personnel Area/dll semua sudah tampil dengan filter sesuai kode sesi
+   ini) — kalau deployment stale, kolom-kolom itu harusnya belum ada
+   filternya. **Kesimpulan: BUKAN masalah sync/cache/env, ini genuinely bug
+   kode/CSS spesifik ke 2 kolom ini.**
+
+2. **Eliminasi hipotesis user #3 & #4 (minifikasi/treeshaking build
+   production)**: dicek `vite.config.js` — yang di-build Vite HANYA
+   `resources/css/app.css` (Tailwind) dan `resources/js/app.js`. Script
+   inline di halaman ini + `public/js/custom-dropdown.js` TIDAK melewati
+   bundler sama sekali (murni file statis apa adanya, sama persis di semua
+   environment). Jadi rename variable/tree-shaking dipastikan BUKAN
+   penyebabnya untuk bagian JS.
+
+3. **Bug 2 (header ECI/Full Name tidak freeze) — akar masalah ditemukan**:
+   `resources/css/app.css` pakai `@import 'tailwindcss';` tanpa menonaktifkan
+   Preflight. **Tailwind Preflight menyetel semua `<table>` jadi
+   `border-collapse: collapse` secara default**, dan tidak ada override di
+   manapun di file ini. `position: sticky` pada sel tabel yang harus sticky
+   di DUA axis sekaligus (top DAN left — persis kasus ECI/Full Name sebagai
+   "pinned corner cell") adalah kombinasi yang **secara luas didokumentasikan
+   tidak reliable** ketika tabel `border-collapse: collapse`, sementara sel
+   single-axis (header lain cuma top-0, body kolom lain tidak sticky) tidak
+   kena masalah ini — match persis dengan gejala yang dilaporkan (cuma 2
+   kolom ini yang bermasalah, sisanya normal).
+
+4. **Bug 1 (klik filter ECI/Full Name tidak ada reaksi)**: kode
+   `toggleEmpFilter`/`toggleFullNameFilter`/`closeEmpFilter`/
+   `closeFullNameFilter` dibaca ulang baris per baris — TIDAK ditemukan bug
+   logic/JS di situ. User dikonfirmasi (lewat AskUserQuestion): gejalanya
+   "klik icon filter, panel TIDAK MUNCUL SAMA SEKALI" — bukan panel muncul
+   tapi tidak memfilter. Karena kode function-nya bersih, dugaan kuat: Bug 1
+   dan Bug 2 adalah **1 akar masalah yang sama** — rendering sticky
+   dual-axis yang berantakan (dari `border-collapse`) kemungkinan membuat
+   elemen LAIN menutupi/menerima klik yang seharusnya kena tombol filter
+   ECI/Full Name (klik "diserap" elemen yang salah, bukan JS error).
+
+5. **Bug 3 (alignment header vs data terbalik)**: dicek — SEMUA 19 header
+   saat ini rata KIRI (bukan cuma ECI/Full Name), tidak ada satupun yang
+   `text-center`. User ditanya (AskUserQuestion): center-kan SEMUA header
+   untuk konsistensi (Recommended), atau cuma ECI/Full Name (bikin campur
+   2 tengah + 17 kiri). **User pilih: semua 19 header di-center.**
+
+### Fix yang diterapkan
+
+1. **Bug 1+2 (root cause sama)**: `<table>` di halaman ini diberi inline
+   style `border-collapse:separate; border-spacing:0;` — override Preflight
+   HANYA untuk tabel ini (tidak menyentuh tabel lain di app), hasil visual
+   identik (spacing 0 = tanpa celah), tapi memperbaiki reliabilitas sticky
+   dual-axis pada sel pojok ECI/Full Name. Ini bukan tebakan acak — kombinasi
+   `border-collapse:collapse` + sticky dual-axis adalah limitasi CSS/browser
+   yang punya nama & dokumentasi jelas.
+2. **Bug 3**: SEMUA 19 header di-center — 7 header plain (`<th class="text-left...">`
+   → `text-center`, cuma ganti 1 kata via sed, exact match dikonfirmasi 7/7
+   di seluruh file sebelum diganti) dan 12 header berbasis tombol filter
+   (span label diberi `flex-1 text-center` supaya teks center dalam ruang
+   yang tersisa setelah ikon filter, exact match dikonfirmasi 12/12). Data
+   body TIDAK disentuh sama sekali (tidak ada `text-center`/`text-left` baru
+   ditambahkan ke `<td>` manapun — dicek, tetap 0 perubahan di bagian
+   `renderTable()`).
+
+### Verifikasi statis
+Blade dikompilasi ulang via `Blade::compileString()` + `php -l` → OK, tidak
+ada syntax error. Body row template dicek tidak tersentuh (masih format
+sama seperti sebelumnya).
+
+### BELUM diverifikasi visual — PENTING
+Sesi ini TETAP tidak punya akses browser/DevTools ke `eclectic.co.id:44478`
+ATAUPUN ke localhost. Diagnosis Bug 1+2 di atas adalah kesimpulan
+paling kuat dari bukti kode (nama masalah CSS yang terdokumentasi, cocok
+dengan semua gejala), TAPI belum bisa saya konfirmasi 100% tanpa melihat
+langsung. Mohon user:
+1. Deploy ulang perubahan ini ke server dev.
+2. Test ulang ketiga bug persis seperti sebelumnya.
+3. Kalau Bug 1/2 MASIH terjadi setelah fix `border-collapse`, itu tandanya
+   dugaan saya salah dan perlu investigasi lain (kemungkinan berikutnya:
+   cek computed style langsung via DevTools pada elemen `#empFilterBtn`
+   saat diklik — apakah `event.target` benar-benar tombol itu atau elemen
+   lain yang menutupinya).
