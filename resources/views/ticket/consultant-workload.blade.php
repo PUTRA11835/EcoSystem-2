@@ -1018,12 +1018,12 @@
                     refreshAfterProgressUpdate(empIdToRefresh);
                 }, 700);
             } else {
-                alert('Failed: ' + (json.message ?? 'Error'));
+                showNotification('Failed: ' + (json.message ?? 'Error'), 'error');
                 btn.disabled = false;
                 btn.textContent = 'Save';
             }
         } catch (e) {
-            alert('Error: ' + e.message);
+            showNotification('Error: ' + e.message, 'error');
             btn.disabled = false;
             btn.textContent = 'Save';
         }

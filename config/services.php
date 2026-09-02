@@ -62,6 +62,14 @@ return [
         // Console) — dipakai AiTicketAnalyzerService untuk fitur Analisa AI di
         // validasi Staging Ticket.
         'ticket_analyzer_skill_id' => env('ANTHROPIC_TICKET_ANALYZER_SKILL_ID'),
+
+        // Skill ID Agent Skills custom "laravel-word-report-generator" — di-upload
+        // lewat `php artisan claude:upload-skill` (lihat .claude/skills/laravel-word-report-generator/SKILL.md).
+        // Dipakai ClaudeReportService untuk fitur generate laporan .docx/.pdf dari template.
+        'word_report_skill_id' => env('ANTHROPIC_WORD_REPORT_SKILL_ID'),
+
+        // Model dipakai ClaudeReportService — bisa dioverride tanpa deploy kalau perlu.
+        'word_report_model' => env('ANTHROPIC_WORD_REPORT_MODEL', 'claude-opus-5'),
     ],
 
     'openai' => [

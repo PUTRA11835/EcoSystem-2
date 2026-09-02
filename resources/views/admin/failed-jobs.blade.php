@@ -241,7 +241,7 @@ async function retryJob(uuid) {
 }
 
 async function deleteJob(uuid) {
-    if (!confirm('Delete this failed job?')) return;
+    if (!await showConfirm('Delete this failed job?', 'Delete Failed Job', 'danger')) return;
     try {
         const res  = await fetch(`/api/admin/failed-jobs/${uuid}/delete`, {
             method: 'POST',
@@ -257,7 +257,7 @@ async function deleteJob(uuid) {
 }
 
 document.getElementById('btnRetryAll').addEventListener('click', async () => {
-    if (!confirm('Retry ALL failed jobs?')) return;
+    if (!await showConfirm('Retry ALL failed jobs?', 'Retry All Jobs', 'primary')) return;
     try {
         const res  = await fetch('/api/admin/failed-jobs/retry-all', {
             method: 'POST',
@@ -273,7 +273,7 @@ document.getElementById('btnRetryAll').addEventListener('click', async () => {
 });
 
 document.getElementById('btnClearAll').addEventListener('click', async () => {
-    if (!confirm('Clear ALL failed jobs? This cannot be undone.')) return;
+    if (!await showConfirm('Clear ALL failed jobs? This cannot be undone.', 'Clear All Jobs', 'danger')) return;
     try {
         const res  = await fetch('/api/admin/failed-jobs/clear', {
             method: 'POST',

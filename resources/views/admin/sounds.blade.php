@@ -166,7 +166,7 @@
 
                             @if(!$sound->is_default)
                             <form action="{{ route('admin.sounds.destroy', $sound->id) }}" method="POST"
-                                  onsubmit="return confirm('Delete \"{{ addslashes($sound->name) }}\"? Users who have selected this sound will fall back to the default.')">
+                                  onsubmit="return confirmSubmit(this, 'Delete \"{{ addslashes($sound->name) }}\"? Users who have selected this sound will fall back to the default.', 'Delete Sound', 'danger')">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit"
