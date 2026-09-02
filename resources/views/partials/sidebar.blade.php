@@ -112,10 +112,19 @@
                 </div>
             @endif
 
+            {{-- Sejak 2 Sep 2026 item ini menunjuk halaman sungguhan, bukan lagi
+                 route('coming-soon'). Pola yang sama dipakai My Attendance,
+                 Overtime, dan Reimbursement saat modulnya jadi.
+
+                 DUA GERBANG, keduanya harus terbuka: sakelar ESS di bawah
+                 mengatur apakah itemnya DIRENDER, sementara slug
+                 `general.my-purchase-request` di Control Center mengatur apakah
+                 RUTENYA boleh dibuka. Item yang terlihat tetapi menolak saat
+                 diklik berarti slugnya belum dibagikan. --}}
             @if(!empty($essConfig['purchase_request']))
                 <div class="mb-2">
-                    <a href="{{ route('coming-soon', ['feature' => 'Purchase Request']) }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                    <a href="{{ route('general.my-purchase-request.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-purchase-request*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-shopping-cart"></i>
                         </span>
@@ -451,10 +460,10 @@
                 </div>
             @endif
 
-            @if($can('general') || $can('hr_general.leave_permit.admin') || $can('general.attendance') || $can('general.attendance.correction') || $can('general.overtime') || $can('general.reimbursement'))
+            @if($can('general') || $can('hr_general.leave_permit.admin') || $can('general.attendance') || $can('general.attendance.correction') || $can('general.overtime') || $can('general.reimbursement') || $can('general.purchase-request'))
                 <!-- HR & GENERAL -->
                 @php
-                    $hrGeneralOpen = Request::is('hr-general*') || Request::is('general/attendance*') || Request::is('general/overtime*') || Request::is('general/reimbursement*');
+                    $hrGeneralOpen = Request::is('hr-general*') || Request::is('general/attendance*') || Request::is('general/overtime*') || Request::is('general/reimbursement*') || Request::is('general/purchase-request*');
                 @endphp
                 <div class="mb-2">
                     <button onclick="toggleHrGeneralDropdown()"
@@ -518,6 +527,19 @@
                             </a>
                         @endif
 
+                        @if($can('general.purchase-request') || $can('general'))
+                            <a href="{{ route('general.purchase-request.index') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/purchase-request*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-cart-shopping text-xs"></i>
+                                </span>
+                                {{-- "Review", bukan "Purchase Request" polos: di dalam
+                                     dropdown ini sudah ada pola pembeda yang sama —
+                                     "Attendance Recap", "Overtime Review". Kata
+                                     pembedanya menyatakan APA yang berbeda (meninjau
+                                     milik orang lain), sementara item ESS di atas
+                                     tetap bernama "Purchase Request" polos. --}}
+                                <span class="nav-text text-sm">Purchase Request Review</span>
                         @if($can('general.kpi-evaluation') || $can('general'))
                             <a href="{{ route('general.kpi-evaluation.index') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/kpi-evaluation*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -876,59 +898,53 @@
                         @php
                             $hrGeneralSettingsActive = Request::is('general/settings*');
                         @endphp
-                        @if($can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance') || $can('general.settings.overtime') || $can('general.settings.reimbursement') || $can('general.settings.kpi'))
-                            <div class="mt-1">
-                                <button onclick="toggleHrGeneralMgmtDropdown()"
-                                    class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $hrGeneralSettingsActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                    <span class="w-4 h-4 flex items-center justify-center">
-                                        <i class="fas fa-users-cog text-xs"></i>
-                                    </span>
-                                    <span class="nav-text text-sm flex-1">HR &amp; General</span>
-                                    <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $hrGeneralSettingsActive ? 'rotate-180' : '' }}"
-                                        id="hrGeneralMgmtChevron"></i>
-                                </button>
-                                <div id="hrGeneralMgmtDropdown"
-                                    class="nav-text {{ $hrGeneralSettingsActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
-                                    @if($can('general.settings.branches'))
-                                        <a href="{{ route('general.settings.branches.index') }}"
-                                            class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/branches*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
-                                                    class="fas fa-map-marker-alt text-xs"></i></span>
-                                            <span class="nav-text text-xs">Branches</span>
-                                        </a>
-                                    @endif
-                                    @if($can('general.settings.shifts'))
-                                        <a href="{{ route('general.settings.shifts.index') }}"
-                                            class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/shifts*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
-                                                    class="fas fa-clock text-xs"></i></span>
-                                            <span class="nav-text text-xs">Shifts</span>
-                                        </a>
-                                    @endif
-                                    @if($can('general.settings.attendance'))
-                                        <a href="{{ route('general.settings.attendance.edit') }}"
-                                            class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/attendance*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
-                                                    class="fas fa-sliders text-xs"></i></span>
-                                            <span class="nav-text text-xs">Attendance Settings</span>
-                                        </a>
-                                    @endif
-                                    @if($can('general.settings.overtime'))
-                                        <a href="{{ route('general.settings.overtime.edit') }}"
-                                            class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/overtime*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
-                                                    class="fas fa-business-time text-xs"></i></span>
-                                            <span class="nav-text text-xs">Overtime Settings</span>
-                                        </a>
-                                    @endif
-                                    @if($can('general.settings.reimbursement'))
-                                        <a href="{{ route('general.settings.reimbursement.edit') }}"
-                                            class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/reimbursement*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
-                                                    class="fas fa-receipt text-xs"></i></span>
-                                            <span class="nav-text text-xs">Reimbursement Settings</span>
-                                        </a>
-                                    @endif
+                        
+                        @if($can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance') || $can('general.settings.overtime') || $can('general.settings.reimbursement') || $can('general.settings.purchase-request'))
+                        <div class="mt-1">
+                            <button onclick="toggleHrGeneralMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $hrGeneralSettingsActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-users-cog text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm flex-1">HR &amp; General</span>
+                                <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $hrGeneralSettingsActive ? 'rotate-180' : '' }}" id="hrGeneralMgmtChevron"></i>
+                            </button>
+                            <div id="hrGeneralMgmtDropdown" class="nav-text {{ $hrGeneralSettingsActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                                @if($can('general.settings.branches'))
+                                <a href="{{ route('general.settings.branches.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/branches*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-map-marker-alt text-xs"></i></span>
+                                    <span class="nav-text text-xs">Branches</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.shifts'))
+                                <a href="{{ route('general.settings.shifts.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/shifts*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-clock text-xs"></i></span>
+                                    <span class="nav-text text-xs">Shifts</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.attendance'))
+                                <a href="{{ route('general.settings.attendance.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/attendance*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-sliders text-xs"></i></span>
+                                    <span class="nav-text text-xs">Attendance Settings</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.overtime'))
+                                <a href="{{ route('general.settings.overtime.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/overtime*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-business-time text-xs"></i></span>
+                                    <span class="nav-text text-xs">Overtime Settings</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.reimbursement'))
+                                <a href="{{ route('general.settings.reimbursement.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/reimbursement*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-receipt text-xs"></i></span>
+                                    <span class="nav-text text-xs">Reimbursement Settings</span>
+                                </a>
+                                @endif
+                                @if($can('general.settings.purchase-request'))
+                                <a href="{{ route('general.settings.purchase-request.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/purchase-request*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-cart-shopping text-xs"></i></span>
+                                    <span class="nav-text text-xs">Purchase Request Settings</span>
+                                </a>
+                                @endif
                                     @if($can('general.settings.kpi'))
                                         <a href="{{ route('general.settings.kpi.index') }}"
                                             class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/kpi*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">

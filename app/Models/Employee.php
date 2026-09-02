@@ -105,6 +105,7 @@ class Employee extends Model
             'my-leave-permit',
             'general.my-overtime',
             'general.my-reimbursement',
+            'general.my-purchase-request',
             'general.my-kpi',
             'profile.my',
         ];
