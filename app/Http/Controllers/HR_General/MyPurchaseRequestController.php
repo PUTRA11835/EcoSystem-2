@@ -212,6 +212,11 @@ class MyPurchaseRequestController extends Controller
         $settings = PurchaseRequestSetting::current();
         $minTitle = $settings->require_title_min_chars;
 
+        // Field gabungan `cost_center` dari dropdown Charged To dipecah dulu jadi
+        // bentuk lama (cost_center_type/branch_id/delivery_project_id) sebelum
+        // menyentuh aturan dan service yang sudah teruji.
+        $request->merge(['items' => $purchaseRequest->expandCostCenterInput($request->input('items'))]);
+
         // Aturan baris item diambil dari service supaya pengajuan mandiri, form
         // "New PR", dan Edit menilai isi dokumen dengan aturan yang persis sama.
         $rules = $purchaseRequest->itemRules($settings, $request->all()) + [

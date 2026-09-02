@@ -423,6 +423,11 @@ class PurchaseRequestController extends Controller
         $settings = PurchaseRequestSetting::current();
         $minTitle = $settings->require_title_min_chars;
 
+        // Field gabungan `cost_center` dari dropdown Charged To dipecah dulu jadi
+        // bentuk lama (cost_center_type/branch_id/delivery_project_id) sebelum
+        // menyentuh aturan dan service yang sudah teruji.
+        $request->merge(['items' => $service->expandCostCenterInput($request->input('items'))]);
+
         $rules = $service->itemRules($settings, $request->all()) + [
             'request_date'   => ['required', 'date'],
             'title'          => ['required', 'string', 'min:' . $minTitle, 'max:200'],
