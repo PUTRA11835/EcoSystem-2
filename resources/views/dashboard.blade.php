@@ -1601,15 +1601,7 @@
         <div id="sidebarOverlay" onclick="closeSidebar()" class="fixed inset-0 z-40 hidden lg:hidden"
             style="background-color: rgba(0,0,0,0.5);"></div>
 
-        {{-- Sidebar — seluruhnya di resources/views/partials/sidebar.blade.php
-             sejak 36c66bd. Tag <aside id="sidebar"> beserta logo dan nav ada DI
-             DALAM partial itu, termasuk penampung @hasSection('sidebar-nav')
-             yang dipakai ticket/show.blade.php.
-
-             JANGAN menulis ulang nav di berkas ini. Merge d2883eb pernah
-             menghidupkan salinan usangnya dan membuang baris @include di bawah;
-             akibatnya <aside> tidak pernah dirender, </aside> menggantung, dan
-             seluruh tata letak flex jebol. --}}
+        <!-- Sidebar - Modern Design (Separated in partials/sidebar.blade.php) -->
         @include('partials.sidebar')
 
         <main id="mainContent" class="sidebar-transition flex-1 ml-0 lg:ml-64 min-w-0">

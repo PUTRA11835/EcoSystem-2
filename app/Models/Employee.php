@@ -105,18 +105,8 @@ class Employee extends Model
             'my-leave-permit',
             'general.my-overtime',
             'general.my-reimbursement',
-            // Ditambahkan 2 Sep 2026. Purchase Request adalah menu ESS: setiap
-            // karyawan boleh mengajukan permintaan pengadaan untuk dirinya
-            // sendiri, apa pun rolenya — sama seperti empat baris di atas.
-            //
-            // Yang TIDAK ikut terbuka: `general.purchase-request` (rekap &
-            // persetujuan) dan `general.settings.purchase-request` (konfigurasi).
-            // Keduanya tetap menuntut grant dari Control Center → Menu Access.
-            //
-            // Kepemilikan dokumen tetap dijaga terpisah: MyPurchaseRequestController
-            // memanggil abort_if() pada show/print/cancel, karena slug hanya
-            // menjawab "boleh membuka halaman ini?", bukan "dokumen siapa ini?".
             'general.my-purchase-request',
+            'general.my-kpi',
             'profile.my',
         ];
 
@@ -176,6 +166,7 @@ class Employee extends Model
             'my-leave-permit',
             'general.my-overtime',
             'general.my-reimbursement',
+            'general.my-kpi',
             'profile.my',
         ];
 
@@ -304,4 +295,21 @@ class Employee extends Model
         return $this->hasMany(Timesheet::class, 'employee_id', 'employee_id');
     }
 
+    /**
+     * Get KPI evaluations for this employee
+     */
+    public function kpiEvaluations()
+    {
+        return $this->hasMany(KpiEvaluation::class, 'employee_id', 'employee_id');
+    }
+
+    /**
+     * Get delivery projects assigned to this employee
+     */
+    public function deliveryProjects()
+    {
+        return $this->belongsToMany(DeliveryProject::class, 'delivery_project_employee', 'employee_id', 'delivery_projects_id', 'employee_id', 'id');
+    }
+
 }
+

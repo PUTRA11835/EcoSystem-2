@@ -84,7 +84,7 @@
     }
 
     // ESS Cards
-    if ($can('hr_general.leave_permit') || $can('general')) {
+    if ($can('my-leave-permit') || $can('hr_general.leave_permit') || $can('general')) {
         $kpiCards[] = [
             'href' => route('my-leave-permit'),
             'icon' => 'fa-calendar-check',

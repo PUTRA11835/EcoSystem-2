@@ -40,6 +40,18 @@
                 </div>
             @endif
 
+            @if(!empty($essConfig['ai_menu']))
+                <div class="mb-2">
+                    <a href="{{ route('coming-soon', ['feature' => 'AI Menu']) }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-robot"></i>
+                        </span>
+                        <span class="nav-text font-medium">AI Menu</span>
+                    </a>
+                </div>
+            @endif
+
             @if(!empty($essConfig['my_attendance']))
                 <div class="mb-2">
                     <a href="{{ route('general.my-attendance.index') }}"
@@ -76,6 +88,18 @@
                 </div>
             @endif
 
+            @if(!empty($essConfig['expense_reimbursement']))
+                <div class="mb-2">
+                    <a href="{{ route('general.my-reimbursement.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-reimbursement*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-receipt"></i>
+                        </span>
+                        <span class="nav-text font-medium">My Reimbursement</span>
+                    </a>
+                </div>
+            @endif
+
             @if(!empty($essConfig['paystub']))
                 <div class="mb-2">
                     <a href="{{ route('coming-soon', ['feature' => 'Paystub']) }}"
@@ -84,30 +108,6 @@
                             <i class="fas fa-file-invoice-dollar"></i>
                         </span>
                         <span class="nav-text font-medium">Paystub</span>
-                    </a>
-                </div>
-            @endif
-
-            {{-- Label "Reimbursement", bukan "Expense Reimbursement".
-
-                 Menu ini menunjuk modul Reimbursement milik kita, dan di seluruh
-                 aplikasi — sidebar HR ("Reimbursement Management"), judul
-                 halaman, dan dokumen kerja — namanya "Reimbursement". Nama lama
-                 berasal dari daftar placeholder ESS sebelum modulnya jadi.
-
-                 KUNCI setelan `expense_reimbursement` SENGAJA tidak ikut
-                 diubah: kunci itu tersimpan di JSON `ess_menu_settings`
-                 (tabel app_config). Menggantinya akan membuat setelan yang
-                 sudah disimpan tidak lagi cocok dan sakelarnya diam-diam
-                 kembali ke bawaan. --}}
-            @if(!empty($essConfig['expense_reimbursement']))
-                <div class="mb-2">
-                    <a href="{{ route('general.my-reimbursement.index') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-reimbursement*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-receipt"></i>
-                        </span>
-                        <span class="nav-text font-medium">Reimbursement</span>
                     </a>
                 </div>
             @endif
@@ -164,19 +164,19 @@
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-landmark"></i>
                         </span>
-                        <span class="nav-text font-medium">Loans</span>
+                        <span class="nav-text font-medium">My Loans</span>
                     </a>
                 </div>
             @endif
 
             @if(!empty($essConfig['my_kpis']))
                 <div class="mb-2">
-                    <a href="{{ route('coming-soon', ['feature' => 'My KPIs']) }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                    <a href="{{ route('general.my-kpi.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-kpi*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-chart-line"></i>
                         </span>
-                        <span class="nav-text font-medium">My KPIs</span>
+                        <span class="nav-text font-medium">My KPI</span>
                     </a>
                 </div>
             @endif
@@ -333,49 +333,64 @@
                                 </span>
                                 <span class="nav-text text-sm">MD Validation</span>
                             </a>
-                            @endif
-                            @if($can('reporting.md-recap'))
-                            <a href="{{ route('reporting.md-recap') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        @endif
+                        @if($can('reporting.md-recap'))
+                            <a href="{{ route('reporting.md-recap') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-table text-xs"></i>
                                 </span>
                                 <span class="nav-text text-sm">MD Recap</span>
                             </a>
-                            @endif
-                            @if($can('reporting.collection-outlook-support'))
-                            <a href="{{ route('reporting.collection-outlook-support') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/collection-outlook-support*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        @endif
+                        @if($can('reporting.collection-outlook'))
+                            <a href="{{ route('reporting.collection-outlook') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ (Request::is('reporting/collection-outlook') || Request::is('reporting/collection-outlook/*')) ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-hand-holding-usd text-xs"></i>
                                 </span>
                                 <span class="nav-text text-sm">Collection Outlook</span>
                             </a>
-                            @endif
-                            @if($can('reporting.ticketing-overview'))
-                            <a href="{{ route('reporting.ticketing-overview') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/ticketing-overview*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        @endif
+                        @if($can('reporting.collection-outlook-support'))
+                            <a href="{{ route('reporting.collection-outlook-support') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/collection-outlook-support*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-hand-holding-usd text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm">Collection Outlook (Support)</span>
+                            </a>
+                        @endif
+                        @if($can('reporting.ticketing-overview'))
+                            <a href="{{ route('reporting.ticketing-overview') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/ticketing-overview*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-headset text-xs"></i>
                                 </span>
                                 <span class="nav-text text-sm">Ticketing Overview</span>
                             </a>
-                            @endif
-                            @if($can('reporting.ticket-by-module'))
-                            <a href="{{ route('reporting.ticket-by-module') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/ticket-by-module*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        @endif
+                        @if($can('reporting.ticket-by-module'))
+                            <a href="{{ route('reporting.ticket-by-module') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/ticket-by-module*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-puzzle-piece text-xs"></i>
                                 </span>
                                 <span class="nav-text text-sm">Ticket by Modul</span>
                             </a>
-                            @endif
-                            @if($can('reporting.log-shifting'))
-                            <a href="{{ route('reporting.log-shifting') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/log-shifting*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        @endif
+                        @if($can('reporting.log-shifting'))
+                            <a href="{{ route('reporting.log-shifting') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/log-shifting*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-clock text-xs"></i>
                                 </span>
                                 <span class="nav-text text-sm">Log Shifting</span>
                             </a>
-                            @endif
-                            @if($can('reporting.resolution-days'))
-                            <a href="{{ route('reporting.resolution-days') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/resolution-days*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        @endif
+                        @if($can('reporting.resolution-days'))
+                            <a href="{{ route('reporting.resolution-days') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/resolution-days*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-hourglass-half text-xs"></i>
                                 </span>
@@ -525,6 +540,13 @@
                                      milik orang lain), sementara item ESS di atas
                                      tetap bernama "Purchase Request" polos. --}}
                                 <span class="nav-text text-sm">Purchase Request Review</span>
+                        @if($can('general.kpi-evaluation') || $can('general'))
+                            <a href="{{ route('general.kpi-evaluation.index') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/kpi-evaluation*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-chart-bar text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm">KPI Evaluation</span>
                             </a>
                         @endif
                     </div>
@@ -876,6 +898,7 @@
                         @php
                             $hrGeneralSettingsActive = Request::is('general/settings*');
                         @endphp
+                        
                         @if($can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance') || $can('general.settings.overtime') || $can('general.settings.reimbursement') || $can('general.settings.purchase-request'))
                         <div class="mt-1">
                             <button onclick="toggleHrGeneralMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $hrGeneralSettingsActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -922,16 +945,16 @@
                                     <span class="nav-text text-xs">Purchase Request Settings</span>
                                 </a>
                                 @endif
+                                    @if($can('general.settings.kpi'))
+                                        <a href="{{ route('general.settings.kpi.index') }}"
+                                            class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/kpi*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                            <span class="w-3 h-3 flex items-center justify-center"><i
+                                                    class="fas fa-layer-group text-xs"></i></span>
+                                            <span class="nav-text text-xs">KPI Templates</span>
+                                        </a>
+                                    @endif
+                                </div>
                             </div>
-                        </div>
-                        @endif
-                        @if($can('management.module-groups'))
-                        <a href="{{ route('management.module-groups.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/module-groups*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                            <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                <i class="fas fa-layer-group text-xs"></i>
-                            </span>
-                            <span class="nav-text text-sm">Module Group</span>
-                        </a>
                         @endif
                         @if($can('management.employee'))
                             <div class="mt-1">

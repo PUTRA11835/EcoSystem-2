@@ -658,4 +658,4 @@ require __DIR__ . '/delivery-support.php';
 
 // ==================== HR & GENERAL ROUTES ====================
 // Include HR & General module routes (Attendance, Branches, Shifts)
-require __DIR__ . '/HR_General.php';
+require __DIR__ . '/hr-general.php';

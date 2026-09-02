@@ -84,8 +84,8 @@ class EssSettingsController extends Controller
             'icon'  => 'fas fa-landmark',
         ],
         'my_kpis' => [
-            'name'  => 'My KPIs',
-            'route' => null,
+            'name'  => 'My KPI',
+            'route' => 'general.my-kpi.index',
             'icon'  => 'fas fa-chart-line',
         ],
         'events_calendar' => [
