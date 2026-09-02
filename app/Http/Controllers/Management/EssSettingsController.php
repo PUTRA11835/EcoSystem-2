@@ -92,10 +92,15 @@ class EssSettingsController extends Controller
             'route' => 'calendar.timesheets',
             'icon'  => 'fas fa-clock',
         ],
-        'ai_menu' => [
-            'name'  => 'AI Menu',
-            'route' => null,
+        'ai_assistant' => [
+            'name'  => 'AI Assistant',
+            'route' => 'ai-assistant',
             'icon'  => 'fas fa-robot',
+        ],
+        'ai_research' => [
+            'name'  => 'AI Research',
+            'route' => 'ai-research',
+            'icon'  => 'fas fa-magnifying-glass-chart',
         ],
     ];
 

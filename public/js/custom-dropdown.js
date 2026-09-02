@@ -154,7 +154,7 @@ function initCustomDropdowns(root) {
                 _selectItem(owner, val, text);
             }
             if (onchangeFn && typeof window[onchangeFn] === 'function') {
-                window[onchangeFn]();
+                window[onchangeFn](val);
             }
         });
     });
@@ -422,7 +422,7 @@ function _selectHighlightedOrFirst(panel, dd) {
             _selectItem(owner, val, text);
         }
         if (onchangeFn && typeof window[onchangeFn] === 'function') {
-            window[onchangeFn]();
+            window[onchangeFn](val);
         }
         return;
     }

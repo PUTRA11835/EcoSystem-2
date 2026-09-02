@@ -126,8 +126,7 @@
                     </p>
                 </div>
                 <a href="{{ route('general.my-kpi.self-assessment', $eval->id) }}"
-                   class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all shrink-0">
-                    <i class="fas fa-pencil-alt text-xs"></i>
+                   class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all shrink-0">
                     Fill Self-Assessment Now
                 </a>
             </div>
@@ -180,8 +179,8 @@
                     </div>
                     <div class="pt-1">
                         <a href="{{ route('general.my-kpi.self-assessment', $displayEval->id) }}"
-                           class="inline-flex items-center gap-2 px-6 py-2.5 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all">
-                            <i class="fas fa-paper-plane text-xs"></i> Fill Self-Assessment Now
+                           class="inline-flex items-center px-6 py-2.5 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all">
+                            Fill Self-Assessment Now
                         </a>
                     </div>
                 </div>
@@ -385,8 +384,7 @@
                         <td class="px-4 py-3.5 text-center">
                             @if($tEval)
                                 <a href="{{ route('general.kpi-evaluation.review', $tEval->id) }}"
-                                   class="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all {{ $tSupDone ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100' : 'primary-gradient text-white hover:opacity-90' }}">
-                                    <i class="fas {{ $tSupDone ? 'fa-eye' : 'fa-edit' }} text-xs"></i>
+                                   class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all {{ $tSupDone ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100' : 'primary-gradient text-white hover:opacity-90' }}">
                                     {{ $tSupDone ? ($tIsApproved ? 'View' : 'Edit Review') : 'Evaluate' }}
                                 </a>
                             @else
@@ -407,7 +405,7 @@
 
     {{-- ── Evaluation History Table ─────────────────────────────────────────── --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="p-5 border-b border-gray-100">
+        <div class="p-5 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
                 <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
                     <i class="fas fa-history text-gray-400"></i>
@@ -417,6 +415,30 @@
                     Each period displays two template rows: Self-Assessment (Evaluasi Mandiri) and Supervisor Evaluation (Penilaian Atasan), followed by the Final Score and Action.
                 </p>
             </div>
+            @php
+                $availableYears = $evaluations->map(fn($e) => substr($e->period_month, 0, 4))->unique()->values();
+            @endphp
+            @if($availableYears->count() > 1)
+            {{-- Filter Year (Custom Dropdown) --}}
+            <div class="flex items-center gap-2 shrink-0">
+                <span class="text-xs font-semibold text-gray-500">Filter Year:</span>
+                <div class="custom-dd relative" data-onchange="onHistoryYearFilterChange" data-fixed="true">
+                    <button type="button" class="custom-dd-btn inline-flex items-center justify-between gap-2 px-3 py-1.5 border border-gray-200 rounded-xl text-xs bg-white hover:border-gray-300 transition-all font-medium shadow-sm min-w-[120px]">
+                        <span class="custom-dd-label text-gray-700 truncate" id="historyYearLabel">All Years</span>
+                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+                    <input type="hidden" id="historyYearInput" value="">
+                    <div class="custom-dd-panel hidden absolute top-full right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="min-width: 130px; max-height: 200px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 font-bold text-[var(--primary-color)]" data-value="">All Years</button>
+                        @foreach($availableYears as $yr)
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50" data-value="{{ $yr }}">{{ $yr }}</button>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+            @endif
         </div>
 
         @if($evaluations->count() > 0)
@@ -433,9 +455,10 @@
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100">
+                <tbody class="divide-y divide-gray-100" id="historyTableBody">
                     @foreach($evaluations as $eval)
                     @php
+                        $evalYear = substr($eval->period_month, 0, 4);
                         $isApproved = $eval->status === \App\Models\KpiEvaluation::STATUS_HR_APPROVED;
                         $needsSelf  = !$eval->hasSelfAssessment() && !$isApproved;
                         $selfDone   = $eval->hasSelfAssessment();
@@ -454,7 +477,7 @@
                     @endphp
 
                     {{-- Sub-row 1: Self-Assessment --}}
-                    <tr class="hover:bg-gray-50/80 transition-colors {{ $needsSelf ? 'bg-amber-50/30' : '' }}">
+                    <tr class="history-row hover:bg-gray-50/80 transition-colors {{ $needsSelf ? 'bg-amber-50/30' : '' }}" data-year="{{ $evalYear }}">
                         <td rowspan="2" class="px-5 py-4 font-semibold text-gray-900 align-middle border-r border-gray-100">
                             {{ Carbon::createFromFormat('Y-m', $eval->period_month)->format('M Y') }}
                         </td>
@@ -518,20 +541,20 @@
                             <div class="flex flex-col items-center gap-1.5 justify-center">
                                 @if($needsSelf)
                                     <a href="{{ route('general.my-kpi.self-assessment', $eval->id) }}"
-                                       class="inline-flex items-center gap-1 px-3.5 py-1.5 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all w-full justify-center">
-                                        <i class="fas fa-pencil-alt text-xs"></i> Fill Self-Assessment
+                                       class="inline-flex items-center px-3.5 py-1.5 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all w-full justify-center">
+                                        Fill Self-Assessment
                                     </a>
                                 @endif
                                 <a href="?period={{ $eval->period_month }}"
-                                   class="inline-flex items-center gap-1 px-3.5 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-xl hover:bg-gray-200 transition-all w-full justify-center">
-                                    <i class="fas fa-eye text-xs"></i> View Result
+                                   class="inline-flex items-center px-3.5 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-xl hover:bg-gray-200 transition-all w-full justify-center">
+                                    View Result
                                 </a>
                             </div>
                         </td>
                     </tr>
 
                     {{-- Sub-row 2: Supervisor Evaluation --}}
-                    <tr class="hover:bg-gray-50/80 transition-colors {{ $needsSelf ? 'bg-amber-50/30' : '' }} border-b border-gray-200">
+                    <tr class="history-row hover:bg-gray-50/80 transition-colors {{ $needsSelf ? 'bg-amber-50/30' : '' }} border-b border-gray-200" data-year="{{ $evalYear }}">
                         {{-- Supervisor Template --}}
                         <td class="px-5 py-3">
                             <div class="flex items-center gap-2">
@@ -589,6 +612,14 @@
                         </td>
                     </tr>
                     @endforeach
+
+                    {{-- Empty state when filtered year has no results --}}
+                    <tr id="historyEmptyYearRow" class="hidden">
+                        <td colspan="7" class="text-center py-10 text-gray-400 text-xs">
+                            <i class="fas fa-calendar-times text-3xl mb-2 text-gray-300 block"></i>
+                            No evaluation history found for the selected year.
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -625,7 +656,30 @@ if (ctx) {
         }
     });
 }
+
+function onHistoryYearFilterChange(val) {
+    const selectedYear = (typeof val === 'string' ? val : '') || document.getElementById('historyYearInput')?.value || '';
+    const rows = document.querySelectorAll('#historyTableBody tr.history-row');
+    let count = 0;
+    rows.forEach(r => {
+        const y = r.getAttribute('data-year');
+        if (!selectedYear || y === selectedYear) {
+            r.style.display = '';
+            count++;
+        } else {
+            r.style.display = 'none';
+        }
+    });
+    const emptyRow = document.getElementById('historyEmptyYearRow');
+    if (emptyRow) {
+        emptyRow.classList.toggle('hidden', count > 0);
+    }
+}
 </script>
+@php
+    $customDdVer = file_exists(public_path('js/custom-dropdown.js')) ? filemtime(public_path('js/custom-dropdown.js')) : 1;
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 @endsection
 
 

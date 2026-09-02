@@ -113,8 +113,8 @@
         {{-- Score by department (bar) --}}
         <div class="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <h3 class="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                <i class="fas fa-building text-blue-400"></i>
-                Avg Score by Department
+                <i class="fas fa-user-tie text-blue-400"></i>
+                Avg Score by Position
             </h3>
             <div style="height:200px;">
                 <canvas id="deptChart"></canvas>
@@ -138,151 +138,202 @@
             <div class="flex items-center gap-2">
                 @if($canCreate)
                 <button onclick="openBulkCreateModal()"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all">
-                    <i class="fas fa-layer-group text-xs"></i> Bulk Assignment
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all">
+                    Bulk Assignment
                 </button>
                 @endif
             </div>
         </div>
 
-        {{-- ── Single Row Filter & Search Bar (Exact Match Uploaded Design) ────────── --}}
-        <form method="GET" action="{{ route('general.kpi-evaluation.index') }}" id="kpiFilterForm" class="p-4 bg-gray-50/50 border-b border-gray-100 flex flex-col md:flex-row items-center justify-between gap-3 w-full">
+        {{-- Hidden Form for Table Header Filters --}}
+        <form method="GET" action="{{ route('general.kpi-evaluation.index') }}" id="tableFilterForm" class="hidden">
             <input type="hidden" name="period" value="{{ $periodMonth }}">
             <input type="hidden" name="per_page" id="perPageInput" value="{{ $perPage ?? 10 }}">
-
-            <div class="flex items-center gap-3 w-full md:w-auto flex-1 flex-wrap md:flex-nowrap">
-                {{-- 1. Merged Filter Category Dropdown (Left element with teal chevron) --}}
-                <div class="relative min-w-[160px]">
-                    <select name="filter_type" id="filterTypeSelect" onchange="onFilterTypeChange(this.value)"
-                        class="w-full appearance-none bg-gray-50 hover:bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-2xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition-all cursor-pointer shadow-sm">
-                        <option value="all"      {{ ($filterType ?? 'all') === 'all'      ? 'selected' : '' }}>All Staff</option>
-                        <option value="my_team"  {{ ($filterType ?? 'all') === 'my_team'  ? 'selected' : '' }}>My Team</option>
-                        <option value="status"    {{ ($filterType ?? 'all') === 'status'    ? 'selected' : '' }}>By Status</option>
-                        <option value="project"   {{ ($filterType ?? 'all') === 'project'   ? 'selected' : '' }}>By Project</option>
-                        <option value="position"  {{ ($filterType ?? 'all') === 'position'  ? 'selected' : '' }}>By Position</option>
-                        <option value="role"      {{ ($filterType ?? 'all') === 'role'      ? 'selected' : '' }}>By Roles</option>
-                    </select>
-                    {{-- Teal/Cyan Circular Chevron Arrow Icon --}}
-                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                        <span class="w-6 h-6 rounded-full bg-teal-400 text-white flex items-center justify-center text-[10px] shadow-sm">
-                            <i class="fas fa-chevron-down"></i>
-                        </span>
-                    </div>
-                </div>
-
-                {{-- 2. Dynamic Search / Sub-Filter Control Area --}}
-                <div id="dynamicFilterArea" class="flex-1 min-w-[220px]">
-                    {{-- Default Search Input (when filter_type is 'all' or 'my_team') --}}
-                    <div id="textSearchBox" class="relative {{ in_array(($filterType ?? 'all'), ['all', 'my_team']) ? '' : 'hidden' }}">
-                        <input type="text" name="search" value="{{ $search ?? '' }}" placeholder="Search..."
-                            oninput="autoSubmitDebounced()"
-                            class="w-full bg-gray-50 hover:bg-white border border-gray-200 text-gray-700 text-sm rounded-2xl pl-4 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition-all shadow-sm">
-                        <div class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 pointer-events-none">
-                            <i class="fas fa-search text-base"></i>
-                        </div>
-                    </div>
-
-                    {{-- Status Dropdown (when filter_type is 'status') --}}
-                    <div id="statusSelectBox" class="relative {{ ($filterType ?? '') === 'status' ? '' : 'hidden' }}">
-                        <select name="status" onchange="this.form.submit()"
-                            class="w-full appearance-none bg-gray-50 hover:bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-2xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition-all cursor-pointer shadow-sm">
-                            <option value=""             {{ empty($statusFilter) ? 'selected' : '' }}>Select Status...</option>
-                            <option value="not_created"  {{ ($statusFilter ?? '') === 'not_created'  ? 'selected' : '' }}>Not Created</option>
-                            <option value="draft"        {{ ($statusFilter ?? '') === 'draft'        ? 'selected' : '' }}>Draft</option>
-                            <option value="self_assessed"{{ ($statusFilter ?? '') === 'self_assessed' ? 'selected' : '' }}>Self-Assessed</option>
-                            <option value="reviewed"     {{ ($statusFilter ?? '') === 'reviewed'      ? 'selected' : '' }}>Reviewed</option>
-                            <option value="completed"    {{ ($statusFilter ?? '') === 'completed'     ? 'selected' : '' }}>Completed</option>
-                            <option value="hr_approved"  {{ ($statusFilter ?? '') === 'hr_approved'   ? 'selected' : '' }}>Approved</option>
-                            <option value="hr_rejected"  {{ ($statusFilter ?? '') === 'hr_rejected'   ? 'selected' : '' }}>Rejected</option>
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                            <span class="w-6 h-6 rounded-full bg-teal-400 text-white flex items-center justify-center text-[10px] shadow-sm">
-                                <i class="fas fa-chevron-down"></i>
-                            </span>
-                        </div>
-                    </div>
-
-                    {{-- Project Dropdown (when filter_type is 'project') --}}
-                    <div id="projectSelectBox" class="relative {{ ($filterType ?? '') === 'project' ? '' : 'hidden' }}">
-                        <select name="project_id" onchange="this.form.submit()"
-                            class="w-full appearance-none bg-gray-50 hover:bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-2xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition-all cursor-pointer shadow-sm">
-                            <option value="">Select Project...</option>
-                            @foreach($projects as $p)
-                                <option value="{{ $p->id }}" {{ (string)($projectId ?? '') === (string)$p->id ? 'selected' : '' }}>
-                                    {{ $p->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                            <span class="w-6 h-6 rounded-full bg-teal-400 text-white flex items-center justify-center text-[10px] shadow-sm">
-                                <i class="fas fa-chevron-down"></i>
-                            </span>
-                        </div>
-                    </div>
-
-                    {{-- Position Dropdown (when filter_type is 'position') --}}
-                    <div id="positionSelectBox" class="relative {{ ($filterType ?? '') === 'position' ? '' : 'hidden' }}">
-                        <select name="position" onchange="this.form.submit()"
-                            class="w-full appearance-none bg-gray-50 hover:bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-2xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition-all cursor-pointer shadow-sm">
-                            <option value="">Select Position...</option>
-                            @if(isset($positions) && $positions->count() > 0)
-                                @foreach($positions as $pos)
-                                    <option value="{{ $pos }}" {{ ($positionFilter ?? '') === $pos ? 'selected' : '' }}>
-                                        {{ $pos }}
-                                    </option>
-                                @endforeach
-                            @endif
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                            <span class="w-6 h-6 rounded-full bg-teal-400 text-white flex items-center justify-center text-[10px] shadow-sm">
-                                <i class="fas fa-chevron-down"></i>
-                            </span>
-                        </div>
-                    </div>
-
-                    {{-- Role Dropdown (when filter_type is 'role') --}}
-                    <div id="roleSelectBox" class="relative {{ ($filterType ?? '') === 'role' ? '' : 'hidden' }}">
-                        <select name="role_id" onchange="this.form.submit()"
-                            class="w-full appearance-none bg-gray-50 hover:bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-2xl px-4 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition-all cursor-pointer shadow-sm">
-                            <option value="">Select Role...</option>
-                            @if(isset($employeeRoles) && $employeeRoles->count() > 0)
-                                @foreach($employeeRoles as $role)
-                                    <option value="{{ $role->id }}" {{ (string)($roleId ?? '') === (string)$role->id ? 'selected' : '' }}>
-                                        {{ $role->name }}
-                                    </option>
-                                @endforeach
-                            @endif
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                            <span class="w-6 h-6 rounded-full bg-teal-400 text-white flex items-center justify-center text-[10px] shadow-sm">
-                                <i class="fas fa-chevron-down"></i>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Reset Button matching screenshot --}}
-            <a href="{{ route('general.kpi-evaluation.index', ['period' => $periodMonth]) }}"
-               class="px-6 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 text-sm font-semibold rounded-2xl transition-all text-center shadow-sm whitespace-nowrap">
-                Reset
-            </a>
+            <input type="hidden" name="search" id="headerSearchInput" value="{{ $search ?? '' }}">
+            <input type="hidden" name="position" id="headerPositionInput" value="{{ $positionFilter ?? '' }}">
+            <input type="hidden" name="supervisor" id="headerSupervisorInput" value="{{ $supervisorId ?? '' }}">
+            <input type="hidden" name="template_id" id="headerTemplateInput" value="{{ $templateId ?? '' }}">
+            <input type="hidden" name="status" id="headerStatusInput" value="{{ $statusFilter ?? '' }}">
         </form>
 
-        {{-- Table view --}}
+        {{-- Table view with filter icons on the right of header cells --}}
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
-                <thead class="bg-gray-50/80 border-b border-gray-100">
+                <thead class="bg-gray-50/90 border-b border-gray-100 select-none">
                     <tr>
-                        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider w-12">No</th>
-                        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Employee</th>
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Position</th>
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Supervisor</th>
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Template</th>
-                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider w-24">Score</th>
-                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Self Deadline</th>
-                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider w-28">Status</th>
-                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider w-44">Action</th>
+                        {{-- No --}}
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider w-12">
+                            No
+                        </th>
+
+                        {{-- 1. Employee --}}
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-[200px]">
+                            <div class="flex items-center justify-between gap-1.5">
+                                <span>Employee</span>
+                                <button type="button" onclick="toggleHeaderFilter(event, 'employeeFilterBox')"
+                                    class="p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($search) ? 'text-[var(--primary-color)] font-bold' : 'text-gray-400 hover:text-gray-600' }}"
+                                    title="Filter Employee">
+                                    <i class="fas fa-filter text-[10px]"></i>
+                                </button>
+                            </div>
+                            {{-- Floating Search Popover --}}
+                            <div id="employeeFilterBox" class="header-filter-popover hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 p-2.5 z-50 min-w-[220px] normal-case" onclick="event.stopPropagation()">
+                                <div class="relative">
+                                    <input type="text" id="headerEmployeeSearch" value="{{ $search ?? '' }}" placeholder="Search name or ECI..."
+                                        onkeydown="if(event.key==='Enter'){event.preventDefault();onSearchEnter(this.value);}"
+                                        class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--primary-color)] focus:border-[var(--primary-color)] transition-all font-normal">
+                                    <div class="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-400 pointer-events-none">
+                                        <i class="fas fa-search text-[10px]"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
+
+                        {{-- 2. Position --}}
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-[160px]">
+                            <div class="flex items-center justify-between gap-1.5">
+                                <span>Position</span>
+                                <button type="button" onclick="toggleHeaderFilter(event, 'positionFilterBox')"
+                                    class="p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($positionFilter) ? 'text-[var(--primary-color)] font-bold' : 'text-gray-400 hover:text-gray-600' }}"
+                                    title="Filter Position">
+                                    <i class="fas fa-filter text-[10px]"></i>
+                                </button>
+                            </div>
+                            {{-- Floating Position Popover --}}
+                            <div id="positionFilterBox" class="header-filter-popover hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-[190px] max-h-[260px] overflow-y-auto normal-case font-normal" onclick="event.stopPropagation()">
+                                <button type="button" onclick="onPositionHeaderFilterChange('')"
+                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ empty($positionFilter) ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                    All Positions
+                                </button>
+                                @foreach($positions as $pos)
+                                    <button type="button" onclick="onPositionHeaderFilterChange('{{ addslashes($pos) }}')"
+                                        class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($positionFilter ?? '') === $pos ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                        {{ $pos }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        </th>
+
+                        {{-- 3. Supervisor --}}
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-[160px]">
+                            <div class="flex items-center justify-between gap-1.5">
+                                <span>Supervisor</span>
+                                <button type="button" onclick="toggleHeaderFilter(event, 'supervisorFilterBox')"
+                                    class="p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($supervisorId) ? 'text-[var(--primary-color)] font-bold' : 'text-gray-400 hover:text-gray-600' }}"
+                                    title="Filter Supervisor">
+                                    <i class="fas fa-filter text-[10px]"></i>
+                                </button>
+                            </div>
+                            {{-- Floating Supervisor Search Popover --}}
+                            <div id="supervisorFilterBox" class="header-filter-popover hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 p-2.5 z-50 min-w-[220px] normal-case" onclick="event.stopPropagation()">
+                                <div class="relative">
+                                    <input type="text" id="headerSupervisorSearch" value="{{ $supervisorId ?? '' }}" placeholder="Search supervisor name/ECI..."
+                                        onkeydown="if(event.key==='Enter'){event.preventDefault();onSupervisorSearchEnter(this.value);}"
+                                        class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--primary-color)] focus:border-[var(--primary-color)] transition-all font-normal">
+                                    <div class="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-400 pointer-events-none">
+                                        <i class="fas fa-search text-[10px]"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
+
+                        {{-- 4. Template --}}
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-[160px]">
+                            <div class="flex items-center justify-between gap-1.5">
+                                <span>Template</span>
+                                <button type="button" onclick="toggleHeaderFilter(event, 'templateFilterBox')"
+                                    class="p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($templateId) ? 'text-[var(--primary-color)] font-bold' : 'text-gray-400 hover:text-gray-600' }}"
+                                    title="Filter Template">
+                                    <i class="fas fa-filter text-[10px]"></i>
+                                </button>
+                            </div>
+                            {{-- Floating Template Popover --}}
+                            <div id="templateFilterBox" class="header-filter-popover hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-[200px] max-h-[260px] overflow-y-auto normal-case font-normal" onclick="event.stopPropagation()">
+                                <button type="button" onclick="onTemplateHeaderFilterChange('')"
+                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ empty($templateId) ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                    All Templates
+                                </button>
+                                @foreach($activeTemplates as $tmpl)
+                                    <button type="button" onclick="onTemplateHeaderFilterChange('{{ $tmpl->id }}')"
+                                        class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ (string)($templateId ?? '') === (string)$tmpl->id ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                        {{ $tmpl->name }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        </th>
+
+                        {{-- 5. Self Score --}}
+                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
+                            Self Score
+                        </th>
+
+                        {{-- 6. SPV Score --}}
+                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
+                            SPV Score
+                        </th>
+
+                        {{-- 7. Status --}}
+                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-[140px]">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <span>Status</span>
+                                <button type="button" onclick="toggleHeaderFilter(event, 'statusFilterBox')"
+                                    class="p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($statusFilter) ? 'text-[var(--primary-color)] font-bold' : 'text-gray-400 hover:text-gray-600' }}"
+                                    title="Filter Status">
+                                    <i class="fas fa-filter text-[10px]"></i>
+                                </button>
+                            </div>
+                            {{-- Floating Status Popover --}}
+                            <div id="statusFilterBox" class="header-filter-popover hidden absolute top-full right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-[160px] text-left normal-case font-normal" onclick="event.stopPropagation()">
+                                <button type="button" onclick="onStatusHeaderFilterChange('')"
+                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ empty($statusFilter) ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                    All Status
+                                </button>
+                                <button type="button" onclick="onStatusHeaderFilterChange('not_created')"
+                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'not_created' ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                    Not Created
+                                </button>
+                                <button type="button" onclick="onStatusHeaderFilterChange('draft')"
+                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'draft' ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                    Draft
+                                </button>
+                                <button type="button" onclick="onStatusHeaderFilterChange('self_assessed')"
+                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'self_assessed' ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                    Self-Assessed
+                                </button>
+                                <button type="button" onclick="onStatusHeaderFilterChange('reviewed')"
+                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'reviewed' ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                    Reviewed
+                                </button>
+                                <button type="button" onclick="onStatusHeaderFilterChange('completed')"
+                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'completed' ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                    Completed
+                                </button>
+                                <button type="button" onclick="onStatusHeaderFilterChange('hr_approved')"
+                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'hr_approved' ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                    Approved
+                                </button>
+                                <button type="button" onclick="onStatusHeaderFilterChange('hr_rejected')"
+                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'hr_rejected' ? 'font-bold text-[var(--primary-color)]' : '' }}">
+                                    Rejected
+                                </button>
+                            </div>
+                        </th>
+
+                        {{-- 8. Action --}}
+                        @php
+                            $hasActiveFilters = !empty($search) || !empty($positionFilter) || !empty($statusFilter) || !empty($supervisorId) || !empty($templateId);
+                        @endphp
+                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
+                            @if($hasActiveFilters)
+                                <a href="{{ route('general.kpi-evaluation.index', ['period' => $periodMonth]) }}"
+                                   class="inline-flex items-center justify-center px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg transition-all shadow-sm normal-case"
+                                   title="Reset all filters">
+                                    Reset
+                                </a>
+                            @else
+                                <span>Action</span>
+                            @endif
+                        </th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
@@ -293,6 +344,14 @@
                     @php
                         $eval = $evalMap->get($emp->employee_id);
                         $bd = $emp->basicData;
+                        $selfScore = ($eval && $eval->hasSelfAssessment() && $eval->details->isNotEmpty())
+                            ? $eval->details->whereNotNull('self_achievement')->avg('self_achievement')
+                            : null;
+                        $spvScore = ($eval && $eval->overall_score !== null)
+                            ? $eval->overall_score
+                            : (($eval && $eval->hasSupervisorReview() && $eval->details->isNotEmpty())
+                                ? $eval->details->whereNotNull('supervisor_score')->avg('supervisor_score')
+                                : null);
                     @endphp
                     <tr class="hover:bg-gray-50/70 transition-colors">
                         {{-- Row Numbering with pagination offset support --}}
@@ -322,24 +381,24 @@
                                 @endforeach
                             </select>
                         </td>
-                        {{-- Score --}}
+                        {{-- Self Score --}}
                         <td class="px-4 py-3.5 text-center font-bold text-sm">
-                            @if($eval && $eval->status === \App\Models\KpiEvaluation::STATUS_HR_APPROVED && $eval->overall_score)
-                                <span class="text-gray-900">{{ number_format($eval->overall_score, 2) }}</span>
-                            @elseif($eval && $eval->overall_score)
-                                <span class="text-gray-500">{{ number_format($eval->overall_score, 2) }}</span>
+                            @if($selfScore !== null)
+                                <span class="text-gray-900">{{ number_format($selfScore, 1) }}</span>
+                            @elseif($eval && $eval->hasSelfAssessment())
+                                <span class="text-xs text-purple-600 font-medium">Submitted</span>
                             @else
                                 <span class="text-gray-300">—</span>
                             @endif
                         </td>
-                        {{-- Self Deadline (Select Calendar Datepicker) --}}
-                        <td class="px-4 py-3.5 text-center">
-                            @if($eval)
-                                <input type="date" value="{{ $eval->self_deadline?->format('Y-m-d') }}"
-                                    onchange="updateEvaluationDeadline({{ $eval->id }}, this.value)"
-                                    class="px-2 py-1 text-xs border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-300 bg-white text-gray-700 cursor-pointer shadow-sm">
+                        {{-- SPV Score --}}
+                        <td class="px-4 py-3.5 text-center font-bold text-sm">
+                            @if($spvScore !== null)
+                                <span class="text-gray-900">{{ number_format($spvScore, 1) }}</span>
+                            @elseif($eval && $eval->hasSupervisorReview())
+                                <span class="text-xs text-indigo-600 font-medium">Reviewed</span>
                             @else
-                                <span class="text-gray-300 text-xs">—</span>
+                                <span class="text-gray-300">—</span>
                             @endif
                         </td>
                         {{-- Status --}}
@@ -364,26 +423,26 @@
                                 </span>
                             @endif
                         </td>
-                        {{-- Action --}}
+                        {{-- Action (buttons without icons inside) --}}
                         <td class="px-4 py-3.5 text-center">
                             @if($eval)
                                 <div class="flex items-center justify-center gap-1.5">
                                     @if($eval->status === 'draft')
                                     <a href="{{ route('general.kpi-evaluation.review', $eval->id) }}"
-                                       class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-all shadow-sm">
-                                        <i class="fas fa-edit text-xs"></i> Continue Draft
+                                       class="inline-flex items-center px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-all shadow-sm">
+                                        Continue Draft
                                     </a>
                                     @else
                                     <a href="{{ route('general.kpi-evaluation.review', $eval->id) }}"
-                                       class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold hover:bg-blue-100 transition-all">
-                                        <i class="fas fa-eye text-xs"></i> {{ $eval->status === 'hr_approved' ? 'View' : 'Review' }}
+                                       class="inline-flex items-center px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold hover:bg-blue-100 transition-all">
+                                        {{ $eval->status === 'hr_approved' ? 'View' : 'Review' }}
                                     </a>
                                     @endif
 
                                     @if($canCreate && in_array($eval->status, ['draft', 'hr_rejected']))
                                     <button onclick="deleteEval({{ $eval->id }})"
-                                        class="w-7 h-7 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100 border border-red-200 transition-all">
-                                        <i class="fas fa-trash-alt text-xs"></i>
+                                        class="px-2.5 py-1.5 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 border border-red-200 text-xs font-semibold transition-all">
+                                        Delete
                                     </button>
                                     @endif
                                 </div>
@@ -445,7 +504,8 @@
 
                 @for($p = $start; $p <= $end; $p++)
                     @if($p == $current)
-                        <span class="w-8 h-8 rounded-lg bg-[#00c5a2] text-white font-bold flex items-center justify-center text-xs shadow-sm">
+                        <span class="w-8 h-8 rounded-lg primary-surface text-white font-bold flex items-center justify-center text-xs shadow-sm"
+                              style="background: var(--primary-surface, var(--primary-color)) !important;">
                             {{ $p }}
                         </span>
                     @else
@@ -489,7 +549,7 @@
                 <span class="text-xs text-gray-500 font-normal">Rows per page:</span>
                 <div class="relative">
                     <select onchange="changePerPage(this.value)"
-                        class="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#00c5a2] cursor-pointer shadow-sm transition-all">
+                        class="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-1 focus:ring-[var(--primary-color)] cursor-pointer shadow-sm transition-all">
                         <option value="10" {{ ($perPage ?? 10) == 10 ? 'selected' : '' }}>10</option>
                         <option value="15" {{ ($perPage ?? 10) == 15 ? 'selected' : '' }}>15</option>
                         <option value="25" {{ ($perPage ?? 10) == 25 ? 'selected' : '' }}>25</option>
@@ -647,8 +707,8 @@
                     Cancel
                 </button>
                 <button type="submit" id="bulkSubmitBtn"
-                    class="inline-flex items-center gap-2 px-6 py-2.5 primary-gradient text-white text-sm font-semibold rounded-xl shadow hover:opacity-90">
-                    <i class="fas fa-check text-xs"></i> Confirm & Start KPI
+                    class="inline-flex items-center px-6 py-2.5 primary-gradient text-white text-sm font-semibold rounded-xl shadow hover:opacity-90">
+                    Confirm & Start KPI
                 </button>
             </div>
         </form>
@@ -717,6 +777,28 @@ function trendOptions() {
     };
 }
 
+async function switchTrend(type) {
+    document.querySelectorAll('#trendTabs button').forEach(btn => {
+        btn.className = 'px-3 py-1 text-xs font-medium rounded-lg transition-all bg-gray-100 text-gray-600 hover:bg-gray-200';
+    });
+    const activeTab = document.getElementById('tab-' + type);
+    if (activeTab) {
+        activeTab.className = 'px-3 py-1 text-xs font-medium rounded-lg transition-all primary-gradient text-white shadow';
+    }
+
+    try {
+        const res = await fetch(`{{ route('general.kpi-evaluation.dashboard-data') }}?view=${type}&period={{ $periodMonth }}`);
+        const data = await res.json();
+        if (data && data.trend && trendChart) {
+            trendChart.data.labels = data.trend.map(d => d.label);
+            trendChart.data.datasets[0].data = data.trend.map(d => d.avg_score);
+            trendChart.update();
+        }
+    } catch (e) {
+        console.error('Error fetching trend data:', e);
+    }
+}
+
 // Bulk modal functions
 function openBulkCreateModal() { document.getElementById('bulkCreateModal')?.classList.remove('hidden'); }
 function closeBulkCreateModal() { document.getElementById('bulkCreateModal')?.classList.add('hidden'); }
@@ -743,6 +825,7 @@ function filterRoleCheckboxes() {
         item.style.display = item.textContent.toLowerCase().includes(q) ? '' : 'none';
     });
 }
+
 function selectAllEmps(checked) {
     document.querySelectorAll('#empChecklist input[type="checkbox"]').forEach(c => c.checked = checked);
 }
@@ -750,30 +833,76 @@ function selectAllRoles(checked) {
     document.querySelectorAll('#roleChecklist input[type="checkbox"]').forEach(c => c.checked = checked);
 }
 
-// Inline start
-async function startInlineEval(e, empId) {
-    e.preventDefault();
-    const form = e.target;
-    const templateId = form.template_id.value;
-    if (!templateId) { showToast('Please select a template first.', 'error'); return; }
+// ── Floating Header Filter Popover Toggler ─────────────────────────────────
+function toggleHeaderFilter(e, popoverId) {
+    e.stopPropagation();
+    const target = document.getElementById(popoverId);
+    const isHidden = target?.classList.contains('hidden');
 
-    const data = new FormData();
-    data.append('employee_id', empId);
-    data.append('template_id', templateId);
-    data.append('period_month', '{{ $periodMonth }}');
+    // Close all other header popovers
+    document.querySelectorAll('.header-filter-popover').forEach(p => p.classList.add('hidden'));
 
-    const res  = await fetch('{{ route("general.kpi-evaluation.store") }}', {
-        method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }, body: data,
-    });
-    const result = await res.json();
-    showToast(result.message, result.success ? 'success' : 'error');
-    if (result.success) setTimeout(() => location.reload(), 1000);
+    if (target && isHidden) {
+        target.classList.remove('hidden');
+        const input = target.querySelector('input');
+        if (input) setTimeout(() => input.focus(), 50);
+    }
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.header-filter-popover')) {
+        document.querySelectorAll('.header-filter-popover').forEach(p => p.classList.add('hidden'));
+    }
+});
+
+// ── Header Column Filter Handlers ──────────────────────────────────────────
+function onSearchEnter(val) {
+    const input = document.getElementById('headerSearchInput');
+    if (input) input.value = val;
+    document.getElementById('tableFilterForm')?.submit();
+}
+
+function onPositionHeaderFilterChange(val) {
+    const el = document.getElementById('headerPositionInput');
+    if (el) el.value = val;
+    document.getElementById('tableFilterForm')?.submit();
+}
+
+function onSupervisorSearchEnter(val) {
+    const el = document.getElementById('headerSupervisorInput');
+    if (el) el.value = val;
+    document.getElementById('tableFilterForm')?.submit();
+}
+
+function onSupervisorHeaderFilterChange(val) {
+    const el = document.getElementById('headerSupervisorInput');
+    if (el) el.value = val;
+    document.getElementById('tableFilterForm')?.submit();
+}
+
+function onTemplateHeaderFilterChange(val) {
+    const el = document.getElementById('headerTemplateInput');
+    if (el) el.value = val;
+    document.getElementById('tableFilterForm')?.submit();
+}
+
+function onStatusHeaderFilterChange(val) {
+    const el = document.getElementById('headerStatusInput');
+    if (el) el.value = val;
+    document.getElementById('tableFilterForm')?.submit();
+}
+
+function changePerPage(val) {
+    const input = document.getElementById('perPageInput');
+    if (input) input.value = val;
+    document.getElementById('tableFilterForm')?.submit();
 }
 
 async function submitBulkCreate(e) {
     e.preventDefault();
     const btn = document.getElementById('bulkSubmitBtn');
-    btn.disabled = true; btn.innerHTML = `<i class="fas fa-circle-notch fa-spin text-xs"></i> Processing...`;
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
 
     const res  = await fetch('{{ route("general.kpi-evaluation.store") }}', {
         method: 'POST',
@@ -782,55 +911,13 @@ async function submitBulkCreate(e) {
     });
     const data = await res.json();
     showToast(data.message, data.success ? 'success' : 'error');
-    if (data.success) setTimeout(() => location.reload(), 1000);
-    else { btn.disabled = false; btn.innerHTML = `<i class="fas fa-check text-xs"></i> Confirm & Start KPI`; }
-}
-
-// ── Dynamic Filter Switching & Auto-Submit ─────────────────────────────────
-function onFilterTypeChange(type) {
-    const textSearch   = document.getElementById('textSearchBox');
-    const statusSelect = document.getElementById('statusSelectBox');
-    const projSelect   = document.getElementById('projectSelectBox');
-    const posSelect    = document.getElementById('positionSelectBox');
-    const roleSelect   = document.getElementById('roleSelectBox');
-
-    textSearch?.classList.add('hidden');
-    statusSelect?.classList.add('hidden');
-    projSelect?.classList.add('hidden');
-    posSelect?.classList.add('hidden');
-    roleSelect?.classList.add('hidden');
-
-    if (type === 'status') {
-        statusSelect?.classList.remove('hidden');
-    } else if (type === 'project') {
-        projSelect?.classList.remove('hidden');
-    } else if (type === 'position') {
-        posSelect?.classList.remove('hidden');
-    } else if (type === 'role') {
-        roleSelect?.classList.remove('hidden');
+    if (data.success) {
+        setTimeout(() => location.reload(), 1000);
     } else {
-        textSearch?.classList.remove('hidden');
-    }
-
-    if (type === 'all' || type === 'my_team') {
-        document.getElementById('kpiFilterForm')?.submit();
+        btn.disabled = false;
+        btn.textContent = 'Confirm & Start KPI';
     }
 }
-
-let searchDebounceTimer;
-function autoSubmitDebounced() {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => {
-        document.getElementById('kpiFilterForm')?.submit();
-    }, 400);
-}
-
-function changePerPage(val) {
-    const input = document.getElementById('perPageInput');
-    if (input) input.value = val;
-    document.getElementById('kpiFilterForm')?.submit();
-}
-
 // ── Auto-save Template Selection (No Start Button Needed) ───────────────────
 async function autoSaveEvaluationTemplate(empId, evalId, templateId) {
     if (!templateId) return;
@@ -888,4 +975,8 @@ async function deleteEval(id) {
     if (data.success) setTimeout(() => location.reload(), 800);
 }
 </script>
+@php
+    $customDdVer = file_exists(public_path('js/custom-dropdown.js')) ? filemtime(public_path('js/custom-dropdown.js')) : 1;
+@endphp
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 @endsection
