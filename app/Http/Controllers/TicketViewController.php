@@ -11,6 +11,7 @@ use App\Models\CustomerMandays;
 use App\Models\Module;
 use App\Models\TicketSlaPause;
 use App\Support\SessionUser;
+use App\Support\TicketTeamAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -165,20 +166,33 @@ class TicketViewController extends Controller
             })
             ->toArray();
 
-        // Get employees eligible for the member dropdown (role-based, configurable via
-        // Management > Permissions — see ticket.eligible-ticket-member)
-        $employees = Employee::withMenuPermission('ticket.eligible-ticket-member')
-            ->where('is_active', 1)
-            ->with('basicData:employee_id,first_name,last_name')
-            ->get()
-            ->map(fn ($e) => [
-                'employee_id' => $e->employee_id,
-                'name'        => trim(($e->basicData->first_name ?? '') . ' ' . ($e->basicData->last_name ?? '')),
-            ])
-            ->filter(fn ($e) => $e['name'] !== '')
-            ->sortBy('name')
-            ->values()
-            ->toArray();
+        // Bisakah user kelola tim tiket ini lewat jalur "team lead" (Ticket Lead
+        // tiket ini / Module Lead di module mana pun) — murni data-driven, bukan menu.
+        $canAssignPic        = (bool) ($employee?->hasPermission('ticket.assign-pic'));
+        $canManageTicketTeam = TicketTeamAccess::canManageAsLead((int) $user->id, $ticket);
+
+        // Kandidat member dropdown:
+        //  - role manajemen (assign-pic) → daftar eligible-ticket-member penuh (perilaku lama)
+        //  - jalur team lead (tanpa assign-pic) → anggota module tiket kalau punya
+        //    module_id, else fallback ke daftar eligible penuh (tiket lama)
+        if (!$canAssignPic && $canManageTicketTeam) {
+            $employees = TicketTeamAccess::candidatesForTicket($ticket, 'ticket.eligible-ticket-member');
+        } else {
+            // Get employees eligible for the member dropdown (role-based, configurable via
+            // Management > Permissions — see ticket.eligible-ticket-member)
+            $employees = Employee::withMenuPermission('ticket.eligible-ticket-member')
+                ->where('is_active', 1)
+                ->with('basicData:employee_id,first_name,last_name')
+                ->get()
+                ->map(fn ($e) => [
+                    'employee_id' => $e->employee_id,
+                    'name'        => trim(($e->basicData->first_name ?? '') . ' ' . ($e->basicData->last_name ?? '')),
+                ])
+                ->filter(fn ($e) => $e['name'] !== '')
+                ->sortBy('name')
+                ->values()
+                ->toArray();
+        }
 
         // Approved customer mandays total (for Properties panel) — sum of every
         // approved version, same logic as the "Customer Mandays" column in the
@@ -235,6 +249,7 @@ class TicketViewController extends Controller
             'inMeeting'          => $inMeeting,
             'isExternalEmployee' => $isExternalEmployee,
             'modules'            => $modules,
+            'canManageTicketTeam' => $canManageTicketTeam,
         ]);
     }
 }

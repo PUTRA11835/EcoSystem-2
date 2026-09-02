@@ -13,89 +13,6 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         <h2 class="text-2xl font-bold text-gray-900">Employee Management</h2>
     </div>
 
-    <!-- Filter Section -->
-    <div class="bg-gray-50 rounded-lg p-5 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Status</label>
-                <div class="custom-dd relative" data-onchange="applyFilters">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Status</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterStatus" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="active">Active</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="blocked">Inactive</button>
-                    </div>
-                </div>
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Employee</label>
-                <input type="text" id="filterEmployee" placeholder="Search by ECI or name..." oninput="debouncedApplyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Department</label>
-                <input type="text" id="filterDepartment" placeholder="Search department..." oninput="debouncedApplyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Module</label>
-                <div class="custom-dd relative" id="ddFilterModules" data-multi="true" data-onchange="applyFilters">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Modules</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterModules" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Modules</button>
-                        <!-- Module items populated dynamically from /api/modules -->
-                    </div>
-                </div>
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Home Base</label>
-                <div class="custom-dd relative" id="ddFilterHomeBase" data-multi="true" data-onchange="applyFilters">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Home Base</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterHomeBase" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Home Base</button>
-                        @foreach(\App\Enums\HomeBase::options() as $hb)
-                        <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $hb }}"><span class="custom-dd-item-text">{{ $hb }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Position</label>
-                <div class="custom-dd relative" id="ddFilterPosition" data-multi="true" data-onchange="applyFilters">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Position</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterPosition" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Position</button>
-                        @foreach(($positionOptions ?? []) as $pos)
-                        <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pos }}"><span class="custom-dd-item-text">{{ $pos }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="flex gap-3 justify-end">
-            <button onclick="applyFilters()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Apply
-            </button>
-            <button onclick="resetFilters()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                Reset
-            </button>
-        </div>
-    </div>
-
     <!-- Table Section -->
     <div class="mt-6">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
@@ -122,16 +39,122 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             <table class="w-full" style="min-width:1600px;">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:100px;">ECI</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:200px;">Full Name</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Position</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Module</th>
+                        {{-- ECI: keyword search filter (ECI or name) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky left-0 bg-gray-50 z-20" style="min-width:100px;">
+                            <button type="button" id="empFilterBtn" onclick="toggleEmpFilter(event)"
+                                class="w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">ECI</span>
+                                <svg id="empFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <div id="empFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search by ECI or name</label>
+                                <input type="text" id="filterEmployee" placeholder="e.g. ECI001 or John…"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                    oninput="onEmpFilterInput()">
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearEmpFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- FULL NAME: no filter --}}
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky bg-gray-50 z-20" style="min-width:200px;left:100px;">Full Name</th>
+                        {{-- POSITION: column filter dropdown --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50">
+                            <div class="custom-dd relative w-full" id="ddFilterPosition" data-multi="true" data-onchange="applyFilters">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Position</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                <input type="hidden" id="filterPosition" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:260px;min-width:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All Position</button>
+                                    @foreach(($positionOptions ?? []) as $pos)
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="{{ $pos }}"><span class="custom-dd-item-text">{{ $pos }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </th>
+                        {{-- MODULE: column filter dropdown (populated dynamically from /api/modules) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50">
+                            <div class="custom-dd relative w-full" id="ddFilterModules" data-multi="true" data-onchange="applyFilters">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Module</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                <input type="hidden" id="filterModules" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:260px;min-width:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All Modules</button>
+                                    <!-- Module items populated dynamically from /api/modules -->
+                                </div>
+                            </div>
+                        </th>
+                        {{-- EMPLOYEE GROUP: no filter --}}
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:130px;">Employee Group</th>
+                        {{-- DIVISION: no filter --}}
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Division</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:220px;">Department</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Home Base</th>
+                        {{-- DEPARTMENT: keyword search filter --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:220px;">
+                            <button type="button" id="deptFilterBtn" onclick="toggleDeptFilter(event)"
+                                class="w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Department</span>
+                                <svg id="deptFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <div id="deptFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search department</label>
+                                <input type="text" id="filterDepartment" placeholder="Search department..."
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                    oninput="onDeptFilterInput()">
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearDeptFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- HOME BASE: column filter dropdown --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50">
+                            <div class="custom-dd relative w-full" id="ddFilterHomeBase" data-multi="true" data-onchange="applyFilters">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Home Base</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                <input type="hidden" id="filterHomeBase" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:260px;min-width:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All Home Base</button>
+                                    @foreach(\App\Enums\HomeBase::options() as $hb)
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="{{ $hb }}"><span class="custom-dd-item-text">{{ $hb }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </th>
+                        {{-- SINCE DATE: no filter --}}
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Since Date</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Status</th>
+                        {{-- STATUS: column filter dropdown (single-select) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50">
+                            <div class="custom-dd relative w-full" id="ddFilterStatus" data-onchange="applyFilters">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Status</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-all duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                <input type="hidden" id="filterStatus" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:160px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All Status</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="active">Active</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="blocked">Inactive</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- ACTIONS: no filter --}}
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Actions</th>
                     </tr>
                 </thead>
@@ -865,6 +888,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         const tbody = document.getElementById('employeeTableBody');
 
         if (data.length === 0) {
+            const activeFilters = Object.values(getCurrentFilters()).some(v => v);
             tbody.innerHTML = `
                 <tr>
                     <td colspan="11" class="px-4 py-16 text-center">
@@ -872,7 +896,11 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                         </svg>
                         <p class="text-base font-medium text-gray-900 mb-2">No employees found</p>
-                        <small class="text-sm text-gray-500">Click "Create Employee" to add a new employee</small>
+                        ${activeFilters
+                            ? `<small class="text-sm text-gray-500 block mb-4">Try adjusting or clearing your filters</small>
+                               <button onclick="resetFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Clear Filters</button>`
+                            : `<small class="text-sm text-gray-500">Click "Create Employee" to add a new employee</small>`
+                        }
                     </td>
                 </tr>
             `;
@@ -1363,12 +1391,6 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         window.location.href = '{{ route("master.employee.export") }}' + (qs ? '?' + qs : '');
     }
 
-    let _employeeSearchTimer;
-    function debouncedApplyFilters() {
-        clearTimeout(_employeeSearchTimer);
-        _employeeSearchTimer = setTimeout(applyFilters, 400);
-    }
-
     function resetFilters() {
         if (typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('filterStatus', '');
@@ -1386,9 +1408,126 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             document.getElementById('filterHomeBase').value = '';
             document.getElementById('filterPosition').value = '';
         }
+        updateEmpFilterIndicator();
+        updateDeptFilterIndicator();
         currentPage = 1;
         fetchEmployees({});
     }
+
+    // ── Column Header Filters: ECI/Name & Department (keyword, debounced) ──────
+    // Mirrors the ticket list's per-column filter pattern (button in <th> that
+    // toggles a floating panel) — replaces the old filter box above the table.
+    let _empFilterTimer = null;
+
+    function toggleEmpFilter(ev) {
+        ev?.stopPropagation();
+        const panel = document.getElementById('empFilterPanel');
+        const btn = document.getElementById('empFilterBtn');
+        const open = !panel.classList.contains('hidden');
+        closeDeptFilter();
+        if (open) {
+            panel.classList.add('hidden');
+            return;
+        }
+        // Move to body to escape the sticky-th stacking context so clicks work.
+        if (panel.parentElement !== document.body) document.body.appendChild(panel);
+        positionPanelUnder(btn, panel);
+        panel.classList.remove('hidden');
+        document.getElementById('filterEmployee')?.focus();
+    }
+
+    function closeEmpFilter() {
+        document.getElementById('empFilterPanel')?.classList.add('hidden');
+    }
+
+    function onEmpFilterInput() {
+        updateEmpFilterIndicator();
+        clearTimeout(_empFilterTimer);
+        _empFilterTimer = setTimeout(applyFilters, 400);
+    }
+
+    function clearEmpFilter() {
+        const input = document.getElementById('filterEmployee');
+        if (input) input.value = '';
+        updateEmpFilterIndicator();
+        applyFilters();
+    }
+
+    function updateEmpFilterIndicator() {
+        const kw = (document.getElementById('filterEmployee')?.value || '').trim();
+        const icon = document.getElementById('empFilterIcon');
+        if (icon) {
+            icon.classList.toggle('text-red-500', kw !== '');
+            icon.classList.toggle('text-gray-300', kw === '');
+        }
+    }
+
+    let _deptFilterTimer = null;
+
+    function toggleDeptFilter(ev) {
+        ev?.stopPropagation();
+        const panel = document.getElementById('deptFilterPanel');
+        const btn = document.getElementById('deptFilterBtn');
+        const open = !panel.classList.contains('hidden');
+        closeEmpFilter();
+        if (open) {
+            panel.classList.add('hidden');
+            return;
+        }
+        positionPanelUnder(btn, panel);
+        panel.classList.remove('hidden');
+        document.getElementById('filterDepartment')?.focus();
+    }
+
+    function closeDeptFilter() {
+        document.getElementById('deptFilterPanel')?.classList.add('hidden');
+    }
+
+    function onDeptFilterInput() {
+        updateDeptFilterIndicator();
+        clearTimeout(_deptFilterTimer);
+        _deptFilterTimer = setTimeout(applyFilters, 400);
+    }
+
+    function clearDeptFilter() {
+        const input = document.getElementById('filterDepartment');
+        if (input) input.value = '';
+        updateDeptFilterIndicator();
+        applyFilters();
+    }
+
+    function updateDeptFilterIndicator() {
+        const kw = (document.getElementById('filterDepartment')?.value || '').trim();
+        const icon = document.getElementById('deptFilterIcon');
+        if (icon) {
+            icon.classList.toggle('text-red-500', kw !== '');
+            icon.classList.toggle('text-gray-300', kw === '');
+        }
+    }
+
+    // Position floating panel right under the column header button (handles overflow:auto)
+    function positionPanelUnder(btn, panel) {
+        const rect = btn.getBoundingClientRect();
+        panel.style.position = 'fixed';
+        panel.style.top = (rect.bottom + 4) + 'px';
+        panel.style.left = rect.left + 'px';
+    }
+
+    // Close popovers on outside click / Escape
+    document.addEventListener('click', (e) => {
+        const ep = document.getElementById('empFilterPanel');
+        const eb = document.getElementById('empFilterBtn');
+        if (ep && !ep.classList.contains('hidden') && !ep.contains(e.target) && !eb.contains(e.target)) ep.classList.add('hidden');
+        const dp = document.getElementById('deptFilterPanel');
+        const db = document.getElementById('deptFilterBtn');
+        if (dp && !dp.classList.contains('hidden') && !dp.contains(e.target) && !db.contains(e.target)) dp.classList.add('hidden');
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeEmpFilter();
+            closeDeptFilter();
+        }
+    });
 
 
 
@@ -1649,6 +1788,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             document.getElementById('filterModules').value    = restored.modules    || '';
             if (restored.page) currentPage = restored.page;
         }
+        updateEmpFilterIndicator();
+        updateDeptFilterIndicator();
 
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
 

@@ -445,6 +445,10 @@
         $canTakeTicket     = $can('ticket.take') && !$ticketAssigned;
         $canAssignPic      = $can('ticket.assign-pic');
         $canAssignDelivery = $can('ticket.assign-delivery-support');
+        // Ticket Lead tiket ini / Module Lead (module mana pun) → boleh assign Ticket
+        // Lead & kelola member walau tanpa permission manajemen (data-driven).
+        $canManageTicketTeam  = $canManageTicketTeam ?? false;
+        $canAssignTicketLead  = $canAssignPic || $canManageTicketTeam;
         // Change Request tickets: only the ticket's team lead (not other members) may
         // propose Customer Mandays. Head-level permission bypasses this restriction.
         $isChangeRequestTicket  = $ticket->ticket_type === 'Change Request';
@@ -459,7 +463,7 @@
         // (jika punya keduanya, Helpdesk block sudah cukup — hindari duplikasi Customer Mandays di sidebar)
         $isHeadCustomerMandays  = $isHead && !$isHelpdesk && $ticketAssigned;
         $hasMandaysSection = $isPicCustomerMandays || $isPicResolutionDays || $isHelpdeskMandays || $isHeadMandays || $isHeadCustomerMandays
-                           || $canTakeTicket || $canAssignPic || $canAssignDelivery;
+                           || $canTakeTicket || $canAssignTicketLead || $canAssignDelivery;
     @endphp
 
     <div id="rightSidePanel" class="hidden xl:flex xl:flex-col w-64 gap-3 flex-shrink-0 overflow-y-auto" style="transition: width 0.25s ease, opacity 0.25s ease;">
@@ -541,8 +545,8 @@
                     </button>
                 </div>
                 @endif
-                {{-- Assign / Change Ticket Lead (TICKET_MANAGER_GROUP) --}}
-                @if($canAssignPic)
+                {{-- Assign / Change Ticket Lead (TICKET_MANAGER_GROUP, atau Ticket Lead tiket ini / Module Lead) --}}
+                @if($canAssignTicketLead)
                 <div>
                     <button onclick="openAssignTicketLeadModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         {{ $ticketAssigned ? 'Change Ticket Lead' : 'Assign Ticket Lead' }}
@@ -715,7 +719,8 @@
                 @php
                     $canEditPic = $can('ticket.assign-pic')
                         || $ticket->ticket_lead_id == $user->id
-                        || $ticket->members->contains('employee_id', $user->id);
+                        || $ticket->members->contains('employee_id', $user->id)
+                        || ($canManageTicketTeam ?? false); // Ticket Lead tiket ini / Module Lead
                     $picOptions = [];
                     if ($ticket->ticketLead && $ticket->ticketLead->basicData) {
                         $leadName = trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? ''));
@@ -749,10 +754,11 @@
                 </div>
                 {{-- Team Members --}}
                 @php
-                    $canManageMembers = $can('ui.ticket.manage-members') && (
+                    $canManageMembers = ($can('ui.ticket.manage-members') && (
                             !$user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value) // non-DS-User roles: always OK
                             || $ticket->ticket_lead_id == $user->id                          // DS User: only if they are the lead
-                        );
+                        ))
+                        || $canManageTicketTeam; // Ticket Lead tiket ini / Module Lead (data-driven)
                     $allMemberIds = $ticket->allMembers->pluck('employee_id')->toArray();
                 @endphp
                 <div class="pt-3 border-t border-gray-200">
@@ -1755,8 +1761,8 @@
 </div>
 @endif
 
-{{-- Assign Ticket Lead Modal (Admin / Helpdesk / Delivery Support Head) --}}
-@if($canAssignPic)
+{{-- Assign Ticket Lead Modal (Admin / Helpdesk / Delivery Support Head, atau Ticket Lead tiket ini / Module Lead) --}}
+@if($canAssignTicketLead)
 <div id="assignTicketLeadModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl flex flex-col">
         <div class="flex justify-between items-center px-5 py-4 border-b border-gray-200">
@@ -5853,7 +5859,7 @@
 
         if (assignTicketLeadList.length === 0) {
             try {
-                const res  = await fetch('/api/tickets/available-ticket-leads', { headers: getHeaders(), credentials: 'same-origin' });
+                const res  = await fetch(`/api/tickets/available-ticket-leads?ticket_id=${ticketId}`, { headers: getHeaders(), credentials: 'same-origin' });
                 const data = await res.json();
                 assignTicketLeadList = data.data || [];
             } catch (e) {
