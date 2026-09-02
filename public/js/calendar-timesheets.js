@@ -122,6 +122,7 @@ const SUPPORT_THEAD_HTML = `<tr>
     <th class="${TH_PLAIN}" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
     <th class="${TH_FILT}" style="min-width:110px; position:relative;"><button type="button" onclick="toggleTsDatePanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Submit Date</span>${CHEVRON_SVG}${FUNNEL_SVG('tsDateFilterIcon')}<span id="tsSortDateIcon" onclick="event.stopPropagation(); toggleTsDateSort()" title="Click to toggle sort (descending ↔ ascending)" class="cursor-pointer text-[10px] text-red-500 font-bold shrink-0 ml-auto hover:text-red-700 transition-colors">↓</span></button>${_DATE_FILTER_PANEL}</th>
     <th class="${TH_PLAIN}" style="min-width:100px;">Activity Date</th>
+    <th class="${TH_PLAIN}" style="min-width:110px;">Time</th>
     <th class="${TH_FILT}" style="min-width:85px;">${_mkMonthDd()}</th>
     <th class="${TH_FILT}" style="min-width:70px;">${_mkYearDd()}</th>
     <th class="${TH_FILT}" style="min-width:150px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Employee')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Name</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Employee')}<span id="tsSortEmpIcon" onclick="event.stopPropagation(); toggleTsEmpSort()" title="Click to toggle sort (A–Z ↔ Z–A)" class="cursor-pointer text-[10px] text-gray-300 font-bold shrink-0 ml-auto hover:text-red-500 transition-colors">⇅</span></button>${_EMP_TEXT_PANEL}</th>
@@ -439,77 +440,187 @@ async function confirmReject() {
 
 // ==================== END APPROVAL MODE FUNCTIONS ====================
 
-// Global callbacks for the time-picker custom dropdowns (called via data-onchange)
-function tsUpdateDuration() {
-    const startH = parseInt(document.getElementById('timesheetStartHour')?.value || '0');
-    const startM = parseInt(document.getElementById('timesheetStartMinute')?.value || '0');
-    const endH   = parseInt(document.getElementById('timesheetEndHour')?.value || '0');
-    const endM   = parseInt(document.getElementById('timesheetEndMinute')?.value || '0');
+// ── Timesheet time inputs ─────────────────────────────────────────────────────
+// #timesheetStartTime / #timesheetEndTime are plain text fields with a custom
+// (app-styled) dropdown of preset times — see initTsTimePickers() below and the
+// [data-ts-timepicker] markup in timesheets.blade.php. The user can type an HH:MM
+// value or pick one from the dropdown; tsNormalizeTimeInput() tidies loose input
+// ("8", "830", "8:5") into "HH:MM" on change/blur.
 
-    let startMins = startH * 60 + startM;
-    let endMins   = endH   * 60 + endM;
+// Parse "HH:MM" / "HH:MM:SS" → { h, m }, or null when malformed / out of range.
+function _tsParseTime(v) {
+    const match = String(v || '').match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return null;
+    const h = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    if (isNaN(h) || isNaN(m) || h > 23 || m > 59) return null;
+    return { h, m };
+}
+
+// Flag when end ≤ start: toggles the inline error + native validity so the form
+// cannot be submitted. Returns true when the order is valid.
+function _tsValidateTimeOrder() {
+    const startEl = document.getElementById('timesheetStartTime');
+    const endEl   = document.getElementById('timesheetEndTime');
+    const errEl   = document.getElementById('timesheetTimeError');
+    if (!startEl || !endEl) return true;
+
+    const s = _tsParseTime(startEl.value);
+    const e = _tsParseTime(endEl.value);
+    const bad = !!(s && e) && (e.h * 60 + e.m) <= (s.h * 60 + s.m);
+
+    endEl.setCustomValidity(bad ? 'End time must be later than start time.' : '');
+    endEl.classList.toggle('border-red-400', bad);
+    endEl.classList.toggle('border-gray-200', !bad);
+    if (errEl) errEl.classList.toggle('hidden', !bad);
+    return !bad;
+}
+
+function tsUpdateDuration() {
+    const s = _tsParseTime(document.getElementById('timesheetStartTime')?.value);
+    const e = _tsParseTime(document.getElementById('timesheetEndTime')?.value);
+
+    const durationField = document.getElementById('timesheetDuration');
+    if (!durationField) return;
+
+    if (!s || !e) {
+        if (durationField.tagName === 'INPUT') durationField.value = '—';
+        else durationField.textContent = '—';
+        return;
+    }
+
+    let startMins = s.h * 60 + s.m;
+    let endMins   = e.h * 60 + e.m;
     if (endMins < startMins) endMins += 24 * 60;
 
     const dur   = endMins - startMins;
     const hours = Math.floor(dur / 60);
     const mins  = dur % 60;
+    const text  = `${hours}h ${mins}m`;
 
-    const durationField = document.getElementById('timesheetDuration');
-    if (durationField) {
-        if (durationField.tagName === 'INPUT') {
-            durationField.value = `${hours}h ${mins}m`;
-        } else {
-            durationField.textContent = `${hours}h ${mins}m`;
-        }
-    }
+    if (durationField.tagName === 'INPUT') durationField.value = text;
+    else durationField.textContent = text;
 }
 
 function tsUpdateStartTime() {
-    const h = document.getElementById('timesheetStartHour')?.value || '08';
-    const m = document.getElementById('timesheetStartMinute')?.value || '00';
-    const hiddenInput = document.getElementById('timesheetStartTime');
-    if (hiddenInput) hiddenInput.value = `${h}:${m}`;
+    _tsValidateTimeOrder();
     tsUpdateDuration();
 }
 
 function tsUpdateEndTime() {
-    const h = document.getElementById('timesheetEndHour')?.value || '17';
-    const m = document.getElementById('timesheetEndMinute')?.value || '00';
-    const hiddenInput = document.getElementById('timesheetEndTime');
-    if (hiddenInput) hiddenInput.value = `${h}:${m}`;
+    _tsValidateTimeOrder();
     tsUpdateDuration();
 }
 
-// Initialize time picker dropdowns
-function initializeTimePickers() {
-    // Set default values (08:00 - 17:00) via the custom-dd setter
-    setCustomDropdownValue('timesheetStartHour',   '08');
-    setCustomDropdownValue('timesheetStartMinute', '00');
-    setCustomDropdownValue('timesheetEndHour',     '17');
-    setCustomDropdownValue('timesheetEndMinute',   '00');
-    tsUpdateStartTime();
-    tsUpdateEndTime();
+// Coerce loose input into "HH:MM": "8" → "08:00", "830" → "08:30", "8:5" → "08:05".
+// Leaves the field untouched when it can't make sense of it (validation flags that).
+function tsNormalizeTimeInput(el) {
+    if (!el) return;
+    const raw = String(el.value || '').trim();
+    if (!raw) return;
+
+    let h, m;
+    const colon = raw.match(/^(\d{1,2})\s*:\s*(\d{1,2})$/);
+    if (colon) {
+        h = parseInt(colon[1], 10);
+        m = parseInt(colon[2], 10);
+    } else {
+        const digits = raw.replace(/\D/g, '');
+        if (!digits) return;
+        if (digits.length <= 2)      { h = parseInt(digits, 10); m = 0; }
+        else if (digits.length === 3) { h = parseInt(digits.slice(0, 1), 10); m = parseInt(digits.slice(1), 10); }
+        else                          { h = parseInt(digits.slice(0, 2), 10); m = parseInt(digits.slice(2, 4), 10); }
+    }
+    if (isNaN(h) || isNaN(m) || h > 23 || m > 59) return;
+    el.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-// Helper to set time picker from HH:mm:ss or HH:mm string
+// Wire the custom time dropdowns: a toggle button + a panel of preset times that
+// writes the picked value into the sibling text input. Idempotent.
+function initTsTimePickers() {
+    document.querySelectorAll('[data-ts-timepicker]').forEach(wrap => {
+        if (wrap._tsTpInit) return;
+        wrap._tsTpInit = true;
+
+        const input  = wrap.querySelector('input[type="text"]');
+        const toggle = wrap.querySelector('.ts-tp-toggle');
+        const panel  = wrap.querySelector('.ts-tp-panel');
+        if (!input || !panel) return;
+
+        const openPanel = () => {
+            _tsCloseAllTimePanels();
+            panel.querySelectorAll('.ts-tp-item').forEach(it => { it.style.display = ''; });
+            panel.classList.remove('hidden');
+            const cur = panel.querySelector(`.ts-tp-item[data-value="${CSS.escape(input.value.trim())}"]`);
+            if (cur) cur.scrollIntoView({ block: 'nearest' });
+        };
+        const closePanel = () => panel.classList.add('hidden');
+
+        if (toggle) toggle.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            panel.classList.contains('hidden') ? (input.focus(), openPanel()) : closePanel();
+        });
+
+        input.addEventListener('focus', openPanel);
+
+        // Typing narrows the list to matching prefixes — a convenience, not a search box.
+        input.addEventListener('input', () => {
+            const q = input.value.trim();
+            panel.querySelectorAll('.ts-tp-item').forEach(it => {
+                it.style.display = (!q || it.dataset.value.startsWith(q)) ? '' : 'none';
+            });
+            if (panel.classList.contains('hidden')) panel.classList.remove('hidden');
+        });
+
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Escape' || e.key === 'Enter') closePanel();
+        });
+
+        panel.addEventListener('click', e => {
+            const item = e.target.closest('.ts-tp-item');
+            if (!item) return;
+            e.stopPropagation();
+            input.value = item.dataset.value;
+            closePanel();
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
+
+    if (!window._tsTpDocListener) {
+        window._tsTpDocListener = true;
+        document.addEventListener('click', e => {
+            if (!e.target.closest('[data-ts-timepicker]')) _tsCloseAllTimePanels();
+        });
+    }
+}
+
+function _tsCloseAllTimePanels() {
+    document.querySelectorAll('.ts-tp-panel:not(.hidden)').forEach(p => p.classList.add('hidden'));
+}
+
+// Initialize time inputs with the default working day (08:00 – 17:00)
+function initializeTimePickers() {
+    const startEl = document.getElementById('timesheetStartTime');
+    const endEl   = document.getElementById('timesheetEndTime');
+    if (startEl && !startEl.value) startEl.value = '08:00';
+    if (endEl && !endEl.value) endEl.value = '17:00';
+    initTsTimePickers();
+    _tsValidateTimeOrder();
+    tsUpdateDuration();
+}
+
+// Helper to set a time input from an "HH:mm:ss" / "HH:mm" string
 function setTimePicker(type, timeString) {
-    if (!timeString) return;
+    const el = document.getElementById(`timesheet${type}Time`);
+    if (!el) return;
 
-    const parts  = timeString.split(':');
-    const hour   = (parts[0] || '00').padStart(2, '0');
-    const minute = parts[1] || '00';
+    const p = _tsParseTime(timeString);
+    el.value = p
+        ? `${String(p.h).padStart(2, '0')}:${String(p.m).padStart(2, '0')}`
+        : '';
 
-    // Snap minute to nearest 5 for the display picker
-    const roundedMins = Math.round(parseInt(minute) / 5) * 5;
-    const minuteVal   = String(roundedMins % 60).padStart(2, '0');
-
-    setCustomDropdownValue(`timesheet${type}Hour`,   hour);
-    setCustomDropdownValue(`timesheet${type}Minute`, minuteVal);
-
-    // Set the combined hidden time input directly (exact minute, not rounded)
-    const hiddenInput = document.getElementById(`timesheet${type}Time`);
-    if (hiddenInput) hiddenInput.value = `${hour}:${minute}`;
-
+    _tsValidateTimeOrder();
     tsUpdateDuration();
 }
 
@@ -746,10 +857,9 @@ function handleTimesheetTypeChange() {
         if (billableSection) billableSection.classList.add('hidden');
     }
 
-    // Show/hide the entire time block (support type doesn't use start/end time)
+    // Start/end time is now mandatory for every timesheet type (project, support, office).
     const timeBlock = document.getElementById('timesheetTimeBlock');
-    const isSupport = selectedType === 'support';
-    if (timeBlock) timeBlock.style.display = isSupport ? 'none' : '';
+    if (timeBlock) timeBlock.style.display = '';
 
     // Inject HTML and init custom dropdowns
     dynamicFieldsContainer.innerHTML = fieldsHTML;
@@ -1472,7 +1582,7 @@ function filterByType(type) {
         if (type === 'support') {
             supportLayoutActive = true;                                // ← definitive flag ON
             thead.innerHTML = SUPPORT_THEAD_HTML;
-            if (table) table.style.minWidth = '1200px';
+            if (table) table.style.minWidth = '1320px';
         } else {
             supportLayoutActive = false;                               // ← definitive flag OFF
             thead.innerHTML = defaultTheadHTML;
@@ -1727,6 +1837,7 @@ function renderTimesheetRows() {
                 bln = per ? per.month : '-';
                 thn = per ? per.year  : '-';
             }
+            var tim   = tsTimeRange(ts);
             var nam   = escapeHtml(ts.employee_name || '-');
             var tkt   = ts.ticket_number ? ('#' + escapeHtml(ts.ticket_number)) : (ts.ticket_id ? ('#' + ts.ticket_id) : '-');
             var tdesc = escapeHtml(ts.ticket_description || '-');
@@ -1784,6 +1895,7 @@ function renderTimesheetRows() {
                 + '<td class="px-3 py-2 border-b border-gray-100">' + firstTd + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">' + dFmt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">' + adFmt + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">' + tim + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + bln + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + thn + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-800 font-medium">' + nam + '</td>'
@@ -1870,7 +1982,7 @@ function renderTimesheetRows() {
                         <div class="text-xs mt-0.5">${typeInfo}</div>
                     </td>
                     <td class="px-3 py-2.5 whitespace-nowrap">
-                        <div class="text-sm text-gray-600">${timesheet.start_time} – ${timesheet.end_time}</div>
+                        <div class="text-sm text-gray-600">${tsTimeRange(timesheet)}</div>
                     </td>
                     <td class="px-3 py-2.5 whitespace-nowrap">
                         <div class="text-sm font-semibold text-gray-900">${duration}h</div>
@@ -1975,7 +2087,7 @@ function renderTimesheetRows() {
                     <div class="text-xs mt-0.5">${typeInfo}</div>
                 </td>
                 <td class="px-3 py-2.5 whitespace-nowrap">
-                    <div class="text-sm text-gray-600">${timesheet.start_time} – ${timesheet.end_time}</div>
+                    <div class="text-sm text-gray-600">${tsTimeRange(timesheet)}</div>
                 </td>
                 <td class="px-3 py-2.5 whitespace-nowrap">
                     <div class="text-sm font-semibold text-gray-900">${duration}h</div>
@@ -2001,6 +2113,18 @@ function renderTimesheetRows() {
 
 function escapeHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Trim a stored time value ("08:00:00" | "08:00") down to "HH:MM" for display.
+function tsFmtTime(t) {
+    return t ? String(t).slice(0, 5) : '';
+}
+
+// "HH:MM – HH:MM" for a timesheet's start/end, or "-" when either side is missing.
+function tsTimeRange(ts) {
+    const s = tsFmtTime(ts && ts.start_time);
+    const e = tsFmtTime(ts && ts.end_time);
+    return (s && e) ? `${s} – ${e}` : '-';
 }
 
 /**
@@ -2689,18 +2813,28 @@ async function handleFormSubmit(e) {
     const selectedRadio = document.querySelector('input[name="timesheetType"]:checked');
     const selectedType = selectedRadio ? selectedRadio.value : 'support';
     
-    // Construct time from dropdowns (support type uses fixed values — time is not relevant)
-    let startTime, endTime;
-    if (selectedType === 'support') {
-        startTime = '00:00';
-        endTime   = '23:59';
-    } else {
-        const startHour   = document.getElementById('timesheetStartHour')?.value   || '08';
-        const startMinute = document.getElementById('timesheetStartMinute')?.value || '00';
-        const endHour     = document.getElementById('timesheetEndHour')?.value     || '17';
-        const endMinute   = document.getElementById('timesheetEndMinute')?.value   || '00';
-        startTime = `${startHour}:${startMinute}`;
-        endTime   = `${endHour}:${endMinute}`;
+    // Start/end time is mandatory for every timesheet type.
+    const startTimeEl = document.getElementById('timesheetStartTime');
+    const endTimeEl   = document.getElementById('timesheetEndTime');
+    tsNormalizeTimeInput(startTimeEl);
+    tsNormalizeTimeInput(endTimeEl);
+    const startParsed = _tsParseTime(startTimeEl?.value);
+    const endParsed   = _tsParseTime(endTimeEl?.value);
+
+    if (!startParsed || !endParsed) {
+        showNotification('Please enter a valid start and end time (HH:MM).', 'error');
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
+        return;
+    }
+
+    const startTime = `${String(startParsed.h).padStart(2, '0')}:${String(startParsed.m).padStart(2, '0')}`;
+    const endTime   = `${String(endParsed.h).padStart(2, '0')}:${String(endParsed.m).padStart(2, '0')}`;
+
+    if ((endParsed.h * 60 + endParsed.m) <= (startParsed.h * 60 + startParsed.m)) {
+        showNotification('End time must be later than start time.', 'error');
+        _tsValidateTimeOrder();
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
+        return;
     }
 
     const timesheetData = {
