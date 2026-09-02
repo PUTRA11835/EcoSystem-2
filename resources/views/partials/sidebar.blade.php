@@ -112,7 +112,7 @@
                 </div>
             @endif
 
-            {{-- Sejak 28 Agu 2026 item ini menunjuk halaman sungguhan, bukan lagi
+            {{-- Sejak 2 Sep 2026 item ini menunjuk halaman sungguhan, bukan lagi
                  route('coming-soon'). Pola yang sama dipakai My Attendance,
                  Overtime, dan Reimbursement saat modulnya jadi.
 

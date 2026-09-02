@@ -57,7 +57,7 @@ class EssSettingsController extends Controller
             'route' => 'general.my-reimbursement.index',
             'icon'  => 'fas fa-receipt',
         ],
-        // Menunjuk halaman sungguhan sejak 28 Agu 2026 (sebelumnya null =
+        // Menunjuk halaman sungguhan sejak 2 Sep 2026 (sebelumnya null =
         // coming-soon). KUNCI array `purchase_request` SENGAJA tidak diubah:
         // kunci itulah yang tersimpan di JSON `ess_menu_settings` (tabel
         // app_config). Menggantinya membuat setelan yang sudah disimpan tidak

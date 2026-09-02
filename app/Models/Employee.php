@@ -105,7 +105,7 @@ class Employee extends Model
             'my-leave-permit',
             'general.my-overtime',
             'general.my-reimbursement',
-            // Ditambahkan 28 Agu 2026. Purchase Request adalah menu ESS: setiap
+            // Ditambahkan 2 Sep 2026. Purchase Request adalah menu ESS: setiap
             // karyawan boleh mengajukan permintaan pengadaan untuk dirinya
             // sendiri, apa pun rolenya — sama seperti empat baris di atas.
             //
