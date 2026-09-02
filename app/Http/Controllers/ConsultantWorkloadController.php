@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Exports\ConsultantWorkloadTicketsExport;
 use App\Models\AuditLog;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
@@ -11,6 +12,7 @@ use App\Models\Ticket;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ConsultantWorkloadController extends Controller
 {
@@ -175,6 +177,72 @@ class ConsultantWorkloadController extends Controller
                 'message' => 'Gagal memuat detail: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Export Excel: daftar tiket aktif milik satu konsultan — isinya sama persis
+     * dengan sub-tabel yang muncul saat baris konsultan di-expand di halaman.
+     */
+    public function exportTickets(int $id)
+    {
+        $emp = Employee::with(['basicData'])->findOrFail($id);
+
+        $name = $emp->basicData
+            ? trim($emp->basicData->first_name . ' ' . ($emp->basicData->last_name ?? ''))
+            : $emp->eci;
+
+        $ticketIds = DB::table('ticket')
+            ->whereIn('status', self::ACTIVE_STATUSES)
+            ->whereNull('deleted_at')
+            ->whereNull('is_hidden')
+            ->pluck('ticket_id')
+            ->toArray();
+        $progressMap = self::progressMapForTickets($ticketIds);
+
+        $statusOrder = ['inprocess' => 0, 'waiting_on_customer' => 1, 'waiting_on_3rd_party' => 2, 'waiting_to_confirmation' => 3, 'open' => 4, 'hold' => 5];
+        $tickets = $this->ticketsByEmployee($id, $progressMap)
+            ->sortBy(fn ($t) => $statusOrder[$t->status] ?? 99)
+            ->values();
+
+        // Ringkasan baris utama — mirror calcActive() di view supaya angka di Excel
+        // cocok dengan yang dilihat user. Akumulasi hanya dari sub-row
+        // consultant_details milik konsultan ini.
+        $allocMd = 0.0;   // Σ mandays (kolom "Alloc Days")
+        $addMd   = 0.0;   // Σ approved_additional
+        $remainMd = 0.0;  // Σ remain_md
+        foreach ($tickets as $t) {
+            $myDetail = collect($t->consultant_details)->firstWhere('employee_id', $id);
+            if ($myDetail) {
+                $allocMd  += (float) $myDetail['mandays'];
+                $addMd    += (float) $myDetail['approved_additional'];
+                $remainMd += (float) $myDetail['remain_md'];
+            }
+        }
+        $effectiveMd = $allocMd + $addMd;
+        $ticketCount = $tickets->count();
+        $workloadPct = $effectiveMd > 0 ? round($remainMd / $effectiveMd * 100, 1) : 0;
+        $loadScore   = round($remainMd * (1 + 0.1 * $ticketCount), 2);
+
+        $consultant = [
+            'employee_id'        => $emp->employee_id,
+            'name'               => $name,
+            'eci'                => $emp->eci,
+            'modules'            => self::modulesMapForEmployees([$id])[$id] ?? '-',
+            'personnel_subarea'  => $emp->basicData?->personnel_subarea,
+            'current_assignment' => $emp->basicData?->current_assignment,
+            'ticket_count'       => $ticketCount,
+            'alloc_days'         => round($allocMd, 2),
+            'add_days'           => round($addMd, 2),
+            'effective_md'       => round($effectiveMd, 2),
+            'remain_days'        => round($remainMd, 2),
+            'workload_pct'       => $workloadPct,
+            'load_score'         => $loadScore,
+        ];
+
+        $slug = preg_replace('/[^A-Za-z0-9]+/', '_', trim($name)) ?: 'consultant';
+        $filename = "consultant_workload_{$slug}_" . now()->format('Ymd_His') . '.xlsx';
+
+        return Excel::download(new ConsultantWorkloadTicketsExport($consultant, $tickets), $filename);
     }
 
     /**

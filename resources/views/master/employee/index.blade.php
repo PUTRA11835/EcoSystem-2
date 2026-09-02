@@ -1,4 +1,4 @@
-﻿@extends('dashboard')
+@extends('dashboard')
 
 @section('title', 'Master Employee')
 @section('page-title', 'Employee Management')
