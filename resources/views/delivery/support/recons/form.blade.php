@@ -675,7 +675,11 @@ window.ReconsForm = (function () {
                 throw new Error(detail || data.message || 'Failed to save recons.');
             }
 
-            notify(data.message, 'success');
+            // Toast sukses TIDAK ditampilkan di sini: halaman langsung berpindah
+            // ke detail Recons, jadi toast dititipkan lewat flash session
+            // (dirender oleh blok session('success') di dashboard.blade.php pada
+            // halaman tujuan). Menampilkannya di sini sia-sia — DOM keburu dibuang
+            // sebelum animasi toast sempat jalan.
             window.location.href = data.redirect_url;
         } catch (e) {
             notify(e.message || 'Failed to save recons.', 'error');

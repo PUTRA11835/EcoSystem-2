@@ -774,6 +774,44 @@ existing kecuali user koreksi)
   - Regresi penuh tetap hijau: 36+22+7+32+20+18 (PHP) + 54 (JS), plus kedua uji
     paritas Close Date & Customer MD.
 
+- 2026-09-03 (revisi kesepuluh) — **BUG: toast sukses tidak muncul pada aksi
+  Recons yang diikuti pindah/reload halaman.** User melapor "Add New Recons →
+  Submit tidak ada toast success".
+
+  **Akar masalah**: `notify(msg,'success')` dipanggil, lalu di baris yang sama
+  `window.location.href = redirect_url` / `window.location.reload()`. `showToast()`
+  ([dashboard.blade.php:1724](../../resources/views/dashboard.blade.php#L1724))
+  baru menampilkan toast setelah 2 `requestAnimationFrame` (~32 ms), sedangkan
+  navigasi mulai seketika sehingga DOM (termasuk `#toast-container`) keburu
+  dibuang. Halaman tujuan juga tidak menampilkan apa pun karena redirect
+  dilakukan client-side, bukan `redirect()->with('success')`, jadi tidak ada
+  `session('success')`.
+
+  **Cakupan** (dikonfirmasi lewat telaah kode):
+  - **Kena** — `ReconsForm.save('draft'|'submit')` (form New & Edit),
+    `ReconsDetail.submit()`, `ReconsDetail.cancel()` (halaman detail).
+  - **Tidak kena** — `SupportRecons.askCancel()` / `askDelete()` di tab Recons
+    List: sudah refresh AJAX in-place tanpa reload, toast tampil normal. Semua
+    jalur error juga aman (tidak ada navigasi di blok `catch`).
+
+  **Perbaikan (Opsi A — pola flash `session('success')` yang sama dipakai
+  `DeliverySupportController::store()`), disetujui user:**
+  - Controller `store()` & `update()`: `session()->flash('success', $message)`
+    sebelum mengembalikan JSON. Form tetap `window.location.href = redirect_url`
+    (tanpa lagi memanggil `notify` sukses); toast dirender di halaman detail
+    Recons oleh blok `session('success')` di `dashboard.blade.php`. Perilaku
+    identik dengan alur "New Delivery Support".
+  - Controller `submit()` & `cancel()`: flash hanya bila request memuat
+    `redirect: true`. Halaman detail Recons mengirim flag itu di body fetch lalu
+    `location.reload()` — toast tampil sesudah reload, user tetap di halaman itu.
+    Tab Recons List **tidak** mengirim flag → tetap memakai toast JS in-place
+    (mencegah flash "nyangkut" dan muncul di navigasi berikutnya).
+  - `recons-scripts.blade.php` (tab Recons List) **tidak disentuh**.
+
+  **File**: `DeliverySupportReconsController.php`, `recons/form.blade.php`,
+  `recons/show.blade.php` (3 file, +50/−13). `php -l` OK; Blade `compileString()`
+  + `php -l` untuk 3 view OK.
+
 - 2026-09-03 (tambahan, DI LUAR modul Recons) — **filter + search kolom
   "Assign Delivery" pada Menu Ticket** (halaman produksi). User menyetujui
   bahwa izin Recons untuk role lain cukup diatur lewat Menu Management, dan
