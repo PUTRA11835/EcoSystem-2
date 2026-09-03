@@ -55,6 +55,7 @@ class MenuSeeder extends Seeder
         ['base' => 'delivery-support.sla',          'name' => 'SLA Configuration',           'actions' => ['view', 'edit', 'manage']],
         ['base' => 'delivery-support.plan-cost',    'name' => 'Plan Cost',                   'actions' => ['view', 'edit', 'manage']],
         ['base' => 'delivery-support.documents',    'name' => 'Documents & Folder',          'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-support.recons',       'name' => 'Recons',                      'actions' => ['view', 'edit', 'manage']],
     ];
 
     const ACTION_LABEL = ['view' => 'View', 'edit' => 'Edit', 'manage' => 'Create / Delete', 'delete' => 'Delete'];
@@ -456,6 +457,14 @@ class MenuSeeder extends Seeder
         // EC Administrator (lihat App\Support\MenuRegistrar). Pemberian ke role
         // lain diputuskan lewat Control Center -> Menu Access.
         $matrix['delivery-project.team.delete'] = [self::ADMIN => $v];
+
+        // Section Recons juga slug baru: lahir HANYA untuk EC Administrator,
+        // sama persis dengan migrasi 2026_09_03_000002 supaya install baru dan
+        // database produksi berperilaku identik. Role lain diberikan lewat
+        // Control Center -> Menu Access.
+        foreach (['view', 'edit', 'manage'] as $action) {
+            $matrix['delivery-support.recons.' . $action] = [self::ADMIN => $v];
+        }
 
         // Seeder ini rutin dijalankan ulang di production tiap kali ada slug baru
         // (lihat MULTI_ROLE_SYSTEM.md). Matrix di atas cuma boleh diterapkan untuk
