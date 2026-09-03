@@ -1462,13 +1462,13 @@
         return `${diffYr} years ago`;
     }
 
-    // Ticket closed → freeze "Day on Close" at the close timestamp instead of
-    // letting it keep counting up to today. Dihitung sejak created_at,
+    // Ticket closed/cancelled → freeze "Day on Close" at the close timestamp instead
+    // of letting it keep counting up to today. Dihitung sejak created_at,
     // sama seperti kolom Date.
     function dayOnCloseValue(ticket) {
         const start = ticket.created_at;
         if (!start) return null;
-        const closedAt = ticket.status === 'closed'
+        const closedAt = (ticket.status === 'closed' || ticket.status === 'cancelled')
             ? (ticket.sla?.resolved_at || ticket.updated_at)
             : null;
         const end = closedAt ? new Date(closedAt) : new Date();
@@ -1686,6 +1686,9 @@
                 ${(function() {
                     if (ticket.status === 'closed') {
                         return '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-green-50 text-green-700">Closed</span>';
+                    }
+                    if (ticket.status === 'cancelled') {
+                        return '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-500">Cancelled</span>';
                     }
                     const days = dayOnCloseValue(ticket);
                     if (days === null) return '<span class="text-gray-300 text-xs">—</span>';

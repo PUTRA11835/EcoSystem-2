@@ -500,6 +500,15 @@ class EmployeeController extends Controller
             Log::info('Filter applied: name', ['search' => $request->name]);
         }
 
+        // Filter by ECI OR name — the ECI column header on the list page has a
+        // single combined "Search by ECI or name" box that sends `employee`.
+        // (The `eci` / `name` params above are the split-column variant kept for
+        // other callers; the list/export UI only ever sends `employee`.)
+        if ($request->filled('employee')) {
+            $this->applyNameSearch($query, $request->employee, false, true);
+            Log::info('Filter applied: employee', ['search' => $request->employee]);
+        }
+
         // Filter by full name — kolom terpisah dari ECI di atas (dedicated Full
         // Name column filter), jadi HANYA cocokkan nama, bukan ECI/nick name,
         // supaya perilakunya jelas per-kolom bagi user.
