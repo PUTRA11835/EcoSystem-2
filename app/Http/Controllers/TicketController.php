@@ -261,7 +261,7 @@ class TicketController extends Controller
                     ->select('ticket.*')
                     ->orderByRaw(
                         "GREATEST(0, CEIL(TIMESTAMPDIFF(SECOND, ticket.created_at,
-                            CASE WHEN ticket.status = 'closed'
+                            CASE WHEN ticket.status IN ('closed', 'cancelled')
                                 THEN COALESCE(ticket_sla.resolved_at, ticket.updated_at)
                                 ELSE NOW()
                             END
