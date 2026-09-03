@@ -686,6 +686,48 @@ class PurchaseRequestService
         ];
     }
 
+    /**
+     * Pecah field gabungan `cost_center` ("branch:2" / "project:7") dari form
+     * jadi `cost_center_type` + `branch_id` + `delivery_project_id` — bentuk
+     * yang dipahami itemRules(), checkRawItems(), dan
+     * PurchaseRequestSummaryService::normaliseItems().
+     *
+     * 🔴 DIPANGGIL DI TEPI (controller, sebelum validate()), BUKAN di dalam
+     * SummaryService atau PurchaseRequestService. Kedua service itu punya
+     * kontrak masukan yang sudah diuji 42 kasus unit test memakai tiga field
+     * terpisah; mengubah kontraknya untuk satu keperluan tampilan berisiko
+     * merusak pengujian itu tanpa perlu. Cukup baris masuk sudah dalam bentuk
+     * lama sebelum menyentuh kode yang sudah teruji.
+     *
+     * Field lama (`cost_center_type`/`branch_id`/`delivery_project_id`) tetap
+     * dihormati bila sudah ada di baris — supaya baris yang dikembalikan
+     * setelah gagal validasi (old('items')) tidak perlu ekspansi ulang.
+     *
+     * @param  array|null  $items  `$request->input('items')`
+     * @return array
+     */
+    public function expandCostCenterInput(?array $items): array
+    {
+        return collect($items ?? [])->map(function ($row) {
+            if (!is_array($row)) {
+                return $row;
+            }
+
+            if (array_key_exists('cost_center_type', $row)) {
+                return $row; // sudah dalam bentuk lama, jangan disentuh
+            }
+
+            $combined = trim((string) ($row['cost_center'] ?? ''));
+            [$type, $id] = array_pad(explode(':', $combined, 2), 2, null);
+
+            $row['cost_center_type']    = $type ?: null;
+            $row['branch_id']           = $type === PurchaseRequestItem::COST_CENTER_BRANCH ? $id : null;
+            $row['delivery_project_id'] = $type === PurchaseRequestItem::COST_CENTER_PROJECT ? $id : null;
+
+            return $row;
+        })->all();
+    }
+
     /** Akhir periode tidak boleh mendahului awalnya. */
     private function dateOrderRule(array $input): \Closure
     {

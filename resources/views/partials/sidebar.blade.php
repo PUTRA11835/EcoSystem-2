@@ -525,6 +525,7 @@
                                 <span class="nav-text text-sm">Purchase Request Review</span>
                             </a>
                         @endif
+
                         @if($can('general.kpi-evaluation') || $can('general'))
                             <a href="{{ route('general.kpi-evaluation.index') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/kpi-evaluation*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">

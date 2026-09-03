@@ -85,35 +85,6 @@
         }
     }
 
-    /**
-     * Sinkronkan pasangan Charged To pada satu baris.
-     *
-     * 🔴 Dropdown yang ditinggalkan DIKOSONGKAN, bukan sekadar disembunyikan.
-     * Kalau hanya disembunyikan, nilainya tetap ikut terkirim, form membawa
-     * cabang DAN proyek sekaligus, dan PurchaseRequestService::checkRawItems()
-     * menolaknya — penolakan yang tidak dapat dipahami pengguna karena di
-     * layarnya hanya satu dropdown yang terlihat.
-     */
-    function syncCostCenter(row, clearOther) {
-        const type    = row.querySelector('.js-cc-type');
-        const branch  = row.querySelector('.js-cc-branch');
-        const project = row.querySelector('.js-cc-project');
-
-        if (!type) return;
-
-        const isProject = type.value === 'project';
-
-        if (branch) {
-            branch.classList.toggle('hidden', isProject);
-            if (isProject && clearOther) branch.value = '';
-        }
-
-        if (project) {
-            project.classList.toggle('hidden', !isProject);
-            if (!isProject && clearOther) project.value = '';
-        }
-    }
-
     function addRow() {
         const key  = newKey();
         const html = template.innerHTML.replace(/__KEY__/g, key);
@@ -125,7 +96,6 @@
         row.dataset.key = key;
         tbody.appendChild(row);
 
-        syncCostCenter(row, false);
         renumber();
         recalcSummary();
 
@@ -140,11 +110,6 @@
     tbody.addEventListener('change', function (event) {
         if (event.target.classList.contains('js-unit')) {
             recalcSummary();
-            return;
-        }
-
-        if (event.target.classList.contains('js-cc-type')) {
-            syncCostCenter(event.target.closest('.js-item-row'), true);
         }
     });
 
@@ -160,12 +125,6 @@
     });
 
     if (addButton) addButton.addEventListener('click', addRow);
-
-    // Baris yang sudah ada disinkronkan TANPA mengosongkan: nilai yang tersimpan
-    // maupun isian yang gagal validasi harus tetap terlihat.
-    tbody.querySelectorAll('.js-item-row').forEach(function (row) {
-        syncCostCenter(row, false);
-    });
 
     renumber();
     recalcSummary();

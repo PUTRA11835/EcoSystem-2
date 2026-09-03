@@ -15,6 +15,8 @@ use App\Http\Controllers\HR_General\PurchaseRequestController;
 use App\Http\Controllers\HR_General\PurchaseRequestSettingController;
 use App\Http\Controllers\HR_General\OvertimeReviewController;
 use App\Http\Controllers\HR_General\OvertimeSettingController;
+use App\Http\Controllers\HR_General\PurchaseRequestController;
+use App\Http\Controllers\HR_General\PurchaseRequestSettingController;
 use App\Http\Controllers\HR_General\ReimbursementController;
 use App\Http\Controllers\HR_General\ReimbursementImportController;
 use App\Http\Controllers\HR_General\ReimbursementSettingController;
@@ -302,6 +304,34 @@ Route::prefix('general')
             });
 
         // =====================================================================
+        // MY PURCHASE REQUEST — pengajuan mandiri, untuk SELURUH karyawan
+        // =====================================================================
+        // Slug `general.my-purchase-request` menjaga pintunya, tetapi TIDAK
+        // menjawab "dokumen siapa ini?". Kepemilikan diperiksa di controller
+        // lewat abort_if() pada show, print, dan cancel — kalau tidak, siapa pun
+        // yang boleh mengajukan dapat membaca atau MEMBATALKAN dokumen rekannya
+        // hanya dengan menebak id-nya.
+        //
+        // 🔴 ADA rute pembatalan di sini, berbeda dari My Reimbursement
+        // (Keputusan D131): purchase request belum menimbulkan komitmen uang,
+        // jadi alasan D111 tidak berlaku. Syaratnya — status masih `submitted`
+        // DAN sakelar `allow_requester_cancel` menyala — ditegakkan di service,
+        // bukan hanya oleh tombol yang disembunyikan.
+        Route::prefix('my-purchase-request')
+            ->name('my-purchase-request.')
+            ->middleware('menu:general.my-purchase-request')
+            ->group(function () {
+                Route::get('/', [MyPurchaseRequestController::class, 'index'])->name('index');
+                Route::get('/create', [MyPurchaseRequestController::class, 'create'])->name('create');
+                Route::post('/', [MyPurchaseRequestController::class, 'store'])->name('store');
+
+                // Didaftarkan SESUDAH /create agar tidak menangkapnya sebagai id.
+                Route::get('/{purchaseRequest}', [MyPurchaseRequestController::class, 'show'])->name('show');
+                Route::get('/{purchaseRequest}/print', [MyPurchaseRequestController::class, 'print'])->name('print');
+                Route::post('/{purchaseRequest}/cancel', [MyPurchaseRequestController::class, 'cancel'])->name('cancel');
+            });
+
+        // =====================================================================
         // REIMBURSEMENT — PENGELOLAAN (sisi HR / GA / penyetuju)
         // =====================================================================
         // 🔴 URUTAN PENDAFTARAN PENTING: /create, /export, dan /import harus
@@ -383,34 +413,6 @@ Route::prefix('general')
         });
 
         // =====================================================================
-        // MY PURCHASE REQUEST — pengajuan mandiri, untuk SELURUH karyawan
-        // =====================================================================
-        // Slug `general.my-purchase-request` menjaga pintunya, tetapi TIDAK
-        // menjawab "dokumen siapa ini?". Kepemilikan diperiksa di controller
-        // lewat abort_if() pada show, print, dan cancel — kalau tidak, siapa pun
-        // yang boleh mengajukan dapat membaca atau MEMBATALKAN dokumen rekannya
-        // hanya dengan menebak id-nya.
-        //
-        // 🔴 ADA rute pembatalan di sini, berbeda dari My Reimbursement
-        // (Keputusan D131): purchase request belum menimbulkan komitmen uang,
-        // jadi alasan D111 tidak berlaku. Syaratnya — status masih `submitted`
-        // DAN sakelar `allow_requester_cancel` menyala — ditegakkan di service,
-        // bukan hanya oleh tombol yang disembunyikan.
-        Route::prefix('my-purchase-request')
-            ->name('my-purchase-request.')
-            ->middleware('menu:general.my-purchase-request')
-            ->group(function () {
-                Route::get('/', [MyPurchaseRequestController::class, 'index'])->name('index');
-                Route::get('/create', [MyPurchaseRequestController::class, 'create'])->name('create');
-                Route::post('/', [MyPurchaseRequestController::class, 'store'])->name('store');
-
-                // Didaftarkan SESUDAH /create agar tidak menangkapnya sebagai id.
-                Route::get('/{purchaseRequest}', [MyPurchaseRequestController::class, 'show'])->name('show');
-                Route::get('/{purchaseRequest}/print', [MyPurchaseRequestController::class, 'print'])->name('print');
-                Route::post('/{purchaseRequest}/cancel', [MyPurchaseRequestController::class, 'cancel'])->name('cancel');
-            });
-
-        // =====================================================================
         // PURCHASE REQUEST MANAGEMENT (sisi HR / GA / penyetuju)
         // =====================================================================
         // Rute BERPARAMETER didaftarkan TERAKHIR di dalam grup ini; rute statis
@@ -450,6 +452,10 @@ Route::prefix('general')
                 ->middleware('menu:general.purchase-request')
                 ->withTrashed();
 
+            // Menyetujui/menolak dilindungi slug TERPISAH dari sekadar melihat
+            // daftar. Slug ini hanya gerbang HALAMAN; siapa yang berwenang pada
+            // sebuah dokumen tetap ditentukan langkah persetujuannya, lewat
+            // PurchaseRequestService::canAct().
             Route::get('/{purchaseRequest}/export', [PurchaseRequestController::class, 'exportSingle'])
                 ->name('export.single')
                 ->middleware('menu:general.purchase-request.export')

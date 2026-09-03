@@ -210,7 +210,8 @@ class HrSync extends Command
                 ? DB::table('branches')->whereNull('deleted_at')->where('is_active', true)->count()
                 : 0,
             'shift_rows'        => Schema::hasTable('shifts') ? DB::table('shifts')->count() : 0,
-            'route_general'     => File::exists(base_path('routes/HR_General.php')),
+            'route_general'     => File::exists($this->routeFile()),
+            'route_file'        => basename($this->routeFile()),
             'holidays'          => Schema::hasTable('holidays') ? DB::table('holidays')->count() : 0,
 
             // Fakta yang DIHITUNG dari repo, bukan ditulis tangan. Sebelumnya
@@ -249,7 +250,7 @@ class HrSync extends Command
             'tests'         => $count('tests/Unit/Attendance/*.php')
                              + $count('tests/Unit/Overtime/*.php')
                              + $count('tests/Unit/Reimbursement/*.php'),
-            'routes'        => $this->matchCount(base_path('routes/HR_General.php'), '/^\s*Route::(get|post)\(/m'),
+            'routes'        => $this->matchCount($this->routeFile(), '/^\s*Route::(get|post)\(/m'),
         ];
     }
 
@@ -319,6 +320,40 @@ class HrSync extends Command
     }
 
     /** Berapa kali sebuah pola muncul di dalam satu berkas. */
+    /**
+     * Berkas rute modul yang BENAR-BENAR dimuat aplikasi.
+     *
+     * 🔴 Ada DUA berkas dengan isi mirip di repositori: `routes/HR_General.php`
+     * (nama lama) dan `routes/hr-general.php` (nama baru, dibawa cabang KPI
+     * Evaluation). Yang menentukan mana yang hidup adalah baris `require` di
+     * `routes/web.php` — bukan mana yang lebih besar atau lebih baru.
+     *
+     * Ini bukan kehati-hatian berlebihan: pada 2 September 2026 sebuah merge
+     * mengganti baris require itu ke berkas baru sementara pekerjaan Purchase
+     * Request berada di berkas lama, dan 24 rute lenyap tanpa satu pun galat.
+     * Perintah ini akan melaporkan angka dari berkas mati bila memilih dengan
+     * cara yang salah — persis jenis fakta palsu yang paling mahal di HANDOFF.
+     */
+    private function routeFile(): string
+    {
+        $web = base_path('routes/web.php');
+
+        if (File::exists($web)
+            && preg_match("#require\s+__DIR__\s*\.\s*'/([\w.-]+\.php)'#i", File::get($web), $m)) {
+
+            foreach ([$m[1], 'hr-general.php', 'HR_General.php'] as $candidate) {
+                if (str_contains(strtolower($candidate), 'general')
+                    && File::exists(base_path('routes/' . $candidate))) {
+                    return base_path('routes/' . $candidate);
+                }
+            }
+        }
+
+        return File::exists(base_path('routes/hr-general.php'))
+            ? base_path('routes/hr-general.php')
+            : base_path('routes/HR_General.php');
+    }
+
     private function matchCount(string $path, string $pattern): int
     {
         return File::exists($path)
@@ -389,7 +424,7 @@ Timezone: {$f['app_timezone']}
 Branch {$f['git_branch']} @ {$f['git_commit']}
 {$f['migration_files']} berkas migrasi ({$f['migration_ran']} sudah dijalankan)
 {$f['menu_total']} baris di tabel `menu`
-routes/HR_General.php: {$this->yn($f['route_general'])}
+routes/{$f['route_file']}: {$this->yn($f['route_general'])}   <- berkas yang BENAR-BENAR dimuat web.php
 
 --- MENU & IZIN ---
 Menu induk: id={$f['parent_menu']->id} slug='general' name='HR & General' order_seq={$f['parent_menu']->order_seq}
@@ -470,7 +505,7 @@ resources/views/hr-general/        {$c['views']} view, nama berkas pakai TANDA H
                                    dulu HR_General/ dengan garis bawah. Sidebar kini berada
                                    di resources/views/partials/sidebar.blade.php, BUKAN lagi
                                    di dalam dashboard.blade.php
-routes/HR_General.php              {$c['routes']} rute GET/POST (URI berawalan general/*)
+routes/{$f['route_file']}              {$c['routes']} rute GET/POST (URI berawalan general/*)
 tests/Unit/                        {$c['tests']} berkas tes unit
 Nama BERKAS boleh HR_General; slug izin / nama rute / URL TETAP 'general.*' — terikat tabel menu
 
@@ -505,7 +540,7 @@ reimbursement/02-PERTANYAAN-KONFIRMASI.md  R1-R12 + jawabannya + konsekuensi tia
 reimbursement/00-RINGKASAN-PEKERJAAN.md    catatan kerja Reimbursement per sesi
 reimbursement/03-CHECKLIST-PENGERJAAN.md   PAPAN PELACAKAN R0-R8 + berkas per langkah
 
---- VERB RUTE: routes/HR_General.php HANYA GET & POST ---
+--- VERB RUTE: routes/{$f['route_file']} HANYA GET & POST ---
 Nol PUT/PATCH/DELETE sejak 21 Agu 2026. Pengubah data memakai akhiran aksi:
   ubah  -> POST /{id}/update      hapus -> POST /{id}/delete
   batal -> POST /{id}/cancel      lepas -> POST /{id}/release
@@ -544,7 +579,7 @@ SELURUH KODE SUDAH ADA — jangan dibangun ulang:
                                        ReimbursementSettingController (aturan + alur)
   resources/views/hr-general/reimbursement/  8 view (2 di antaranya partial dipakai 3 form)
   app/Exports/ReimbursementDocumentExport.php  satu kelas: ekspor dokumen DAN bulanan
-  routes/HR_General.php                26 rute reimbursement SUDAH ada
+  routes/{$f['route_file']}                26 rute reimbursement SUDAH ada
   dashboard.blade.php                  2 item menu SUDAH ada (tingkat atas + dropdown HR)
 YANG TERSISA hanyalah pembagian izin lewat Control Center -> Menu Access.
   Slug mana untuk siapa: docs/updated-file/reimbursement/03-CHECKLIST-PENGERJAAN.md
@@ -768,7 +803,7 @@ TXT;
 | Role total | {$f['role_total']} |
 | Role HR | {$this->hrRoles($f)} |
 | `employee.reports_to_id` | {$this->yn($f['has_reports_to'])} |
-| `routes/HR_General.php` | {$this->yn($f['route_general'])} |
+| `routes/{$f['route_file']}` | {$this->yn($f['route_general'])} |
 | Hari libur di `holidays` | {$f['holidays']} |
 | Langkah terakhir yang tampak selesai | {$this->stepStatus($f)} |
 
