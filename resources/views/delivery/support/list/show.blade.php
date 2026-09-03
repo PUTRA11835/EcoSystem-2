@@ -175,6 +175,14 @@
             Plan Cost
         </button>
         @endif
+        @if($can('delivery-support.recons.view'))
+        <button onclick="scrollToSection('recons')" data-section="recons" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+            </svg>
+            Recons
+        </button>
+        @endif
     </nav>
 </div>
 
@@ -708,6 +716,15 @@
 @if($can('delivery-support.plan-cost.view'))
 <section id="plancost" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-support.plan-cost.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-support.plan-cost.manage') ? '1' : '0' }}">
     @include('delivery.support.list.partials.plancost')
+</section>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- RECONS                                                                     --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-support.recons.view'))
+<section id="recons" class="mb-6 card-hover section-animate">
+    @include('delivery.support.list.partials.recons')
 </section>
 @endif
 
@@ -2408,6 +2425,11 @@ document.getElementById('removeTicketModal').addEventListener('click', function(
 {{-- Financial / TOP / Plan Cost — modals & scripts --}}
 @include('delivery.support.list.partials.financial-plancost-modals')
 @include('delivery.support.list.partials.financial-plancost-scripts')
+
+{{-- Recons — scripts section (hanya dimuat kalau section-nya tampil) --}}
+@if($can('delivery-support.recons.view'))
+@include('delivery.support.list.partials.recons-scripts')
+@endif
 
 <script>
 // ============================================================================

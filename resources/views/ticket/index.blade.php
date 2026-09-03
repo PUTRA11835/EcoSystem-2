@@ -538,7 +538,24 @@
                                 </div>
                             </div>
                         </th>
-                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Assign Delivery</th>
+                        {{-- ASSIGN DELIVERY: column filter dropdown (pola sama dengan Type/Module).
+                             data-searchable eksplisit karena item-nya diisi belakangan lewat
+                             /api/tickets/filter-options — ambang auto-inject search di
+                             custom-dropdown.js dihitung saat init, saat panel masih kosong. --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:130px;">
+                            <div class="custom-dd relative w-full" id="ddColFilterDelivery" data-fixed="true" data-multi="true" data-searchable="true" data-search-placeholder="Search delivery..." data-onchange="applyColFilter">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Assign Delivery</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                <input type="hidden" id="colFilterDelivery" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:260px;min-width:240px;">
+                                    {{-- Item diisi populateDeliveryFilter() --}}
+                                </div>
+                            </div>
+                        </th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:140px;">Customer Mandays</th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Activity Date</th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:160px;">Progress</th>
@@ -1025,6 +1042,7 @@
                 colFilterStatus: document.getElementById('colFilterStatus')?.value || '',
                 colFilterType: document.getElementById('colFilterType')?.value || '',
                 colFilterModule: document.getElementById('colFilterModule')?.value || '',
+                colFilterDelivery: document.getElementById('colFilterDelivery')?.value || '',
                 dateFilterFrom: document.getElementById('dateFilterFrom')?.value || '',
                 dateFilterTo: document.getElementById('dateFilterTo')?.value || '',
                 ticketFilterInput: document.getElementById('ticketFilterInput')?.value || '',
@@ -1067,7 +1085,7 @@
         }
 
         // Multi-select custom dropdowns — set value mentah lalu sync checkmark + label
-        ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType', 'colFilterModule'].forEach(id => {
+        ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType', 'colFilterModule', 'colFilterDelivery'].forEach(id => {
             if (!state[id]) return;
             const hidden = document.getElementById(id);
             if (!hidden) return;
@@ -1162,6 +1180,8 @@
         const colScale = document.getElementById('colFilterScale')?.value || '';
         const colType = document.getElementById('colFilterType')?.value || '';
         const colModule = document.getElementById('colFilterModule')?.value || '';
+        const colDelivery = document.getElementById('colFilterDelivery')?.value || '';
+        if (colDelivery) params.set('delivery_support_id', colDelivery);
         if (colStatus) params.set('status', colStatus);
         if (colCustomer) params.set('customer_id', colCustomer);
         if (colPic) params.set('pic_id', colPic === '__unassigned__' ? 'unassigned' : colPic);
@@ -1264,12 +1284,14 @@
             const colScale = document.getElementById('colFilterScale')?.value || '';
             const colStatus = document.getElementById('colFilterStatus')?.value || '';
             const colType = document.getElementById('colFilterType')?.value || '';
+            const colDelivery = document.getElementById('colFilterDelivery')?.value || '';
             if (colCustomer) params.set('customer_id', colCustomer);
             if (colPic) params.set('pic_id', colPic === '__unassigned__' ? 'unassigned' : colPic);
             if (colPriority) params.set('priority', colPriority);
             if (colScale) params.set('scale', colScale);
             if (colStatus) params.set('status', colStatus);
             if (colType) params.set('type', colType);
+            if (colDelivery) params.set('delivery_support_id', colDelivery);
 
             const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
             const dateTo = document.getElementById('dateFilterTo')?.value || '';
@@ -1866,10 +1888,74 @@
             if (data.success) {
                 populateCustomerFilter(data.customers || []);
                 populatePicFilter(data.pics || []);
+                populateDeliveryFilter(data.deliveries || []);
             }
         } catch (e) {
             console.warn('[Filter Options] error:', e.message);
         }
+    }
+
+    /**
+     * Isi opsi filter kolom "Assign Delivery".
+     *
+     * Berbeda dari Customer/PIC yang single-select, dropdown ini multi-select
+     * sehingga tiap item butuh <span class="custom-dd-item-text"> + ikon
+     * .custom-dd-check — persis markup item Type/Module di Blade, supaya
+     * _toggleMultiItem()/_updateMultiLabel() di custom-dropdown.js mengenalinya.
+     */
+    function populateDeliveryFilter(deliveries) {
+        const ddEl = document.getElementById('ddColFilterDelivery');
+        if (!ddEl) return;
+        // Panel bisa sudah dipindah ke document.body (mode fixed) — pakai ref tersimpan.
+        const panel = ddEl._ddPanel || ddEl.querySelector('.custom-dd-panel');
+        if (!panel) return;
+
+        panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
+
+        const makeAll = (val, text) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50';
+            btn.dataset.value = val;
+            btn.textContent = text;
+            return btn;
+        };
+
+        const makeItem = (val, text) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 text-left';
+            btn.dataset.value = val;
+
+            const span = document.createElement('span');
+            span.className = 'custom-dd-item-text';
+            span.textContent = text;                    // textContent → aman dari HTML injection
+
+            const check = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            check.setAttribute('class', 'custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0');
+            check.setAttribute('fill', 'none');
+            check.setAttribute('stroke', 'currentColor');
+            check.setAttribute('viewBox', '0 0 24 24');
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('stroke-linejoin', 'round');
+            path.setAttribute('stroke-width', '2.5');
+            path.setAttribute('d', 'M5 13l4 4L19 7');
+            check.appendChild(path);
+
+            btn.appendChild(span);
+            btn.appendChild(check);
+            return btn;
+        };
+
+        const fragment = document.createDocumentFragment();
+        fragment.appendChild(makeAll('', 'All'));
+        fragment.appendChild(makeItem('__unassigned__', 'Unassigned'));
+        deliveries.forEach(d => fragment.appendChild(makeItem(String(d.id), d.name)));
+
+        const emptyEl = panel._ddEmpty || null;
+        if (emptyEl) panel.insertBefore(fragment, emptyEl);
+        else panel.appendChild(fragment);
     }
 
     function populateCustomerFilter(customers) {
@@ -1937,6 +2023,7 @@
             'ddColFilterStatus': 'colFilterStatus',
             'ddColFilterType': 'colFilterType',
             'ddColFilterModule': 'colFilterModule',
+            'ddColFilterDelivery': 'colFilterDelivery',
         };
         Object.entries(colDdMap).forEach(([ddId, inputId]) => {
             updateColFilterActive(ddId, document.getElementById(inputId)?.value || '');
@@ -2197,8 +2284,8 @@
 
     function resetFilters() {
         const colFilterIds = ['colFilterCustomer', 'colFilterPic'];
-        const colFilterMultiIds = ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType', 'colFilterModule'];
-        const colDdIds = ['ddColFilterCustomer', 'ddColFilterPic', 'ddColFilterPriority', 'ddColFilterScale', 'ddColFilterStatus', 'ddColFilterType', 'ddColFilterModule'];
+        const colFilterMultiIds = ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType', 'colFilterModule', 'colFilterDelivery'];
+        const colDdIds = ['ddColFilterCustomer', 'ddColFilterPic', 'ddColFilterPriority', 'ddColFilterScale', 'ddColFilterStatus', 'ddColFilterType', 'ddColFilterModule', 'ddColFilterDelivery'];
         if (typeof setCustomDropdownValue === 'function') {
             colFilterIds.forEach(id => setCustomDropdownValue(id, ''));
         } else {
