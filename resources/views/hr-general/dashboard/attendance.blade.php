@@ -102,7 +102,12 @@
                 {{ $roleName }}@if(!empty($user['position'])) &middot; {{ $user['position'] }}@endif
             </p>
             <p class="text-xs text-white text-opacity-70 mt-0.5">
-                {{ now()->translatedFormat('dddd, d F Y') }}
+                {{-- 'l' = nama hari penuh pada translatedFormat() (token gaya date() PHP,
+                     BUKAN gaya moment.js). 'dddd' pernah dipakai di sini dan menghasilkan
+                     "03030303": empat huruf 'd' masing-masing berarti "tanggal 2 digit",
+                     bukan token nama hari. Untuk token gaya moment.js pakai isoFormat(),
+                     seperti profile/edit.blade.php:442. --}}
+                {{ now()->translatedFormat('l, d F Y') }}
                 <span id="dashAttShift"></span>
             </p>
 
