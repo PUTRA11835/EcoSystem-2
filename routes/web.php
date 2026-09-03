@@ -580,6 +580,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/create', [TicketViewController::class, 'create'])->name('create');
         Route::get('/export', [TicketController::class, 'exportToExcel'])->name('export')->middleware('menu:ticket.export');
         Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload')->middleware('menu:ticket.consultant-workload');
+        Route::get('/consultant-workload/{id}/export', [ConsultantWorkloadController::class, 'exportTickets'])->name('consultant-workload.export')->middleware('menu:ticket.consultant-workload');
         Route::get('/task', [TaskController::class, 'index'])->name('task')->middleware('menu:ticket.my-tasks');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');
         // Ringkasan AI per tiket (SSE). POST karena memicu generate, bukan sekadar baca.
