@@ -11,6 +11,8 @@ use App\Http\Controllers\HR_General\MyAttendanceController;
 use App\Http\Controllers\HR_General\MyOvertimeController;
 use App\Http\Controllers\HR_General\MyPurchaseRequestController;
 use App\Http\Controllers\HR_General\MyReimbursementController;
+use App\Http\Controllers\HR_General\PurchaseRequestController;
+use App\Http\Controllers\HR_General\PurchaseRequestSettingController;
 use App\Http\Controllers\HR_General\OvertimeReviewController;
 use App\Http\Controllers\HR_General\OvertimeSettingController;
 use App\Http\Controllers\HR_General\PurchaseRequestController;

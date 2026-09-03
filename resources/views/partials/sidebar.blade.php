@@ -522,12 +522,6 @@
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-cart-shopping text-xs"></i>
                                 </span>
-                                {{-- "Review", bukan "Purchase Request" polos: di dalam
-                                     dropdown ini sudah ada pola pembeda yang sama —
-                                     "Attendance Recap", "Overtime Review". Kata
-                                     pembedanya menyatakan APA yang berbeda (meninjau
-                                     milik orang lain), sementara item ESS di atas
-                                     tetap bernama "Purchase Request" polos. --}}
                                 <span class="nav-text text-sm">Purchase Request Review</span>
                             </a>
                         @endif
@@ -742,6 +736,10 @@
                 </div>
             @endif
 
+            @php
+                $showSlaMenu = isset($showSlaMenu) ? $showSlaMenu : $can('sla');
+                $canManageSla = isset($canManageSla) ? $canManageSla : ($can('sla.config') || $can('sla.manage'));
+            @endphp
             @if($showSlaMenu || $canManageSla)
                 <!-- SLA Dropdown -->
                 @php $slaDropdownOpen = Request::is('sla*'); @endphp
@@ -778,6 +776,9 @@
                 </div>
             @endif
 
+            @php
+                $showRpmoMenu = isset($showRpmoMenu) ? $showRpmoMenu : ($can('rpmo') || $can('rpmo.overview'));
+            @endphp
             @if($showRpmoMenu)
                 <!-- RPMO -->
                 @php $rpmoDropdownOpen = Request::is('rpmo*'); @endphp
