@@ -41,7 +41,7 @@ class AiResearchController extends Controller
      * di luar kendali kode ini:
      *
      *   1. MAX_ATTACHMENT_KB — ukuran satu berkas. Ditahan di bawah
-     *      `upload_max_filesize=25M` milik PHP produksi (lihat Dockerfile).
+     *      `upload_max_filesize=30M` milik PHP produksi (lihat Dockerfile).
      *      Melebihi plafon PHP bukan menghasilkan pesan yang jelas, melainkan
      *      berkas yang hilang diam-diam.
      *
@@ -68,7 +68,7 @@ class AiResearchController extends Controller
 
     /**
      * Total unggahan dalam SATU pesan. Bukan batas API, melainkan pagar agar
-     * request tidak menabrak `post_max_size` PHP (30M di produksi) — di atas
+     * request tidak menabrak `post_max_size` PHP (80M di produksi) — di atas
      * itu PHP membuang seluruh body, bukan cuma berkasnya (lihat
      * rejectOversizedPost()). Harus sama dengan yang dicek di sisi browser.
      */

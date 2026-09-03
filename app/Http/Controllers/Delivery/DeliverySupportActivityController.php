@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Delivery;
 
-use App\Enums\RoleId;
 use App\Http\Controllers\Controller;
 use App\Models\DeliverySupport;
 use App\Models\DeliverySupportPhase;
@@ -592,7 +591,7 @@ class DeliverySupportActivityController extends Controller
 
     /**
      * Remove ticket link from an activity (set ticket_id = null).
-     * Only EC Administrator is allowed.
+     * Gated by menu permission: delivery-support.remove-ticket.
      */
     public function removeTicketLink(DeliverySupport $support, DeliverySupportActivity $activity)
     {
@@ -602,9 +601,11 @@ class DeliverySupportActivityController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id']]);
-        if (!in_array(RoleId::EC_ADMINISTRATOR->value, $roleIds, true)) {
-            return response()->json(['success' => false, 'message' => 'Only EC Administrator can remove ticket links.'], 403);
+        // Akses diatur lewat Control Center → Menu Access (slug: delivery-support.remove-ticket),
+        // bukan role hardcode — samakan dengan gating tombolnya di Blade.
+        $canRemoveTicket = (bool) Employee::find($sessionUser['id'] ?? null)?->hasPermission('delivery-support.remove-ticket');
+        if (!$canRemoveTicket) {
+            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki izin untuk melepas tautan tiket.'], 403);
         }
 
         if ($activity->delivery_support_id !== $support->id) {

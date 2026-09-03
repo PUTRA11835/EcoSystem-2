@@ -161,8 +161,13 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
                 Route::post('/reorder', [DeliverySupportActivityController::class, 'reorder'])->name('reorder');
                 Route::post('/bulk-progress', [DeliverySupportActivityController::class, 'bulkUpdateProgress'])->name('bulk-progress');
                 Route::put('/{activity}', [DeliverySupportActivityController::class, 'update'])->name('update');
-                Route::patch('/{activity}/remove-ticket', [DeliverySupportActivityController::class, 'removeTicketLink'])->name('remove-ticket');
                 Route::put('/{activity}/employees/{employeeId}', [DeliverySupportActivityController::class, 'updateAssignment'])->name('employees.update');
+            });
+
+            // "Remove Ticket from DS" — gating-nya slug sendiri (bukan activities.edit)
+            // supaya bisa diberi/dicabut lewat Control Center → Menu Access.
+            Route::middleware('menu:delivery-support.remove-ticket')->group(function () {
+                Route::patch('/{activity}/remove-ticket', [DeliverySupportActivityController::class, 'removeTicketLink'])->name('remove-ticket');
             });
 
             Route::middleware('menu:delivery-support.activities.manage')->group(function () {

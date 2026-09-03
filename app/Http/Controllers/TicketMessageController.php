@@ -161,7 +161,7 @@ class TicketMessageController extends Controller
             'to_emails'               => 'nullable',
             'cc_emails'               => 'nullable',
             'attachments'             => 'nullable|array',
-            'attachments.*'           => 'file|max:10240', // maks 10 MB per file
+            'attachments.*'           => 'file|max:25600', // maks 25 MB per file
             'mentioned_employee_ids'  => 'nullable|array',
             'mentioned_employee_ids.*'=> 'integer',
             'mentioned_role_ids'      => 'nullable|array',
@@ -1438,7 +1438,7 @@ class TicketMessageController extends Controller
             'remove_attachment_ids'    => 'nullable|array',
             'remove_attachment_ids.*'  => 'integer',
             'attachments'              => 'nullable|array',
-            'attachments.*'            => 'file|max:10240',
+            'attachments.*'            => 'file|max:25600', // maks 25 MB per file
             'mentioned_employee_ids'   => 'nullable|array',
             'mentioned_employee_ids.*' => 'integer',
             'mentioned_role_ids'       => 'nullable|array',

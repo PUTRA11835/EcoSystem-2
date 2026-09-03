@@ -315,7 +315,7 @@
             </button>
             @endif
 
-            @if($isEcAdmin)
+            @if($can('delivery-support.remove-ticket'))
             <button type="button" onclick="openRemoveTicketModal()"
                     class="inline-flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 text-sm font-semibold rounded-lg hover:bg-orange-200 transition-all duration-200">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2318,7 +2318,7 @@ document.addEventListener('DOMContentLoaded', () => loadCustomerPicPanel());
 @endphp
 <script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 
-@if($isEcAdmin)
+@if($can('delivery-support.remove-ticket'))
 {{-- Remove Ticket from DS Modal --}}
 <div id="removeTicketModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
