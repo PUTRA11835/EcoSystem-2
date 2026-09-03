@@ -83,58 +83,20 @@
         ];
     }
 
-    // ESS Cards
-    if ($can('my-leave-permit') || $can('hr_general.leave_permit') || $can('general')) {
-        $kpiCards[] = [
-            'href' => route('my-leave-permit'),
-            'icon' => 'fa-calendar-check',
-            'bg'   => 'bg-purple-50',
-            'hover' => 'group-hover:bg-purple-100',
-            'color' => 'text-purple-600',
-            'border' => 'hover:border-purple-300',
-            'val'   => 'Leave & Permit',
-            'label' => 'Apply / Requests',
-        ];
-    }
-
-    if ($can('general.my-attendance')) {
-        $kpiCards[] = [
-            'href' => route('general.my-attendance.index'),
-            'icon' => 'fa-user-clock',
-            'bg'   => 'bg-emerald-50',
-            'hover' => 'group-hover:bg-emerald-100',
-            'color' => 'text-emerald-600',
-            'border' => 'hover:border-emerald-300',
-            'val'   => 'My Attendance',
-            'label' => 'Check-In / Out',
-        ];
-    }
-
-    if ($can('general.my-overtime')) {
-        $kpiCards[] = [
-            'href' => route('general.my-overtime.index'),
-            'icon' => 'fa-business-time',
-            'bg'   => 'bg-amber-50',
-            'hover' => 'group-hover:bg-amber-100',
-            'color' => 'text-amber-600',
-            'border' => 'hover:border-amber-300',
-            'val'   => 'My Overtime',
-            'label' => 'Submit / History',
-        ];
-    }
-
-    if ($can('general.my-reimbursement')) {
-        $kpiCards[] = [
-            'href' => route('general.my-reimbursement.index'),
-            'icon' => 'fa-receipt',
-            'bg'   => 'bg-sky-50',
-            'hover' => 'group-hover:bg-sky-100',
-            'color' => 'text-sky-600',
-            'border' => 'hover:border-sky-300',
-            'val'   => 'Reimbursement',
-            'label' => 'Submit Claims',
-        ];
-    }
+    // ESS Cards DIHAPUS 3 Sep 2026 (bukan diperkecil fontnya).
+    //
+    // Blok ini menaruh Leave & Permit / My Attendance / My Overtime /
+    // Reimbursement sebagai "kartu KPI" berlabel teks di tengah grid yang
+    // seharusnya berisi ANGKA (Employees, Total Tickets, dst). Slot
+    // `text-lg sm:text-2xl font-bold ... truncate` dirancang untuk angka
+    // pendek, sehingga label panjang terpotong ("Leave & Pe...").
+    //
+    // Menghapus, bukan memperkecil font, karena keempatnya murni DUPLIKAT:
+    // Leave & Permit dan My Attendance sudah punya tombol cepat di hero
+    // ("Apply Leave & Permit" / "My Attendance") DAN ubin di Daily Access;
+    // Overtime dan Reimbursement sudah jadi item tingkat atas di sidebar.
+    // Prinsip yang sama sudah dipakai untuk Daily Access sendiri — lihat
+    // komentar di hr-general/dashboard/attendance.blade.php.
 
     // Tickets Cards
     if ($can('ticket') || $can('ticket.index') || !empty($stats['total'])) {
