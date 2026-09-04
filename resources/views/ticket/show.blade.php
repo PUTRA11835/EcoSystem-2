@@ -1440,6 +1440,21 @@
     cursor: pointer;
 }
 
+/* ── Meeting modal: expand sideways as recipients grow, never squeeze notes ──
+   The chip list scrolls in its own area; the "add email" input row stays put
+   below it so it's never scrolled out of view while the list grows. */
+#meetingModalCard { transition: max-width .2s ease; }
+#meetingToTagsContainer,
+#meetingCcTagsContainer { max-height: 7.5rem; overflow-y: auto; transition: max-height .2s ease; }
+#meetingToTagsContainer:not(:empty) + div,
+#meetingCcTagsContainer:not(:empty) + div { border-top: 1px solid #f3f4f6; }
+@media (min-width: 640px) {
+    #meetingRecipientsCol { width: 22rem; transition: width .2s ease; }
+    #meetingModalCard.meeting-wide #meetingRecipientsCol { width: 34rem; }
+    #meetingModalCard.meeting-wide #meetingToTagsContainer,
+    #meetingModalCard.meeting-wide #meetingCcTagsContainer { max-height: 11rem; }
+}
+
 @if(session('user_preferences.theme', 'light') === 'dark')
 /* ── Dark mode: elemen ber-warna HARDCODED khusus halaman ticket ─────────────
    Override global di dashboard.blade.php hanya menjangkau utilitas Tailwind
@@ -2246,8 +2261,8 @@
 
 {{-- ===== MEETING MODAL ===== --}}
 @if($can('ticket.meeting'))
-<div id="meetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onclick="if(event.target===this) closeMeetingPanel()">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+<div id="meetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto" onclick="if(event.target===this) closeMeetingPanel()">
+    <div id="meetingModalCard" class="bg-white rounded-2xl shadow-2xl w-full max-w-md sm:w-auto sm:max-w-[95vw] my-auto max-h-[92vh] flex flex-col">
         {{-- Header --}}
         <div id="meetingModalHeader" class="flex items-center justify-between px-6 py-4 rounded-t-2xl">
             <div class="flex items-center gap-3">
@@ -2265,32 +2280,75 @@
             </button>
         </div>
 
-        {{-- Body --}}
-        <div class="px-6 pb-2 space-y-3">
-            {{-- Template Meeting --}}
+        {{-- Body — To/CC on the left, schedule on the right; notes span the full width below the split --}}
+        <div class="flex-1 overflow-y-auto px-6 pb-2 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:gap-6 sm:items-start">
+        {{-- Left column: recipients — this column and the modal widen sideways as chips fill --}}
+        <div id="meetingRecipientsCol" class="space-y-3 w-full sm:flex-shrink-0">
+            {{-- To --}}
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Gunakan Template</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">To</label>
+                <div id="meetingToDropZone"
+                     class="flex flex-col border border-gray-300 rounded-xl bg-white cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
+                     onclick="document.getElementById('meetingToInput').focus()">
+                    <div id="meetingToTagsContainer" class="flex flex-wrap gap-1 items-center px-2.5 pt-1.5 empty:pt-0 overflow-y-auto"></div>
+                    <div class="relative flex-shrink-0 px-2.5 py-1.5">
+                        <input type="text" id="meetingToInput"
+                               placeholder="Add an email then press Enter…"
+                               class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                               onkeydown="handleMeetingRecipientKeydown(event,'to')"
+                               onblur="handleMeetingRecipientBlur('to')"
+                               onpaste="handleMeetingRecipientPaste(event,'to')">
+                    </div>
+                </div>
+            </div>
+            {{-- CC --}}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                    CC <span class="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <div id="meetingCcDropZone"
+                     class="flex flex-col border border-gray-300 rounded-xl bg-white cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
+                     onclick="document.getElementById('meetingCcInput').focus()">
+                    <div id="meetingCcTagsContainer" class="flex flex-wrap gap-1 items-center px-2.5 pt-1.5 empty:pt-0 overflow-y-auto"></div>
+                    <div class="relative flex-shrink-0 px-2.5 py-1.5">
+                        <input type="text" id="meetingCcInput"
+                               placeholder="Add an email then press Enter…"
+                               class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                               onkeydown="handleMeetingRecipientKeydown(event,'cc')"
+                               onblur="handleMeetingRecipientBlur('cc')"
+                               onpaste="handleMeetingRecipientPaste(event,'cc')">
+                    </div>
+                </div>
+                <p class="mt-1 text-xs text-gray-400">Automatically filled with the same To/CC used last time on this ticket.</p>
+            </div>
+        </div>
+        {{-- Right column: template, schedule & link — fixed width, never squeezed --}}
+        <div class="space-y-3 w-full mt-4 pt-4 border-t border-gray-100 sm:mt-0 sm:pt-0 sm:border-t-0 sm:border-l sm:border-gray-100 sm:pl-6 sm:w-[20rem] sm:flex-shrink-0">
+            {{-- Meeting Template --}}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Use Template</label>
                 <div class="custom-dd relative w-full" data-onchange="onMeetingTemplateSelect" data-fixed="true">
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between gap-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white hover:border-gray-400 transition-all">
-                        <span class="custom-dd-label text-gray-500">Tidak pakai template</span>
+                        <span class="custom-dd-label text-gray-500">No template</span>
                         <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                     </button>
                     <input type="hidden" id="meetingTemplateSelect" value="">
                     <div id="meetingTemplatePanel" class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">Tidak pakai template (kosongkan)</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">No template (clear)</button>
                     </div>
                 </div>
             </div>
-            {{-- Link meeting — hanya tampil saat mulai meeting --}}
+            {{-- Schedule + link --}}
             <div id="meetingLinkWrap">
-                {{-- Waktu --}}
+                {{-- Time --}}
                 <label id="meetingTimesLabel" class="block text-sm font-medium text-gray-700 mb-2">
-                    Waktu Meeting
+                    Meeting Time
                 </label>
 
-                {{-- Mulai: tanggal + jam --}}
+                {{-- Start: date + time --}}
                 <div id="meetingStartRow" class="mb-2">
-                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Mulai</p>
+                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Start</p>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
                             <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2309,9 +2367,9 @@
                     </div>
                 </div>
 
-                {{-- Selesai: tanggal + jam --}}
+                {{-- End: date + time --}}
                 <div class="mb-3">
-                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Selesai</p>
+                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">End</p>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
                             <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2333,8 +2391,8 @@
                 {{-- Link --}}
                 <div id="meetingLinkSection">
                     <label class="block text-sm font-medium text-gray-700 mb-1.5">
-                        Link Meeting
-                        <span class="text-gray-400 font-normal">(opsional)</span>
+                        Meeting Link
+                        <span class="text-gray-400 font-normal">(optional)</span>
                     </label>
                     <div class="flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 transition-all">
                         <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2342,75 +2400,41 @@
                         </svg>
                         <input id="meetingLink" type="url"
                             class="flex-1 text-sm bg-transparent focus:outline-none"
-                            placeholder="https://meet.google.com/… atau https://zoom.us/…">
+                            placeholder="https://meet.google.com/… or https://zoom.us/…">
                     </div>
-                    <p class="mt-1 text-xs text-gray-400">Waktu dan link akan dikirim via email ke customer</p>
-                </div>
-
-                {{-- To / CC undangan meeting — chip input, sama gaya dengan kolom pesan --}}
-                <div class="mt-3">
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">To</label>
-                    <div id="meetingToDropZone"
-                         class="flex flex-wrap items-center gap-1 min-h-[38px] border border-gray-300 rounded-xl bg-white px-2.5 py-1.5 cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
-                         onclick="document.getElementById('meetingToInput').focus()">
-                        <div id="meetingToTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
-                        <div class="relative flex-1 min-w-[150px]">
-                            <input type="text" id="meetingToInput"
-                                   placeholder="Tambah email lalu tekan Enter…"
-                                   class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
-                                   onkeydown="handleMeetingRecipientKeydown(event,'to')"
-                                   onblur="handleMeetingRecipientBlur('to')"
-                                   onpaste="handleMeetingRecipientPaste(event,'to')">
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">
-                        CC <span class="text-gray-400 font-normal">(opsional)</span>
-                    </label>
-                    <div id="meetingCcDropZone"
-                         class="flex flex-wrap items-center gap-1 min-h-[38px] border border-gray-300 rounded-xl bg-white px-2.5 py-1.5 cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
-                         onclick="document.getElementById('meetingCcInput').focus()">
-                        <div id="meetingCcTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
-                        <div class="relative flex-1 min-w-[150px]">
-                            <input type="text" id="meetingCcInput"
-                                   placeholder="Tambah email lalu tekan Enter…"
-                                   class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
-                                   onkeydown="handleMeetingRecipientKeydown(event,'cc')"
-                                   onblur="handleMeetingRecipientBlur('cc')"
-                                   onpaste="handleMeetingRecipientPaste(event,'cc')">
-                        </div>
-                    </div>
-                    <p class="mt-1 text-xs text-gray-400">Otomatis terisi sama seperti To/CC yang dipakai terakhir kali pada tiket ini.</p>
+                    <p class="mt-1 text-xs text-gray-400">The time and link will be emailed to the customer</p>
                 </div>
             </div>
+        </div>
+        </div>
 
-            <div>
-                <label id="meetingNotesLabel" class="block text-sm font-medium text-gray-700 mb-1.5"></label>
-                <textarea id="meetingNotes" rows="2"
-                    class="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all bg-white"
-                    placeholder="(opsional)"></textarea>
-            </div>
+        {{-- Notes — full width, outside the split so it keeps a comfortable size --}}
+        <div>
+            <label id="meetingNotesLabel" class="block text-sm font-medium text-gray-700 mb-1.5"></label>
+            <textarea id="meetingNotes" rows="5"
+                class="w-full px-3 py-2.5 text-sm leading-relaxed border border-gray-300 rounded-xl resize-y min-h-[8rem] max-h-[24rem] focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all bg-white"
+                placeholder="News, editorial info, meeting invitation details, or other supplementary notes…"></textarea>
+        </div>
 
-            {{-- Simpan sebagai template --}}
-            <div class="pt-1">
-                <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                    <input type="checkbox" id="saveAsTemplateCheckbox" class="rounded border-gray-300 text-purple-600 focus:ring-purple-400" onchange="toggleSaveTemplateFields()">
-                    Simpan sebagai template
-                </label>
-                <div id="saveTemplateFields" class="hidden mt-2 space-y-2">
-                    <input id="templateNameInput" type="text" placeholder="Nama template, mis. Sync Mingguan Support"
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300">
-                    <p class="text-xs text-gray-400">Template ini hanya bisa dipakai di tiket ini.</p>
-                </div>
+        {{-- Save as template --}}
+        <div class="pt-1">
+            <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" id="saveAsTemplateCheckbox" class="rounded border-gray-300 text-purple-600 focus:ring-purple-400" onchange="toggleSaveTemplateFields()">
+                Save as template
+            </label>
+            <div id="saveTemplateFields" class="hidden mt-2 space-y-2">
+                <input id="templateNameInput" type="text" placeholder="Template name, e.g. Weekly Support Sync"
+                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300">
+                <p class="text-xs text-gray-400">This template can only be used on this ticket.</p>
             </div>
+        </div>
         </div>
 
         {{-- Footer --}}
         <div class="flex justify-end gap-3 px-6 py-4">
             <button onclick="closeMeetingPanel()"
                 class="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all font-medium">
-                Batal
+                Cancel
             </button>
             <button id="meetingConfirmBtn" onclick="confirmMeeting()"
                 class="px-5 py-2 text-sm font-semibold text-white rounded-xl transition-all">
@@ -2427,8 +2451,8 @@
     <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
             <div>
-                <h3 class="text-sm font-bold text-gray-900">Konfirmasi Undangan Meeting</h3>
-                <p class="text-[11px] text-gray-400 mt-0.5">Periksa kembali sebelum mengirim</p>
+                <h3 class="text-sm font-bold text-gray-900">Confirm Meeting Invitation</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">Review before sending</p>
             </div>
             <button onclick="closeConfirmMeetingModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
@@ -2445,26 +2469,26 @@
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Mulai</span>
+                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Start</span>
                     <p id="confirmMeetingStart" class="text-xs text-gray-800">-</p>
                 </div>
                 <div>
-                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Selesai</span>
+                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">End</span>
                     <p id="confirmMeetingEnd" class="text-xs text-gray-800">-</p>
                 </div>
             </div>
             <div>
-                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Link Meeting</span>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Meeting Link</span>
                 <p id="confirmMeetingLink" class="text-xs text-purple-600 break-all">-</p>
             </div>
             <div>
-                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Pesan / Catatan</span>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Message / Notes</span>
                 <div id="confirmMeetingNotes" class="text-xs text-gray-800 border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto bg-gray-50 whitespace-pre-wrap">-</div>
             </div>
         </div>
         <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 flex-shrink-0">
             <button onclick="closeConfirmMeetingModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">Edit</button>
-            <button id="confirmMeetingSendBtn" onclick="finalizeMeetingSend()" class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all">Kirim Undangan</button>
+            <button id="confirmMeetingSendBtn" onclick="finalizeMeetingSend()" class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all">Send Invitation</button>
         </div>
     </div>
 </div>
@@ -5381,6 +5405,16 @@
                 <button type="button" onclick="removeMeetingRecipientTag('${field}',${i})" class="${closeCls} hover:text-red-500 transition-colors flex-shrink-0 leading-none ml-0.5">&times;</button>
             </span>`
         ).join('');
+        adjustMeetingModalWidth();
+    }
+
+    // Grow the modal sideways once the recipient list gets long, so the left
+    // column (schedule + notes) keeps its width instead of being squeezed.
+    function adjustMeetingModalWidth() {
+        const card = document.getElementById('meetingModalCard');
+        if (!card) return;
+        const total = meetingToEmails.length + meetingCcEmails.length;
+        card.classList.toggle('meeting-wide', total > 6);
     }
 
     function renderMeetingToTags() { renderMeetingRecipientTags('to'); }
@@ -5485,13 +5519,13 @@
 
         if (header)     { header.classList.add('bg-purple-50'); header.classList.remove('bg-red-50'); }
         if (iconWrap)   { iconWrap.classList.add('bg-purple-100', 'text-purple-600'); iconWrap.classList.remove('bg-red-100', 'text-red-600'); }
-        if (titleEl)    titleEl.textContent = 'Jadwalkan Meeting';
-        if (notesLbl)   notesLbl.textContent = 'Catatan (opsional)';
-        if (confirmBtn) { confirmBtn.textContent = 'Jadwalkan Meeting'; confirmBtn.className = confirmBtn.className.replace(/bg-\S+/g, ''); confirmBtn.classList.add('px-5', 'py-2', 'text-sm', 'font-semibold', 'text-white', 'rounded-xl', 'transition-all', 'bg-purple-500', 'hover:bg-purple-600'); }
+        if (titleEl)    titleEl.textContent = 'Schedule Meeting';
+        if (notesLbl)   notesLbl.textContent = 'Notes (optional)';
+        if (confirmBtn) { confirmBtn.textContent = 'Schedule Meeting'; confirmBtn.className = confirmBtn.className.replace(/bg-\S+/g, ''); confirmBtn.classList.add('px-5', 'py-2', 'text-sm', 'font-semibold', 'text-white', 'rounded-xl', 'transition-all', 'bg-purple-500', 'hover:bg-purple-600'); }
         if (linkWrap)   linkWrap.classList.remove('hidden');
         if (startRow)   startRow.classList.remove('hidden');
         if (linkSec)    linkSec.classList.remove('hidden');
-        if (timesLbl)   timesLbl.textContent = 'Waktu Meeting';
+        if (timesLbl)   timesLbl.textContent = 'Meeting Time';
 
         // Pre-fill: start = sekarang, end = +1 jam
         const pad = (n) => String(n).padStart(2, '0');
@@ -5537,14 +5571,14 @@
         // di dalam .custom-dd-item, taruh di attribute `title` (tooltip) saja.
         const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
         const renderItem = (t) => `
-            <div class="custom-dd-item w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer" data-value="${t.id}" title="${t.created_by_name ? 'Dibuat oleh ' + escapeHtml(t.created_by_name) : ''}">
+            <div class="custom-dd-item w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer" data-value="${t.id}" title="${t.created_by_name ? 'Created by ' + escapeHtml(t.created_by_name) : ''}">
                 <span class="truncate">${escapeHtml(t.name)}</span>
-                ${t.is_owner ? `<button type="button" onclick="event.stopPropagation(); deleteMeetingTemplate(${t.id})" class="text-gray-300 hover:text-red-500 flex-shrink-0 p-0.5" title="Hapus template">
+                ${t.is_owner ? `<button type="button" onclick="event.stopPropagation(); deleteMeetingTemplate(${t.id})" class="text-gray-300 hover:text-red-500 flex-shrink-0 p-0.5" title="Delete template">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>` : ''}
             </div>`;
 
-        let html = `<button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">Tidak pakai template (kosongkan)</button>`;
+        let html = `<button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">No template (clear)</button>`;
         html += _meetingTemplates.map(renderItem).join('');
         panel.innerHTML = html;
     }
@@ -5586,27 +5620,27 @@
             });
             const data = await res.json();
             if (data.success) {
-                showNotification('Template "' + name + '" tersimpan.', 'success');
+                showNotification('Template "' + name + '" saved.', 'success');
             } else {
-                showNotification(data.message || 'Gagal menyimpan template', 'error');
+                showNotification(data.message || 'Failed to save template', 'error');
             }
         } catch {
-            showNotification('Meeting terkirim, tapi template gagal disimpan (jaringan)', 'error');
+            showNotification('Meeting sent, but the template failed to save (network)', 'error');
         }
     }
 
     async function deleteMeetingTemplate(id) {
-        if (!await showConfirm('Hapus template ini?', 'Hapus Template', 'danger')) return;
+        if (!await showConfirm('Delete this template?', 'Delete Template', 'danger')) return;
         try {
             const res  = await fetch(`/api/tickets/${ticketId}/meeting-templates/${id}/delete`, { method: 'POST', headers: getHeaders(), credentials: 'same-origin' });
             const data = await res.json();
             if (data.success) {
                 loadMeetingTemplates();
             } else {
-                showNotification(data.message || 'Gagal menghapus template', 'error');
+                showNotification(data.message || 'Failed to delete template', 'error');
             }
         } catch {
-            showNotification('Terjadi kesalahan jaringan', 'error');
+            showNotification('A network error occurred', 'error');
         }
     }
 
@@ -5626,11 +5660,11 @@
         const endTime   = endDate   && endH   ? `${endDate}T${endH}`     : null;
 
         if (!startTime || !endTime) {
-            showNotification('Waktu mulai dan selesai meeting wajib diisi', 'error');
+            showNotification('Meeting start and end time are required', 'error');
             return;
         }
         if (new Date(endTime) <= new Date(startTime)) {
-            showNotification('Waktu selesai meeting harus lebih besar dari waktu mulai', 'error');
+            showNotification('Meeting end time must be after the start time', 'error');
             return;
         }
 
@@ -5639,7 +5673,7 @@
         commitMeetingRecipientInput('cc');
 
         if (!meetingToEmails.length && !meetingCcEmails.length) {
-            showNotification('Isi minimal satu penerima (To atau CC) sebelum mengirim undangan', 'error');
+            showNotification('Add at least one recipient (To or CC) before sending the invitation', 'error');
             return;
         }
 
@@ -5655,7 +5689,7 @@
         const fmt = (iso) => {
             if (!iso) return '-';
             const d = new Date(iso);
-            return isNaN(d) ? iso : d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+            return isNaN(d) ? iso : d.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
         };
 
         document.getElementById('confirmMeetingTo').textContent    = payload.to_emails.length ? payload.to_emails.join(', ') : '-';
@@ -5663,7 +5697,7 @@
         document.getElementById('confirmMeetingStart').textContent = fmt(payload.meeting_start_time);
         document.getElementById('confirmMeetingEnd').textContent   = fmt(payload.meeting_end_time);
         document.getElementById('confirmMeetingLink').textContent  = payload.meeting_link || '-';
-        document.getElementById('confirmMeetingNotes').textContent = payload.notes || '(tidak ada catatan)';
+        document.getElementById('confirmMeetingNotes').textContent = payload.notes || '(no notes)';
 
         document.getElementById('confirmMeetingModal').classList.remove('hidden');
     }
@@ -5682,7 +5716,7 @@
 
         const sendBtn = document.getElementById('confirmMeetingSendBtn');
         const btn     = document.getElementById('meetingConfirmBtn');
-        if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Mengirim…'; }
+        if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
 
         try {
             const res  = await fetch(`/api/tickets/${ticketId}/sla/meeting/start`, {
@@ -5700,12 +5734,12 @@
                 await saveMeetingTemplateIfRequested(payload.meeting_link, payload.notes);
                 try { await loadMessages(); } catch (_) {}
             } else {
-                showNotification(data.message || 'Gagal', 'error');
+                showNotification(data.message || 'Failed', 'error');
             }
         } catch {
-            showNotification('Terjadi kesalahan jaringan', 'error');
+            showNotification('A network error occurred', 'error');
         } finally {
-            if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Kirim Undangan'; }
+            if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send Invitation'; }
             if (btn)     { btn.disabled = false; }
             _pendingMeetingPayload = null;
         }
