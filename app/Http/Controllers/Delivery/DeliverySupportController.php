@@ -407,11 +407,11 @@ class DeliverySupportController extends Controller
             ->whereDoesntHave('children')
             ->sum('actual_amount');
 
-        $sessionUser = session('user') ?? [];
-        $roleIds     = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
-        $isEcAdmin   = in_array(RoleId::EC_ADMINISTRATOR->value, $roleIds, true);
+        // Tombol "Remove Ticket from DS" — dulu di-hardcode ke role EC Administrator,
+        // sekarang diatur lewat Control Center → Menu Access (slug: delivery-support.remove-ticket).
+        $canRemoveTicket = (bool) Employee::find(session('user.id'))?->hasPermission('delivery-support.remove-ticket');
 
-        $linkedTickets = $isEcAdmin
+        $linkedTickets = $canRemoveTicket
             ? DB::table('delivery_support_activities')
                 ->join('ticket', 'delivery_support_activities.ticket_id', '=', 'ticket.ticket_id')
                 ->where('delivery_support_activities.delivery_support_id', $support->id)
@@ -425,7 +425,7 @@ class DeliverySupportController extends Controller
                 ])
             : collect();
 
-        return view('delivery.support.list.show', compact('support', 'employees', 'modules', 'clients', 'vendors', 'canManage', 'isEcAdmin', 'linkedTickets', 'actualCost'));
+        return view('delivery.support.list.show', compact('support', 'employees', 'modules', 'clients', 'vendors', 'canManage', 'canRemoveTicket', 'linkedTickets', 'actualCost'));
     }
 
     /**

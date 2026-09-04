@@ -55,6 +55,7 @@ class MenuSeeder extends Seeder
         ['base' => 'delivery-support.sla',          'name' => 'SLA Configuration',           'actions' => ['view', 'edit', 'manage']],
         ['base' => 'delivery-support.plan-cost',    'name' => 'Plan Cost',                   'actions' => ['view', 'edit', 'manage']],
         ['base' => 'delivery-support.documents',    'name' => 'Documents & Folder',          'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-support.recons',       'name' => 'Recons',                      'actions' => ['view', 'edit', 'manage']],
     ];
 
     const ACTION_LABEL = ['view' => 'View', 'edit' => 'Edit', 'manage' => 'Create / Delete', 'delete' => 'Delete'];
@@ -211,6 +212,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'delivery.support',             'name' => 'Support',                 'type' => 'page',     'parent_slug' => 'delivery',    'route_name' => 'delivery.support.index',       'icon' => null,                   'order_seq' => 2],
             ['slug' => 'delivery-support.add-new',     'name' => 'Add Delivery Support',    'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                     'icon' => null,                   'order_seq' => 1],
             ['slug' => 'delivery-support.delete-support', 'name' => 'Delete Delivery Support', 'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                  'icon' => null,                   'order_seq' => 10],
+            ['slug' => 'delivery-support.remove-ticket',  'name' => 'Remove Ticket from DS',   'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                  'icon' => null,                   'order_seq' => 11],
 
             // ── Control Center (Admin) ────────────────────────────────────────────
             ['slug' => 'control-center',               'name' => 'Control Center',          'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-server',            'order_seq' => 12],
@@ -399,6 +401,7 @@ class MenuSeeder extends Seeder
             'delivery.support'            => [self::ADMIN=>$vced, self::HOS=>$vce,      self::HELPDESK=>$v, self::RPMO=>$vced],
             'delivery-support.add-new'    => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
             'delivery-support.delete-support' => [self::ADMIN=>$v, self::HOS=>$v,       self::RPMO=>$v],
+            'delivery-support.remove-ticket'  => [self::ADMIN=>$v],
             // Control Center
             'control-center'              => [self::ADMIN=>$v],
             'control-center.overview'     => [self::ADMIN=>$v],
@@ -456,6 +459,14 @@ class MenuSeeder extends Seeder
         // EC Administrator (lihat App\Support\MenuRegistrar). Pemberian ke role
         // lain diputuskan lewat Control Center -> Menu Access.
         $matrix['delivery-project.team.delete'] = [self::ADMIN => $v];
+
+        // Section Recons juga slug baru: lahir HANYA untuk EC Administrator,
+        // sama persis dengan migrasi 2026_09_03_000002 supaya install baru dan
+        // database produksi berperilaku identik. Role lain diberikan lewat
+        // Control Center -> Menu Access.
+        foreach (['view', 'edit', 'manage'] as $action) {
+            $matrix['delivery-support.recons.' . $action] = [self::ADMIN => $v];
+        }
 
         // Seeder ini rutin dijalankan ulang di production tiap kali ada slug baru
         // (lihat MULTI_ROLE_SYSTEM.md). Matrix di atas cuma boleh diterapkan untuk

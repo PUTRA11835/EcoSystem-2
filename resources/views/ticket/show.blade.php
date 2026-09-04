@@ -3250,8 +3250,8 @@
                             input.onchange = () => {
                                 const file = input.files[0];
                                 if (!file) return;
-                                if (file.size > 10 * 1024 * 1024) {
-                                    showNotification('Image too large (max 10 MB)', 'error');
+                                if (file.size > 25 * 1024 * 1024) {
+                                    showNotification('Image too large (max 25 MB)', 'error');
                                     return;
                                 }
                                 const reader = new FileReader();
@@ -4631,10 +4631,10 @@
     let selectedFiles = []; // File[] yang dipilih user untuk dikirim bersama reply
 
     document.getElementById('attachInput').addEventListener('change', function () {
-        const maxSize = 10 * 1024 * 1024; // 10 MB per file
+        const maxSize = 25 * 1024 * 1024; // 25 MB per file
         Array.from(this.files).forEach(file => {
             if (file.size > maxSize) {
-                showNotification(`${file.name} is too large (max 10 MB)`, 'error');
+                showNotification(`${file.name} is too large (max 25 MB)`, 'error');
                 return;
             }
             // Hindari duplikat berdasarkan nama + ukuran
