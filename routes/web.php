@@ -615,6 +615,21 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             ->middleware('menu:management.module-groups')
             ->name('module-groups.index');
 
+        Route::prefix('ticket')->name('ticket.')->group(function () {
+            Route::get('/document-type', [\App\Http\Controllers\DeliverableDocumentTypeController::class, 'page'])
+                ->middleware('menu:management.ticket.document-type')
+                ->name('document-type.index');
+        });
+
+        Route::prefix('delivery')->name('delivery.')->group(function () {
+            Route::get('/project', [\App\Http\Controllers\DeliveryProjectTypeController::class, 'page'])
+                ->middleware('menu:management.delivery.project')
+                ->name('project.index');
+            Route::get('/support', [\App\Http\Controllers\DeliverySupportTypeController::class, 'page'])
+                ->middleware('menu:management.delivery.support')
+                ->name('support.index');
+        });
+
         Route::prefix('employee')->name('employee.')->group(function () {
             Route::get('/basic-data',     [\App\Http\Controllers\ManagementEmployeeController::class, 'basicData'])    ->middleware('menu:management.employee.basic-data')    ->name('basic-data.index');
             Route::get('/address',        [\App\Http\Controllers\ManagementEmployeeController::class, 'address'])      ->middleware('menu:management.employee.address')        ->name('address.index');

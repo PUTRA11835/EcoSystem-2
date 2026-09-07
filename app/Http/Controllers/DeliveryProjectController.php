@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectCost;
+use App\Models\DeliveryProjectType;
 use App\Models\Employee;
 use App\Models\EmployeeBasicData;
 use App\Models\Document;
@@ -49,7 +50,11 @@ class DeliveryProjectController extends Controller
         // memilih IO yang sudah ada; hanya IO milik company yang sama yang muncul.
         $iosByClient = $this->existingIosByClient();
 
-        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees', 'vendors', 'aeEmployees', 'iosByClient'));
+        // Dropdown "Project Type" — master data (menu Management > Master
+        // Delivery Settings > Project Type), bukan hardcode lagi.
+        $projectTypes = DeliveryProjectType::active()->orderBy('order_seq')->orderBy('name')->pluck('name');
+
+        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees', 'vendors', 'aeEmployees', 'iosByClient', 'projectTypes'));
     }
 
     public function store(Request $request)
@@ -373,6 +378,16 @@ class DeliveryProjectController extends Controller
         // hanya berlaku di project ini — lihat CheckMenuOrProjectOwner.
         $isProjectOwner = $project->isOwnedByEmployee(session('user.id'));
 
+        // Dropdown "Project Type" (modal-general-info partial) — master data,
+        // bukan hardcode lagi. Nilai project_type project ini tetap dipastikan
+        // muncul di daftar walau tipenya sudah dinonaktifkan di master data,
+        // supaya form edit tidak diam-diam "menghilangkan" pilihan yang sedang
+        // terpakai.
+        $projectTypes = DeliveryProjectType::active()->orderBy('order_seq')->orderBy('name')->pluck('name');
+        if ($project->project_type && !$projectTypes->contains($project->project_type)) {
+            $projectTypes->push($project->project_type);
+        }
+
         return view('delivery.project.projects.show', compact(
             'project',
             'employees',
@@ -386,7 +401,8 @@ class DeliveryProjectController extends Controller
             'teamPivotRows',
             'actualCost',
             'sameCompanyIos',
-            'isProjectOwner'
+            'isProjectOwner',
+            'projectTypes'
         ));
     }
 
@@ -419,7 +435,7 @@ class DeliveryProjectController extends Controller
         } elseif ($field === 'name') {
             $rules['value'] = 'required|string|max:255';
         } elseif ($field === 'project_type') {
-            $rules['value'] = ['nullable', Rule::in(['Implementation', 'Roll Out', 'Migration', 'Upgrade', 'WRICEF', 'Body Hire'])];
+            $rules['value'] = ['nullable', Rule::in(DeliveryProjectType::active()->pluck('name'))];
         } elseif ($field === 'client_id') {
             $rules['value'] = ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)];
         } else {
@@ -476,7 +492,7 @@ class DeliveryProjectController extends Controller
             'client_id'           => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
             'name'                => 'required|string|max:255',
             'project_owner'       => 'nullable|string|max:255',
-            'project_type'        => ['nullable', Rule::in(['Implementation','Roll Out','Migration','Upgrade','WRICEF','Body Hire'])],
+            'project_type'        => ['nullable', Rule::in(DeliveryProjectType::active()->pluck('name'))],
             'high_level_risk'     => ['nullable', Rule::in(['Low','Moderate','High'])],
             'contract_start_date' => 'required|date',
             'contract_end_date'   => 'required|date|after_or_equal:contract_start_date',
