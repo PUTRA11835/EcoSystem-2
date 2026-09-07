@@ -148,6 +148,7 @@ class RoleController extends Controller
         $employee->roles()->syncWithoutDetaching($request->role_ids);
 
         Cache::forget("perm_slugs_{$employee->employee_id}");
+        Cache::forget("perm_matrix_{$employee->employee_id}");
 
         return response()->json(['success' => true, 'message' => 'Role added successfully.']);
     }
@@ -164,6 +165,7 @@ class RoleController extends Controller
         $employee->roles()->sync($request->role_ids);
 
         Cache::forget("perm_slugs_{$employee->employee_id}");
+        Cache::forget("perm_matrix_{$employee->employee_id}");
 
         return response()->json(['success' => true, 'message' => 'Employee roles updated successfully.']);
     }
@@ -174,6 +176,7 @@ class RoleController extends Controller
         $employee->roles()->detach($roleId);
 
         Cache::forget("perm_slugs_{$employee->employee_id}");
+        Cache::forget("perm_matrix_{$employee->employee_id}");
 
         return response()->json(['success' => true, 'message' => 'Role revoked from the employee successfully.']);
     }
@@ -182,6 +185,7 @@ class RoleController extends Controller
     {
         $role->employees()->pluck('employee.employee_id')->each(function ($empId) {
             Cache::forget("perm_slugs_{$empId}");
+            Cache::forget("perm_matrix_{$empId}");
         });
     }
 }

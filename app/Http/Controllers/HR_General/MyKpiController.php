@@ -42,8 +42,12 @@ class MyKpiController extends Controller
 
         $currentPeriod = Carbon::now()->format('Y-m');
 
+        // Keep this employee's evaluations in step with template targeting so the
+        // tabs below never lag behind what HR configured on the templates.
+        \App\Support\KpiAssignments::syncEmployee((int) $employeeId, $currentPeriod, (int) $employeeId);
+
         // All evaluations for this employee, newest first
-        $evaluations = KpiEvaluation::with(['template.indicators', 'supervisor.basicData', 'details.indicator'])
+        $evaluations = KpiEvaluation::with(['template.indicators', 'template.scoringScales', 'supervisor.basicData', 'details.indicator'])
             ->where('employee_id', $employeeId)
             ->orderByDesc('period_month')
             ->get();
@@ -56,11 +60,16 @@ class MyKpiController extends Controller
         // Selected period evaluation for the detail card switcher
         $selectedEval = $evaluations->firstWhere('period_month', $selectedPeriod) ?: $currentEval;
 
-        // Evaluations awaiting self-assessment
-        $pendingSelfAssessment = $evaluations->filter(fn($e) =>
+        // Split by assessment kind. Self and Lead assessments are now separate
+        // evaluation rows on separate templates (different indicators).
+        $selfEvals = $evaluations->filter(fn($e) => $e->isSelfType())->values();
+        $leadEvals = $evaluations->filter(fn($e) => $e->isLeadType())->values();
+
+        // Self-assessments still awaiting the employee's input
+        $pendingSelfAssessment = $selfEvals->filter(fn($e) =>
             !$e->hasSelfAssessment() &&
             !in_array($e->status, [KpiEvaluation::STATUS_HR_APPROVED])
-        );
+        )->values();
 
         // Approved evaluations visible to employee
         $approvedEvaluations = $evaluations->where('status', KpiEvaluation::STATUS_HR_APPROVED);
@@ -110,6 +119,8 @@ class MyKpiController extends Controller
         return view('hr-general.kpi.my-kpi', compact(
             'user',
             'evaluations',
+            'selfEvals',
+            'leadEvals',
             'currentEval',
             'currentPeriod',
             'selectedPeriod',
@@ -136,21 +147,29 @@ class MyKpiController extends Controller
         $evaluation = KpiEvaluation::with([
             'template',
             'template.indicators',
+            'template.scoringScales',
             'supervisor.basicData',
             'details.indicator',
         ])
         ->where('employee_id', $employeeId) // ownership check
         ->findOrFail($id);
 
-        // Cannot re-submit self-assessment if already approved by HR
-        if ($evaluation->status === KpiEvaluation::STATUS_HR_APPROVED) {
+        // Only self-type rows are fillable by the employee. Lead-assessment rows
+        // are scored by the manager and are read-only here.
+        if (!$evaluation->isSelfType()) {
             return redirect()->route('general.my-kpi.index')
-                ->with('info', 'This evaluation has already been approved. Self-assessment cannot be modified.');
+                ->with('error', 'This is a lead assessment and cannot be filled as a self-assessment.');
         }
+
+        // The form is view-only once the employee has submitted it, or once HR
+        // has approved. The employee can still open it to review their answers.
+        $locked = $evaluation->hasSelfAssessment()
+            || $evaluation->status === KpiEvaluation::STATUS_HR_APPROVED;
 
         return view('hr-general.kpi.self-assessment', compact(
             'user',
-            'evaluation'
+            'evaluation',
+            'locked'
         ));
     }
 
@@ -164,22 +183,32 @@ class MyKpiController extends Controller
         $user       = session('user');
         $employeeId = $user['id'] ?? null;
 
-        $evaluation = KpiEvaluation::with('details.indicator')
+        $evaluation = KpiEvaluation::with(['details.indicator', 'template'])
             ->where('employee_id', $employeeId)
             ->findOrFail($id);
 
-        // Block changes after HR approval
-        if ($evaluation->status === KpiEvaluation::STATUS_HR_APPROVED) {
+        if (!$evaluation->isSelfType()) {
             if ($request->wantsJson()) {
-                return response()->json(['success' => false, 'message' => 'Evaluation already approved by HR.'], 422);
+                return response()->json(['success' => false, 'message' => 'This row is a lead assessment, not a self-assessment.'], 422);
+            }
+            return redirect()->route('general.my-kpi.index')->with('error', 'This row is a lead assessment.');
+        }
+
+        // Self-assessment is final: it locks the moment it is submitted, and
+        // again once HR approves. No further edits from the employee.
+        if ($evaluation->hasSelfAssessment() || $evaluation->status === KpiEvaluation::STATUS_HR_APPROVED) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Self-assessment already submitted and locked.'], 422);
             }
             return redirect()->route('general.my-kpi.index')
-                ->with('error', 'Evaluation already approved. Self-assessment cannot be modified.');
+                ->with('error', 'Self-assessment has already been submitted and is locked.');
         }
 
         $request->validate([
             'achievements' => 'required|array',
         ]);
+
+        $scaleMax = $evaluation->template?->scaleMax() ?: 5;
 
         DB::beginTransaction();
         try {
@@ -189,12 +218,22 @@ class MyKpiController extends Controller
                 $detail = $evaluation->details->where('id', (int) $detailId)->first();
                 if (!$detail) continue;
 
+                // Paragraph indicators only carry a text answer — no rating / score.
+                if ($detail->indicator && $detail->indicator->isParagraph()) {
+                    $detail->self_notes        = $data['notes'] ?? null;
+                    $detail->self_submitted_at = $now;
+                    $detail->save();
+                    continue;
+                }
+
+                $max = $detail->indicator?->effectiveMax() ?: $scaleMax;
+
                 if (isset($data['rating']) && (int)$data['rating'] > 0) {
                     $detail->star_rating = (int) $data['rating'];
-                    $detail->self_achievement = $detail->star_rating * 20;
+                    $detail->self_achievement = round($detail->star_rating / $max * 100, 2);
                 } elseif (isset($data['achievement']) && $data['achievement'] !== '') {
                     $detail->self_achievement = (float) $data['achievement'];
-                    $detail->star_rating = min(5, max(1, (int) round($detail->self_achievement / 20)));
+                    $detail->star_rating = min($max, max(1, (int) round($detail->self_achievement / 100 * $max)));
                 }
 
                 if (isset($data['actual'])) {
@@ -209,6 +248,7 @@ class MyKpiController extends Controller
             // Mark self-assessment timestamp on evaluation
             $evaluation->self_assessed_at = $now;
             $evaluation->save();
+            $evaluation->recalculateScore(); // self rows score off self_achievement
             $evaluation->refreshStatus();
 
             DB::commit();

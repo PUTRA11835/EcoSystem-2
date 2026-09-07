@@ -51,10 +51,12 @@ class KpiEvaluationDetail extends Model
      */
     public function computeWeightedScore(): void
     {
+        $max = $this->indicator?->effectiveMax() ?: 5;
+
         if (!is_null($this->star_rating) && (is_null($this->supervisor_score) || $this->supervisor_score == 0)) {
-            $this->supervisor_score = $this->star_rating * 20;
+            $this->supervisor_score = round($this->star_rating / $max * 100, 2);
         } elseif (!is_null($this->supervisor_score) && is_null($this->star_rating)) {
-            $this->star_rating = min(5, max(1, (int) round($this->supervisor_score / 20)));
+            $this->star_rating = min($max, max(1, (int) round($this->supervisor_score / 100 * $max)));
         }
 
         if (!is_null($this->supervisor_score) && $this->indicator) {

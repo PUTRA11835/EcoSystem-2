@@ -938,14 +938,8 @@
                                     <span class="nav-text text-xs">Purchase Request Settings</span>
                                 </a>
                                 @endif
-                                    @if($can('general.settings.kpi'))
-                                        <a href="{{ route('general.settings.kpi.index') }}"
-                                            class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/kpi*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
-                                                    class="fas fa-layer-group text-xs"></i></span>
-                                            <span class="nav-text text-xs">KPI Templates</span>
-                                        </a>
-                                    @endif
+                                    {{-- KPI Templates moved into the KPI Evaluation page as a tab
+                                         (general.kpi-evaluation.templates.*). --}}
                                 </div>
                             </div>
                         @endif
