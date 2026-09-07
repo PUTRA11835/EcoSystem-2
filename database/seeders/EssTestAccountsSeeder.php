@@ -39,7 +39,11 @@ class EssTestAccountsSeeder extends Seeder
             ]);
         }
 
-        // Grant management.permissions & hr_general.leave_permit to HR Administrator role
+        // The full-access super-admin role (owns grants for every menu, incl. all
+        // KPI Evaluation slugs registered by App\Support\MenuRegistrar).
+        $ecAdminRoleId = DB::table('employee_role')->where('name', 'EC Administrator')->value('id');
+
+        // Base grants the HR Administrator role should always have.
         $permissionMenus = DB::table('menu')
             ->whereIn('slug', ['management', 'management.permissions', 'management.ess-settings', 'general', 'hr_general.leave_permit'])
             ->pluck('id');
@@ -49,6 +53,27 @@ class EssTestAccountsSeeder extends Seeder
                 ['role_id' => $hrAdminRoleId, 'menu_id' => $mId],
                 ['can_view' => true, 'can_create' => true, 'can_edit' => true, 'can_delete' => true, 'created_at' => $now, 'updated_at' => $now]
             );
+        }
+
+        // Mirror EVERY grant the super-admin role holds onto the HR Administrator
+        // role, so the HR test account can reach KPI Evaluation, Attendance,
+        // Overtime, Templates, Team & Leads, etc. without a 403 from the
+        // `menu:` middleware. (menu:general.my-kpi already works for everyone.)
+        if ($ecAdminRoleId) {
+            $adminGrants = DB::table('role_menu')->where('role_id', $ecAdminRoleId)->get();
+            foreach ($adminGrants as $g) {
+                DB::table('role_menu')->updateOrInsert(
+                    ['role_id' => $hrAdminRoleId, 'menu_id' => $g->menu_id],
+                    [
+                        'can_view'   => $g->can_view,
+                        'can_create' => $g->can_create,
+                        'can_edit'   => $g->can_edit,
+                        'can_delete' => $g->can_delete,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]
+                );
+            }
         }
 
         // Test accounts dataset
@@ -90,7 +115,9 @@ class EssTestAccountsSeeder extends Seeder
                 'gender'     => 'Female',
                 'title'      => 'Ms.',
                 'position'   => 'HR Manager',
-                'roles'      => [$hrAdminRoleId, $systemRoleId],
+                // EC Administrator too → always gets whatever MenuRegistrar grants,
+                // even after future menu re-registrations.
+                'roles'      => array_values(array_filter([$hrAdminRoleId, $ecAdminRoleId, $systemRoleId])),
             ],
         ];
 

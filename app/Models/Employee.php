@@ -173,6 +173,42 @@ class Employee extends Model
         return array_values(array_unique(array_merge($slugs, $essDefaults)));
     }
 
+    /**
+     * Full capability matrix per menu slug: [slug => ['view','create','edit','delete' => bool]].
+     * Flags are OR-ed across all of the employee's roles. Sent to views as `permMatrix`
+     * so pages can gate edit/create/delete buttons, not just visibility.
+     */
+    public function allPermissionMatrix(): array
+    {
+        $roleIds = $this->roles()->pluck('employee_role.id');
+
+        $rows = \Illuminate\Support\Facades\DB::table('menu')
+            ->join('role_menu', 'role_menu.menu_id', '=', 'menu.id')
+            ->whereIn('role_menu.role_id', $roleIds)
+            ->where('menu.is_active', true)
+            ->get(['menu.slug', 'role_menu.can_view', 'role_menu.can_create', 'role_menu.can_edit', 'role_menu.can_delete']);
+
+        $matrix = [];
+        foreach ($rows as $r) {
+            $slug = $r->slug;
+            $matrix[$slug] ??= ['view' => false, 'create' => false, 'edit' => false, 'delete' => false];
+            $matrix[$slug]['view']   = $matrix[$slug]['view']   || (bool) $r->can_view;
+            $matrix[$slug]['create'] = $matrix[$slug]['create'] || (bool) $r->can_create;
+            $matrix[$slug]['edit']   = $matrix[$slug]['edit']   || (bool) $r->can_edit;
+            $matrix[$slug]['delete'] = $matrix[$slug]['delete'] || (bool) $r->can_delete;
+        }
+
+        // ESS self-service slugs are viewable by every active employee by default.
+        foreach (['general.my-attendance', 'my-leave-permit', 'general.my-overtime',
+                  'general.my-reimbursement', 'general.my-purchase-request',
+                  'general.my-kpi', 'profile.my'] as $slug) {
+            $matrix[$slug] ??= ['view' => false, 'create' => false, 'edit' => false, 'delete' => false];
+            $matrix[$slug]['view'] = true;
+        }
+
+        return $matrix;
+    }
+
     public function basicData()
     {
         return $this->hasOne(EmployeeBasicData::class, 'employee_id', 'employee_id');

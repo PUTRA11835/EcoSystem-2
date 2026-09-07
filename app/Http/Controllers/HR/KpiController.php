@@ -4,9 +4,12 @@ namespace App\Http\Controllers\HR;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\EmployeeBasicData;
 use App\Models\KpiEvaluation;
 use App\Models\KpiEvaluationDetail;
+use App\Models\KpiTeam;
 use App\Models\KpiTemplate;
+use App\Support\KpiAssignments;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,6 +51,12 @@ class KpiController extends Controller
         $canApprove       = $this->can('general.kpi-evaluation.approve');
         $isSupervisorOnly = !($canCreate || $canApprove);
 
+        // Coverage follows template targeting: materialise / prune the period's
+        // evaluations so the table only ever *shows* what the templates dictate.
+        if ($canCreate) {
+            KpiAssignments::syncPeriod($periodMonth, $employeeId, true);
+        }
+
         $filterType     = $request->query('filter_type', 'all');
         $search         = $request->query('search', '');
         $statusFilter   = $request->query('status', '');
@@ -56,6 +65,7 @@ class KpiController extends Controller
         $roleId         = $request->query('role_id', '');
         $templateId     = $request->query('template_id', '');
         $supervisorId   = $request->query('supervisor', $request->query('supervisor_id', ''));
+        $typeFilter     = $request->query('type', ''); // '' | self | lead
 
         // Scope determination (Supervisor defaults to 'my_team')
         if ($filterType === 'my_team' || $request->query('scope') === 'my_team') {
@@ -155,6 +165,13 @@ class KpiController extends Controller
             $empQuery->whereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)->where('template_id', $templateId));
         }
 
+        // Filter by Assessment Type (self = Evaluasi Mandiri, lead = Penilaian Atasan)
+        if ($typeFilter === 'self' || $typeFilter === 'lead') {
+            $targetTypes = $typeFilter === 'self' ? ['self'] : ['supervisor', 'peer'];
+            $empQuery->whereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)
+                ->whereHas('template', fn($t) => $t->whereIn('target_type', $targetTypes)));
+        }
+
         // Filter by Role
         if ($roleId) {
             $empQuery->whereHas('roles', fn($rq) => $rq->where('employee_role.id', $roleId));
@@ -188,6 +205,26 @@ class KpiController extends Controller
             ->orderBy('bd.last_name', 'asc')
             ->paginate($perPage)
             ->withQueryString();
+
+        // ── Templates offered to each employee on this page ──────────────────
+        // Targeting (roles / positions) now lives on the template itself, so the
+        // dashboard just hands every employee the templates that match them.
+        $eligibleTemplates = [];
+        foreach ($activeEmployees as $emp) {
+            $eligibleTemplates[$emp->employee_id] = $activeTemplates
+                ->filter(fn($tmpl) => $tmpl->appliesTo($emp))
+                ->values();
+        }
+
+        // ── Resolve each employee's reporting-line supervisor to a name ──────
+        $supNameIds = collect($activeEmployees->items())
+            ->map(fn($e) => $e->basicData?->direct_supervision)
+            ->filter()->unique()->values();
+        $supervisorNames = Employee::with('basicData')->whereIn('employee_id', $supNameIds)->get()
+            ->mapWithKeys(fn($e) => [$e->employee_id => ($e->basicData?->full_name ?: $e->eci)]);
+
+        $hasActiveFilters = $search !== '' || $positionFilter !== '' || $statusFilter !== ''
+            || $supervisorId !== '' || $templateId !== '' || $typeFilter !== '';
 
         // ── All active employees for bulk assignment checklist modal ─────────
         $allActiveEmployees = Employee::with('basicData')
@@ -230,6 +267,9 @@ class KpiController extends Controller
             'monthlyTrend',
             'recentEvaluations',
             'activeTemplates',
+            'eligibleTemplates',
+            'supervisorNames',
+            'hasActiveFilters',
             'activeEmployees',
             'allActiveEmployees',
             'supervisors',
@@ -243,6 +283,7 @@ class KpiController extends Controller
             'roleId',
             'templateId',
             'supervisorId',
+            'typeFilter',
             'perPage',
             'projects',
             'positions',
@@ -310,9 +351,12 @@ class KpiController extends Controller
         DB::beginTransaction();
         try {
             foreach ($employeeIds as $empId) {
-                // Check duplicate
+                // Duplicate = same employee already holds THIS template for the period.
+                // A different template (e.g. Self vs Lead) is a separate assignment
+                // and is allowed alongside existing ones.
                 $exists = KpiEvaluation::where('employee_id', $empId)
                     ->where('period_month', $request->period_month)
+                    ->where('template_id', $template->id)
                     ->exists();
 
                 if ($exists) {
@@ -449,6 +493,7 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
             'employee.basicData',
             'supervisor.basicData',
             'template.indicators',
+            'template.scoringScales',
             'details.indicator',
         ])->findOrFail($id);
 
@@ -469,7 +514,7 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         $user = session('user');
         $userId = (int) ($user['id'] ?? 0);
 
-        $evaluation = KpiEvaluation::with('details.indicator')->findOrFail($id);
+        $evaluation = KpiEvaluation::with(['details.indicator', 'template'])->findOrFail($id);
 
         // Security check: employees cannot evaluate themselves as supervisor
         if ($userId === (int) $evaluation->employee_id && empty($user['is_admin'])) {
@@ -485,9 +530,13 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         // Validate scores array
         $request->validate([
             'scores'          => 'required|array',
+            'scores.*.rating' => 'nullable|numeric|min:0|max:10',
             'scores.*.score'  => 'nullable|numeric|min:0|max:100',
             'scores.*.notes'  => 'nullable|string|max:500',
+            'general_notes'   => 'nullable|string|max:2000',
         ]);
+
+        $scaleMax = $evaluation->template?->scaleMax() ?: 5;
 
         DB::beginTransaction();
         try {
@@ -497,15 +546,41 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
                 $detail = $evaluation->details->where('id', (int) $detailId)->first();
                 if (!$detail) continue;
 
-                $detail->supervisor_score    = isset($data['score']) ? (float) $data['score'] : null;
+                // Paragraph indicators: keep only the note.
+                if ($detail->indicator && $detail->indicator->isParagraph()) {
+                    $detail->supervisor_notes        = $data['notes'] ?? null;
+                    $detail->supervisor_submitted_at = $now;
+                    $detail->save();
+                    continue;
+                }
+
+                $max = $detail->indicator?->effectiveMax() ?: $scaleMax;
+
+                if (isset($data['rating']) && (int) $data['rating'] > 0) {
+                    $detail->star_rating      = (int) $data['rating'];
+                    $detail->supervisor_score = round($detail->star_rating / $max * 100, 2);
+                } elseif (isset($data['score']) && $data['score'] !== '') {
+                    $detail->supervisor_score = (float) $data['score'];
+                    $detail->star_rating      = min($max, max(1, (int) round($detail->supervisor_score / 100 * $max)));
+                } else {
+                    $detail->supervisor_score = null;
+                }
+
+                if (isset($data['actual'])) {
+                    $detail->actual_achievement = $data['actual'];
+                }
+
                 $detail->supervisor_notes    = $data['notes'] ?? null;
                 $detail->supervisor_submitted_at = $now;
                 $detail->save();
                 $detail->computeWeightedScore();
             }
 
-            // Mark review timestamp and recalculate overall score
+            // Mark review timestamp, overall comment, and recalculate overall score
             $evaluation->reviewed_at = $now;
+            if ($request->has('general_notes')) {
+                $evaluation->general_notes = $request->input('general_notes');
+            }
             $evaluation->save();
             $evaluation->recalculateScore();
             $evaluation->refreshStatus();
@@ -544,13 +619,16 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         $user       = session('user');
 
         if (!$evaluation->isReadyForApproval()) {
+            $need = $evaluation->isSelfType()
+                ? 'the employee\'s self-assessment must be submitted first.'
+                : 'the lead\'s review must be completed first.';
             if ($request->wantsJson()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Evaluation cannot be approved yet. Both self-assessment and supervisor review must be completed first.',
+                    'message' => 'Evaluation cannot be approved yet — ' . $need,
                 ], 422);
             }
-            return redirect()->back()->with('error', 'Both self-assessment and supervisor review must be completed first.');
+            return redirect()->back()->with('error', 'Evaluation cannot be approved yet — ' . $need);
         }
 
         $evaluation->status          = KpiEvaluation::STATUS_HR_APPROVED;
@@ -620,6 +698,384 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
             'trend'        => $this->getTrendData($view),
             'statusCounts' => $this->getStatusCounts($periodMonth),
         ]);
+    }
+
+    /**
+     * POST: force the coverage table back in step with template targeting for a
+     * period (creates missing draft evaluations, drops pristine orphans).
+     */
+    public function syncAssignments(Request $request)
+    {
+        $period = $request->input('period', Carbon::now()->format('Y-m'));
+        try {
+            Carbon::createFromFormat('Y-m', $period);
+        } catch (\Exception $e) {
+            $period = Carbon::now()->format('Y-m');
+        }
+
+        $res = KpiAssignments::syncPeriod($period, session('user')['id'] ?? null, true);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Assignments synced — {$res['created']} added, {$res['removed']} removed.",
+            'created' => $res['created'],
+            'removed' => $res['removed'],
+        ]);
+    }
+
+    // ── Team & Leads ─────────────────────────────────────────────────────────
+
+    /**
+     * "Team & Leads" tab — HR/admin set which leader each employee reports to.
+     * The leader is stored on employee_basic_data.direct_supervision, which the
+     * rest of the KPI flow reads (lead-assessment filling, "My Team", the
+     * supervisor auto-fill on assignment).
+     */
+    public function teams(Request $request)
+    {
+        $user           = session('user');
+        $search         = trim((string) $request->query('search', ''));
+        $positionFilter = $request->query('position', '');
+        $leadFilter     = $request->query('lead', '');
+        $teamFilter     = $request->query('team', '');
+        $noLeadOnly     = $leadFilter === 'none';
+
+        $perPage = (int) $request->query('per_page', 15);
+        if (!in_array($perPage, [10, 15, 25, 50])) {
+            $perPage = 15;
+        }
+
+        $q = Employee::with(['basicData.kpiTeam.lead.basicData', 'deliveryProjects:id,name,project_manager_id,delivery_manager_id,delivery_owner_id'])
+            ->where('is_active', true);
+
+        if ($search !== '') {
+            $q->where(function ($w) use ($search) {
+                $w->where('eci', 'like', "%{$search}%")
+                  ->orWhereHas('basicData', function ($b) use ($search) {
+                      $b->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('nick_name', 'like', "%{$search}%");
+                  });
+            });
+        }
+        if ($positionFilter) {
+            $q->whereHas('basicData', fn($b) => $b->where('position', $positionFilter));
+        }
+        if ($noLeadOnly) {
+            $q->whereHas('basicData', fn($b) => $b->whereNull('direct_supervision')->orWhere('direct_supervision', ''));
+        } elseif ($leadFilter) {
+            $q->whereHas('basicData', fn($b) => $b->where('direct_supervision', $leadFilter));
+        }
+        if ($teamFilter === 'none') {
+            $q->whereHas('basicData', fn($b) => $b->whereNull('kpi_team_id'));
+        } elseif ($teamFilter !== '') {
+            $q->whereHas('basicData', fn($b) => $b->where('kpi_team_id', $teamFilter));
+        }
+
+        $employees = $q->leftJoin('employee_basic_data as bd', 'employee.employee_id', '=', 'bd.employee_id')
+            ->select('employee.*')
+            ->orderBy('bd.first_name')->orderBy('bd.last_name')
+            ->paginate($perPage)->withQueryString();
+
+        // Resolve the leader names shown on this page.
+        $leadIds = collect($employees->items())
+            ->map(fn($e) => $e->basicData?->direct_supervision)
+            ->filter()->unique()->values();
+        $leadMap = Employee::with('basicData')->whereIn('employee_id', $leadIds)->get()->keyBy('employee_id');
+
+        // Direct-report counts across the whole org (cheap grouped count).
+        $reportCounts = EmployeeBasicData::whereNotNull('direct_supervision')
+            ->where('direct_supervision', '!=', '')
+            ->selectRaw('direct_supervision, COUNT(*) as c')
+            ->groupBy('direct_supervision')
+            ->pluck('c', 'direct_supervision');
+
+        // Options for every leader picker + the header "Lead" filter.
+        $leadOptions = Employee::with('basicData')->where('is_active', true)->get()
+            ->map(fn($e) => [
+                'id'       => (string) $e->employee_id,
+                'name'     => $e->basicData?->full_name ?: $e->eci,
+                'meta'     => trim(($e->eci ?? '') . ' · ' . ($e->basicData?->position ?? ''), ' ·'),
+                'is_lead'  => (int) ($reportCounts[$e->employee_id] ?? 0) > 0,
+            ])
+            ->sortBy('name')->values();
+
+        // KPI teams (with resolved lead names) + a project → lead map for the
+        // "use project lead" shortcut.
+        $teams = KpiTeam::with('lead.basicData')->withCount('memberBasicData')->orderBy('name')->get();
+
+        $projIds = collect($employees->items())->flatMap(fn($e) => $e->deliveryProjects->pluck('id'))->unique()->values();
+        $projRows = \App\Models\DeliveryProject::whereIn('id', $projIds)
+            ->get(['id', 'name', 'project_manager_id', 'delivery_manager_id', 'delivery_owner_id']);
+        $pmIds = $projRows->flatMap(fn($p) => [$p->project_manager_id, $p->delivery_manager_id, $p->delivery_owner_id])->filter()->unique();
+        $pmNames = Employee::with('basicData')->whereIn('employee_id', $pmIds)->get()
+            ->mapWithKeys(fn($e) => [$e->employee_id => ($e->basicData?->full_name ?: $e->eci)]);
+        $projectLeadMap = $projRows->mapWithKeys(function ($p) use ($pmNames) {
+            $lid = $p->project_manager_id ?: ($p->delivery_manager_id ?: $p->delivery_owner_id);
+            return [(string) $p->id => [
+                'name'      => $p->name,
+                'lead_id'   => $lid ? (string) $lid : null,
+                'lead_name' => $lid ? ($pmNames[$lid] ?? ('#' . $lid)) : null,
+            ]];
+        });
+
+        $positions = EmployeeBasicData::whereNotNull('position')->where('position', '!=', '')
+            ->distinct()->orderBy('position')->pluck('position');
+
+        $totalEmployees = Employee::where('is_active', true)->count();
+        $withLead = Employee::where('is_active', true)
+            ->whereHas('basicData', fn($b) => $b->whereNotNull('direct_supervision')->where('direct_supervision', '!=', ''))
+            ->count();
+
+        $stats = [
+            'total'    => $totalEmployees,
+            'withLead' => $withLead,
+            'noLead'   => max(0, $totalEmployees - $withLead),
+            'teams'    => $teams->count(),
+        ];
+
+        $canEdit = $this->can('general.kpi-evaluation.create');
+
+        $viewData = compact(
+            'user', 'employees', 'leadMap', 'reportCounts', 'leadOptions',
+            'teams', 'projectLeadMap', 'positions', 'stats',
+            'search', 'positionFilter', 'leadFilter', 'teamFilter',
+            'perPage', 'canEdit'
+        );
+
+        // Realtime filtering: return just the rows + pager for XHR replacement.
+        if ($request->boolean('partial')) {
+            return response()->json([
+                'rows'  => view('hr-general.kpi.partials._teams-rows', $viewData)->render(),
+                'pager' => view('hr-general.kpi.partials._teams-pager', $viewData)->render(),
+                'total' => $employees->total(),
+            ]);
+        }
+
+        return view('hr-general.kpi.teams', $viewData);
+    }
+
+    /**
+     * Re-point the open (un-reviewed) current lead-assessment rows for a set of
+     * employees at a new leader, so a re-org never leaves a stale evaluator.
+     */
+    private function syncOpenLeadEvals(array $employeeIds, $leadId): int
+    {
+        if (empty($employeeIds)) {
+            return 0;
+        }
+        return KpiEvaluation::whereIn('employee_id', $employeeIds)
+            ->whereNull('reviewed_at')
+            ->whereHas('template', fn($t) => $t->whereIn('target_type', ['supervisor', 'peer']))
+            ->update(['supervisor_id' => $leadId]);
+    }
+
+    /**
+     * POST: set (or clear) an employee's leader manually.
+     */
+    public function updateLead(Request $request, int $employeeId)
+    {
+        $request->validate([
+            'lead_id'  => 'nullable|integer',
+            'sync_kpi' => 'nullable|boolean',
+        ]);
+
+        $bd = EmployeeBasicData::where('employee_id', $employeeId)->first();
+        if (!$bd) {
+            return response()->json(['success' => false, 'message' => 'Employee basic data not found.'], 404);
+        }
+
+        $leadId = $request->input('lead_id') ?: null;
+
+        if ($leadId && (int) $leadId === $employeeId) {
+            return response()->json(['success' => false, 'message' => 'An employee cannot be their own leader.'], 422);
+        }
+        if ($leadId && !Employee::where('employee_id', $leadId)->exists()) {
+            return response()->json(['success' => false, 'message' => 'Selected leader was not found.'], 422);
+        }
+
+        $bd->direct_supervision = $leadId;
+        $bd->lead_source        = $leadId ? 'manual' : null;
+        $bd->save();
+
+        $synced = $request->boolean('sync_kpi') ? $this->syncOpenLeadEvals([$employeeId], $leadId) : 0;
+
+        $leadName = $leadId
+            ? (Employee::with('basicData')->find($leadId)?->basicData?->full_name ?? ('#' . $leadId))
+            : null;
+
+        return response()->json([
+            'success'   => true,
+            'message'   => $leadId
+                ? "Leader set to {$leadName}." . ($synced ? " {$synced} open KPI evaluation(s) updated." : '')
+                : 'Leader cleared.',
+            'lead_id'   => $leadId,
+            'lead_name' => $leadName,
+            'source'    => $leadId ? 'manual' : null,
+            'reports'   => EmployeeBasicData::where('direct_supervision', $employeeId)->count(),
+        ]);
+    }
+
+    /**
+     * POST: put an employee on a KPI team. If the team has a lead, that becomes
+     * the employee's leader (lead_source = 'team'). Clearing the team leaves the
+     * current leader in place but drops the 'team' source.
+     */
+    public function updateTeam(Request $request, int $employeeId)
+    {
+        $request->validate(['team_id' => 'nullable|integer']);
+
+        $bd = EmployeeBasicData::where('employee_id', $employeeId)->first();
+        if (!$bd) {
+            return response()->json(['success' => false, 'message' => 'Employee basic data not found.'], 404);
+        }
+
+        $teamId = $request->input('team_id') ?: null;
+        $team   = $teamId ? KpiTeam::find($teamId) : null;
+        if ($teamId && !$team) {
+            return response()->json(['success' => false, 'message' => 'Team not found.'], 422);
+        }
+
+        $bd->kpi_team_id = $teamId;
+
+        $leadName = null;
+        $synced   = 0;
+        if ($team && $team->lead_employee_id && (int) $team->lead_employee_id !== $employeeId) {
+            $bd->direct_supervision = $team->lead_employee_id;
+            $bd->lead_source        = 'team';
+            $leadName = $team->lead?->basicData?->full_name ?? ('#' . $team->lead_employee_id);
+            $synced   = $this->syncOpenLeadEvals([$employeeId], $team->lead_employee_id);
+        } elseif (!$teamId && $bd->lead_source === 'team') {
+            $bd->lead_source = 'manual';
+        }
+        $bd->save();
+
+        return response()->json([
+            'success'   => true,
+            'message'   => $team
+                ? "Assigned to “{$team->name}”." . ($leadName ? " Leader → {$leadName}." : ' (team has no lead yet)')
+                . ($synced ? " {$synced} open KPI evaluation(s) updated." : '')
+                : 'Removed from team.',
+            'team_id'   => $teamId,
+            'team_name' => $team?->name,
+            'lead_id'   => $team?->lead_employee_id ? (string) $team->lead_employee_id : ($bd->direct_supervision ? (string) $bd->direct_supervision : null),
+            'lead_name' => $leadName,
+            'source'    => $bd->lead_source,
+        ]);
+    }
+
+    /**
+     * POST: copy a delivery project's manager onto the employee as their leader
+     * (lead_source = 'project'). Does not change project membership.
+     */
+    public function applyProjectLead(Request $request, int $employeeId)
+    {
+        $request->validate(['project_id' => 'required|integer']);
+
+        $bd = EmployeeBasicData::where('employee_id', $employeeId)->first();
+        if (!$bd) {
+            return response()->json(['success' => false, 'message' => 'Employee basic data not found.'], 404);
+        }
+
+        $project = \App\Models\DeliveryProject::find($request->input('project_id'));
+        if (!$project) {
+            return response()->json(['success' => false, 'message' => 'Project not found.'], 422);
+        }
+
+        $leadId = $project->project_manager_id ?: ($project->delivery_manager_id ?: $project->delivery_owner_id);
+        if (!$leadId) {
+            return response()->json(['success' => false, 'message' => "“{$project->name}” has no project manager set."], 422);
+        }
+        if ((int) $leadId === $employeeId) {
+            return response()->json(['success' => false, 'message' => 'That project is managed by this employee.'], 422);
+        }
+
+        $bd->direct_supervision = $leadId;
+        $bd->lead_source        = 'project';
+        $bd->save();
+
+        $synced   = $this->syncOpenLeadEvals([$employeeId], $leadId);
+        $leadName = Employee::with('basicData')->find($leadId)?->basicData?->full_name ?? ('#' . $leadId);
+
+        return response()->json([
+            'success'   => true,
+            'message'   => "Leader → {$leadName} (from “{$project->name}”)." . ($synced ? " {$synced} open KPI evaluation(s) updated." : ''),
+            'lead_id'   => (string) $leadId,
+            'lead_name' => $leadName,
+            'source'    => 'project',
+        ]);
+    }
+
+    /**
+     * POST: create or update a KPI team definition. Changing a team's lead
+     * re-points every member whose leader currently comes from the team.
+     */
+    public function saveTeam(Request $request)
+    {
+        $request->validate([
+            'id'               => 'nullable|integer|exists:kpi_teams,id',
+            'name'             => 'required|string|max:150',
+            'lead_employee_id' => 'nullable|integer',
+        ]);
+
+        $leadId = $request->input('lead_employee_id') ?: null;
+        if ($leadId && !Employee::where('employee_id', $leadId)->exists()) {
+            return response()->json(['success' => false, 'message' => 'Selected lead was not found.'], 422);
+        }
+
+        $team = $request->filled('id') ? KpiTeam::find($request->input('id')) : new KpiTeam();
+        $leadChanged = $team->exists && (int) $team->lead_employee_id !== (int) $leadId;
+
+        $team->name             = $request->input('name');
+        $team->lead_employee_id = $leadId;
+        $team->is_active        = true;
+        $team->save();
+
+        $repointed = 0;
+        if ($leadChanged || !$team->wasRecentlyCreated) {
+            $memberIds = EmployeeBasicData::where('kpi_team_id', $team->id)
+                ->where('lead_source', 'team')
+                ->pluck('employee_id');
+            if ($memberIds->isNotEmpty()) {
+                EmployeeBasicData::whereIn('employee_id', $memberIds)->update(['direct_supervision' => $leadId]);
+                $repointed = $this->syncOpenLeadEvals($memberIds->all(), $leadId);
+            }
+        }
+
+        $team->load('lead.basicData')->loadCount('memberBasicData');
+
+        return response()->json([
+            'success'   => true,
+            'message'   => ($request->filled('id') ? 'Team updated.' : 'Team created.')
+                . ($repointed ? " {$repointed} evaluation(s) re-pointed." : ''),
+            'team'      => [
+                'id'         => $team->id,
+                'name'       => $team->name,
+                'lead_id'    => $team->lead_employee_id ? (string) $team->lead_employee_id : '',
+                'lead_name'  => $team->lead?->basicData?->full_name ?? ($team->lead_employee_id ? ('#' . $team->lead_employee_id) : null),
+                'members'    => $team->member_basic_data_count,
+            ],
+        ]);
+    }
+
+    /**
+     * POST: delete a KPI team. Members are detached (kpi_team_id nulled) but keep
+     * whatever leader they already have.
+     */
+    public function deleteTeam(Request $request, int $id)
+    {
+        $team = KpiTeam::find($id);
+        if (!$team) {
+            return response()->json(['success' => false, 'message' => 'Team not found.'], 404);
+        }
+
+        EmployeeBasicData::where('kpi_team_id', $team->id)->update([
+            'kpi_team_id' => null,
+            'lead_source' => DB::raw("CASE WHEN lead_source = 'team' THEN 'manual' ELSE lead_source END"),
+        ]);
+        $team->delete();
+
+        return response()->json(['success' => true, 'message' => 'Team deleted.']);
     }
 
     // ── Export ────────────────────────────────────────────────────────────────

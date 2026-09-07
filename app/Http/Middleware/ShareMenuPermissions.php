@@ -17,19 +17,26 @@ class ShareMenuPermissions
 
         if ($user && ($user['type'] ?? null) === 'employee') {
             $userId    = $user['id'] ?? null;
-            $cacheKey  = "perm_slugs_{$userId}";
 
             // Cache 60 min — invalidated explicitly when roles/permissions change
-            $permSlugs = Cache::remember($cacheKey, now()->addMinutes(60), function () use ($userId) {
+            $permSlugs = Cache::remember("perm_slugs_{$userId}", now()->addMinutes(60), function () use ($userId) {
                 $employee = Employee::find($userId);
                 return $employee ? $employee->allPermissionSlugs() : [];
             });
+
+            $permMatrix = Cache::remember("perm_matrix_{$userId}", now()->addMinutes(60), function () use ($userId) {
+                $employee = Employee::find($userId);
+                return $employee ? $employee->allPermissionMatrix() : [];
+            });
         } else {
-            $permSlugs = [];
+            $permSlugs  = [];
+            $permMatrix = [];
         }
 
         View::share('permSlugs', $permSlugs);
+        View::share('permMatrix', $permMatrix);
         View::share('can', fn(string $slug) => in_array($slug, $permSlugs));
+        View::share('canDo', fn(string $slug, string $action = 'view') => (bool) ($permMatrix[$slug][$action] ?? false));
 
         return $next($request);
     }
