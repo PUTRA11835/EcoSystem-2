@@ -533,7 +533,7 @@ async function saveTeamRow(btn) {
     if (d && d.success) setTimeout(() => location.reload(), 700);
 }
 async function deleteTeamRow(btn) {
-    if (!confirm('Delete this team? Members keep their current leader.')) return;
+    if (!await showConfirm('Delete this team? Members keep their current leader.', 'Delete Team', 'danger', { okText: 'Delete' })) return;
     const row = btn.closest('.tm-row');
     const d = await post(`${T_URL}/groups/${row.dataset.id}/delete`, {});
     if (d && d.success) setTimeout(() => location.reload(), 700);

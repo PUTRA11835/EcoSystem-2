@@ -296,7 +296,7 @@ async function toggleTemplate(id) {
 }
 
 async function deleteTemplate(id, name) {
-    if (!confirm(`Delete template "${name}"? This cannot be undone.`)) return;
+    if (!await showConfirm(`Delete template "${name}"? This cannot be undone.`, 'Delete Template', 'danger', { okText: 'Delete' })) return;
     const res  = await fetch(`${TPL_BASE}/${id}/delete`, {
         method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
     });

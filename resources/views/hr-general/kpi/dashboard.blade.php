@@ -847,7 +847,7 @@ async function resyncAssignments(btn) {
 }
 
 async function deleteEval(id) {
-    if (!confirm('Delete this evaluation?')) return;
+    if (!await showConfirm('Delete this evaluation?', 'Delete Evaluation', 'danger', { okText: 'Delete' })) return;
     const res  = await fetch(`/general/kpi-evaluation/${id}/delete`, {
         method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
     });
