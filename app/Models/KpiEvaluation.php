@@ -77,6 +77,21 @@ class KpiEvaluation extends Model
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
+     * Assessment kind, derived from the linked template's target_type.
+     * A "self" row is filled by the employee; a "lead" row (supervisor/peer)
+     * is filled by the direct manager. Each is an independent evaluation.
+     */
+    public function isSelfType(): bool
+    {
+        return ($this->template?->target_type ?? 'supervisor') === 'self';
+    }
+
+    public function isLeadType(): bool
+    {
+        return !$this->isSelfType();
+    }
+
+    /**
      * Whether the employee has submitted their self-assessment.
      */
     public function hasSelfAssessment(): bool
@@ -93,12 +108,16 @@ class KpiEvaluation extends Model
     }
 
     /**
-     * Whether both self-assessment and supervisor review are complete.
+     * Whether the assessment relevant to this row's type is complete.
      * This is the prerequisite for HR to approve.
+     *   - self row  → the employee's self-assessment is in
+     *   - lead row  → the manager's review is in
      */
     public function isReadyForApproval(): bool
     {
-        return $this->hasSelfAssessment() && $this->hasSupervisorReview();
+        return $this->isSelfType()
+            ? $this->hasSelfAssessment()
+            : $this->hasSupervisorReview();
     }
 
     /**
@@ -141,9 +160,13 @@ class KpiEvaluation extends Model
     {
         $details = $this->details()->with('indicator')->get();
 
-        $totalScore = $details->sum(function ($detail) {
-            if (is_null($detail->supervisor_score)) return 0;
-            return ($detail->indicator->weight * $detail->supervisor_score) / 100;
+        // Self rows score off the employee's own achievement; lead rows off the
+        // manager's rating. Each row only ever carries one of the two.
+        $field = $this->isSelfType() ? 'self_achievement' : 'supervisor_score';
+
+        $totalScore = $details->sum(function ($detail) use ($field) {
+            if (is_null($detail->$field)) return 0;
+            return ($detail->indicator->weight * $detail->$field) / 100;
         });
 
         $this->overall_score = round($totalScore, 2);
@@ -164,14 +187,12 @@ class KpiEvaluation extends Model
             return;
         }
 
-        if ($hasSelf && $hasSupv) {
-            $this->status = self::STATUS_COMPLETED;
-        } elseif ($hasSupv) {
-            $this->status = self::STATUS_REVIEWED;
-        } elseif ($hasSelf) {
-            $this->status = self::STATUS_SELF_ASSESSED;
+        // Self and lead rows are independent: each completes on its own input,
+        // never waiting on the other side.
+        if ($this->isSelfType()) {
+            $this->status = $hasSelf ? self::STATUS_COMPLETED : self::STATUS_DRAFT;
         } else {
-            $this->status = self::STATUS_DRAFT;
+            $this->status = $hasSupv ? self::STATUS_COMPLETED : self::STATUS_DRAFT;
         }
 
         $this->saveQuietly();

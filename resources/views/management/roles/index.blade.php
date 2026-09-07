@@ -125,10 +125,16 @@
             <span><strong>Global ESS Policy:</strong> ESS menu items are available to all employees by default and excluded from role revocation. Use Role Access for administrative, management, and approval overrides.</span>
         </div>
 
-        <!-- Search -->
-        <div class="px-6 py-3 border-b border-gray-100 flex-shrink-0">
+        <!-- Search + permission legend -->
+        <div class="px-6 py-3 border-b border-gray-100 flex-shrink-0 space-y-2">
             <input type="text" id="menuSearch" placeholder="Search menu name..." oninput="filterMenuRows()"
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+            <p class="text-[11px] text-gray-400">
+                Per menu: <strong class="text-gray-600">V</strong> View &nbsp;·&nbsp;
+                <strong class="text-gray-600">C</strong> Create &nbsp;·&nbsp;
+                <strong class="text-gray-600">E</strong> Edit &nbsp;·&nbsp;
+                <strong class="text-gray-600">D</strong> Delete. Granting C/E/D auto-enables View.
+            </p>
         </div>
 
         <div id="menuAccessList" class="overflow-y-auto flex-1 divide-y divide-gray-100">
@@ -389,13 +395,24 @@ function renderMenuNode(node, depth, container, search, parentAccessible = true)
     div.style.paddingLeft = `${16 + depth * 22}px`;
     if (isDisabled) div.title = 'Parent menu is inactive — enable the parent first';
 
+    const perm = roleMenuPermissions[node.id] || {};
+    const flagBox = (field, letter, label, checked) => `
+        <label class="flex flex-col items-center gap-0.5 ${isDisabled ? 'opacity-50' : ''}" title="${label}">
+            <span class="text-[9px] font-bold text-gray-400 leading-none">${letter}</span>
+            <input type="checkbox" ${checked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}
+                class="w-4 h-4 rounded flex-shrink-0 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer accent-red-800'}"
+                onchange="toggleMenuFlag(${node.id}, '${field}', this)">
+        </label>`;
+
     const rightActionHtml = isEssItem
         ? `<span class="px-2 py-0.5 text-[11px] font-semibold bg-green-50 text-green-700 border border-green-200 rounded flex items-center gap-1" title="Managed under ESS Settings"><i class="fas fa-globe text-[10px]"></i> Global ESS</span>
            <input type="checkbox" checked disabled class="w-4 h-4 rounded flex-shrink-0 cursor-not-allowed opacity-50 accent-green-600" title="Global ESS Access — cannot be revoked per role">`
-        : `<input type="checkbox" ${hasAccess ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}
-            class="w-4 h-4 rounded flex-shrink-0 ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer accent-red-800'}"
-            onchange="toggleMenuAccess(${node.id}, this)"
-            title="${escHtml(node.name)}">`;
+        : `<div class="flex items-end gap-3 flex-shrink-0">
+             ${flagBox('can_view', 'V', 'View — ' + escHtml(node.name), !!perm.can_view)}
+             ${flagBox('can_create', 'C', 'Create', !!perm.can_create)}
+             ${flagBox('can_edit', 'E', 'Edit', !!perm.can_edit)}
+             ${flagBox('can_delete', 'D', 'Delete', !!perm.can_delete)}
+           </div>`;
 
     div.innerHTML = `
         ${hasChildren
@@ -436,6 +453,59 @@ function filterMenuRows() {
         allMenusData.forEach(m => expandedMenus.add(m.id));
     }
     renderMenuAccessTree();
+}
+
+// Router: 'can_view' keeps the confirm + child cascade behaviour; the
+// create/edit/delete flags are leaf-level and update silently.
+function toggleMenuFlag(menuId, field, checkbox) {
+    if (field === 'can_view') return toggleMenuAccess(menuId, checkbox);
+    return updateMenuCrudFlag(menuId, field, checkbox);
+}
+
+async function updateMenuCrudFlag(menuId, field, checkbox) {
+    const key = `${currentRoleId}-${menuId}-${field}`;
+    if (savingMenu[key]) { checkbox.checked = !checkbox.checked; return; }
+    savingMenu[key] = true;
+    checkbox.disabled = true;
+
+    const cur = roleMenuPermissions[menuId] || { can_view: false, can_create: false, can_edit: false, can_delete: false };
+    const payload = {
+        can_view:   !!cur.can_view,
+        can_create: !!cur.can_create,
+        can_edit:   !!cur.can_edit,
+        can_delete: !!cur.can_delete,
+    };
+    payload[field] = checkbox.checked;
+    // Granting any CRUD capability implies the menu must be viewable.
+    if (checkbox.checked) payload.can_view = true;
+
+    const anyLeft = payload.can_view || payload.can_create || payload.can_edit || payload.can_delete;
+    let ok = false;
+    try {
+        if (anyLeft) {
+            const res = await fetch(`/api/roles/${currentRoleId}/permissions/${menuId}`, {
+                method: 'PUT', headers: jsonHeaders(), body: JSON.stringify(payload),
+            });
+            ok = (await res.json()).success;
+            if (ok) roleMenuPermissions[menuId] = payload;
+        } else {
+            const res = await fetch(`/api/roles/${currentRoleId}/permissions/${menuId}/revoke`, {
+                method: 'POST', headers: jsonHeaders(),
+            });
+            ok = (await res.json()).success;
+            if (ok) delete roleMenuPermissions[menuId];
+        }
+    } catch (e) { ok = false; }
+
+    if (!ok) {
+        checkbox.checked = !checkbox.checked;
+        showToast('Failed to update permission. Please try again.', 'error');
+    } else {
+        showToast('Permission updated.', 'success');
+        renderMenuAccessTree();
+    }
+    checkbox.disabled = false;
+    delete savingMenu[key];
 }
 
 async function toggleMenuAccess(menuId, checkbox) {

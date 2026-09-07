@@ -248,6 +248,9 @@ class MenuRegistrar
             ->whereIn('role_id', $roleIds)
             ->pluck('employee_id')
             ->unique()
-            ->each(fn ($empId) => Cache::forget("perm_slugs_{$empId}"));
+            ->each(function ($empId) {
+                Cache::forget("perm_slugs_{$empId}");
+                Cache::forget("perm_matrix_{$empId}");
+            });
     }
 }

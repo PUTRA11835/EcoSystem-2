@@ -11,6 +11,8 @@ class KpiIndicator extends Model
     protected $fillable = [
         'template_id',
         'name',
+        'answer_type',
+        'rating_max',
         'description',
         'measurement_unit',
         'target_value',
@@ -21,8 +23,30 @@ class KpiIndicator extends Model
     protected $casts = [
         'target_value' => 'float',
         'weight'       => 'float',
+        'rating_max'   => 'integer',
         'order_seq'    => 'integer',
     ];
+
+    /**
+     * A paragraph indicator collects free text only — no rating, no weight.
+     */
+    public function isParagraph(): bool
+    {
+        return ($this->answer_type ?? 'rating') === 'paragraph';
+    }
+
+    /**
+     * Scale cap for this indicator: its own override, else the template's.
+     */
+    public function effectiveMax(): int
+    {
+        if ($this->rating_max) {
+            return (int) $this->rating_max;
+        }
+        return (int) ($this->relationLoaded('template') && $this->template
+            ? $this->template->scaleMax()
+            : 5);
+    }
 
     // ── Relationships ────────────────────────────────────────────────────────
 
