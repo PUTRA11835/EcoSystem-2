@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Delivery;
 use App\Enums\RoleId;
 use App\Http\Controllers\Controller;
 use App\Models\DeliverySupport;
+use App\Models\DeliverySupportType;
 use App\Models\DeliverySupportPhase;
 use App\Models\DeliverySupportPlanning;
 use App\Models\DeliverySupportActivity;
@@ -145,7 +146,11 @@ class DeliverySupportController extends Controller
         $employees = Employee::with('basicData')->where('is_active', true)->get();
         $modules = Module::active()->orderBy('name')->get();
 
-        return view('delivery.support.list.create', compact('clients', 'vendors', 'employees', 'modules'));
+        // Dropdown "Type" — master data (menu Management > Master Delivery
+        // Settings > Support Type), bukan hardcode lagi.
+        $supportTypes = DeliverySupportType::active()->orderBy('order_seq')->orderBy('name')->pluck('name');
+
+        return view('delivery.support.list.create', compact('clients', 'vendors', 'employees', 'modules', 'supportTypes'));
     }
 
     /**
@@ -171,7 +176,7 @@ class DeliverySupportController extends Controller
             'client_id' => ['required', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
             'vendor_id' => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_VENDOR)],
             'io_number' => ['nullable', 'string', 'max:255', Rule::unique('delivery_support', 'io_number')],
-            'type' => 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal',
+            'type' => ['required', Rule::in(DeliverySupportType::active()->pluck('name'))],
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'resolution_estimated' => 'nullable|date',
@@ -271,7 +276,16 @@ class DeliverySupportController extends Controller
         $employees = Employee::with('basicData')->where('is_active', true)->get();
         $modules   = Module::active()->orderBy('name')->get();
 
-        return view('delivery.support.list.edit', compact('support', 'clients', 'vendors', 'employees', 'modules'));
+        // Dropdown "Type" — master data, bukan hardcode lagi. Nilai type
+        // support ini tetap dipastikan muncul di daftar walau tipenya sudah
+        // dinonaktifkan di master data, supaya form edit tidak diam-diam
+        // "menghilangkan" pilihan yang sedang terpakai.
+        $supportTypes = DeliverySupportType::active()->orderBy('order_seq')->orderBy('name')->pluck('name');
+        if ($support->type && !$supportTypes->contains($support->type)) {
+            $supportTypes->push($support->type);
+        }
+
+        return view('delivery.support.list.edit', compact('support', 'clients', 'vendors', 'employees', 'modules', 'supportTypes'));
     }
 
     /**
@@ -306,7 +320,7 @@ class DeliverySupportController extends Controller
             'module_ids'           => 'nullable|string',
         ];
         if ($canEditType) {
-            $rules['type'] = 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal';
+            $rules['type'] = ['required', Rule::in(DeliverySupportType::active()->pluck('name'))];
         }
 
         $validated = $request->validate($rules, [
@@ -478,7 +492,7 @@ class DeliverySupportController extends Controller
                         'module_ids' => 'nullable|string',
                     ];
                     if ($canEditType) {
-                        $rules['type'] = 'nullable|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal';
+                        $rules['type'] = ['nullable', Rule::in(DeliverySupportType::active()->pluck('name'))];
                     }
 
                     $validated = validator($data, $rules)->validate();
