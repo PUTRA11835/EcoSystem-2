@@ -587,6 +587,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::post('/{id}/ai-summary', [\App\Http\Controllers\AiTicketSummaryController::class, 'stream'])
             ->name('ai-summary')
             ->middleware('menu:tickets.inbox');
+        // Buka tiket berdasarkan NOMOR tiket (bukan id). Dipakai hyperlink "#NNNNNNNN"
+        // di internal note — di-resolve ke id lalu redirect ke halaman tiket.
+        Route::get('/ref/{number}', [TicketViewController::class, 'showByNumber'])->name('ref');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 
