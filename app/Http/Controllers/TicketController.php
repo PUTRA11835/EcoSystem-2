@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Customer;
+use App\Models\DeliverySupportType;
 use App\Models\Employee;
 use App\Models\ModuleLead;
 use App\Models\Notification;
@@ -4249,9 +4250,14 @@ class TicketController extends Controller
             ], 403);
         }
 
+        // Support type kini master data (menu Management > Master Delivery
+        // Settings > Support Type) — lihat DeliverySupportTypeController —
+        // bukan hardcode lagi.
+        $validSupportTypes = DeliverySupportType::active()->pluck('name');
+
         $validator = Validator::make($request->all(), [
             'name'           => 'required|string|max:255',
-            'type'           => 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal',
+            'type'           => 'required|in:' . $validSupportTypes->implode(','),
             'support_method' => 'nullable|string|max:100',
         ]);
 

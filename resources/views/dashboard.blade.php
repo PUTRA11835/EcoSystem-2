@@ -1385,6 +1385,50 @@
                             </div>
                         </div>
                         @endif
+                        @if($can('management.ticket'))
+                        <div class="mt-1">
+                            <button onclick="toggleMasterTicketDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/ticket*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-ticket-alt text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm flex-1">Ticket</span>
+                                <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ Request::is('management/ticket*') ? 'rotate-180' : '' }}" id="masterTicketChevron"></i>
+                            </button>
+                            <div id="masterTicketDropdown" class="nav-text {{ Request::is('management/ticket*') ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                                @if($can('management.ticket.document-type'))
+                                <a href="{{ route('management.ticket.document-type.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/ticket/document-type*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-file-alt text-xs"></i></span>
+                                    <span class="nav-text text-xs">Document Type</span>
+                                </a>
+                                @endif
+                            </div>
+                        </div>
+                        @endif
+                        @if($can('management.delivery'))
+                        <div class="mt-1">
+                            <button onclick="toggleMasterDeliveryDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/delivery*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-truck text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm flex-1">Delivery</span>
+                                <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ Request::is('management/delivery*') ? 'rotate-180' : '' }}" id="masterDeliveryChevron"></i>
+                            </button>
+                            <div id="masterDeliveryDropdown" class="nav-text {{ Request::is('management/delivery*') ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                                @if($can('management.delivery.project'))
+                                <a href="{{ route('management.delivery.project.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/delivery/project*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-diagram-project text-xs"></i></span>
+                                    <span class="nav-text text-xs">Project Type</span>
+                                </a>
+                                @endif
+                                @if($can('management.delivery.support'))
+                                <a href="{{ route('management.delivery.support.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/delivery/support*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-headset text-xs"></i></span>
+                                    <span class="nav-text text-xs">Support Type</span>
+                                </a>
+                                @endif
+                            </div>
+                        </div>
+                        @endif
                     </div>
                 </div>
                 @endif
@@ -1675,6 +1719,24 @@
         function toggleMasterMgmtDropdown() {
             const submenu = document.getElementById('masterMgmtDropdown');
             const chevron = document.getElementById('masterMgmtChevron');
+            if (!submenu) return;
+            const isOpen = !submenu.classList.contains('hidden');
+            submenu.classList.toggle('hidden', isOpen);
+            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
+        }
+
+        function toggleMasterTicketDropdown() {
+            const submenu = document.getElementById('masterTicketDropdown');
+            const chevron = document.getElementById('masterTicketChevron');
+            if (!submenu) return;
+            const isOpen = !submenu.classList.contains('hidden');
+            submenu.classList.toggle('hidden', isOpen);
+            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
+        }
+
+        function toggleMasterDeliveryDropdown() {
+            const submenu = document.getElementById('masterDeliveryDropdown');
+            const chevron = document.getElementById('masterDeliveryChevron');
             if (!submenu) return;
             const isOpen = !submenu.classList.contains('hidden');
             submenu.classList.toggle('hidden', isOpen);

@@ -8670,10 +8670,7 @@ async function _loadLogShiftingData() {
             <div>
                 <label class="text-xs font-semibold text-gray-600 mb-1 block">Doc Type <span class="text-red-500">*</span></label>
                 <select id="ndDocType" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 focus:outline-none">
-                    <option value="">-- Select --</option>
-                    @foreach(['IR','RCA','CR Form','FSD','TD','UAT','MOM','BAST','EWA','Other'] as $dt)
-                    <option value="{{ $dt }}">{{ $dt }}</option>
-                    @endforeach
+                    <option value="" selected disabled hidden>Select Type</option>
                 </select>
             </div>
             {{-- Body Text --}}
@@ -8800,7 +8797,10 @@ const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
 let deliverableData = [];
 
-const DOC_TYPE_ROWS = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'EWA', 'Other'];
+// Doc Type dropdown dimuat dari master data (menu Management > Master Ticket
+// Settings > Document Type), bukan hardcode lagi — lihat DeliverableDocumentTypeController.
+let deliverableDocTypes       = [];
+let deliverableDocTypesLoaded = false;
 
 // Batas ukuran file deliverable (sinkron dengan validasi server: 20 MB).
 const DELIV_MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -9094,6 +9094,26 @@ function escHtmlD(s) {
 }
 
 // â"€â"€ New Document modal â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Dimuat sekali lalu dicache — daftar tipe dokumen jarang berubah, jadi tidak
+// perlu fetch ulang tiap kali modal dibuka.
+async function loadDeliverableDocTypes() {
+    if (deliverableDocTypesLoaded) return;
+    const select = document.getElementById('ndDocType');
+    try {
+        const res  = await fetch('/api/deliverable-document-types?is_active=1', { credentials: 'same-origin' });
+        const json = await res.json();
+        deliverableDocTypes = json.success ? (json.data || []) : [];
+    } catch (e) {
+        deliverableDocTypes = [];
+    }
+    deliverableDocTypesLoaded = true;
+
+    // Placeholder tetap "selected disabled hidden" — hanya tampil sebagai label
+    // default, tidak bisa dipilih ulang dari daftar begitu tipe asli ada.
+    select.innerHTML = '<option value="" selected disabled hidden>Select Type</option>'
+        + deliverableDocTypes.map(t => `<option value="${escHtmlD(t.name)}">${escHtmlD(t.name)}</option>`).join('');
+}
+
 function openNewDocModal() {
     document.getElementById('ndDocType').value = '';
     document.getElementById('ndBodyText').value = '';
@@ -9102,6 +9122,7 @@ function openNewDocModal() {
     document.getElementById('ndError').classList.add('hidden');
     document.getElementById('ndSubmitBtn').disabled = false;
     document.getElementById('newDocModal').classList.remove('hidden');
+    loadDeliverableDocTypes();
 }
 
 function closeNewDocModal() {
@@ -9311,9 +9332,9 @@ function showDelivError(msg) {
 document.getElementById('deliverableModal').addEventListener('click', function(e) {
     if (e.target === this) closeDeliverableModal();
 });
-document.getElementById('newDocModal').addEventListener('click', function(e) {
-    if (e.target === this) closeNewDocModal();
-});
+// Intentionally no backdrop-click-to-close on #newDocModal — it should only
+// be dismissed via its own close controls (X / Cancel), never by an
+// accidental click outside while filling the "New Document" form.
 
 // Load badge on page load
 (async () => {

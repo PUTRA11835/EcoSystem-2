@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\EmailSendException;
 use App\Models\Customer;
+use App\Models\DeliverableDocumentType;
 use App\Models\Ticket;
 use App\Models\TicketDeliverable;
 use App\Models\TicketMessage;
@@ -14,8 +15,6 @@ use Illuminate\Support\Facades\Log;
 
 class TicketDeliverableController extends Controller
 {
-    private const DOC_TYPES = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'EWA', 'Other'];
-
     /**
      * GET /api/tickets/{id}/deliverables
      */
@@ -80,8 +79,12 @@ class TicketDeliverableController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
+        // Doc type kini master data (menu Management > Master Ticket Settings >
+        // Document Type) — lihat DeliverableDocumentTypeController — bukan hardcode lagi.
+        $validDocTypes = DeliverableDocumentType::active()->pluck('name');
+
         $request->validate([
-            'doc_type'  => ['required', 'string', 'in:' . implode(',', self::DOC_TYPES)],
+            'doc_type'  => ['required', 'string', 'in:' . $validDocTypes->implode(',')],
             'body_text' => ['nullable', 'string', 'max:1000'],
             'file'      => ['nullable', 'file', 'max:20480'], // 20 MB max
         ]);
