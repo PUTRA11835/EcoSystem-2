@@ -171,6 +171,11 @@
         </div>
     </div>
 
+    {{-- Baris aksi form pengaturan sengaja ditaruh di BAWAH halaman secara
+         visual, tetapi form-nya ditutup di sini. Tombolnya tetap terhubung
+         lewat atribut form="settingsForm". --}}
+</form>
+
     {{-- ── Master sumber presensi ─────────────────────────────────────────
          Berada DI LUAR form pengaturan karena tiap baris punya aksinya sendiri.
          Kolom pada baris data dan pada baris "tambah" sengaja DIBUAT SAMA
@@ -199,10 +204,6 @@
                 <tbody class="divide-y divide-gray-100">
                     @foreach($sources as $source)
                     <tr class="hover:bg-gray-50 transition-colors">
-                        <form method="POST" action="{{ route('general.settings.sources.update', $source) }}" id="srcForm{{ $source->id }}">
-                            @csrf
-                        </form>
-
                         <td class="px-3 py-3">
                             <input type="text" name="name" form="srcForm{{ $source->id }}" required maxlength="100"
                                    value="{{ $source->name }}"
@@ -261,9 +262,6 @@
 
                     {{-- Baris tambah: kolomnya SAMA dengan baris data di atas. --}}
                     <tr class="bg-gray-50">
-                        <form method="POST" action="{{ route('general.settings.sources.store') }}" id="srcCreateForm">
-                            @csrf
-                        </form>
                         <td class="px-3 py-3">
                             <input type="text" name="name" form="srcCreateForm" required maxlength="100"
                                    placeholder="Mobile App"
@@ -309,12 +307,33 @@
         </div>
     </div>
 
+    {{-- ── Form pembantu untuk tabel sumber presensi ────────────────────────
+         Sengaja diletakkan DI LUAR tabel dan DI LUAR form pengaturan.
+
+         Elemen form di dalam baris tabel bukan markup yang sah, dan form di dalam
+         form membuat parser menutup form terluar lebih awal — itulah yang
+         dulu membuat tombol Save Settings tidak berfungsi sama sekali.
+
+         Input pada tabel tetap terhubung ke form ini lewat atribut form="...",
+         yang memang dirancang untuk keperluan seperti ini. --}}
+    @foreach($sources as $source)
+    <form method="POST" action="{{ route('general.settings.sources.update', $source) }}"
+          id="srcForm{{ $source->id }}" class="hidden">
+        @csrf
+    </form>
+    @endforeach
+
+    <form method="POST" action="{{ route('general.settings.sources.store') }}"
+          id="srcCreateForm" class="hidden">
+        @csrf
+    </form>
+
     <form id="deleteSourceForm" method="POST" class="hidden">
         @csrf
     </form>
 
     <div class="flex items-center gap-3">
-        <button type="submit"
+        <button type="submit" form="settingsForm"
                 class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
             <i class="fas fa-save"></i> Save Settings
         </button>
@@ -323,7 +342,6 @@
             Cancel
         </a>
     </div>
-</form>
 @endsection
 
 @push('scripts')
