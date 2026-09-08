@@ -28,6 +28,199 @@ class DeliveryProjectController extends Controller
         return view('delivery.project.projects.index', compact('projects'));
     }
 
+    /**
+     * Export daftar project ke Excel — satu baris per project, lengkap dengan
+     * angka progres (aktual, rencana, deviasi, SPI) dan ringkasan tiap section.
+     *
+     * Filter & sort tabel di halaman list dikerjakan client-side, jadi tombol
+     * Export mengirim `ids` = id baris yang sedang terlihat supaya isi file
+     * persis sama dengan isi layar. Tanpa `ids`, seluruh project diekspor.
+     */
+    public function export(Request $request)
+    {
+        $ids = collect(explode(',', (string) $request->query('ids', '')))
+            ->map(fn ($id) => (int) trim($id))
+            ->filter()
+            ->unique()
+            ->values();
+
+        // `plannings.stages` + `phases` di-eager load karena dipakai perhitungan
+        // progres (weightedProgressRaw) untuk SETIAP project — tanpa ini export
+        // memicu query per project per group.
+        $projects = DeliveryProject::with(['client.basicData', 'plannings.stages', 'phases'])
+            ->when($ids->isNotEmpty(), fn ($q) => $q->whereIn('id', $ids))
+            ->latest()
+            ->get();
+
+        $projectIds = $projects->pluck('id');
+
+        // Nama PIC: kolomnya menyimpan employee_id, sedangkan `full_name` adalah
+        // ACCESSOR di EmployeeBasicData (bukan kolom, tidak bisa di-join/where),
+        // jadi resolve lewat satu map sekali jalan.
+        $employeeIds = $projects->flatMap(fn ($p) => [
+            $p->delivery_owner_id,
+            $p->delivery_manager_id,
+            $p->project_manager_id,
+            $p->co_pm_id,
+            $p->project_admin_id,
+        ])->filter()->unique()->values();
+
+        $employeeNames = EmployeeBasicData::whereIn('employee_id', $employeeIds)
+            ->get()
+            ->mapWithKeys(fn ($b) => [$b->employee_id => $b->full_name]);
+
+        // Actual Cost = SUM actual_amount seluruh cost item (baris parent menyimpan
+        // null, jadi menjumlahkan semua baris = total leaf). Sama dengan angka
+        // "Total Actual" di section Plan Cost.
+        $actualCosts = DeliveryProjectCost::whereIn('delivery_projects_id', $projectIds)
+            ->selectRaw('delivery_projects_id, SUM(actual_amount) AS total')
+            ->groupBy('delivery_projects_id')
+            ->pluck('total', 'delivery_projects_id');
+
+        $teamCounts = DB::table('delivery_project_employee')
+            ->whereIn('delivery_projects_id', $projectIds)
+            ->selectRaw('delivery_projects_id, COUNT(*) AS total')
+            ->groupBy('delivery_projects_id')
+            ->pluck('total', 'delivery_projects_id');
+
+        $documentCounts = DB::table('documents')
+            ->whereIn('delivery_projects_id', $projectIds)
+            ->selectRaw('delivery_projects_id, COUNT(*) AS total')
+            ->groupBy('delivery_projects_id')
+            ->pluck('total', 'delivery_projects_id');
+
+        $issueStats  = $this->openTotalStats('delivery_project_issues', $projectIds);
+        $riskStats   = $this->openTotalStats('delivery_project_risks', $projectIds);
+        $wricefStats = $this->openTotalStats('delivery_project_wricefs', $projectIds);
+
+        // TOP: amount TIDAK dibaca dari kolom tersimpan — nilai turunan itu bisa
+        // basi kalau revenue berubah lewat jalur lain. Dihitung ulang di sini,
+        // sama seperti resyncAmount() di DeliveryProjectPaymentTermController.
+        $paymentTerms = DeliveryProjectPaymentTerm::whereIn('delivery_projects_id', $projectIds)
+            ->get()
+            ->groupBy('delivery_projects_id');
+
+        $rows = $projects->map(function (DeliveryProject $project) use (
+            $employeeNames, $actualCosts, $teamCounts, $documentCounts,
+            $issueStats, $riskStats, $wricefStats, $paymentTerms
+        ) {
+            $revenue    = (float) ($project->revenue ?? 0);
+            $actualCost = (float) ($actualCosts[$project->id] ?? 0);
+            $actualGp   = $revenue - $actualCost;
+
+            // Sekali hitung untuk keempat angka progres — lihat progressSnapshot().
+            $progress = $project->progressSnapshot();
+
+            $activities   = $project->plannings->where('is_group', false);
+            $activityDone = $activities->filter(fn ($a) => (float) ($a->progress_percentage ?? 0) >= 100)->count();
+
+            $terms       = $paymentTerms[$project->id] ?? collect();
+            $termAmount  = fn ($t) => round($revenue * ((float) $t->payment_percentage) / 100, 2);
+            $topAmount   = $terms->sum($termAmount);
+            $topPaid     = $terms->where('status', 'Paid')->sum($termAmount);
+
+            $name = fn ($id) => $id ? ($employeeNames[$id] ?? '-') : '-';
+            $date = fn ($d) => $d ? Carbon::parse($d)->format('Y-m-d') : '-';
+            $text = fn ($v) => filled($v) ? $v : '-';
+
+            return [
+                'name'                => $project->name,
+                'io_number'           => $text($project->io_number),
+                'customer'            => $text($project->client->basicData->name_1 ?? null),
+                'project_type'        => $text($project->project_type),
+                'category'            => $text($project->category),
+                'status'              => $text($project->status),
+                'phase'               => $text($project->phase),
+                'high_level_risk'     => $text($project->high_level_risk),
+                'project_owner'       => $text($project->project_owner),
+                'delivery_owner'      => $name($project->delivery_owner_id),
+                'delivery_manager'    => $name($project->delivery_manager_id),
+                'project_manager'     => $name($project->project_manager_id),
+                'co_pm'               => $name($project->co_pm_id),
+                'project_admin'       => $name($project->project_admin_id),
+                'ae_type'             => $text($project->ae_type),
+                'ae_name'             => $text($project->ae_name),
+                'ae_email'            => $text($project->ae_email),
+                'ae_phone'            => $text($project->ae_phone),
+                'contract_start_date' => $date($project->contract_start_date),
+                'contract_end_date'   => $date($project->contract_end_date),
+                'go_live_estimated'   => $date($project->go_live_estimated),
+                'delivery_method'     => $text($project->delivery_method),
+                'warranty_period'     => $project->warranty_period ?? 0,
+                'total_mandays'       => $project->total_mandays ?? 0,
+
+                'revenue'                        => $revenue,
+                'plan_cost'                      => (float) ($project->plan_cost ?? 0),
+                'actual_cost'                    => $actualCost,
+                'gross_profit'                   => (float) ($project->gross_profit ?? 0),
+                'gross_profit_percentage'        => (float) ($project->gross_profit_percentage ?? 0),
+                'actual_gross_profit'            => $actualGp,
+                'actual_gross_profit_percentage' => $revenue > 0 ? round($actualGp / $revenue * 100, 2) : 0,
+
+                'overall_progress'    => $progress['actual'],
+                'planned_progress'    => $progress['planned'],
+                'progress_deviation'  => $progress['deviation'],
+                'spi'                 => $progress['spi'] ?? '-',
+
+                'activities_total'    => $activities->count(),
+                'activities_done'     => $activityDone,
+                'team_members'        => (int) ($teamCounts[$project->id] ?? 0),
+                'issues_open'         => $issueStats[$project->id]['open'] ?? 0,
+                'issues_total'        => $issueStats[$project->id]['total'] ?? 0,
+                'risks_open'          => $riskStats[$project->id]['open'] ?? 0,
+                'risks_total'         => $riskStats[$project->id]['total'] ?? 0,
+                'wricefs_open'        => $wricefStats[$project->id]['open'] ?? 0,
+                'wricefs_total'       => $wricefStats[$project->id]['total'] ?? 0,
+                'documents'           => (int) ($documentCounts[$project->id] ?? 0),
+
+                'payment_terms'       => $terms->count(),
+                'top_amount'          => $topAmount,
+                'top_paid'            => $topPaid,
+                'top_outstanding'     => $topAmount - $topPaid,
+
+                'location_name'       => $text($project->location_name),
+                'location_type'       => $text($project->location_type),
+                'location_city'       => $text($project->location_city),
+                'location_region'     => $text($project->location_region),
+                'location_country'    => $text($project->location_country),
+
+                'is_closed'           => $project->is_closed ? 'Yes' : 'No',
+                'closed_at'           => $project->closed_at ? $project->closed_at->format('Y-m-d') : '-',
+                'updated_at'          => $project->updated_at ? $project->updated_at->format('Y-m-d H:i') : '-',
+                'description'         => $text($project->description),
+            ];
+        });
+
+        $filename = 'Delivery_Projects_' . now()->format('Ymd_His') . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\DeliveryProjectExport($rows),
+            $filename
+        );
+    }
+
+    /**
+     * Hitung jumlah baris total & yang belum Closed per project untuk salah satu
+     * tabel section (issue/risk/WRICEF) dalam satu query.
+     *
+     * @return array<int, array{total: int, open: int}>
+     */
+    private function openTotalStats(string $table, $projectIds): array
+    {
+        return DB::table($table)
+            ->whereIn('delivery_projects_id', $projectIds)
+            ->selectRaw("delivery_projects_id, COUNT(*) AS total, SUM(CASE WHEN status <> 'Closed' THEN 1 ELSE 0 END) AS open_count")
+            ->groupBy('delivery_projects_id')
+            ->get()
+            ->mapWithKeys(fn ($r) => [
+                (int) $r->delivery_projects_id => [
+                    'total' => (int) $r->total,
+                    'open'  => (int) $r->open_count,
+                ],
+            ])
+            ->all();
+    }
+
     public function create()
     {
         // Hanya Business Partner bertipe Customer yang bisa dipilih sebagai client.

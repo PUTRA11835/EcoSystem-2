@@ -2370,9 +2370,18 @@ class TicketController extends Controller
                 $updateData['pic'] = trim($leadName);
             }
 
+            $previousLeadId = $ticket->ticket_lead_id !== null ? (int) $ticket->ticket_lead_id : null;
+
             $ticket->update($updateData);
             $ticket->refreshPlaceholderManDays();
             $ticket->syncDraftResolutionMembers();
+
+            // PIC baru ikut ditarik ke channel Teams tiket ini. Hanya saat
+            // orangnya benar-benar berganti — menyimpan ulang PIC yang sama
+            // tidak perlu memanggil flow.
+            if ($previousLeadId !== (int) $request->ticket_lead_id) {
+                $this->notifyTeamsTicketPerson($ticket, (int) $request->ticket_lead_id, 'pic', $sessionUser);
+            }
 
             return response()->json(['success' => true, 'message' => $isFirstAssign ? 'Ticket Lead assigned successfully' : 'Ticket Lead updated successfully']);
         } catch (\Exception $e) {
@@ -2778,12 +2787,22 @@ class TicketController extends Controller
                 $updateData['client'] = $request->client ?: null;
             }
 
+            $previousLeadId = $ticket->ticket_lead_id !== null ? (int) $ticket->ticket_lead_id : null;
+
             if (!empty($updateData)) {
                 $ticket->update($updateData);
 
                 if (array_key_exists('ticket_lead_id', $updateData) && !array_key_exists('man_days', $updateData)) {
                     $ticket->refreshPlaceholderManDays();
                     $ticket->syncDraftResolutionMembers();
+                }
+
+                // Jalur kedua penetapan PIC (edit tiket), sejajar dengan assignPic().
+                $newLeadId = array_key_exists('ticket_lead_id', $updateData) && $updateData['ticket_lead_id']
+                    ? (int) $updateData['ticket_lead_id']
+                    : null;
+                if ($newLeadId && $newLeadId !== $previousLeadId) {
+                    $this->notifyTeamsTicketPerson($ticket, $newLeadId, 'pic', $sessionUser);
                 }
             }
 
@@ -3157,6 +3176,56 @@ class TicketController extends Controller
     }
 
     /**
+     * Kirim event "orang ditambahkan ke tiket" ke Power Automate supaya orang itu
+     * ikut masuk ke channel Teams tiket tersebut.
+     *
+     * Flow tidak menyimpan channel id (aksi HTTP untuk memanggil balik EcoSystem
+     * butuh lisensi Premium), jadi payload membawa nama channel hasil rakitan
+     * fungsi yang sama dengan yang dipakai flow 2 saat membuat channelnya; flow
+     * mencarinya lewat aksi Teams "List channels".
+     *
+     * Semua kegagalan ditelan: penambahan member tidak boleh gagal hanya karena
+     * notifikasi Teams bermasalah.
+     *
+     * @param  'member'|'pic'  $role
+     */
+    private function notifyTeamsTicketPerson(Ticket $ticket, int $employeeId, string $role, array $sessionUser): void
+    {
+        try {
+            $powerAutomate = app(\App\Services\PowerAutomateService::class);
+
+            if (!$powerAutomate->isFlowReady(\App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED)) {
+                return;
+            }
+
+            // Tanpa email kerja, konektor Teams tidak bisa menemukan orangnya —
+            // lebih baik flow tidak dipanggil sama sekali daripada gagal separuh.
+            $person = $powerAutomate->employeeContact($employeeId);
+            if (!$person) {
+                Log::info('PowerAutomate: penambahan ke channel dilewati, employee tanpa email kerja', [
+                    'ticket_id'   => $ticket->ticket_id,
+                    'employee_id' => $employeeId,
+                ]);
+                return;
+            }
+
+            $powerAutomate->dispatchAfterResponse(
+                \App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED,
+                $powerAutomate->ticketMemberPayload($ticket, $person, $role, [
+                    'id'    => $sessionUser['id'] ?? null,
+                    'name'  => $sessionUser['name'] ?? null,
+                    'email' => $sessionUser['email'] ?? null,
+                ])
+            );
+        } catch (\Throwable $e) {
+            Log::warning('TicketController: gagal menyiapkan penambahan anggota channel Teams (non-fatal)', [
+                'ticket_id'   => $ticket->ticket_id,
+                'employee_id' => $employeeId,
+                'error'       => $e->getMessage(),
+            ]);
+        }
+    }
+    /**
      * Add a single member to ticket (Admin, PIC, or Helpdesk)
      */
     public function addMember(Request $request, $id)
@@ -3257,6 +3326,9 @@ class TicketController extends Controller
             );
 
             $this->sendMemberNotifications($ticket, $actorId, $actorName, $empId, $addedName, $isReactivation ? 'reactivated' : 'added');
+
+            // Ikut tarik orangnya ke channel Teams tiket ini.
+            $this->notifyTeamsTicketPerson($ticket, $empId, 'member', $sessionUser);
 
             return response()->json([
                 'success' => true,

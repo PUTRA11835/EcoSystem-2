@@ -505,11 +505,18 @@ class DeliveryProjectDataController extends Controller
             $formatted['receive_type'] = $activity->receive_type;
             $formatted['new_requirement'] = $activity->new_requirement;
         } else {
+            // Sumber tanggal sama dengan Progress Overview & S-Curve: milik baris
+            // planning, fallback ke master activity (lihat effectiveDate()).
+            $planStart   = $this->effectiveDate($activity, 'start_date');
+            $planEnd     = $this->effectiveDate($activity, 'end_date');
+            $actualStart = $this->effectiveDate($activity, 'actual_start_date');
+            $actualEnd   = $this->effectiveDate($activity, 'actual_end_date');
+
             $formatted['progress_percentage'] = $activity->calculated_progress ?? $activity->progress_percentage ?? 0;
-            $formatted['start_date'] = $activity->start_date ? $activity->start_date->format('d M Y') : '-';
-            $formatted['end_date'] = $activity->end_date ? $activity->end_date->format('d M Y') : '-';
-            $formatted['actual_start_date'] = $activity->actual_start_date ? $activity->actual_start_date->format('d M Y') : null;
-            $formatted['actual_end_date'] = $activity->actual_end_date ? $activity->actual_end_date->format('d M Y') : null;
+            $formatted['start_date'] = $planStart ? $planStart->format('d M Y') : '-';
+            $formatted['end_date'] = $planEnd ? $planEnd->format('d M Y') : '-';
+            $formatted['actual_start_date'] = $actualStart ? $actualStart->format('d M Y') : null;
+            $formatted['actual_end_date'] = $actualEnd ? $actualEnd->format('d M Y') : null;
             $formatted['duration_in_days'] = $activity->duration_in_days ?? null;
             $formatted['status'] = $activity->status ?? 'not_started';
             $formatted['status_text'] = $activity->status_text ?? ucwords(str_replace('_', ' ', $activity->status ?? 'not_started'));
@@ -582,27 +589,35 @@ class DeliveryProjectDataController extends Controller
     }
 
     /**
-     * Ambil sumber tanggal yang BENAR-BENAR ditampilkan untuk satu activity.
-     * Baris planning yang tertaut ke DeliveryProjectActivity menampilkan tanggal milik
-     * activity tertaut (lihat formatActivityForHierarchy()), jadi agregasi parent
-     * harus membaca sumber yang sama supaya angkanya konsisten.
+     * Tanggal EFEKTIF satu baris planning: nilai milik baris planning itu sendiri,
+     * baru jatuh ke master activity yang tertaut kalau kosong.
+     *
+     * Aturan ini harus sama di semua view. Progress Overview sudah memakainya
+     * (DeliveryProjectPlanning::getPlannedProgressAttribute → "prefer planning
+     * record, fall back to activity"), sementara agregasi Gantt dulu justru
+     * MENDAHULUKAN activity dan S-Curve tidak punya fallback sama sekali —
+     * akibatnya satu baris yang sama bisa dihitung "belum mulai" di satu view dan
+     * "sudah jalan" di view lain saat kedua sumber tidak sinkron.
      */
-    private function resolveActivityDateSource($activity)
+    private function effectiveDate($node, string $field)
     {
-        if ($activity instanceof \App\Models\DeliveryProjectActivity) {
-            return $activity;
+        if ($node instanceof \App\Models\DeliveryProjectActivity) {
+            return $node->{$field} ?? null;
         }
 
-        if (!empty($activity->activity_id)) {
-            if (!$activity->relationLoaded('activity')) {
-                $activity->load('activity');
-            }
-            if ($activity->activity) {
-                return $activity->activity;
-            }
+        $own = $node->{$field} ?? null;
+        if ($own) {
+            return $own;
         }
 
-        return $activity;
+        if (!empty($node->activity_id)) {
+            if (!$node->relationLoaded('activity')) {
+                $node->load('activity');
+            }
+            return $node->activity->{$field} ?? null;
+        }
+
+        return null;
     }
 
     /**
@@ -611,10 +626,8 @@ class DeliveryProjectDataController extends Controller
     private function pushActivityDates($activities, $allDates, bool $actual = false)
     {
         foreach ($activities ?? [] as $activity) {
-            $source = $this->resolveActivityDateSource($activity);
-
-            $start = $this->toDate($actual ? ($source->actual_start_date ?? null) : ($source->start_date ?? null));
-            $end = $this->toDate($actual ? ($source->actual_end_date ?? null) : ($source->end_date ?? null));
+            $start = $this->toDate($this->effectiveDate($activity, $actual ? 'actual_start_date' : 'start_date'));
+            $end = $this->toDate($this->effectiveDate($activity, $actual ? 'actual_end_date' : 'end_date'));
 
             if ($start) {
                 $allDates->push(['type' => 'start', 'date' => $start]);
@@ -1383,10 +1396,18 @@ class DeliveryProjectDataController extends Controller
 
     private function pushSCurvePoint($activity, &$allDates, &$dataPoints, $phase, $effectiveWeight)
     {
-        $this->addDate($allDates, $activity->start_date);
-        $this->addDate($allDates, $activity->end_date);
-        $this->addDate($allDates, $activity->actual_start_date);
-        $this->addDate($allDates, $activity->actual_end_date);
+        // Tanggal dibaca lewat effectiveDate() — aturan yang sama dengan Progress
+        // Overview. Tanpa fallback ini, baris planning yang tanggalnya hanya ada di
+        // master activity dihitung "belum dijadwalkan" (plan 0) oleh S-Curve saja.
+        $plannedStart = $this->effectiveDate($activity, 'start_date');
+        $plannedEnd   = $this->effectiveDate($activity, 'end_date');
+        $actualStart  = $this->effectiveDate($activity, 'actual_start_date');
+        $actualEnd    = $this->effectiveDate($activity, 'actual_end_date');
+
+        $this->addDate($allDates, $plannedStart);
+        $this->addDate($allDates, $plannedEnd);
+        $this->addDate($allDates, $actualStart);
+        $this->addDate($allDates, $actualEnd);
 
         // Sama seperti Table/Overview: progres dari activity tertaut kalau ada
         $progress = (isset($activity->activity) && $activity->activity)
@@ -1399,10 +1420,10 @@ class DeliveryProjectDataController extends Controller
             'name' => $activity->name,
             'weight' => $effectiveWeight === null ? (float) ($activity->weight ?? 0) : (float) $effectiveWeight,
             'progress' => $progress,
-            'planned_start' => $activity->start_date,
-            'planned_end' => $activity->end_date,
-            'actual_start' => $activity->actual_start_date,
-            'actual_end' => $activity->actual_end_date,
+            'planned_start' => $plannedStart,
+            'planned_end' => $plannedEnd,
+            'actual_start' => $actualStart,
+            'actual_end' => $actualEnd,
             'phase_id' => $phase['id'] ?? null,
             'phase_name' => $phase['name'] ?? null,
             'phase_order' => $phase['order'] ?? 0,
@@ -1650,9 +1671,11 @@ class DeliveryProjectDataController extends Controller
      * (Σ bobot × progres), bukan dari ada/tidaknya tanggal aktual.
      *
      * Jendela kerja tiap task: pakai tanggal aktual bila terisi; kalau belum,
-     * pakai jadwal rencana dengan batas maksimal HARI INI — dengan begitu progres
-     * yang sudah tercatat selalu terhitung penuh pada minggu berjalan, sehingga
-     * titik Actual di minggu terakhir = Overall Progress di Table/Gantt/Overview.
+     * pakai jadwal rencana. Jendela itu SELALU dijepit ke hari ini di kedua
+     * ujungnya (lihat catatan di dalam) supaya seluruh progres yang sudah
+     * tercatat pasti terhitung penuh pada hari ini — dengan begitu
+     * Actual(hari ini) = Σ(bobot × progres) ÷ Σbobot, angka yang sama persis
+     * dengan kartu Overall Progress, Table/Gantt view, dan Progress Overview.
      */
     private function calculateActualCumulative($dataPoints, $targetDate, $totalWeight)
     {
@@ -1668,9 +1691,11 @@ class DeliveryProjectDataController extends Controller
 
             if ($progress <= 0 || $weight <= 0) continue;
 
+            // Tanpa tanggal sama sekali, progresnya tetap earned — jangan dibuang,
+            // kalau tidak Actual(hari ini) < Overall Progress tanpa sebab yang
+            // terlihat user. Anggap saja terkumpul hari ini.
             $start = $point['actual_start'] ?: $point['planned_start'];
-            if (!$start) continue;
-            $start = Carbon::parse($start)->startOfDay();
+            $start = $start ? Carbon::parse($start)->startOfDay() : $today->copy();
 
             if ($point['actual_end']) {
                 $end = Carbon::parse($point['actual_end'])->startOfDay();
@@ -1680,8 +1705,18 @@ class DeliveryProjectDataController extends Controller
                 $plannedEnd = $point['planned_end']
                     ? Carbon::parse($point['planned_end'])->startOfDay()
                     : null;
-                $end = ($plannedEnd && $plannedEnd->lt($today)) ? $plannedEnd : $today;
+                $end = ($plannedEnd && $plannedEnd->lt($today)) ? $plannedEnd : $today->copy();
             }
+
+            // Progres yang SUDAH tercatat tidak boleh "menunggu" jadwal. Kalau
+            // jendelanya masih di masa depan — task dimulai lebih awal dari
+            // rencana, atau actual_end-nya diisi tanggal depan — jepit ke hari
+            // ini, sehingga elapsedFraction() bernilai 1 pada hari ini.
+            // Untuk minggu-minggu LAMPAU perilakunya tidak berubah: start yang
+            // dijepit ke hari ini tetap > target, jadi tetap belum dihitung.
+            if ($start->gt($today)) $start = $today->copy();
+            if ($end->gt($today))   $end   = $today->copy();
+            if ($end->lt($start))   $end   = $start->copy();
 
             if ($start->gt($target)) continue;
 

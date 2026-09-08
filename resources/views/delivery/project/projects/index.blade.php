@@ -179,6 +179,15 @@
                 <h3 class="text-lg font-medium text-gray-900">
                     All Delivery Projects
                 </h3>
+                <div class="flex items-center gap-2">
+                {{-- Export mengikuti filter/sort yang sedang aktif di tabel:
+                     id baris yang terlihat dikirim sebagai query `ids`. --}}
+                <button type="button" onclick="projExportExcel(this)"
+                        class="inline-flex items-center gap-2 border border-gray-300 bg-white text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-50 transition duration-300 text-sm sm:text-base disabled:opacity-60 disabled:cursor-not-allowed">
+                    <i class="fas fa-file-excel text-green-600"></i>
+                    <span class="hidden sm:inline">Export Excel</span>
+                    <span class="sm:hidden">Export</span>
+                </button>
                 @if($can('delivery-project.add-new'))
                 <a href="{{ route('projects.create') }}"
                    class="primary-gradient text-white font-bold py-2 px-4 rounded-lg hover:opacity-90 transition duration-300 text-sm sm:text-base">
@@ -186,6 +195,7 @@
                     <span class="sm:hidden">+ Add</span>
                 </a>
                 @endif
+                </div>
             </div>
         </div>
         {{-- Distinct option lists for the per-column header filters (desktop) --}}
@@ -446,6 +456,7 @@
                                 @php $deadlineFlag = $projectDeadlineFlag($project); @endphp
                                 <tr class="project-row hover:bg-gray-50 transition-colors cursor-pointer"
                                     onclick="window.location.href='{{ route('projects.show', $project->id) }}'"
+                                    data-id="{{ $project->id }}"
                                     data-deadline="{{ $deadlineFlag }}"
                                     data-io="{{ strtolower($project->io_number ?? '') }}"
                                     data-name="{{ strtolower($project->name ?? '') }}"
@@ -857,6 +868,36 @@
             });
             applyProjectView();
         }
+        // ── Export Excel ─────────────────────────────────────────────────────────
+        // Yang diekspor = persis baris yang sedang terlihat; id-nya dikirim lewat
+        // query `ids`. Filter kolom sudah menyembunyikan baris desktop, sedangkan
+        // kotak search mobile hanya menyaring card — jadi term-nya diterapkan lagi
+        // di sini supaya hasil di layar kecil juga ikut menyempit.
+        function projExportExcel(btn) {
+            const rows  = Array.from(document.querySelectorAll('#desktop-project-table-body tr.project-row'));
+            const input = document.getElementById('project-search');
+            const term  = input ? input.value.toLowerCase().trim() : '';
+
+            const ids = rows
+                .filter(r => r.style.display !== 'none' && (!term || (r.dataset.searchableContent || '').includes(term)))
+                .map(r => r.dataset.id)
+                .filter(Boolean);
+
+            if (!ids.length) {
+                if (typeof showToast === 'function') showToast('No projects match the current filter — nothing to export.', 'warning');
+                return;
+            }
+
+            const url = new URL('{{ route('projects.export') }}', window.location.origin);
+            // Kalau semua baris terpilih, biarkan server mengekspor semuanya —
+            // tak perlu mengirim daftar id panjang yang bisa menabrak batas URL.
+            if (ids.length < rows.length) url.searchParams.set('ids', ids.join(','));
+
+            btn.disabled = true;
+            window.location.href = url.toString();
+            setTimeout(() => { btn.disabled = false; }, 3000);
+        }
+
         // Fixed-position popovers so panels are never clipped by the scroll container.
         function closeAllProjPanels() { document.querySelectorAll('.proj-panel').forEach(p => p.classList.add('hidden')); }
         function toggleProjPanel(id, btn) {

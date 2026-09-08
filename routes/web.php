@@ -284,6 +284,11 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::post('/projects/{project}/close',  [DeliveryProjectController::class, 'close'])->name('projects.close')->middleware('menu:delivery-project.close-project');
     Route::post('/projects/{project}/reopen', [DeliveryProjectController::class, 'reopen'])->name('projects.reopen')->middleware('menu:delivery-project.close-project');
 
+    // Export daftar project ke Excel. Wajib didaftarkan sebelum
+    // `projects/{project}` agar "export" tidak tertangkap sebagai {project}.
+    // Izinnya sama dengan halaman list — isinya memang data list yang sama.
+    Route::get('/projects/export', [DeliveryProjectController::class, 'export'])->name('projects.export')->middleware('menu:delivery.project');
+
     Route::get('/projects', [DeliveryProjectController::class, 'index'])->name('projects.index')->middleware('menu:delivery.project');
     Route::get('/projects/{project}', [DeliveryProjectController::class, 'show'])->name('projects.show')->middleware('menu:delivery.project');
 

@@ -72,14 +72,18 @@
     $overallProgressRaw = $totalPhaseWeight > 0 ? $weightedPhaseProgress / $totalPhaseWeight : 0;
     $plannedProgressRaw = $totalPhaseWeight > 0 ? $weightedPhasePlanned / $totalPhaseWeight : 0;
 
-    $overallProgress = round($overallProgressRaw);
-
     // Keep 1 decimal so half-points (e.g. 62.5%) are shown faithfully instead
-    // of being rounded away — this value is meant to be compared against actual.
+    // of being rounded away — these values are meant to be compared against each
+    // other. Presisi keduanya WAJIB sama, dan sama dengan yang dipakai kartu
+    // Overall Progress / panel Plan-Actual di S-Curve (juga 1 desimal); dulu
+    // actual dibulatkan ke bilangan bulat sehingga halaman ini menulis 51%
+    // untuk angka yang di S-Curve tertulis 50,9%.
+    $overallProgress = round($overallProgressRaw, 1);
     $plannedProgress = round($plannedProgressRaw, 1);
 
-    // Variance: positive = ahead of schedule, negative = behind schedule
-    $progressVariance = round($overallProgress - $plannedProgress, 1);
+    // Variance: positive = ahead of schedule, negative = behind schedule.
+    // Dihitung dari nilai MENTAH supaya tidak menumpuk galat pembulatan.
+    $progressVariance = round($overallProgressRaw - $plannedProgressRaw, 1);
 
     // =====================================================================
     // PERFORMANCE INDICES (EVM)

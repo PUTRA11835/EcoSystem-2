@@ -421,6 +421,32 @@ class DeliveryProject extends Model
      */
     public function calculateSpi(): ?float
     {
+        ['actual' => $actual, 'planned' => $planned] = $this->weightedProgressRaw();
+
+        if ($actual === null || $planned === null || $planned <= 0) {
+            return null;
+        }
+
+        return round($actual / $planned, 2);
+    }
+
+    /**
+     * Bobot-tertimbang mentah (belum dibulatkan) untuk progres AKTUAL & RENCANA:
+     * Σ(bobot phase × progres phase) ÷ Σbobot phase, dengan progres phase sendiri
+     * = Σ(bobot group × progres group) ÷ Σbobot group.
+     *
+     * Satu-satunya sumber angka Overall Progress / Planned Progress / SPI —
+     * calculateOverallProgress(), calculatePlannedProgress() dan calculateSpi()
+     * semuanya membacanya dari sini, supaya list, halaman detail dan export
+     * tidak pernah menampilkan tiga angka berbeda.
+     *
+     * @return array{actual: float|null, planned: float|null} null = belum ada
+     *         baseline (tidak ada phase visible, atau total bobotnya 0).
+     */
+    private function weightedProgressRaw(): array
+    {
+        $empty = ['actual' => null, 'planned' => null];
+
         $groups = $this->plannings->where('is_group', true);
 
         foreach ($groups as $group) {
@@ -432,54 +458,62 @@ class DeliveryProject extends Model
             ->get();
 
         if ($visiblePhases->isEmpty()) {
-            return null;
+            return $empty;
         }
 
-        $totalPhaseWeight = 0;
+        $totalPhaseWeight      = 0;
         $weightedPhaseProgress = 0;
-        $weightedPhasePlanned = 0;
+        $weightedPhasePlanned  = 0;
 
         foreach ($visiblePhases as $phase) {
             $phaseWeight = $phase->weight ?? 0;
             $phaseGroups = $groups->where('phase_id', $phase->id);
 
+            $phaseProgress = 0;
+            $phasePlanned  = 0;
+
             if ($phaseGroups->count() > 0) {
-                $totalGroupWeight = 0;
+                $totalGroupWeight      = 0;
                 $weightedGroupProgress = 0;
-                $weightedGroupPlanned = 0;
+                $weightedGroupPlanned  = 0;
 
                 foreach ($phaseGroups as $group) {
-                    $groupWeight = $group->calculated_weight ?? $group->weight ?? 0;
+                    $groupWeight   = $group->calculated_weight ?? $group->weight ?? 0;
                     $groupProgress = $group->calculated_progress ?? $group->progress_percentage ?? 0;
-                    $groupPlanned = $group->planned_progress ?? 0;
+                    $groupPlanned  = $group->planned_progress ?? 0;
 
-                    $totalGroupWeight += $groupWeight;
+                    $totalGroupWeight      += $groupWeight;
                     $weightedGroupProgress += ($groupProgress * $groupWeight);
-                    $weightedGroupPlanned += ($groupPlanned * $groupWeight);
+                    $weightedGroupPlanned  += ($groupPlanned * $groupWeight);
                 }
 
-                $phaseProgress = $totalGroupWeight > 0 ? ($weightedGroupProgress / $totalGroupWeight) : 0;
-                $phasePlanned = $totalGroupWeight > 0 ? ($weightedGroupPlanned / $totalGroupWeight) : 0;
-            } else {
-                $phaseProgress = 0;
-                $phasePlanned = 0;
+                if ($totalGroupWeight > 0) {
+                    $phaseProgress = $weightedGroupProgress / $totalGroupWeight;
+                    $phasePlanned  = $weightedGroupPlanned / $totalGroupWeight;
+                } else {
+                    // Bobot group belum diisi sama sekali — bagi rata, jangan
+                    // diperlakukan 0%. Bobot phase-nya tetap menekan penyebut
+                    // overall, jadi menol-kan progresnya menarik turun angka
+                    // proyek tanpa sebab. Aturan yang sama dipakai
+                    // progress-overview.blade.php.
+                    $phaseProgress = (float) ($phaseGroups->avg(fn ($g) => (float) ($g->calculated_progress ?? $g->progress_percentage ?? 0)) ?? 0);
+                    $phasePlanned  = (float) ($phaseGroups->avg(fn ($g) => (float) ($g->planned_progress ?? 0)) ?? 0);
+                }
             }
 
-            $totalPhaseWeight += $phaseWeight;
+            $totalPhaseWeight      += $phaseWeight;
             $weightedPhaseProgress += ($phaseProgress * $phaseWeight);
-            $weightedPhasePlanned += ($phasePlanned * $phaseWeight);
+            $weightedPhasePlanned  += ($phasePlanned * $phaseWeight);
         }
 
         if ($totalPhaseWeight <= 0) {
-            return null;
+            return $empty;
         }
 
-        $overallProgressRaw = $weightedPhaseProgress / $totalPhaseWeight;
-        $plannedProgressRaw = $weightedPhasePlanned / $totalPhaseWeight;
-
-        return $plannedProgressRaw > 0
-            ? round($overallProgressRaw / $plannedProgressRaw, 2)
-            : null;
+        return [
+            'actual'  => $weightedPhaseProgress / $totalPhaseWeight,
+            'planned' => $weightedPhasePlanned / $totalPhaseWeight,
+        ];
     }
 
     /**
@@ -538,53 +572,44 @@ class DeliveryProject extends Model
 
     public function calculateOverallProgress()
     {
-        $groups = $this->plannings->where('is_group', true);
+        return round($this->weightedProgressRaw()['actual'] ?? 0, 1);
+    }
 
-        foreach ($groups as $group) {
-            $group->loadMissing('stages');
-        }
-        
-        $visiblePhases = $this->phases()
-            ->where('is_visible', true)
-            ->get();
-        
-        if ($visiblePhases->isEmpty()) {
-            return 0;
-        }
-        
-        $totalPhaseWeight = 0;
-        $weightedPhaseProgress = 0;
-        
-        foreach ($visiblePhases as $phase) {
-            $phaseWeight = $phase->weight ?? 0;
-            $phaseGroups = $groups->where('phase_id', $phase->id);
-            
-            if ($phaseGroups->count() > 0) {
-                $totalGroupWeight = 0;
-                $weightedGroupProgress = 0;
-                
-                foreach ($phaseGroups as $group) {
-                    $groupWeight = $group->calculated_weight ?? $group->weight ?? 0;
-                    $groupProgress = $group->calculated_progress ?? $group->progress_percentage ?? 0;
-                    
-                    $totalGroupWeight += $groupWeight;
-                    $weightedGroupProgress += ($groupProgress * $groupWeight);
-                }
-                
-                $phaseProgress = $totalGroupWeight > 0 
-                    ? ($weightedGroupProgress / $totalGroupWeight) 
-                    : 0;
-            } else {
-                $phaseProgress = 0;
-            }
-            
-            $totalPhaseWeight += $phaseWeight;
-            $weightedPhaseProgress += ($phaseProgress * $phaseWeight);
-        }
-        
-        return $totalPhaseWeight > 0 
-            ? round($weightedPhaseProgress / $totalPhaseWeight, 1) 
-            : 0;
+    /**
+     * Progres RENCANA keseluruhan — pasangan dari calculateOverallProgress().
+     * Dipakai export/laporan untuk menampilkan deviasi rencana vs aktual di
+     * samping SPI (SPI = aktual ÷ rencana).
+     */
+    public function calculatePlannedProgress()
+    {
+        return round($this->weightedProgressRaw()['planned'] ?? 0, 1);
+    }
+
+    /**
+     * Aktual, rencana, deviasi dan SPI dalam SEKALI hitung. Dipakai export &
+     * laporan yang butuh keempatnya: memanggil calculateOverallProgress() +
+     * calculatePlannedProgress() + calculateSpi() satu per satu akan menghitung
+     * (dan meng-query) hal yang persis sama tiga kali per project.
+     *
+     * @return array{actual: float, planned: float, deviation: float, spi: float|null}
+     */
+    public function progressSnapshot(): array
+    {
+        ['actual' => $actual, 'planned' => $planned] = $this->weightedProgressRaw();
+
+        $actualRounded  = round($actual ?? 0, 1);
+        $plannedRounded = round($planned ?? 0, 1);
+
+        return [
+            'actual'    => $actualRounded,
+            'planned'   => $plannedRounded,
+            // Deviasi dihitung dari angka yang DITAMPILKAN, supaya kolomnya
+            // selalu sama dengan selisih dua kolom di sebelahnya.
+            'deviation' => round($actualRounded - $plannedRounded, 2),
+            'spi'       => ($actual !== null && $planned !== null && $planned > 0)
+                ? round($actual / $planned, 2)
+                : null,
+        ];
     }
 
 
