@@ -1,0 +1,47 @@
+{
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.4",
+    "body": [
+        {
+            "type": "TextBlock",
+            "text": "Tiket baru di modul Anda",
+            "weight": "Bolder",
+            "size": "Medium"
+        },
+        {
+            "type": "TextBlock",
+            "text": "**@{triggerBody()?['ticket']?['number']}** - @{triggerBody()?['ticket']?['subject']}",
+            "wrap": true
+        },
+        {
+            "type": "FactSet",
+            "facts": [
+                {
+                    "title": "Customer",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['customer'], '-')}"
+                },
+                {
+                    "title": "Modul",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['module'], '-')}"
+                },
+                {
+                    "title": "Prioritas",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['priority'], '-')}"
+                }
+            ]
+        },
+        {
+            "type": "TextBlock",
+            "text": "Mohon tentukan PIC atau ambil tiket ini.",
+            "wrap": true
+        }
+    ],
+    "actions": [
+        {
+            "type": "Action.OpenUrl",
+            "title": "Assign / Ambil Tiket",
+            "url": "@{triggerBody()?['ticket']?['url']}"
+        }
+    ]
+}
