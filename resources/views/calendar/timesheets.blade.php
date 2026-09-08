@@ -317,7 +317,7 @@
             </div>
         </div>
         <div class="ts-table-wrap overflow-auto" style="max-height: calc(100vh - 380px); min-height: 200px;">
-            <table id="timesheetTable" class="w-full text-sm border-collapse" style="min-width: {{ $lockedType === 'support' ? '1200px' : '900px' }};">
+            <table id="timesheetTable" class="w-full text-sm border-collapse" style="min-width: {{ $lockedType === 'support' ? '1320px' : '900px' }};">
                 <thead id="timesheetTableHead" class="sticky top-0 z-10 bg-gray-50">
                     @if($isApprovalMode && $lockedType !== 'support')
                     {{-- ── Approval mode: Employee | Date(sort) | Time | Duration | Project/Ticket | Activity | Description | Status ──────── --}}
@@ -453,6 +453,7 @@
                             </div>
                         </th>
                         <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Activity Date</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Time</th>
                         {{-- Month: custom-dd --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:85px;">
                             <div class="custom-dd relative w-full" id="ddColFilterTsMonth" data-fixed="true" data-onchange="applyColFilter">
@@ -916,80 +917,52 @@
                     {{-- Period Selector (populated by JS — shown only when late exception exists) --}}
                     <div id="periodFieldRow" class="hidden"></div>
 
-                    {{-- Start + End Time + Duration (hidden for support) --}}
+                    {{-- Start + End Time + Duration --}}
+                    {{-- Custom time picker (NOT the native <input type="time">): a text field
+                         the user can type an HH:MM value into, plus an app-styled dropdown
+                         of preset times. Wired by initTsTimePickers() in calendar-timesheets.js;
+                         order is enforced by tsUpdateStartTime / tsUpdateEndTime → _tsValidateTimeOrder. --}}
+                    @php
+                        $tsTimeOptions = [];
+                        for ($h = 0; $h < 24; $h++) {
+                            $tsTimeOptions[] = str_pad($h, 2, '0', STR_PAD_LEFT) . ':00';
+                            $tsTimeOptions[] = str_pad($h, 2, '0', STR_PAD_LEFT) . ':30';
+                        }
+                    @endphp
                     <div id="timesheetTimeBlock">
                         <label class="block text-xs font-semibold text-gray-600 mb-1.5">
                             Time <span class="text-red-500">*</span>
                         </label>
                         <div class="flex items-center gap-2">
-                            {{-- Start time --}}
-                            <div id="timesheetStartTimeField" class="flex items-center gap-1 flex-1">
-                                {{-- Start Hour --}}
-                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
-                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
-                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">08</span>
-                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            @foreach (['Start' => '08:00', 'End' => '17:00'] as $side => $default)
+                                @if ($side === 'End')
+                                    <i class="fas fa-arrow-right text-xs text-gray-300 flex-shrink-0"></i>
+                                @endif
+                                <div class="relative flex-1 min-w-0" data-ts-timepicker>
+                                    <input type="text" id="timesheet{{ $side }}Time" value="{{ $default }}" required
+                                        inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="5" placeholder="{{ $default }}"
+                                        oninput="tsUpdate{{ $side }}Time()"
+                                        onchange="tsNormalizeTimeInput(this); tsUpdate{{ $side }}Time()"
+                                        onblur="tsNormalizeTimeInput(this); tsUpdate{{ $side }}Time()"
+                                        class="w-full pl-3 pr-8 py-2 border border-gray-200 rounded-md text-sm font-mono bg-gray-50 hover:bg-white focus:ring-2 focus:ring-red-700 focus:border-transparent transition-colors">
+                                    <button type="button" tabindex="-1" aria-label="Choose time"
+                                        class="ts-tp-toggle absolute inset-y-0 right-0 flex items-center px-2 text-gray-400 hover:text-gray-600">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                     </button>
-                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
-                                        @for($h = 0; $h < 24; $h++)
-                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</button>
-                                        @endfor
+                                    <div class="ts-tp-panel hidden absolute left-0 right-0 mt-1 z-[9999] bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto py-1" style="max-height:13rem;">
+                                        @foreach ($tsTimeOptions as $opt)
+                                            <button type="button" data-value="{{ $opt }}"
+                                                class="ts-tp-item w-full text-left px-3 py-1.5 text-sm font-mono text-gray-700 hover:bg-gray-50">{{ $opt }}</button>
+                                        @endforeach
                                     </div>
-                                    <input type="hidden" id="timesheetStartHour" value="08">
                                 </div>
-                                <span class="text-sm font-bold text-gray-400 flex-shrink-0">:</span>
-                                {{-- Start Minute --}}
-                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
-                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
-                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">00</span>
-                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                    </button>
-                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
-                                        @for($m = 0; $m < 60; $m += 5)
-                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</button>
-                                        @endfor
-                                    </div>
-                                    <input type="hidden" id="timesheetStartMinute" value="00">
-                                </div>
-                            </div>
-                            <i class="fas fa-arrow-right text-xs text-gray-300 flex-shrink-0"></i>
-                            {{-- End time --}}
-                            <div id="timesheetEndTimeField" class="flex items-center gap-1 flex-1">
-                                {{-- End Hour --}}
-                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
-                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
-                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">17</span>
-                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                    </button>
-                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
-                                        @for($h = 0; $h < 24; $h++)
-                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</button>
-                                        @endfor
-                                    </div>
-                                    <input type="hidden" id="timesheetEndHour" value="17">
-                                </div>
-                                <span class="text-sm font-bold text-gray-400 flex-shrink-0">:</span>
-                                {{-- End Minute --}}
-                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
-                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
-                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">00</span>
-                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                    </button>
-                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
-                                        @for($m = 0; $m < 60; $m += 5)
-                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</button>
-                                        @endfor
-                                    </div>
-                                    <input type="hidden" id="timesheetEndMinute" value="00">
-                                </div>
-                            </div>
+                            @endforeach
                         </div>
                         {{-- Duration badge --}}
                         <p class="mt-1.5 text-xs text-gray-400">
                             Duration: <span id="timesheetDuration" class="font-semibold text-gray-600">—</span>
                         </p>
-                        <input type="hidden" id="timesheetStartTime">
-                        <input type="hidden" id="timesheetEndTime">
+                        <p id="timesheetTimeError" class="hidden mt-1 text-xs text-red-500">End time must be later than start time.</p>
                     </div>
 
                     {{-- Billable (project only) --}}

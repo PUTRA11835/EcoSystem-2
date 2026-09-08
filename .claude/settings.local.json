@@ -187,7 +187,9 @@
       "Bash(xargs -r kill)",
       "Bash(awk '{print $5}')",
       "Bash(xargs -r -I{} taskkill //F //PID {})",
-      "Bash(taskkill //F //PID 50408)"
+      "Bash(taskkill //F //PID 50408)",
+      "Bash(node -c public/js/calendar-timesheets.js)",
+      "Bash(php -l resources/views/calendar/timesheets.blade.php)"
     ],
     "additionalDirectories": [
       "c:\\JARVIES-new-main\\resources\\views\\layouts",

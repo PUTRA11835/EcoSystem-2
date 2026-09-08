@@ -84,7 +84,20 @@
                                 </div>
                             </div>
                         </th>
-                        <th class="px-4 py-3 text-left" style="min-width:140px">Personnel Sub Area</th>
+                        <th class="p-0 text-left" style="min-width:140px">
+                            <div class="relative" id="subareaFilterDd">
+                                <button type="button" id="subareaFilterBtn" onclick="toggleSubareaPanel(event)"
+                                        class="w-full flex items-center gap-1.5 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span id="subareaFilterLabel">Personnel Sub Area</span>
+                                    <svg id="subareaFilterArrow" class="w-3 h-3 text-gray-400 transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    </svg>
+                                </button>
+                                <div id="subareaFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden normal-case tracking-normal" style="min-width:180px;">
+                                    <div id="subareaFilterList" class="overflow-y-auto py-1" style="max-height:240px;"></div>
+                                </div>
+                            </div>
+                        </th>
                         <th class="px-4 py-3 text-left" style="min-width:160px">Current Assignment</th>
                         <th class="px-4 py-3 text-left" style="min-width:170px">
                             <div class="flex items-center gap-1.5">
@@ -235,6 +248,7 @@
             }
             allConsultants = json.data ?? [];
             populateModuleFilter();
+            populateSubareaFilter();
             updateSortIcons();
             renderTable(applySortTo(allConsultants));
         } catch (e) {
@@ -332,6 +346,7 @@
         if (panel.classList.contains('hidden')) {
             closeHeaderPanel(document.getElementById('moduleFilterPanel'), document.getElementById('moduleFilterArrow'));
             closeHeaderPanel(document.getElementById('consultantFilterPanel'), document.getElementById('consultantFilterArrow'));
+            closeHeaderPanel(document.getElementById('subareaFilterPanel'), document.getElementById('subareaFilterArrow'));
             openHeaderPanel(btn, panel, arrow);
         } else {
             closeHeaderPanel(panel, arrow);
@@ -353,6 +368,7 @@
         if (panel.classList.contains('hidden')) {
             closeHeaderPanel(document.getElementById('consultantFilterPanel'), document.getElementById('consultantFilterArrow'));
             closeHeaderPanel(document.getElementById('groupFilterPanel'), document.getElementById('groupFilterArrow'));
+            closeHeaderPanel(document.getElementById('subareaFilterPanel'), document.getElementById('subareaFilterArrow'));
             openHeaderPanel(btn, panel, arrow);
         } else {
             closeHeaderPanel(panel, arrow);
@@ -406,6 +422,55 @@
         filterTable();
     }
 
+    // ── Personnel Sub Area filter (dropdown pilihan tunggal) ───────────
+    let selectedSubarea = '';
+
+    function toggleSubareaPanel(event) {
+        event?.stopPropagation();
+        const panel = document.getElementById('subareaFilterPanel');
+        const arrow = document.getElementById('subareaFilterArrow');
+        const btn   = document.getElementById('subareaFilterBtn');
+        if (panel.classList.contains('hidden')) {
+            closeHeaderPanel(document.getElementById('moduleFilterPanel'), document.getElementById('moduleFilterArrow'));
+            closeHeaderPanel(document.getElementById('consultantFilterPanel'), document.getElementById('consultantFilterArrow'));
+            closeHeaderPanel(document.getElementById('groupFilterPanel'), document.getElementById('groupFilterArrow'));
+            openHeaderPanel(btn, panel, arrow);
+        } else {
+            closeHeaderPanel(panel, arrow);
+        }
+    }
+
+    function populateSubareaFilter() {
+        const subareas = new Set();
+        allConsultants.forEach(c => {
+            const sa = (c.personnel_subarea ?? '').trim();
+            if (sa && sa !== '-') subareas.add(sa);
+        });
+        if (selectedSubarea && !subareas.has(selectedSubarea)) selectedSubarea = '';
+
+        const list = document.getElementById('subareaFilterList');
+        list.innerHTML = ['', ...[...subareas].sort()].map(s => {
+            const val = s.replace(/"/g, '&quot;');
+            const active = selectedSubarea === s;
+            return `<button type="button" data-val="${val}" onclick="selectSubarea(this.dataset.val)"
+                        class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors ${active ? 'text-red-600 font-semibold' : 'text-gray-700'}">
+                        ${s || 'All'}
+                    </button>`;
+        }).join('');
+        updateSubareaFilterLabel();
+    }
+
+    function selectSubarea(val) {
+        selectedSubarea = val;
+        closeHeaderPanel(document.getElementById('subareaFilterPanel'), document.getElementById('subareaFilterArrow'));
+        populateSubareaFilter();
+        filterTable();
+    }
+
+    function updateSubareaFilterLabel() {
+        document.getElementById('subareaFilterLabel')?.classList.toggle('text-red-600', !!selectedSubarea);
+    }
+
     // ── Consultant search (nama / ECI) ─────────────────────────────────
     function toggleConsultantPanel(event) {
         event.stopPropagation();
@@ -415,6 +480,7 @@
         if (panel.classList.contains('hidden')) {
             closeHeaderPanel(document.getElementById('moduleFilterPanel'), document.getElementById('moduleFilterArrow'));
             closeHeaderPanel(document.getElementById('groupFilterPanel'), document.getElementById('groupFilterArrow'));
+            closeHeaderPanel(document.getElementById('subareaFilterPanel'), document.getElementById('subareaFilterArrow'));
             openHeaderPanel(btn, panel, arrow);
             requestAnimationFrame(() => document.getElementById('consultantFilterInput').focus());
         } else {
@@ -451,16 +517,20 @@
         if (!clickedInside(e, 'groupFilterDd', 'groupFilterPanel')) {
             closeHeaderPanel(document.getElementById('groupFilterPanel'), document.getElementById('groupFilterArrow'));
         }
+        if (!clickedInside(e, 'subareaFilterDd', 'subareaFilterPanel')) {
+            closeHeaderPanel(document.getElementById('subareaFilterPanel'), document.getElementById('subareaFilterArrow'));
+        }
     });
 
     // Panel fixed tidak ikut bergerak saat halaman/tabel di-scroll → tutup saja,
     // supaya tidak menggantung lepas dari tombolnya. Kecuali scroll yang berasal
     // dari dalam panel itu sendiri (daftar modul bisa di-scroll).
     ['scroll', 'resize'].forEach(evt => window.addEventListener(evt, e => {
-        if (e.target?.closest?.('#moduleFilterPanel, #consultantFilterPanel, #groupFilterPanel')) return;
+        if (e.target?.closest?.('#moduleFilterPanel, #consultantFilterPanel, #groupFilterPanel, #subareaFilterPanel')) return;
         closeHeaderPanel(document.getElementById('moduleFilterPanel'), document.getElementById('moduleFilterArrow'));
         closeHeaderPanel(document.getElementById('consultantFilterPanel'), document.getElementById('consultantFilterArrow'));
         closeHeaderPanel(document.getElementById('groupFilterPanel'), document.getElementById('groupFilterArrow'));
+        closeHeaderPanel(document.getElementById('subareaFilterPanel'), document.getElementById('subareaFilterArrow'));
     }, true));
 
     function filterTable() {
@@ -484,6 +554,9 @@
                 const empModules = (c.modules ?? '').split(', ').map(m => m.trim());
                 return empModules.some(m => allowedModules.has(m));
             });
+        }
+        if (selectedSubarea) {
+            filtered = filtered.filter(c => (c.personnel_subarea ?? '').trim() === selectedSubarea);
         }
         if (q) filtered = filtered.filter(c =>
             (c.name ?? '').toLowerCase().includes(q) ||
@@ -726,6 +799,17 @@
     <tr id="tickets-${c.employee_id}" class="hidden">
         <td colspan="10" class="p-0 border-b-2 border-blue-200" style="background:#f0f5ff">
             <div class="mx-4 my-3 rounded-xl overflow-hidden border border-blue-200 shadow-sm">
+            <div class="flex items-center justify-between px-4 py-2" style="background:#dbeafe">
+                <span class="text-xs font-semibold text-blue-800 uppercase tracking-wide">${c.name} — ${visibleTickets.length} ticket${visibleTickets.length > 1 ? 's' : ''}</span>
+                <a href="/ticket/consultant-workload/${c.employee_id}/export"
+                   onclick="event.stopPropagation()"
+                   class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M4 6a2 2 0 012-2h8l6 6v8a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"/>
+                    </svg>
+                    Export Excel
+                </a>
+            </div>
             <table class="w-full">
                 <thead>
                     <tr class="text-xs font-semibold text-blue-800 uppercase tracking-wide" style="background:#dbeafe">

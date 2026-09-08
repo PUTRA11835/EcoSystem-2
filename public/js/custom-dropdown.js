@@ -168,43 +168,25 @@ function initCustomDropdowns(root) {
 }
 
 function _onScrollMaybeClose(e) {
-    // Scroll di dalam panel itu sendiri (user sedang scroll opsi) → biarkan.
+    // Scroll di dalam panel itu sendiri (user sedang scroll daftar opsi) → biarkan.
     const t = e.target;
     if (t && t.nodeType === 1 && t.closest && t.closest('.custom-dd-panel')) return;
 
-    // Untuk panel mode fixed, REPOSISI mengikuti tombol bukan tutup — UX lebih
-    // baik & tidak frustrating saat user scroll halaman dengan dropdown terbuka.
-    // Kalau tombol sudah keluar viewport, baru tutup karena panel jadi
-    // "ngambang" lepas dari konteksnya.
-    let repositioned = false;
-    document.querySelectorAll('.custom-dd-panel:not(.hidden)').forEach(p => {
-        const owner = p._ddOwner;
-        // Hanya panel mode fixed yang punya _ddOwner & sudah pindah ke <body>
-        if (!owner || p.parentElement !== document.body) return;
-        const btn = owner.querySelector('.custom-dd-btn');
-        if (!btn) return;
-        const r = btn.getBoundingClientRect();
-        // Tombol keluar viewport → tutup
-        if (r.bottom < 0 || r.top > window.innerHeight) {
-            _closeAllDropdowns();
-            return;
-        }
-        // Update posisi panel mengikuti tombol
-        p.style.top   = `${r.bottom + 4}px`;
-        p.style.left  = `${r.left}px`;
-        p.style.width = `${r.width}px`;
-        repositioned = true;
-    });
-    // Untuk panel mode non-fixed (panel masih di dalam .custom-dd) → tetap tutup
-    // karena `position:absolute` relatif ke wrapper sehingga tidak ada masalah
-    // posisi, tapi page scroll biasanya berarti user pindah konteks.
-    if (!repositioned) {
-        document.querySelectorAll('.custom-dd-panel:not(.hidden)').forEach(p => {
-            // Skip yang sudah di-detach (sudah di-handle di atas)
-            if (p.parentElement === document.body) return;
-            _closeDropdown(p);
-        });
-    }
+    // Tutup semua panel yang sedang terbuka begitu ada scroll di luar panel —
+    // baik mode fixed (di-detach ke <body>) maupun non-fixed.
+    //
+    // Sebelumnya panel mode fixed di-REPOSISI mengikuti tombol trigger lewat
+    // getBoundingClientRect() setiap event scroll. Itu pecah pada halaman
+    // dengan wrapper yang scroll horizontal terpisah (mis. tabel lebar dengan
+    // header freeze): getBoundingClientRect() tetap melaporkan posisi
+    // geometris tombol walau tombolnya sudah tersembunyi di balik tepi
+    // wrapper — jadi panel dipindah ke koordinat yang sudah tidak valid
+    // secara visual (bisa nongol jauh di luar tabel, menimpa elemen lain
+    // seperti sidebar). Tutup-saat-scroll menghindari kelas bug ini sama
+    // sekali karena tidak pernah menghitung ulang posisi — sama seperti
+    // perilaku panel non-fixed (mis. ECI di Master Employee) yang dari awal
+    // memang menutup, bukan mengikuti, saat discroll.
+    _closeAllDropdowns();
 }
 
 function _positionFixed(btn, panel) {
@@ -289,6 +271,12 @@ function _injectSearch(dd, panel) {
         const wrap = document.createElement('div');
         wrap.className = 'custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2';
         wrap.style.zIndex = '1';
+        // Cancel the panel's own top padding (e.g. Tailwind `pt-*`/`py-*`) so this
+        // sticky bar sits flush against the scrollport's top edge. Without this,
+        // that padding is a gap the sticky bar doesn't cover — scrolled list items
+        // peek through above it instead of staying hidden behind an opaque bar.
+        const panelPaddingTop = parseFloat(getComputedStyle(panel).paddingTop) || 0;
+        if (panelPaddingTop > 0) wrap.style.marginTop = `-${panelPaddingTop}px`;
 
         input = document.createElement('input');
         input.type = 'text';

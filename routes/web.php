@@ -585,12 +585,16 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/create', [TicketViewController::class, 'create'])->name('create');
         Route::get('/export', [TicketController::class, 'exportToExcel'])->name('export')->middleware('menu:ticket.export');
         Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload')->middleware('menu:ticket.consultant-workload');
+        Route::get('/consultant-workload/{id}/export', [ConsultantWorkloadController::class, 'exportTickets'])->name('consultant-workload.export')->middleware('menu:ticket.consultant-workload');
         Route::get('/task', [TaskController::class, 'index'])->name('task')->middleware('menu:ticket.my-tasks');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');
         // Ringkasan AI per tiket (SSE). POST karena memicu generate, bukan sekadar baca.
         Route::post('/{id}/ai-summary', [\App\Http\Controllers\AiTicketSummaryController::class, 'stream'])
             ->name('ai-summary')
             ->middleware('menu:tickets.inbox');
+        // Buka tiket berdasarkan NOMOR tiket (bukan id). Dipakai hyperlink "#NNNNNNNN"
+        // di internal note — di-resolve ke id lalu redirect ke halaman tiket.
+        Route::get('/ref/{number}', [TicketViewController::class, 'showByNumber'])->name('ref');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 
@@ -618,6 +622,21 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/module-groups', [\App\Http\Controllers\ModuleGroupController::class, 'page'])
             ->middleware('menu:management.module-groups')
             ->name('module-groups.index');
+
+        Route::prefix('ticket')->name('ticket.')->group(function () {
+            Route::get('/document-type', [\App\Http\Controllers\DeliverableDocumentTypeController::class, 'page'])
+                ->middleware('menu:management.ticket.document-type')
+                ->name('document-type.index');
+        });
+
+        Route::prefix('delivery')->name('delivery.')->group(function () {
+            Route::get('/project', [\App\Http\Controllers\DeliveryProjectTypeController::class, 'page'])
+                ->middleware('menu:management.delivery.project')
+                ->name('project.index');
+            Route::get('/support', [\App\Http\Controllers\DeliverySupportTypeController::class, 'page'])
+                ->middleware('menu:management.delivery.support')
+                ->name('support.index');
+        });
 
         Route::prefix('employee')->name('employee.')->group(function () {
             Route::get('/basic-data',     [\App\Http\Controllers\ManagementEmployeeController::class, 'basicData'])    ->middleware('menu:management.employee.basic-data')    ->name('basic-data.index');

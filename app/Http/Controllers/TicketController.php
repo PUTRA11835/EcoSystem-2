@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Customer;
+use App\Models\DeliverySupportType;
 use App\Models\Employee;
 use App\Models\ModuleLead;
 use App\Models\Notification;
@@ -174,6 +175,42 @@ class TicketController extends Controller
         $csvFilter($query, 'ticket.status', $request->input('status'));
         $csvFilter($query, 'ticket.ticket_type', $request->input('type'));
 
+        // Kolom "Assign Delivery" — tiket terhubung ke Delivery Support lewat
+        // delivery_support_activities. Dipakai whereExists (bukan join) supaya
+        // satu tiket yang punya beberapa activity pada support yang sama tidak
+        // menghasilkan baris ganda pada listing.
+        if ($request->filled('delivery_support_id')) {
+            $values = array_filter(explode(',', (string) $request->input('delivery_support_id')), fn ($v) => $v !== '');
+
+            if (!empty($values)) {
+                // '__unassigned__' = tiket tanpa Delivery Support sama sekali,
+                // mengikuti konvensi filter PIC di atas.
+                $includeUnassigned = in_array('__unassigned__', $values, true);
+                $ids = array_values(array_filter($values, fn ($v) => $v !== '__unassigned__'));
+
+                $query->where(function ($q) use ($ids, $includeUnassigned) {
+                    if (!empty($ids)) {
+                        $q->whereExists(function ($sub) use ($ids) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa')
+                                ->whereColumn('dsa.ticket_id', 'ticket.ticket_id')
+                                ->whereIn('dsa.delivery_support_id', $ids);
+                        });
+                    }
+
+                    if ($includeUnassigned) {
+                        $method = empty($ids) ? 'whereNotExists' : 'orWhereNotExists';
+                        $q->{$method}(function ($sub) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa2')
+                                ->whereColumn('dsa2.ticket_id', 'ticket.ticket_id')
+                                ->whereNotNull('dsa2.delivery_support_id');
+                        });
+                    }
+                });
+            }
+        }
+
         // Tanggal dibaca sebagai kalender Asia/Jakarta (WIB) — sama seperti versi lama di
         // browser (`new Date(dateFrom + 'T00:00:00+07:00')`).
         if ($request->filled('date_from')) {
@@ -261,7 +298,7 @@ class TicketController extends Controller
                     ->select('ticket.*')
                     ->orderByRaw(
                         "GREATEST(0, CEIL(TIMESTAMPDIFF(SECOND, ticket.created_at,
-                            CASE WHEN ticket.status = 'closed'
+                            CASE WHEN ticket.status IN ('closed', 'cancelled')
                                 THEN COALESCE(ticket_sla.resolved_at, ticket.updated_at)
                                 ELSE NOW()
                             END
@@ -334,10 +371,25 @@ class TicketController extends Controller
             ->orderBy('name')
             ->get();
 
+        // Opsi kolom "Assign Delivery" — hanya Delivery Support yang benar-benar
+        // punya tiket, supaya daftarnya tidak dipenuhi pilihan yang pasti kosong.
+        // Label disamakan dengan yang tampil di kolomnya: "<nama> (<customer>)".
+        $deliveries = DB::table('delivery_support_activities as dsa')
+            ->join('ticket', 'ticket.ticket_id', '=', 'dsa.ticket_id')
+            ->join('delivery_support as ds', 'ds.id', '=', 'dsa.delivery_support_id')
+            ->leftJoin('customer_basic_data as cbd', 'cbd.customer_id', '=', 'ds.client_id')
+            ->whereNull('ticket.is_hidden')
+            ->whereNotNull('dsa.ticket_id')
+            ->select('ds.id as id', DB::raw("TRIM(CONCAT(COALESCE(ds.name, CONCAT('Support #', ds.id)), COALESCE(CONCAT(' (', cbd.name_1, ')'), ''))) as name"))
+            ->distinct()
+            ->orderBy('name')
+            ->get();
+
         return response()->json([
             'success' => true,
             'customers' => $customers,
             'pics' => $pics,
+            'deliveries' => $deliveries,
         ]);
     }
 
@@ -2672,21 +2724,19 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
 
-        $roleId     = $sessionUser['role']['id'] ?? 0;
-        $isAdmin    = $roleId === RoleId::EC_ADMINISTRATOR->value;
-        $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
-        $isEmployee = $roleId !== RoleId::EC_USER->value && $roleId > 0;
-
         if (!$sessionUser) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        // Permission terpisah & configurable untuk edit Additional Info (name/no_hp/module/client).
-        // Diatur per-role via Manajemen → Roles/Permissions (slug ui.ticket.edit-additional-info).
-        $canEditAddInfo = \App\Models\Employee::find($sessionUser['id'] ?? 0)
-            ?->hasPermission('ui.ticket.edit-additional-info') ?? false;
+        // Otorisasi edit field murni dari Manajemen → Roles/Permissions, tidak ada lagi
+        // grup role hardcode (dulu RoleId::EC_ADMINISTRATOR / TICKET_MANAGER_GROUP) sebagai
+        // fallback — role manapun harus di-assign permission ini agar bisa edit.
+        $canEditFields  = $this->sessionUserCan($sessionUser, 'ui.ticket.edit-fields');
+        $canEditAddInfo = $this->sessionUserCan($sessionUser, 'ui.ticket.edit-additional-info');
 
-        // External employee tidak boleh mengambil unassigned ticket maupun update apapun
+        // Pengecualian employee_type (external/internal) tetap hardcode karena bukan bagian
+        // dari menu Roles/Permissions — EC Administrator dikecualikan dari batasan ini.
+        $isAdmin = ($sessionUser['role']['id'] ?? 0) === RoleId::EC_ADMINISTRATOR->value;
         $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
         if ($isExternalEmployee && !$isAdmin) {
             return response()->json([
@@ -2695,26 +2745,23 @@ class TicketController extends Controller
             ], 403);
         }
 
-        // Employees other than admin/helpdesk may ONLY self-assign PIC on unassigned tickets,
-        // ATAU mengedit Additional Info saja bila punya permission ui.ticket.edit-additional-info.
-        // All other fields require admin or helpdesk.
+        // Tanpa ui.ticket.edit-fields, employee hanya boleh self-assign PIC pada ticket yang
+        // masih unassigned, ATAU mengedit Additional Info saja bila punya ui.ticket.edit-additional-info.
         $ticketForCheck = Ticket::find($id);
         $requestKeys    = array_keys($request->except(['_token', '_method']));
-        $isSelfAssignOnly = !$isAdmin && !$isHelpdesk
-            && $requestKeys === ['ticket_lead_id']
+        $isSelfAssignOnly = $requestKeys === ['ticket_lead_id']
             && $ticketForCheck
             && $ticketForCheck->ticket_lead_id === null;
 
         $addInfoKeys   = ['name', 'no_hp', 'module', 'module_id', 'client'];
-        $isAddInfoOnly = !$isAdmin && !$isHelpdesk
-            && $canEditAddInfo
+        $isAddInfoOnly = $canEditAddInfo
             && $requestKeys !== []
             && count(array_diff($requestKeys, $addInfoKeys)) === 0;
 
-        if (!$isAdmin && !$isHelpdesk && !$isSelfAssignOnly && !$isAddInfoOnly) {
+        if (!$canEditFields && !$isSelfAssignOnly && !$isAddInfoOnly) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only admin or helpdesk can update ticket'
+                'message' => 'You do not have permission to update this ticket'
             ], 403);
         }
 
@@ -2751,13 +2798,13 @@ class TicketController extends Controller
             // Build update data from validated fields
             $updateData = [];
 
-            if ($request->has('ticket_priority') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('ticket_priority') && $canEditFields) {
                 $updateData['ticket_priority'] = $request->ticket_priority;
             }
-            if ($request->has('ticket_type') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('ticket_type') && $canEditFields) {
                 $updateData['ticket_type'] = $request->ticket_type;
             }
-            if ($request->has('scale') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('scale') && $canEditFields) {
                 $updateData['scale'] = $request->scale;
             }
             if ($request->has('ticket_lead_id')) {
@@ -2767,23 +2814,23 @@ class TicketController extends Controller
                     $updateData['status'] = 'inprocess';
                 }
             }
-            if ($request->has('man_days') && $isAdmin) {
+            if ($request->has('man_days') && $canEditFields) {
                 $updateData['man_days'] = $request->man_days;
             }
-            // Additional Info fields: admin/helpdesk ATAU pemegang ui.ticket.edit-additional-info
-            if ($request->has('name') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+            // Additional Info fields: khusus pemegang permission ui.ticket.edit-additional-info
+            if ($request->has('name') && $canEditAddInfo) {
                 $updateData['name'] = $request->name ?: null;
             }
-            if ($request->has('no_hp') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+            if ($request->has('no_hp') && $canEditAddInfo) {
                 $updateData['no_hp'] = $request->no_hp ?: null;
             }
-            if ($request->has('module') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+            if ($request->has('module') && $canEditAddInfo) {
                 $updateData['module'] = $request->module ?: null;
             }
-            if ($request->has('module_id') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+            if ($request->has('module_id') && $canEditAddInfo) {
                 $updateData['module_id'] = $request->module_id ?: null;
             }
-            if ($request->has('client') && ($isAdmin || $isHelpdesk || $canEditAddInfo)) {
+            if ($request->has('client') && $canEditAddInfo) {
                 $updateData['client'] = $request->client ?: null;
             }
 
@@ -2979,11 +3026,19 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
 
-        $roleId = $sessionUser['role']['id'] ?? 0;
-        if (!$sessionUser || !in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true)) {
+        if (!$sessionUser) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only admin or helpdesk can update ticket status'
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
+        // Otorisasi murni dari Manajemen → Roles/Permissions (slug ui.ticket.edit-fields),
+        // tidak ada lagi grup role hardcode (dulu RoleId::TICKET_MANAGER_GROUP) sebagai fallback.
+        if (!$this->sessionUserCan($sessionUser, 'ui.ticket.edit-fields')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to update this ticket status'
             ], 403);
         }
 
@@ -4267,9 +4322,14 @@ class TicketController extends Controller
             ], 403);
         }
 
+        // Support type kini master data (menu Management > Master Delivery
+        // Settings > Support Type) — lihat DeliverySupportTypeController —
+        // bukan hardcode lagi.
+        $validSupportTypes = DeliverySupportType::active()->pluck('name');
+
         $validator = Validator::make($request->all(), [
             'name'           => 'required|string|max:255',
-            'type'           => 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal',
+            'type'           => 'required|in:' . $validSupportTypes->implode(','),
             'support_method' => 'nullable|string|max:100',
         ]);
 

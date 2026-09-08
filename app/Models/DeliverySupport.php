@@ -183,6 +183,12 @@ class DeliverySupport extends Model
         return $this->hasMany(DeliverySupportDocument::class, 'delivery_support_id');
     }
 
+    /** Batch rekonsiliasi tiket (section Recons). */
+    public function recons()
+    {
+        return $this->hasMany(DeliverySupportRecons::class, 'delivery_support_id');
+    }
+
     public function updates()
     {
         return $this->hasMany(DeliverySupportUpdate::class, 'delivery_support_id');

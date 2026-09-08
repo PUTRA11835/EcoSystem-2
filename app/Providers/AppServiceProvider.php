@@ -9,6 +9,7 @@ use App\Enums\HomeBase;
 use App\Enums\PersonnelArea;
 use App\Enums\PersonnelSubarea;
 use App\Enums\RoleId;
+use App\Models\Customer;
 use App\Models\Department;
 use App\Models\Grade;
 use App\Models\Position;
@@ -104,6 +105,21 @@ class AppServiceProvider extends ServiceProvider
                 $positionOptions   = Schema::hasTable('positions') ? Position::options() : [];
                 $departmentOptions = Schema::hasTable('departments') ? Department::options() : [];
 
+                // "Current Assignment" — dropdown-nya diambil dari daftar Business
+                // Partner bertipe Customer (bukan free text lagi), sama sumbernya
+                // dengan dropdown customer di form Create Ticket.
+                $customerOptions = Schema::hasTable('customer')
+                    ? Customer::with('basicData')
+                        ->customers()
+                        ->where('is_active', true)
+                        ->get()
+                        ->map(fn ($c) => $c->basicData->name_1 ?? $c->email ?? null)
+                        ->filter()
+                        ->unique()
+                        ->sort()
+                        ->values()
+                    : collect();
+
                 $view->with('homeBaseOptions', HomeBase::options())
                      ->with('positionOptions', $positionOptions)
                      ->with('departmentOptions', $departmentOptions)
@@ -111,7 +127,8 @@ class AppServiceProvider extends ServiceProvider
                      ->with('personnelAreaOptions', PersonnelArea::options())
                      ->with('personnelSubareaOptions', PersonnelSubarea::options())
                      ->with('employeeGroupOptions', EmployeeGroup::options())
-                     ->with('employeeSubgroupOptions', EmployeeSubgroup::options());
+                     ->with('employeeSubgroupOptions', EmployeeSubgroup::options())
+                     ->with('customerOptions', $customerOptions);
             }
         );
 
