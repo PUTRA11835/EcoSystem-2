@@ -1,9 +1,37 @@
 # Paket import flow Power Automate
 
-Ketiga flow integrasi EcoSystem ↔ Microsoft Teams dalam bentuk siap-import.
+Flow integrasi EcoSystem ↔ Microsoft Teams dalam bentuk siap-import.
 Panduan konsep, konfigurasi `.env`, dan troubleshooting ada di
 [../power-automate-integration.md](../power-automate-integration.md) — berkas ini
-khusus soal cara meng-import.
+khusus soal cara meng-import dan mengonfigurasi flow-nya.
+
+## Keadaan saat ini — 8 September 2026
+
+| Flow | Bentuk | Status |
+|---|---|---|
+| 1. `EcoSystem - Email Greeting` | balas greeting di thread email yang sama | **Terbukti jalan** end-to-end |
+| 2. `EcoSystem - Ticket Validated` | buat channel tiket + kartu + tarik anggota + mention lead modul | **Terbukti jalan** |
+| 3. `EcoSystem - Open Ticket Reminder` | reminder berulang selama tiket Open | **Belum dikonfigurasi** |
+| 4. `EcoSystem - Ticket Member Added` | PIC/member baru ditarik ke channel tiketnya + kartu | **Terbukti jalan** (8 Sep 2026) |
+
+**Keempat flow sekarang dalam keadaan `Off`, dan itu disengaja.** Perubahan
+kodenya sudah di-merge, tetapi `.env` produksi belum membawa variabel Power
+Automate sama sekali — `POWER_AUTOMATE_ENABLED` default `false`, jadi EcoSystem
+tidak memanggil apa pun. Menyalakannya nanti **tidak perlu deploy ulang**: isi
+`POWER_AUTOMATE_ENABLED`, `POWER_AUTOMATE_SECRET`, dan URL flow yang diinginkan
+di `.env`, lalu `php artisan optimize:clear`. Flow yang URL-nya dibiarkan kosong
+otomatis dilewati, jadi bisa dinyalakan satu per satu.
+
+Sisi EcoSystem aman dalam keadaan mati: keempat titik pemanggilan
+(`StagingTicketService` untuk greeting, `StagingTicketController@approve`,
+`TicketController` untuk add member/assign PIC, dan command
+`tickets:open-reminders`) semuanya memeriksa `isFlowReady()` lebih dulu dan
+`return` tanpa efek. Panggilan flow 2 juga merupakan langkah **terakhir** di
+`approve()` — di luar transaksi, dibungkus `try/catch`, dan dikirim setelah
+response — sehingga tidak mungkin mengganggu validasi tiket harian.
+
+**Yang masih terbuka:** flow 3 belum dibuat, dan soal visibilitas channel belum
+diputuskan (lihat *Batasan yang belum terpecahkan* di bawah).
 
 ## Berkas mana yang dipakai
 
@@ -203,7 +231,7 @@ berakhir **Cancelled**, bukan mengirim kartu.
 
 ---
 
-## Catatan lapangan — hasil import sungguhan (2 Sep 2026)
+## Catatan lapangan — hasil pengerjaan sungguhan (2-8 Sep 2026)
 
 Solution berhasil di-import ke tenant PT Eclectic, dan **flow 1 sudah terbukti
 jalan end-to-end**: email masuk ke `support@eclectic.co.id` → staging ticket →
@@ -244,6 +272,44 @@ di-import dari paket ini:
    dalam mailbox itu. Field *Original Mailbox Address* dibiarkan kosong selama
    koneksinya memang mailbox tersebut.
 
+Tiga hal berikut ditemukan menyusul, saat membuat flow 4 dan mengubah flow 2
+(7-8 September 2026). Ketiganya berlaku untuk flow yang **dibuat manual**, bukan
+hasil import — jadi relevan saat membuat flow 3 nanti:
+
+6. **Setelan *Who can trigger the flow?* harus `Anyone`.** Flow baru lahir dengan
+   *Any user in my tenant*, yang memakai autentikasi Entra ID — dan URL trigger
+   yang diterbitkannya berhenti di `?api-version=1`, tanpa `sp`, `sv`, dan `sig`.
+   EcoSystem memanggil dengan POST biasa berisi header rahasia, tanpa token
+   OAuth, jadi akan ditolak **401**. Ubah ke **Anyone** lalu **Save**; URL akan
+   terbit ulang lengkap dengan `&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=...`.
+   Flow 1 dan 2 tidak kena karena dibuat dengan setelan lama.
+
+   Bandingkan URL barunya dengan yang sudah ada di `.env`: kalau tidak berakhir
+   dengan `&sig=`, ia belum benar. Salin lewat **ikon salin** di sebelah field,
+   bukan dengan memblok teksnya — kotaknya sempit dan yang tersalin hanya bagian
+   yang terlihat.
+
+7. **Durasi run adalah alat baca pertama, bukan status.** Run **Succeeded**
+   berdurasi 70-125 ms berarti flow keluar lewat cabang **False** yang kosong —
+   hampir selalu Condition pemeriksa secret — dan **bukan** berarti berhasil. Run
+   yang benar-benar menyentuh Teams butuh hitungan **detik** (flow 4 yang sehat:
+   ±12 detik). `Succeeded` di Power Automate hanya berarti "tidak ada aksi yang
+   error"; cabang kosong memenuhi syarat itu dengan sempurna.
+
+   Kalau baris run history tidak bisa diklik, jangan buang waktu: buka designer →
+   **Test → Manually**, lalu picu dari EcoSystem. Hasilnya tergambar langsung di
+   kanvas, lengkap per aksi, dan tiap kotak bisa dibuka untuk melihat Inputs.
+
+   Waspadai juga membuka satu flow di beberapa tab sekaligus atau berpindah
+   antara designer lama dan baru — perubahan bisa terlihat benar di layar padahal
+   yang berjalan versi lama. Cek stempel **Modified** di halaman detail flow;
+   itu satu-satunya konfirmasi bahwa suntingan Anda sudah tersimpan.
+
+8. **Aksi *Create a channel* hanya punya dua advanced parameter:** *Description*
+   dan *Membership Type*. Tidak ada properti "favorite by default", jadi channel
+   tiket **tidak bisa** dibuat otomatis tampil di daftar channel anggota lewat
+   konektor — itu hanya ada di Microsoft Graph, yang berarti aksi HTTP, yang
+   berarti Premium.
 ### Nilai yang diisikan manual di flow 1
 
 | Field | Isi |
@@ -511,7 +577,7 @@ tersedia dan dijamin bekerja:
 
 ---
 
-## Konfigurasi flow 4 — EcoSystem - Ticket Member Added (7 Sep 2026)
+## Konfigurasi flow 4 — EcoSystem - Ticket Member Added (7 Sep 2026, terbukti jalan 8 Sep 2026)
 
 **Kapan dipanggil:** saat consultant di-assign ke satu tiket, yaitu (a) tombol
 **Add Member** di halaman tiket dan (b) penetapan/penggantian **PIC**
@@ -543,6 +609,10 @@ setelah** channelnya terbentuk.
 
 **Request Body JSON Schema** dibiarkan kosong (catatan lapangan 3); semua nilai
 diambil lewat tab **Expression**.
+
+Ubah **Who can trigger the flow?** menjadi **Anyone** (catatan lapangan 6).
+Dengan setelan bawaan *Any user in my tenant*, URL trigger tidak membawa `sig`
+dan EcoSystem akan ditolak 401.
 
 ### 2. Condition **Cek secret EcoSystem**
 
@@ -669,3 +739,70 @@ alih-alih `channel.name`. Belum dikerjakan — cek dulu lisensinya lewat
 permissions → Licenses**, atau lebih cepat: buka designer, cari aksi **HTTP**,
 dan lihat apakah ada lencana **Premium** di sampingnya (lencana muncul untuk
 semua orang; yang menentukan adalah apakah flow tetap jalan setelah disimpan).
+
+
+---
+
+## Batasan yang belum terpecahkan — visibilitas channel (8 Sep 2026)
+
+Ditemukan saat menguji flow 4 dengan PIC sungguhan (Agus Dwi Priyono). Belum
+diputuskan; dicatat di sini supaya tidak ditelusuri ulang dari nol.
+
+### Masalah 1 — anggota melihat SEMUA channel tiket, bukan hanya miliknya
+
+Di Teams, *standard channel* tidak punya daftar anggota sendiri: yang menentukan
+akses adalah keanggotaan **team**. Begitu seseorang ditarik ke Support MO Team
+oleh flow 2 atau flow 4, seluruh channel tiket di dalamnya terbuka untuknya —
+termasuk tiket customer lain.
+
+Satu-satunya mekanisme pembatas di Teams adalah **private channel**, dan dua hal
+menghalanginya:
+
+* **Batas jumlah.** Standard channel 1.000 per team, private channel jauh lebih
+  sedikit — catatan sesi sebelumnya menulis 200, dokumentasi Microsoft yang
+  diingat menyebut 30. **Kedua angka itu bertabrakan dan belum diverifikasi.**
+  Dengan 62-129 tiket/bulan, batas 30 habis dalam hitungan minggu dan batas 200
+  dalam 2-3 bulan, dibanding ±10 bulan untuk standard channel.
+* **Tidak ada aksinya.** Konektor Teams punya *Add a member to a team*, bukan
+  *add a member to a channel*. Menambah anggota ke private channel tampaknya
+  hanya bisa lewat Microsoft Graph = aksi HTTP = Premium. Perlu diverifikasi di
+  designer sebelum jalur ini benar-benar ditutup.
+
+Sebelum menempuh salah satunya, perlu dipastikan dulu dorongan sebenarnya:
+**kerahasiaan** (konsultan tidak boleh tahu tiket customer lain) atau
+**kerapian** (daftar channel jadi panjang). Kalau kerapian, keadaan sekarang
+sudah memadai — Teams tidak otomatis menampilkan channel baru, jadi daftar
+channel orang tetap pendek sampai ia sendiri menekan *Show*. Kalau kerahasiaan,
+satu team berisi semua tiket memang bentuk yang salah, dan pilihannya bukan
+private channel melainkan pemisahan team per customer — konsekuensinya jauh lebih
+besar dan perlu dibahas tersendiri.
+
+### Masalah 2 — di mobile, anggota baru hanya melihat General
+
+Akibat langsung dari hal yang sama: channel tiket berstatus tersembunyi sampai
+anggotanya menekan **Show**. Di aplikasi mobile, membuka team langsung mendarat
+di *General*, dan channel tiket harus dicari lewat *See all channels*. Catatan
+lapangan 8 menutup jalan otomatisasinya — konektor tidak mengekspos properti
+"favorite by default".
+
+**Yang sebenarnya menjawab kebutuhan ini bukan daftar channel, melainkan
+notifikasi.** Kartu yang diposting flow 4 tidak memberi notifikasi kepada
+siapa pun; hanya @mention yang melakukannya. Bandingkan dengan flow 2, di mana
+lead modul memang di-mention dan karena itu selalu menemukan channelnya.
+
+**Usulan yang BELUM dikerjakan** — dua aksi tambahan di flow 4, di dalam cabang
+*If yes* milik *Channel ketemu*, **sesudah** Compose penyerap (wajib sesudah
+*Add a member to a team*: token mention hanya bisa dibuat untuk orang yang sudah
+jadi anggota team):
+
+1. **Teams → Get an @mention token for a user** — *User*:
+   `triggerBody()?['person']?['email']`
+2. **Teams → Post message in a chat or channel** — Post as *Flow bot*, Post in
+   *Channel*, Team *Support MO Team*, Channel
+   `first(body('Filter_array'))?['id']`, Message: token dari aksi 1 diikuti teks
+   pengantar.
+
+Yang belum diketahui dan hanya bisa dilihat di perangkat sungguhan: apakah
+channel tersembunyi otomatis ikut ditampilkan setelah pemiliknya di-mention.
+Perilakunya berbeda antar versi klien Teams. Kalau tidak, penerimanya masih bisa
+memakukannya sekali lewat ⋯ → Pin.
