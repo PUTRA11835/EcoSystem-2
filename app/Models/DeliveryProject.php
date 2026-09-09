@@ -110,6 +110,11 @@ class DeliveryProject extends Model
                     ->orderBy('obj_id');
     }
 
+    public function stakeholders() {
+        return $this->hasMany(DeliveryProjectStakeholder::class, 'delivery_projects_id')
+                    ->orderBy('seq');
+    }
+
     public function activities() {
         return $this->hasMany(DeliveryProjectActivity::class, 'delivery_projects_id');
     }
