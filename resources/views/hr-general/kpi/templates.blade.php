@@ -26,7 +26,7 @@
         </span>
         <a href="{{ route('general.kpi-evaluation.teams') }}"
            class="flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
-            <i class="fas fa-sitemap mr-1.5"></i> Team &amp; Leads
+            <i class="fas fa-sitemap mr-1.5"></i> Lead &amp; Project
         </a>
     </div>
 
