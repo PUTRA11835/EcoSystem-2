@@ -1,4 +1,4 @@
-{{-- Pagination for the Team & Leads table — mirrors the KPI Evaluation dashboard
+{{-- Pagination for the Lead & Project table — mirrors the KPI Evaluation dashboard
      coverage table, but the page links reload via AJAX (.tpg[data-page]). --}}
 @if($employees->total() > 0)
 <div class="px-5 py-4 border-t border-gray-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -80,7 +80,7 @@
         <span class="text-xs text-gray-500 font-normal">Rows per page:</span>
         <div class="relative">
             <select onchange="changeTeamPerPage(this.value)"
-                class="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-1 focus:ring-[var(--primary-color)] cursor-pointer shadow-sm transition-all">
+                class="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-1 focus:ring-(--primary-color) cursor-pointer shadow-sm transition-all">
                 @foreach([10, 15, 25, 50] as $pp)
                 <option value="{{ $pp }}" {{ (int) ($perPage ?? 15) === $pp ? 'selected' : '' }}>{{ $pp }}</option>
                 @endforeach

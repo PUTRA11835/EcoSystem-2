@@ -30,7 +30,7 @@
         @endif
         <a href="{{ route('general.kpi-evaluation.teams') }}"
            class="flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
-            <i class="fas fa-sitemap mr-1.5"></i> Team &amp; Leads
+            <i class="fas fa-sitemap mr-1.5"></i> Lead &amp; Project
         </a>
     </div>
 
@@ -187,7 +187,9 @@
             <input type="hidden" name="type" value="{{ $typeFilter ?? '' }}">
         </form>
 
-        {{-- Table view with filter icons on the right of header cells --}}
+        {{-- Table view — per-column filter icons open a popover that floats
+             (position:fixed, JS-positioned) so it is never clipped by this
+             table's horizontal scroll and always renders above the table. --}}
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="bg-gray-50/90 border-b border-gray-100 select-none">
@@ -198,102 +200,138 @@
                         </th>
 
                         {{-- 1. Employee --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-50">
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-50">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Employee</span>
-                                <button type="button" onclick="toggleHeaderFilter(event, 'employeeFilterBox')"
-                                    class="p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($search) ? 'text-(--primary-color)] font-bold' : 'text-gray-400 hover:text-gray-600' }}"
+                                <button type="button" data-hf-btn onclick="toggleHF(event, 'employeeFilterBox')"
+                                    class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($search) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
                                     title="Filter Employee">
                                     <i class="fas fa-filter text-[10px]"></i>
+                                    @if(!empty($search))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
                             {{-- Floating Search Popover --}}
-                            <div id="employeeFilterBox" class="header-filter-popover hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 p-2.5 z-50 min-w-55 normal-case" onclick="event.stopPropagation()">
-                                <div class="relative">
-                                    <input type="text" id="headerEmployeeSearch" value="{{ $search ?? '' }}" placeholder="Type a name or ECI…" autocomplete="off"
-                                        oninput="debouncedFilterSubmit('headerSearchInput', this.value)"
-                                        onkeydown="if(event.key==='Enter'){event.preventDefault();onSearchEnter(this.value);}"
-                                        class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-(--primary-color) focus:border-(--primary-color) transition-all font-normal">
-                                    <div class="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-400 pointer-events-none">
-                                        <i class="fas fa-search text-[10px]"></i>
-                                    </div>
+                            <div id="employeeFilterBox" class="header-filter-popover hidden w-64 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case" onclick="event.stopPropagation()">
+                                <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Employee</span>
+                                    @if(!empty($search))
+                                    <button type="button" onclick="document.getElementById('headerEmployeeSearch').value='';onSearchEnter('');" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
+                                    @endif
                                 </div>
-                                <p class="text-[10px] text-gray-400 mt-1.5">Results update as you type.</p>
+                                <div class="p-2.5">
+                                    <div class="relative">
+                                        <input type="text" id="headerEmployeeSearch" value="{{ $search ?? '' }}" placeholder="Type a name or ECI…" autocomplete="off"
+                                            oninput="debouncedFilterSubmit('headerSearchInput', this.value)"
+                                            onkeydown="if(event.key==='Enter'){event.preventDefault();onSearchEnter(this.value);}"
+                                            class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
+                                        <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                    </div>
+                                    <p class="text-[10px] text-gray-400 mt-1.5">Results update as you type.</p>
+                                </div>
                             </div>
                         </th>
 
                         {{-- 2. Position --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-40">
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-40">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Position</span>
-                                <button type="button" onclick="toggleHeaderFilter(event, 'positionFilterBox')"
-                                    class="p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($positionFilter) ? 'text-(--primary-color) font-bold' : 'text-gray-400 hover:text-gray-600' }}"
+                                <button type="button" data-hf-btn onclick="toggleHF(event, 'positionFilterBox')"
+                                    class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($positionFilter) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
                                     title="Filter Position">
                                     <i class="fas fa-filter text-[10px]"></i>
+                                    @if(!empty($positionFilter))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
                             {{-- Floating Position Popover --}}
-                            <div id="positionFilterBox" class="header-filter-popover hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-47.5 max-h-65 overflow-y-auto normal-case font-normal" onclick="event.stopPropagation()">
-                                <button type="button" onclick="onPositionHeaderFilterChange('')"
-                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ empty($positionFilter) ? 'font-bold text-(--primary-color)' : '' }}">
-                                    All Positions
-                                </button>
-                                @foreach($positions as $pos)
-                                    <button type="button" onclick="onPositionHeaderFilterChange('{{ addslashes($pos) }}')"
-                                        class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($positionFilter ?? '') === $pos ? 'font-bold text-(--primary-color)' : '' }}">
-                                        {{ $pos }}
+                            <div id="positionFilterBox" class="header-filter-popover hidden w-56 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
+                                <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Position</span>
+                                    @if(!empty($positionFilter))
+                                    <button type="button" onclick="onPositionHeaderFilterChange('')" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
+                                    @endif
+                                </div>
+                                <div class="py-1 max-h-64 overflow-y-auto">
+                                    <button type="button" onclick="onPositionHeaderFilterChange('')"
+                                        class="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors {{ empty($positionFilter) ? 'text-(--primary-color) font-semibold bg-(--primary-color)/5' : 'text-gray-700' }}">
+                                        <span class="truncate">All Positions</span>
+                                        @if(empty($positionFilter))<i class="fas fa-check text-[10px] shrink-0"></i>@endif
                                     </button>
-                                @endforeach
+                                    @foreach($positions as $pos)
+                                        <button type="button" onclick="onPositionHeaderFilterChange('{{ addslashes($pos) }}')"
+                                            class="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors {{ ($positionFilter ?? '') === $pos ? 'text-(--primary-color) font-semibold bg-(--primary-color)/5' : 'text-gray-700' }}">
+                                            <span class="truncate">{{ $pos }}</span>
+                                            @if(($positionFilter ?? '') === $pos)<i class="fas fa-check text-[10px] shrink-0"></i>@endif
+                                        </button>
+                                    @endforeach
+                                </div>
                             </div>
                         </th>
 
                         {{-- 3. Supervisor --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-40">
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-40">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Supervisor</span>
-                                <button type="button" onclick="toggleHeaderFilter(event, 'supervisorFilterBox')"
-                                    class="p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($supervisorId) ? 'text-(--primary-color) font-bold' : 'text-gray-400 hover:text-gray-600' }}"
+                                <button type="button" data-hf-btn onclick="toggleHF(event, 'supervisorFilterBox')"
+                                    class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($supervisorId) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
                                     title="Filter Supervisor">
                                     <i class="fas fa-filter text-[10px]"></i>
+                                    @if(!empty($supervisorId))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
                             {{-- Floating Supervisor Search Popover --}}
-                            <div id="supervisorFilterBox" class="header-filter-popover hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 p-2.5 z-50 min-w-55 normal-case" onclick="event.stopPropagation()">
-                                <div class="relative">
-                                    <input type="text" id="headerSupervisorSearch" value="{{ $supervisorId ?? '' }}" placeholder="Type a supervisor name / ECI…" autocomplete="off"
-                                        oninput="debouncedFilterSubmit('headerSupervisorInput', this.value)"
-                                        onkeydown="if(event.key==='Enter'){event.preventDefault();onSupervisorSearchEnter(this.value);}"
-                                        class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-(--primary-color) focus:border-(--primary-color) transition-all font-normal">
-                                    <div class="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-400 pointer-events-none">
-                                        <i class="fas fa-search text-[10px]"></i>
-                                    </div>
+                            <div id="supervisorFilterBox" class="header-filter-popover hidden w-64 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case" onclick="event.stopPropagation()">
+                                <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Supervisor</span>
+                                    @if(!empty($supervisorId))
+                                    <button type="button" onclick="document.getElementById('headerSupervisorSearch').value='';onSupervisorSearchEnter('');" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
+                                    @endif
                                 </div>
-                                <p class="text-[10px] text-gray-400 mt-1.5">Results update as you type.</p>
+                                <div class="p-2.5">
+                                    <div class="relative">
+                                        <input type="text" id="headerSupervisorSearch" value="{{ $supervisorId ?? '' }}" placeholder="Name or ECI…" autocomplete="off"
+                                            oninput="debouncedFilterSubmit('headerSupervisorInput', this.value)"
+                                            onkeydown="if(event.key==='Enter'){event.preventDefault();onSupervisorSearchEnter(this.value);}"
+                                            class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
+                                        <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                    </div>
+                                    <p class="text-[10px] text-gray-400 mt-1.5">Results update as you type.</p>
+                                </div>
                             </div>
                         </th>
 
                         {{-- 4. Template --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-40">
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-40">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Template</span>
-                                <button type="button" onclick="toggleHeaderFilter(event, 'templateFilterBox')"
-                                    class="p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($templateId) ? 'text-(--primary-color) font-bold' : 'text-gray-400 hover:text-gray-600' }}"
+                                <button type="button" data-hf-btn onclick="toggleHF(event, 'templateFilterBox')"
+                                    class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($templateId) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
                                     title="Filter Template">
                                     <i class="fas fa-filter text-[10px]"></i>
+                                    @if(!empty($templateId))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
                             {{-- Floating Template Popover --}}
-                            <div id="templateFilterBox" class="header-filter-popover hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-50 max-h-65 overflow-y-auto normal-case font-normal" onclick="event.stopPropagation()">
-                                <button type="button" onclick="onTemplateHeaderFilterChange('')"
-                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ empty($templateId) ? 'font-bold text-(--primary-color)' : '' }}">
-                                    All Templates
-                                </button>
-                                @foreach($activeTemplates as $tmpl)
-                                    <button type="button" onclick="onTemplateHeaderFilterChange('{{ $tmpl->id }}')"
-                                        class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ (string)($templateId ?? '') === (string)$tmpl->id ? 'font-bold text-(--primary-color)' : '' }}">
-                                        {{ $tmpl->name }}
+                            <div id="templateFilterBox" class="header-filter-popover hidden w-60 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
+                                <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Template</span>
+                                    @if(!empty($templateId))
+                                    <button type="button" onclick="onTemplateHeaderFilterChange('')" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
+                                    @endif
+                                </div>
+                                <div class="py-1 max-h-64 overflow-y-auto">
+                                    <button type="button" onclick="onTemplateHeaderFilterChange('')"
+                                        class="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors {{ empty($templateId) ? 'text-(--primary-color) font-semibold bg-(--primary-color)/5' : 'text-gray-700' }}">
+                                        <span class="truncate">All Templates</span>
+                                        @if(empty($templateId))<i class="fas fa-check text-[10px] shrink-0"></i>@endif
                                     </button>
-                                @endforeach
+                                    @foreach($activeTemplates as $tmpl)
+                                        <button type="button" onclick="onTemplateHeaderFilterChange('{{ $tmpl->id }}')"
+                                            class="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors {{ (string)($templateId ?? '') === (string)$tmpl->id ? 'text-(--primary-color) font-semibold bg-(--primary-color)/5' : 'text-gray-700' }}">
+                                            <span class="truncate">{{ $tmpl->name }}</span>
+                                            @if((string)($templateId ?? '') === (string)$tmpl->id)<i class="fas fa-check text-[10px] shrink-0"></i>@endif
+                                        </button>
+                                    @endforeach
+                                </div>
                             </div>
                         </th>
 
@@ -308,49 +346,45 @@
                         </th>
 
                         {{-- 7. Status --}}
-                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-35">
+                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-35">
                             <div class="flex items-center justify-center gap-1.5">
                                 <span>Status</span>
-                                <button type="button" onclick="toggleHeaderFilter(event, 'statusFilterBox')"
-                                    class="p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($statusFilter) ? 'text-(--primary-color) font-bold' : 'text-gray-400 hover:text-gray-600' }}"
+                                <button type="button" data-hf-btn onclick="toggleHF(event, 'statusFilterBox')"
+                                    class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($statusFilter) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
                                     title="Filter Status">
                                     <i class="fas fa-filter text-[10px]"></i>
+                                    @if(!empty($statusFilter))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
                             {{-- Floating Status Popover --}}
-                            <div id="statusFilterBox" class="header-filter-popover hidden absolute top-full right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-40 text-left normal-case font-normal" onclick="event.stopPropagation()">
-                                <button type="button" onclick="onStatusHeaderFilterChange('')"
-                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ empty($statusFilter) ? 'font-bold text-[var(--primary-color)]' : '' }}">
-                                    All Status
-                                </button>
-                                <button type="button" onclick="onStatusHeaderFilterChange('not_created')"
-                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'not_created' ? 'font-bold text-[var(--primary-color)]' : '' }}">
-                                    Not Created
-                                </button>
-                                <button type="button" onclick="onStatusHeaderFilterChange('draft')"
-                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'draft' ? 'font-bold text-[var(--primary-color)]' : '' }}">
-                                    Draft
-                                </button>
-                                <button type="button" onclick="onStatusHeaderFilterChange('self_assessed')"
-                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'self_assessed' ? 'font-bold text-[var(--primary-color)]' : '' }}">
-                                    Self-Assessed
-                                </button>
-                                <button type="button" onclick="onStatusHeaderFilterChange('reviewed')"
-                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'reviewed' ? 'font-bold text-[var(--primary-color)]' : '' }}">
-                                    Reviewed
-                                </button>
-                                <button type="button" onclick="onStatusHeaderFilterChange('completed')"
-                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'completed' ? 'font-bold text-[var(--primary-color)]' : '' }}">
-                                    Completed
-                                </button>
-                                <button type="button" onclick="onStatusHeaderFilterChange('hr_approved')"
-                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'hr_approved' ? 'font-bold text-[var(--primary-color)]' : '' }}">
-                                    Approved
-                                </button>
-                                <button type="button" onclick="onStatusHeaderFilterChange('hr_rejected')"
-                                    class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 {{ ($statusFilter ?? '') === 'hr_rejected' ? 'font-bold text-[var(--primary-color)]' : '' }}">
-                                    Rejected
-                                </button>
+                            @php
+                                $statusOptions = [
+                                    ''             => 'All Status',
+                                    'not_created'  => 'Not Created',
+                                    'draft'        => 'Draft',
+                                    'self_assessed'=> 'Self-Assessed',
+                                    'reviewed'     => 'Reviewed',
+                                    'completed'    => 'Completed',
+                                    'hr_approved'  => 'Approved',
+                                    'hr_rejected'  => 'Rejected',
+                                ];
+                            @endphp
+                            <div id="statusFilterBox" class="header-filter-popover hidden w-48 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden text-left normal-case font-normal" onclick="event.stopPropagation()">
+                                <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Status</span>
+                                    @if(!empty($statusFilter))
+                                    <button type="button" onclick="onStatusHeaderFilterChange('')" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
+                                    @endif
+                                </div>
+                                <div class="py-1">
+                                    @foreach($statusOptions as $val => $label)
+                                    <button type="button" onclick="onStatusHeaderFilterChange('{{ $val }}')"
+                                        class="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors {{ ($statusFilter ?? '') === $val ? 'text-(--primary-color) font-semibold bg-(--primary-color)/5' : 'text-gray-700' }}">
+                                        <span class="truncate">{{ $label }}</span>
+                                        @if(($statusFilter ?? '') === $val)<i class="fas fa-check text-[10px] shrink-0"></i>@endif
+                                    </button>
+                                    @endforeach
+                                </div>
                             </div>
                         </th>
 
@@ -380,8 +414,11 @@
                             $bd = $emp->basicData;
                             $empEvals = ($evalsByEmp->get($emp->employee_id) ?? collect())
                                 ->sortBy(fn($e) => $e->template?->target_type === 'self' ? 0 : 1)->values();
-                            $supName = ($empEvals->first()?->supervisor?->basicData?->full_name)
-                                ?? ($bd?->direct_supervision ? (($supervisorNames[$bd->direct_supervision] ?? null) ?: 'Assigned') : '—');
+                            // "Report to" — derived from master employee data:
+                            // project manager if on a project, else the employee's
+                            // direct supervisor, else none. Read-only here.
+                            $supName = $reportsToMap[$emp->employee_id]['name'] ?? null;
+                            $supSrc  = $reportsToMap[$emp->employee_id]['source'] ?? null;
                             $selfN = $empEvals->filter(fn($e) => ($e->template?->target_type ?? 'supervisor') === 'self')->count();
                             $leadN = $empEvals->count() - $selfN;
                             $doneCount = $empEvals->whereIn('status', $doneStatuses)->count();
@@ -397,7 +434,15 @@
                                 <p class="text-xs text-red-400 font-mono">{{ $emp->eci }}</p>
                             </td>
                             <td class="px-4 py-3.5 text-xs text-gray-600">{{ $bd?->position ?? '—' }}</td>
-                            <td class="px-4 py-3.5 text-xs text-gray-600">{{ $supName }}</td>
+                            <td class="px-4 py-3.5 text-xs text-gray-600">
+                                @if($supName)
+                                    {{ $supName }}
+                                    @if($supSrc === 'project')<span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700">Project</span>
+                                    @elseif($supSrc === 'master')<span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-500">Master data</span>@endif
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3.5 text-xs text-gray-400 italic" colspan="3">Not covered by any template</td>
                             <td class="px-4 py-3.5 text-center">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-500 border border-red-100">No template</span>
@@ -413,7 +458,15 @@
                                 <p class="text-xs text-red-400 font-mono">{{ $emp->eci }}</p>
                             </td>
                             <td class="px-4 py-3.5 text-xs text-gray-600">{{ $bd?->position ?? '—' }}</td>
-                            <td class="px-4 py-3.5 text-xs text-gray-600">{{ $supName }}</td>
+                            <td class="px-4 py-3.5 text-xs text-gray-600">
+                                @if($supName)
+                                    {{ $supName }}
+                                    @if($supSrc === 'project')<span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700">Project</span>
+                                    @elseif($supSrc === 'master')<span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-500">Master data</span>@endif
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3.5 text-xs">
                                 <span class="font-semibold text-gray-800">{{ $empEvals->count() }} template{{ $empEvals->count() > 1 ? 's' : '' }}</span>
                                 @if($selfN)<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700">Self ×{{ $selfN }}</span>@endif
@@ -444,7 +497,7 @@
                             <td></td>
                             <td></td>
                             <td></td>
-                            <td class="px-4 py-2.5 text-[11px] text-gray-500">{{ $eval->supervisor?->basicData?->full_name ?? '—' }}</td>
+                            <td class="px-4 py-2.5 text-[11px] text-gray-500">{{ $supName ?? '—' }}</td>
                             <td class="px-4 py-2.5 text-xs">
                                 <span class="font-medium text-gray-800">{{ $eval->template?->name ?? '—' }}</span>
                                 <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold {{ $isSelf ? 'bg-purple-100 text-purple-700' : 'bg-indigo-100 text-indigo-700' }}">{{ $isSelf ? 'Self' : 'Lead' }}</span>
@@ -575,7 +628,7 @@
                 <span class="text-xs text-gray-500 font-normal">Rows per page:</span>
                 <div class="relative">
                     <select onchange="changePerPage(this.value)"
-                        class="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-1 focus:ring-[var(--primary-color)] cursor-pointer shadow-sm transition-all">
+                        class="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-1 focus:ring-(--primary-color) cursor-pointer shadow-sm transition-all">
                         <option value="10" {{ ($perPage ?? 10) == 10 ? 'selected' : '' }}>10</option>
                         <option value="15" {{ ($perPage ?? 10) == 15 ? 'selected' : '' }}>15</option>
                         <option value="25" {{ ($perPage ?? 10) == 25 ? 'selected' : '' }}>25</option>
@@ -676,27 +729,57 @@ async function switchTrend(type) {
     }
 }
 
-// ── Floating Header Filter Popover Toggler ─────────────────────────────────
-function toggleHeaderFilter(e, popoverId) {
+// ── Per-column header filter popovers — float at position:fixed so the
+//    table's horizontal overflow (.overflow-x-auto) can never clip them and
+//    they always render above the table (z-index 9999). ────────────────────
+let _hfOpen = null; // { btn, pop }
+function toggleHF(e, popoverId) {
     e.stopPropagation();
-    const target = document.getElementById(popoverId);
-    const isHidden = target?.classList.contains('hidden');
-
-    // Close all other header popovers
-    document.querySelectorAll('.header-filter-popover').forEach(p => p.classList.add('hidden'));
-
-    if (target && isHidden) {
-        target.classList.remove('hidden');
-        const input = target.querySelector('input');
+    const btn = e.currentTarget;
+    const pop = document.getElementById(popoverId);
+    if (!pop) return;
+    const wasHidden = pop.classList.contains('hidden');
+    closeAllHF();
+    if (wasHidden) {
+        pop.classList.remove('hidden');
+        floatHF(btn, pop);
+        _hfOpen = { btn, pop };
+        const input = pop.querySelector('input');
         if (input) setTimeout(() => input.focus(), 50);
     }
 }
-
+function floatHF(btn, pop) {
+    pop.style.position = 'fixed';
+    pop.style.margin   = '0';
+    pop.style.zIndex   = '9999';
+    pop.style.top = '-9999px'; pop.style.left = '-9999px';
+    const pw = pop.offsetWidth || 220, ph = pop.offsetHeight || 200;
+    const r  = btn.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    let left = Math.min(Math.max(8, r.right - pw), vw - pw - 8);
+    let top  = r.bottom + 4;
+    if (top + ph > vh - 8 && r.top - ph - 4 > 8) top = r.top - ph - 4; // flip up
+    top = Math.max(8, Math.min(top, vh - ph - 8));
+    pop.style.left = left + 'px';
+    pop.style.top  = top + 'px';
+}
+function closeAllHF() {
+    document.querySelectorAll('.header-filter-popover').forEach(p => {
+        p.classList.add('hidden');
+        p.style.position = p.style.top = p.style.left = p.style.zIndex = p.style.margin = '';
+    });
+    _hfOpen = null;
+}
 document.addEventListener('click', function(e) {
-    if (!e.target.closest('.header-filter-popover')) {
-        document.querySelectorAll('.header-filter-popover').forEach(p => p.classList.add('hidden'));
-    }
+    if (!e.target.closest('.header-filter-popover') && !e.target.closest('[data-hf-btn]')) closeAllHF();
 });
+window.addEventListener('scroll', e => {
+    // Ignore scroll events bubbling up (capture phase) from inside the open
+    // popover itself — e.g. scrolling its own option list — only close on a
+    // scroll of the page/table behind it.
+    if (_hfOpen && !(e.target.closest && e.target.closest('.header-filter-popover'))) closeAllHF();
+}, true);
+window.addEventListener('resize', () => { if (_hfOpen) floatHF(_hfOpen.btn, _hfOpen.pop); });
 
 // ── Header Column Filter Handlers ──────────────────────────────────────────
 function onSearchEnter(val) {
@@ -712,12 +795,6 @@ function onPositionHeaderFilterChange(val) {
 }
 
 function onSupervisorSearchEnter(val) {
-    const el = document.getElementById('headerSupervisorInput');
-    if (el) el.value = val;
-    document.getElementById('tableFilterForm')?.submit();
-}
-
-function onSupervisorHeaderFilterChange(val) {
     const el = document.getElementById('headerSupervisorInput');
     if (el) el.value = val;
     document.getElementById('tableFilterForm')?.submit();
@@ -761,6 +838,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const input = document.getElementById(inputId);
         if (input && input.value.trim() !== '') {
             document.getElementById(boxId)?.classList.remove('hidden');
+            floatHF(document.querySelector(`[onclick*="'${boxId}'"]`), document.getElementById(boxId));
             input.focus();
             const v = input.value; input.value = ''; input.value = v; // caret to end
             break;
