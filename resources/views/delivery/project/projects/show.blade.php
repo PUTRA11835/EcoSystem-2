@@ -352,6 +352,14 @@
             Delivery Info
         </button>
         @endif
+        @if($can('delivery-project.stakeholder.view'))
+        <button onclick="scrollToSection('stakeholders')" data-section="stakeholders" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6-4a3 3 0 11-3-3M6 11a3 3 0 11-3-3"></path>
+            </svg>
+            Stakeholders
+        </button>
+        @endif
         @if($can('delivery-project.team.view'))
         <button onclick="scrollToSection('team')" data-section="team" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Team
@@ -885,6 +893,92 @@
         ->sort()
         ->values();
 @endphp
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- STAKEHOLDER REGISTER SECTION                                   --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- Output proses PMBOK "Identify Stakeholders". Kolomnya dipetakan
+     dari sheet "Stakeholder Register" pada template Excel. Kolom
+     "Kuadran Power-Interest" terisi otomatis dari Power + Interest. --}}
+@if($can('delivery-project.stakeholder.view'))
+<section id="stakeholders" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.stakeholder.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.stakeholder.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
+    <div class="bg-white shadow-md rounded-lg">
+
+        {{-- ── Header ─────────────────────────────────────────────── --}}
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex justify-between items-center flex-wrap gap-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 flex items-center">
+                        <svg class="w-5 h-5 mr-2 primary-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6-4a3 3 0 11-3-3M6 11a3 3 0 11-3-3"/>
+                        </svg>
+                        Stakeholder Register
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-1">Identifikasi &amp; strategi engagement stakeholder proyek (PMBOK — Identify / Plan / Manage / Monitor Stakeholder Engagement)</p>
+                </div>
+                @if($can('delivery-project.stakeholder.manage'))
+                <button type="button" onclick="StakeholderRegister.openAdd()"
+                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Add Stakeholder
+                </button>
+                @endif
+            </div>
+        </div>
+
+        {{-- ── Table ───────────────────────────────────────────────── --}}
+        <div class="p-6">
+            <div class="overflow-x-auto overflow-y-auto max-h-[560px] rounded-lg border border-gray-200 risk-scroll">
+                <table class="min-w-full text-sm border-collapse" id="stakeholderTable">
+                    <thead class="sticky top-0 z-10">
+                        <tr class="bg-gray-700 text-white">
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap w-[80px]">ID</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Nama Stakeholder</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px]">Jabatan / Peran</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Organisasi / Departemen</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[90px]">Kategori</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[140px]">Tipe / Klasifikasi</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[180px]">Email</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">No. Telepon</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Power</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Interest</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[190px]">Kuadran Power-Interest</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[110px]">Sikap Saat Ini</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[110px]">Sikap Diharapkan</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Harapan Utama</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Kebutuhan Informasi / Concern</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Strategi Engagement</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[130px]">Frekuensi Komunikasi</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[170px]">Metode / Channel Komunikasi</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[140px]">PIC Internal</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Risiko Terkait Stakeholder</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px]">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Tanggal Identifikasi</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">Update Terakhir</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[180px]">Catatan</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stakeholderTableBody" class="divide-y divide-gray-100 bg-white">
+                        <tr>
+                            <td colspan="25" class="text-center py-10">
+                                <svg class="animate-spin h-6 w-6 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                </svg>
+                                <p class="text-gray-500 text-xs">Loading stakeholder register…</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">ID (SH-001, SH-002, …) dibuat otomatis. Kuadran Power-Interest terisi otomatis dari kolom Power &amp; Interest sesuai matriks pada Panduan.</p>
+        </div>
+    </div>
+</section>
+@endif
 
 {{-- Team Section WITH CHECKBOX SELECTION --}}
 @if($can('delivery-project.team.view'))
@@ -4715,6 +4809,321 @@
 </div>
 @endif
 
+@if($can('delivery-project.stakeholder.view'))
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- STAKEHOLDER REGISTER — DELETE CONFIRMATION MODAL               --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="stakeholderDeleteModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="StakeholderRegister.closeDeleteModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-gray-900 mb-1">Delete <span id="stakeholderDeleteLabel"></span>?</h3>
+                <p class="text-sm text-gray-500 mb-5">This stakeholder record will be permanently deleted.</p>
+                <input type="hidden" id="stakeholderDeleteId" value="">
+                <div class="flex gap-3 justify-center">
+                    <button type="button" onclick="StakeholderRegister.closeDeleteModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" id="stakeholderDeleteConfirmBtn" onclick="StakeholderRegister.confirmDelete()"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
+                        Yes, Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- STAKEHOLDER REGISTER — ADD / EDIT MODAL                        --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- PITFALL: modal dirender DI LUAR <section>, jadi lapisan izin
+     `data-perm-*` tidak menjangkaunya. Kontrol tulis di sini dipagari
+     @if($can(...)) sendiri (lihat delivery/partials/section-permissions). --}}
+@php
+    // PIC Internal = anggota tim proyek + AE + Project Owner (sama seperti
+    // dropdown Risk Owner). Boleh diketik manual bila namanya tidak ada.
+    $stakeholderPeople = $projectPeople ?? collect();
+@endphp
+<div id="stakeholderModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="StakeholderRegister.closeModal()"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+
+            {{-- Header --}}
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900" id="stakeholderModalTitle">Add Stakeholder</h3>
+                <button type="button" onclick="StakeholderRegister.closeModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Body --}}
+            <div class="p-6 overflow-y-auto space-y-5">
+                <input type="hidden" id="stakeholderModalMode" value="create">
+                <input type="hidden" id="stakeholderModalId" value="">
+
+                {{-- ── Blok 1: identitas ───────────────────────────────── --}}
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Identitas</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ID</label>
+                            <input type="text" id="stakeholder_sid_preview" readonly
+                                   class="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg text-sm font-mono cursor-not-allowed"
+                                   placeholder="Auto">
+                            <p class="text-[11px] text-gray-400 mt-1">Otomatis: SH-001, SH-002, …</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nama Stakeholder <span class="text-red-500">*</span></label>
+                            <input type="text" id="stakeholder_name" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="Nama individu / unit">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Jabatan / Peran</label>
+                            <input type="text" id="stakeholder_role_title" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. Direktur Keuangan">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Organisasi / Departemen</label>
+                            <input type="text" id="stakeholder_organization" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="Unit kerja / perusahaan">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Kategori <span class="text-red-500">*</span></label>
+                            <select id="stakeholder_category" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                @foreach(\App\Models\DeliveryProjectStakeholder::CATEGORIES as $cat)
+                                    <option value="{{ $cat }}">{{ $cat }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tipe / Klasifikasi</label>
+                            <select id="stakeholder_classification" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::CLASSIFICATIONS as $cls)
+                                    <option value="{{ $cls }}">{{ $cls }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" id="stakeholder_email" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="nama@perusahaan.com">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">No. Telepon</label>
+                            <input type="text" id="stakeholder_phone" maxlength="50"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="0812-xxxx-xxxx">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Blok 2: Power / Interest ────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Power / Interest</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Power</label>
+                            <select id="stakeholder_power" onchange="StakeholderRegister.refreshQuadrant()"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::LEVELS as $lvl)
+                                    <option value="{{ $lvl }}">{{ $lvl }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Interest</label>
+                            <select id="stakeholder_interest" onchange="StakeholderRegister.refreshQuadrant()"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::LEVELS as $lvl)
+                                    <option value="{{ $lvl }}">{{ $lvl }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Kuadran Power-Interest</label>
+                            <input type="text" id="stakeholder_quadrant_preview" readonly
+                                   class="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg text-sm cursor-not-allowed"
+                                   placeholder="Otomatis dari Power + Interest">
+                        </div>
+                    </div>
+
+                    {{-- Power/Interest Grid — referensi matriks 2x2 (Panduan).
+                         Sel yang cocok dengan Power + Interest terpilih di-highlight
+                         oleh StakeholderRegister.refreshQuadrant(). "Tinggi" = sisi
+                         high; "Sedang" & "Rendah" = sisi low. --}}
+                    <div class="mt-4">
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">Power / Interest Grid</p>
+                        <div class="grid grid-cols-2 gap-2 text-xs" id="stakeholderGridRef">
+                            <div class="border border-gray-200 rounded-lg p-2.5 transition" data-quadrant="high|low">
+                                <p class="text-[11px] text-gray-500">Power Tinggi &amp; Interest Sedang/Rendah</p>
+                                <p class="font-bold text-gray-700">Jaga Kepuasan (Keep Satisfied)</p>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-2.5 transition" data-quadrant="high|high">
+                                <p class="text-[11px] text-gray-500">Power Tinggi &amp; Interest Tinggi</p>
+                                <p class="font-bold text-gray-700">Kelola Intensif (Manage Closely)</p>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-2.5 transition" data-quadrant="low|low">
+                                <p class="text-[11px] text-gray-500">Power Sedang/Rendah &amp; Interest Sedang/Rendah</p>
+                                <p class="font-bold text-gray-700">Pantau Seperlunya (Monitor)</p>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-2.5 transition" data-quadrant="low|high">
+                                <p class="text-[11px] text-gray-500">Power Sedang/Rendah &amp; Interest Tinggi</p>
+                                <p class="font-bold text-gray-700">Selalu Diinformasikan (Keep Informed)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Blok 3: Engagement ──────────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Engagement</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Sikap Saat Ini</label>
+                            <select id="stakeholder_current_attitude" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::ATTITUDES as $att)
+                                    <option value="{{ $att }}">{{ $att }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Sikap Diharapkan</label>
+                            <select id="stakeholder_expected_attitude" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::ATTITUDES as $att)
+                                    <option value="{{ $att }}">{{ $att }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Harapan Utama</label>
+                        <textarea id="stakeholder_key_expectations" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Ekspektasi / tujuan utama stakeholder terhadap proyek"></textarea>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Kebutuhan Informasi / Concern</label>
+                        <textarea id="stakeholder_information_needs" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Informasi yang perlu diterima & isu / kekhawatiran utama"></textarea>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Strategi Engagement</label>
+                        <textarea id="stakeholder_engagement_strategy" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Tindakan konkret untuk menggeser sikap saat ini menuju sikap diharapkan"></textarea>
+                    </div>
+                </div>
+
+                {{-- ── Blok 4: Komunikasi ──────────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Komunikasi</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Frekuensi Komunikasi</label>
+                            <select id="stakeholder_communication_frequency" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::FREQUENCIES as $freq)
+                                    <option value="{{ $freq }}">{{ $freq }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Metode / Channel Komunikasi</label>
+                            <input type="text" id="stakeholder_communication_method" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. Meeting tatap muka, Email, Steering Committee">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">PIC Internal</label>
+                            <select id="stakeholder_pic_internal" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select PIC --</option>
+                                @foreach($stakeholderPeople as $person)
+                                    <option value="{{ $person }}">{{ $person }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Blok 5: Risiko & audit ──────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Risiko &amp; Audit Trail</h4>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Risiko Terkait Stakeholder</label>
+                        <textarea id="stakeholder_stakeholder_risk" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder='e.g. Berpotensi menahan persetujuan anggaran'></textarea>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
+                            <select id="stakeholder_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                @foreach(\App\Models\DeliveryProjectStakeholder::STATUSES as $st)
+                                    <option value="{{ $st }}" @if($st === 'Aktif') selected @endif>{{ $st }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Identifikasi</label>
+                            <input type="text" id="stakeholder_identified_date" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Update Terakhir</label>
+                            <input type="text" id="stakeholder_last_updated_date" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+                        <textarea id="stakeholder_notes" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Informasi tambahan yang relevan"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Footer --}}
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="StakeholderRegister.closeModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                @if($can('delivery-project.stakeholder.edit') || $can('delivery-project.stakeholder.manage'))
+                <button type="button" id="stakeholderModalSaveBtn" onclick="StakeholderRegister.save()"
+                        class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    Save
+                </button>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- Edit Document Modal --}}
 <div id="editDocumentModal" class="fixed inset-0 z-50 hidden">
     <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('editDocumentModal')"></div>
@@ -7127,6 +7536,13 @@ document.addEventListener('DOMContentLoaded', function () {
             if (el) window._fpWricef[key] = HolidayCalendar.initPicker(el);
         });
 
+        // Stakeholder Register modal — Tanggal Identifikasi / Update Terakhir.
+        window._fpStakeholder = {};
+        ['identified_date', 'last_updated_date'].forEach(function (key) {
+            const el = document.getElementById('stakeholder_' + key);
+            if (el) window._fpStakeholder[key] = HolidayCalendar.initPicker(el);
+        });
+
         // Location Information — Valid From / Valid To
         window._fpLocFrom = HolidayCalendar.initPicker(document.getElementById('loc_valid_from'));
         window._fpLocTo   = HolidayCalendar.initPicker(document.getElementById('loc_valid_to'));
@@ -8356,6 +8772,402 @@ window.WricefLog = (function () {
     document.addEventListener('DOMContentLoaded', function () { load(); });
 
     return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, onObjIdSourceChange };
+})();
+</script>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- STAKEHOLDER REGISTER — JAVASCRIPT                              --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-project.stakeholder.view'))
+<script>
+window.StakeholderRegister = (function () {
+    'use strict';
+
+    const PROJECT_ID = {{ $project->id }};
+    const BASE_URL   = `/projects/${PROJECT_ID}/stakeholders`;
+
+    // Label kuadran — harus sama dengan
+    // App\Models\DeliveryProjectStakeholder::QUADRANTS. Server tetap yang
+    // menentukan nilai final; ini hanya pratinjau di modal & grid.
+    const QUADRANTS = {
+        'high|high': 'Kelola Intensif (Manage Closely)',
+        'high|low' : 'Jaga Kepuasan (Keep Satisfied)',
+        'low|high' : 'Selalu Diinformasikan (Keep Informed)',
+        'low|low'  : 'Pantau Seperlunya (Monitor)',
+    };
+
+    // id elemen = 'stakeholder_' + key, key = nama kolom.
+    const TEXT_FIELDS = [
+        'name', 'role_title', 'organization', 'category', 'classification',
+        'email', 'phone', 'power', 'interest',
+        'current_attitude', 'expected_attitude',
+        'key_expectations', 'information_needs', 'engagement_strategy',
+        'communication_frequency', 'communication_method', 'pic_internal',
+        'stakeholder_risk', 'status', 'notes',
+    ];
+
+    const DATE_FIELDS = ['identified_date', 'last_updated_date'];
+
+    let _rows = [];
+
+    function getCsrf() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }
+
+    function esc(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function el(key) {
+        return document.getElementById('stakeholder_' + key);
+    }
+
+    function setSelectValue(sel, val) {
+        if (!sel) return;
+        const v = val ?? '';
+        if (v && !Array.from(sel.options).some(o => o.value === v)) {
+            sel.add(new Option(v, v));
+        }
+        sel.value = v;
+    }
+
+    function multiline(text) {
+        if (!text) return '<span class="text-gray-300">—</span>';
+        return esc(text).replace(/\r?\n/g, '<br>');
+    }
+
+    // "Tinggi" → high; "Sedang"/"Rendah" → low (matriks 2x2 pada Panduan).
+    function side(level) {
+        if (!level) return null;
+        return String(level).trim().toLowerCase() === 'tinggi' ? 'high' : 'low';
+    }
+
+    function quadrantOf(power, interest) {
+        const p = side(power), i = side(interest);
+        if (!p || !i) return null;
+        return QUADRANTS[`${p}|${i}`] ?? null;
+    }
+
+    // ── Badges ────────────────────────────────────────────────────
+    function levelBadge(level) {
+        const map = {
+            'Tinggi': 'bg-red-100 text-red-700',
+            'Sedang': 'bg-amber-100 text-amber-800',
+            'Rendah': 'bg-gray-100 text-gray-600',
+        };
+        if (!level) return '<span class="text-gray-300">—</span>';
+        const cls = map[level] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(level)}</span>`;
+    }
+
+    function categoryBadge(cat) {
+        if (!cat) return '—';
+        const cls = cat === 'Internal' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(cat)}</span>`;
+    }
+
+    function attitudeBadge(att) {
+        const map = {
+            'Unaware':    'bg-gray-100 text-gray-600',
+            'Resistant':  'bg-red-100 text-red-700',
+            'Neutral':    'bg-yellow-100 text-yellow-800',
+            'Supportive': 'bg-green-100 text-green-800',
+            'Leading':    'bg-emerald-100 text-emerald-800',
+        };
+        if (!att) return '<span class="text-gray-300">—</span>';
+        const cls = map[att] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${cls}">${esc(att)}</span>`;
+    }
+
+    function statusBadge(status) {
+        const map = {
+            'Aktif':       'bg-green-100 text-green-800',
+            'Tidak Aktif': 'bg-gray-100 text-gray-600',
+            'Selesai':     'bg-blue-100 text-blue-800',
+        };
+        if (!status) return '—';
+        const cls = map[status] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(status)}</span>`;
+    }
+
+    // ── Load & render ────────────────────────────────────────────
+    async function load() {
+        try {
+            const res = await axios.get(BASE_URL);
+            _rows = res.data.stakeholders ?? [];
+            renderTable();
+        } catch (e) {
+            const tbody = document.getElementById('stakeholderTableBody');
+            if (tbody) tbody.innerHTML =
+                `<tr><td colspan="25" class="text-center py-8 text-red-500 text-sm">Failed to load data. Please refresh.</td></tr>`;
+        }
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('stakeholderTableBody');
+        if (!tbody) return;
+
+        if (!_rows.length) {
+            tbody.innerHTML = `<tr><td colspan="25" class="text-center py-10 text-gray-400 text-sm">No stakeholders yet. Click "Add Stakeholder" to get started.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = _rows.map(s => rowHtml(s)).join('');
+    }
+
+    function rowHtml(s) {
+        const quadrant = s.quadrant ?? quadrantOf(s.power, s.interest);
+        return `<tr class="hover:bg-gray-50 align-top">
+            <td class="px-3 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">${esc(s.stakeholder_id)}</td>
+            <td class="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">${esc(s.name)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(s.role_title) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(s.organization) || '—'}</td>
+            <td class="px-3 py-3 text-center">${categoryBadge(s.category)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(s.classification) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">${esc(s.email) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">${esc(s.phone) || '—'}</td>
+            <td class="px-3 py-3 text-center">${levelBadge(s.power)}</td>
+            <td class="px-3 py-3 text-center">${levelBadge(s.interest)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700">${esc(quadrant) || '<span class="text-gray-300">—</span>'}</td>
+            <td class="px-3 py-3 text-center">${attitudeBadge(s.current_attitude)}</td>
+            <td class="px-3 py-3 text-center">${attitudeBadge(s.expected_attitude)}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[240px]"><div class="line-clamp-3">${multiline(s.key_expectations)}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[240px]"><div class="line-clamp-3">${multiline(s.information_needs)}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[240px]"><div class="line-clamp-3">${multiline(s.engagement_strategy)}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(s.communication_frequency) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-700">${esc(s.communication_method) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(s.pic_internal) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[220px]"><div class="line-clamp-3">${multiline(s.stakeholder_risk)}</div></td>
+            <td class="px-3 py-3 text-center">${statusBadge(s.status)}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(s.identified_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(s.last_updated_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[200px]"><div class="line-clamp-3">${multiline(s.notes)}</div></td>
+            <td class="px-3 py-3 text-center whitespace-nowrap">
+                <button onclick="StakeholderRegister.openEdit(${s.id})"
+                        class="inline-flex items-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition" title="Edit">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                </button>
+                <button onclick="StakeholderRegister.openDeleteModal(${s.id}, '${esc(s.stakeholder_id)}')"
+                        class="inline-flex items-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition" title="Delete">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </button>
+            </td>
+        </tr>`;
+    }
+
+    // ── Kuadran preview + highlight grid referensi di modal ──────
+    function refreshQuadrant() {
+        const p   = el('power')?.value;
+        const i   = el('interest')?.value;
+        const key = (side(p) && side(i)) ? `${side(p)}|${side(i)}` : null;
+
+        const preview = document.getElementById('stakeholder_quadrant_preview');
+        if (preview) preview.value = key ? (QUADRANTS[key] ?? '') : '';
+
+        const grid = document.getElementById('stakeholderGridRef');
+        if (grid) {
+            grid.querySelectorAll('[data-quadrant]').forEach(function (box) {
+                const on = box.getAttribute('data-quadrant') === key;
+                box.classList.toggle('border-red-400', on);
+                box.classList.toggle('bg-red-50', on);
+                box.classList.toggle('border-gray-200', !on);
+            });
+        }
+    }
+
+    // ── Modal helpers ───────────────────────────────────────────
+    function resetForm() {
+        TEXT_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (node) node.value = '';
+        });
+        if (el('category')) el('category').value = 'Internal';
+        if (el('status'))   el('status').value   = 'Aktif';
+
+        DATE_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (node) node.value = '';
+            if (window._fpStakeholder && window._fpStakeholder[key]) window._fpStakeholder[key].clear();
+        });
+
+        const sid = document.getElementById('stakeholder_sid_preview');
+        if (sid) sid.value = '';
+        refreshQuadrant();
+    }
+
+    function openAdd() {
+        document.getElementById('stakeholderModalMode').value = 'create';
+        document.getElementById('stakeholderModalId').value   = '';
+        resetForm();
+        document.getElementById('stakeholderModalTitle').textContent = 'Add Stakeholder';
+        const sid = document.getElementById('stakeholder_sid_preview');
+        if (sid) sid.value = 'SH-###';
+        document.getElementById('stakeholderModal').classList.remove('hidden');
+    }
+
+    function openEdit(id) {
+        // id dari onclick bisa Number, id di _rows bisa Number — samakan sbagai string.
+        const s = _rows.find(x => String(x.id) === String(id));
+        if (!s) return;
+
+        document.getElementById('stakeholderModalMode').value = 'edit';
+        document.getElementById('stakeholderModalId').value   = s.id;
+        resetForm();
+        document.getElementById('stakeholderModalTitle').textContent = `Edit Stakeholder — ${s.stakeholder_id}`;
+
+        const sid = document.getElementById('stakeholder_sid_preview');
+        if (sid) sid.value = s.stakeholder_id;
+
+        // Semua field diisi ulang dari data baris — teks, textarea, DAN setiap
+        // <select> (Kategori, Tipe/Klasifikasi, Power, Interest, Sikap, Frekuensi,
+        // PIC Internal, Status). Nilai yang tidak lagi ada di daftar opsi
+        // disisipkan oleh setSelectValue() supaya tetap tampil.
+        TEXT_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (!node) return;
+            const raw = s[key];
+            const val = (raw === null || raw === undefined) ? '' : String(raw);
+            if (node.tagName === 'SELECT') {
+                setSelectValue(node, val);
+            } else {
+                node.value = val;
+            }
+        });
+
+        DATE_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (!node) return;
+            if (s[key] && window._fpStakeholder && window._fpStakeholder[key]) {
+                window._fpStakeholder[key].setDate(s[key], false, 'Y-m-d');
+            } else {
+                // Flatpickr belum siap — isi nilai mentah supaya tetap tersimpan.
+                node.value = s[key] || '';
+            }
+        });
+
+        refreshQuadrant();
+        document.getElementById('stakeholderModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('stakeholderModal').classList.add('hidden');
+    }
+
+    // ── Save (create / update) ──────────────────────────────────
+    async function save() {
+        const mode = document.getElementById('stakeholderModalMode').value;
+        const val  = key => (el(key)?.value ?? '').trim();
+
+        const name = val('name');
+        if (!name) { showNotification('Nama Stakeholder is required.', 'error'); return; }
+
+        const payload = {
+            name:                    name,
+            role_title:              val('role_title') || null,
+            organization:            val('organization') || null,
+            category:                val('category') || 'Internal',
+            classification:          val('classification') || null,
+            email:                   val('email') || null,
+            phone:                   val('phone') || null,
+            power:                   val('power') || null,
+            interest:                val('interest') || null,
+            current_attitude:        val('current_attitude') || null,
+            expected_attitude:       val('expected_attitude') || null,
+            key_expectations:        val('key_expectations') || null,
+            information_needs:        val('information_needs') || null,
+            engagement_strategy:     val('engagement_strategy') || null,
+            communication_frequency: val('communication_frequency') || null,
+            communication_method:    val('communication_method') || null,
+            pic_internal:            val('pic_internal') || null,
+            stakeholder_risk:        val('stakeholder_risk') || null,
+            status:                  val('status') || 'Aktif',
+            identified_date:         val('identified_date') || null,
+            last_updated_date:       val('last_updated_date') || null,
+            notes:                   val('notes') || null,
+            _token:                  getCsrf(),
+        };
+
+        const btn = document.getElementById('stakeholderModalSaveBtn');
+        if (!btn) return;
+        const orig = btn.innerHTML;
+        btn.disabled  = true;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>';
+
+        try {
+            let res;
+            if (mode === 'create') {
+                res = await axios.post(BASE_URL, payload);
+            } else {
+                const id = document.getElementById('stakeholderModalId').value;
+                res = await axios.put(`${BASE_URL}/${id}`, payload);
+            }
+            showNotification(res.data.message ?? 'Saved.', 'success');
+            closeModal();
+            await load();
+        } catch (e) {
+            let msg = 'Something went wrong. Please try again.';
+            if (e.response?.data?.errors) {
+                const first = Object.values(e.response.data.errors)[0];
+                msg = Array.isArray(first) ? first[0] : String(first);
+            } else if (e.response?.data?.message) {
+                msg = e.response.data.message;
+            }
+            showNotification(msg, 'error');
+        } finally {
+            btn.disabled  = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Delete ──────────────────────────────────────────────────
+    function openDeleteModal(id, label) {
+        document.getElementById('stakeholderDeleteId').value          = id;
+        document.getElementById('stakeholderDeleteLabel').textContent = label ?? '';
+        document.getElementById('stakeholderDeleteModal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('stakeholderDeleteModal').classList.add('hidden');
+    }
+
+    async function confirmDelete() {
+        const id = document.getElementById('stakeholderDeleteId').value;
+        if (!id) return;
+
+        const btn  = document.getElementById('stakeholderDeleteConfirmBtn');
+        const orig = btn.innerHTML;
+        btn.disabled  = true;
+        btn.innerHTML = 'Deleting…';
+
+        try {
+            // Lewat POST: verb DELETE diblokir edge/WAF di production.
+            const res = await axios.post(`${BASE_URL}/${id}/delete`, {}, {
+                headers: { 'X-CSRF-TOKEN': getCsrf() },
+            });
+            closeDeleteModal();
+            showNotification(res.data.message ?? 'Deleted.', 'success');
+            await load();
+        } catch (e) {
+            showNotification(e.response?.data?.message ?? 'Failed to delete.', 'error');
+        } finally {
+            btn.disabled  = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Auto-load on page ready ─────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () { load(); });
+
+    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, refreshQuadrant };
 })();
 </script>
 @endif

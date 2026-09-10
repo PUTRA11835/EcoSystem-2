@@ -207,6 +207,29 @@ class StagingTicketService
             ]);
         }
 
+        // Greeting otomatis ke pengirim, lewat Power Automate. Titik pemicunya
+        // sengaja DI SINI, bukan di trigger mailbox Power Automate, karena di sini
+        // email yang lolos sudah tersaring: bukan balasan untuk tiket yang sudah
+        // ada, bukan NDR/auto-reply, bukan duplikat, dan pengirimnya memang contact
+        // person customer terdaftar. Trigger mailbox akan menyapa semuanya —
+        // termasuk balasan di tengah percakapan.
+        //
+        // graph_message_id ikut dikirim supaya flow bisa memakai action "Reply to
+        // email", sehingga greeting menempel pada thread yang sama dan balasan
+        // customer berikutnya tidak terbaca sebagai tiket baru.
+        try {
+            $powerAutomate = app(\App\Services\PowerAutomateService::class);
+            $powerAutomate->dispatchAfterResponse(
+                \App\Services\PowerAutomateService::FLOW_EMAIL_RECEIVED,
+                ['staging' => $powerAutomate->stagingPayload($staging)]
+            );
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketService@createFromEmail: gagal menyiapkan greeting Power Automate (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+
         return $staging;
     }
 

@@ -3416,6 +3416,11 @@
             if (source === 'user') clearMentionFormatIfNeeded(quillEditor);
         });
 
+        // "#NNNNNNNN" → langsung terblok biru seperti chip @mention saat diketik
+        quillEditor.on('text-change', function (delta, oldDelta, source) {
+            autoFormatTicketRef(quillEditor, delta, source);
+        });
+
         quillEditor.on('text-change', function(delta, _old, source) {
             // Hanya proses input dari user (bukan format API call)
             if (source !== 'user' || !delta || !delta.ops) return;
@@ -3510,6 +3515,43 @@
             quill.format('color', false);
             if (fmt.bold) quill.format('bold', false);
         }
+    }
+
+    // ── Auto-format ref tiket "#NNNNNNNN" di editor ──────────────────────────────
+    // Saat user mengetik spasi/enter tepat setelah "#" + 6–10 digit, token itu
+    // diberi warna+bold IDENTIK dengan chip @mention employee (#1d4ed8) supaya
+    // langsung "terblok biru" seperti tag username. Reuse warna mention berarti:
+    // dark-mode CSS ikut mencerahkan, dan binding Backspace menghapusnya sekaligus.
+    // Ini murni kosmetik di editor — hyperlink asli tetap dibuat saat render lewat
+    // linkifyTicketRefsHtml, jadi note lama / yang belum sempat ter-spasi tetap jalan.
+    // Pola sama persis dengan auto-link URL di composer.
+    function autoFormatTicketRef(quill, delta, source) {
+        if (source !== 'user' || !delta || !delta.ops) return;
+        const lastOp = delta.ops[delta.ops.length - 1];
+        if (!lastOp || typeof lastOp.insert !== 'string') return;
+        const sep = lastOp.insert;
+        if (sep !== ' ' && sep !== '\n') return;
+
+        let insertPos = 0;
+        for (const op of delta.ops) {
+            if (typeof op.retain === 'number') { insertPos = op.retain; break; }
+        }
+
+        const textBefore = quill.getText(0, insertPos);
+        // "#" harus di awal ATAU tidak menempel huruf/angka/"/"/"&" (bukan bagian kata/URL)
+        const m = /(?:^|[^\w/&#])(#\d{6,10})$/.exec(textBefore);
+        if (!m) return;
+
+        const refLen   = m[1].length;
+        const refStart = insertPos - refLen;
+
+        setTimeout(function () {
+            const fmt = quill.getFormat(refStart, refLen);
+            if (fmt.color === MENTION_COLORS[0] && fmt.bold) return; // sudah diformat
+            quill.formatText(refStart, refLen, { color: MENTION_COLORS[0], bold: true }, 'api');
+            // Spasi/enter pemisah jangan ikut berwarna
+            quill.formatText(refStart + refLen, sep.length, { color: false, bold: false }, 'api');
+        }, 0);
     }
 
     // ==================== @MENTION AUTOCOMPLETE ====================
@@ -4089,6 +4131,33 @@
         );
     }
 
+    // ── Ref nomor tiket "#NNNNNNNN" di internal note → hyperlink ────────────────
+    // Sinkron: dijalankan saat string HTML bubble dibangun (sama jalur & mekanisme
+    // dengan linkifyHtml untuk URL). "#26070128" → <a href="/ticket/ref/26070128">;
+    // di server route itu me-resolve ke tiket-nya lalu redirect, atau tampilkan
+    // halaman "tiket tidak ditemukan" bila nomornya tidak ada.
+    //
+    // Hanya text node yang disentuh (pecah di semua tag). "#" cocok bila di awal string
+    // ATAU tidak menempel huruf/angka/underscore (bagian kata/ID), "/" (fragment URL
+    // mis. .../#12345), atau "&"/"#" (entity HTML) — karakter pembatas itu (pre) di-emit
+    // ulang apa adanya. Spasi opsional setelah "#" ("tiket # 26070128") dinormalisasi
+    // jadi "#26070128" pada teks link.
+    function linkifyTicketRefsHtml(html) {
+        if (!html) return html;
+        return html.split(/(<[^>]*>)/g).map((part, i) => {
+            if (i % 2 === 1) return part; // tag utuh — jangan disentuh
+            return part.replace(
+                /(^|[^\w/&#])#[ \t]?(\d{6,10})(?!\d)/g,
+                (m, pre, num) => `${pre}<a href="/ticket/ref/${num}" target="_blank" rel="noopener noreferrer" style="${_linkStyle}" title="Buka tiket #${num}">#${num}</a>`
+            );
+        }).join('');
+    }
+
+    // Untuk internal note: ref tiket DULU (menghasilkan href relatif), baru URL absolut.
+    function linkifyNoteHtml(html) {
+        return linkifyHtml(linkifyTicketRefsHtml(html));
+    }
+
     // Ganti sisa referensi cid: yang tidak ter-replace backend dengan placeholder
     function sanitizeEmailHtml(html) {
         if (!html) return html;
@@ -4109,13 +4178,13 @@
         // Fall back to plain text with mention highlighting if no html
         if (msg.message_type === 'internal_note') {
             if (msg.message_html) {
-                return `<div class="message-content text-sm text-gray-700">${linkifyHtml(msg.message_html)}</div>`;
+                return `<div class="message-content text-sm text-gray-700">${linkifyNoteHtml(msg.message_html)}</div>`;
             }
             if (!msg.message_body) return '';
             const highlighted = msg.message_body.replace(/@([\w.]+(?:\s[\w.]+)*)/g, (match) =>
                 `<span class="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">${escHtml(match)}</span>`
             );
-            return `<div class="message-content text-sm text-gray-700">${linkifyText(highlighted)}</div>`;
+            return `<div class="message-content text-sm text-gray-700">${linkifyTicketRefsHtml(linkifyText(highlighted))}</div>`;
         }
 
         // Employee reply dengan message_html &rarr; render HTML + linkify URL plain text
@@ -7999,6 +8068,9 @@
             editNoteQuill.on('text-change', function (delta, oldDelta, source) {
                 if (source === 'user') clearMentionFormatIfNeeded(editNoteQuill);
             });
+            editNoteQuill.on('text-change', function (delta, oldDelta, source) {
+                autoFormatTicketRef(editNoteQuill, delta, source);
+            });
         }
 
         // Pre-fill content
@@ -8670,10 +8742,7 @@ async function _loadLogShiftingData() {
             <div>
                 <label class="text-xs font-semibold text-gray-600 mb-1 block">Doc Type <span class="text-red-500">*</span></label>
                 <select id="ndDocType" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 focus:outline-none">
-                    <option value="">-- Select --</option>
-                    @foreach(['IR','RCA','CR Form','FSD','TD','UAT','MOM','BAST','EWA','Other'] as $dt)
-                    <option value="{{ $dt }}">{{ $dt }}</option>
-                    @endforeach
+                    <option value="" selected disabled hidden>Select Type</option>
                 </select>
             </div>
             {{-- Body Text --}}
@@ -8800,7 +8869,10 @@ const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
 let deliverableData = [];
 
-const DOC_TYPE_ROWS = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'EWA', 'Other'];
+// Doc Type dropdown dimuat dari master data (menu Management > Master Ticket
+// Settings > Document Type), bukan hardcode lagi — lihat DeliverableDocumentTypeController.
+let deliverableDocTypes       = [];
+let deliverableDocTypesLoaded = false;
 
 // Batas ukuran file deliverable (sinkron dengan validasi server: 20 MB).
 const DELIV_MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -9094,6 +9166,26 @@ function escHtmlD(s) {
 }
 
 // â"€â"€ New Document modal â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Dimuat sekali lalu dicache — daftar tipe dokumen jarang berubah, jadi tidak
+// perlu fetch ulang tiap kali modal dibuka.
+async function loadDeliverableDocTypes() {
+    if (deliverableDocTypesLoaded) return;
+    const select = document.getElementById('ndDocType');
+    try {
+        const res  = await fetch('/api/deliverable-document-types?is_active=1', { credentials: 'same-origin' });
+        const json = await res.json();
+        deliverableDocTypes = json.success ? (json.data || []) : [];
+    } catch (e) {
+        deliverableDocTypes = [];
+    }
+    deliverableDocTypesLoaded = true;
+
+    // Placeholder tetap "selected disabled hidden" — hanya tampil sebagai label
+    // default, tidak bisa dipilih ulang dari daftar begitu tipe asli ada.
+    select.innerHTML = '<option value="" selected disabled hidden>Select Type</option>'
+        + deliverableDocTypes.map(t => `<option value="${escHtmlD(t.name)}">${escHtmlD(t.name)}</option>`).join('');
+}
+
 function openNewDocModal() {
     document.getElementById('ndDocType').value = '';
     document.getElementById('ndBodyText').value = '';
@@ -9102,6 +9194,7 @@ function openNewDocModal() {
     document.getElementById('ndError').classList.add('hidden');
     document.getElementById('ndSubmitBtn').disabled = false;
     document.getElementById('newDocModal').classList.remove('hidden');
+    loadDeliverableDocTypes();
 }
 
 function closeNewDocModal() {
@@ -9311,9 +9404,9 @@ function showDelivError(msg) {
 document.getElementById('deliverableModal').addEventListener('click', function(e) {
     if (e.target === this) closeDeliverableModal();
 });
-document.getElementById('newDocModal').addEventListener('click', function(e) {
-    if (e.target === this) closeNewDocModal();
-});
+// Intentionally no backdrop-click-to-close on #newDocModal — it should only
+// be dismissed via its own close controls (X / Cancel), never by an
+// accidental click outside while filling the "New Document" form.
 
 // Load badge on page load
 (async () => {
