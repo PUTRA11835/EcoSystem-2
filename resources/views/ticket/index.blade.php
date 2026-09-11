@@ -1174,7 +1174,6 @@
         const colType = document.getElementById('colFilterType')?.value || '';
         const colModule = document.getElementById('colFilterModule')?.value || '';
         const colDelivery = document.getElementById('colFilterDelivery')?.value || '';
-        if (colDelivery) params.set('delivery_support_id', colDelivery);
         if (colStatus) params.set('status', colStatus);
         if (colCustomer) params.set('customer_id', colCustomer);
         if (colPic) params.set('pic_id', colPic === '__unassigned__' ? 'unassigned' : colPic);
@@ -1182,6 +1181,7 @@
         if (colScale) params.set('scale', colScale);
         if (colType) params.set('type', colType);
         if (colModule) params.set('module', colModule);
+        if (colDelivery) params.set('delivery_support_id', colDelivery);
 
         // Date range
         const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
@@ -2318,6 +2318,7 @@
         status: 'colFilterStatus',
         type: 'colFilterType',
         module: 'colFilterModule',
+        delivery: 'colFilterDelivery',
     };
 
     function updateColFilterIndicators() {
