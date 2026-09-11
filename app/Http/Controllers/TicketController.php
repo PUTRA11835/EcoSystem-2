@@ -185,6 +185,42 @@ class TicketController extends Controller
             }
         }
 
+        // Kolom "Assign Delivery" — tiket terhubung ke Delivery Support lewat
+        // delivery_support_activities. Dipakai whereExists (bukan join) supaya
+        // satu tiket yang punya beberapa activity pada support yang sama tidak
+        // menghasilkan baris ganda pada listing.
+        if ($request->filled('delivery_support_id')) {
+            $values = array_filter(explode(',', (string) $request->input('delivery_support_id')), fn ($v) => $v !== '');
+
+            if (!empty($values)) {
+                // '__unassigned__' = tiket tanpa Delivery Support sama sekali,
+                // mengikuti konvensi filter PIC di atas.
+                $includeUnassigned = in_array('__unassigned__', $values, true);
+                $ids = array_values(array_filter($values, fn ($v) => $v !== '__unassigned__'));
+
+                $query->where(function ($q) use ($ids, $includeUnassigned) {
+                    if (!empty($ids)) {
+                        $q->whereExists(function ($sub) use ($ids) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa')
+                                ->whereColumn('dsa.ticket_id', 'ticket.ticket_id')
+                                ->whereIn('dsa.delivery_support_id', $ids);
+                        });
+                    }
+
+                    if ($includeUnassigned) {
+                        $method = empty($ids) ? 'whereNotExists' : 'orWhereNotExists';
+                        $q->{$method}(function ($sub) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa2')
+                                ->whereColumn('dsa2.ticket_id', 'ticket.ticket_id')
+                                ->whereNotNull('dsa2.delivery_support_id');
+                        });
+                    }
+                });
+            }
+        }
+
         // Tanggal dibaca sebagai kalender Asia/Jakarta (WIB) — sama seperti versi lama di
         // browser (`new Date(dateFrom + 'T00:00:00+07:00')`).
         if ($request->filled('date_from')) {
@@ -319,8 +355,8 @@ class TicketController extends Controller
     }
 
     /**
-     * Distinct customers/PICs that actually have a (visible) ticket, for the Customer/PIC
-     * filter dropdowns in ticket/index.blade.php. Needed once the ticket list is paginated —
+     * Distinct customers/PICs/Delivery Supports that actually have a (visible) ticket, for
+     * the Customer/PIC/Assign Delivery filter dropdowns in ticket/index.blade.php. Needed once the ticket list is paginated —
      * the dropdowns used to be populated by scanning every ticket already loaded client-side,
      * which only ever contained the current page after pagination. Cheap DISTINCT query,
      * much lighter than fetching full ticket rows just to read two columns off them.
@@ -345,10 +381,25 @@ class TicketController extends Controller
             ->orderBy('name')
             ->get();
 
+        // Opsi kolom "Assign Delivery" — hanya Delivery Support yang benar-benar
+        // punya tiket, supaya daftarnya tidak dipenuhi pilihan yang pasti kosong.
+        // Label disamakan dengan yang tampil di kolomnya: "<nama> (<customer>)".
+        $deliveries = DB::table('delivery_support_activities as dsa')
+            ->join('ticket', 'ticket.ticket_id', '=', 'dsa.ticket_id')
+            ->join('delivery_support as ds', 'ds.id', '=', 'dsa.delivery_support_id')
+            ->leftJoin('customer_basic_data as cbd', 'cbd.customer_id', '=', 'ds.client_id')
+            ->whereNull('ticket.is_hidden')
+            ->whereNotNull('dsa.ticket_id')
+            ->select('ds.id as id', DB::raw("TRIM(CONCAT(COALESCE(ds.name, CONCAT('Support #', ds.id)), COALESCE(CONCAT(' (', cbd.name_1, ')'), ''))) as name"))
+            ->distinct()
+            ->orderBy('name')
+            ->get();
+
         return response()->json([
             'success' => true,
             'customers' => $customers,
             'pics' => $pics,
+            'deliveries' => $deliveries,
         ]);
     }
 
@@ -741,6 +792,37 @@ class TicketController extends Controller
         if ($request->filled('module')) {
             $moduleIds = explode(',', $request->module);
             $query->whereHas('modules', fn ($q) => $q->whereIn('module_id', $moduleIds));
+        }
+        // Assign Delivery (comma-separated, multi-select + '__unassigned__') — sama
+        // seperti filter di applyTicketListFilters(), lewat whereExists supaya tiket
+        // dengan beberapa activity pada support yang sama tidak menghasilkan baris ganda.
+        if ($request->filled('delivery_support_id')) {
+            $values = array_filter(explode(',', $request->delivery_support_id), fn ($v) => $v !== '');
+            if (!empty($values)) {
+                $includeUnassigned = in_array('__unassigned__', $values, true);
+                $ids = array_values(array_filter($values, fn ($v) => $v !== '__unassigned__'));
+
+                $query->where(function ($q) use ($ids, $includeUnassigned) {
+                    if (!empty($ids)) {
+                        $q->whereExists(function ($sub) use ($ids) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa')
+                                ->whereColumn('dsa.ticket_id', 'ticket.ticket_id')
+                                ->whereIn('dsa.delivery_support_id', $ids);
+                        });
+                    }
+
+                    if ($includeUnassigned) {
+                        $method = empty($ids) ? 'whereNotExists' : 'orWhereNotExists';
+                        $q->{$method}(function ($sub) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa2')
+                                ->whereColumn('dsa2.ticket_id', 'ticket.ticket_id')
+                                ->whereNotNull('dsa2.delivery_support_id');
+                        });
+                    }
+                });
+            }
         }
         // Ticket number keyword
         if ($request->filled('ticket_number')) {

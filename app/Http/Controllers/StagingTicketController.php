@@ -66,6 +66,11 @@ class StagingTicketController extends Controller
             'name'      => $ds->name . ($ds->type ? ' (' . $ds->type . ')' : ''),
         ])->values();
 
+        // Modul untuk dropdown Module di modal validasi. Sengaja dropdown, bukan
+        // teks bebas: module_id inilah yang dipakai flow Power Automate untuk
+        // menemukan Module Lead (nama modul yang diketik tangan tidak pernah cocok).
+        $modules = \App\Models\Module::active()->orderBy('name')->get(['id', 'name'])->toArray();
+
         $ticketClassification = [
             'types' => \App\Support\TicketClassification::TYPES,
             'priorities' => \App\Support\TicketClassification::PRIORITIES,
@@ -339,6 +344,12 @@ class StagingTicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
+        // Select kosong ("-- none --") dikirim sebagai string kosong; jadikan null
+        // supaya lolos rule nullable|exists dan bisa dipakai mengosongkan modul.
+        if ($request->input('module_id') === '') {
+            $request->merge(['module_id' => null]);
+        }
+
         $request->validate([
             'ticket_type'         => 'required|string|in:' . implode(',', \App\Support\TicketClassification::TYPES),
             'ticket_priority'     => 'required|string|in:' . implode(',', \App\Support\TicketClassification::PRIORITIES),
@@ -348,6 +359,7 @@ class StagingTicketController extends Controller
             'module'              => 'nullable|string|max:255',
             'module_ids'          => 'nullable|array',
             'module_ids.*'        => 'integer|exists:modules,id',
+            'module_id'           => 'nullable|exists:modules,id',
             'client'              => 'nullable|string|max:255',
             'delivery_support_id' => 'nullable|exists:delivery_support,id',
             'end_customer_id'     => 'nullable|integer|exists:customer,customer_id',
@@ -378,7 +390,7 @@ class StagingTicketController extends Controller
 
         // Override additional info fields jika dikirim dari modal (nilai bisa berbeda
         // dari yang ada di staging, misal helpdesk menambahkan info saat validasi).
-        foreach (['name', 'no_hp', 'module', 'client'] as $field) {
+        foreach (['name', 'no_hp', 'module', 'module_id', 'client'] as $field) {
             if ($request->has($field)) {
                 $staging->$field = $request->input($field);
             }
@@ -452,6 +464,12 @@ class StagingTicketController extends Controller
                 );
             }
 
+            // Microsoft Teams lewat Power Automate: kartu tiket ke channel tim +
+            // chat pribadi ke lead modul. Dikirim setelah response supaya validator
+            // tidak menunggu Power Automate, dan kegagalannya tidak pernah
+            // membatalkan approve yang sudah tersimpan.
+            $this->notifyTeamsTicketValidated($ticket, $sessionUser);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Ticket validated and created successfully.',
@@ -473,6 +491,68 @@ class StagingTicketController extends Controller
                 'success' => false,
                 'message' => 'Failed to validate ticket',
             ], 500);
+        }
+    }
+
+    /**
+     * Kirim event "tiket divalidasi" ke Power Automate.
+     *
+     * Payload sudah memuat daftar lead modul beserta email kerjanya, jadi flow di
+     * Power Automate cukup melakukan dua hal (post kartu ke channel, kirim chat
+     * ke tiap lead) tanpa perlu menebak siapa penerimanya — pemetaan modul ->
+     * lead adalah pengetahuan EcoSystem, bukan pengetahuan flow.
+     *
+     * Tiket yang modulnya belum punya lead tetap dikirim: kartunya masih berguna
+     * di channel tim, dan flow bisa memilih melewati bagian chat pribadi dengan
+     * memeriksa `lead_emails` yang kosong.
+     */
+    private function notifyTeamsTicketValidated(Ticket $ticket, array $sessionUser): void
+    {
+        try {
+            $powerAutomate = app(\App\Services\PowerAutomateService::class);
+
+            if (!$powerAutomate->isFlowReady(\App\Services\PowerAutomateService::FLOW_TICKET_VALIDATED)) {
+                return;
+            }
+
+            $payloadTicket = $powerAutomate->ticketPayload($ticket);
+            $leads         = $powerAutomate->moduleLeads($payloadTicket['module_id'], $payloadTicket['module']);
+
+            $leadEmails    = $powerAutomate->leadEmails($leads);
+
+            $powerAutomate->dispatchAfterResponse(
+                \App\Services\PowerAutomateService::FLOW_TICKET_VALIDATED,
+                [
+                    'ticket'       => $payloadTicket,
+                    'module_leads' => $leads,
+                    'lead_emails'  => $leadEmails,
+                    // Nama channel tiket (aksi "Create a channel") — sudah
+                    // dipotong 50 karakter dan dibersihkan dari karakter
+                    // terlarang Teams. `channel.member_emails` berisi lead modul
+                    // PLUS pemegang role penjaga (Delivery Support Head dan
+                    // Delivery Support Service Helpdesk): standard channel tidak
+                    // punya daftar anggota sendiri, jadi flow menambahkan mereka
+                    // ke TEAM-nya supaya channel tiket ini terbaca.
+                    'channel'      => $powerAutomate->ticketChannelPayload($payloadTicket, $leadEmails),
+                    // Dipertahankan untuk jalur group chat (dipakai flow versi
+                    // lama dan tetap berguna kalau chat pribadi dihidupkan).
+                    'chat'         => $powerAutomate->ticketChatPayload(
+                        $payloadTicket,
+                        $leadEmails,
+                        $sessionUser['email'] ?? null
+                    ),
+                    'validated_by' => [
+                        'id'    => $sessionUser['id'] ?? null,
+                        'name'  => $sessionUser['name'] ?? null,
+                        'email' => $sessionUser['email'] ?? null,
+                    ],
+                ]
+            );
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketController@approve: gagal menyiapkan notifikasi Teams (non-fatal)', [
+                'ticket_id' => $ticket->ticket_id,
+                'error'     => $e->getMessage(),
+            ]);
         }
     }
 
@@ -1911,6 +1991,7 @@ class StagingTicketController extends Controller
             'name'                => $s->name,
             'no_hp'               => $s->no_hp,
             'module'              => $s->module,
+            'module_id'           => $s->module_id,
             'client'              => $s->client,
             // Analisa AI (cache — lihat AiTicketAnalyzerService)
             'ai_analysis'              => $s->ai_analysis,
