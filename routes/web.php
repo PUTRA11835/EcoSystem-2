@@ -101,6 +101,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== AI ASSISTANT ====================
     Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
     Route::post('/ai-assistant/chat', [\App\Http\Controllers\AiAssistantController::class, 'chat'])->name('ai-assistant.chat')->middleware('menu:ai-assistant');
+    Route::get('/ai-assistant/conversations/{conversation}', [\App\Http\Controllers\AiAssistantController::class, 'conversation'])->name('ai-assistant.conversation')->middleware('menu:ai-assistant');
 
     // ==================== WORD REPORT GENERATOR ====================
     // Menu slug 'word-report-generator' didaftarkan lewat migration
@@ -152,6 +153,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/consultant-assignment/export', [\App\Http\Controllers\ReportingController::class, 'exportConsultantAssignment'])->name('reporting.consultant-assignment.export')->middleware('menu:reporting.consultant-assignment');
     Route::get('/reporting/diagram-report',              [\App\Http\Controllers\ReportingController::class, 'diagramReportIndex'])->name('reporting.diagram-report')->middleware('menu:reporting.diagram-report');
     Route::get('/reporting/resource-timeline',            [\App\Http\Controllers\ResourceTimelineController::class, 'index'])->name('reporting.resource-timeline')->middleware('menu:reporting.resource-timeline');
+    Route::get('/reporting/customer-md',                  [\App\Http\Controllers\ReportingController::class, 'customerMdIndex'])->name('reporting.customer-md')->middleware('menu:reporting.customer-md');
+    Route::get('/reporting/customer-md/export',           [\App\Http\Controllers\ReportingController::class, 'exportCustomerMd'])->name('reporting.customer-md.export')->middleware('menu:reporting.customer-md');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
@@ -586,6 +589,12 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         // Ringkasan AI per tiket (SSE). POST karena memicu generate, bukan sekadar baca.
         Route::post('/{id}/ai-summary', [\App\Http\Controllers\AiTicketSummaryController::class, 'stream'])
             ->name('ai-summary')
+            ->middleware('menu:tickets.inbox');
+        // Tombol "Ask AI" — siapkan/temukan lagi conversation AI Research milik
+        // employee ini tentang tiket ini, lalu redirect ke sana. Lihat
+        // AiResearchController::openForTicket().
+        Route::get('/{id}/ai-research', [\App\Http\Controllers\AiResearchController::class, 'openForTicket'])
+            ->name('ai-research')
             ->middleware('menu:tickets.inbox');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });

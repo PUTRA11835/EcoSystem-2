@@ -3,10 +3,11 @@
 namespace App\Services\Ai;
 
 use App\Models\Ticket;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Merakit konteks satu tiket untuk fitur "AI Summarize" di daftar tiket.
+ * Merakit konteks satu tiket untuk fitur "AI Summarize" di halaman detail tiket.
  *
  * Dua tanggung jawab, dan keduanya harus dilihat berpasangan:
  *
@@ -75,9 +76,17 @@ class TicketSummaryContext
     {
         $ticket->loadMissing(['customer.basicData', 'ticketLead.basicData', 'members.basicData']);
 
+        // Diambil SEKALI di sini dan dibagi ke technicalSignalsSection() +
+        // messagesSection(): yang pertama butuh SELURUH pesan (sebelum
+        // head/tail truncation) supaya TCODE/SAP Note yang kebetulan ada di
+        // pesan yang nanti terpotong tetap terdeteksi, yang kedua tetap
+        // memotongnya untuk ditampilkan seperti biasa.
+        $messages = $this->fetchMessages($ticket);
+
         $sections = [
             $this->headerSection($ticket),
-            $this->messagesSection($ticket),
+            $this->technicalSignalsSection($ticket, $messages),
+            $this->messagesSection($messages),
             $this->activitySection($ticket),
             $this->deliverablesSection($ticket),
         ];
@@ -100,7 +109,7 @@ class TicketSummaryContext
             // display_name = basicData->name_1, dengan fallback ke email; nama
             // customer bukan kolom di tabel `customer`.
             'Customer: ' . ($ticket->customer?->display_name ?? '-'),
-            'Module: ' . ($ticket->module_name ?: ($ticket->module ?: '-')),
+            'Module: ' . ($ticket->module_names ?: ($ticket->module ?: '-')),
             'Type: ' . ($ticket->ticket_type ?: '-'),
             'Priority: ' . ($ticket->ticket_priority ?: '-'),
             'Scale: ' . ($ticket->scale ?: '-'),
@@ -145,6 +154,77 @@ class TicketSummaryContext
     }
 
     /**
+     * Dipanggil SEKALI dari build() — lihat komentar di sana untuk kenapa
+     * dibagi ke technicalSignalsSection() DAN messagesSection().
+     */
+    private function fetchMessages(Ticket $ticket): Collection
+    {
+        return $ticket->messages()
+            ->where('is_deleted', false)
+            ->where(function ($q) {
+                $q->whereNull('email_status')->orWhere('email_status', '!=', 'failed');
+            })
+            ->orderBy('created_at')
+            ->get(['sender_type', 'sender_name', 'message', 'is_internal_note', 'channel', 'created_at']);
+    }
+
+    /**
+     * Sorotan TCODE & nomor SAP Note/KBA yang disebut di tiket ini, ditaruh
+     * di PALING ATAS context — dihitung dari SELURUH pesan (bukan yang sudah
+     * dipotong messagesSection()), supaya sinyal teknis yang kebetulan ada di
+     * pesan yang nanti terpotong tetap sampai ke model.
+     *
+     * Presisi disengaja lebih diutamakan daripada recall: dua pola di bawah
+     * (extractTcodes/extractSapNotes) HANYA menangkap penyebutan yang
+     * eksplisit berlabel ("tcode SE38", "SAP Note 1234567") — menebak dari
+     * kata uppercase acak akan menangkap singkatan lain (PIC, CEO, dst) dan
+     * section ini jadi lebih menyesatkan daripada membantu. Karena itu
+     * daftarnya BOLEH kosong/tidak lengkap; thread penuh di bawah tetap jadi
+     * sumber utama, ini cuma sorotan tambahan.
+     */
+    private function technicalSignalsSection(Ticket $ticket, Collection $messages): string
+    {
+        $haystack = implode("\n", array_filter([
+            (string) $ticket->description,
+            $messages->pluck('message')->implode("\n"),
+        ]));
+
+        $tcodes = $this->extractTcodes($haystack);
+        $notes = $this->extractSapNotes($haystack);
+
+        if (empty($tcodes) && empty($notes)) {
+            return '';
+        }
+
+        $lines = [];
+        if (!empty($tcodes)) {
+            $lines[] = 'TCODE mentioned in this ticket: ' . implode(', ', $tcodes);
+        }
+        if (!empty($notes)) {
+            $lines[] = 'SAP Note/KBA number mentioned in this ticket: ' . implode(', ', $notes);
+        }
+
+        return "## DETECTED TECHNICAL REFERENCES (auto-extracted, verify against the full thread below)\n"
+            . implode("\n", $lines);
+    }
+
+    /** @return string[] kode unik, huruf besar, urutan kemunculan */
+    private function extractTcodes(string $text): array
+    {
+        preg_match_all('/\b(?:t-?code|transaction(?:\s+code)?)\s*:?\s*([A-Z][A-Z0-9]{1,9})\b/i', $text, $matches);
+
+        return array_values(array_unique(array_map('strtoupper', $matches[1] ?? [])));
+    }
+
+    /** @return string[] nomor unik, urutan kemunculan */
+    private function extractSapNotes(string $text): array
+    {
+        preg_match_all('/\b(?:SAP\s+)?(?:Note|KBA)\s*#?\s*(\d{6,8})\b/i', $text, $matches);
+
+        return array_values(array_unique($matches[1] ?? []));
+    }
+
+    /**
      * Thread percakapan, TERMASUK internal note (fitur ini employee-side; catatan
      * internal justru bagian paling informatif soal cara penyelesaian).
      *
@@ -152,16 +232,8 @@ class TicketSummaryContext
      * bounce/NDR bukan bagian dari cerita penyelesaian dan membuat model
      * menyimpulkan hal yang salah.
      */
-    private function messagesSection(Ticket $ticket): string
+    private function messagesSection(Collection $messages): string
     {
-        $messages = $ticket->messages()
-            ->where('is_deleted', false)
-            ->where(function ($q) {
-                $q->whereNull('email_status')->orWhere('email_status', '!=', 'failed');
-            })
-            ->orderBy('created_at')
-            ->get(['sender_type', 'sender_name', 'message', 'is_internal_note', 'channel', 'created_at']);
-
         if ($messages->isEmpty()) {
             return '';
         }

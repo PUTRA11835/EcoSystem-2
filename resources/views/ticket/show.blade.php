@@ -468,6 +468,43 @@
 
     <div id="rightSidePanel" class="hidden xl:flex xl:flex-col w-64 gap-3 flex-shrink-0 overflow-y-auto" style="transition: width 0.25s ease, opacity 0.25s ease;">
 
+        {{-- AI Summarize --}}
+        @php $canAiSummarize = $can('ui.ticket.btn-ai-summarize'); @endphp
+        @if($canAiSummarize)
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0 p-3">
+            <button type="button" onclick="openTicketSummary({{ $ticket->ticket_id }}, '{{ $ticket->ticket_number }}')"
+                class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors">
+                <svg class="w-3.5 h-3.5 text-indigo-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10 1.5l1.6 4.2 4.4 1.3-4.4 1.3L10 12.5 8.4 8.3 4 7l4.4-1.3L10 1.5zM15.5 12l.9 2.3 2.6.7-2.6.7-.9 2.3-.9-2.3-2.6-.7 2.6-.7.9-2.3zM4.5 11l.7 1.8 2 .5-2 .5-.7 1.8-.7-1.8-2-.5 2-.5.7-1.8z" />
+                </svg>
+                AI Summarize
+            </button>
+        </div>
+        @endif
+
+        {{-- Ask AI (Research) — dua gerbang BERLAPIS, lihat migration
+             add_ai_research_ticket_button_menu.php:
+               1. ui.ticket.btn-ai-research — role mana yang BOLEH memakai
+                  fitur ini sama sekali, admin-only secara default, diatur
+                  admin lewat Control Center > Menu Access.
+               2. isLeadOrMember() ATAU EC Administrator — KE TIKET MANA
+                  (cuma yang orang itu benar-benar tangani; admin selalu
+                  lolos lintas-tiket). hasRole() dicek, bukan
+                  $user->role->role_id (primary saja), supaya employee
+                  dengan banyak role tetap kebagian walau EC Administrator
+                  bukan role utamanya. --}}
+        @if($can('ui.ticket.btn-ai-research') && (\App\Support\TicketTeamAccess::isLeadOrMember($user->id, $ticket) || $user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value)))
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0 p-3">
+            <a href="{{ route('ticket.ai-research', $ticket->ticket_id) }}"
+                class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors">
+                <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Ask AI (Research)
+            </a>
+        </div>
+        @endif
+
         {{-- â"€â"€ Mandays Panel â"€â"€ --}}
         @if($hasMandaysSection)
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
@@ -955,22 +992,32 @@
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->submitted_by_email }}</p>
                 </div>
                 @endif
-                {{-- Module --}}
+                {{-- Module — tiket boleh menyentuh lebih dari satu (Ticket::modules());
+                     module_id (scalar) tetap ada sebagai "modul utama", otomatis mengikuti
+                     modul pertama di sini (lihat Ticket::syncModules()). --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Module</label>
                     @if($canEditAdditionalInfo)
-                    <select id="additionalInfoModuleId"
-                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
-                        <option value="">-- none --</option>
-                        @foreach ($modules as $moduleOption)
-                        <option value="{{ $moduleOption['id'] }}" @selected($ticket->module_id == $moduleOption['id'])>{{ $moduleOption['name'] }}</option>
-                        @endforeach
-                    </select>
+                    <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Select module(s)">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs hover:border-gray-300 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select module(s)</span>
+                            <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="module_ids" id="additionalInfoModuleIds" value="{{ $ticket->modules->pluck('id')->implode(',') }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:320px;">
+                            @foreach ($modules as $moduleOption)
+                            <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $moduleOption['id'] }}">
+                                <span class="custom-dd-item-text">{{ $moduleOption['name'] }}</span>
+                                <svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            </button>
+                            @endforeach
+                        </div>
+                    </div>
                     @if($ticket->module)
                     <p class="text-[11px] text-gray-400 mt-1">Nilai lama (patokan): {{ $ticket->module }}</p>
                     @endif
                     @else
-                    <span class="{{ $roValCls }}">{{ $ticket->module_name ?? '—' }}</span>
+                    <span class="{{ $roValCls }}">{{ $ticket->modules->pluck('name')->implode(', ') ?: '—' }}</span>
                     @endif
                 </div>
                 {{-- Client --}}
@@ -989,6 +1036,450 @@
 
     </div>
 </div>
+
+{{-- ══════════════════ AI SUMMARIZE ══════════════════ --}}
+@if($canAiSummarize)
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+
+<style>
+    /* Preflight Tailwind mematikan marker list dan ukuran heading. Markdown
+       hasil AI butuh keduanya kembali — dibatasi ke dalam .ai-sum-body saja
+       supaya tidak bocor ke halaman detail tiket. Sengaja tanpa warna: pewarnaan
+       tetap lewat utility Tailwind di elemen induk, jadi dark mode global ikut. */
+    .ai-sum-body ul { list-style: disc; padding-left: 1.15rem; margin: .25rem 0; }
+    .ai-sum-body ol { list-style: decimal; padding-left: 1.35rem; margin: .25rem 0; }
+    .ai-sum-body li { margin: .2rem 0; }
+    .ai-sum-body p { margin: .35rem 0; }
+    .ai-sum-body p:first-child { margin-top: 0; }
+    .ai-sum-body strong { font-weight: 600; }
+    .ai-sum-body code { font-family: ui-monospace, monospace; font-size: .85em; }
+    /* Tautan rujukan dokumentasi luar; preflight Tailwind menanggalkan garis
+       bawahnya, jadi dikembalikan di sini supaya terbaca sebagai tautan. */
+    .ai-sum-body a { text-decoration: underline; text-underline-offset: 2px; word-break: break-word; }
+</style>
+
+<div id="ticketSummaryModal" class="hidden fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-4">
+    {{-- Lebar 5xl: isinya kini langkah teknis bernomor berikut TCODE, nama tabel,
+         dan URL rujukan — kolom sempit membuat satu langkah pecah jadi 6-7 baris. --}}
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+        {{-- Header --}}
+        <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <span class="shrink-0 w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M10 1.5l1.6 4.2 4.4 1.3-4.4 1.3L10 12.5 8.4 8.3 4 7l4.4-1.3L10 1.5zM15.5 12l.9 2.3 2.6.7-2.6.7-.9 2.3-.9-2.3-2.6-.7 2.6-.7.9-2.3zM4.5 11l.7 1.8 2 .5-2 .5-.7 1.8-.7-1.8-2-.5 2-.5.7-1.8z" />
+                    </svg>
+                </span>
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-gray-800">AI Summarize</h3>
+                    <p id="ticketSummaryTicketNo" class="text-xs text-gray-500 truncate">—</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <span id="ticketSummaryStatus" class="text-[11px] text-gray-400"></span>
+                {{-- Copy: ringkasan hanya hidup di modal ini, dan sengaja dibuat
+                     ulang setiap kali isi tiket berubah (lihat AiTicketSummaryController).
+                     Tanpa tombol ini satu-satunya cara membawa hasilnya ke chat,
+                     email, atau work log adalah blok-seret manual melintasi tiga
+                     kartu — yang justru kehilangan penanda markdown-nya. Yang
+                     disalin adalah markdown MENTAH, bukan HTML yang terlihat. --}}
+                <button type="button" id="ticketSummaryCopy" onclick="copyTicketSummary()" disabled
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2v-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                    <span id="ticketSummaryCopyLabel">Copy</span>
+                </button>
+                <button type="button" onclick="closeTicketSummary()" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        {{-- Body: tiga kartu tetap, diisi sambil teksnya mengalir --}}
+        <div class="overflow-y-auto px-5 py-4 space-y-3">
+            <div id="ticketSummaryError" class="hidden rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700"></div>
+            {{-- Peringatan, bukan kegagalan: ringkasan yang mentok di plafon token
+                 tetap ditampilkan (sebagian besar isinya masih berguna) tapi tidak
+                 disimpan, jadi warnanya amber dan terpisah dari kotak error merah. --}}
+            <div id="ticketSummaryNotice" class="hidden rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800"></div>
+
+            @foreach ([
+                ['key' => 'issue',      'label' => 'Issue',            'tone' => 'amber'],
+                ['key' => 'resolution', 'label' => 'Resolution Steps', 'tone' => 'blue'],
+                ['key' => 'conclusion', 'label' => 'Conclusion',       'tone' => 'emerald'],
+            ] as $sec)
+            <div class="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+                <div class="px-4 py-2 border-b border-gray-100 bg-{{ $sec['tone'] }}-50">
+                    <span class="text-[11px] font-bold uppercase tracking-widest text-{{ $sec['tone'] }}-700">{{ $sec['label'] }}</span>
+                </div>
+                <div id="ticketSummary-{{ $sec['key'] }}" class="ai-sum-body px-4 py-3 text-sm text-gray-700 leading-relaxed">
+                    <span class="text-gray-300 italic">Waiting…</span>
+                </div>
+                @if ('resolution' === $sec['key'])
+                {{-- Rujukan dokumentasi luar yang benar-benar dibuka model saat
+                     menyusun langkah penyelesaian. Diisi dari event 'sources'. --}}
+                <div id="ticketSummarySources" class="hidden px-4 pb-3 pt-0 border-t border-gray-100">
+                    <div class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mt-2.5 mb-1.5">Documentation sources</div>
+                    <ul id="ticketSummarySourcesList" class="space-y-1"></ul>
+                </div>
+                @endif
+            </div>
+            @endforeach
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    // Judul heading di bawah adalah KONTRAK dengan system prompt di
+    // App\Services\Ai\AiTicketSummaryService::systemPrompt(). Kalau di sana
+    // berubah, ubah juga di sini — kalau tidak, teksnya mengalir masuk ke kartu
+    // yang salah (atau tidak masuk sama sekali).
+    const TICKET_SUMMARY_SECTIONS = {
+        'issue': 'issue',
+        'resolution steps': 'resolution',
+        'conclusion': 'conclusion',
+
+        // Alias heading Indonesia dari ringkasan versi lama. Prompt sudah lama
+        // berbahasa Inggris, tapi ringkasan yang terlanjur tersimpan di cache
+        // (atau sedang ditampilkan dari tab yang belum di-reload) masih memakai
+        // judul lama — tanpa alias ini seluruh isinya jatuh ke satu kartu.
+        'isu': 'issue',
+        'cara penyelesaian': 'resolution',
+        'kesimpulan': 'conclusion',
+    };
+
+    let summaryAbort = null;
+
+    // Markdown mentah ringkasan yang sedang ditampilkan, plus rujukannya —
+    // dipegang di sini supaya tombol Copy punya sesuatu untuk disalin setelah
+    // stream selesai. Ringkasan sengaja TIDAK disimpan permanen (isinya wajib
+    // ikut berubah setiap kali tiket berubah), jadi menyalin adalah satu-satunya
+    // cara membawanya keluar dari modal ini.
+    let summaryText = '';
+    let summarySources = [];
+    let summaryTicketNo = '';
+    let summaryTicketId = null;
+    let summaryCopyTimer = null;
+
+    function el(id) { return document.getElementById(id); }
+
+    function mdToHtml(text) {
+        return DOMPurify.sanitize(marked.parse(String(text ?? '')));
+    }
+
+    /**
+     * Loop parsing SSE (event:/data: frame, dipisah "\n\n") dipakai
+     * ringkasan awal (openTicketSummary).
+     */
+    async function consumeSse(response, onEvent) {
+        if (!response.ok || !response.body) {
+            throw new Error('Could not reach the AI service (HTTP ' + response.status + ').');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            let boundary;
+            while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                const frame = buffer.slice(0, boundary);
+                buffer = buffer.slice(boundary + 2);
+
+                let eventName = 'message';
+                let dataLine = '';
+                frame.split('\n').forEach(line => {
+                    if (line.startsWith('event:')) eventName = line.slice(6).trim();
+                    if (line.startsWith('data:')) dataLine = line.slice(5).trim();
+                });
+                if (!dataLine) continue;
+
+                let payload;
+                try { payload = JSON.parse(dataLine); } catch { continue; }
+
+                onEvent(eventName, payload);
+            }
+        }
+    }
+
+    /**
+     * Pecah teks yang sedang mengalir pada heading "## ", lalu render tiap
+     * bagian ke kartunya. Dipanggil ulang setiap delta: heading terakhir
+     * mungkin masih setengah tertulis, dan itu tidak apa-apa — bagian yang
+     * belum dikenali cukup diabaikan sampai barisnya utuh.
+     */
+    function renderSummary(full) {
+        const buckets = { issue: '', resolution: '', conclusion: '' };
+        let current = null;
+        let preamble = '';
+
+        // Di sela pencarian, model kadang menulis satu kalimat kerja ("Ada hasil
+        // bagus. Mari fetch halaman berikutnya.") lalu menyambung heading TANPA
+        // baris baru — jadi "…langkah.## Isu". Tanpa dipisahkan, heading itu tak
+        // pernah cocok dan seluruh jawaban menumpuk di satu kartu.
+        const normalized = String(full).replace(
+            /([^\n])(#{1,3}\s*(?:Issue|Resolution Steps|Conclusion|Isu|Cara Penyelesaian|Kesimpulan)\b)/gi,
+            '$1\n$2'
+        );
+
+        normalized.split('\n').forEach(line => {
+            const heading = line.match(/^\s*#{1,3}\s*(.+?)\s*$/);
+            if (heading) {
+                const key = TICKET_SUMMARY_SECTIONS[heading[1].trim().toLowerCase()];
+                if (key) { current = key; return; }
+            }
+            // Teks sebelum heading pertama ditahan dulu, JANGAN langsung
+            // ditumpahkan ke kartu Isu: itu biasanya narasi kerja model di sela
+            // pencarian, bukan isi ringkasan. Baru dipakai kalau sampai akhir
+            // tidak ada satu pun heading yang dikenali (lihat di bawah).
+            if (!current) { preamble += line + '\n'; return; }
+            buckets[current] += line + '\n';
+        });
+
+        // Belum ada heading sama sekali — tampilkan apa adanya di kartu Issue
+        // supaya streaming tetap terlihat bergerak, bukan diam "Waiting…".
+        if (!current && preamble.trim()) {
+            buckets.issue = preamble;
+        }
+
+        Object.keys(buckets).forEach(key => {
+            const target = el('ticketSummary-' + key);
+            const body = buckets[key].trim();
+            if (body) {
+                target.innerHTML = mdToHtml(body);
+                // Tautan rujukan di dalam langkah penyelesaian mengarah ke luar
+                // sistem — jangan menimpa halaman detail tiket yang sedang dibuka.
+                target.querySelectorAll('a[href]').forEach(a => {
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                });
+            }
+        });
+    }
+
+    /**
+     * Daftar rujukan dokumentasi luar. Judul & URL datang dari hasil web_search
+     * di sisi server — dianggap teks asing, jadi judulnya di-set lewat
+     * textContent dan hanya URL http(s) yang boleh menjadi href.
+     */
+    function renderSources(items) {
+        const box = el('ticketSummarySources');
+        const list = el('ticketSummarySourcesList');
+        list.innerHTML = '';
+        summarySources = (items || []).filter(item => /^https?:\/\//i.test(item.url || ''));
+
+        (items || []).forEach(item => {
+            if (!/^https?:\/\//i.test(item.url || '')) return;
+
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.href = item.url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.className = 'text-xs text-indigo-600 hover:underline break-all';
+            a.textContent = item.title || item.url;
+            li.appendChild(a);
+            list.appendChild(li);
+        });
+
+        box.classList.toggle('hidden', list.children.length === 0);
+    }
+
+    function resetSummary() {
+        el('ticketSummaryError').classList.add('hidden');
+        el('ticketSummaryError').textContent = '';
+        el('ticketSummaryNotice').classList.add('hidden');
+        el('ticketSummaryNotice').textContent = '';
+        renderSources([]);
+        summaryText = '';
+        setCopyEnabled(false);
+        ['issue', 'resolution', 'conclusion'].forEach(key => {
+            el('ticketSummary-' + key).innerHTML = '<span class="text-gray-300 italic">Waiting…</span>';
+        });
+    }
+
+    function showSummaryError(message) {
+        const box = el('ticketSummaryError');
+        box.textContent = message;
+        box.classList.remove('hidden');
+    }
+
+    /**
+     * Copy baru hidup setelah ada teks: menyalin ringkasan setengah jadi
+     * menghasilkan catatan yang terpotong di tengah langkah, dan itu justru
+     * paling berbahaya di bagian Resolution Steps.
+     */
+    function setCopyEnabled(enabled) {
+        const btn = el('ticketSummaryCopy');
+        if (!btn) return;
+        btn.disabled = !enabled;
+        if (!enabled) {
+            clearTimeout(summaryCopyTimer);
+            el('ticketSummaryCopyLabel').textContent = 'Copy';
+        }
+    }
+
+    /** Markdown mentah + daftar rujukan, siap ditempel ke work log atau email. */
+    function buildSummaryClipboardText() {
+        const parts = [];
+
+        if (summaryTicketNo) parts.push('AI Summary — Ticket ' + summaryTicketNo);
+        parts.push(summaryText.trim());
+
+        if (summarySources.length) {
+            parts.push('## Documentation sources\n' + summarySources
+                .map(item => '- ' + (item.title || item.url) + ' — ' + item.url)
+                .join('\n'));
+        }
+
+        return parts.filter(Boolean).join('\n\n') + '\n';
+    }
+
+    window.copyTicketSummary = async function () {
+        if (!summaryText.trim()) return;
+
+        const text = buildSummaryClipboardText();
+        let ok = false;
+
+        try {
+            // navigator.clipboard hanya ada di secure context (https/localhost).
+            // Deployment internal sering diakses lewat http di jaringan kantor,
+            // jadi jalur execCommand di bawah BUKAN sekadar dukungan browser
+            // lama — di sanalah tombol ini benar-benar bekerja.
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                ok = true;
+            }
+        } catch (e) {
+            ok = false;
+        }
+
+        if (!ok) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            // Di luar viewport, tapi tetap fokusable — readOnly mencegah
+            // keyboard virtual muncul di perangkat sentuh.
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '-1000px';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            document.body.removeChild(ta);
+        }
+
+        const label = el('ticketSummaryCopyLabel');
+        label.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+        clearTimeout(summaryCopyTimer);
+        summaryCopyTimer = setTimeout(() => { label.textContent = 'Copy'; }, 1800);
+    };
+
+    window.openTicketSummary = async function (ticketId, ticketNumber) {
+        if (summaryAbort) summaryAbort.abort();
+
+        summaryTicketId = ticketId;
+        summaryTicketNo = ticketNumber || ('#' + ticketId);
+        el('ticketSummaryTicketNo').textContent = summaryTicketNo;
+        el('ticketSummaryModal').classList.remove('hidden');
+        el('ticketSummaryStatus').textContent = 'Analyzing…';
+        resetSummary();
+
+        summaryAbort = new AbortController();
+        const controller = summaryAbort;
+
+        let full = '';
+        let sawError = null;
+
+        try {
+            const response = await fetch('/ticket/' + ticketId + '/ai-summary', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'text/event-stream',
+                },
+                signal: controller.signal,
+            });
+
+            await consumeSse(response, (eventName, payload) => {
+                if (eventName === 'meta') {
+                    // 'cached' = tiket belum berubah sejak ringkasan terakhir,
+                    // jadi yang diputar ulang ini persis hasil sebelumnya —
+                    // bukan hasil baru yang kebetulan mirip.
+                    el('ticketSummaryStatus').textContent = payload.cached ? 'Saved summary' : 'Analyzing…';
+                } else if (eventName === 'status') {
+                    // Progres riset dokumentasi luar dari driver provider:
+                    // "Searching the web…", "Reading the results…".
+                    if (payload.label) el('ticketSummaryStatus').textContent = payload.label;
+                } else if (eventName === 'sources') {
+                    renderSources(payload.items);
+                } else if (eventName === 'delta' && payload.text) {
+                    full += payload.text;
+                    summaryText = full;
+                    renderSummary(full);
+                    setCopyEnabled(true);
+                } else if (eventName === 'notice') {
+                    // Ringkasan mentok di plafon token: tampil, tapi tidak disimpan.
+                    const box = el('ticketSummaryNotice');
+                    box.textContent = payload.message || '';
+                    box.classList.toggle('hidden', !payload.message);
+                } else if (eventName === 'error') {
+                    sawError = payload.message || 'Something went wrong.';
+                } else if (eventName === 'done') {
+                    el('ticketSummaryStatus').textContent = payload.cached
+                        ? 'Saved summary · regenerated when the ticket changes'
+                        : 'Done';
+                }
+            });
+
+            if (sawError) throw new Error(sawError);
+
+            // Model membalas tanpa satu pun heading yang dikenali: jangan biarkan
+            // ketiga kartu diam bertuliskan "Menunggu…" seolah masih memuat.
+            if (!full.trim()) {
+                showSummaryError('The AI returned no summary at all. Please try again.');
+                el('ticketSummaryStatus').textContent = '';
+                setCopyEnabled(false);
+            }
+        } catch (e) {
+            if (e.name === 'AbortError') return;
+            showSummaryError(e.message);
+            el('ticketSummaryStatus').textContent = '';
+        } finally {
+            if (summaryAbort === controller) summaryAbort = null;
+        }
+    };
+
+    window.closeTicketSummary = function () {
+        // Batalkan stream yang masih jalan — tanpa ini koneksi SSE-nya menggantung
+        // di server sampai model selesai bicara ke modal yang sudah tertutup.
+        if (summaryAbort) { summaryAbort.abort(); summaryAbort = null; }
+        el('ticketSummaryModal').classList.add('hidden');
+    };
+
+    document.getElementById('ticketSummaryModal').addEventListener('click', function (e) {
+        if (e.target === this) closeTicketSummary();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !el('ticketSummaryModal').classList.contains('hidden')) {
+            closeTicketSummary();
+        }
+    });
+})();
+</script>
+@endif
 
 <style>
 /* Message Bubbles */
@@ -5819,10 +6310,10 @@
                 headers: { ...getHeaders(), 'Content-Type': 'application/json' },
                 credentials: 'same-origin',
                 body: JSON.stringify({
-                    name:      document.getElementById('additionalInfoName').value.trim()   || null,
-                    no_hp:     document.getElementById('additionalInfoNoHp').value.trim()   || null,
-                    module_id: document.getElementById('additionalInfoModuleId').value || null,
-                    client:    document.getElementById('additionalInfoClient').value.trim() || null,
+                    name:       document.getElementById('additionalInfoName').value.trim()   || null,
+                    no_hp:      document.getElementById('additionalInfoNoHp').value.trim()   || null,
+                    module_ids: (document.getElementById('additionalInfoModuleIds').value || '').split(',').filter(Boolean).map(Number),
+                    client:     document.getElementById('additionalInfoClient').value.trim() || null,
                 }),
             });
             const json = await res.json();

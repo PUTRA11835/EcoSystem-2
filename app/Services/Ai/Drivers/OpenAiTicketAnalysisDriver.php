@@ -4,6 +4,7 @@ namespace App\Services\Ai\Drivers;
 
 use App\Services\Ai\Drivers\Contracts\TicketAnalysisDriver;
 use App\Support\TicketClassification;
+use Closure;
 use OpenAI\Client;
 use RuntimeException;
 
@@ -18,6 +19,15 @@ use RuntimeException;
  * path does. The enums are read from App\Support\TicketClassification — the
  * single source of truth shared with AiTicketAnalyzerService's sanitizeEnum()
  * calls — so this schema can't silently drift from what the caller accepts.
+ *
+ * STREAMING sejak 10 Sep 2026 (`createStreamed()`, bukan lagi `create()`) —
+ * murni supaya ada status ASLI untuk diteruskan lewat $onEvent, sejajar
+ * dengan sisi Claude. `text.format` (Structured Outputs strict mode) dibawa
+ * apa adanya ke `createStreamed()`: parameternya identik, SDK cuma
+ * menambahkan `stream:true` di baliknya (dikonfirmasi dari sumber SDK, bukan
+ * asumsi) — jadi output tetap dijamin valid sesuai skema, cuma cara
+ * menerimanya yang berubah dari satu respons utuh jadi rentetan delta teks
+ * yang diakumulasi di sini.
  */
 class OpenAiTicketAnalysisDriver implements TicketAnalysisDriver
 {
@@ -31,6 +41,8 @@ class OpenAiTicketAnalysisDriver implements TicketAnalysisDriver
         string $userMessage,
         int $maxTokens,
         ?string $effort,
+        Closure $onEvent,
+        Closure $isAborted,
     ): string {
         $parameters = [
             'model' => $model,
@@ -47,20 +59,47 @@ class OpenAiTicketAnalysisDriver implements TicketAnalysisDriver
             $parameters['reasoning'] = ['effort' => $effort];
         }
 
-        $response = $this->client->responses()->create($parameters);
+        $stream = $this->client->responses()->createStreamed($parameters);
 
-        if ('completed' !== $response->status) {
-            throw new RuntimeException(
-                'OpenAI ticket analysis did not complete (status: ' . $response->status . ').'
-            );
+        $full = '';
+        $sawText = false;
+
+        foreach ($stream as $event) {
+            if ($isAborted()) {
+                throw new RuntimeException('Analisa dibatalkan (koneksi ditutup).');
+            }
+
+            switch ($event->event) {
+                case 'response.output_text.delta':
+                    // Sekali saja saat delta pertama tiba — sebelum ini,
+                    // model masih "berpikir" (reasoning) tanpa ada apa pun
+                    // yang bisa dilaporkan sebagai status nyata.
+                    if (!$sawText) {
+                        $sawText = true;
+                        $onEvent('status', ['label' => 'Writing analysis…']);
+                    }
+                    $full .= $event->response->delta;
+                    break;
+
+                case 'response.completed':
+                    if ('' === trim($full)) {
+                        throw new RuntimeException('GPT tidak mengembalikan teks analisa.');
+                    }
+
+                    return $full;
+
+                case 'response.incomplete':
+                case 'response.failed':
+                    $status = $event->response->response->status ?? $event->event;
+                    throw new RuntimeException("OpenAI ticket analysis did not complete (status: {$status}).");
+
+                case 'error':
+                    throw new RuntimeException('OpenAI stream error: ' . $event->response->message);
+            }
         }
 
-        $text = (string) $response->outputText;
-        if ('' === trim($text)) {
-            throw new RuntimeException('GPT tidak mengembalikan teks analisa.');
-        }
-
-        return $text;
+        // Stream berakhir tanpa event terminal (koneksi putus di tengah jalan).
+        throw new RuntimeException('OpenAI ticket analysis stream ended unexpectedly.');
     }
 
     /**
@@ -80,14 +119,22 @@ class OpenAiTicketAnalysisDriver implements TicketAnalysisDriver
                 'type' => 'object',
                 'additionalProperties' => false,
                 'required' => [
-                    'overview', 'root_cause_hypothesis', 'resolution_steps', 'suggested_module_id',
+                    'overview', 'root_cause_hypothesis', 'resolution_steps', 'suggested_module_ids',
                     'suggested_ticket_type', 'suggested_priority', 'suggested_scale', 'confidence', 'risks',
                 ],
                 'properties' => [
                     'overview' => ['type' => 'string'],
                     'root_cause_hypothesis' => ['type' => 'string'],
                     'resolution_steps' => ['type' => 'array', 'items' => ['type' => 'string']],
-                    'suggested_module_id' => ['type' => ['integer', 'null']],
+                    // Sisa sebelum migrasi multi-modul dulu di sini singular
+                    // ('suggested_module_id', integer) — AiTicketAnalyzerService
+                    // ::analyze() (baris ~157) sudah lama cuma baca key PLURAL
+                    // ini, jadi jalur OpenAI (strict schema override instruksi
+                    // teks di buildSystemPrompt()) diam-diam SELALU kembalikan
+                    // array kosong tidak peduli modul apa yang sebenarnya
+                    // disarankan model. array kosong [] (bukan null) untuk
+                    // "tidak ada yang cocok", sama seperti dokumentasi prompt.
+                    'suggested_module_ids' => ['type' => 'array', 'items' => ['type' => 'integer']],
                     'suggested_ticket_type' => [
                         'type' => ['string', 'null'],
                         'enum' => [...TicketClassification::TYPES, null],

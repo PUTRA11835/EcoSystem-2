@@ -9,6 +9,20 @@ const canApproveStaging = {{ $can('staging.approve') ? 'true' : 'false' }};
 const canRejectStaging  = {{ $can('staging.reject')  ? 'true' : 'false' }};
 </script>
 
+<style>
+    /* AI Analyzer: bar INDETERMINATE (bukan lagi persentase karangan — lihat
+       runAiAnalysis()/#aiAnalysisStatusText untuk status ASLI dari stream).
+       Sengaja tidak mengklaim seberapa jauh prosesnya, cuma menunjukkan
+       "masih berjalan". */
+    @keyframes aiAnalysisIndeterminate {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(300%); }
+    }
+    .ai-analysis-indeterminate {
+        animation: aiAnalysisIndeterminate 1.4s ease-in-out infinite;
+    }
+</style>
+
 {{-- ── Header ────────────────────────────────────────────────────────────────── --}}
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
     <div class="flex items-center gap-2.5">
@@ -157,8 +171,6 @@ let meta = {};
 let currentStagingId = null;
 let currentStagingData = null;
 let _lastAiAnalysis = null;
-let _aiProgressTimer = null;
-let _aiProgressStart = null;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -592,10 +604,32 @@ function fillModal(s) {
                                placeholder="Phone number">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module</label>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module (as written by submitter)</label>
                         <input type="text" id="approveModule" maxlength="255"
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all"
                                placeholder="Related module">
+                    </div>
+                    <div>
+                        {{-- Pilihan modul TERSTRUKTUR — beda dari teks bebas "Module" di atas
+                             (yang cuma diketik pengirim, tidak divalidasi). Ini yang benar-benar
+                             tersimpan ke ticket_module saat tiket dibuat; boleh pilih lebih dari
+                             satu. Pre-fill dari saran AI lihat autoFillEmptyFromAi(). --}}
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module(s)</label>
+                        <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Select module(s)">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                <span class="custom-dd-label text-gray-500">Select module(s)</span>
+                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <input type="hidden" name="module_ids" id="approveModuleIds" value="">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:320px;">
+                                @foreach($modules ?? [] as $moduleOption)
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $moduleOption->id }}">
+                                        <span class="custom-dd-item-text">{{ $moduleOption->name }}</span>
+                                        <svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1.5">Client</label>
@@ -795,6 +829,26 @@ function aiAnalysisPanelHtml(s) {
            </button>`
         : '';
 
+    // Analisa AI di sini TIDAK auto-invalidate seperti AI Summarize (sidik
+    // jari isi tiket) — memicu ulang Opus-5 + Agent Skill otomatis tiap kali
+    // staging ticket diedit terlalu mahal. Ini cukup peringatan pasif: kalau
+    // tiketnya diperbarui SETELAH analisis dibuat (lihat
+    // StagingTicketController::isAiAnalysisStale()), validator diberi tahu
+    // supaya bisa memutuskan sendiri perlu Re-analyze atau tidak.
+    const staleNotice = (hasResult && s.ai_analysis_stale) ? `
+        <div class="px-4 py-2 bg-amber-50 border-b border-amber-100 text-[11px] text-amber-700 flex items-center gap-1.5">
+            <i class="fas fa-triangle-exclamation"></i>
+            Ticket details changed since this analysis was generated — consider clicking Re-analyze.
+        </div>` : '';
+
+    // Sesi tanya-jawab baru setiap kali panel ini dibangun ulang dengan hasil
+    // (modal baru dibuka, ATAU Re-analyze selesai) — lihat blok JS "Tanya-jawab
+    // AI Analyzer" di bawah untuk alasan kenapa ini SENGAJA tidak dipertahankan
+    // lintas render, beda dari conversation id di halaman AI Assistant.
+    if (hasResult) {
+        stagingQaSessionId = stagingQaNewSessionId();
+    }
+
     let bodyHtml;
     if (hasResult) {
         bodyHtml = renderAiAnalysisBody(s.ai_analysis);
@@ -802,16 +856,39 @@ function aiAnalysisPanelHtml(s) {
         bodyHtml = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> AI analysis failed for this ticket. Click Re-analyze to try again, or fill in the classification (Type/Priority/Scale/Module) manually.</p>`;
     } else {
         // null (belum dicoba, akan dipicu fillModal) atau pending (sedang jalan).
-        // Progress bar-nya ESTIMASI (bukan progress asli dari provider — API
-        // ticket analysis bukan streaming), diisi lewat startAiProgressAnimation()
-        // yang jalan di luar re-render ini supaya tidak ke-reset tiap kali panel
-        // di-render ulang.
+        // Bar-nya INDETERMINATE (bukan lagi persentase karangan) — status di
+        // #aiAnalysisStatusText diisi label ASLI dari event SSE 'status' yang
+        // dikirim StagingTicketController::analyze() (lihat runAiAnalysis()),
+        // bukan animasi berbasis waktu yang tidak berhubungan dengan proses
+        // sebenarnya.
         bodyHtml = `
-            <div class="flex items-center gap-2 text-sm text-gray-400 py-1"><i class="fas fa-spinner fa-spin"></i> Analyzing ticket…</div>
+            <div class="flex items-center gap-2 text-sm text-gray-400 py-1">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span id="aiAnalysisStatusText">Connecting…</span>
+            </div>
             <div class="w-full h-1.5 bg-indigo-100 rounded-full overflow-hidden mt-2">
-                <div id="aiAnalysisProgressFill" class="h-full bg-indigo-500 transition-all duration-300 ease-out" style="width:2%"></div>
+                <div class="h-full w-1/3 bg-indigo-500 rounded-full ai-analysis-indeterminate"></div>
             </div>`;
     }
+
+    // Widget tanya-jawab: hanya tampil kalau sudah ada hasil untuk ditanyakan
+    // (lihat AiTicketQaService — konteksnya dibangun dari ai_analysis).
+    const qaWidget = hasResult ? `
+        <div class="border-t border-indigo-100 px-4 py-3">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">
+                <i class="fas fa-comment-dots text-indigo-400"></i> Ask a question
+            </p>
+            <div id="aiQaThread" class="space-y-2 max-h-48 overflow-y-auto mb-2"></div>
+            <div class="flex items-center gap-2">
+                <input type="text" id="aiQaInput" placeholder="e.g. what's the first step here?"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();stagingQaSend(${s.id});}"
+                       class="flex-1 text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:border-indigo-400">
+                <button type="button" id="aiQaSendBtn" onclick="stagingQaSend(${s.id})"
+                        class="w-8 h-8 shrink-0 inline-flex items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all">
+                    <i class="fas fa-paper-plane text-[10px]"></i>
+                </button>
+            </div>
+        </div>` : '';
 
     return `
     <div class="border border-indigo-200 rounded-xl overflow-hidden mb-5 bg-indigo-50/40">
@@ -821,9 +898,11 @@ function aiAnalysisPanelHtml(s) {
             ${timeNote}
             ${reanalyzeBtn}
         </div>
+        ${staleNotice}
         <div id="aiAnalysisBody" class="px-4 py-4">
             ${bodyHtml}
         </div>
+        ${qaWidget}
     </div>`;
 }
 
@@ -848,11 +927,14 @@ function renderAiAnalysisBody(data) {
     // ── Ringkasan saran klasifikasi + confidence, sebagai chip di paling atas ──
     const chip = (text, cls) => text
         ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cls}">${escHtml(text)}</span>` : '';
+    // Satu chip per modul yang disarankan — tiket boleh menyentuh lebih dari satu.
+    const moduleChips = (data.suggested_module_names || [])
+        .map(name => chip(`Module: ${name}`, 'bg-white text-gray-600 border-gray-200'));
     const chipsHtml = [
         chip(data.suggested_ticket_type, 'bg-white text-gray-600 border-gray-200'),
         chip(data.suggested_priority,    'bg-white text-gray-600 border-gray-200'),
         chip(data.suggested_scale,       'bg-white text-gray-600 border-gray-200'),
-        chip(data.suggested_module_name ? `Module: ${data.suggested_module_name}` : '', 'bg-white text-gray-600 border-gray-200'),
+        ...moduleChips,
         confidencePct !== null ? chip(`Confidence ${confidencePct}%`, 'bg-indigo-600 text-white border-indigo-600') : '',
     ].filter(Boolean).join('');
 
@@ -876,19 +958,24 @@ function renderAiAnalysisBody(data) {
             </li>`).join('')}</ul>`
         : '';
 
-    // ── Suggested assignee: selalu tampil, dengan empty-state yang jelas ──
+    // ── Kandidat paling cocok: diranking dari modul + pernah menangani isu
+    //    serupa + workload (lihat AiTicketAnalyzerService::resolveAssignees())
+    //    — urutan array INI ADALAH rank-nya, makanya diberi nomor 1..N. ──
     const assignees = data.suggested_assignees || [];
     let assigneesInner;
     if (assignees.length) {
         assigneesInner = `<div class="space-y-1.5">
-            ${assignees.map(a => {
+            ${assignees.map((a, i) => {
                 const wp = Math.round(a.workload_pct ?? 0);
                 const wColor = a.warning ? 'text-red-600' : (wp >= 50 ? 'text-amber-600' : 'text-green-600');
+                const similar = a.similar_issues_handled ?? 0;
                 return `<div class="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-lg px-3 py-2">
+                    <span class="shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">${i + 1}</span>
                     <span class="font-semibold text-gray-800">${escHtml(a.name)}</span>
                     <span class="text-gray-400 text-xs">(${escHtml(a.eci ?? '-')})</span>
                     ${a.is_module_lead ? '<span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-semibold">Module Lead</span>' : ''}
                     ${a.qualification_level ? `<span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-semibold">${escHtml(a.qualification_level)}</span>` : ''}
+                    ${similar > 0 ? `<span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-semibold">${similar} similar ticket${similar > 1 ? 's' : ''}</span>` : ''}
                     <span class="ml-auto font-semibold text-xs ${wColor}">${wp}% workload</span>
                     ${a.warning ? `<i class="fas fa-triangle-exclamation text-red-500 text-xs" title="${escHtml(a.warning_message || '')}"></i>` : ''}
                 </div>`;
@@ -900,13 +987,53 @@ function renderAiAnalysisBody(data) {
         assigneesInner = `<p class="text-sm text-gray-400">AI did not identify a clear module, so no assignee suggestion is available.</p>`;
     }
 
+    // ── Konsultan customer ini: histori nyata (lead/member tiket lama), bukan
+    //    saran kualifikasi seperti assignee di atas ──
+    const consultants = data.customer_consultants || [];
+    let consultantsInner;
+    if (consultants.length) {
+        consultantsInner = `<div class="space-y-1.5">
+            ${consultants.map(c => `<div class="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-lg px-3 py-2">
+                <span class="font-semibold text-gray-800">${escHtml(c.name)}</span>
+                <span class="text-gray-400 text-xs">(${escHtml(c.eci ?? '-')})</span>
+                ${c.is_lead ? '<span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-semibold">Lead</span>' : ''}
+                <span class="ml-auto text-xs text-gray-500">
+                    ${c.tickets_count} ticket${c.tickets_count > 1 ? 's' : ''}${c.last_ticket_number ? ' · last: ' + escHtml(c.last_ticket_number) : ''}
+                </span>
+            </div>`).join('')}
+        </div>`;
+    } else {
+        consultantsInner = `<p class="text-sm text-gray-400">No prior consultant history found for this customer.</p>`;
+    }
+
+    // ── Tiket lama dengan isu serupa (pencocokan kata kunci, bukan pencarian
+    //    semantik — lihat AiTicketAnalyzerService::resolveSimilarTickets()) ──
+    const similarTickets = data.similar_tickets || [];
+    let similarInner;
+    if (similarTickets.length) {
+        similarInner = `<div class="space-y-1.5">
+            ${similarTickets.map(t => `<div class="text-sm bg-white border border-gray-200 rounded-lg px-3 py-2">
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold text-gray-800">${escHtml(t.ticket_number ?? '-')}</span>
+                    <span class="text-gray-400 text-xs ml-auto">${escHtml(timeAgo(t.created_at))}</span>
+                </div>
+                <p class="text-gray-500 text-xs mt-1">${escHtml(t.excerpt ?? '')}</p>
+                <p class="text-gray-400 text-[11px] mt-1">Handled by ${escHtml(t.consultant_name ?? '-')}</p>
+            </div>`).join('')}
+        </div>`;
+    } else {
+        similarInner = `<p class="text-sm text-gray-400">No similar past tickets found (matched by module + keywords in the description).</p>`;
+    }
+
     return `
         ${chipsHtml ? `<div class="flex flex-wrap items-center gap-1.5 mb-3">${chipsHtml}</div>` : ''}
         ${aiSection('Overview', `<p class="${AI_BODY_CLS}">${escHtml(data.overview || '-')}</p>`)}
         ${data.root_cause_hypothesis ? aiSection('Root Cause Hypothesis', `<p class="${AI_BODY_CLS}">${escHtml(data.root_cause_hypothesis)}</p>`) : ''}
         ${aiSection('Resolution Steps', stepsHtml)}
         ${risks.length ? aiSection('Notes / Risks', risksHtml) : ''}
-        ${aiSection('Suggested Assignee', assigneesInner)}
+        ${aiSection('Best-Fit Consultants (Ranked)', assigneesInner)}
+        ${aiSection('Consultants for This Customer', consultantsInner)}
+        ${aiSection('Similar Past Tickets', similarInner)}
         <div class="pt-3 mt-3 border-t border-indigo-100/70">
             <button type="button" onclick="applyAiSuggestions()" class="text-xs font-semibold text-indigo-700 hover:underline">
                 <i class="fas fa-arrow-turn-down text-[10px]"></i> Apply suggestion to form
@@ -933,6 +1060,44 @@ function renderAiAnalysisBody(data) {
 // di sana.
 let _aiAnalysisInFlight = null;
 
+/**
+ * Loop parsing SSE (event:/data: frame, dipisah "\n\n") — port kecil dari
+ * pola yang sama dipakai di resources/views/ticket/show.blade.php
+ * (consumeSse). Disalin, bukan di-share lintas file: kedua Blade view ini
+ * tidak punya modul JS bersama.
+ */
+async function consumeStagingSse(response, onEvent) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        let boundary;
+        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+            const frame = buffer.slice(0, boundary);
+            buffer = buffer.slice(boundary + 2);
+
+            let eventName = 'message';
+            let dataLine = '';
+            frame.split('\n').forEach(line => {
+                if (line.startsWith('event:')) eventName = line.slice(6).trim();
+                if (line.startsWith('data:')) dataLine = line.slice(5).trim();
+            });
+            if (!dataLine) continue;
+
+            let payload;
+            try { payload = JSON.parse(dataLine); } catch { continue; }
+
+            onEvent(eventName, payload);
+        }
+    }
+}
+
 async function runAiAnalysis(id, force = false) {
     if (_aiAnalysisInFlight === id) {
         return;
@@ -943,28 +1108,61 @@ async function runAiAnalysis(id, force = false) {
         currentStagingData.ai_analysis_status = 'pending';
     }
     refreshAiAnalysisPanel(id);
-    startAiProgressAnimation();
 
     try {
-        const res = await apiFetch(`/api/staging-tickets/${id}/analyze`, 'POST', force ? { force: true } : null);
-        _lastAiAnalysis = res.data;
+        // StagingTicketController::analyze() kadang balas JSON biasa (langsung
+        // instan — sudah completed/pending/failed dari klaim atomic sisi
+        // server, TIDAK berubah dari sebelumnya) dan kadang SSE (baru mulai
+        // memanggil AI, bisa menitan) — dibedakan lewat Content-Type, bukan
+        // dua endpoint terpisah.
+        const res = await fetch(`/api/staging-tickets/${id}/analyze`, {
+            method: 'POST',
+            headers: { 'Accept': 'text/event-stream', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+            credentials: 'same-origin',
+            body: JSON.stringify(force ? { force: true } : {}),
+        });
+
+        const contentType = res.headers.get('Content-Type') || '';
+        let data;
+
+        if (contentType.includes('text/event-stream')) {
+            let doneData = null;
+            let errorMessage = null;
+
+            await consumeStagingSse(res, (eventName, payload) => {
+                if ('status' === eventName) {
+                    const el = document.getElementById('aiAnalysisStatusText');
+                    if (el && payload.label) el.textContent = payload.label;
+                } else if ('done' === eventName) {
+                    doneData = payload.data;
+                } else if ('error' === eventName) {
+                    errorMessage = payload.message;
+                }
+            });
+
+            if (errorMessage) throw new Error(errorMessage);
+            if (!doneData) throw new Error('AI analysis ended without a result. Please try again.');
+            data = doneData;
+        } else {
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Request failed');
+            data = json.data;
+        }
+
+        _lastAiAnalysis = data;
         if (currentStagingData && currentStagingData.id === id) {
-            currentStagingData.ai_analysis = res.data;
+            currentStagingData.ai_analysis = data;
             currentStagingData.ai_analysis_status = 'completed';
             currentStagingData.ai_analysis_generated_at = new Date().toISOString();
+            // Analisa baru saja dibuat dari isi tiket SAAT INI, jadi per
+            // definisi tidak basi lagi — lihat StagingTicketController::
+            // isAiAnalysisStale() untuk perhitungan aslinya (di server, saat
+            // panel dibuka lagi/di-refresh dari daftar).
+            currentStagingData.ai_analysis_stale = false;
         }
-        autoFillEmptyFromAi(res.data);
-
-        // Snap progress bar ke 100% sekilas sebelum panel di-render ulang
-        // dengan hasil sebenarnya — cuma flourish visual, tidak mempengaruhi
-        // data (progress-nya sendiri sudah selalu estimasi, bukan real).
-        stopAiProgressAnimation();
-        const fillEl = document.getElementById('aiAnalysisProgressFill');
-        if (fillEl) fillEl.style.width = '100%';
-        await new Promise(resolve => setTimeout(resolve, 200));
+        autoFillEmptyFromAi(data);
         refreshAiAnalysisPanel(id);
     } catch (e) {
-        stopAiProgressAnimation();
         if (currentStagingData && currentStagingData.id === id) {
             currentStagingData.ai_analysis_status = 'failed';
         }
@@ -985,42 +1183,6 @@ async function runAiAnalysis(id, force = false) {
     }
 }
 
-// Progress bar ESTIMASI (bukan progress asli dari provider — API ticket
-// analysis bukan streaming, jadi tidak ada angka progress nyata untuk
-// ditampilkan). Naik cepat di awal lalu melambat mendekati asimtot 92%
-// (kurva 1 - e^-t/tau) supaya tidak pernah terlihat "selesai" sebelum
-// respons beneran datang — endpoint-nya sendiri biasanya makan belasan
-// detik sampai ±1 menit tergantung effort/model yang aktif di AI Settings.
-// Interval jalan lepas dari siklus render aiAnalysisPanelHtml() supaya
-// tidak ke-reset tiap panel di-render ulang — cukup update elemen fill
-// lewat getElementById tiap tick, dan diam kalau elemennya sudah tidak ada
-// (modal ditutup/di-render ulang ke state lain).
-function startAiProgressAnimation() {
-    stopAiProgressAnimation();
-    _aiProgressStart = Date.now();
-
-    const TAU_MS = 18000;
-    const CAP_PCT = 92;
-
-    const tick = () => {
-        const el = document.getElementById('aiAnalysisProgressFill');
-        if (!el) return;
-        const elapsed = Date.now() - _aiProgressStart;
-        const pct = CAP_PCT * (1 - Math.exp(-elapsed / TAU_MS));
-        el.style.width = pct.toFixed(1) + '%';
-    };
-
-    tick();
-    _aiProgressTimer = setInterval(tick, 200);
-}
-
-function stopAiProgressAnimation() {
-    if (_aiProgressTimer) {
-        clearInterval(_aiProgressTimer);
-        _aiProgressTimer = null;
-    }
-}
-
 // Render ulang seluruh panel (header dengan tombol Re-analyze + body) —
 // dipakai setelah status berubah supaya tombol Re-analyze langsung
 // tampil/hilang sesuai status terbaru, bukan cuma isi body-nya.
@@ -1028,6 +1190,163 @@ function refreshAiAnalysisPanel(id) {
     if (!currentStagingData || currentStagingData.id !== id) return;
     const panel = document.getElementById('aiAnalysisBody')?.closest('div.border-indigo-200');
     if (panel) panel.outerHTML = aiAnalysisPanelHtml(currentStagingData);
+}
+
+/* ── Tanya-jawab AI Analyzer ──────────────────────────────────────────────
+   Beda dari halaman AI Assistant: sesi ini SENGAJA TIDAK dipertahankan lintas
+   buka-tutup modal atau lintas Re-analyze. stagingQaSessionId dibuat ulang
+   setiap kali aiAnalysisPanelHtml() membangun panel dengan hasil (lihat di
+   atas) — supaya thread yang tampil kosong di layar tidak pernah diam-diam
+   menyambung ke sesi lama di server (AiTicketQaService::cacheKey() memakai id
+   ini), dan supaya konteks yang dipakai model selalu mengikuti ai_analysis
+   yang sedang tampil, bukan versi lama sebelum Re-analyze.
+   ────────────────────────────────────────────────────────────────────── */
+let stagingQaSessionId = null;
+let stagingQaBusy = false;
+let stagingQaMsgSeq = 0;
+
+function stagingQaNewSessionId() {
+    return 'qa' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+
+function stagingQaAppendUser(text) {
+    const thread = document.getElementById('aiQaThread');
+    if (!thread) return;
+    thread.insertAdjacentHTML('beforeend', `
+        <div class="flex justify-end">
+            <div class="max-w-[85%] bg-indigo-600 text-white text-xs rounded-xl rounded-br-sm px-3 py-1.5 whitespace-pre-wrap break-words">${escHtml(text)}</div>
+        </div>`);
+    thread.scrollTop = thread.scrollHeight;
+}
+
+/** Bubble jawaban kosong + spinner. Kembalikan id-nya. */
+function stagingQaAppendAssistantPending() {
+    const thread = document.getElementById('aiQaThread');
+    if (!thread) return null;
+
+    const id = 'aiQaMsg' + (++stagingQaMsgSeq);
+    thread.insertAdjacentHTML('beforeend', `
+        <div class="flex justify-start" id="${id}">
+            <div class="max-w-[85%] bg-white border border-gray-200 text-gray-700 text-xs rounded-xl rounded-bl-sm px-3 py-1.5 whitespace-pre-wrap break-words">
+                <i class="fas fa-spinner fa-spin text-gray-400"></i>
+            </div>
+        </div>`);
+    thread.scrollTop = thread.scrollHeight;
+    return id;
+}
+
+function stagingQaAppendDelta(id, deltaText) {
+    const wrap = document.getElementById(id);
+    if (!wrap) return;
+
+    const bubble = wrap.querySelector('div');
+    if (!bubble.dataset.streaming) {
+        bubble.dataset.streaming = '1';
+        bubble.dataset.text = '';
+        bubble.innerHTML = '';
+    }
+    bubble.dataset.text += deltaText;
+    bubble.textContent = bubble.dataset.text;
+
+    const thread = document.getElementById('aiQaThread');
+    if (thread) thread.scrollTop = thread.scrollHeight;
+}
+
+function stagingQaResolve(id, errorText) {
+    const wrap = document.getElementById(id);
+    if (!wrap) return;
+
+    const bubble = wrap.querySelector('div');
+    if (errorText) {
+        bubble.innerHTML = `<span class="text-red-600">${escHtml(errorText)}</span>`;
+    } else if (!bubble.dataset.streaming) {
+        bubble.innerHTML = `<span class="text-gray-400">(no reply)</span>`;
+    }
+}
+
+/**
+ * SATU-SATUNYA titik sentuh backend untuk widget ini. Streaming Server-Sent
+ * Events dari POST /api/staging-tickets/{id}/ask — bentuk framingnya sama
+ * persis dengan aiSendToBackend() di halaman AI Assistant (event delta/done/
+ * error), cuma parsingnya ditulis ulang di sini karena file ini tidak berbagi
+ * script dengan halaman itu.
+ */
+async function stagingQaSend(stagingId) {
+    if (stagingQaBusy) return;
+
+    const input = document.getElementById('aiQaInput');
+    const text = (input?.value || '').trim();
+    if (!text) return;
+
+    if (!stagingQaSessionId) stagingQaSessionId = stagingQaNewSessionId();
+
+    input.value = '';
+    stagingQaAppendUser(text);
+    stagingQaBusy = true;
+    const sendBtn = document.getElementById('aiQaSendBtn');
+    if (sendBtn) sendBtn.disabled = true;
+
+    const pendingId = stagingQaAppendAssistantPending();
+    let sawError = null;
+
+    try {
+        const response = await fetch(`/api/staging-tickets/${stagingId}/ask`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'text/event-stream',
+            },
+            body: JSON.stringify({ session_id: stagingQaSessionId, message: text }),
+        });
+
+        if (!response.ok || !response.body) {
+            throw new Error('Could not reach the assistant (HTTP ' + response.status + ').');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            let boundary;
+            while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                const frame = buffer.slice(0, boundary);
+                buffer = buffer.slice(boundary + 2);
+
+                let eventName = 'message';
+                let dataLine = '';
+                frame.split('\n').forEach(line => {
+                    if (line.startsWith('event:')) eventName = line.slice(6).trim();
+                    if (line.startsWith('data:')) dataLine = line.slice(5).trim();
+                });
+                if (!dataLine) continue;
+
+                let payload;
+                try { payload = JSON.parse(dataLine); } catch { continue; }
+
+                if (eventName === 'delta' && payload.text) {
+                    stagingQaAppendDelta(pendingId, payload.text);
+                } else if (eventName === 'error') {
+                    sawError = payload.message || 'Something went wrong.';
+                }
+                // 'done' tidak perlu ditangani secara khusus di sini.
+            }
+        }
+
+        if (sawError) throw new Error(sawError);
+        stagingQaResolve(pendingId, null);
+    } catch (e) {
+        stagingQaResolve(pendingId, e.message || 'Something went wrong.');
+    } finally {
+        stagingQaBusy = false;
+        if (sendBtn) sendBtn.disabled = false;
+    }
 }
 
 // Isi field klasifikasi HANYA yang masih kosong — tidak menimpa input admin.
@@ -1042,6 +1361,13 @@ function autoFillEmptyFromAi(data) {
         const el = document.getElementById(id);
         if (el && !el.value) el.value = val;
     });
+
+    // Widget modul terstruktur (multi-select) — cuma diisi kalau validator
+    // belum memilih apa-apa, sama seperti field lain di atas.
+    const moduleIdsEl = document.getElementById('approveModuleIds');
+    if (moduleIdsEl && !moduleIdsEl.value && Array.isArray(data.suggested_module_ids) && data.suggested_module_ids.length) {
+        setCustomDropdownMulti('approveModuleIds', data.suggested_module_ids);
+    }
 }
 
 // Paksa terapkan saran AI terakhir ke form (dipanggil manual dari panel).
@@ -1225,6 +1551,7 @@ async function submitApprove(id) {
     const name              = document.getElementById('approveName')?.value.trim()   ?? '';
     const noHp              = document.getElementById('approveNoHp')?.value.trim()   ?? '';
     const module            = document.getElementById('approveModule')?.value.trim() ?? '';
+    const moduleIds         = (document.getElementById('approveModuleIds')?.value || '').split(',').filter(Boolean).map(Number);
     const client            = document.getElementById('approveClient')?.value.trim() ?? '';
     const deliverySupportId = _stagingDsSelected.id || null;
     const endCustomerId     = document.getElementById('approveEndCustomer')?.value || null;
@@ -1261,6 +1588,7 @@ async function submitApprove(id) {
             name:                 name   || null,
             no_hp:                noHp   || null,
             module:               module || null,
+            module_ids:           moduleIds,
             client:               client || null,
             delivery_support_id:  deliverySupportId,
             end_customer_id:      endCustomerId,

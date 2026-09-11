@@ -81,6 +81,24 @@ class Employee extends Model
         });
     }
 
+    /**
+     * Scope: employee aktif dan tidak diblokir/ditandai untuk dihapus di Basic
+     * Data — dipakai di semua daftar kandidat Ticket Lead / Ticket Member supaya
+     * employee yang di-block atau kena deletion_flag tidak lagi bisa dipilih.
+     * Employee tanpa basic data dianggap eligible (tidak ada alasan untuk
+     * dikecualikan hanya karena basic data-nya belum diisi).
+     */
+    public function scopeEligibleForTicketTeam(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereDoesntHave('basicData')
+                  ->orWhereHas('basicData', function ($b) {
+                      $b->where('block', false)->where('deletion_flag', false);
+                  });
+            });
+    }
+
     /** Semua menu yang dapat diakses (union dari semua role) */
     public function accessibleMenus()
     {

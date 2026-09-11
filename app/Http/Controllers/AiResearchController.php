@@ -2,15 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use App\Models\AiConversation;
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Models\Ticket;
 use App\Services\Ai\AiResearchService;
+use App\Services\Ai\TicketSummaryContext;
 use App\Support\AiTextAttachment;
+use App\Support\TicketTeamAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -31,6 +36,9 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class AiResearchController extends Controller
 {
+    /** Gerbang khusus tombol "Ask AI" di halaman tiket — lihat openForTicket(). */
+    public const TICKET_BUTTON_PERMISSION_SLUG = 'ui.ticket.btn-ai-research';
+
     private const SUPPORTED_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 
     /**
@@ -135,6 +143,124 @@ class AiResearchController extends Controller
         ]);
     }
 
+    /**
+     * Tombol "Ask AI" di halaman detail tiket (lihat ticket/show.blade.php)
+     * — bukan endpoint chat baru, cuma menyiapkan (atau menemukan lagi) SATU
+     * AiConversation milik employee ini tentang tiket ini, lalu mengarahkan
+     * ke halaman AI Research yang sudah ada.
+     *
+     * Dua gerbang BERLAPIS, sama persis dengan yang dicek di Blade (lihat
+     * migration add_ai_research_ticket_button_menu.php untuk alasannya):
+     *   1. Permission slug ui.ticket.btn-ai-research — role mana yang BOLEH
+     *      memakai fitur ini sama sekali, admin-only default, diatur admin.
+     *   2. isLeadOrMember() ATAU EC Administrator — KE TIKET MANA.
+     *
+     * Wajib DIULANG di sini (bukan cukup disembunyikan di Blade) — kalau
+     * tidak, siapa pun yang tahu URL-nya bisa lewati tombolnya sama sekali.
+     *
+     * conversation_id DETERMINISTIK ("ticket-{id}") supaya klik berulang oleh
+     * orang yang sama selalu kembali ke percakapan yang SAMA (constraint
+     * unique-nya (employee_id, assistant, conversation_id), jadi string yang
+     * sama aman dipakai lintas employee — masing-masing dapat baris sendiri,
+     * TIDAK ada satu thread yang dibagi rame-rame, sesuai keputusan produk).
+     *
+     * Judul di-set MANUAL saat membuat baris (nomor + deskripsi tiket) karena
+     * AiConversation::titleFrom() (dipakai AiResearchService::archiveTurn())
+     * hanya mengambil dari pesan pertama USER — dan archiveTurn() TIDAK
+     * PERNAH menimpa title kalau barisnya sudah ada, jadi title manual ini
+     * aman dari giliran chat asli berikutnya.
+     *
+     * Konteks tiket di-seed sebagai SATU AiMessage (role user) langsung ke
+     * arsip, bukan lewat AiResearchService — cache 'ai_chat' percakapan baru
+     * ini kosong, dan restoreFromArchive() milik AiResearchService (jalur
+     * yang sudah ada untuk cache dingin) akan membaca baliknya otomatis di
+     * giliran chat pertama, tanpa kode tambahan di jalur streaming.
+     */
+    public function openForTicket(int $ticketId)
+    {
+        $employee = $this->currentEmployee();
+        $ticket = Ticket::findOrFail($ticketId);
+
+        if (!in_array(self::TICKET_BUTTON_PERMISSION_SLUG, $employee->allPermissionSlugs(), true)) {
+            abort(403);
+        }
+
+        $isAdmin = $employee->hasRole(RoleId::EC_ADMINISTRATOR->value);
+        if (!$isAdmin && !TicketTeamAccess::isLeadOrMember($employee->employee_id, $ticket)) {
+            abort(403);
+        }
+
+        $conversationId = "ticket-{$ticket->ticket_id}";
+
+        $conversation = AiConversation::firstOrCreate(
+            [
+                'employee_id' => $employee->employee_id,
+                'assistant' => AiConversation::ASSISTANT_RESEARCH,
+                'conversation_id' => $conversationId,
+            ],
+            [
+                'title' => Str::limit(
+                    trim($ticket->ticket_number . ' - ' . (string) $ticket->description),
+                    180,
+                    ''
+                ),
+            ],
+        );
+
+        if ($conversation->wasRecentlyCreated) {
+            $conversation->messages()->create([
+                'role' => 'user',
+                'content' => $this->ticketContextSeed($ticket),
+            ]);
+        }
+
+        // autorun=1 HANYA pada penciptaan baru: klik berulang ke tiket yang
+        // sama (percakapan lama, sudah ada jawaban) tidak boleh memicu
+        // panggilan berbayar kedua — lihat pengecekan sisi client di
+        // research.blade.php (DOMContentLoaded) dan sisi server di
+        // AiResearchService::streamReply() (giliran terakhir harus masih
+        // role user, bukan sekadar percaya query string ini).
+        return redirect()->route('ai-research', [
+            'conversation' => $conversationId,
+            ...($conversation->wasRecentlyCreated ? ['autorun' => 1] : []),
+        ]);
+    }
+
+    /**
+     * Konteks tiket yang di-seed sebagai giliran "user" pertama (lihat
+     * openForTicket()). Datanya SAMA PERSIS dengan yang dipakai AI Summarize
+     * (TicketSummaryContext::build() — tidak ada context builder baru), tapi
+     * dibungkus catatan penekanan di akhir: AI Summarize sudah menjawab
+     * "apa status tiket ini & apa yang sudah dikerjakan" (termasuk hal
+     * administratif — mandays, approval, email, follow-up); fitur INI
+     * seharusnya menjawab pertanyaan yang beda — "apa solusi TEKNIS-nya".
+     *
+     * SENGAJA tidak menyaring/memotong bagian administratif dari data
+     * mentahnya (mis. lewat regex/keyword) — mengenali "ini administratif,
+     * ini teknis" jauh lebih andal diserahkan ke penalaran model sendiri
+     * saat membaca, daripada heuristik kaku di sini yang berisiko malah
+     * membuang detail teknis yang kebetulan disampaikan dengan nada santai.
+     */
+    private function ticketContextSeed(Ticket $ticket): string
+    {
+        $context = app(TicketSummaryContext::class)->build($ticket);
+
+        return <<<TEXT
+            📋 Konteks tiket (otomatis — lihat halaman tiket untuk detail lengkap):
+
+            {$context}
+
+            ---
+            Catatan: informasi mandays/approval, komunikasi email, dan follow-up
+            administratif di atas HANYA latar belakang — TIDAK perlu dibahas ulang
+            atau diringkas (sudah tercakup di fitur AI Summarize tiket ini). Kalau
+            saya bertanya, fokuskan jawaban pada memahami akar masalah TEKNIS tiket
+            ini dan memberikan solusi konkret & mendalam untuk menyelesaikannya —
+            cari dokumentasi resmi (web search) kalau perlu, bukan cuma menceritakan
+            ulang apa yang sudah terjadi di tiket ini.
+            TEXT;
+    }
+
     public function chat(Request $request): Response
     {
         if ($rejection = $this->rejectOversizedPost($request)) {
@@ -148,6 +274,11 @@ class AiResearchController extends Controller
             // Tombol "Continue" pada jawaban yang terpotong: giliran tanpa
             // pertanyaan baru, instruksinya disusun server (lihat service).
             'resume' => 'nullable|boolean',
+            // Jawaban otomatis SEKALI untuk percakapan tiket yang baru dibuat
+            // (lihat openForTicket() & AiResearchService::streamReply()) —
+            // beda dari resume: tidak ada apa pun untuk disambung, giliran
+            // user yang dijawab sudah ada (konteks tiket yang di-seed).
+            'initial' => 'nullable|boolean',
             'files' => 'nullable|array',
             'files.*' => 'file|max:' . self::MAX_ATTACHMENT_KB,
         ]);
@@ -159,12 +290,14 @@ class AiResearchController extends Controller
         $modelTier = $validated['model'] ?? 'default';
         $conversationId = $validated['conversation_id'];
         $resume = (bool) ($validated['resume'] ?? false);
+        $initial = (bool) ($validated['initial'] ?? false);
 
         [$attachments, $rejectedNote] = $this->prepareAttachments($request->file('files', []));
 
-        // Continue sengaja datang tanpa teks dan tanpa berkas — itu memang
-        // bentuknya, jadi ia tidak boleh kena pagar "pesan kosong".
-        if ($resume) {
+        // Continue dan giliran-otomatis-pertama sama-sama datang tanpa teks
+        // dan tanpa berkas — itu memang bentuknya, jadi keduanya tidak boleh
+        // kena pagar "pesan kosong".
+        if ($resume || $initial) {
             $message = '';
             $attachments = [];
             $rejectedNote = null;
@@ -188,13 +321,14 @@ class AiResearchController extends Controller
             attachmentCount: count($attachments),
             modelTier: $modelTier,
             resume: $resume,
+            initial: $initial,
         );
 
         // Lepas lock session sebelum stream panjang, supaya tab/request lain
         // milik user yang sama tidak ikut terblokir.
         $request->session()->save();
 
-        return response()->stream(function () use ($employee, $conversationId, $message, $attachments, $modelTier, $rejectedNote, $resume) {
+        return response()->stream(function () use ($employee, $conversationId, $message, $attachments, $modelTier, $rejectedNote, $resume, $initial) {
             $send = function (string $event, array $payload): void {
                 echo 'event: ' . $event . "\n";
                 echo 'data: ' . json_encode($payload) . "\n\n";
@@ -226,6 +360,7 @@ class AiResearchController extends Controller
                     },
                     isAborted: fn () => 1 === connection_aborted(),
                     resume: $resume,
+                    initial: $initial,
                 );
 
                 if (0 === connection_aborted()) {
