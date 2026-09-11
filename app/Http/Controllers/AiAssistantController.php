@@ -235,7 +235,7 @@ class AiAssistantController extends Controller
         if (!empty($rejected)) {
             $names = implode(', ', $rejected);
             $note = "_Note: {$names} — this file type isn't supported yet. Only PDF, image "
-                . "(PNG, JPEG, GIF, WEBP), and text/code attachments can be read right now._\n\n";
+                . "(PNG, JPEG, GIF, WEBP), Word (.docx), and text/code attachments can be read right now._\n\n";
         }
 
         return [$attachments, $note];

@@ -127,6 +127,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/ai-research/conversations', [\App\Http\Controllers\AiResearchController::class, 'conversations'])->name('ai-research.conversations')->middleware('menu:ai-research');
     Route::get('/ai-research/conversations/{conversation}', [\App\Http\Controllers\AiResearchController::class, 'conversation'])->name('ai-research.conversation')->middleware('menu:ai-research');
     Route::post('/ai-research/conversations/{conversation}/delete', [\App\Http\Controllers\AiResearchController::class, 'destroyConversation'])->name('ai-research.conversation.delete')->middleware('menu:ai-research');
+    // Ubah teks jawaban assistant jadi file .docx yang bisa diunduh — assistant
+    // sendiri tidak punya alat untuk membuat/melampirkan file, jadi konversinya
+    // dilakukan di sini saat user menekan tombol Download.
+    Route::post('/ai-research/export-docx', [\App\Http\Controllers\AiResearchController::class, 'exportDocx'])->name('ai-research.export-docx')->middleware('menu:ai-research');
 
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
