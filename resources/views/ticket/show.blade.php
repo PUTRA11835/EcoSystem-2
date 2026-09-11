@@ -8874,8 +8874,8 @@ let deliverableData = [];
 let deliverableDocTypes       = [];
 let deliverableDocTypesLoaded = false;
 
-// Batas ukuran file deliverable (sinkron dengan validasi server: 20 MB).
-const DELIV_MAX_FILE_BYTES = 20 * 1024 * 1024;
+// Batas ukuran file deliverable (sinkron dengan validasi server: 100 MB).
+const DELIV_MAX_FILE_BYTES = 100 * 1024 * 1024;
 
 // Parse response API secara aman. Jika server membalas HTML (mis. halaman error
 // 413/419/500 dari nginx/PHP saat file melebihi batas upload), `res.json()` akan
@@ -9220,7 +9220,7 @@ async function submitNewDoc() {
     // dengan halaman error HTML dari server (penyebab "Unexpected token '<'").
     if (file && file.size > DELIV_MAX_FILE_BYTES) {
         const mb = (file.size / 1024 / 1024).toFixed(1);
-        errEl.textContent = `File terlalu besar (${mb} MB). Maksimal 20 MB.`;
+        errEl.textContent = `File terlalu besar (${mb} MB). Maksimal 100 MB.`;
         errEl.classList.remove('hidden');
         return;
     }
