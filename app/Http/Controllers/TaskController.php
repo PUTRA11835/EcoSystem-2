@@ -73,14 +73,10 @@ class TaskController extends Controller
 
             // Nama SEMUA modul tiket (bukan cuma teks bebas `ticket.module` yang
             // dipilih di query di atas) — satu tiket boleh menyentuh lebih dari
-            // satu modul terstruktur sekarang, lihat Ticket::modules().
-            $ticketModuleNamesMap = DB::table('ticket_module')
-                ->join('modules', 'modules.id', '=', 'ticket_module.module_id')
-                ->whereIn('ticket_module.ticket_id', $ticketIds)
-                ->orderBy('modules.name')
-                ->get(['ticket_module.ticket_id', 'modules.name'])
-                ->groupBy('ticket_id')
-                ->map(fn ($rows) => $rows->pluck('name')->implode(', '));
+            // satu modul terstruktur sekarang, lihat Ticket::modules() dan
+            // Ticket::moduleNamesMapFor() (versi batch dari module_names, dipakai
+            // di sini karena $tickets hasil query builder mentah, bukan Eloquent).
+            $ticketModuleNamesMap = Ticket::moduleNamesMapFor($ticketIds);
 
             // Tiket dengan konfirmasi take-ticket yang sudah confirmed juga dianggap
             // punya man_days asli (bukan cuma placeholder headcount), sama seperti

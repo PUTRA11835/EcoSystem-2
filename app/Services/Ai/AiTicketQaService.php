@@ -156,7 +156,22 @@ class AiTicketQaService
             'Isi pesan: ' . ($body !== '' ? $body : '(tidak ada isi tambahan)'),
         ];
 
-        $analysis = $staging->ai_analysis;
+        // $staging->ai_analysis adalah CACHE yang mungkin dibuat oleh actor LAIN
+        // (siapa pun yang membuka staging ticket ini duluan dan memicu analyze())
+        // — kalau actor itu punya izin 'customer.section.credential.view',
+        // overview/root_cause_hypothesis/resolution_steps di cache ini bisa
+        // sudah menyerap catatan credential customer (lihat resolveCredentialContext()
+        // di AiTicketAnalyzerService). Tanpa gerbang ini, employee LAIN yang
+        // bertanya lewat ask() — TANPA izin credential sendiri — bisa memancing
+        // model menjawab balik info credential itu lewat cache lama, padahal
+        // injeksi credential FRESH di bawah (baris "Catatan credential…") sudah
+        // benar menggerbangi actor saat ini. Ini gerbang yang SAMA seperti
+        // StagingTicketController::canViewAiAnalysis() — kalau logikanya
+        // berubah di satu tempat, ubah juga di sini.
+        $canSeeCachedAnalysis = $employee->hasMenuPermission('customer.section.credential.view')
+            || !CustomerCredential::whereIn('customer_id', array_filter([$staging->customer_id, $staging->end_customer_id]))->exists();
+
+        $analysis = $canSeeCachedAnalysis ? $staging->ai_analysis : null;
         if (is_array($analysis)) {
             $lines[] = '';
             $lines[] = '=== Analisa AI sebelumnya (sudah tampil di layar validator) ===';

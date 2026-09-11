@@ -181,12 +181,12 @@ class AiResearchController extends Controller
         $employee = $this->currentEmployee();
         $ticket = Ticket::findOrFail($ticketId);
 
-        if (!in_array(self::TICKET_BUTTON_PERMISSION_SLUG, $employee->allPermissionSlugs(), true)) {
+        if (!$employee->hasPermission(self::TICKET_BUTTON_PERMISSION_SLUG)) {
             abort(403);
         }
 
         $isAdmin = $employee->hasRole(RoleId::EC_ADMINISTRATOR->value);
-        if (!$isAdmin && !TicketTeamAccess::isLeadOrMember($employee->employee_id, $ticket)) {
+        if (!TicketTeamAccess::canAccessAiResearch($employee->employee_id, $ticket, $isAdmin)) {
             abort(403);
         }
 

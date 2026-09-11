@@ -731,8 +731,11 @@ class ReportingController extends Controller
                 'ticket_type'   => $ticket->ticket_type,
                 'customer_name' => $ticket->customer?->basicData?->name_1 ?? $ticket->customer?->email,
                 'delivery_name' => $deliveryMap->get($ticket->ticket_id)?->deliverySupport?->name,
+                // ?: null (bukan cuma ?? null) — trim() bisa hasilkan '' kalau ticketLead
+                // ada tapi basicData-nya kosong; '' ?? 'Unassigned' di CustomerMdExport
+                // tidak akan trigger karena '' bukan null, jadi harus dinormalisasi di sini.
                 'lead_name'     => $ticket->ticketLead
-                    ? trim(($ticket->ticketLead->basicData?->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData?->last_name ?? ''))
+                    ? (trim(($ticket->ticketLead->basicData?->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData?->last_name ?? '')) ?: null)
                     : null,
                 'md_status'       => $status,
                 'md_status_label' => self::CUSTOMER_MD_STATUS_LABELS[$status] ?? $status,
