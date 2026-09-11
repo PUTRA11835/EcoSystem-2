@@ -832,9 +832,15 @@ function aiAnalysisPanelHtml(s) {
     const status = s.ai_analysis_status || null;
     const isRunning = 'pending' === status;
     const hasResult = !isRunning && !!s.ai_analysis;
-    const timeNote = (hasResult && s.ai_analysis_generated_at)
+    const timeNote = ((hasResult || s.ai_analysis_restricted) && s.ai_analysis_generated_at)
         ? `<span class="text-[11px] text-gray-400 ml-2">Analyzed ${timeAgo(s.ai_analysis_generated_at)}</span>`
         : '';
+    // ai_analysis_restricted (lihat StagingTicketController::canViewAiAnalysis()):
+    // hasResult sengaja tetap FALSE untuk kasus ini (bukan bug) — tombol
+    // Re-analyze TIDAK ditampilkan supaya validator yang tidak punya izin
+    // credential tidak bisa tanpa sengaja menimpa analisa lama yang lebih
+    // lengkap (analisa baru dari akun ini tidak akan menyertakan catatan
+    // credential sama sekali, karena gerbangnya di sisi PEMICU analisa).
     const reanalyzeBtn = (hasResult || status === 'failed')
         ? `<button type="button" onclick="runAiAnalysis(${s.id}, true)" class="ml-auto text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
                <i class="fas fa-rotate-right text-[10px]"></i> Re-analyze
@@ -864,6 +870,18 @@ function aiAnalysisPanelHtml(s) {
     let bodyHtml;
     if (hasResult) {
         bodyHtml = renderAiAnalysisBody(s.ai_analysis);
+    } else if (s.ai_analysis_restricted) {
+        // Analisa SUDAH ada (status completed), tapi disembunyikan dari viewer
+        // ini — bukan "belum dianalisa" (jangan tampilkan spinner/Connecting…
+        // yang menyesatkan seolah masih berjalan).
+        bodyHtml = `
+            <div class="flex items-start gap-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3.5 py-3">
+                <i class="fas fa-lock text-gray-400 mt-0.5"></i>
+                <div>
+                    <p class="font-semibold text-gray-700">This ticket's AI analysis is hidden from you</p>
+                    <p class="text-xs text-gray-500 mt-1">It may reference this customer's stored credential notes. Ask an admin for "Customer Credential" access if you need to view it, or fill in the classification (Type/Priority/Scale/Module) manually below.</p>
+                </div>
+            </div>`;
     } else if ('failed' === status) {
         bodyHtml = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> AI analysis failed for this ticket. Click Re-analyze to try again, or fill in the classification (Type/Priority/Scale/Module) manually.</p>`;
     } else {
@@ -1157,7 +1175,17 @@ async function runAiAnalysis(id, force = false) {
             data = doneData;
         } else {
             const json = await res.json();
-            if (!json.success) throw new Error(json.message || 'Request failed');
+            if (!json.success) {
+                const err = new Error(json.message || 'Request failed');
+                // 'restricted' (lihat StagingTicketController::analyze()): analisa
+                // SUDAH ada, cuma disembunyikan dari actor ini karena izin
+                // credential — beda dari kegagalan AI sungguhan, jangan ditandai
+                // status 'failed' (itu akan memunculkan tombol Re-analyze yang,
+                // kalau diklik, justru MENIMPA analisa lengkap yang sudah ada
+                // dengan versi baru tanpa konteks credential).
+                err.status = json.status || null;
+                throw err;
+            }
             data = json.data;
         }
 
@@ -1175,8 +1203,14 @@ async function runAiAnalysis(id, force = false) {
         autoFillEmptyFromAi(data);
         refreshAiAnalysisPanel(id);
     } catch (e) {
+        const isRestricted = 'restricted' === e.status;
         if (currentStagingData && currentStagingData.id === id) {
-            currentStagingData.ai_analysis_status = 'failed';
+            // 'restricted': status SEBENARNYA masih 'completed' di server (ada
+            // hasil, cuma disembunyikan) — jangan ditimpa 'failed', supaya
+            // tombol Re-analyze (yang bisa menimpa analisa lengkap yang sudah
+            // ada) tidak ikut muncul untuk actor yang tidak berhak lihat itu.
+            currentStagingData.ai_analysis_status = isRestricted ? 'completed' : 'failed';
+            if (isRestricted) currentStagingData.ai_analysis_restricted = true;
         }
         // Refresh dulu (supaya header ikut ter-render ulang — kalau tidak,
         // tombol Re-analyze tetap hilang karena disembunyikan saat status
@@ -1184,8 +1218,10 @@ async function runAiAnalysis(id, force = false) {
         // spesifik dari server (mis. rate limit/config) alih-alih pesan
         // generik "gagal" dari aiAnalysisPanelHtml().
         refreshAiAnalysisPanel(id);
-        const freshBody = document.getElementById('aiAnalysisBody');
-        if (freshBody) freshBody.innerHTML = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> ${escHtml(e.message || 'AI analysis failed. Please fill in the classification manually.')}</p>`;
+        if (!isRestricted) {
+            const freshBody = document.getElementById('aiAnalysisBody');
+            if (freshBody) freshBody.innerHTML = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> ${escHtml(e.message || 'AI analysis failed. Please fill in the classification manually.')}</p>`;
+        }
     } finally {
         // WAJIB finally, bukan ditaruh lepas di akhir try/catch: harus tetap
         // kelepas apa pun jalur keluarnya (sukses, gagal, atau exception tak

@@ -298,9 +298,16 @@ class StagingTicketService
             ]);
 
             // Modul dipilih VALIDATOR di modal approve (biasanya pre-filled dari
-            // saran AI, lihat AiTicketAnalyzerService) — staging_tickets.module_id
-            // sendiri TIDAK pernah dipakai sebagai sumber di sini; kolom itu tidak
-            // pernah benar-benar terisi lewat jalur mana pun hari ini.
+            // saran AI, lihat AiTicketAnalyzerService) — $moduleIds ini SATU-
+            // SATUNYA sumber untuk modul ticket hasil approve. staging_tickets.
+            // module_id (kolom legacy singular) memang masih ditulis di
+            // StagingTicketController::approve() dan dipakai buat pre-fill
+            // dropdown modul saat modal dibuka (lihat staging/index.blade.php,
+            // setApproveModule(s.module_id, ...)) — tapi TIDAK dibaca lagi di
+            // sini, jadi kalau validator mengubah pilihan modul sebelum submit,
+            // staging_tickets.module_id bisa berbeda dari ticket.module_id hasil
+            // akhir. Itu sudah cukup: kolom ini cuma untuk pre-fill UI, bukan
+            // sumber kebenaran ticket.
             $ticket->syncModules($moduleIds);
 
             // Update staging → approved, simpan FK ke ticket

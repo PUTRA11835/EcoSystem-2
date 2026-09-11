@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\RoleId;
 use App\Models\AuditLog;
 use App\Models\Customer;
+use App\Models\CustomerCredential;
 use App\Models\Employee;
 use App\Models\StagingAttachment;
 use App\Models\StagingTicket;
@@ -125,6 +126,8 @@ class StagingTicketController extends Controller
             'ip'          => $request->ip(),
         ]);
 
+        $isCustomerViewer = RoleId::EC_USER->value === $roleId;
+
         if (in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value, RoleId::EC_USER->value], RoleId::STAGING_GROUP), true)) {
             $query = StagingTicket::query();
         } else {
@@ -139,7 +142,14 @@ class StagingTicketController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
-        if ($request->filled('customer_id')) {
+        // Customer (EC_USER): SELALU dipaksa ke customer_id sesi sendiri, tidak
+        // pernah percaya customer_id dari request — supaya satu akun customer
+        // tidak bisa mengintip staging ticket customer lain sekadar dengan
+        // mengganti/menghapus parameter query-nya. Staff internal boleh filter
+        // customer_id manapun seperti biasa.
+        if ($isCustomerViewer) {
+            $query->where('customer_id', (int) $sessionUser['id']);
+        } elseif ($request->filled('customer_id')) {
             $query->where('customer_id', $request->customer_id);
         }
 
@@ -164,9 +174,22 @@ class StagingTicketController extends Controller
             'user_id' => $sessionUser['id'] ?? null,
         ]);
 
+        // Gerbang ai_analysis (lihat canViewAiAnalysis()) — dihitung SEKALI untuk
+        // seluruh halaman, bukan per baris, supaya tidak N+1.
+        $hasCredentialPermission = false;
+        $customerIdsWithCredentials = [];
+        if (!$isCustomerViewer) {
+            $hasCredentialPermission = (bool) Employee::find($sessionUser['id'] ?? null)?->hasMenuPermission('customer.section.credential.view');
+            if (!$hasCredentialPermission) {
+                $customerIdsWithCredentials = CustomerCredential::whereIn('customer_id', $data->pluck('customer_id')->unique()->filter())
+                    ->pluck('customer_id')
+                    ->all();
+            }
+        }
+
         return response()->json([
             'success' => true,
-            'data'    => $data->map(fn ($s) => $this->formatStaging($s)),
+            'data'    => $data->map(fn ($s) => $this->formatStaging($s, $isCustomerViewer, $hasCredentialPermission, $customerIdsWithCredentials)),
             'meta'    => [
                 'total'        => $data->total(),
                 'per_page'     => $data->perPage(),
@@ -185,11 +208,42 @@ class StagingTicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
+        // Sama seperti index(): role harus salah satu yang boleh melihat staging
+        // ticket sama sekali. Dulu endpoint ini TIDAK punya gerbang role apa pun
+        // (cuma cek login) — siapa pun yang sudah login (termasuk akun customer
+        // lain) bisa membaca detail staging ticket manapun lewat ID sekadar
+        // dengan menebak angka di URL.
+        $roleId = $sessionUser['role']['id'] ?? null;
+        $isCustomerViewer = RoleId::EC_USER->value === $roleId;
+        $allowedRoles = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value, RoleId::EC_USER->value], RoleId::STAGING_GROUP);
+        if (!in_array($roleId, $allowedRoles, true)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
         try {
             $staging = StagingTicket::with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData', 'ticket', 'attachments'])
                 ->findOrFail($id);
 
-            return response()->json(['success' => true, 'data' => $this->formatStaging($staging)]);
+            // Customer hanya boleh lihat staging ticket miliknya sendiri —
+            // tanpa ini, EC_USER yang tahu/menebak ID staging ticket customer
+            // lain bisa membaca seluruh detailnya (email, body, attachment).
+            if ($isCustomerViewer && (int) $staging->customer_id !== (int) $sessionUser['id']) {
+                return response()->json(['success' => false, 'message' => 'Staging ticket not found.'], 404);
+            }
+
+            $hasCredentialPermission = false;
+            $customerIdsWithCredentials = [];
+            if (!$isCustomerViewer && $staging->customer_id) {
+                $hasCredentialPermission = (bool) Employee::find($sessionUser['id'] ?? null)?->hasMenuPermission('customer.section.credential.view');
+                if (!$hasCredentialPermission && CustomerCredential::where('customer_id', $staging->customer_id)->exists()) {
+                    $customerIdsWithCredentials = [$staging->customer_id];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data'    => $this->formatStaging($staging, $isCustomerViewer, $hasCredentialPermission, $customerIdsWithCredentials),
+            ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['success' => false, 'message' => 'Staging ticket not found.'], 404);
         } catch (\Throwable $e) {
@@ -638,6 +692,24 @@ class StagingTicketController extends Controller
             $staging->refresh();
 
             if ('completed' === $staging->ai_analysis_status && $staging->ai_analysis) {
+                // Cache ini bisa saja dibuat oleh actor LAIN (siapa pun yang
+                // memicu analyze() pertama kali) yang punya izin credential —
+                // gerbang yang sama dengan canViewAiAnalysis()/formatStaging()
+                // supaya jalur "sudah completed, tinggal kembalikan cache" ini
+                // tidak jadi jalan belakang buat actor yang tidak punya izin.
+                $hasCredentialPermission = (bool) Employee::find($sessionUser['id'] ?? null)?->hasMenuPermission('customer.section.credential.view');
+                $customerIdsWithCredentials = (!$hasCredentialPermission && $staging->customer_id && CustomerCredential::where('customer_id', $staging->customer_id)->exists())
+                    ? [$staging->customer_id]
+                    : [];
+
+                if (!$this->canViewAiAnalysis(false, $hasCredentialPermission, $staging->customer_id, $customerIdsWithCredentials)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'This ticket already has an AI analysis, but it references this customer\'s stored credential notes. You need "Customer Credential" view access to see it — ask an admin, or fill in the classification manually.',
+                        'status'  => 'restricted',
+                    ], 403);
+                }
+
                 return response()->json(['success' => true, 'data' => $staging->ai_analysis]);
             }
 
@@ -1925,8 +1997,47 @@ class StagingTicketController extends Controller
 
     // ─── Private formatter ────────────────────────────────────────────────────
 
-    private function formatStaging(StagingTicket $s): array
+    /**
+     * Siapa boleh benar-benar membaca isi staging_tickets.ai_analysis:
+     *   - Customer (bukan employee): TIDAK PERNAH — itu catatan kerja internal
+     *     validator (termasuk saran assignee, dugaan akar masalah), bukan
+     *     sesuatu yang ditujukan untuk customer baca sendiri.
+     *   - Staff internal: boleh, KECUALI staging ticket ini milik customer yang
+     *     punya catatan credential tersimpan (CustomerCredential) DAN staff ini
+     *     sendiri tidak punya izin 'customer.section.credential.view'.
+     *     AiTicketAnalyzerService::resolveCredentialContext() bisa menyerap
+     *     catatan credential itu ke dalam ai_analysis berdasarkan izin siapa
+     *     pun yang MEMICU analisa-nya (lihat CustomerCredential::contextNotesFor())
+     *     — bukan siapa yang MEMBACA hasilnya sekarang. Tanpa gerbang ini,
+     *     validator lain yang sebenarnya tidak punya izin credential bisa
+     *     membaca cache ai_analysis itu dan diam-diam melihat info credential
+     *     lewat jalan belakang.
+     *
+     * @param array<int, int> $customerIdsWithCredentials customer_id yang PUNYA
+     *        baris di customer_credential — dihitung SEKALI per request (lihat
+     *        index()/show()), bukan query per baris, supaya tidak N+1.
+     */
+    private function canViewAiAnalysis(bool $isCustomerViewer, bool $hasCredentialPermission, ?int $customerId, array $customerIdsWithCredentials): bool
     {
+        if ($isCustomerViewer) {
+            return false;
+        }
+
+        if (!$customerId || !in_array($customerId, $customerIdsWithCredentials, true)) {
+            return true;
+        }
+
+        return $hasCredentialPermission;
+    }
+
+    private function formatStaging(
+        StagingTicket $s,
+        bool $isCustomerViewer = true,
+        bool $hasCredentialPermission = false,
+        array $customerIdsWithCredentials = []
+    ): array {
+        $canViewAi = $this->canViewAiAnalysis($isCustomerViewer, $hasCredentialPermission, $s->customer_id, $customerIdsWithCredentials);
+
         $customerName = null;
         if ($s->customer) {
             $bd = $s->customer->basicData;
@@ -1993,11 +2104,15 @@ class StagingTicketController extends Controller
             'module'              => $s->module,
             'module_id'           => $s->module_id,
             'client'              => $s->client,
-            // Analisa AI (cache — lihat AiTicketAnalyzerService)
-            'ai_analysis'              => $s->ai_analysis,
+            // Analisa AI (cache — lihat AiTicketAnalyzerService). Digerbangi
+            // canViewAiAnalysis() — lihat docblock method itu. ai_analysis_restricted
+            // biar frontend bisa kasih pesan yang jelas ("ada hasil tapi disembunyikan
+            // dari Anda"), bukan cuma diam-diam kosong seperti "belum pernah dianalisa".
+            'ai_analysis'              => $canViewAi ? $s->ai_analysis : null,
             'ai_analysis_generated_at' => $s->ai_analysis_generated_at?->toIso8601String(),
             'ai_analysis_status'       => $s->ai_analysis_status,
             'ai_analysis_stale'        => $this->isAiAnalysisStale($s),
+            'ai_analysis_restricted'   => !$canViewAi && null !== $s->ai_analysis,
         ];
     }
 

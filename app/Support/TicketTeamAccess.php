@@ -117,11 +117,16 @@ final class TicketTeamAccess
             ->where('e.is_active', true)
             // Employee yang di-block atau ditandai untuk dihapus di Basic Data
             // tidak boleh muncul sebagai kandidat, meskipun dia qualified/module lead.
+            // Employee TANPA basic data (leftJoin, bd.employee_id NULL) tetap
+            // eligible — disamakan persis dengan Employee::scopeEligibleForTicketTeam()
+            // supaya dropdown kandidat ini dan validasi assignment akhir
+            // (TicketTeamAccess::isEligibleEmployee(), yang lewat scope itu) tidak
+            // pernah berselisih soal siapa yang dianggap eligible.
             ->where(function ($q) {
-                $q->whereNull('bd.block')->orWhere('bd.block', false);
-            })
-            ->where(function ($q) {
-                $q->whereNull('bd.deletion_flag')->orWhere('bd.deletion_flag', false);
+                $q->whereNull('bd.employee_id')
+                  ->orWhere(function ($q2) {
+                      $q2->where('bd.block', false)->where('bd.deletion_flag', false);
+                  });
             })
             ->select(
                 'e.employee_id',
@@ -188,5 +193,19 @@ final class TicketTeamAccess
     public static function isEligibleEmployee(int $employeeId): bool
     {
         return Employee::eligibleForTicketTeam()->where('employee_id', $employeeId)->exists();
+    }
+
+    /**
+     * Siapa boleh pakai AI Research untuk tiket ini: Ticket Lead/member tiket
+     * ini, ATAU EC Administrator. Dipakai bareng oleh AiResearchController::
+     * openForTicket() (gerbang endpoint) dan ticket/show.blade.php (tampil/
+     * sembunyi tombol) — satu tempat supaya kedua sisi tidak bisa diam-diam
+     * melenceng kalau aturan admin-bypass ini berubah nanti. $isAdmin dihitung
+     * oleh caller sendiri (Employee/SessionUser punya hasRole() masing-masing,
+     * tidak ada tipe yang sama-sama dipakai keduanya untuk digenggam di sini).
+     */
+    public static function canAccessAiResearch(?int $employeeId, Ticket $ticket, bool $isAdmin): bool
+    {
+        return $isAdmin || self::isLeadOrMember($employeeId, $ticket);
     }
 }
