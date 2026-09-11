@@ -593,9 +593,17 @@ function fillModal(s) {
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module</label>
-                        <input type="text" id="approveModule" maxlength="255"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all"
-                               placeholder="Related module">
+                        <select id="approveModule"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                            <option value="">-- none --</option>
+                            @foreach ($modules as $moduleOption)
+                            <option value="{{ $moduleOption['id'] }}">{{ $moduleOption['name'] }}</option>
+                            @endforeach
+                        </select>
+                        {{-- Modul yang tertulis di staging tapi tidak cocok dengan Master Module
+                             (tiket email menulisnya sebagai teks bebas) ditampilkan sebagai
+                             patokan, bukan diam-diam hilang. --}}
+                        <p id="approveModuleHint" class="text-[11px] text-gray-400 mt-1 hidden"></p>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1.5">Client</label>
@@ -708,13 +716,13 @@ function fillModal(s) {
         const prefill = [
             ['approveName',   s.name   ?? ''],
             ['approveNoHp',   s.no_hp  ?? ''],
-            ['approveModule', s.module ?? ''],
             ['approveClient', s.client ?? ''],
         ];
         prefill.forEach(([id, val]) => {
             const el = document.getElementById(id);
             if (el) el.value = val;
         });
+        setApproveModule(s.module_id ?? null, s.module ?? '');
         // Pre-select type if staging already has a value
         if (s.ticket_type) {
             const typeEl = document.getElementById('approveTicketType');
@@ -1036,12 +1044,15 @@ function autoFillEmptyFromAi(data) {
         ['approveTicketType', data.suggested_ticket_type],
         ['approvePriority',   data.suggested_priority],
         ['approveScale',      data.suggested_scale],
-        ['approveModule',     data.suggested_module_name],
     ].forEach(([id, val]) => {
         if (!val) return;
         const el = document.getElementById(id);
         if (el && !el.value) el.value = val;
     });
+    const moduleEl = document.getElementById('approveModule');
+    if (moduleEl && !moduleEl.value && data.suggested_module_name) {
+        setApproveModule(null, data.suggested_module_name);
+    }
 }
 
 // Paksa terapkan saran AI terakhir ke form (dipanggil manual dari panel).
@@ -1052,7 +1063,7 @@ function applyAiSuggestions() {
     setVal('approveTicketType', d.suggested_ticket_type);
     setVal('approvePriority',   d.suggested_priority);
     setVal('approveScale',      d.suggested_scale);
-    setVal('approveModule',     d.suggested_module_name);
+    if (d.suggested_module_name) setApproveModule(null, d.suggested_module_name);
     showNotif('AI suggestions applied to form.', 'success');
 }
 
@@ -1218,13 +1229,49 @@ function cancelReject() {
     if (currentStagingData) renderFooter(currentStagingData);
 }
 
+/**
+ * Pilih modul di dropdown berdasarkan id (kalau staging sudah punya module_id)
+ * atau berdasarkan NAMA (tiket email menyimpan modul sebagai teks bebas).
+ * Nama yang tidak cocok baris mana pun ditampilkan sebagai hint, supaya
+ * helpdesk tahu apa yang tertulis sebelumnya dan bisa memilih padanannya.
+ */
+function setApproveModule(moduleId, moduleName) {
+    const el   = document.getElementById('approveModule');
+    const hint = document.getElementById('approveModuleHint');
+    if (!el) return;
+
+    let matched = '';
+    if (moduleId) {
+        matched = [...el.options].some(o => o.value === String(moduleId)) ? String(moduleId) : '';
+    }
+    if (!matched && moduleName) {
+        const needle = String(moduleName).trim().toLowerCase();
+        matched = [...el.options].find(o => o.value && o.textContent.trim().toLowerCase() === needle)?.value ?? '';
+    }
+    el.value = matched;
+
+    if (hint) {
+        const stale = !matched && moduleName ? String(moduleName).trim() : '';
+        hint.textContent = stale ? `Tertulis di tiket: "${stale}" — tidak ada di Master Module.` : '';
+        hint.classList.toggle('hidden', stale === '');
+    }
+}
+
+/** Nama modul terpilih — ikut dikirim supaya kolom teks `module` tetap konsisten. */
+function selectedApproveModuleName() {
+    const el = document.getElementById('approveModule');
+    if (!el || !el.value) return '';
+    return el.options[el.selectedIndex]?.textContent.trim() ?? '';
+}
+
 async function submitApprove(id) {
     const ticketType        = document.getElementById('approveTicketType')?.value ?? '';
     const priority          = document.getElementById('approvePriority')?.value   ?? '';
     const scale             = document.getElementById('approveScale')?.value      ?? '';
     const name              = document.getElementById('approveName')?.value.trim()   ?? '';
     const noHp              = document.getElementById('approveNoHp')?.value.trim()   ?? '';
-    const module            = document.getElementById('approveModule')?.value.trim() ?? '';
+    const moduleId          = document.getElementById('approveModule')?.value || null;
+    const module            = selectedApproveModuleName();
     const client            = document.getElementById('approveClient')?.value.trim() ?? '';
     const deliverySupportId = _stagingDsSelected.id || null;
     const endCustomerId     = document.getElementById('approveEndCustomer')?.value || null;
@@ -1260,7 +1307,10 @@ async function submitApprove(id) {
             scale:                scale  || null,
             name:                 name   || null,
             no_hp:                noHp   || null,
-            module:               module || null,
+            // Modul hanya ditimpa kalau helpdesk benar-benar memilih. Dibiarkan
+            // "-- none --" berarti teks modul asli dari staging tetap tersimpan
+            // (tiket email lama menulis modul sebagai teks bebas).
+            ...(moduleId ? { module: module, module_id: moduleId } : { module_id: null }),
             client:               client || null,
             delivery_support_id:  deliverySupportId,
             end_customer_id:      endCustomerId,

@@ -9,6 +9,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\DeliveryProjectIssueController;
 use App\Http\Controllers\DeliveryProjectWricefController;
+use App\Http\Controllers\DeliveryProjectStakeholderController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\DeliveryProjectController;
@@ -284,6 +285,11 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::post('/projects/{project}/close',  [DeliveryProjectController::class, 'close'])->name('projects.close')->middleware('menu:delivery-project.close-project');
     Route::post('/projects/{project}/reopen', [DeliveryProjectController::class, 'reopen'])->name('projects.reopen')->middleware('menu:delivery-project.close-project');
 
+    // Export daftar project ke Excel. Wajib didaftarkan sebelum
+    // `projects/{project}` agar "export" tidak tertangkap sebagai {project}.
+    // Izinnya sama dengan halaman list — isinya memang data list yang sama.
+    Route::get('/projects/export', [DeliveryProjectController::class, 'export'])->name('projects.export')->middleware('menu:delivery.project');
+
     Route::get('/projects', [DeliveryProjectController::class, 'index'])->name('projects.index')->middleware('menu:delivery.project');
     Route::get('/projects/{project}', [DeliveryProjectController::class, 'show'])->name('projects.show')->middleware('menu:delivery.project');
 
@@ -445,6 +451,18 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::delete('/projects/{project}/wricefs/{wricef}',       [DeliveryProjectWricefController::class, 'destroy'])->name('projects.wricefs.destroy');
         // Verb DELETE diblokir edge/WAF di production — sediakan jalur POST.
         Route::post('/projects/{project}/wricefs/{wricef}/delete',  [DeliveryProjectWricefController::class, 'destroy'])->name('projects.wricefs.destroy.post');
+    });
+
+    // Stakeholder Register routes (AJAX CRUD on the project detail page)
+    Route::get('/projects/{project}/stakeholders',            [DeliveryProjectStakeholderController::class, 'apiIndex'])->name('projects.stakeholders.index')->middleware('menu:delivery-project.stakeholder.view');
+    Route::middleware(['menu:delivery-project.stakeholder.edit', 'project.editable'])->group(function () {
+        Route::put('/projects/{project}/stakeholders/{stakeholder}', [DeliveryProjectStakeholderController::class, 'update'])->name('projects.stakeholders.update');
+    });
+    Route::middleware(['menu:delivery-project.stakeholder.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/stakeholders',                       [DeliveryProjectStakeholderController::class, 'store'])->name('projects.stakeholders.store');
+        Route::delete('/projects/{project}/stakeholders/{stakeholder}',       [DeliveryProjectStakeholderController::class, 'destroy'])->name('projects.stakeholders.destroy');
+        // Verb DELETE diblokir edge/WAF di production — sediakan jalur POST.
+        Route::post('/projects/{project}/stakeholders/{stakeholder}/delete',  [DeliveryProjectStakeholderController::class, 'destroy'])->name('projects.stakeholders.destroy.post');
     });
 
     // Profile routes
