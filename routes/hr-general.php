@@ -5,7 +5,12 @@ use App\Http\Controllers\HR_General\AttendanceRecapController;
 use App\Http\Controllers\HR_General\AttendanceSettingController;
 use App\Http\Controllers\HR_General\AttendanceSourceController;
 use App\Http\Controllers\HR_General\BranchController;
+use App\Http\Controllers\HR_General\CashAdvanceController;
+use App\Http\Controllers\HR_General\CashAdvanceReportController;
+use App\Http\Controllers\HR_General\CashAdvanceSettingController;
 use App\Http\Controllers\HR_General\DashboardAttendanceController;
+use App\Http\Controllers\HR_General\MyCashAdvanceController;
+use App\Http\Controllers\HR_General\MyCashAdvanceReportController;
 use App\Http\Controllers\HR_General\GeoLookupController;
 use App\Http\Controllers\HR_General\MyAttendanceController;
 use App\Http\Controllers\HR_General\MyOvertimeController;
@@ -328,6 +333,183 @@ Route::prefix('general')
                 Route::get('/{purchaseRequest}/print', [MyPurchaseRequestController::class, 'print'])->name('print');
                 Route::post('/{purchaseRequest}/cancel', [MyPurchaseRequestController::class, 'cancel'])->name('cancel');
             });
+
+        // =====================================================================
+        // MY CASH ADVANCE — pengajuan uang muka mandiri, untuk SELURUH karyawan
+        // =====================================================================
+        // Slug `general.my-cash-advance` menjaga pintunya, tetapi TIDAK menjawab
+        // "dokumen siapa ini?". Kepemilikan diperiksa di controller pada show,
+        // print, dan cancel — bukan hanya oleh tombol yang disembunyikan.
+        //
+        // 🔴 Modul ini mengeluarkan uang perusahaan. Membaca atau membatalkan
+        // dokumen rekan hanya dengan menebak id bukan kebocoran yang murah.
+        Route::prefix('my-cash-advance')
+            ->name('my-cash-advance.')
+            ->middleware('menu:general.my-cash-advance')
+            ->group(function () {
+                Route::get('/', [MyCashAdvanceController::class, 'index'])->name('index');
+                Route::get('/create', [MyCashAdvanceController::class, 'create'])->name('create');
+                Route::post('/', [MyCashAdvanceController::class, 'store'])->name('store');
+
+                // Didaftarkan SESUDAH /create agar tidak menangkapnya sebagai id
+                // dokumen — jebakan yang sudah terbukti di langkah P6.
+                Route::get('/{cashAdvance}', [MyCashAdvanceController::class, 'show'])->name('show');
+                Route::get('/{cashAdvance}/print', [MyCashAdvanceController::class, 'print'])->name('print');
+                Route::post('/{cashAdvance}/cancel', [MyCashAdvanceController::class, 'cancel'])->name('cancel');
+            });
+
+        // =====================================================================
+        // CASH ADVANCE — PENGELOLAAN (sisi HR / Finance / penyetuju)
+        // =====================================================================
+        // Slug dipisah berlapis (D77): membuka halaman, bertindak pada langkah,
+        // mengubah/menghapus, dan mengekspor adalah empat hak yang berbeda.
+        //
+        Route::prefix('cash-advance')->name('cash-advance.')->group(function () {
+
+            Route::get('/', [CashAdvanceController::class, 'index'])
+                ->name('index')
+                ->middleware('menu:general.cash-advance');
+
+            // ── Rute STATIS, WAJIB mendahului rute berparameter ──────────────
+            //
+            // 🔴 `/create` dan `/export` harus berada DI ATAS `/{cashAdvance}`,
+            // kalau tidak keduanya tertangkap sebagai id dokumen dan halamannya
+            // tidak pernah terbuka. Jebakan yang sudah terbukti di langkah P6.
+            Route::middleware('menu:general.cash-advance.create')->group(function () {
+                Route::get('/create', [CashAdvanceController::class, 'create'])->name('create');
+                Route::post('/', [CashAdvanceController::class, 'store'])->name('store');
+            });
+
+            Route::get('/export', [CashAdvanceController::class, 'export'])
+                ->name('export')
+                ->middleware('menu:general.cash-advance.export');
+
+            // ->withTrashed() disengaja pada SELURUH rute baca: dokumen yang
+            // dihapus tetap harus dapat dibuka, dicetak, dan diekspor — itulah
+            // gunanya soft delete (D109). Tanpa ini, filter "Status → Deleted"
+            // menampilkan baris yang tidak bisa diklik sama sekali.
+            Route::get('/{cashAdvance}', [CashAdvanceController::class, 'show'])
+                ->name('show')
+                ->middleware('menu:general.cash-advance')
+                ->withTrashed();
+
+            Route::get('/{cashAdvance}/print', [CashAdvanceController::class, 'print'])
+                ->name('print')
+                ->middleware('menu:general.cash-advance')
+                ->withTrashed();
+
+            // Bertindak pada langkah yang sedang menunggu DIRINYA. Slug ini
+            // hanya membuka pintunya; siapa yang ditunggu ditentukan langkah
+            // persetujuan milik dokumen itu sendiri.
+            Route::get('/{cashAdvance}/export', [CashAdvanceController::class, 'exportSingle'])
+                ->name('export.single')
+                ->middleware('menu:general.cash-advance.export')
+                ->withTrashed();
+
+            Route::middleware('menu:general.cash-advance.approve')->group(function () {
+                Route::post('/{cashAdvance}/approve', [CashAdvanceController::class, 'approve'])->name('approve');
+                Route::post('/{cashAdvance}/reject', [CashAdvanceController::class, 'reject'])->name('reject');
+            });
+
+            // Mengubah dokumen. Gerbang rutenya slug HALAMAN, bukan `.manage` —
+            // hak DAN keadaan dokumen diputuskan CashAdvanceController::
+            // canEditDocument(), karena "dokumen ini masih terbuka?" adalah
+            // pertanyaan yang tidak dapat dijawab slug mana pun. Pola yang sama
+            // dengan approve/reject, dan diperiksa ULANG di kedua method.
+            Route::middleware('menu:general.cash-advance')->group(function () {
+                Route::get('/{cashAdvance}/edit', [CashAdvanceController::class, 'edit'])->name('edit');
+                Route::post('/{cashAdvance}/update', [CashAdvanceController::class, 'update'])->name('update');
+            });
+
+            // Menghapus TETAP menuntut `.manage`. Memberi hak meninjau tidak
+            // boleh otomatis memberi hak menghapus dokumen yang menjadi dasar
+            // keluarnya uang perusahaan.
+            Route::post('/{cashAdvance}/delete', [CashAdvanceController::class, 'destroy'])
+                ->name('destroy')
+                ->middleware('menu:general.cash-advance.manage');
+        });
+
+        // =====================================================================
+        // MY CASH ADVANCE REPORT — pertanggungjawaban mandiri (ESS)
+        // =====================================================================
+        // 🔴 Dokumen ini SELALU lahir dari sebuah CA, jadi `/create` menuntut
+        // parameter `?ca=`. Kelayakan CA-nya diperiksa DUA KALI — saat form
+        // dibuka dan saat disimpan — karena data dapat berubah di antara
+        // keduanya.
+        Route::prefix('my-cash-advance-report')
+            ->name('my-cash-advance-report.')
+            ->middleware('menu:general.my-cash-advance-report')
+            ->group(function () {
+                Route::get('/', [MyCashAdvanceReportController::class, 'index'])->name('index');
+                Route::get('/create', [MyCashAdvanceReportController::class, 'create'])->name('create');
+                Route::post('/', [MyCashAdvanceReportController::class, 'store'])->name('store');
+
+                // Didaftarkan SESUDAH /create agar tidak menangkapnya sebagai id.
+                Route::get('/{cashAdvanceReport}', [MyCashAdvanceReportController::class, 'show'])->name('show');
+                Route::get('/{cashAdvanceReport}/print', [MyCashAdvanceReportController::class, 'print'])->name('print');
+                Route::post('/{cashAdvanceReport}/cancel', [MyCashAdvanceReportController::class, 'cancel'])->name('cancel');
+            });
+
+        // =====================================================================
+        // CASH ADVANCE REPORT — PENGELOLAAN (sisi HR / Finance / penyetuju)
+        // =====================================================================
+        // 🔴 Menyetujui langkah TERAKHIR di sini ikut MENUTUP BUKU CA induknya,
+        // dalam transaksi yang sama. Itulah alasan seluruh sub-modul ini ada.
+        //
+        Route::prefix('cash-advance-report')->name('cash-advance-report.')->group(function () {
+
+            Route::get('/', [CashAdvanceReportController::class, 'index'])
+                ->name('index')
+                ->middleware('menu:general.cash-advance-report');
+
+            // ── Rute STATIS, WAJIB mendahului rute berparameter ──────────────
+            //
+            // 🔴 `/create` menuntut `?ca=` — laporan tanpa uang muka induk tidak
+            // punya arti. Berbeda dari "New CA", TIDAK ada dropdown karyawan di
+            // sini: pemiliknya sudah ditentukan CA-nya.
+            Route::middleware('menu:general.cash-advance-report.create')->group(function () {
+                Route::get('/create', [CashAdvanceReportController::class, 'create'])->name('create');
+                Route::post('/', [CashAdvanceReportController::class, 'store'])->name('store');
+            });
+
+            Route::get('/export', [CashAdvanceReportController::class, 'export'])
+                ->name('export')
+                ->middleware('menu:general.cash-advance-report.export');
+
+            Route::get('/{cashAdvanceReport}', [CashAdvanceReportController::class, 'show'])
+                ->name('show')
+                ->middleware('menu:general.cash-advance-report')
+                ->withTrashed();
+
+            Route::get('/{cashAdvanceReport}/print', [CashAdvanceReportController::class, 'print'])
+                ->name('print')
+                ->middleware('menu:general.cash-advance-report')
+                ->withTrashed();
+
+            Route::get('/{cashAdvanceReport}/export', [CashAdvanceReportController::class, 'exportSingle'])
+                ->name('export.single')
+                ->middleware('menu:general.cash-advance-report.export')
+                ->withTrashed();
+
+            Route::middleware('menu:general.cash-advance-report.approve')->group(function () {
+                Route::post('/{cashAdvanceReport}/approve', [CashAdvanceReportController::class, 'approve'])->name('approve');
+                Route::post('/{cashAdvanceReport}/reject', [CashAdvanceReportController::class, 'reject'])->name('reject');
+            });
+
+            // Gerbang rutenya slug HALAMAN; hak `.manage` DAN keadaan laporan
+            // diputuskan canEditDocument(), lalu diperiksa ULANG di kedua method.
+            Route::middleware('menu:general.cash-advance-report')->group(function () {
+                Route::get('/{cashAdvanceReport}/edit', [CashAdvanceReportController::class, 'edit'])->name('edit');
+                Route::post('/{cashAdvanceReport}/update', [CashAdvanceReportController::class, 'update'])->name('update');
+            });
+
+            // 🔴 Menghapus laporan MEMBUKA KEMBALI buku CA induknya, dalam
+            // transaksi yang sama. Karena itu haknya terpisah dan tetap
+            // menuntut `.manage`.
+            Route::post('/{cashAdvanceReport}/delete', [CashAdvanceReportController::class, 'destroy'])
+                ->name('destroy')
+                ->middleware('menu:general.cash-advance-report.manage');
+        });
 
         // =====================================================================
         // REIMBURSEMENT — PENGELOLAAN (sisi HR / GA / penyetuju)
@@ -705,4 +887,46 @@ Route::prefix('general')
                             ->name('indicators');
                     });
             });
+    });
+
+/**
+ * =============================================================================
+ * CASH ADVANCE SETTINGS — DI LUAR PREFIX `general`, SENGAJA
+ * =============================================================================
+ *
+ * Prefix: /management/cash-advance-settings
+ * Slug  : management.cash-advance-settings   (induk menu `management`, id 59)
+ *
+ * 🔴 KENAPA GRUP TERPISAH (Keputusan D141). Halaman ini mengatur aturan uang
+ * muka, dan pemilik sistem meminta haknya dapat diberikan ke role mana pun —
+ * Finance, Accounting, Direksi — TANPA ikut membuka apa pun di dropdown
+ * "HR & General". Tiga sub-modul sebelumnya menaruh setelannya di
+ * `general/settings/*`, sehingga memberi hak itu berarti memberi slug yang
+ * serumah dengan absensi, lembur, dan reimbursement.
+ *
+ * Berkas rutenya TETAP di sini dan bukan di web.php: nama BERKAS tidak mengikat
+ * prefix URL, dan menaruhnya bersama sisa sub-modul membuat seluruh Cash Advance
+ * terbaca dalam satu tempat. Kontrak "berkas lama yang boleh disentuh" pun tidak
+ * bertambah — `routes/web.php` tidak ikut tersentuh.
+ *
+ * Aturan verb yang sama berlaku: HANYA GET & POST, akhiran aksi eksplisit.
+ */
+Route::prefix('management/cash-advance-settings')
+    ->name('management.cash-advance-settings.')
+    ->middleware([CheckAuthToken::class, 'menu:management.cash-advance-settings'])
+    ->group(function () {
+        Route::get('/', [CashAdvanceSettingController::class, 'edit'])->name('edit');
+        Route::post('/update', [CashAdvanceSettingController::class, 'update'])->name('update');
+
+        // Alur persetujuan. SATU set rute melayani DUA modul (cash_advance dan
+        // cash_advance_report) — modulnya dikirim sebagai field dan divalidasi
+        // terhadap daftar tertutup di controller (Keputusan D136).
+        //
+        // Perubahan di sini berlaku pada dokumen BARU; yang sedang berjalan
+        // memakai salinan langkah miliknya sendiri, kecuali `apply_to_open`
+        // dicentang saat MENAMBAH langkah (aturan asimetris D116).
+        Route::post('/steps', [CashAdvanceSettingController::class, 'storeStep'])->name('steps.store');
+        Route::post('/steps/{step}/update', [CashAdvanceSettingController::class, 'updateStep'])->name('steps.update');
+        Route::post('/steps/{step}/delete', [CashAdvanceSettingController::class, 'destroyStep'])->name('steps.destroy');
+        Route::post('/steps/{step}/move', [CashAdvanceSettingController::class, 'moveStep'])->name('steps.move');
     });

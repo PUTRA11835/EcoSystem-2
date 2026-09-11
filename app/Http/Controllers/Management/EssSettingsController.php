@@ -68,14 +68,28 @@ class EssSettingsController extends Controller
             'route' => 'general.my-purchase-request.index',
             'icon'  => 'fas fa-shopping-cart',
         ],
+        // Menunjuk halaman sungguhan sejak 8 Sep 2026 (sebelumnya null =
+        // coming-soon). 🔴 KUNCI array `advance_payment_ca` SENGAJA tidak
+        // diubah: kunci itulah yang tersimpan di JSON `ess_menu_settings`
+        // (tabel app_config). Menggantinya membuat setelan yang sudah
+        // disimpan tidak lagi cocok dan sakelarnya diam-diam kembali ke
+        // bawaan — pelajaran yang sama dengan `expense_reimbursement` dan
+        // `purchase_request`.
+        //
+        // Nama tampilannya POLOS mengikuti aturan penamaan D151: sisi ESS
+        // tanpa singkatan, sisi admin memakai (CA) / (CAR).
         'advance_payment_ca' => [
-            'name'  => 'Advance Payment (CA)',
-            'route' => null,
+            'name'  => 'Cash Advance',
+            'route' => 'general.my-cash-advance.index',
             'icon'  => 'fas fa-hand-holding-usd',
         ],
+        // Nama diselaraskan dengan aturan D151 (ESS polos). `route` TETAP null:
+        // halamannya baru dibangun di langkah R2, dan menunjuk nama rute yang
+        // belum ada menghasilkan 500, bukan halaman kosong. KUNCI array tidak
+        // diubah — kunci itulah yang tersimpan di `ess_menu_settings`.
         'advance_payment_car' => [
-            'name'  => 'Advance Payment Report (CAR)',
-            'route' => null,
+            'name'  => 'Cash Advance Report',
+            'route' => 'general.my-cash-advance-report.index',
             'icon'  => 'fas fa-file-contract',
         ],
         'loans' => [

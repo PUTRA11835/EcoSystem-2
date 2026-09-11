@@ -85,6 +85,26 @@
                 </div>
             </div>
 
+            {{-- Sakelar alat diagnosa lokasi di My Attendance (D173). Diletakkan tepat
+                 di bawah "Require location" karena keduanya satu keluarga: yang atas
+                 menentukan seberapa keras lokasi dituntut, yang ini menentukan apakah
+                 karyawan diberi alat untuk memeriksanya sendiri. --}}
+            <div class="border-t border-gray-100 pt-5">
+                <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" name="show_location_diagnostic" value="1"
+                           @checked(old('show_location_diagnostic', $settings->show_location_diagnostic))
+                           class="mt-0.5 w-4 h-4 rounded border-gray-300 text-red-800 focus:ring-red-800">
+                    <span>
+                        <span class="block text-sm font-semibold text-gray-800">Show the "Test location access" tool on My Attendance</span>
+                        <span class="block text-xs text-gray-500">
+                            Lets employees check what their browser reports — secure context, site permission,
+                            and a live GPS reading — without recording attendance. Useful when HR is investigating
+                            "I can't check in" reports; turn it off if it is more confusing than helpful.
+                        </span>
+                    </span>
+                </label>
+            </div>
+
             <div class="border-t border-gray-100 pt-5">
                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Accuracy Threshold (meters)</label>
                 <input type="number" name="min_accuracy_meters" min="10" max="5000" required
