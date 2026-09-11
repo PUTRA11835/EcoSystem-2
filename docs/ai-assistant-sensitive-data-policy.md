@@ -104,6 +104,15 @@ present in the live `menu` table), rather than the unrelated and currently
 unenforced `ticket.view-credential` slug this document originally
 considered.
 
+Two independent AI code paths check this slug, both against the same
+`Employee::hasMenuPermission()` call, so they can't drift apart:
+`TableAccess::authorizeQuery()` (query/aggregate tools, described above) and
+`CustomerCredential::contextNotesFor()` (`app/Models/CustomerCredential.php`)
+— used by `AiTicketAnalyzerService` and `AiTicketQaService` to fold a
+customer's credential notes into the Ticket Analyzer's prompt/Q&A context
+during staging-ticket validation, when the analyzing employee has the
+permission.
+
 ### 4. Security/audit trail
 
 | Table | Why |

@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Models\AiConversation;
 use App\Models\Employee;
 use App\Services\Ai\Drivers\AiDriverFactory;
 use App\Support\AiModelSettings;
@@ -17,6 +18,8 @@ use App\Services\Ai\Tools\QueryDataTool;
 use App\Services\SlaService;
 use Closure;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -25,13 +28,34 @@ use Throwable;
  * AiModelSettings' active provider — see AiDriverFactory), and streams text
  * deltas back to the caller as they arrive.
  *
- * No conversation content is ever written to the database — state lives only
- * in the 'ai_chat' cache store for a sliding 1-hour window (see cacheKey()).
+ * TWO LAYERS, same split as AiResearchService:
+ *   - cache 'ai_chat'    = working context sent to the model (sliding 24h TTL,
+ *     carries attachment bytes — see CACHE_TTL_MINUTES).
+ *   - ai_conversations/ai_messages (assistant = 'internal') = human-readable
+ *     archive (text only, no attachments, no tool_use/tool_result blocks) —
+ *     what lets a conversation survive navigating away and coming back, or
+ *     the cache simply expiring. See archiveTurn()/restoreFromArchive().
  */
 class AiChatService
 {
     private const CACHE_STORE = 'ai_chat';
-    private const CACHE_TTL_MINUTES = 60;
+
+    /**
+     * How long the working context (sent to the model, attachment bytes
+     * included) survives since the last message. Was 60 minutes; raised to
+     * 24 hours so a conversation left over lunch or overnight still has its
+     * full context — including images — instead of falling back to the
+     * text-only archive window after an hour of silence.
+     */
+    private const CACHE_TTL_MINUTES = 1440;
+
+    /**
+     * How many archived messages get reseeded into the model's context once
+     * the working cache has expired (not turns — one turn is 2 messages, so
+     * 20 ≈ 10 exchanges). Capped because the archive itself has no limit.
+     */
+    private const ARCHIVE_CONTEXT_MESSAGES = 20;
+
     // Was 6 when there were only 3-4 curated tools; a multi-hop question (resolve an
     // entity, then look up what it's related to) now routinely needs more round-trips
     // via list_tables/query_data/aggregate_data, so this was raised to 10.
@@ -68,8 +92,21 @@ class AiChatService
         Closure $isAborted,
     ): void {
         $cacheKey = $this->cacheKey($employee, $conversationId);
-        $state = Cache::store(self::CACHE_STORE)->get($cacheKey, ['messages' => []]);
-        $messages = $state['messages'] ?? [];
+        $messages = $this->readCache($cacheKey);
+
+        // Empty cache doesn't mean a brand-new conversation: the working
+        // window is 24h while the archive lasts for months (retention_days).
+        // Without this, reopening an older chat from the sidebar-less UI (the
+        // frontend restores the transcript from the archive too) would show
+        // the full history on screen while the model remembers nothing of it.
+        if (empty($messages)) {
+            $messages = $this->restoreFromArchive($employee, $conversationId);
+        }
+
+        // Turn boundary, used when archiving below — only this turn's
+        // messages get written to the archive, not the whole context that
+        // happens to be riding along in $messages.
+        $turnStart = count($messages);
 
         $messages[] = [
             'role' => 'user',
@@ -124,6 +161,206 @@ class AiChatService
             'model_tier' => $modelTier,
             'updated_at' => now()->toIso8601String(),
         ], now()->addMinutes(self::CACHE_TTL_MINUTES));
+
+        // Archive last and never fatal: the reply already reached the screen
+        // and the working context is already safe in cache, so a failure here
+        // only means this turn is missing from the readable history, not that
+        // anything the user saw is lost.
+        $this->archiveTurn(
+            employee: $employee,
+            conversationId: $conversationId,
+            modelTier: $modelTier,
+            userText: $userText,
+            attachmentCount: count($attachments),
+            turn: array_slice($messages, $turnStart),
+        );
+    }
+
+    /**
+     * Read the working context from cache, tolerating anything that isn't the
+     * plain-array shape this service always writes (a corrupt/foreign entry
+     * simply restarts the conversation instead of blowing up the request).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function readCache(string $cacheKey): array
+    {
+        $state = Cache::store(self::CACHE_STORE)->get($cacheKey);
+        $messages = is_array($state) ? ($state['messages'] ?? null) : null;
+
+        return is_array($messages) ? $messages : [];
+    }
+
+    /**
+     * How far the model's memory of this conversation currently reaches —
+     * used by the frontend to mark, in the restored transcript, the point
+     * before which the assistant no longer has the messages in context.
+     *
+     * @return array{warm: bool, window: int, ttl_minutes: int}
+     */
+    public function contextState(Employee $employee, string $conversationId): array
+    {
+        return [
+            'warm' => !empty($this->readCache($this->cacheKey($employee, $conversationId))),
+            'window' => self::ARCHIVE_CONTEXT_MESSAGES,
+            'ttl_minutes' => self::CACHE_TTL_MINUTES,
+        ];
+    }
+
+    /**
+     * Reduce one turn's worth of $messages (a user message, possibly followed
+     * by several assistant/tool_result round-trips) to the single user text +
+     * single assistant reply that the user actually saw, and archive it.
+     *
+     * Tool_use/tool_result blocks are intentionally never archived — they're
+     * mid-turn plumbing the user never sees, and the archive only exists to
+     * be read back as plain text (or reseeded as such, see
+     * restoreFromArchive()). The reply text mirrors exactly what onDelta
+     * streamed to the screen, since every assistant message's text blocks
+     * across every loop iteration are concatenated in order.
+     *
+     * @param array<int, array<string, mixed>> $turn
+     */
+    private function archiveTurn(
+        Employee $employee,
+        string $conversationId,
+        string $modelTier,
+        string $userText,
+        int $attachmentCount,
+        array $turn,
+    ): void {
+        try {
+            $reply = '';
+
+            foreach ($turn as $message) {
+                if ('assistant' !== ($message['role'] ?? null)) {
+                    continue;
+                }
+
+                foreach ($message['content'] as $block) {
+                    if ('text' === ($block['type'] ?? null)) {
+                        $reply .= (string) ($block['text'] ?? '');
+                    }
+                }
+            }
+
+            $reply = trim($reply);
+            $userText = trim($userText);
+
+            // A turn that never produced any visible text (aborted before the
+            // first token, or pure tool-use with nothing to say) isn't worth
+            // archiving — it would only leave an empty assistant bubble behind.
+            if ('' === $reply) {
+                return;
+            }
+
+            DB::transaction(function () use (
+                $employee, $conversationId, $modelTier, $userText, $attachmentCount, $reply
+            ): void {
+                $conversation = $this->findConversation($employee, $conversationId);
+
+                if (!$conversation) {
+                    $conversation = new AiConversation([
+                        'employee_id' => $employee->employee_id,
+                        'assistant' => AiConversation::ASSISTANT_INTERNAL,
+                        'conversation_id' => $conversationId,
+                        'title' => AiConversation::titleFrom($userText, $attachmentCount),
+                    ]);
+                }
+
+                $conversation->model_tier = $modelTier;
+                $conversation->last_message_at = now();
+                $conversation->save();
+
+                $rows = [];
+
+                if ('' !== $userText || $attachmentCount > 0) {
+                    $rows[] = [
+                        'role' => 'user',
+                        'content' => $userText,
+                        'attachment_count' => $attachmentCount,
+                    ];
+                }
+
+                $rows[] = ['role' => 'assistant', 'content' => $reply];
+
+                $conversation->messages()->createMany($rows);
+            });
+        } catch (Throwable $e) {
+            Log::warning('AI assistant archive write failed', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Reseed working context from the archive once the cache has expired.
+     * Mirrors AiResearchService::restoreFromArchive() — same shape, same
+     * reasoning (attachments were never archived, so a user turn that had
+     * any gets an explicit note instead of silently vanishing).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function restoreFromArchive(Employee $employee, string $conversationId): array
+    {
+        try {
+            $conversation = $this->findConversation($employee, $conversationId);
+
+            if (!$conversation) {
+                return [];
+            }
+
+            $rows = $conversation->messages()
+                ->reorder('id', 'desc')
+                ->limit(self::ARCHIVE_CONTEXT_MESSAGES)
+                ->get()
+                ->reverse()
+                ->values();
+
+            $messages = [];
+
+            foreach ($rows as $row) {
+                $text = trim((string) $row->content);
+
+                if ('' === $text && $row->attachment_count < 1) {
+                    continue;
+                }
+
+                if ('user' === $row->role && $row->attachment_count > 0) {
+                    $text = trim($text . "\n\n[This message originally carried " . $row->attachment_count
+                        . ' attachment(s) that are no longer available. If the answer depends on what they showed, '
+                        . 'ask the user to upload them again instead of guessing.]');
+                }
+
+                // First message of a restored context must be from the user —
+                // an assistant-first array is rejected by the API.
+                if (empty($messages) && 'user' !== $row->role) {
+                    continue;
+                }
+
+                $messages[] = [
+                    'role' => $row->role,
+                    'content' => [['type' => 'text', 'text' => $text]],
+                ];
+            }
+
+            return $messages;
+        } catch (Throwable $e) {
+            Log::warning('AI assistant archive restore failed', ['error' => $e->getMessage()]);
+
+            return [];
+        }
+    }
+
+    /**
+     * Conversation owned by THIS employee, or null. conversationId comes from
+     * the browser, so it's never trusted alone — the owner check is what
+     * stops one employee's UUID guess from reading another's archive.
+     */
+    private function findConversation(Employee $employee, string $conversationId): ?AiConversation
+    {
+        return AiConversation::where('employee_id', $employee->employee_id)
+            ->where('assistant', AiConversation::ASSISTANT_INTERNAL)
+            ->where('conversation_id', $conversationId)
+            ->first();
     }
 
     /**

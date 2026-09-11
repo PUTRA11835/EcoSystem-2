@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Exports\CustomerMdExport;
 use App\Exports\MdRecapExport;
 use App\Exports\ResolutionDaysExport;
 use App\Exports\TicketByModuleExport;
@@ -10,6 +11,7 @@ use App\Exports\TimesheetReportExport;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\CustomerMandays;
+use App\Models\DeliverySupportActivity;
 use App\Models\ReportingPeriod;
 use App\Models\Ticket;
 use App\Services\PeriodService;
@@ -635,6 +637,154 @@ class ReportingController extends Controller
 
         } catch (\Exception $e) {
             Log::error('exportResolutionDays error', ['msg' => $e->getMessage()]);
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // ── Web: Customer MD page ───────────────────────────────────────────────
+
+    public function customerMdIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        $employee = \App\Models\Employee::find($sessionUser->id);
+        if (!$employee || !$employee->canAccessMenu('reporting.customer-md')) {
+            abort(403, 'Access denied.');
+        }
+
+        return view('reporting.customer-md', ['user' => session('user')]);
+    }
+
+    /**
+     * Label tampilan status Customer Mandays untuk report ini. Hanya 5 status
+     * yang relevan — "approved" SENGAJA tidak termasuk: begitu Customer Mandays
+     * disetujui, tiketnya dianggap selesai tahap proposal dan tidak lagi
+     * ditampilkan di report tracking ini (lihat customerMdRows()).
+     *
+     * "Review by Module Lead" = label untuk status `pending_helpdesk` (proposal
+     * sudah disubmit PIC/Ticket Lead, sedang direview sebelum dikirim ke
+     * customer) — penamaan mengikuti istilah yang dipakai user, bukan nama
+     * status di database.
+     */
+    private const CUSTOMER_MD_STATUS_LABELS = [
+        'none'             => 'None',
+        'pic_draft'        => 'Draft',
+        'pending_helpdesk' => 'Review by Module Lead',
+        'sent_to_chat'     => 'Review by Customer',
+        'canceled'         => 'Cancel',
+    ];
+
+    /**
+     * Baris report Customer MD, dipakai bareng oleh endpoint JSON dan Export
+     * supaya keduanya selalu melihat data yang identik (single source of truth).
+     *
+     * Cakupan: semua tiket yang type-nya Change Request DAN/ATAU sudah punya
+     * Customer Mandays proposal (mandays_proposal_status bukan null/none),
+     * KECUALI yang sudah Approved — begitu disetujui, tiketnya keluar dari
+     * tracking report ini (lihat CUSTOMER_MD_STATUS_LABELS).
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function customerMdRows(): \Illuminate\Support\Collection
+    {
+        $tickets = Ticket::with(['customer.basicData', 'ticketLead.basicData'])
+            ->whereNull('deleted_at')
+            ->whereNull('is_hidden')
+            ->where(function ($q) {
+                // "Punya Customer Mandays" berarti statusnya bukan 'none' — kolom ini
+                // TIDAK PERNAH benar-benar NULL di DB (defaultnya string 'none'), jadi
+                // whereNotNull() di sini akan salah menangkap SEMUA tiket. whereNull()
+                // tetap disertakan sebagai jaga-jaga kalau skema kolom berubah nullable.
+                $q->where('ticket_type', 'Change Request')
+                  ->orWhere(function ($q2) {
+                      $q2->whereNotNull('mandays_proposal_status')
+                         ->where('mandays_proposal_status', '!=', 'none');
+                  });
+            })
+            ->where(function ($q) {
+                $q->whereNull('mandays_proposal_status')
+                  ->orWhere('mandays_proposal_status', '!=', 'approved');
+            })
+            ->orderByDesc('created_at')
+            ->get(['ticket_id', 'ticket_number', 'description', 'ticket_type', 'customer_id', 'ticket_lead_id', 'mandays_proposal_status', 'created_at']);
+
+        $ticketIds = $tickets->pluck('ticket_id');
+
+        // Satu tiket cuma bisa punya satu Delivery Support aktif (lihat
+        // [[project_changes_2026_07_02]] — aturan "one-DS-per-ticket").
+        $deliveryMap = DeliverySupportActivity::with('deliverySupport')
+            ->whereIn('ticket_id', $ticketIds)
+            ->whereNotNull('ticket_id')
+            ->get()
+            ->keyBy('ticket_id');
+
+        return $tickets->map(function (Ticket $ticket) use ($deliveryMap) {
+            $status = $ticket->mandays_proposal_status ?: 'none';
+
+            return [
+                'ticket_id'     => $ticket->ticket_id,
+                'ticket_number' => $ticket->ticket_number,
+                'description'   => $ticket->description,
+                'ticket_type'   => $ticket->ticket_type,
+                'customer_name' => $ticket->customer?->basicData?->name_1 ?? $ticket->customer?->email,
+                'delivery_name' => $deliveryMap->get($ticket->ticket_id)?->deliverySupport?->name,
+                'lead_name'     => $ticket->ticketLead
+                    ? trim(($ticket->ticketLead->basicData?->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData?->last_name ?? ''))
+                    : null,
+                'md_status'       => $status,
+                'md_status_label' => self::CUSTOMER_MD_STATUS_LABELS[$status] ?? $status,
+                'created_at'      => $ticket->created_at,
+            ];
+        })->values();
+    }
+
+    // ── API: Customer MD data ───────────────────────────────────────────────
+
+    public function customerMd(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.customer-md')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            return response()->json(['success' => true, 'data' => $this->customerMdRows()]);
+
+        } catch (\Exception $e) {
+            Log::error('customerMd error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load Customer MD data. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Customer MD export ──────────────────────────────────────────────
+
+    public function exportCustomerMd(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.customer-md')) {
+                abort(403, 'Access denied.');
+            }
+
+            $filename = 'Customer_MD_Export_' . now()->timezone('Asia/Jakarta')->format('dmY') . '.xlsx';
+
+            return Excel::download(new CustomerMdExport($this->customerMdRows()), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportCustomerMd error: ' . $e->getMessage());
             abort(500, $e->getMessage());
         }
     }

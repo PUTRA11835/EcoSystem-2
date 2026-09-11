@@ -247,7 +247,7 @@ class StagingTicketService
      * @throws \LogicException   jika staging sudah pernah diproses
      * @throws \RuntimeException jika DB transaction gagal
      */
-    public function approve(StagingTicket $staging, int $validatedBy, ?string $ticketType = null, ?string $ticketPriority = null, ?string $scale = null): array
+    public function approve(StagingTicket $staging, int $validatedBy, ?string $ticketType = null, ?string $ticketPriority = null, ?string $scale = null, array $moduleIds = []): array
     {
         // Guard: cegah double validation
         if ($staging->isProcessed()) {
@@ -256,7 +256,7 @@ class StagingTicketService
             );
         }
 
-        return DB::transaction(function () use ($staging, $validatedBy, $ticketType, $ticketPriority, $scale) {
+        return DB::transaction(function () use ($staging, $validatedBy, $ticketType, $ticketPriority, $scale, $moduleIds) {
 
             // Generate ticket number (format: YYMM####, locked against race condition)
             $ticketNumber = $this->ticketNumbers->generate();
@@ -292,11 +292,16 @@ class StagingTicketService
                 'name'               => $staging->name,
                 'no_hp'              => $staging->no_hp,
                 'module'             => $staging->module,
-                'module_id'          => $staging->module_id,
                 'client'             => $staging->client,
                 'submitted_by_email' => $staging->submitted_by_email,
                 'submitted_by_name'  => $staging->sender_name,
             ]);
+
+            // Modul dipilih VALIDATOR di modal approve (biasanya pre-filled dari
+            // saran AI, lihat AiTicketAnalyzerService) — staging_tickets.module_id
+            // sendiri TIDAK pernah dipakai sebagai sumber di sini; kolom itu tidak
+            // pernah benar-benar terisi lewat jalur mana pun hari ini.
+            $ticket->syncModules($moduleIds);
 
             // Update staging → approved, simpan FK ke ticket
             $staging->update([

@@ -47,11 +47,16 @@ class AuthController extends Controller
                 'ea.cell_phone as phone_number',
                 'eb.position',
                 'eb.employee_subgroup as department',
-                'eb.employee_type'
+                'eb.employee_type',
+                'eb.block',
+                'eb.deletion_flag'
             )
             ->first();
 
-        if (!$employee || !$employee->is_active) {
+        // Employee di-blok atau ditandai untuk dihapus di Master Employee (Basic
+        // Data) — perlakukan sama seperti is_active = false: tidak boleh login,
+        // dan sesi remember-me yang coba di-restore juga langsung gagal.
+        if (!$employee || !$employee->is_active || $employee->block || $employee->deletion_flag) {
             return null;
         }
 

@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiConversation;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Services\Ai\AiChatService;
 use App\Support\AiTextAttachment;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
@@ -14,10 +16,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /**
  * AI Assistant — chat backend.
  *
- * The chat endpoint streams its reply as Server-Sent Events. No conversation
- * content is ever persisted to the database — AiChatService keeps in-flight
- * conversation state in a dedicated file cache store with a 1-hour sliding
- * TTL (see config/cache.php 'ai_chat' store).
+ * The chat endpoint streams its reply as Server-Sent Events. In-flight
+ * conversation state (attachments included) lives in a dedicated file cache
+ * store with a 24-hour sliding TTL (see config/cache.php 'ai_chat' store);
+ * a text-only archive of each conversation is also kept in ai_conversations/
+ * ai_messages (assistant = 'internal') — see AiChatService's docblock for the
+ * split. conversation() below reads that archive so the frontend can restore
+ * the visible transcript after navigating away and back, independent of
+ * whatever's left of the working cache.
  */
 class AiAssistantController extends Controller
 {
@@ -39,15 +45,8 @@ class AiAssistantController extends Controller
             'files.*' => 'file|max:10240', // 10 MB per file
         ]);
 
+        $employee = $this->currentEmployee();
         $sessionUser = session('user');
-        if (!$sessionUser || 'employee' !== ($sessionUser['type'] ?? null)) {
-            abort(401);
-        }
-
-        $employee = Employee::find($sessionUser['id']);
-        if (!$employee) {
-            abort(401);
-        }
 
         $message = trim((string) ($validated['message'] ?? ''));
         $modelTier = $validated['model'] ?? 'default';
@@ -127,6 +126,67 @@ class AiAssistantController extends Controller
             'Cache-Control' => 'no-cache',
             'X-Accel-Buffering' => 'no',
         ]);
+    }
+
+    /**
+     * Archived transcript of one conversation — read by the frontend on page
+     * load (see assistant.blade.php's aiOpenConversation()) to restore the
+     * visible chat after navigating away and back, since the DOM/JS state
+     * that held it doesn't survive a full page load.
+     */
+    public function conversation(string $conversation): JsonResponse
+    {
+        $employee = $this->currentEmployee();
+        $row = $this->findOwnedConversation($employee, $conversation);
+
+        return response()->json([
+            'id' => $row->conversation_id,
+            'title' => $row->title,
+            // Where the model's actual memory currently ends, so the UI can
+            // mark it in the restored transcript instead of letting the user
+            // discover it from an answer that seems to have forgotten earlier
+            // messages.
+            'context' => app(AiChatService::class)->contextState($employee, $conversation),
+            'messages' => $row->messages->map(fn ($message) => [
+                'role' => $message->role,
+                'content' => $message->content,
+                'attachments' => $message->attachment_count,
+                'at' => optional($message->created_at)->toIso8601String(),
+            ])->all(),
+        ]);
+    }
+
+    private function currentEmployee(): Employee
+    {
+        $sessionUser = session('user');
+
+        if (!$sessionUser || 'employee' !== ($sessionUser['type'] ?? null)) {
+            abort(401);
+        }
+
+        $employee = Employee::find($sessionUser['id']);
+
+        if (!$employee) {
+            abort(401);
+        }
+
+        return $employee;
+    }
+
+    /**
+     * Conversation owned by the current employee, or 404.
+     *
+     * conversationId is a UUID supplied by the browser, so it's never trusted
+     * alone — without the owner check, pasting someone else's UUID would be
+     * enough to read their archived chat.
+     */
+    private function findOwnedConversation(Employee $employee, string $conversation): AiConversation
+    {
+        return AiConversation::with('messages')
+            ->where('employee_id', $employee->employee_id)
+            ->where('assistant', AiConversation::ASSISTANT_INTERNAL)
+            ->where('conversation_id', $conversation)
+            ->firstOrFail();
     }
 
     /**

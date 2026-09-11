@@ -201,7 +201,7 @@ class TicketViewController extends Controller
             // Get employees eligible for the member dropdown (role-based, configurable via
             // Management > Permissions — see ticket.eligible-ticket-member)
             $employees = Employee::withMenuPermission('ticket.eligible-ticket-member')
-                ->where('is_active', 1)
+                ->eligibleForTicketTeam()
                 ->with('basicData:employee_id,first_name,last_name')
                 ->get()
                 ->map(fn ($e) => [

@@ -14,17 +14,22 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
- * Tombol "AI Summarize" di daftar tiket.
+ * Tombol "AI Summarize" di panel kanan halaman detail tiket — ringkasan
+ * tiga-kartu (Issue/Resolution Steps/Conclusion), satu klik, hasilnya
+ * di-stream sebagai Server-Sent Events lalu disimpan ke cache dengan kunci
+ * ticket_id + MODEL AKTIF + SIDIK JARI ISI TIKET (lihat
+ * TicketSummaryContext::fingerprint).
  *
- * Hasilnya di-stream sebagai Server-Sent Events, pola yang sama dengan AI
- * Assistant, lalu disimpan ke cache dengan kunci ticket_id + MODEL AKTIF +
- * SIDIK JARI ISI TIKET (lihat TicketSummaryContext::fingerprint).
+ * Tanya-jawab lanjutan TIDAK lagi di sini — sudah dipindah ke tombol "Ask AI"
+ * yang mengarah ke AI Research (lihat AiResearchController::openForTicket()),
+ * bukan modal custom.
  *
- * Empat jenis event ke browser: `meta` (dari cache atau tidak), `delta` (potongan
- * teks), `status` (progres riset dokumentasi luar), dan `sources` (daftar rujukan
- * yang dibuka model) — dua yang terakhir berasal dari server tool web search
- * milik provider yang sedang aktif (lihat AiTicketSummaryService). Karena itu
- * yang masuk cache adalah ARRAY {text, sources}, bukan string; lihat CACHE_VERSION.
+ * Empat jenis event dari stream(): `meta` (dari cache atau tidak), `delta`
+ * (potongan teks), `status` (progres riset dokumentasi luar), dan `sources`
+ * (daftar rujukan yang dibuka model) — dua yang terakhir berasal dari server
+ * tool web search milik provider yang sedang aktif (lihat AiTicketSummaryService).
+ * Karena itu yang masuk cache adalah ARRAY {text, sources}, bukan string; lihat
+ * CACHE_VERSION.
  *
  * Kenapa sidik jari dan bukan TTL saja: begitu tiket menerima pembaruan apa pun
  * - pesan baru, status berubah, activity log bertambah, deliverable di-update,
@@ -66,7 +71,7 @@ class AiTicketSummaryController extends Controller
     /** Ukuran potongan saat memutar ulang ringkasan dari cache. */
     private const REPLAY_CHUNK = 240;
 
-    public function stream(Request $request, int $ticketId, AiTicketSummaryService $service, TicketSummaryContext $context): StreamedResponse
+    private function authorizeSummaryAccess(): Employee
     {
         $sessionUser = session('user');
         if (!$sessionUser || 'employee' !== ($sessionUser['type'] ?? null)) {
@@ -82,8 +87,11 @@ class AiTicketSummaryController extends Controller
             abort(403);
         }
 
-        $ticket = Ticket::findOrFail($ticketId);
+        return $employee;
+    }
 
+    private function summaryCacheKey(Ticket $ticket, TicketSummaryContext $context): string
+    {
         $fingerprint = $context->fingerprint($ticket);
         // Model IKUT masuk kunci, di samping sidik jari isi tiket: mengganti
         // model/provider di Control Center → AI Settings adalah perubahan di
@@ -92,9 +100,26 @@ class AiTicketSummaryController extends Controller
         // Claude selama 14 hari ke depan untuk setiap tiket yang sudah pernah
         // diringkas — dan tidak ada satu tombol pun untuk membatalkannya.
         $model = AiModelSettings::resolve(AiModelSettings::TICKET_SUMMARY)['model'];
-        $cacheKey = "ai_ticket_summary:" . self::CACHE_VERSION . ":{$model}:{$ticket->ticket_id}:{$fingerprint}";
-        $cached = Cache::get($cacheKey);
-        $cached = is_array($cached) ? $cached : null;
+
+        return "ai_ticket_summary:" . self::CACHE_VERSION . ":{$model}:{$ticket->ticket_id}:{$fingerprint}";
+    }
+
+    /** @return array{text: string, sources: array<int, array{url: string, title: string}>}|null */
+    private function cachedSummary(Ticket $ticket, TicketSummaryContext $context): ?array
+    {
+        $cached = Cache::get($this->summaryCacheKey($ticket, $context));
+
+        return is_array($cached) ? $cached : null;
+    }
+
+    public function stream(Request $request, int $ticketId, AiTicketSummaryService $service, TicketSummaryContext $context): StreamedResponse
+    {
+        $this->authorizeSummaryAccess();
+
+        $ticket = Ticket::findOrFail($ticketId);
+
+        $cacheKey = $this->summaryCacheKey($ticket, $context);
+        $cached = $this->cachedSummary($ticket, $context);
 
         // Lepas kunci file session sebelum stream panjang, supaya tab lain milik
         // user yang sama tidak ikut menunggu.
