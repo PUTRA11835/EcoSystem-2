@@ -254,7 +254,7 @@ window.saveQuickItem = function(event) {
         url: url,
         data: formData,
         headers: {
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
         }
     })
         .then(response => {
@@ -373,9 +373,9 @@ window.confirmDelete = function() {
         showNotification('Deleting...', 'info');
     }
 
-    axios.delete(`/delivery/support/${supportId}/planning/${idToDelete}`, {
+    axios.post(`/delivery/support/${supportId}/planning/${idToDelete}/delete`, {}, {
         headers: {
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
         }
     })
     .then(response => {

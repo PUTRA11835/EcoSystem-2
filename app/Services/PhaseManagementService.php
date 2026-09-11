@@ -281,7 +281,6 @@ class PhaseManagementService
                     'order_sequence' => $phase->order_sequence,
                     'color' => $phase->color,
                     'weight' => $phase->weight,
-                    'is_golive_phase' => $phase->is_golive_phase,
                     'is_visible' => $phase->is_visible,
                     'custom_settings' => $phase->custom_settings,
                     'is_system_default' => false,

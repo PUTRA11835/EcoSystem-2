@@ -6,10 +6,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
+use App\Traits\Auditable;
 
 class Timesheet extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, Auditable;
+
+    protected static ?string $auditModule = 'Calendar';
 
     protected $fillable = [
         'employee_id',
@@ -17,6 +20,7 @@ class Timesheet extends Model
         'activity_id', // Link to assigned activity
         'ticket_id',
         'date',
+        'activity_date',
         'start_time',
         'end_time',
         'duration_minutes',
@@ -38,6 +42,7 @@ class Timesheet extends Model
     protected $casts = [
         'employee_id'  => 'integer',
         'date'         => 'date',
+        'activity_date' => 'date',
         'approved_at'  => 'datetime',
         'is_billable'  => 'boolean',
     ];

@@ -108,7 +108,7 @@
 </div>
 
 <script>
-const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 let currentPage = 1;
 let totalPages  = 1;
 let selectedUuid = null;
@@ -121,7 +121,7 @@ async function loadJobs(page = 1) {
     document.getElementById('pagination').classList.add('hidden');
 
     try {
-        const res  = await fetch(`/api/admin/failed-jobs?page=${page}&per_page=20`, { credentials: 'same-origin' });
+        const res  = await fetch(`/api/admin/failed-jobs?page=${page}&per_page=200`, { credentials: 'same-origin' });
         const json = await res.json();
         if (!json.success) throw new Error(json.message);
 
@@ -241,10 +241,10 @@ async function retryJob(uuid) {
 }
 
 async function deleteJob(uuid) {
-    if (!confirm('Delete this failed job?')) return;
+    if (!await showConfirm('Delete this failed job?', 'Delete Failed Job', 'danger')) return;
     try {
-        const res  = await fetch(`/api/admin/failed-jobs/${uuid}`, {
-            method: 'DELETE',
+        const res  = await fetch(`/api/admin/failed-jobs/${uuid}/delete`, {
+            method: 'POST',
             credentials: 'same-origin',
             headers: { 'X-CSRF-TOKEN': CSRF },
         });
@@ -257,7 +257,7 @@ async function deleteJob(uuid) {
 }
 
 document.getElementById('btnRetryAll').addEventListener('click', async () => {
-    if (!confirm('Retry ALL failed jobs?')) return;
+    if (!await showConfirm('Retry ALL failed jobs?', 'Retry All Jobs', 'primary')) return;
     try {
         const res  = await fetch('/api/admin/failed-jobs/retry-all', {
             method: 'POST',
@@ -273,10 +273,10 @@ document.getElementById('btnRetryAll').addEventListener('click', async () => {
 });
 
 document.getElementById('btnClearAll').addEventListener('click', async () => {
-    if (!confirm('Clear ALL failed jobs? This cannot be undone.')) return;
+    if (!await showConfirm('Clear ALL failed jobs? This cannot be undone.', 'Clear All Jobs', 'danger')) return;
     try {
-        const res  = await fetch('/api/admin/failed-jobs', {
-            method: 'DELETE',
+        const res  = await fetch('/api/admin/failed-jobs/clear', {
+            method: 'POST',
             credentials: 'same-origin',
             headers: { 'X-CSRF-TOKEN': CSRF },
         });

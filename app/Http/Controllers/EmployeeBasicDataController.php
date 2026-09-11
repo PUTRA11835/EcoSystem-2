@@ -55,13 +55,14 @@ class EmployeeBasicDataController extends Controller
                         'employee_group' => null,
                         'employee_subgroup' => null,
                         'position' => null,
+                        'current_assignment' => null,
                         'division' => null,
                         'department' => null,
                         'direct_supervision' => null,
                         'manager' => null,
                         'authorization_group' => null,
                         'home_base' => null,
-                        'grade' => null,
+                        'employee_type' => null,
                         'block' => false,
                         'deletion_flag' => false,
                         'created_at' => null,
@@ -116,12 +117,12 @@ class EmployeeBasicDataController extends Controller
         // nullable field empty strings to null so nullable|in:, nullable|date,
         // and nullable|string rules pass correctly.
         $nullableFields = [
-            'title', 'nick_name', 'gender', 'religion', 'last_name',
+            'title', 'gender', 'religion', 'last_name',
             'search_term_1', 'search_term_2', 'marital_status',
             'birth_date', 'birth_place', 'since_date',
             'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
-            'position', 'division', 'department', 'direct_supervision',
-            'manager', 'authorization_group', 'home_base', 'grade',
+            'position', 'current_assignment', 'division', 'department', 'direct_supervision',
+            'manager', 'authorization_group', 'home_base',
         ];
         foreach ($nullableFields as $field) {
             if ($request->input($field) === '') {
@@ -129,10 +130,17 @@ class EmployeeBasicDataController extends Controller
             }
         }
 
+        // Cek apakah record sudah ada — diperlukan sebelum validasi agar unique rule
+        // bisa mengecualikan record milik employee ini sendiri saat update via POST.
+        $existingBasicData = EmployeeBasicData::where('employee_id', $employeeId)->first();
+        $nickNameUnique    = $existingBasicData
+            ? 'unique:employee_basic_data,nick_name,' . $existingBasicData->basic_data_id . ',basic_data_id'
+            : 'unique:employee_basic_data,nick_name';
+
         $validator = Validator::make($request->all(), [
             // Identitas Pribadi
-            'title' => 'nullable|string|max:10',
-            'nick_name' => 'nullable|string|max:100',
+            'title'     => 'nullable|string|max:10',
+            'nick_name' => 'required|string|max:100|' . $nickNameUnique,
             'gender' => 'nullable|string|max:10',
             'religion' => 'nullable|string|max:50',
             'first_name' => 'required|string|max:255',
@@ -156,13 +164,13 @@ class EmployeeBasicDataController extends Controller
             'employee_group' => 'nullable|string|max:100',
             'employee_subgroup' => 'nullable|string|max:100',
             'position' => 'nullable|string|max:255',
+            'current_assignment' => 'nullable|string|max:255',
             'division' => 'nullable|string|max:255',
             'department' => 'nullable|string|max:255',
             'direct_supervision' => 'nullable|string|max:255',
             'manager' => 'nullable|string|max:255',
             'authorization_group' => 'nullable|string|max:100',
             'home_base' => 'nullable|string|max:100',
-            'grade' => 'nullable|string|max:100',
 
             // Status Administrasi
             'block' => 'nullable|boolean',
@@ -170,6 +178,8 @@ class EmployeeBasicDataController extends Controller
         ], [
             'first_name.required' => 'First Name is required.',
             'first_name.max'      => 'First Name may not exceed 255 characters.',
+            'nick_name.required'  => 'Nick Name is required.',
+            'nick_name.unique'    => 'Nick Name is already taken. Please choose a different nick name.',
             'religion.in'         => 'Religion value is not valid.',
             'birth_date.date'     => 'Birth Date must be a valid date.',
             'since_date.date'     => 'Since Date must be a valid date.',
@@ -194,6 +204,8 @@ class EmployeeBasicDataController extends Controller
             // Prepare data
             $basicDataInput = $request->all();
             $basicDataInput['employee_id'] = $employeeId;
+            // Internal/External diturunkan dari home_base ("Others" → External).
+            $basicDataInput['employee_type'] = EmployeeBasicData::deriveEmployeeType($basicDataInput['home_base'] ?? null);
             
             // Auto-generate search_term_1 and search_term_2 if not provided
             if (empty($basicDataInput['search_term_1']) && !empty($basicDataInput['first_name'])) {
@@ -271,11 +283,11 @@ class EmployeeBasicDataController extends Controller
             }
 
             $nullableFields = [
-                'title', 'nick_name', 'gender', 'religion', 'last_name',
+                'title', 'gender', 'religion', 'last_name',
                 'search_term_1', 'search_term_2', 'marital_status',
                 'birth_date', 'birth_place', 'since_date',
                 'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
-                'position', 'division', 'department', 'direct_supervision',
+                'position', 'current_assignment', 'division', 'department', 'direct_supervision',
                 'manager', 'authorization_group',
             ];
             foreach ($nullableFields as $field) {
@@ -285,9 +297,9 @@ class EmployeeBasicDataController extends Controller
             }
 
             // Validate only provided fields
-            $validator = Validator::make($partialInput, [
+            $validator = Validator::make($request->all(), [
                 'title' => 'nullable|string|max:10',
-                'nick_name' => 'nullable|string|max:100',
+                'nick_name' => 'sometimes|required|string|max:100|unique:employee_basic_data,nick_name,' . $basicData->basic_data_id . ',basic_data_id',
                 'gender' => 'nullable|in:Male,Female',
                 'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
                 'first_name' => 'nullable|string|max:255',
@@ -303,16 +315,17 @@ class EmployeeBasicDataController extends Controller
                 'employee_group' => 'nullable|string|max:100',
                 'employee_subgroup' => 'nullable|string|max:100',
                 'position' => 'nullable|string|max:255',
+                'current_assignment' => 'nullable|string|max:255',
                 'division' => 'nullable|string|max:255',
                 'department' => 'nullable|string|max:255',
                 'direct_supervision' => 'nullable|string|max:255',
                 'manager' => 'nullable|string|max:255',
                 'authorization_group' => 'nullable|string|max:100',
                 'home_base' => 'nullable|string|max:100',
-                'grade' => 'nullable|string|max:100',
                 'block' => 'nullable|boolean',
                 'deletion_flag' => 'nullable|boolean',
             ], [
+                'nick_name.unique'  => 'Nick Name is already taken. Please choose a different nick name.',
                 'religion.in'       => 'Religion value is not valid.',
                 'birth_date.date'   => 'Birth Date must be a valid date.',
                 'since_date.date'   => 'Since Date must be a valid date.',
@@ -337,8 +350,8 @@ class EmployeeBasicDataController extends Controller
                 'first_name', 'last_name', 'search_term_1', 'search_term_2',
                 'marital_status', 'birth_date', 'birth_place', 'since_date',
                 'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup',
-                'position', 'division', 'department', 'direct_supervision',
-                'manager', 'authorization_group', 'home_base', 'grade', 'block', 'deletion_flag'
+                'position', 'current_assignment', 'division', 'department', 'direct_supervision',
+                'manager', 'authorization_group', 'home_base', 'block', 'deletion_flag'
             ]);
 
             // Auto-update search terms if names are updated
@@ -347,6 +360,11 @@ class EmployeeBasicDataController extends Controller
             }
             if (isset($updateData['last_name'])) {
                 $updateData['search_term_2'] = strtoupper($updateData['last_name']);
+            }
+
+            // Bila home_base ikut diupdate, sinkronkan employee_type ("Others" → External).
+            if (array_key_exists('home_base', $updateData)) {
+                $updateData['employee_type'] = EmployeeBasicData::deriveEmployeeType($updateData['home_base']);
             }
 
             // Set last changed info dengan ECI

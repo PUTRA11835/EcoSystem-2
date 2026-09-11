@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Enums\RoleId;
+use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\Customer;
@@ -16,6 +17,7 @@ use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Employee;
 use App\Models\EmployeeQualification;
+use App\Models\Timesheet;
 use App\Models\TicketMessage;
 
 class MandaysController extends Controller
@@ -24,31 +26,33 @@ class MandaysController extends Controller
     // AUTH HELPERS
     // =========================================================================
 
-    /** Return 403 response if session user's role is not in $allowed, else null. */
-    private function denyUnlessRole(array $allowed, string $msg = 'You do not have permission to perform this action.'): ?\Illuminate\Http\JsonResponse
+    /**
+     * Can this employee review/approve Resolution Days regardless of ticket participation?
+     * 'ticket.head-mandays' = Head of Support (also grants the ticket-detail review UI).
+     * 'ticket.approve-resolution-days' = separate slug for the Resolution Days report list
+     * (granted to Admin) — kept distinct so granting it doesn't also surface the
+     * Head-only ticket-detail sidebar sections for roles that shouldn't see those.
+     */
+    private function canReviewResolutionDays(?Employee $employee): bool
     {
-        $roleId = session('user')['role']['id'] ?? 0;
-        if (!in_array($roleId, $allowed, true)) {
-            return response()->json(['success' => false, 'message' => $msg], 403);
-        }
-        return null;
+        return (bool) ($employee?->canAccessMenu('ticket.head-mandays') || $employee?->canAccessMenu('ticket.approve-resolution-days'));
     }
 
-    /** Return 403 response if session user is not the PIC or a member of $ticket, else null. */
+    /** Return 403 if session user is not a PIC or member of $ticket. Head-level permission bypasses this check. */
     private function denyUnlessParticipant(Ticket $ticket, string $msg = 'You are not a participant of this ticket.'): ?\Illuminate\Http\JsonResponse
     {
-        $sessionUser = session('user');
-        $roleId      = $sessionUser['role']['id'] ?? 0;
-        $empId       = $sessionUser['id'] ?? null;
-
-        // Admins bypass participant check
-        if ($roleId === RoleId::ADMIN->value) return null;
+        $empId = session('user')['id'] ?? null;
 
         if (!$empId) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
-        $isPic    = (int) $ticket->employee_id === (int) $empId;
+        $employee = Employee::find($empId);
+
+        // Users with head-level mandays permission bypass the participant check
+        if ($employee?->canAccessMenu('ticket.head-mandays')) return null;
+
+        $isPic    = (int) $ticket->ticket_lead_id === (int) $empId;
         $isMember = $ticket->members()->where('ticket_member.employee_id', $empId)->exists();
 
         if (!$isPic && !$isMember) {
@@ -58,21 +62,43 @@ class MandaysController extends Controller
         return null;
     }
 
-    /** Return 403 if session user is neither a ticket participant nor a head/admin role. */
+    /**
+     * For Change Request tickets, only the ticket's team lead (not other members) may
+     * propose Customer Mandays. Head-level permission bypasses this check.
+     */
+    private function denyUnlessTeamLeadForChangeRequest(Ticket $ticket): ?\Illuminate\Http\JsonResponse
+    {
+        if ($ticket->ticket_type !== 'Change Request') return null;
+
+        $empId = session('user')['id'] ?? null;
+        $employee = Employee::find($empId);
+
+        if ($employee?->canAccessMenu('ticket.head-mandays')) return null;
+
+        if ((int) $ticket->ticket_lead_id !== (int) $empId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'For Change Request tickets, only the team lead can propose customer mandays.',
+            ], 403);
+        }
+
+        return null;
+    }
+
+    /** Return 403 if session user is neither a ticket participant nor has head-level mandays permission. */
     private function denyUnlessParticipantOrHead(Ticket $ticket, string $msg = 'You do not have access to this proposal.'): ?\Illuminate\Http\JsonResponse
     {
-        $sessionUser = session('user');
-        $roleId      = $sessionUser['role']['id'] ?? 0;
-        $empId       = $sessionUser['id'] ?? null;
-
-        $headRoles = [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value, RoleId::HEAD_OF_PROJECT->value];
-        if (in_array($roleId, $headRoles, true)) return null;
+        $empId = session('user')['id'] ?? null;
 
         if (!$empId) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
-        $isPic    = (int) $ticket->employee_id === (int) $empId;
+        $employee = Employee::find($empId);
+
+        if ($this->canReviewResolutionDays($employee)) return null;
+
+        $isPic    = (int) $ticket->ticket_lead_id === (int) $empId;
         $isMember = $ticket->members()->where('ticket_member.employee_id', $empId)->exists();
 
         if (!$isPic && !$isMember) {
@@ -88,26 +114,29 @@ class MandaysController extends Controller
 
     /**
      * GET /api/tickets/{ticketId}/mandays/modules
-     * Daftar modul unik dari kualifikasi PIC + semua member tiket.
+     * Modul aktif dari kualifikasi lead + member ticket.
      */
     public function getModules($ticketId)
     {
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
-        // Kumpulkan employee_id: PIC + members
-        $employeeIds = collect([$ticket->employee_id])
-            ->merge($ticket->members->pluck('employee_id'))
-            ->filter()
-            ->unique()
-            ->values();
+        // Kumpulkan employee IDs: lead + active members
+        $employeeIds = collect();
 
-        $modules = EmployeeQualification::whereIn('employee_id', $employeeIds)
-            ->whereNotNull('module')
-            ->where('module', '<>', '')
-            ->distinct()
-            ->pluck('module')
-            ->sort()
-            ->values();
+        if ($ticket->ticket_lead_id) {
+            $employeeIds->push($ticket->ticket_lead_id);
+        }
+
+        $memberIds = $ticket->members()->pluck('ticket_member.employee_id');
+        $employeeIds = $employeeIds->merge($memberIds)->unique()->filter()->values();
+
+        // Ambil module aktif yang ada di kualifikasi lead/member
+        $modules = \App\Models\Module::whereHas('qualifications', function ($q) use ($employeeIds) {
+                $q->whereIn('employee_id', $employeeIds);
+            })
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         return response()->json(['success' => true, 'data' => $modules]);
     }
@@ -148,15 +177,19 @@ class MandaysController extends Controller
             return $deny;
         }
 
+        if ($deny = $this->denyUnlessTeamLeadForChangeRequest($ticket)) {
+            return $deny;
+        }
+
         $sessionUser = session('user');
         $employeeId  = $sessionUser['id'] ?? null;
 
         $request->validate([
             'details'           => 'required|array|min:1',
-            'details.*.activity'=> 'nullable|string|max:150',
+            'details.*.activity'=> 'nullable|string',
             'details.*.module'  => 'required|string|max:100',
             'details.*.mandays' => 'required|numeric|min:0',
-            'description'       => 'nullable|string|max:255',
+            'description'       => 'required|string|max:255',
             'proposal_notes'    => 'nullable|string|max:2000',
         ]);
 
@@ -170,10 +203,16 @@ class MandaysController extends Controller
             ], 422);
         }
 
+        $total = collect($request->details)->sum('mandays');
+        if ($total <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Total mandays harus lebih dari 0. Isi minimal satu nilai mandays.',
+            ], 422);
+        }
+
         DB::beginTransaction();
         try {
-            $total = collect($request->details)->sum('mandays');
-
             if (!$existing || in_array($existing->status, ['canceled', 'approved'])) {
                 // Buat versi baru
                 $latestVersion = CustomerMandays::where('ticket_id', $ticketId)->max('version') ?? 0;
@@ -239,6 +278,10 @@ class MandaysController extends Controller
             return $deny;
         }
 
+        if ($deny = $this->denyUnlessTeamLeadForChangeRequest($ticket)) {
+            return $deny;
+        }
+
         $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
 
         if (!$proposal || $proposal->status !== 'draft') {
@@ -256,7 +299,7 @@ class MandaysController extends Controller
         $fromId      = $sessionUser['id'] ?? null;
         $ticketNum   = $ticket->ticket_number ?? $ticketId;
         $this->notifyRoles(
-            [RoleId::HELPDESK->value],
+            [RoleId::DELIVERY_HELPDESK->value],
             'customer_mandays_proposed',
             $fromName,
             $fromId,
@@ -269,6 +312,53 @@ class MandaysController extends Controller
             'message'               => 'Proposal submitted to Helpdesk.',
             'ticket_mandays_status' => 'pending_helpdesk',
         ]);
+    }
+
+    /**
+     * DELETE /api/tickets/{ticketId}/mandays/pic-draft
+     * PIC hapus draft (hanya boleh selama status masih draft, belum disubmit).
+     */
+    public function deleteCustomerDraft($ticketId)
+    {
+        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+
+        if ($deny = $this->denyUnlessParticipant($ticket, 'Only the ticket PIC or a member can delete the customer mandays draft.')) {
+            return $deny;
+        }
+
+        if ($deny = $this->denyUnlessTeamLeadForChangeRequest($ticket)) {
+            return $deny;
+        }
+
+        $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+
+        if (!$proposal || $proposal->status !== 'draft') {
+            return response()->json(['success' => false, 'message' => 'No draft to delete.'], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $proposal->details()->delete();
+            $proposal->delete();
+
+            // If an earlier (canceled/approved) version still exists, that version
+            // becomes latest again — reflect its status instead of wiping history.
+            $previous = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+            $newStatus = $previous ? ($previous->status === 'draft' ? 'pic_draft' : $previous->status) : 'none';
+            $ticket->update(['mandays_proposal_status' => $newStatus]);
+
+            DB::commit();
+
+            return response()->json([
+                'success'               => true,
+                'message'               => 'Draft deleted.',
+                'ticket_mandays_status' => $newStatus,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('deleteCustomerDraft error', ['e' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to delete the customer mandays draft. Please try again.'], 500);
+        }
     }
 
     // =========================================================================
@@ -301,18 +391,19 @@ class MandaysController extends Controller
      */
     public function saveHelpdeskDraft(Request $request, $ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::ADMIN->value, RoleId::HELPDESK->value],
-            'Only Helpdesk can edit the customer mandays proposal at this stage.'
-        )) {
-            return $deny;
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+        if (!$employee?->canAccessMenu('ticket.review-mandays')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to edit the customer mandays proposal.'], 403);
         }
 
         $request->validate([
             'details'           => 'required|array|min:1',
-            'details.*.activity'=> 'nullable|string|max:150',
+            'details.*.activity'=> 'nullable|string',
             'details.*.module'  => 'required|string|max:100',
             'details.*.mandays' => 'required|numeric|min:0',
+            'description'       => 'nullable|string|max:255',
+            'proposal_notes'    => 'nullable|string|max:2000',
         ]);
 
         $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
@@ -323,21 +414,38 @@ class MandaysController extends Controller
 
         $total = collect($request->details)->sum('mandays');
 
+        $canEditActivity = $employee?->canAccessMenu('ticket.review-mandays.edit-activity');
+
+        // Load original activity names sebelum di-delete (untuk preserve jika tidak ada permission)
+        // Key: module → activity (jika modul sama di banyak activity, pakai yang pertama)
+        $origActivityByModule = $canEditActivity
+            ? []
+            : $proposal->details()->get()->groupBy('module')->map(fn($rows) => $rows->first()->activity)->toArray();
+
         $proposal->details()->delete();
         foreach ($request->details as $d) {
             if (($d['mandays'] ?? 0) > 0) {
+                $activityName = $canEditActivity
+                    ? ($d['activity'] ?? null)
+                    : ($origActivityByModule[$d['module']] ?? $d['activity'] ?? null);
                 CustomerMandaysDetail::create([
                     'customer_mandays_id' => $proposal->id,
-                    'activity'            => $d['activity'] ?? null,
+                    'activity'            => $activityName,
                     'module'              => $d['module'],
                     'mandays'             => $d['mandays'],
                 ]);
             }
         }
 
-        $proposal->update([
-            'total_mandays' => $total,
-        ]);
+        $updateData = ['total_mandays' => $total];
+        if ($request->has('description') && $employee?->canAccessMenu('ticket.review-mandays.edit-description')) {
+            $updateData['description'] = $request->description ?: null;
+        }
+        if ($request->has('proposal_notes') && $employee?->canAccessMenu('ticket.review-mandays.edit-proposal-notes')) {
+            $updateData['proposal_notes'] = $request->proposal_notes ?: null;
+        }
+
+        $proposal->update($updateData);
 
         return response()->json([
             'success' => true,
@@ -352,11 +460,10 @@ class MandaysController extends Controller
      */
     public function submitToChat($ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::ADMIN->value, RoleId::HELPDESK->value],
-            'Only Helpdesk can send the mandays proposal to the customer.'
-        )) {
-            return $deny;
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+        if (!$employee?->canAccessMenu('ticket.review-mandays.send-to-customer')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to send the proposal to the customer.'], 403);
         }
 
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
@@ -384,7 +491,7 @@ class MandaysController extends Controller
 
         // Selalu buat TicketMessage terlebih dahulu agar proposal tampil di chat
         $htmlBody  = $this->buildMandaysEmailHtml($proposal, $ticket, $senderName);
-        $plainText = 'Mandays proposal sent to customer. Total: ' . number_format((float) $proposal->total_mandays, 1) . ' mandays.';
+        $plainText = 'Mandays proposal sent to customer. Total: ' . $this->fmtMd((float) $proposal->total_mandays) . ' mandays.';
 
         $ticketMsg = TicketMessage::create([
             'ticket_id'           => $ticketId,
@@ -407,14 +514,29 @@ class MandaysController extends Controller
         // Coba kirim email ke customer (non-fatal jika gagal — pesan sudah tersimpan di chat)
         $emailSent    = false;
         $emailWarning = null;
+        $emailTo      = null;
 
         try {
-            $customerEmail = $this->resolveCustomerEmailForTicket($ticket);
+            // Resolve primary TO dan additional TO dari ticket.to_emails (dipersist setiap reply).
+            // Jika to_emails tidak ada, fallback ke resolveCustomerEmailForTicket().
+            $ticketToEmails = array_values(array_filter(
+                is_array($ticket->to_emails) ? $ticket->to_emails : [],
+                fn($e) => is_string($e) && $e !== ''
+            ));
+            if (!empty($ticketToEmails)) {
+                $customerEmail = $ticketToEmails[0];
+                $additionalTo  = array_slice($ticketToEmails, 1);
+            } else {
+                $customerEmail = $this->resolveCustomerEmailForTicket($ticket);
+                $additionalTo  = [];
+            }
 
             if (!$customerEmail) {
                 $emailWarning = 'No customer email address found. Proposal saved to chat only.';
                 Log::warning('MandaysController@submitToChat: no customer email', ['ticket_id' => $ticketId]);
             } else {
+                $emailTo = $customerEmail;
+
                 $lastEmailMsg = TicketMessage::where('ticket_id', $ticketId)
                     ->where('channel', 'email')
                     ->whereNotNull('email_message_id')
@@ -422,10 +544,9 @@ class MandaysController extends Controller
                     ->first();
                 $inReplyTo = $lastEmailMsg?->email_message_id;
 
-                $subject = 'Ticket #' . $ticket->ticket_number . ': ' . mb_substr($ticket->description ?? '', 0, 80);
+                $subject = '[JARVIES] #' . $ticket->ticket_number . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
 
                 // CC: prioritaskan ticket.cc_emails, fallback ke pesan pertama dengan CC.
-                // Gunakan is_array check karena model cast 'array' sudah decode JSON → array.
                 $rawTicketCc = $ticket->cc_emails;
                 $ccList = $rawTicketCc
                     ? (is_array($rawTicketCc) ? $rawTicketCc : (json_decode($rawTicketCc, true) ?? []))
@@ -449,7 +570,10 @@ class MandaysController extends Controller
                     [],
                     $ccList,
                     true,
-                    $ticket->email_thread_id ?? null
+                    $ticket->email_thread_id ?? null,
+                    false,
+                    [],
+                    $additionalTo
                 );
 
                 // Update message channel dan email_message_id setelah email berhasil terkirim
@@ -458,15 +582,17 @@ class MandaysController extends Controller
                     'email_message_id' => $result['internet_message_id'] ?? null,
                 ]);
 
-                // Selalu sync email_thread_id ke conversationId terbaru (bukan hanya saat kosong)
+                // Selalu sync email_thread_id ke conversationId terbaru
                 if (!empty($result['conversation_id']) && $result['conversation_id'] !== $ticket->email_thread_id) {
                     $ticket->update(['email_thread_id' => $result['conversation_id']]);
                 }
 
                 $emailSent = true;
                 Log::info('MandaysController@submitToChat: email sent', [
-                    'ticket_id' => $ticketId,
-                    'to'        => $customerEmail,
+                    'ticket_id'    => $ticketId,
+                    'to'           => $customerEmail,
+                    'additional'   => $additionalTo,
+                    'cc_count'     => count($ccList),
                 ]);
             }
         } catch (\Throwable $e) {
@@ -485,6 +611,7 @@ class MandaysController extends Controller
                 : ($emailWarning ?? 'Status updated.'),
             'email_sent'            => $emailSent,
             'email_warning'         => $emailWarning,
+            'email_to'              => $emailTo,
             'ticket_mandays_status' => 'sent_to_chat',
         ]);
     }
@@ -495,18 +622,20 @@ class MandaysController extends Controller
      */
     public function approveCustomerMandays($ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::ADMIN->value, RoleId::HELPDESK->value],
-            'Only Helpdesk can approve the customer mandays proposal.'
-        )) {
-            return $deny;
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+        if (!$employee?->canAccessMenu('ticket.review-mandays.approve')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to approve the customer mandays proposal.'], 403);
         }
 
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
         $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
 
-        if (!$proposal || $proposal->status !== 'sent_to_chat') {
-            return response()->json(['success' => false, 'message' => 'Proposal must be sent to customer chat before it can be approved.'], 422);
+        // Sending to the customer chat is no longer required before approving —
+        // Helpdesk can approve directly from pending_helpdesk, or from sent_to_chat
+        // if it was sent anyway.
+        if (!$proposal || !in_array($proposal->status, ['pending_helpdesk', 'sent_to_chat'])) {
+            return response()->json(['success' => false, 'message' => 'No proposal ready to approve.'], 422);
         }
 
         $proposal->update(['status' => 'approved']);
@@ -528,18 +657,41 @@ class MandaysController extends Controller
      */
     public function cancelCustomerMandays(Request $request, $ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::ADMIN->value, RoleId::HELPDESK->value],
-            'Only Helpdesk can cancel the customer mandays proposal.'
-        )) {
-            return $deny;
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+        if (!$employee?->canAccessMenu('ticket.review-mandays.cancel')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to cancel the customer mandays proposal.'], 403);
         }
 
-        $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
-        $proposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
 
-        if (!$proposal || !in_array($proposal->status, ['pending_helpdesk', 'sent_to_chat'])) {
+        $latestProposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+
+        // Target a specific (possibly already-superseded) version via mandays_id, or
+        // default to the latest version — covers both "cancel the current draft/
+        // pending proposal" and "cancel an older version a newer one has since
+        // superseded" (that older version, since it's superseded, is always already
+        // 'approved' — a version only gets superseded once the prior one was
+        // approved or canceled).
+        $mandaysId = $request->input('mandays_id');
+        $proposal  = $mandaysId
+            ? CustomerMandays::where('ticket_id', $ticketId)->where('id', $mandaysId)->first()
+            : $latestProposal;
+
+        if (!$proposal || !in_array($proposal->status, ['pending_helpdesk', 'sent_to_chat', 'approved'])) {
             return response()->json(['success' => false, 'message' => 'No active proposal to cancel.'], 422);
+        }
+
+        $isLatest = $latestProposal && $proposal->id === $latestProposal->id;
+
+        // Cancelling an already-approved proposal reverses something the customer
+        // already signed off on (approval happens on their side via JARVIES) — gated
+        // behind a separate permission on top of the base cancel permission. Also
+        // required whenever a non-latest version is targeted, since that version is
+        // always already-approved by definition. No automated customer notification
+        // here by design; Helpdesk follows up by email manually.
+        if (($proposal->status === 'approved' || !$isLatest) && !$employee->canAccessMenu('ticket.review-mandays.cancel-approved')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to cancel an already-approved proposal.'], 403);
         }
 
         $cancelNotes    = $request->input('cancel_notes');
@@ -550,19 +702,27 @@ class MandaysController extends Controller
             'status'          => 'canceled',
             'notes'           => $cancelNotes ?: null,
             'canceled_by_id'  => $canceledById,
+            'canceled_at'     => now(),
         ]);
-        $ticket->update(['mandays_proposal_status' => 'canceled']);
+
+        // ticket.mandays_proposal_status mirrors the LATEST version's status only —
+        // cancelling an older, already-superseded version must not overwrite it with
+        // a stale 'canceled' while the actual latest version is still active/approved.
+        if ($isLatest) {
+            $ticket->update(['mandays_proposal_status' => 'canceled']);
+        }
 
         // Notify PIC and all members
         $fromName  = $sessionUser['name'] ?? 'Helpdesk';
         $ticketNum = $ticket->ticket_number ?? $ticketId;
-        $preview   = "Ticket #{$ticketNum} — Customer mandays proposal has been canceled"
+        $versionNote = !$isLatest ? " (Version {$proposal->version})" : '';
+        $preview   = "Ticket #{$ticketNum} — Customer mandays proposal{$versionNote} has been canceled"
                    . ($cancelNotes ? ': ' . mb_substr($cancelNotes, 0, 80) : '');
         $link      = "/ticket/{$ticketId}";
 
         $recipients = collect();
-        if ($ticket->employee_id) {
-            $recipients->push($ticket->employee_id);
+        if ($ticket->ticket_lead_id) {
+            $recipients->push($ticket->ticket_lead_id);
         }
         $ticket->members->pluck('employee_id')->each(fn ($id) => $recipients->push($id));
 
@@ -615,6 +775,7 @@ class MandaysController extends Controller
             'success'                 => true,
             'data'                    => $proposal ? $this->formatResolutionProposal($proposal) : null,
             'resolution_days_status' => $internalStatus,
+            'customer_mandays_status' => $ticket->mandays_proposal_status ?? 'none',
             'people'                  => $people,
         ]);
     }
@@ -671,23 +832,6 @@ class MandaysController extends Controller
         $preDetails  = $existing ? $existing->details()->get()->keyBy('employee_id') : collect();
         $dataChanged = !$existing || $this->resolutionDataChanged($existing, $preDetails, $request);
 
-        // If pending Head approval: block edits, but allow no-op saves silently
-        if ($existing && $existing->status === 'pending_approval') {
-            if ($dataChanged) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot edit while pending Delivery Support Head approval.',
-                ], 422);
-            }
-            return response()->json([
-                'success'                 => true,
-                'message'                 => 'No changes detected.',
-                'data'                    => $this->formatResolutionProposal($existing->load(['details.employee.basicData', 'proposedByAgent.basicData', 'approvedByHead.basicData'])),
-                'resolution_days_status' => 'pending_head',
-                'data_changed'            => false,
-            ]);
-        }
-
         DB::beginTransaction();
         try {
             $total = collect($request->details)->sum('mandays');
@@ -704,8 +848,13 @@ class MandaysController extends Controller
                 ]);
             } else {
                 $proposal = $existing;
-                // Keep current status only when data is unchanged AND status is approvable
-                $keepStatus = !$dataChanged && in_array($existing->status, ['approved', 'pending_approval']);
+                // PIC can keep refining the proposal while it's pending Head approval —
+                // status stays pending_head so it's still visible in the Head's queue
+                // without needing to resubmit. An already-approved proposal that gets
+                // edited falls back to draft (needs re-approval); draft/needs_revision/
+                // rejected also (re)fall to draft on edit as before.
+                $keepStatus = $existing->status === 'pending_approval'
+                    || (!$dataChanged && $existing->status === 'approved');
                 $proposal->update([
                     'status'           => $keepStatus ? $existing->status : 'draft',
                     'last_edited_at'   => now(),
@@ -764,11 +913,15 @@ class MandaysController extends Controller
             return response()->json(['success' => false, 'message' => 'Failed to save the resolution days proposal. Please try again.'], 500);
         }
 
+        $message = match (true) {
+            !$dataChanged                       => 'Saved. No changes detected.',
+            $ticketStatus === 'pending_head'    => 'Updated — still pending Head approval, no need to resubmit.',
+            default                              => 'Draft saved. Submit to Head Support for approval.',
+        };
+
         return response()->json([
             'success'                 => true,
-            'message'                 => $dataChanged
-                ? 'Draft saved. Submit to Head Support for approval.'
-                : 'Saved. No changes detected.',
+            'message'                 => $message,
             'data'                    => $this->formatResolutionProposal($proposal->fresh(['details.employee.basicData', 'proposedByAgent.basicData', 'approvedByHead.basicData'])),
             'resolution_days_status' => $ticketStatus,
             'data_changed'            => $dataChanged,
@@ -816,6 +969,20 @@ class MandaysController extends Controller
             return $deny;
         }
 
+        // Resolution Days can be drafted freely, but on Change Request tickets, submitting
+        // to Head requires the Customer Mandays proposal to already be approved by Helpdesk
+        // first — customer's own approval is not required at this point, only Helpdesk's.
+        // Other ticket types keep the original unrestricted flow.
+        if ($ticket->ticket_type === 'Change Request') {
+            $customerProposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+            if (!$customerProposal || $customerProposal->status !== 'approved') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Customer Mandays proposal must be approved by Helpdesk before submitting Resolution Days.',
+                ], 422);
+            }
+        }
+
         $proposal = ConsultantMandays::where('ticket_id', $ticketId)->latestPerTicket()->first();
 
         if (!$proposal || !in_array($proposal->status, ['draft', 'needs_revision', 'rejected', 'approved'])) {
@@ -830,7 +997,7 @@ class MandaysController extends Controller
         $fromId      = $sessionUser['id'] ?? null;
         $ticketNum   = $ticket->ticket_number ?? $ticketId;
         $this->notifyRoles(
-            [RoleId::HEAD_OF_SUPPORT->value, RoleId::HEAD_OF_PROJECT->value],
+            [RoleId::DELIVERY_SUPPORT_HEAD->value, RoleId::DELIVERY_PROJECT_HEAD->value],
             'resolution_days_proposed',
             $fromName,
             $fromId,
@@ -851,17 +1018,21 @@ class MandaysController extends Controller
      */
     public function approveResolutionProposal(Request $request, $ticketId)
     {
-        if ($deny = $this->denyUnlessRole(
-            [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value, RoleId::HEAD_OF_PROJECT->value],
-            'Only Head of Support or Head of Project can approve resolution days proposals.'
-        )) {
-            return $deny;
+        $sessionUserId = session('user')['id'] ?? null;
+        $employee = $sessionUserId ? Employee::find($sessionUserId) : null;
+        if (!$this->canReviewResolutionDays($employee)) {
+            return response()->json(['success' => false, 'message' => 'Only Head of Support or Admin can approve resolution days proposals.'], 403);
         }
 
+        // approved_details is required (not just nullable) — Approved Days is a per-employee
+        // judgment call the Head must actually make, so approval can't go through with no
+        // numbers submitted at all (mirrors the "must be filled" check on the review modal).
         $request->validate([
-            'approved_details'                      => 'nullable|array',
+            'approved_details'                      => 'required|array|min:1',
             'approved_details.*.employee_id'        => 'required|integer',
+            'approved_details.*.approved_mandays'   => 'required|numeric|min:0',
             'approved_details.*.approved_additional'=> 'required|numeric|min:0',
+            'confirm_negative'                      => 'sometimes|boolean',
         ]);
 
         $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
@@ -875,19 +1046,71 @@ class MandaysController extends Controller
             return response()->json(['success' => false, 'message' => 'No proposal to save.'], 422);
         }
 
+        // On Change Request tickets only: Head can only approve Resolution Days once the
+        // Customer Mandays proposal has been approved — either by the customer via chat,
+        // or directly by Helpdesk. Team lead can keep editing the resolution proposal
+        // freely up until this point (saveResolutionProposal has no status gate), this
+        // only blocks the final Head approval action.
+        if ($ticket->ticket_type === 'Change Request') {
+            $customerProposal = CustomerMandays::where('ticket_id', $ticketId)->latestVersion()->first();
+            if (!$customerProposal || $customerProposal->status !== 'approved') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Customer Mandays proposal must be approved before Resolution Days can be approved.',
+                ], 422);
+            }
+        }
+
+        // PIC can keep editing this proposal right up until approval (see
+        // saveResolutionProposal()), so the numbers Head is about to lock in here may
+        // already have outpaced what employees logged. Warn before finalizing —
+        // require an explicit confirm_negative=true resend to proceed anyway.
+        if (!$request->boolean('confirm_negative')) {
+            $warnings = $this->findNegativeRemainingWarnings($ticket, $proposal, $request->input('approved_details', []));
+            if (!empty($warnings)) {
+                return response()->json([
+                    'success'               => false,
+                    'requires_confirmation' => true,
+                    'message'               => 'Some employees will have negative remaining MD with these numbers.',
+                    'warnings'              => $warnings,
+                ], 422);
+            }
+        }
+
+        // Snapshot "before" approved_mandays/approved_additional for every detail about to be
+        // touched. The update below is an Eloquent mass update via query builder
+        // ($proposal->details()->where(...)->update(...)) — Laravel never fires model events
+        // for that (only single-instance $model->save() does), so AuditObserver (wired via
+        // ConsultantMandaysDetail's Auditable trait) never sees it. This is the actual
+        // approved-mandays billing number, so it's logged manually below once the
+        // transaction has committed.
+        $touchedEmployeeIds  = collect($request->approved_details)->pluck('employee_id')->map(fn ($id) => (int) $id);
+        $detailsBeforeUpdate = $proposal->details()
+            ->with('employee.basicData')
+            ->whereIn('employee_id', $touchedEmployeeIds)
+            ->get()
+            ->keyBy(fn ($d) => (int) $d->employee_id);
+
         DB::beginTransaction();
         try {
-            // Update approved_additional per employee
+            // Update approved_mandays + approved_additional per employee
             if (!empty($request->approved_details)) {
                 foreach ($request->approved_details as $ad) {
                     $proposal->details()
                         ->where('employee_id', $ad['employee_id'])
-                        ->update(['approved_additional' => $ad['approved_additional']]);
+                        ->update([
+                            'approved_mandays'    => $ad['approved_mandays'],
+                            'approved_additional' => $ad['approved_additional'],
+                        ]);
                 }
             }
 
-            // Recalculate total_mandays = sum(mandays + approved_additional)
-            $total = $proposal->details()->get()->sum(fn($d) => $d->mandays + $d->approved_additional);
+            // Recalculate total_mandays = sum(approved_mandays + approved_additional).
+            // Note: this total_mandays / ticket.man_days reflects what Head actually approved
+            // here. It intentionally does NOT feed the MD-quota checks used elsewhere (e.g.
+            // TimesheetController submit validation), which still read the raw `mandays`
+            // column directly and are unaffected by this value.
+            $total = $proposal->details()->get()->sum(fn($d) => (float) ($d->approved_mandays ?? 0) + $d->approved_additional);
 
             $proposal->update([
                 'status'              => 'approved',
@@ -907,12 +1130,83 @@ class MandaysController extends Controller
             return response()->json(['success' => false, 'message' => 'Failed to approve the resolution days proposal. Please try again.'], 500);
         }
 
+        // Audit trail: one row per employee whose approved_mandays/approved_additional was
+        // just locked in — recordAction() is fire-and-forget, so a logging hiccup here can
+        // never affect the approval that already committed above.
+        foreach ($request->approved_details as $ad) {
+            $beforeDetail = $detailsBeforeUpdate->get((int) $ad['employee_id']);
+            if (!$beforeDetail) {
+                continue; // employee_id isn't part of this proposal's details — the update above was a no-op
+            }
+
+            $employeeName = trim(
+                ($beforeDetail->employee?->basicData?->first_name ?? '') . ' ' . ($beforeDetail->employee?->basicData?->last_name ?? '')
+            );
+            $employeeLabel = $employeeName !== '' ? $employeeName : "Employee #{$ad['employee_id']}";
+
+            AuditLog::recordAction(
+                module: 'Mandays', // matches ConsultantMandaysDetail::$auditModule so these rows group together
+                auditableType: 'ConsultantMandaysDetail',
+                auditableId: $beforeDetail->id,
+                event: 'updated',
+                recordLabel: $employeeLabel,
+                description: "approved Consultant Mandays Detail: {$ad['approved_mandays']} MD for {$employeeLabel}",
+                old: [
+                    'approved_mandays'    => $beforeDetail->approved_mandays,
+                    'approved_additional' => $beforeDetail->approved_additional,
+                ],
+                new: [
+                    'approved_mandays'    => $ad['approved_mandays'],
+                    'approved_additional' => $ad['approved_additional'],
+                ],
+            );
+        }
+
         return response()->json([
             'success'                 => true,
             'message'                 => 'Internal proposal approved.',
             'resolution_days_status' => 'approved',
             'total_mandays'           => $total,
         ]);
+    }
+
+    /**
+     * Per employee in the proposal being approved, compare the quota that would take
+     * effect (the approved_mandays + approved_additional Head is about to save) against
+     * what they've already logged (draft/submitted/approved timesheets on this ticket).
+     * Returns one entry per employee whose remaining would go negative.
+     */
+    private function findNegativeRemainingWarnings(Ticket $ticket, ConsultantMandays $proposal, array $approvedDetails): array
+    {
+        $approvedAdditionalMap = collect($approvedDetails)->keyBy('employee_id');
+        $details = $proposal->details()->with('employee.basicData')->get();
+
+        $warnings = [];
+        foreach ($details as $detail) {
+            $incoming            = $approvedAdditionalMap->get($detail->employee_id);
+            $approvedMandays     = (float) ($incoming['approved_mandays'] ?? $detail->approved_mandays ?? 0);
+            $approvedAdditional  = (float) ($incoming['approved_additional'] ?? $detail->approved_additional ?? 0);
+            $quota = round($approvedMandays + $approvedAdditional, 2);
+
+            $consumed = (float) Timesheet::where('ticket_id', $ticket->ticket_id)
+                ->where('employee_id', $detail->employee_id)
+                ->whereIn('status', ['draft', 'submitted', 'approved'])
+                ->sum('md_consumed');
+
+            $remaining = round($quota - $consumed, 2);
+            if ($remaining < 0) {
+                $name = trim(($detail->employee?->basicData?->first_name ?? '') . ' ' . ($detail->employee?->basicData?->last_name ?? ''));
+                $warnings[] = [
+                    'employee_id'   => $detail->employee_id,
+                    'employee_name' => $name ?: "Employee #{$detail->employee_id}",
+                    'quota'         => $quota,
+                    'consumed'      => $consumed,
+                    'remaining'     => $remaining,
+                ];
+            }
+        }
+
+        return $warnings;
     }
 
     // =========================================================================
@@ -1175,6 +1469,7 @@ class MandaysController extends Controller
             'total_mandays'        => (float) $p->total_mandays,
             'cancel_notes'         => $p->notes,
             'canceled_by_name'     => $canceledByName,
+            'canceled_at'          => $p->canceled_at?->toISOString(),
             'proposed_by_name'     => $proposedByName,
             'rejection_reason'     => $p->rejection_reason,
             'customer_notes'       => $p->customer_notes,
@@ -1211,6 +1506,7 @@ class MandaysController extends Controller
                 'employee_name'       => $d->employee?->basicData?->first_name . ' ' . $d->employee?->basicData?->last_name,
                 'module'              => $d->module,
                 'mandays'             => (float) $d->mandays,
+                'approved_mandays'    => (float) ($d->approved_mandays ?? 0),
                 'additional_mandays'  => (float) ($d->additional_mandays ?? 0),
                 'approved_additional' => (float) ($d->approved_additional ?? 0),
                 'notes'               => $d->notes,
@@ -1223,11 +1519,11 @@ class MandaysController extends Controller
         $people = [];
 
         // PIC
-        if ($ticket->employee_id) {
-            $pic = Employee::with(['basicData', 'qualifications'])->find($ticket->employee_id);
+        if ($ticket->ticket_lead_id) {
+            $pic = Employee::with(['basicData', 'qualifications'])->find($ticket->ticket_lead_id);
             if ($pic) {
-                $people[$ticket->employee_id] = [
-                    'employee_id' => $ticket->employee_id,
+                $people[$ticket->ticket_lead_id] = [
+                    'employee_id' => $ticket->ticket_lead_id,
                     'name'        => trim(($pic->basicData?->first_name ?? '') . ' ' . ($pic->basicData?->last_name ?? '')),
                     'role'        => 'PIC',
                     'modules'     => $pic->qualifications->pluck('module')->filter()->unique()->values()->all(),
@@ -1253,9 +1549,14 @@ class MandaysController extends Controller
             $pastIds = ConsultantMandaysDetail::where('consultant_mandays_id', $proposal->id)
                 ->pluck('employee_id')
                 ->unique();
-            foreach ($pastIds as $empId) {
-                if (!isset($people[$empId])) {
-                    $emp = Employee::with(['basicData', 'qualifications'])->find($empId);
+            $missingIds = $pastIds->reject(fn($empId) => isset($people[$empId]));
+            if ($missingIds->isNotEmpty()) {
+                $pastEmployees = Employee::with(['basicData', 'qualifications'])
+                    ->whereIn('employee_id', $missingIds)
+                    ->get()
+                    ->keyBy('employee_id');
+                foreach ($missingIds as $empId) {
+                    $emp = $pastEmployees->get($empId);
                     if ($emp) {
                         $people[$empId] = [
                             'employee_id' => $empId,
@@ -1274,7 +1575,7 @@ class MandaysController extends Controller
     private function notifyRoles(array $roleIds, string $type, string $fromName, ?int $fromId, string $preview, string $link): void
     {
         try {
-            Employee::whereIn('role_id', $roleIds)
+            Employee::withAnyRole($roleIds)
                 ->where('is_active', true)
                 ->pluck('employee_id')
                 ->each(function ($empId) use ($type, $fromName, $fromId, $preview, $link) {
@@ -1298,6 +1599,10 @@ class MandaysController extends Controller
      */
     private function resolveCustomerEmailForTicket(Ticket $ticket): ?string
     {
+        if (!empty($ticket->submitted_by_email)) {
+            return $ticket->submitted_by_email;
+        }
+
         $submittedEmail = DB::table('staging_tickets')
             ->where('ticket_id', $ticket->ticket_id)
             ->whereNotNull('submitted_by_email')
@@ -1319,6 +1624,15 @@ class MandaysController extends Controller
     }
 
     /**
+     * Format mandays value — up to 2 decimal places, trailing zeros stripped.
+     * 0.25 → "0.25", 0.5 → "0.5", 1.0 → "1"
+     */
+    private function fmtMd(float $val): string
+    {
+        return rtrim(rtrim(number_format($val, 2, '.', ''), '0'), '.');
+    }
+
+    /**
      * Build HTML email body untuk mandays proposal yang dikirim ke customer.
      */
     private function buildMandaysEmailHtml(CustomerMandays $proposal, Ticket $ticket, string $agentName): string
@@ -1326,7 +1640,7 @@ class MandaysController extends Controller
         $ticketNum = htmlspecialchars($ticket->ticket_number ?? '', ENT_QUOTES, 'UTF-8');
         $agent     = htmlspecialchars($agentName, ENT_QUOTES, 'UTF-8');
         $version   = $proposal->version ?? 1;
-        $total     = number_format((float) $proposal->total_mandays, 1);
+        $total     = $this->fmtMd((float) $proposal->total_mandays);
         $notes     = $proposal->notes ? '<p style="margin:8px 0;font-size:13px;color:#444;">' . nl2br(htmlspecialchars($proposal->notes, ENT_QUOTES, 'UTF-8')) . '</p>' : '';
 
         // Bangun kolom modul unik
@@ -1354,7 +1668,7 @@ class MandaysController extends Controller
             foreach ($modules as $mod) {
                 $val = $modValues[$mod] ?? 0;
                 $moduleTotals[$mod] += $val;
-                $rows .= '<td style="padding:7px 12px;border:1px solid #ddd;text-align:center;">' . ($val > 0 ? number_format($val, 1) : '-') . '</td>';
+                $rows .= '<td style="padding:7px 12px;border:1px solid #ddd;text-align:center;">' . ($val > 0 ? $this->fmtMd($val) : '-') . '</td>';
             }
             $rows .= '</tr>';
         }
@@ -1362,7 +1676,7 @@ class MandaysController extends Controller
         // Baris total
         $totalCols = '';
         foreach ($modules as $mod) {
-            $totalCols .= '<td style="padding:7px 12px;border:1px solid #ddd;text-align:center;font-weight:bold;">' . number_format($moduleTotals[$mod], 1) . '</td>';
+            $totalCols .= '<td style="padding:7px 12px;border:1px solid #ddd;text-align:center;font-weight:bold;">' . $this->fmtMd($moduleTotals[$mod]) . '</td>';
         }
 
         return <<<HTML

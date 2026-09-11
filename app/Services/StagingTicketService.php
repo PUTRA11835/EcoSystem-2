@@ -9,6 +9,7 @@ use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\SlaService;
 use App\Services\TicketNumberService;
 
 /**
@@ -24,7 +25,10 @@ use App\Services\TicketNumberService;
  */
 class StagingTicketService
 {
-    public function __construct(private readonly TicketNumberService $ticketNumbers) {}
+    public function __construct(
+        private readonly TicketNumberService $ticketNumbers,
+        private readonly SlaService $sla,
+    ) {}
 
     // ─── 1. Create from web form (Customer Project / Jarvies) ────────────────
 
@@ -62,26 +66,38 @@ class StagingTicketService
             }
         }
 
-        return StagingTicket::create([
+        $staging = StagingTicket::create([
             'customer_id'        => $customerId,
             'end_customer_id'    => isset($data['end_customer_id']) ? (int) $data['end_customer_id'] : null,
             'description'        => $data['description'],
             'body'               => $data['body'] ?? null,
             'ticket_priority'    => $data['ticket_priority'] ?? 'Medium',
+            'ticket_type'        => $data['ticket_type'] ?? null,
+            'scale'              => $data['scale'] ?? null,
             'status'             => 'unvalidated',
             'channel'            => 'web',
             'submitted_by_email' => $data['submitted_by_email'] ?? null,
             'sender_name'        => $data['sender_name'] ?? null,
             'cc_emails'          => $data['cc_emails'] ?? null,
-            // internetMessageId dari email [Menunggu Validasi] yang dikirim Jarvies
-            // Digunakan sebagai In-Reply-To saat EcoSystem kirim email notifikasi approval
             'email_message_id'   => $data['internet_message_id'] ?? null,
-            // Field tambahan (opsional dari Jarvies)
             'name'               => $data['name'] ?? null,
             'no_hp'              => $data['no_hp'] ?? null,
             'module'             => $data['module'] ?? null,
+            'module_id'          => $data['module_id'] ?? null,
             'client'             => $data['client'] ?? null,
         ]);
+
+        // SLA clock mulai sejak staging masuk
+        try {
+            $this->sla->attachToStaging($staging);
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketService@createFromWeb: SLA attachToStaging gagal (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+
+        return $staging;
     }
 
     // ─── 2. Create from email (MS Graph inbox processor) ─────────────────────
@@ -154,8 +170,10 @@ class StagingTicketService
             }
         }
 
-        // Gunakan receivedDateTime email sebagai created_at agar waktu sesuai email asli.
-        // $emailData['received_at'] adalah Carbon UTC dari Graph API → konversi ke app timezone.
+        // Gunakan sentDateTime email (header Date: dari pengirim) sebagai created_at agar
+        // SLA clock dimulai dari waktu customer kirim, bukan waktu scheduler jalan.
+        // $emailData['received_at'] adalah Carbon UTC (sentDateTime, fallback receivedDateTime)
+        // dari Graph API → konversi ke WIB agar konsisten dengan timezone ecosystem user.
         $appTz      = config('app.timezone', 'Asia/Jakarta');
         $receivedAt = isset($emailData['received_at'])
             ? $emailData['received_at']->copy()->setTimezone($appTz)
@@ -175,17 +193,41 @@ class StagingTicketService
             'email_body_html'    => $emailData['body_html'] ?? null,
             'has_attachments'    => $emailData['has_attachments'] ?? false,
             'cc_emails'          => $emailData['cc_emails'] ?? null,
+            'created_at'         => $receivedAt,
+            'updated_at'         => $receivedAt,
         ]);
 
-        // Override created_at dengan waktu asli email (Eloquent timestamps() auto-set now())
-        if (isset($emailData['received_at'])) {
-            \Illuminate\Support\Facades\DB::table('staging_tickets')
-                ->where('id', $staging->id)
-                ->update([
-                    'created_at' => $receivedAt->toDateTimeString(),
-                    'updated_at' => $receivedAt->toDateTimeString(),
-                ]);
-            $staging->created_at = $receivedAt;
+        // SLA clock mulai sejak email masuk
+        try {
+            $this->sla->attachToStaging($staging);
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketService@createFromEmail: SLA attachToStaging gagal (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+
+        // Greeting otomatis ke pengirim, lewat Power Automate. Titik pemicunya
+        // sengaja DI SINI, bukan di trigger mailbox Power Automate, karena di sini
+        // email yang lolos sudah tersaring: bukan balasan untuk tiket yang sudah
+        // ada, bukan NDR/auto-reply, bukan duplikat, dan pengirimnya memang contact
+        // person customer terdaftar. Trigger mailbox akan menyapa semuanya —
+        // termasuk balasan di tengah percakapan.
+        //
+        // graph_message_id ikut dikirim supaya flow bisa memakai action "Reply to
+        // email", sehingga greeting menempel pada thread yang sama dan balasan
+        // customer berikutnya tidak terbaca sebagai tiket baru.
+        try {
+            $powerAutomate = app(\App\Services\PowerAutomateService::class);
+            $powerAutomate->dispatchAfterResponse(
+                \App\Services\PowerAutomateService::FLOW_EMAIL_RECEIVED,
+                ['staging' => $powerAutomate->stagingPayload($staging)]
+            );
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketService@createFromEmail: gagal menyiapkan greeting Power Automate (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
         }
 
         return $staging;
@@ -205,7 +247,7 @@ class StagingTicketService
      * @throws \LogicException   jika staging sudah pernah diproses
      * @throws \RuntimeException jika DB transaction gagal
      */
-    public function approve(StagingTicket $staging, int $validatedBy, ?string $ticketType = null, ?string $ticketPriority = null, ?string $scale = null): array
+    public function approve(StagingTicket $staging, int $validatedBy, ?string $ticketType = null, ?string $ticketPriority = null, ?string $scale = null, array $moduleIds = []): array
     {
         // Guard: cegah double validation
         if ($staging->isProcessed()) {
@@ -214,7 +256,7 @@ class StagingTicketService
             );
         }
 
-        return DB::transaction(function () use ($staging, $validatedBy, $ticketType, $ticketPriority, $scale) {
+        return DB::transaction(function () use ($staging, $validatedBy, $ticketType, $ticketPriority, $scale, $moduleIds) {
 
             // Generate ticket number (format: YYMM####, locked against race condition)
             $ticketNumber = $this->ticketNumbers->generate();
@@ -242,7 +284,6 @@ class StagingTicketService
                 'ticket_type'     => $ticketType,
                 'scale'           => $finalScale,
                 'status'          => 'open',
-                'jarvies_status'  => 'sent it to support',
                 'channel'         => $staging->channel,
                 'email_thread_id' => $staging->email_thread_id,
                 'cc_emails'       => $ccEmails,              // checklist G
@@ -255,6 +296,12 @@ class StagingTicketService
                 'submitted_by_email' => $staging->submitted_by_email,
                 'submitted_by_name'  => $staging->sender_name,
             ]);
+
+            // Modul dipilih VALIDATOR di modal approve (biasanya pre-filled dari
+            // saran AI, lihat AiTicketAnalyzerService) — staging_tickets.module_id
+            // sendiri TIDAK pernah dipakai sebagai sumber di sini; kolom itu tidak
+            // pernah benar-benar terisi lewat jalur mana pun hari ini.
+            $ticket->syncModules($moduleIds);
 
             // Update staging → approved, simpan FK ke ticket
             $staging->update([
@@ -375,6 +422,16 @@ class StagingTicketService
                 ]);
             }
 
+            // Inisialisasi SLA record untuk tiket baru (non-fatal)
+            try {
+                $this->sla->attachToTicket($ticket, $staging);
+            } catch (\Throwable $e) {
+                Log::warning('StagingTicketService@approve: SLA attach gagal (non-fatal)', [
+                    'ticket_id' => $ticket->ticket_id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+
             Log::info('StagingTicketService@approve: staging promoted to ticket', [
                 'staging_id'       => $staging->id,
                 'ticket_id'        => $ticket->ticket_id,
@@ -417,6 +474,16 @@ class StagingTicketService
             'validated_at'      => now(),
         ]);
 
+        // Hapus SLA record staging — tiket yang ditolak tidak masuk SLA report
+        try {
+            $this->sla->detachFromStaging($staging);
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketService@reject: SLA detachFromStaging gagal (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+
         Log::info('StagingTicketService@reject: staging rejected', [
             'staging_id' => $staging->id,
             'reason'     => $reason,
@@ -442,9 +509,9 @@ class StagingTicketService
             $rows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Phone</td>'
                    . '<td>: ' . e($staging->no_hp) . '</td></tr>';
         }
-        if (!empty($staging->module)) {
+        if (!empty($staging->module_name)) {
             $rows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Module</td>'
-                   . '<td>: ' . e($staging->module) . '</td></tr>';
+                   . '<td>: ' . e($staging->module_name) . '</td></tr>';
         }
         if (!empty($staging->client)) {
             $rows .= '<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Client</td>'

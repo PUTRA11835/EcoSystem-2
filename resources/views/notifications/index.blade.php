@@ -22,25 +22,31 @@
 
     @php
         $lateExceptionTypes = [
-            'late_exception_submitted'    => ['icon' => 'fa-user-clock',    'color' => 'yellow', 'title' => 'Late Access Request submitted'],
-            'late_exception_pending_rpmo' => ['icon' => 'fa-user-clock',    'color' => 'blue',   'title' => 'Late Access Request needs RPMO review'],
-            'late_exception_head_approved'=> ['icon' => 'fa-check-circle',  'color' => 'green',  'title' => 'Late Access Request approved by Head'],
-            'late_exception_head_rejected'=> ['icon' => 'fa-times-circle',  'color' => 'red',    'title' => 'Late Access Request rejected by Head'],
-            'late_exception_approved'     => ['icon' => 'fa-unlock',        'color' => 'green',  'title' => 'Late Access Request approved by RPMO'],
-            'late_exception_rejected'     => ['icon' => 'fa-ban',           'color' => 'red',    'title' => 'Late Access Request rejected by RPMO'],
-            'customer_mandays_proposed'   => ['icon' => 'fa-file-invoice',  'color' => 'blue',   'title' => 'Customer Mandays Proposal — needs review'],
-            'resolution_days_proposed'   => ['icon' => 'fa-users',         'color' => 'indigo', 'title' => 'Resolution Days Proposal — needs review'],
-            'customer_mandays_canceled'   => ['icon' => 'fa-times-circle',  'color' => 'orange', 'title' => 'Customer Mandays Proposal canceled'],
-            'contract_end_reminder'       => ['icon' => 'fa-file-contract', 'color' => 'yellow', 'title' => 'Contract deadline reminder'],
-            'top_invoice_reminder'        => ['icon' => 'fa-file-invoice-dollar', 'color' => 'blue', 'title' => 'Invoice submission due'],
+            'late_exception_submitted'    => ['icon' => 'fa-user-clock',          'color' => 'yellow', 'title' => 'Late Access Request submitted'],
+            'late_exception_pending_rpmo' => ['icon' => 'fa-user-clock',          'color' => 'blue',   'title' => 'Late Access Request needs RPMO review'],
+            'late_exception_head_approved'=> ['icon' => 'fa-check-circle',        'color' => 'green',  'title' => 'Late Access Request approved by Head'],
+            'late_exception_head_rejected'=> ['icon' => 'fa-times-circle',        'color' => 'red',    'title' => 'Late Access Request rejected by Head'],
+            'late_exception_approved'     => ['icon' => 'fa-unlock',              'color' => 'green',  'title' => 'Late Access Request approved by RPMO'],
+            'late_exception_rejected'     => ['icon' => 'fa-ban',                 'color' => 'red',    'title' => 'Late Access Request rejected by RPMO'],
+            'customer_mandays_proposed'   => ['icon' => 'fa-file-invoice',        'color' => 'blue',   'title' => 'Customer Mandays Proposal — needs review'],
+            'resolution_days_proposed'    => ['icon' => 'fa-users',               'color' => 'indigo', 'title' => 'Resolution Days Proposal — needs review'],
+            'customer_mandays_canceled'   => ['icon' => 'fa-times-circle',        'color' => 'orange', 'title' => 'Customer Mandays Proposal canceled'],
+            'contract_end_reminder'       => ['icon' => 'fa-file-contract',       'color' => 'yellow', 'title' => 'Contract deadline reminder'],
+            'top_invoice_reminder'        => ['icon' => 'fa-file-invoice-dollar', 'color' => 'blue',   'title' => 'Invoice submission due'],
+            'customer_email_reply'        => ['icon' => 'fa-envelope',            'color' => 'green',  'title' => null], // title built dynamically from from_name
+            'ticket_reply'                => ['icon' => 'fa-reply',               'color' => 'blue',   'title' => null],
+            'ticket_internal_note'        => ['icon' => 'fa-sticky-note',         'color' => 'yellow', 'title' => null],
+            'ticket_member_added'         => ['icon' => 'fa-user-plus',           'color' => 'green',  'title' => null],
+            'ticket_member_removed'       => ['icon' => 'fa-user-minus',          'color' => 'red',    'title' => null],
+            'ticket_member_reactivated'   => ['icon' => 'fa-user-check',          'color' => 'blue',   'title' => null],
         ];
         $colorMap = [
             'yellow' => ['bg' => 'bg-yellow-100', 'icon' => 'text-yellow-600'],
             'blue'   => ['bg' => 'bg-blue-100',   'icon' => 'text-blue-600'],
             'green'  => ['bg' => 'bg-green-100',  'icon' => 'text-green-600'],
             'red'    => ['bg' => 'bg-red-100',     'icon' => 'text-red-600'],
-            'indigo'  => ['bg' => 'bg-indigo-100',  'icon' => 'text-indigo-600'],
-            'orange'  => ['bg' => 'bg-orange-100',  'icon' => 'text-orange-600'],
+            'indigo' => ['bg' => 'bg-indigo-100',  'icon' => 'text-indigo-600'],
+            'orange' => ['bg' => 'bg-orange-100',  'icon' => 'text-orange-600'],
         ];
     @endphp
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100" id="notifContainer">
@@ -53,11 +59,14 @@
                 ?? ($notif->type === 'timesheet_submitted'
                     ? '/calendar/timesheets'
                     : ($notif->ticket_id ? '/ticket/' . $notif->ticket_id : null));
+            if ($navLink && $notif->message_id && !str_contains($navLink, '#')) {
+                $navLink .= '#msg-' . $notif->message_id;
+            }
             $iconBg     = $notif->is_read ? 'bg-gray-100' : ($leColor ? $leColor['bg'] : 'bg-red-100');
             $iconColor  = $notif->is_read ? 'text-gray-400' : ($leColor ? $leColor['icon'] : 'text-red-600');
             $iconClass  = $leInfo ? $leInfo['icon'] : ($notif->type === 'timesheet_submitted' ? 'fa-file-alt' : 'fa-at');
         @endphp
-        <div class="flex gap-4 px-5 py-4 {{ !$notif->is_read ? 'bg-red-50' : '' }} hover:bg-gray-50 transition-colors group" id="notif-{{ $notif->id }}">
+        <div class="flex gap-4 px-5 py-4 {{ !$notif->is_read ? 'bg-red-50' : '' }} hover:bg-gray-50 transition-colors group" id="notif-{{ $notif->id }}" data-ticket-id="{{ $notif->ticket_id }}">
             <div class="w-9 h-9 rounded-full {{ $iconBg }} flex items-center justify-center shrink-0 mt-0.5">
                 <i class="fas {{ $iconClass }} {{ $iconColor }} text-sm"></i>
             </div>
@@ -65,20 +74,37 @@
                 <div class="flex items-start justify-between gap-2">
                     <div>
                         <p class="text-sm font-semibold text-gray-800">
-                            @if($isLateEx)
+                            @if($isLateEx && $leInfo['title'])
                                 {{ $leInfo['title'] }}
                                 @if($notif->from_name)
                                     <span class="font-normal text-gray-500">· {{ $notif->from_name }}</span>
                                 @endif
                             @elseif($notif->type === 'timesheet_submitted')
                                 {{ $notif->from_name ?? 'Consultant' }} submitted a timesheet
+                            @elseif($notif->type === 'customer_email_reply')
+                                {{ $notif->from_name ?? 'Customer' }} replied via email
+                            @elseif($notif->type === 'ticket_reply')
+                                {{ $notif->from_name ?? 'Someone' }} replied to a ticket
+                            @elseif($notif->type === 'ticket_internal_note')
+                                {{ $notif->from_name ?? 'Someone' }} added an internal note
+                            @elseif($notif->type === 'ticket_member_added')
+                                {{ $notif->from_name ?? 'Someone' }} added you to a ticket
+                            @elseif($notif->type === 'ticket_member_removed')
+                                {{ $notif->from_name ?? 'Someone' }} removed a member from a ticket
+                            @elseif($notif->type === 'ticket_member_reactivated')
+                                {{ $notif->from_name ?? 'Someone' }} re-added a member to a ticket
                             @else
                                 {{ $notif->from_name ?? 'Someone' }} mentioned you
                                 @if($notif->ticket_id)
-                                    in <a href="/ticket/{{ $notif->ticket_id }}" class="text-red-700 hover:underline">Ticket</a>
+                                    in <a href="{{ $navLink ?? ('/ticket/' . $notif->ticket_id) }}" class="text-red-700 hover:underline">Ticket</a>
                                 @endif
                             @endif
                         </p>
+                        @if($notif->ticket?->ticket_number || $notif->ticket?->customer?->customer_code)
+                        <p class="text-xs font-medium text-gray-700 mt-0.5">
+                            {{ implode(' · ', array_filter([$notif->ticket?->ticket_number, $notif->ticket?->customer?->customer_code])) }}
+                        </p>
+                        @endif
                         @if($notif->preview)
                         <p class="text-xs text-gray-500 mt-0.5 line-clamp-2">{{ $notif->preview }}</p>
                         @endif
@@ -118,18 +144,29 @@
 </div>
 
 <script>
-const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-// Mark a single notification as read (it STAYS on the page, just shown as read).
+// Mark a notification as read (it STAYS on the page, just shown as read). The backend
+// also marks every other unread notification for the same ticket read in one go, so
+// mirror that here — update every row sharing this ticket_id, not just the one clicked.
+function markReadRow(el) {
+    if (!el) return;
+    el.classList.remove('bg-red-50');
+    const dot = el.querySelector('.js-unread-dot');
+    if (dot) dot.remove();
+    const btn = el.querySelector('.js-mark-read-btn');
+    if (btn) btn.remove();
+}
+
 function markRead(id) {
     const el = document.getElementById('notif-' + id);
-    if (el) {
-        el.classList.remove('bg-red-50');
-        const dot = el.querySelector('.js-unread-dot');
-        if (dot) dot.remove();
-        const btn = el.querySelector('.js-mark-read-btn');
-        if (btn) btn.remove();
+    markReadRow(el);
+
+    const ticketId = el?.dataset.ticketId;
+    if (ticketId) {
+        document.querySelectorAll(`[data-ticket-id="${ticketId}"]`).forEach(markReadRow);
     }
+
     fetch(`/api/notifications/${id}/read`, {
         method: 'PUT',
         credentials: 'same-origin',
@@ -147,7 +184,7 @@ function markAllRead() {
 
 function clearRead() {
     fetch('/api/notifications/bulk-delete', {
-        method: 'DELETE',
+        method: 'POST',
         credentials: 'same-origin',
         headers: { 'X-CSRF-TOKEN': csrfToken }
     }).then(() => location.reload()).catch(() => {});

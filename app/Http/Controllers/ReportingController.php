@@ -3,13 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Exports\CustomerMdExport;
 use App\Exports\MdRecapExport;
+use App\Exports\ResolutionDaysExport;
+use App\Exports\TicketByModuleExport;
 use App\Exports\TimesheetReportExport;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\CustomerMandays;
+use App\Models\DeliverySupportActivity;
 use App\Models\ReportingPeriod;
+use App\Models\Ticket;
 use App\Services\PeriodService;
+use App\Support\SessionUser;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,17 +28,10 @@ class ReportingController extends Controller
 
     public function index()
     {
-        $sessionUser = session('user');
-        if (!$sessionUser) {
+        $user = SessionUser::fromSession(session('user'));
+        if (!$user) {
             return redirect()->route('login');
         }
-
-        $user = new \stdClass();
-        $user->id   = $sessionUser['id'] ?? null;
-        $user->name = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown';
-        $user->role = new \stdClass();
-        $user->role->role_id   = $sessionUser['role']['id'] ?? 0;
-        $user->role->role_name = $sessionUser['role']['name'] ?? 'Unknown';
 
         return view('reporting.reporting', ['user' => $user]);
     }
@@ -42,18 +41,37 @@ class ReportingController extends Controller
     public function currentPeriod()
     {
         try {
-            $current = ReportingPeriod::current();
-            $range   = ReportingPeriod::dateRange($current['year'], $current['month']);
+            // The globally-open period (as RPMO's period management sees it) — not
+            // just "whatever month today's date falls in". RPMO can reopen an older
+            // period (e.g. for late corrections) while the calendar-current month has
+            // never been opened; the badge must reflect the former, not the latter.
+            $active = ReportingPeriod::getActive();
+
+            if (!$active) {
+                return response()->json([
+                    'success' => true,
+                    'data'    => [
+                        'year'       => null,
+                        'month'      => null,
+                        'status'     => 'not_open',
+                        'is_closed'  => false,
+                        'closed_at'  => null,
+                        'start_date' => null,
+                        'end_date'   => null,
+                    ],
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
                 'data'    => [
-                    'year'       => $current['year'],
-                    'month'      => $current['month'],
-                    'is_closed'  => $current['is_closed'],
-                    'closed_at'  => $current['closed_at'],
-                    'start_date' => $range['start']->format('Y-m-d'),
-                    'end_date'   => $range['end']->format('Y-m-d'),
+                    'year'       => $active->year,
+                    'month'      => $active->month,
+                    'status'     => 'open',
+                    'is_closed'  => false,
+                    'closed_at'  => null,
+                    'start_date' => $active->start_date?->format('Y-m-d'),
+                    'end_date'   => $active->end_date?->format('Y-m-d'),
                 ],
             ]);
         } catch (\Exception $e) {
@@ -67,12 +85,11 @@ class ReportingController extends Controller
     public function closePeriod(Request $request)
     {
         try {
-            $sessionUser   = session('user');
-            $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
-            $employeeId    = (int) ($sessionUser['id'] ?? 0);
+            $sessionUser = SessionUser::fromSession(session('user'));
+            $employeeId  = $sessionUser->id;
 
             // Only RPMO can close globally via the new system
-            if ($currentRoleId !== RoleId::RPMO->value) {
+            if (!$sessionUser->hasRole(RoleId::DELIVERY_RPMO_HEAD->value)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Period closing is now managed from the Period Management page (RPMO only).',
@@ -86,7 +103,7 @@ class ReportingController extends Controller
 
             /** @var PeriodService $svc */
             $svc = app(PeriodService::class);
-            $svc->closeGlobal($period, $employeeId, $currentRoleId);
+            $svc->closeGlobal($period, $employeeId, RoleId::DELIVERY_RPMO_HEAD->value);
 
             return response()->json([
                 'success' => true,
@@ -105,9 +122,8 @@ class ReportingController extends Controller
     public function timesheetSupport(Request $request)
     {
         try {
-            $sessionUser       = session('user');
-            $currentEmployeeId = $sessionUser['id'] ?? null;
-            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $sessionUser       = SessionUser::fromSession(session('user'));
+            $currentEmployeeId = $sessionUser->id;
 
             // One row per individual timesheet entry (no GROUP BY)
             $query = DB::table('timesheets')
@@ -131,7 +147,8 @@ class ReportingController extends Controller
                     DB::raw('COALESCE(timesheets.md_consumed, 0) as md_consumed')
                 );
 
-            if ($currentRoleId !== RoleId::ADMIN->value && $currentRoleId !== RoleId::HEAD_OF_SUPPORT->value) {
+            $allowed = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
+            if (!$sessionUser->hasAnyRole($allowed)) {
                 $query->where('timesheets.employee_id', $currentEmployeeId);
             }
 
@@ -161,7 +178,7 @@ class ReportingController extends Controller
                         $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
                         if ($ticketId) {
                             $jatahMap[$ticketId . '_' . $detail->employee_id] =
-                                round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                                round((float)($detail->approved_mandays ?? 0) + (float)($detail->approved_additional ?? 0), 2);
                         }
                     });
             }
@@ -234,43 +251,51 @@ class ReportingController extends Controller
     public function exportExcel(Request $request)
     {
         try {
-            $sessionUser       = session('user');
-            $currentEmployeeId = $sessionUser['id'] ?? null;
-            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $sessionUser = SessionUser::fromSession(session('user'));
+            $allowed     = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
 
-            if (!in_array($currentRoleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
+            if (!$sessionUser->hasAnyRole($allowed)) {
                 abort(403, 'Access denied. Only Admins and Head of Support can export reports.');
             }
 
-            // Determine period for export
-            if ($request->filled('year') && $request->filled('month')) {
-                $periodYear  = (int) $request->year;
-                $periodMonth = (int) $request->month;
-            } else {
-                $current     = ReportingPeriod::current();
-                $periodYear  = $current['year'];
-                $periodMonth = $current['month'];
-            }
+            // Column filters passed from the browser view
+            $filterEmployee = trim($request->input('employee', ''));
+            $filterTicket   = trim($request->input('ticket',   ''));
+            $filterCustomer = trim($request->input('customer', ''));
+            $filterApproval = trim($request->input('approval', ''));
+            $filterMdStatus = trim($request->input('md_status', ''));
 
-            $range = ReportingPeriod::dateRange($periodYear, $periodMonth);
-
-            // Fetch individual approved support timesheets (one row per timesheet)
-            $rows = DB::table('timesheets')
+            $query = DB::table('timesheets')
                 ->join('ticket',              'timesheets.ticket_id',   '=', 'ticket.ticket_id')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
                 ->leftJoin('customer',            'ticket.customer_id',   '=', 'customer.customer_id')
                 ->leftJoin('customer_basic_data', 'customer.customer_id', '=', 'customer_basic_data.customer_id')
-                ->where('timesheets.status', 'approved')
+                ->whereIn('timesheets.status', ['draft', 'submitted', 'approved'])
                 ->whereNotNull('timesheets.ticket_id')
-                ->whereNull('timesheets.deleted_at')
-                ->whereBetween('timesheets.date', [
-                    $range['start']->format('Y-m-d'),
-                    $range['end']->format('Y-m-d'),
-                ])
+                ->whereNull('timesheets.deleted_at');
+
+            if ($filterEmployee !== '') {
+                $query->whereRaw(
+                    "LOWER(TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,'')))) LIKE ?",
+                    ['%' . strtolower($filterEmployee) . '%']
+                );
+            }
+            if ($filterTicket !== '') {
+                $query->where('ticket.ticket_number', 'LIKE', '%' . $filterTicket . '%');
+            }
+            if ($filterCustomer !== '') {
+                $query->where('customer_basic_data.name_1', 'LIKE', '%' . $filterCustomer . '%');
+            }
+            if ($filterApproval !== '') {
+                $query->where('timesheets.status', $filterApproval);
+            }
+
+            $rows = $query
                 ->select(
                     'timesheets.id',
                     'timesheets.employee_id',
+                    'timesheets.status as timesheet_status',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     'timesheets.ticket_id',
                     'ticket.ticket_number',
@@ -303,14 +328,14 @@ class ReportingController extends Controller
                         $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
                         if ($ticketId) {
                             $jatahMap[$ticketId . '_' . $detail->employee_id] =
-                                round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                                round((float)($detail->approved_mandays ?? 0) + (float)($detail->approved_additional ?? 0), 2);
                         }
                     });
             }
 
             // Calculate running totals ASC (chronological), then reverse to newest-first
             $runningTotals = [];
-            $exportRows = $rows->map(function ($r) use ($jatahMap, $periodYear, $periodMonth, &$runningTotals) {
+            $exportRows = $rows->map(function ($r) use ($jatahMap, &$runningTotals) {
                 $jatahMd    = $jatahMap[$r->ticket_id . '_' . $r->employee_id] ?? null;
                 $mdConsumed = (float) ($r->md_consumed ?? 0);
 
@@ -318,10 +343,10 @@ class ReportingController extends Controller
                 $runningTotals[$key] = ($runningTotals[$key] ?? 0) + $mdConsumed;
                 $cumulative = $runningTotals[$key];
 
-                if ($jatahMd === null)           $status = null;
-                elseif ($cumulative == $jatahMd) $status = 'Match';
-                elseif ($cumulative > $jatahMd)  $status = 'Over';
-                else                             $status = 'Less';
+                if ($jatahMd === null)           $mdStatus = null;
+                elseif ($cumulative == $jatahMd) $mdStatus = 'Match';
+                elseif ($cumulative > $jatahMd)  $mdStatus = 'Over';
+                else                             $mdStatus = 'Less';
 
                 // Period: use stored override if set, else compute from date
                 if ($r->period_year && $r->period_month) {
@@ -340,17 +365,20 @@ class ReportingController extends Controller
                     'period_year'   => $pYear,
                     'jatah_md'      => $jatahMd,
                     'md_consumed'   => $mdConsumed,
-                    'status'        => $status,
+                    'status'        => $mdStatus,
                 ];
-            })->reverse()->values(); // newest first, matching view order
+            });
 
-            $monthName = $this->monthName($periodMonth);
-            $filename  = "Timesheet_Report_{$monthName}_{$periodYear}.xlsx";
+            // Apply md_status filter (computed field — must filter after running totals)
+            if ($filterMdStatus !== '') {
+                $exportRows = $exportRows->filter(fn($r) => $r['status'] === $filterMdStatus);
+            }
 
-            return Excel::download(
-                new TimesheetReportExport(collect($exportRows), $periodYear, $periodMonth),
-                $filename
-            );
+            $exportRows = $exportRows->reverse()->values(); // newest first, matching view order
+
+            $filename = 'MD_Validation_Export_' . now()->format('Y-m-d') . '.xlsx';
+
+            return Excel::download(new TimesheetReportExport(collect($exportRows)), $filename);
 
         } catch (\Exception $e) {
             Log::error('exportExcel error: ' . $e->getMessage());
@@ -365,8 +393,9 @@ class ReportingController extends Controller
         $sessionUser = session('user');
         if (!$sessionUser) return redirect()->route('login');
 
-        $roleId = (int) ($sessionUser['role']['id'] ?? 0);
-        if (!in_array($roleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
+        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+        $allowed = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
+        if (empty(array_intersect($roleIds, $allowed))) {
             abort(403, 'Access denied. Only Admins and Head of Support can view the MD recap.');
         }
 
@@ -379,26 +408,34 @@ class ReportingController extends Controller
     {
         try {
             $sessionUser   = session('user');
-            $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $currentRoleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+            $allowed        = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
 
-            if (!in_array($currentRoleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
+            if (empty(array_intersect($currentRoleIds, $allowed))) {
                 return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
             }
 
-            $month = $request->filled('month') ? (int) $request->month : now()->month;
-            $year  = $request->filled('year')  ? (int) $request->year  : now()->year;
-
-            $range = ReportingPeriod::dateRange($year, $month);
-
-            $rows = DB::table('timesheets')
+            $query = DB::table('timesheets')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
                 ->where('timesheets.status', 'approved')
-                ->whereNull('timesheets.deleted_at')
-                ->whereBetween('timesheets.date', [
+                ->whereNull('timesheets.deleted_at');
+
+            $fMonth = (int) $request->input('month', 0);
+            $fYear  = (int) $request->input('year',  0);
+            if ($fMonth && $fYear) {
+                $range = ReportingPeriod::dateRange($fYear, $fMonth);
+                $query->whereBetween('timesheets.date', [
                     $range['start']->format('Y-m-d'),
                     $range['end']->format('Y-m-d'),
-                ])
+                ]);
+            } elseif ($fMonth) {
+                $query->whereMonth('timesheets.date', $fMonth);
+            } elseif ($fYear) {
+                $query->whereYear('timesheets.date', $fYear);
+            }
+
+            $rows = $query
                 ->select(
                     'timesheets.id',
                     'timesheets.date',
@@ -432,26 +469,46 @@ class ReportingController extends Controller
     {
         try {
             $sessionUser   = session('user');
-            $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $currentRoleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+            $allowed        = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
 
-            if (!in_array($currentRoleId, [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value])) {
+            if (empty(array_intersect($currentRoleIds, $allowed))) {
                 abort(403, 'Access denied. Only Admins and Head of Support can export the MD recap.');
             }
 
-            $month = $request->filled('month') ? (int) $request->month : now()->month;
-            $year  = $request->filled('year')  ? (int) $request->year  : now()->year;
+            $filterName  = trim($request->input('name', ''));
+            $filterMode  = trim($request->input('mode', ''));
+            $filterMonth = (int) $request->input('month', 0);
+            $filterYear  = (int) $request->input('year',  0);
 
-            $range = ReportingPeriod::dateRange($year, $month);
-
-            $rows = DB::table('timesheets')
+            $query = DB::table('timesheets')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
                 ->where('timesheets.status', 'approved')
-                ->whereNull('timesheets.deleted_at')
-                ->whereBetween('timesheets.date', [
+                ->whereNull('timesheets.deleted_at');
+
+            if ($filterMonth && $filterYear) {
+                $range = ReportingPeriod::dateRange($filterYear, $filterMonth);
+                $query->whereBetween('timesheets.date', [
                     $range['start']->format('Y-m-d'),
                     $range['end']->format('Y-m-d'),
-                ])
+                ]);
+            } elseif ($filterMonth) {
+                $query->whereMonth('timesheets.date', $filterMonth);
+            } elseif ($filterYear) {
+                $query->whereYear('timesheets.date', $filterYear);
+            }
+            if ($filterName !== '') {
+                $query->whereRaw(
+                    "LOWER(TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,'')))) LIKE ?",
+                    ['%' . strtolower($filterName) . '%']
+                );
+            }
+            if ($filterMode !== '') {
+                $query->whereRaw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END = ?", [$filterMode]);
+            }
+
+            $rows = $query
                 ->select(
                     'timesheets.date',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
@@ -474,9 +531,12 @@ class ReportingController extends Controller
                 ->sortBy([['name', 'asc'], ['mode', 'asc']])
                 ->values();
 
-            $filename = "MD_Recap_{$this->monthName($month)}_{$year}.xlsx";
+            $periodSuffix = ($filterMonth && $filterYear)
+                ? '_' . $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT)
+                : '_' . now()->format('Y-m-d');
+            $filename = 'MD_Recap_Export' . $periodSuffix . '.xlsx';
 
-            return Excel::download(new MdRecapExport(collect($exportRows), $month, $year), $filename);
+            return Excel::download(new MdRecapExport(collect($exportRows)), $filename);
 
         } catch (\Exception $e) {
             Log::error('exportMdRecap error');
@@ -484,7 +544,2666 @@ class ReportingController extends Controller
         }
     }
 
+    // ── Export Resolution Days ────────────────────────────────────────────
+
+    public function exportResolutionDays(Request $request)
+    {
+        try {
+            $sessionUser   = session('user');
+            $currentRoleId = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+
+            if (!in_array($currentRoleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
+                abort(403, 'Access denied.');
+            }
+
+            $filterMonth = (int) $request->input('month', 0);
+            $filterYear  = (int) $request->input('year',  0);
+
+            $query = DB::table('consultant_mandays_detail as cmd')
+                ->join('consultant_mandays as cm',       'cmd.consultant_mandays_id', '=', 'cm.id')
+                ->join('ticket',                         'cm.ticket_id',              '=', 'ticket.ticket_id')
+                ->join('employee',                       'cmd.employee_id',           '=', 'employee.employee_id')
+                ->leftJoin('employee_basic_data as ebd', 'employee.employee_id',      '=', 'ebd.employee_id')
+                ->whereNull('ticket.deleted_at');
+
+            if ($filterMonth || $filterYear) {
+                $tsQuery = DB::table('timesheets')
+                    ->where('status', 'approved')
+                    ->whereNull('deleted_at')
+                    ->whereNotNull('ticket_id');
+                if ($filterMonth && $filterYear) {
+                    $range = ReportingPeriod::dateRange($filterYear, $filterMonth);
+                    $tsQuery->whereBetween('date', [
+                        $range['start']->format('Y-m-d'),
+                        $range['end']->format('Y-m-d'),
+                    ]);
+                } elseif ($filterMonth) {
+                    $tsQuery->whereMonth('date', $filterMonth);
+                } elseif ($filterYear) {
+                    $tsQuery->whereYear('date', $filterYear);
+                }
+                $query->whereIn('cm.ticket_id', $tsQuery->pluck('ticket_id'));
+            }
+
+            $rows = $query->select(
+                    'ticket.ticket_number',
+                    'employee.eci as employee_eci',
+                    DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''), ' ', COALESCE(ebd.last_name,''))) as full_name"),
+                    'cmd.mandays',
+                    'cmd.approved_mandays',
+                    'cmd.additional_mandays',
+                    'cmd.notes',
+                    'cmd.approved_additional',
+                    'cm.status as proposal_status'
+                )
+                ->orderBy('ticket.ticket_number')
+                ->orderBy('employee.eci')
+                ->get();
+
+            $exportRows = $rows->map(function ($r) {
+                $isApproved = $r->proposal_status === 'approved';
+                // Before Head approval there's nothing "approved" yet — fall back to the
+                // raw proposed numbers so pending rows keep showing what they always showed,
+                // instead of suddenly reading as 0.
+                $total = $isApproved
+                    ? round((float) ($r->approved_mandays ?? 0) + (float) $r->approved_additional, 2)
+                    : round((float) $r->mandays + (float) $r->additional_mandays, 2);
+
+                return [
+                    'ticket_number'   => $r->ticket_number,
+                    'employee_eci'    => $r->employee_eci,
+                    'name'            => trim($r->full_name),
+                    'resolution_days' => (float) $r->mandays,
+                    'additional_days' => (float) $r->additional_mandays,
+                    'note'            => $r->notes ?? '',
+                    'approved_days'   => (float) ($r->approved_mandays ?? 0),
+                    'approve_add'     => (float) $r->approved_additional,
+                    'total'           => $total,
+                ];
+            });
+
+            if ($filterMonth && $filterYear) {
+                $periodSuffix = '_' . $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT);
+            } elseif ($filterMonth) {
+                $periodSuffix = '_month-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT);
+            } elseif ($filterYear) {
+                $periodSuffix = '_' . $filterYear;
+            } else {
+                $periodSuffix = '_' . now()->format('Y-m-d');
+            }
+            $filename = 'Resolution_Days_Export' . $periodSuffix . '.xlsx';
+
+            return Excel::download(new ResolutionDaysExport($exportRows), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportResolutionDays error', ['msg' => $e->getMessage()]);
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // ── Web: Customer MD page ───────────────────────────────────────────────
+
+    public function customerMdIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        $employee = \App\Models\Employee::find($sessionUser->id);
+        if (!$employee || !$employee->canAccessMenu('reporting.customer-md')) {
+            abort(403, 'Access denied.');
+        }
+
+        return view('reporting.customer-md', ['user' => session('user')]);
+    }
+
+    /**
+     * Label tampilan status Customer Mandays untuk report ini. Hanya 5 status
+     * yang relevan — "approved" SENGAJA tidak termasuk: begitu Customer Mandays
+     * disetujui, tiketnya dianggap selesai tahap proposal dan tidak lagi
+     * ditampilkan di report tracking ini (lihat customerMdRows()).
+     *
+     * "Review by Module Lead" = label untuk status `pending_helpdesk` (proposal
+     * sudah disubmit PIC/Ticket Lead, sedang direview sebelum dikirim ke
+     * customer) — penamaan mengikuti istilah yang dipakai user, bukan nama
+     * status di database.
+     */
+    private const CUSTOMER_MD_STATUS_LABELS = [
+        'none'             => 'None',
+        'pic_draft'        => 'Draft',
+        'pending_helpdesk' => 'Review by Module Lead',
+        'sent_to_chat'     => 'Review by Customer',
+        'canceled'         => 'Cancel',
+    ];
+
+    /**
+     * Baris report Customer MD, dipakai bareng oleh endpoint JSON dan Export
+     * supaya keduanya selalu melihat data yang identik (single source of truth).
+     *
+     * Cakupan: semua tiket yang type-nya Change Request DAN/ATAU sudah punya
+     * Customer Mandays proposal (mandays_proposal_status bukan null/none),
+     * KECUALI yang sudah Approved — begitu disetujui, tiketnya keluar dari
+     * tracking report ini (lihat CUSTOMER_MD_STATUS_LABELS).
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function customerMdRows(): \Illuminate\Support\Collection
+    {
+        $tickets = Ticket::with(['customer.basicData', 'ticketLead.basicData'])
+            ->whereNull('deleted_at')
+            ->whereNull('is_hidden')
+            ->where(function ($q) {
+                // "Punya Customer Mandays" berarti statusnya bukan 'none' — kolom ini
+                // TIDAK PERNAH benar-benar NULL di DB (defaultnya string 'none'), jadi
+                // whereNotNull() di sini akan salah menangkap SEMUA tiket. whereNull()
+                // tetap disertakan sebagai jaga-jaga kalau skema kolom berubah nullable.
+                $q->where('ticket_type', 'Change Request')
+                  ->orWhere(function ($q2) {
+                      $q2->whereNotNull('mandays_proposal_status')
+                         ->where('mandays_proposal_status', '!=', 'none');
+                  });
+            })
+            ->where(function ($q) {
+                $q->whereNull('mandays_proposal_status')
+                  ->orWhere('mandays_proposal_status', '!=', 'approved');
+            })
+            ->orderByDesc('created_at')
+            ->get(['ticket_id', 'ticket_number', 'description', 'ticket_type', 'customer_id', 'ticket_lead_id', 'mandays_proposal_status', 'created_at']);
+
+        $ticketIds = $tickets->pluck('ticket_id');
+
+        // Satu tiket cuma bisa punya satu Delivery Support aktif (lihat
+        // [[project_changes_2026_07_02]] — aturan "one-DS-per-ticket").
+        $deliveryMap = DeliverySupportActivity::with('deliverySupport')
+            ->whereIn('ticket_id', $ticketIds)
+            ->whereNotNull('ticket_id')
+            ->get()
+            ->keyBy('ticket_id');
+
+        return $tickets->map(function (Ticket $ticket) use ($deliveryMap) {
+            $status = $ticket->mandays_proposal_status ?: 'none';
+
+            return [
+                'ticket_id'     => $ticket->ticket_id,
+                'ticket_number' => $ticket->ticket_number,
+                'description'   => $ticket->description,
+                'ticket_type'   => $ticket->ticket_type,
+                'customer_name' => $ticket->customer?->basicData?->name_1 ?? $ticket->customer?->email,
+                'delivery_name' => $deliveryMap->get($ticket->ticket_id)?->deliverySupport?->name,
+                'lead_name'     => $ticket->ticketLead
+                    ? trim(($ticket->ticketLead->basicData?->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData?->last_name ?? ''))
+                    : null,
+                'md_status'       => $status,
+                'md_status_label' => self::CUSTOMER_MD_STATUS_LABELS[$status] ?? $status,
+                'created_at'      => $ticket->created_at,
+            ];
+        })->values();
+    }
+
+    // ── API: Customer MD data ───────────────────────────────────────────────
+
+    public function customerMd(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.customer-md')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            return response()->json(['success' => true, 'data' => $this->customerMdRows()]);
+
+        } catch (\Exception $e) {
+            Log::error('customerMd error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load Customer MD data. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Customer MD export ──────────────────────────────────────────────
+
+    public function exportCustomerMd(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.customer-md')) {
+                abort(403, 'Access denied.');
+            }
+
+            $filename = 'Customer_MD_Export_' . now()->timezone('Asia/Jakarta')->format('dmY') . '.xlsx';
+
+            return Excel::download(new CustomerMdExport($this->customerMdRows()), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportCustomerMd error: ' . $e->getMessage());
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // ── Web: Resolution Days (unapproved) page ─────────────────────────────
+
+    public function resolutionDaysIndex()
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) return redirect()->route('login');
+
+        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+        $allowed = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
+        if (empty(array_intersect($roleIds, $allowed))) {
+            abort(403, 'Access denied. Only Admins and Head of Support can view Resolution Days.');
+        }
+
+        return view('reporting.resolution-days', ['user' => $sessionUser]);
+    }
+
+    // ── API: Resolution Days (unapproved) list ─────────────────────────────
+    // Tickets whose resolution_days_status is 'none' (never proposed) or
+    // 'pending_head' (submitted, awaiting Head approval) — i.e. everything
+    // that isn't approved/rejected/draft yet, across all tickets company-wide.
+
+    public function resolutionDays(Request $request)
+    {
+        try {
+            $sessionUser = session('user');
+            $roleIds     = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+            $allowed     = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
+
+            if (empty(array_intersect($roleIds, $allowed))) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            }
+
+            $tickets = Ticket::with(['customer.basicData', 'ticketLead.basicData'])
+                ->whereNull('is_hidden')
+                ->whereIn('resolution_days_status', ['none', 'pending_head'])
+                ->get(['ticket_id', 'ticket_number', 'description', 'customer_id', 'ticket_lead_id', 'resolution_days_status', 'created_at']);
+
+            $ticketIds = $tickets->pluck('ticket_id');
+
+            // Latest pending-approval proposal per ticket (only relevant for pending_head rows)
+            $pendingProposals = ConsultantMandays::whereIn('ticket_id', $ticketIds)
+                ->where('status', 'pending_approval')
+                ->with('proposedByAgent.basicData')
+                ->orderBy('proposed_at', 'desc')
+                ->get()
+                ->unique('ticket_id')
+                ->keyBy('ticket_id');
+
+            // Pending Head first (newest-submitted proposal on top), then None
+            // (oldest un-proposed ticket on top, so the longest-neglected ones surface first).
+            $tickets = $tickets->sortBy(function ($t) use ($pendingProposals) {
+                if ($t->resolution_days_status === 'pending_head') {
+                    $proposedAt = $pendingProposals->get($t->ticket_id)?->proposed_at;
+                    return [0, $proposedAt ? -$proposedAt->timestamp : 0];
+                }
+                return [1, $t->created_at?->timestamp ?? 0];
+            })->values();
+
+            $data = $tickets->map(function ($t) use ($pendingProposals) {
+                $proposal = $pendingProposals->get($t->ticket_id);
+                $agent    = $proposal?->proposedByAgent;
+
+                return [
+                    'ticket_id'              => $t->ticket_id,
+                    'ticket_number'          => $t->ticket_number,
+                    'description'            => $t->description,
+                    'customer_name'          => $t->customer?->basicData?->name_1,
+                    'pic_name'               => $t->ticketLead
+                        ? trim(($t->ticketLead->basicData?->first_name ?? '') . ' ' . ($t->ticketLead->basicData?->last_name ?? ''))
+                        : null,
+                    'resolution_days_status' => $t->resolution_days_status,
+                    'proposed_total_mandays' => $proposal ? round((float) $proposal->total_mandays, 2) : null,
+                    'proposed_at'            => $proposal?->proposed_at?->format('Y-m-d H:i'),
+                    'proposed_by'            => $agent
+                        ? trim(($agent->basicData?->first_name ?? '') . ' ' . ($agent->basicData?->last_name ?? ''))
+                        : null,
+                ];
+            });
+
+            return response()->json(['success' => true, 'data' => $data]);
+
+        } catch (\Exception $e) {
+            Log::error('resolutionDays error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to retrieve resolution days data.'], 500);
+        }
+    }
+
+    // ── Web: Collection Outlook page ──────────────────────────────────────
+
+    public function collectionOutlookIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.collection-outlook', ['user' => session('user')]);
+    }
+
+    // ── API: Collection Outlook data ──────────────────────────────────────
+    //
+    // Menampilkan outlook penagihan (Term Of Payment) per project × termin,
+    // ditata ke dalam kolom bulan sesuai range (bulan+tahun) yang dipilih.
+    // Placement bulan = estimated_date (tanggal rencana penagihan); fallback
+    // ke paid_date lalu submit_invoice_date bila estimasi kosong.
+
+    public function collectionOutlook(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.collection-outlook')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $fromMonth = (int) $request->input('from_month', now()->month);
+            $fromYear  = (int) $request->input('from_year',  now()->year);
+            $toMonth   = (int) $request->input('to_month',   now()->month);
+            $toYear    = (int) $request->input('to_year',    now()->year);
+
+            // Guard bulan agar valid 1..12
+            $fromMonth = min(max($fromMonth, 1), 12);
+            $toMonth   = min(max($toMonth, 1), 12);
+
+            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
+            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
+            if ($start->gt($end)) {
+                [$start, $end] = [$end, $start];
+            }
+
+            // Bangun daftar kolom bulan (batasi maks 36 bulan agar tabel wajar)
+            $months    = [];
+            $monthKeys = [];
+            $cursor    = $start->copy();
+            $guard     = 0;
+            while ($cursor->lte($end) && $guard < 36) {
+                $key         = $cursor->format('Y-m');
+                $months[]    = [
+                    'key'         => $key,
+                    'year'        => (int) $cursor->format('Y'),
+                    'month'       => (int) $cursor->format('n'),
+                    'label'       => $cursor->format('M Y'),   // e.g. Jan 2026
+                    'month_label' => $cursor->format('F'),     // e.g. January
+                ];
+                $monthKeys[] = $key;
+                $cursor->addMonth();
+                $guard++;
+            }
+
+            // Filter opsional berdasarkan Account Executive (nama AE di project).
+            $filterAe = trim((string) $request->input('ae', ''));
+
+            $terms = DB::table('delivery_project_payment_terms as pt')
+                ->join('delivery_projects as p', 'pt.delivery_projects_id', '=', 'p.id')
+                ->leftJoin('customer_basic_data as cbd', 'p.client_id', '=', 'cbd.customer_id')
+                ->when($filterAe !== '', fn($q) => $q->where('p.ae_name', $filterAe))
+                ->select(
+                    'pt.*',
+                    'p.name as project_name',
+                    'p.io_number as io_number',
+                    'p.ae_name as ae_name',
+                    'p.revenue as project_revenue',
+                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
+                )
+                ->get();
+
+            $rows = [];
+            foreach ($terms as $t) {
+                $placementRaw = $t->estimated_date ?: $t->paid_date ?: $t->submit_invoice_date;
+                if (!$placementRaw) {
+                    continue; // tanpa tanggal → tidak bisa ditempatkan di kolom bulan
+                }
+
+                $key = Carbon::parse($placementRaw)->format('Y-m');
+                if (!in_array($key, $monthKeys, true)) {
+                    continue; // di luar range bulan yang dipilih
+                }
+
+                $rows[] = [
+                    'project_id'          => (int) $t->delivery_projects_id,
+                    'project_name'        => $t->project_name ?? '-',
+                    'io_number'           => $t->io_number,
+                    'ae_name'             => $t->ae_name,
+                    'client_name'         => $t->client_name,
+                    'term_id'             => (int) $t->id,
+                    'term_number'         => (int) $t->term_number,
+                    'month_key'           => $key,
+                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
+                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
+                    'amount'              => round(((float) $t->project_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    'status'              => $t->status,
+                    'payment_term'        => $t->payment_term,
+                    'payment_percentage'  => (float) $t->payment_percentage,
+                    'requirements'        => $t->requirements,
+                    'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : null,
+                    'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : null,
+                    'invoice_number'      => $t->invoice_number,
+                    'paid_date'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('d M Y') : null,
+                    'project_revenue'     => (float) $t->project_revenue,
+                    // Bentuk ISO dipakai form edit status di modal detail.
+                    'submit_invoice_date_iso' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('Y-m-d') : null,
+                    'paid_date_iso'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('Y-m-d') : null,
+                ];
+            }
+
+            // Urut: nama project (A→Z) lalu nomor termin
+            usort($rows, function ($a, $b) {
+                $c = strcasecmp($a['project_name'], $b['project_name']);
+                return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
+            });
+
+            // Daftar AE untuk dropdown filter (semua AE bernama di delivery_projects,
+            // independen dari range bulan agar pilihan tetap stabil).
+            $aeOptions = DB::table('delivery_projects')
+                ->whereNotNull('ae_name')
+                ->where('ae_name', '!=', '')
+                ->distinct()
+                ->orderBy('ae_name')
+                ->pluck('ae_name')
+                ->values();
+
+            return response()->json([
+                'success'    => true,
+                'months'     => $months,
+                'rows'       => $rows,
+                'ae_options' => $aeOptions,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('collectionOutlook error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load collection outlook data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Collection Outlook — ubah status penagihan sebuah TOP ────────
+    //
+    // Hanya menyentuh field pelunasan (status, paid date, submit invoice date,
+    // invoice number). Nominal/percentage tetap dikelola dari Delivery Info
+    // project agar total termin tidak bisa melampaui revenue lewat jalur ini.
+    // Otorisasi ditangani middleware `menu:reporting.collection-outlook.edit`.
+
+    public function collectionOutlookUpdateTerm(Request $request, $term)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $paymentTerm = \App\Models\DeliveryProjectPaymentTerm::find($term);
+            if (!$paymentTerm) {
+                return response()->json(['success' => false, 'message' => 'Payment term not found.'], 404);
+            }
+
+            $validated = $request->validate([
+                'status'              => 'required|string|in:Open,Paid,Delay',
+                // Konsisten dengan TOP Plan di Delivery Info: Paid wajib punya tanggal.
+                'paid_date'           => 'nullable|required_if:status,Paid|date',
+                'submit_invoice_date' => 'nullable|date',
+                'invoice_number'      => 'nullable|required_with:submit_invoice_date|string|max:255',
+            ], [
+                'paid_date.required_if'        => 'Paid Date is required when Status is Paid.',
+                'invoice_number.required_with' => 'Invoice Number is required when Submit Invoice Date is filled.',
+            ]);
+
+            // Status non-Paid tidak boleh menyisakan paid_date yatim.
+            if ($validated['status'] !== 'Paid') {
+                $validated['paid_date'] = null;
+            }
+
+            $paymentTerm->update($validated);
+
+            // Tanggal invoice berubah → reminder penagihan harus dievaluasi ulang.
+            app(\App\Services\ProjectReminderService::class)->syncAllQuietly();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment status updated successfully.',
+                'term'    => [
+                    'term_id'             => $paymentTerm->id,
+                    'status'              => $paymentTerm->status,
+                    'paid_date'           => $paymentTerm->paid_date?->format('d M Y'),
+                    'submit_invoice_date' => $paymentTerm->submit_invoice_date?->format('d M Y'),
+                    'invoice_number'      => $paymentTerm->invoice_number,
+                ],
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first() ?? 'Invalid data.',
+                'errors'  => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('collectionOutlookUpdateTerm error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to update payment status. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Collection Outlook — Excel export (list rincian per termin) ──────
+    //
+    // Satu baris per Term Of Payment dalam range bulan terpilih (placement =
+    // estimated_date → paid_date → submit_invoice_date, sama seperti tampilan).
+    // Menghormati filter AE yang sedang aktif di halaman.
+
+    public function exportCollectionOutlook(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.collection-outlook')) {
+                abort(403, 'Access denied.');
+            }
+
+            $fromMonth = min(max((int) $request->input('from_month', now()->month), 1), 12);
+            $fromYear  = (int) $request->input('from_year',  now()->year);
+            $toMonth   = min(max((int) $request->input('to_month',   now()->month), 1), 12);
+            $toYear    = (int) $request->input('to_year',    now()->year);
+            $filterAe  = trim((string) $request->input('ae', ''));
+
+            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
+            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
+            if ($start->gt($end)) {
+                [$start, $end] = [$end, $start];
+            }
+
+            $monthKeys = [];
+            $cursor    = $start->copy();
+            $guard     = 0;
+            while ($cursor->lte($end) && $guard < 36) {
+                $monthKeys[] = $cursor->format('Y-m');
+                $cursor->addMonth();
+                $guard++;
+            }
+
+            $terms = DB::table('delivery_project_payment_terms as pt')
+                ->join('delivery_projects as p', 'pt.delivery_projects_id', '=', 'p.id')
+                ->leftJoin('customer_basic_data as cbd', 'p.client_id', '=', 'cbd.customer_id')
+                ->when($filterAe !== '', fn($q) => $q->where('p.ae_name', $filterAe))
+                ->select(
+                    'pt.*',
+                    'p.name as project_name',
+                    'p.io_number as io_number',
+                    'p.ae_name as ae_name',
+                    'p.revenue as project_revenue',
+                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
+                )
+                ->get();
+
+            $rows = [];
+            foreach ($terms as $t) {
+                $placementRaw = $t->estimated_date ?: $t->paid_date ?: $t->submit_invoice_date;
+                if (!$placementRaw) {
+                    continue;
+                }
+                $key = Carbon::parse($placementRaw)->format('Y-m');
+                if (!in_array($key, $monthKeys, true)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'client_name'         => $t->client_name ?: '-',
+                    'project_name'        => $t->project_name ?: '-',
+                    'io_number'           => $t->io_number ?: '-',
+                    'ae_name'             => $t->ae_name ?: '-',
+                    'term_number'         => (int) $t->term_number,
+                    'payment_term'        => $t->payment_term ?: '-',
+                    'payment_percentage'  => (float) $t->payment_percentage,
+                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
+                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
+                    'amount'              => round(((float) $t->project_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    'status'              => $t->status,
+                    'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : '',
+                    'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : '',
+                    'invoice_number'      => $t->invoice_number ?: '',
+                    'paid_date'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('d M Y') : '',
+                ];
+            }
+
+            usort($rows, function ($a, $b) {
+                $c = strcasecmp($a['project_name'], $b['project_name']);
+                return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
+            });
+
+            $filename = 'Collection_Outlook_' . $start->format('Ym') . '-' . $end->format('Ym') . '_' . now()->format('Ymd') . '.xlsx';
+
+            return Excel::download(new \App\Exports\CollectionOutlookExport(collect($rows)), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportCollectionOutlook error: ' . $e->getMessage());
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // =========================================================================
+    // COLLECTION OUTLOOK — DELIVERY SUPPORT
+    // Mirror halaman Collection Outlook (project) untuk sumber Term Of Payment
+    // milik Delivery Support. Filter memakai "Type" support (bukan Account
+    // Executive), dan tidak memanggil ProjectReminderService.
+    // =========================================================================
+
+    public function collectionOutlookSupportIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.collection-outlook-support', ['user' => session('user')]);
+    }
+
+    public function collectionOutlookSupport(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.collection-outlook-support')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $fromMonth = min(max((int) $request->input('from_month', now()->month), 1), 12);
+            $fromYear  = (int) $request->input('from_year',  now()->year);
+            $toMonth   = min(max((int) $request->input('to_month',   now()->month), 1), 12);
+            $toYear    = (int) $request->input('to_year',    now()->year);
+
+            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
+            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
+            if ($start->gt($end)) {
+                [$start, $end] = [$end, $start];
+            }
+
+            $months    = [];
+            $monthKeys = [];
+            $cursor    = $start->copy();
+            $guard     = 0;
+            while ($cursor->lte($end) && $guard < 36) {
+                $key         = $cursor->format('Y-m');
+                $months[]    = [
+                    'key'         => $key,
+                    'year'        => (int) $cursor->format('Y'),
+                    'month'       => (int) $cursor->format('n'),
+                    'label'       => $cursor->format('M Y'),
+                    'month_label' => $cursor->format('F'),
+                ];
+                $monthKeys[] = $key;
+                $cursor->addMonth();
+                $guard++;
+            }
+
+            // Filter opsional berdasarkan Type support (analog filter AE di project).
+            $filterType = trim((string) $request->input('type', ''));
+
+            $terms = DB::table('delivery_support_payment_terms as pt')
+                ->join('delivery_support as s', 'pt.delivery_support_id', '=', 's.id')
+                ->leftJoin('customer_basic_data as cbd', 's.client_id', '=', 'cbd.customer_id')
+                ->when($filterType !== '', fn($q) => $q->where('s.type', $filterType))
+                ->select(
+                    'pt.*',
+                    's.name as support_name',
+                    's.io_number as io_number',
+                    's.type as support_type',
+                    's.revenue as support_revenue',
+                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
+                )
+                ->get();
+
+            $rows = [];
+            foreach ($terms as $t) {
+                $placementRaw = $t->estimated_date ?: $t->paid_date ?: $t->submit_invoice_date;
+                if (!$placementRaw) {
+                    continue;
+                }
+                $key = Carbon::parse($placementRaw)->format('Y-m');
+                if (!in_array($key, $monthKeys, true)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'support_id'          => (int) $t->delivery_support_id,
+                    'support_name'        => $t->support_name ?? '-',
+                    'io_number'           => $t->io_number,
+                    'support_type'        => $t->support_type,
+                    'client_name'         => $t->client_name,
+                    'term_id'             => (int) $t->id,
+                    'term_number'         => (int) $t->term_number,
+                    'month_key'           => $key,
+                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
+                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
+                    'amount'              => round(((float) $t->support_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    'status'              => $t->status,
+                    'payment_term'        => $t->payment_term,
+                    'payment_percentage'  => (float) $t->payment_percentage,
+                    'requirements'        => $t->requirements,
+                    'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : null,
+                    'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : null,
+                    'invoice_number'      => $t->invoice_number,
+                    'paid_date'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('d M Y') : null,
+                    'support_revenue'     => (float) $t->support_revenue,
+                    'submit_invoice_date_iso' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('Y-m-d') : null,
+                    'paid_date_iso'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('Y-m-d') : null,
+                ];
+            }
+
+            usort($rows, function ($a, $b) {
+                $c = strcasecmp($a['support_name'], $b['support_name']);
+                return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
+            });
+
+            $typeOptions = DB::table('delivery_support')
+                ->whereNotNull('type')
+                ->where('type', '!=', '')
+                ->distinct()
+                ->orderBy('type')
+                ->pluck('type')
+                ->values();
+
+            return response()->json([
+                'success'      => true,
+                'months'       => $months,
+                'rows'         => $rows,
+                'type_options' => $typeOptions,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('collectionOutlookSupport error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load collection outlook data. Please try again.'], 500);
+        }
+    }
+
+    public function collectionOutlookSupportUpdateTerm(Request $request, $term)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $paymentTerm = \App\Models\DeliverySupportPaymentTerm::find($term);
+            if (!$paymentTerm) {
+                return response()->json(['success' => false, 'message' => 'Payment term not found.'], 404);
+            }
+
+            $validated = $request->validate([
+                'status'              => 'required|string|in:Open,Paid,Delay',
+                'paid_date'           => 'nullable|required_if:status,Paid|date',
+                'submit_invoice_date' => 'nullable|date',
+                'invoice_number'      => 'nullable|required_with:submit_invoice_date|string|max:255',
+            ], [
+                'paid_date.required_if'        => 'Paid Date is required when Status is Paid.',
+                'invoice_number.required_with' => 'Invoice Number is required when Submit Invoice Date is filled.',
+            ]);
+
+            if ($validated['status'] !== 'Paid') {
+                $validated['paid_date'] = null;
+            }
+
+            $paymentTerm->update($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment status updated successfully.',
+                'term'    => [
+                    'term_id'             => $paymentTerm->id,
+                    'status'              => $paymentTerm->status,
+                    'paid_date'           => $paymentTerm->paid_date?->format('d M Y'),
+                    'submit_invoice_date' => $paymentTerm->submit_invoice_date?->format('d M Y'),
+                    'invoice_number'      => $paymentTerm->invoice_number,
+                ],
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first() ?? 'Invalid data.',
+                'errors'  => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('collectionOutlookSupportUpdateTerm error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to update payment status. Please try again.'], 500);
+        }
+    }
+
+    public function exportCollectionOutlookSupport(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.collection-outlook-support')) {
+                abort(403, 'Access denied.');
+            }
+
+            $fromMonth = min(max((int) $request->input('from_month', now()->month), 1), 12);
+            $fromYear  = (int) $request->input('from_year',  now()->year);
+            $toMonth   = min(max((int) $request->input('to_month',   now()->month), 1), 12);
+            $toYear    = (int) $request->input('to_year',    now()->year);
+            $filterType = trim((string) $request->input('type', ''));
+
+            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
+            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
+            if ($start->gt($end)) {
+                [$start, $end] = [$end, $start];
+            }
+
+            $monthKeys = [];
+            $cursor    = $start->copy();
+            $guard     = 0;
+            while ($cursor->lte($end) && $guard < 36) {
+                $monthKeys[] = $cursor->format('Y-m');
+                $cursor->addMonth();
+                $guard++;
+            }
+
+            $terms = DB::table('delivery_support_payment_terms as pt')
+                ->join('delivery_support as s', 'pt.delivery_support_id', '=', 's.id')
+                ->leftJoin('customer_basic_data as cbd', 's.client_id', '=', 'cbd.customer_id')
+                ->when($filterType !== '', fn($q) => $q->where('s.type', $filterType))
+                ->select(
+                    'pt.*',
+                    's.name as support_name',
+                    's.io_number as io_number',
+                    's.type as support_type',
+                    's.revenue as support_revenue',
+                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
+                )
+                ->get();
+
+            $rows = [];
+            foreach ($terms as $t) {
+                $placementRaw = $t->estimated_date ?: $t->paid_date ?: $t->submit_invoice_date;
+                if (!$placementRaw) {
+                    continue;
+                }
+                $key = Carbon::parse($placementRaw)->format('Y-m');
+                if (!in_array($key, $monthKeys, true)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'client_name'         => $t->client_name ?: '-',
+                    'support_name'        => $t->support_name ?: '-',
+                    'io_number'           => $t->io_number ?: '-',
+                    'support_type'        => $t->support_type ?: '-',
+                    'term_number'         => (int) $t->term_number,
+                    'payment_term'        => $t->payment_term ?: '-',
+                    'payment_percentage'  => (float) $t->payment_percentage,
+                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
+                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
+                    'amount'              => round(((float) $t->support_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    'status'              => $t->status,
+                    'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : '',
+                    'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : '',
+                    'invoice_number'      => $t->invoice_number ?: '',
+                    'paid_date'           => $t->paid_date ? Carbon::parse($t->paid_date)->format('d M Y') : '',
+                ];
+            }
+
+            usort($rows, function ($a, $b) {
+                $c = strcasecmp($a['support_name'], $b['support_name']);
+                return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
+            });
+
+            $filename = 'Collection_Outlook_Support_' . $start->format('Ym') . '-' . $end->format('Ym') . '_' . now()->format('Ymd') . '.xlsx';
+
+            return Excel::download(new \App\Exports\CollectionOutlookSupportExport(collect($rows)), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportCollectionOutlookSupport error: ' . $e->getMessage());
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // ── Web: Ticketing Overview page ────────────────────────────────────────
+
+    public function ticketingOverviewIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.ticketing-overview', ['user' => session('user')]);
+    }
+
+    public function diagramReportIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        $customers = \App\Models\Customer::with('basicData')->customers()->where('is_active', true)->get();
+
+        return view('reporting.diagram-report', ['user' => session('user'), 'customers' => $customers]);
+    }
+
+    // ── API: Diagram Report — Chart 1 (Ticket qty per month, from start
+    // to current period) ────────────────────────────────────────────────────
+    //
+    // Period (date_from/date_to) is required — there is no default range.
+    // Tickets are counted into a month based on created_at, all statuses included.
+
+    public function diagramTicketQty(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $rows = Ticket::whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->whereBetween('created_at', [$from, $to])
+                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as qty")
+                ->groupBy('ym')
+                ->pluck('qty', 'ym');
+
+            $labels = [];
+            $values = [];
+            $cursor = $from->copy()->startOfMonth();
+            $end    = $to->copy()->startOfMonth();
+            while ($cursor->lte($end)) {
+                $key      = $cursor->format('Y-m');
+                $labels[] = $cursor->format('M Y');
+                $values[] = (int) ($rows[$key] ?? 0);
+                $cursor->addMonth();
+            }
+
+            return response()->json(['success' => true, 'data' => ['labels' => $labels, 'values' => $values]]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketQty error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket qty data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Chart 2 (Tickets per Module, grouped into
+    // Incident/Error, Request/Konsultasi, Request/CR, Other) ────────────────
+    //
+    // Incident→Incident/Error, Consult→Request/Konsultasi, Change Request→
+    // Request/CR. All other ticket_type values (Service Request, EWA, RISE,
+    // etc. — including null) fall into "Other" so the total stays consistent
+    // with Chart 1 (all statuses/types counted). X-axis = all active modules
+    // from the modules table + a "No Modul Assign" bucket. Period is required.
+
+    public function diagramTicketByModule(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $typeMap = [
+                'Incident'       => 'Incident / Error',
+                'Consult'        => 'Request / Konsultasi',
+                'Change Request' => 'Request / CR',
+            ];
+            $otherLabel    = 'Other';
+            $seriesLabels  = array_merge(array_values($typeMap), [$otherLabel]);
+            $noModuleLabel = 'No Modul Assign';
+
+            $moduleNames = \App\Models\Module::where('is_active', true)->orderBy('name')->pluck('name')->all();
+            $labels      = array_merge($moduleNames, [$noModuleLabel]);
+
+            $counts = [];
+            foreach ($labels as $label) {
+                $counts[$label] = array_fill_keys($seriesLabels, 0);
+            }
+
+            Ticket::with('moduleMaster')
+                ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereBetween('created_at', [$from, $to])
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
+                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $otherLabel, $noModuleLabel) {
+                    foreach ($tickets as $ticket) {
+                        $seriesLabel = $typeMap[$ticket->ticket_type] ?? $otherLabel;
+
+                        $moduleName = $ticket->module_name;
+                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $noModuleLabel;
+
+                        $counts[$label][$seriesLabel]++;
+                    }
+                });
+
+            // Modules with zero tickets across all four categories are hidden entirely.
+            $labels = array_values(array_filter($labels, fn ($label) => array_sum($counts[$label]) > 0));
+
+            $series = array_fill_keys($seriesLabels, []);
+            foreach ($labels as $label) {
+                foreach ($seriesLabels as $seriesLabel) {
+                    $series[$seriesLabel][] = $counts[$label][$seriesLabel];
+                }
+            }
+
+            return response()->json(['success' => true, 'data' => ['labels' => $labels, 'series' => $series]]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketByModule error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket by module data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Chart 3 (Ticket Type per month: Incident/Error,
+    // Request/Konsultasi, Request/CR + TOTAL row) ───────────────────────────
+    //
+    // Month columns follow the Period (date_from/date_to) range picked in the
+    // filter, rows = the 3 ticket_type values above. Period is required.
+
+    public function diagramTicketTypeByMonth(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $typeMap   = [
+                'Incident'       => 'Incident / Error',
+                'Consult'        => 'Request / Konsultasi',
+                'Change Request' => 'Request / CR',
+            ];
+            $rowLabels = array_values($typeMap);
+
+            $months = [];
+            $cursor = $from->copy()->startOfMonth();
+            $end    = $to->copy()->startOfMonth();
+            while ($cursor->lte($end)) {
+                $months[] = $cursor->format('Y-m');
+                $cursor->addMonth();
+            }
+
+            $counts = [];
+            foreach ($rowLabels as $label) {
+                $counts[$label] = array_fill_keys($months, 0);
+            }
+
+            Ticket::whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereIn('ticket_type', array_keys($typeMap))
+                ->whereBetween('created_at', [$from, $to])
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->select('ticket_type', 'created_at')
+                ->chunk(500, function ($tickets) use (&$counts, $typeMap) {
+                    foreach ($tickets as $ticket) {
+                        $label = $typeMap[$ticket->ticket_type] ?? null;
+                        if (!$label) continue;
+                        $ym = $ticket->created_at->format('Y-m');
+                        if (isset($counts[$label][$ym])) {
+                            $counts[$label][$ym]++;
+                        }
+                    }
+                });
+
+            $monthLabels = array_map(fn ($ym) => Carbon::createFromFormat('Y-m', $ym)->format('M Y'), $months);
+
+            $rows   = [];
+            $totals = array_fill_keys($months, 0);
+            foreach ($rowLabels as $label) {
+                $rows[] = ['label' => $label, 'values' => array_values($counts[$label])];
+                foreach ($months as $ym) {
+                    $totals[$ym] += $counts[$label][$ym];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'months' => $monthLabels,
+                    'rows'   => $rows,
+                    'total'  => array_values($totals),
+                ],
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketTypeByMonth error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket type by month data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Chart 4 (Ticket Type per Module: Incident/Error,
+    // Request/Konsultasi, Request/CR — no "Other") ──────────────────────────
+    //
+    // X-axis = active modules (ordered by id/creation order) + an "ALL MODULE"
+    // bucket for tickets not tied to any specific module. Modules with zero
+    // tickets are hidden entirely (same as Chart 2). Only the 3 ticket_type
+    // values above are counted — other types don't appear in this chart at all.
+
+    public function diagramTicketByModuleType(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $typeMap      = [
+                'Incident'       => 'Incident / Error',
+                'Consult'        => 'Request / Konsultasi',
+                'Change Request' => 'Request / CR',
+            ];
+            $seriesLabels   = array_values($typeMap);
+            $allModuleLabel = 'ALL MODULE';
+
+            $moduleNames = \App\Models\Module::where('is_active', true)->orderBy('id')->pluck('name')->all();
+            $labels      = array_merge($moduleNames, [$allModuleLabel]);
+
+            $counts = [];
+            foreach ($labels as $label) {
+                $counts[$label] = array_fill_keys($seriesLabels, 0);
+            }
+
+            Ticket::with('moduleMaster')
+                ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereIn('ticket_type', array_keys($typeMap))
+                ->whereBetween('created_at', [$from, $to])
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
+                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $allModuleLabel) {
+                    foreach ($tickets as $ticket) {
+                        $seriesLabel = $typeMap[$ticket->ticket_type] ?? null;
+                        if (!$seriesLabel) continue;
+
+                        $moduleName = $ticket->module_name;
+                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+
+                        $counts[$label][$seriesLabel]++;
+                    }
+                });
+
+            // Modules with zero tickets across all three ticket_type values are hidden.
+            $labels = array_values(array_filter($labels, fn ($label) => array_sum($counts[$label]) > 0));
+
+            $series = array_fill_keys($seriesLabels, []);
+            foreach ($labels as $label) {
+                foreach ($seriesLabels as $seriesLabel) {
+                    $series[$seriesLabel][] = $counts[$label][$seriesLabel];
+                }
+            }
+
+            return response()->json(['success' => true, 'data' => ['labels' => $labels, 'series' => $series]]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketByModuleType error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket by module type data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Chart 5 (Ticket Type x Module table, with a
+    // per-row Total Tickets column) ─────────────────────────────────────────
+    //
+    // Rows = Incident/Error, Request/Konsultasi, Request/CR. Columns = every
+    // active module (ordered by id/creation order) + an "ALL MODULE" bucket
+    // for tickets not tied to any specific module. Columns with zero tickets
+    // across all three rows are hidden, same as Chart 4. Period is required.
+
+    public function diagramTicketTypeByModuleTable(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $typeMap        = [
+                'Incident'       => 'Incident / Error',
+                'Consult'        => 'Request / Konsultasi',
+                'Change Request' => 'Request / CR',
+            ];
+            $rowLabels      = array_values($typeMap);
+            $allModuleLabel = 'ALL MODULE';
+
+            $moduleNames = \App\Models\Module::where('is_active', true)->orderBy('id')->pluck('name')->all();
+            $columns     = array_merge($moduleNames, [$allModuleLabel]);
+
+            $counts = [];
+            foreach ($rowLabels as $label) {
+                $counts[$label] = array_fill_keys($columns, 0);
+            }
+
+            Ticket::with('moduleMaster')
+                ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereIn('ticket_type', array_keys($typeMap))
+                ->whereBetween('created_at', [$from, $to])
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
+                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $allModuleLabel) {
+                    foreach ($tickets as $ticket) {
+                        $rowLabel = $typeMap[$ticket->ticket_type] ?? null;
+                        if (!$rowLabel) continue;
+
+                        $moduleName = $ticket->module_name;
+                        $column     = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+
+                        $counts[$rowLabel][$column]++;
+                    }
+                });
+
+            // Columns (modules) with zero tickets across all three rows are hidden.
+            $columns = array_values(array_filter($columns, function ($column) use ($rowLabels, $counts) {
+                foreach ($rowLabels as $label) {
+                    if ($counts[$label][$column] > 0) return true;
+                }
+                return false;
+            }));
+
+            $rows = [];
+            foreach ($rowLabels as $label) {
+                $values = [];
+                foreach ($columns as $column) {
+                    $values[] = $counts[$label][$column];
+                }
+                $rows[] = ['label' => $label, 'values' => $values, 'total' => array_sum($values)];
+            }
+
+            return response()->json(['success' => true, 'data' => ['columns' => $columns, 'rows' => $rows]]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketTypeByModuleTable error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket type by module table data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Chart 6 (Ticket count per module) ────────────
+    //
+    // Follows the same Customer & Period (Start/End Date) filters as Charts
+    // 1-5 — Period is required, same as the others. Counts ALL ticket_type
+    // values (not just Incident/Konsultasi/CR). Modules with zero tickets are
+    // hidden.
+
+    public function diagramTicketByModuleCurrentPeriod(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $allModuleLabel = 'ALL MODULE';
+            $moduleNames    = \App\Models\Module::where('is_active', true)->orderBy('id')->pluck('name')->all();
+            $labels         = array_merge($moduleNames, [$allModuleLabel]);
+
+            $counts = array_fill_keys($labels, 0);
+
+            Ticket::with('moduleMaster')
+                ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereBetween('created_at', [$from, $to])
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->select('ticket_id', 'module', 'module_id', 'customer_id', 'created_at')
+                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $allModuleLabel) {
+                    foreach ($tickets as $ticket) {
+                        $moduleName = $ticket->module_name;
+                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+                        $counts[$label]++;
+                    }
+                });
+
+            // Modules with zero tickets are hidden entirely.
+            $labels = array_values(array_filter($labels, fn ($label) => $counts[$label] > 0));
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'labels' => $labels,
+                    'values' => array_map(fn ($label) => $counts[$label], $labels),
+                ],
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketByModuleCurrentPeriod error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket by module data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Chart 7 (Ticket count by Ticket Type) ────────
+    //
+    // Follows the same Customer & Period (Start/End Date) filters as the
+    // other charts — Period is required. All 3 ticket types (Incident/Error,
+    // Request/Konsultasi, Request/CR) are always shown, even if a type has
+    // 0 tickets in the filtered range.
+
+    public function diagramTicketByType(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $typeMap = [
+                'Incident'       => 'Incident / Error',
+                'Consult'        => 'Request / Konsultasi',
+                'Change Request' => 'Request / CR',
+            ];
+            $labels = array_values($typeMap);
+
+            $counts = Ticket::whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereIn('ticket_type', array_keys($typeMap))
+                ->whereBetween('created_at', [$from, $to])
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->selectRaw('ticket_type, COUNT(*) as qty')
+                ->groupBy('ticket_type')
+                ->pluck('qty', 'ticket_type');
+
+            $values = array_map(fn ($key) => (int) ($counts[$key] ?? 0), array_keys($typeMap));
+
+            return response()->json(['success' => true, 'data' => ['labels' => $labels, 'values' => $values]]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketByType error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket by type data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Chart 8 (CR vs Non-CR by Close/Open status) ──
+    //
+    // Follows the same Customer & Period (Start/End Date) filters as the
+    // other charts — Period is required. X-axis = Non CR (every ticket_type
+    // except Change Request) vs Request CR (ticket_type = Change Request).
+    // Series = Close (status: closed, cancelled) vs Open (status: inprocess,
+    // waiting_on_customer, waiting_to_confirmation, hold, waiting_on_3rd_party).
+    // Tickets still at the raw 'open' status are intentionally excluded —
+    // per explicit confirmation, this chart only covers the 7 statuses above.
+
+    public function diagramTicketByCrStatus(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $closeStatuses = ['closed', 'cancelled'];
+            $openStatuses  = ['inprocess', 'waiting_on_customer', 'waiting_to_confirmation', 'hold', 'waiting_on_3rd_party'];
+
+            $labels = ['Non CR', 'Request CR'];
+            $counts = [
+                'Close' => ['Non CR' => 0, 'Request CR' => 0],
+                'Open'  => ['Non CR' => 0, 'Request CR' => 0],
+            ];
+
+            Ticket::whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereIn('status', array_merge($closeStatuses, $openStatuses))
+                ->whereBetween('created_at', [$from, $to])
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->select('ticket_id', 'ticket_type', 'status', 'customer_id', 'created_at')
+                ->chunk(500, function ($tickets) use (&$counts, $closeStatuses) {
+                    foreach ($tickets as $ticket) {
+                        $group  = $ticket->ticket_type === 'Change Request' ? 'Request CR' : 'Non CR';
+                        $series = in_array($ticket->status, $closeStatuses, true) ? 'Close' : 'Open';
+                        $counts[$series][$group]++;
+                    }
+                });
+
+            $series = [
+                'Close' => [$counts['Close']['Non CR'], $counts['Close']['Request CR']],
+                'Open'  => [$counts['Open']['Non CR'], $counts['Open']['Request CR']],
+            ];
+
+            return response()->json(['success' => true, 'data' => ['labels' => $labels, 'series' => $series]]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketByCrStatus error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket by CR status data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Chart 9 (CR vs Non-CR per month, from start
+    // to current period) ─────────────────────────────────────────────────────
+    //
+    // Same month-bucketing as Chart 1 (all statuses included, one column per
+    // month across the whole date_from/date_to range), but split into two
+    // series: Non CR (every ticket_type except Change Request) and
+    // Request / CR (ticket_type = Change Request). Follows the same
+    // Customer & Period filters as the other charts — Period is required.
+
+    public function diagramTicketByCrPerMonth(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $rows = Ticket::whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->whereBetween('created_at', [$from, $to])
+                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym, ticket_type, COUNT(*) as qty")
+                ->groupBy('ym', 'ticket_type')
+                ->get();
+
+            $nonCrLabel = 'Non CR';
+            $crLabel    = 'Request / CR';
+
+            $labels = [];
+            $nonCr  = [];
+            $cr     = [];
+            $cursor = $from->copy()->startOfMonth();
+            $end    = $to->copy()->startOfMonth();
+            while ($cursor->lte($end)) {
+                $key      = $cursor->format('Y-m');
+                $labels[] = $cursor->format('M Y');
+
+                $monthRows = $rows->where('ym', $key);
+                $nonCr[]   = (int) $monthRows->where('ticket_type', '!=', 'Change Request')->sum('qty');
+                $cr[]      = (int) $monthRows->where('ticket_type', 'Change Request')->sum('qty');
+
+                $cursor->addMonth();
+            }
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'labels' => $labels,
+                    'series' => [$nonCrLabel => $nonCr, $crLabel => $cr],
+                ],
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketByCrPerMonth error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket CR per month data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Diagram Report — Chart 10 (Closed tickets per month, from start
+    // to current period) ─────────────────────────────────────────────────────
+    //
+    // Same month-bucketing as Chart 1, filtered to status = 'closed' only
+    // (not 'cancelled' — the title specifically says "status closed").
+    // Bucketed by created_at, same convention as the rest of this page.
+    // Follows the same Customer & Period filters as the other charts —
+    // Period is required.
+
+    public function diagramTicketClosedPerMonth(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.diagram-report')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $request->validate([
+                'date_from'   => ['required', 'date'],
+                'date_to'     => ['required', 'date', 'after_or_equal:date_from'],
+                'customer_id' => ['nullable', 'integer'],
+            ]);
+
+            $from = Carbon::parse($request->date_from)->startOfDay();
+            $to   = Carbon::parse($request->date_to)->endOfDay();
+
+            $rows = Ticket::whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->where('status', 'closed')
+                ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
+                ->whereBetween('created_at', [$from, $to])
+                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym, COUNT(*) as qty")
+                ->groupBy('ym')
+                ->pluck('qty', 'ym');
+
+            $labels = [];
+            $values = [];
+            $cursor = $from->copy()->startOfMonth();
+            $end    = $to->copy()->startOfMonth();
+            while ($cursor->lte($end)) {
+                $key      = $cursor->format('Y-m');
+                $labels[] = $cursor->format('M Y');
+                $values[] = (int) ($rows[$key] ?? 0);
+                $cursor->addMonth();
+            }
+
+            return response()->json(['success' => true, 'data' => ['labels' => $labels, 'values' => $values]]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+        } catch (\Exception $e) {
+            Log::error('diagramTicketClosedPerMonth error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load closed ticket per month data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Ticketing Overview data ────────────────────────────────────────
+    //
+    // Menampilkan jumlah tiket per customer, dikelompokkan ke dalam status:
+    // Open, In Process, Close, Wait Close (menunggu konfirmasi customer), dan
+    // Other (status lain: menunggu customer/pihak ketiga, hold, cancelled).
+
+    public function ticketingOverview(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.ticketing-overview')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            // Total mandays per customer = sum of total_mandays across all its delivery projects
+            $mandaysByCustomer = DB::table('delivery_projects')
+                ->select('client_id', DB::raw('SUM(COALESCE(total_mandays, 0)) as total_mandays'))
+                ->groupBy('client_id')
+                ->pluck('total_mandays', 'client_id');
+
+            $rows = DB::table('ticket')
+                ->join('customer', 'ticket.customer_id', '=', 'customer.customer_id')
+                ->leftJoin('customer_basic_data', 'customer.customer_id', '=', 'customer_basic_data.customer_id')
+                ->whereNull('ticket.deleted_at')
+                ->whereNull('ticket.is_hidden')
+                ->where(function ($query) {
+                    $query->whereNull('ticket.ticket_type')
+                        ->orWhere('ticket.ticket_type', '!=', 'EWA');
+                })
+                ->groupBy('ticket.customer_id', 'customer_basic_data.name_1')
+                ->select(
+                    'ticket.customer_id',
+                    DB::raw("COALESCE(customer_basic_data.name_1, '') as customer_name"),
+                    DB::raw("SUM(CASE WHEN ticket.status = 'open' THEN 1 ELSE 0 END) as open_tickets"),
+                    DB::raw("SUM(CASE WHEN ticket.status = 'inprocess' THEN 1 ELSE 0 END) as inprocess_tickets"),
+                    DB::raw("SUM(CASE WHEN ticket.status = 'closed' THEN 1 ELSE 0 END) as close_tickets"),
+                    DB::raw("SUM(CASE WHEN ticket.status = 'waiting_to_confirmation' THEN 1 ELSE 0 END) as wait_close_tickets"),
+                    DB::raw("SUM(CASE WHEN ticket.status IN ('waiting_on_customer','waiting_on_3rd_party','hold','cancelled') THEN 1 ELSE 0 END) as other_tickets")
+                )
+                ->orderByRaw('customer_name')
+                ->get();
+
+            $data = $rows->map(fn($r) => [
+                'customer_id'        => $r->customer_id,
+                'customer_name'      => $r->customer_name ?: '—',
+                'total_mandays'      => (int) ($mandaysByCustomer[$r->customer_id] ?? 0),
+                'open_tickets'       => (int) $r->open_tickets,
+                'inprocess_tickets'  => (int) $r->inprocess_tickets,
+                'close_tickets'      => (int) $r->close_tickets,
+                'other_tickets'      => (int) $r->other_tickets,
+                'wait_close_tickets' => (int) $r->wait_close_tickets,
+            ]);
+
+            return response()->json(['success' => true, 'data' => $data]);
+
+        } catch (\Exception $e) {
+            Log::error('ticketingOverview error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticketing overview data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Ticketing Overview — tickets for one customer ─────────────────
+
+    public function ticketingOverviewDetail(Request $request, $customerId)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.ticketing-overview')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $tickets = Ticket::with('ticketLead.basicData')
+                ->where('customer_id', $customerId)
+                ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->where('status', '!=', 'closed')
+                ->where(function ($query) {
+                    $query->whereNull('ticket_type')
+                        ->orWhere('ticket_type', '!=', 'EWA');
+                })
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(fn (Ticket $ticket) => [
+                    'ticket_id'     => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'description'   => $ticket->description,
+                    'status'        => $ticket->status,
+                    'status_label'  => $ticket->status_label,
+                    'lead_name'     => $ticket->ticketLead
+                        ? ($ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown')
+                        : null,
+                    'created_at'    => $ticket->created_at,
+                ])
+                ->values();
+
+            return response()->json(['success' => true, 'tickets' => $tickets]);
+
+        } catch (\Exception $e) {
+            Log::error('ticketingOverviewDetail error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load customer detail. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Ticket by Modul page ───────────────────────────────────────────
+
+    public function ticketByModuleIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.ticket-by-module', ['user' => session('user')]);
+    }
+
+    // ── API: Ticket by Modul data ───────────────────────────────────────────
+    //
+    // Mengelompokkan tiket berdasarkan modul (module_id -> modules master,
+    // fallback ke kolom legacy `module`). Tiket tanpa modul dikumpulkan ke
+    // grup "No Modul Assign" yang selalu tampil paling akhir.
+
+    public function ticketByModule(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.ticket-by-module')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
+                ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->orderByDesc('created_at')
+                ->get();
+
+            $groups = $tickets->groupBy(fn (Ticket $ticket) => $ticket->module_name ?: 'No Modul Assign');
+
+            $data = $groups->map(function ($groupTickets, $moduleName) {
+                return [
+                    'module_name' => $moduleName,
+                    'tickets' => $groupTickets->map(fn (Ticket $ticket) => [
+                        'ticket_id'     => $ticket->ticket_id,
+                        'ticket_number' => $ticket->ticket_number,
+                        'description'   => $ticket->description,
+                        'status'        => $ticket->status,
+                        'status_label'  => $ticket->status_label,
+                        'lead_name'     => $ticket->ticketLead
+                            ? ($ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown')
+                            : null,
+                        'created_at'    => $ticket->created_at,
+                    ])->values(),
+                ];
+            })->values()
+                ->sortBy(fn ($group) => $group['module_name'] === 'No Modul Assign' ? 1 : 0)
+                ->values();
+
+            return response()->json(['success' => true, 'data' => $data]);
+
+        } catch (\Exception $e) {
+            Log::error('ticketByModule error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket by modul data. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Ticket by Modul export ─────────────────────────────────────────
+
+    public function exportTicketByModule(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.ticket-by-module')) {
+                abort(403, 'Access denied.');
+            }
+
+            $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
+                ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->orderByDesc('created_at')
+                ->get();
+
+            $groups = $tickets->groupBy(fn (Ticket $ticket) => $ticket->module_name ?: 'No Modul Assign')
+                ->sortBy(fn ($groupTickets, $moduleName) => $moduleName === 'No Modul Assign' ? 1 : 0);
+
+            $exportGroups = collect();
+            foreach ($groups as $moduleName => $groupTickets) {
+                $rows = collect();
+                foreach ($groupTickets as $ticket) {
+                    $createdAt = $ticket->created_at;
+                    $rows->push([
+                        'ticket_number' => $ticket->ticket_number,
+                        'description'   => $ticket->description,
+                        'lead_name'     => $ticket->ticketLead
+                            ? ($ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown')
+                            : 'Unassigned',
+                        'created_at'    => $createdAt ? $createdAt->timezone('Asia/Jakarta')->format('d/m/Y') : '',
+                        'day_on_close'  => $createdAt ? (int) ceil($createdAt->diffInDays(now())) : '',
+                    ]);
+                }
+                $exportGroups->put($moduleName, $rows);
+            }
+
+            $filename = 'Ticket_by_Modul_Export_' . now()->timezone('Asia/Jakarta')->format('dmY') . '.xlsx';
+
+            return Excel::download(new TicketByModuleExport($exportGroups), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportTicketByModule error: ' . $e->getMessage());
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // ── Web: Log Shifting ───────────────────────────────────────────────────
+
+    public function logShiftingIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.log-shifting', ['user' => session('user')]);
+    }
+
+    // ── API: Log Shifting — tickets that have at least one SLA message ─────
+
+    public function logShifting(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.log-shifting')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $tickets = Ticket::whereNull('deleted_at')
+                ->whereNull('is_hidden')
+                ->whereHas('messages', function ($q) {
+                    $q->whereNotNull('sla_message')->where('sla_message', '!=', '');
+                })
+                ->with(['messages' => function ($q) {
+                    $q->whereNotNull('sla_message')
+                        ->where('sla_message', '!=', '')
+                        ->with('slaMessageBy.basicData')
+                        ->reorder('sla_message_at', 'desc');
+                }])
+                ->orderByDesc('created_at')
+                ->get(['ticket_id', 'ticket_number', 'description', 'created_at']);
+
+            $data = $tickets->map(function (Ticket $ticket) {
+                $lastMessage = $ticket->messages->first();
+                $lastEditor  = $lastMessage?->slaMessageBy;
+                $pic = $lastEditor
+                    ? (trim(($lastEditor->basicData->first_name ?? '') . ' ' . ($lastEditor->basicData->last_name ?? '')) ?: ($lastEditor->eci ?? null))
+                    : null;
+
+                return [
+                    'ticket_id'     => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'description'   => $ticket->description,
+                    'created_at'    => $ticket->created_at,
+                    'pic'           => $pic,
+                ];
+            })->values();
+
+            return response()->json(['success' => true, 'data' => $data]);
+
+        } catch (\Exception $e) {
+            Log::error('logShifting error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load log shifting data. Please try again.'], 500);
+        }
+    }
+
+    // ── API: Log Shifting — SLA message detail rows for one ticket ─────────
+
+    public function logShiftingDetail($ticketId)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            // Dua pintu masuk ke data yang sama: halaman/klik-kanan Reporting
+            // (reporting.log-shifting) dan tombol shortcut di headbar room chat
+            // (ticket.shifting-log). Salah satu slug cukup.
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            $allowed  = $employee && (
+                $employee->canAccessMenu('reporting.log-shifting')
+                || $employee->canAccessMenu('ticket.shifting-log')
+            );
+            if (!$allowed) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            $ticket = Ticket::whereNull('deleted_at')->findOrFail($ticketId);
+
+            $messages = $ticket->messages()
+                ->whereNotNull('sla_message')
+                ->where('sla_message', '!=', '')
+                ->with('slaMessageBy.basicData')
+                ->orderBy('created_at')
+                ->get();
+
+            $rows = $messages->map(function (\App\Models\TicketMessage $msg) {
+                $byName = $msg->slaMessageBy
+                    ? trim(($msg->slaMessageBy->basicData->first_name ?? '') . ' ' . ($msg->slaMessageBy->basicData->last_name ?? '')) ?: ($msg->slaMessageBy->eci ?? 'Unknown')
+                    : null;
+
+                return [
+                    'message_id'      => $msg->id,
+                    'bubble_date'     => $msg->created_at,
+                    'sla_message'     => $msg->sla_message,
+                    'sla_message_by'  => $byName,
+                    'sla_message_at'  => $msg->sla_message_at,
+                ];
+            })->values();
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'ticket' => [
+                        'ticket_id'     => $ticket->ticket_id,
+                        'ticket_number' => $ticket->ticket_number,
+                        'description'   => $ticket->description,
+                    ],
+                    'messages' => $rows,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('logShiftingDetail error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load SLA message detail. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Consultant Assignment ──────────────────────────────────────────
+
+    public function consultantAssignmentIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        return view('reporting.consultant-assignment', ['user' => session('user')]);
+    }
+
+    /**
+     * API: daftar consultant yang tergabung di Delivery Project.
+     *
+     * Satu baris = satu penugasan (satu baris pivot `delivery_project_employee`),
+     * jadi orang yang memegang dua peran/modul di project yang sama muncul dua
+     * kali — sama seperti tabel Team Members di halaman project.
+     */
+    public function consultantAssignment(Request $request)
+    {
+        try {
+            $employee = $this->consultantAssignmentGuard();
+            if ($employee instanceof \Illuminate\Http\JsonResponse) {
+                return $employee;
+            }
+
+            [$rows, $stats] = $this->consultantAssignmentRows($request);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $rows,
+                'stats'   => $stats,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('consultantAssignment error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load consultant assignments. Please try again.'], 500);
+        }
+    }
+
+    /**
+     * API: isi dropdown filter (project / customer / module / position).
+     * Diambil dari data penugasan yang ada supaya tidak menawarkan opsi kosong.
+     */
+    public function consultantAssignmentFilterOptions()
+    {
+        try {
+            $employee = $this->consultantAssignmentGuard();
+            if ($employee instanceof \Illuminate\Http\JsonResponse) {
+                return $employee;
+            }
+
+            [$rows] = $this->consultantAssignmentRows(new Request());
+
+            $distinct = function (string $key) use ($rows) {
+                return collect($rows)
+                    ->pluck($key)
+                    ->map(fn ($v) => trim((string) $v))
+                    ->filter()
+                    ->unique()
+                    ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+                    ->values()
+                    ->all();
+            };
+
+            return response()->json([
+                'success'    => true,
+                'projects'   => collect($rows)
+                    ->unique('project_id')
+                    ->sortBy('project_name', SORT_NATURAL | SORT_FLAG_CASE)
+                    ->map(fn ($r) => ['id' => $r['project_id'], 'name' => $r['project_name']])
+                    ->values()
+                    ->all(),
+                'customers'  => $distinct('customer_name'),
+                // Kolom module bebas teks dan bisa memuat beberapa modul sekaligus
+                // ("FI, CO, FM"). Opsi filter dipecah per modul supaya daftarnya
+                // tidak berisi kombinasi dan memilih "CO" ikut menangkap baris itu.
+                'modules'    => collect($rows)
+                    ->flatMap(fn ($r) => $this->consultantModuleTokens($r['module']))
+                    ->unique(fn ($m) => mb_strtoupper($m))
+                    ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+                    ->values()
+                    ->all(),
+                'positions'  => $distinct('position'),
+                'vendors'    => $distinct('vendor_name'),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('consultantAssignmentFilterOptions error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load filter options.'], 500);
+        }
+    }
+
+    /**
+     * Web: export Consultant Assignment ke Excel dengan filter yang sedang aktif
+     * di halaman (parameter query-nya identik dengan endpoint API-nya).
+     */
+    public function exportConsultantAssignment(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.consultant-assignment')) {
+                abort(403, 'Access denied.');
+            }
+
+            [$rows] = $this->consultantAssignmentRows($request);
+
+            return Excel::download(
+                new \App\Exports\ConsultantAssignmentExport(collect($rows)),
+                'consultant-assignment-' . now()->format('Ymd-His') . '.xlsx'
+            );
+
+        } catch (\Exception $e) {
+            Log::error('exportConsultantAssignment error: ' . $e->getMessage());
+            abort(500, 'Failed to export consultant assignments.');
+        }
+    }
+
+    /**
+     * Guard bersama untuk endpoint API Consultant Assignment.
+     *
+     * Izin diresolve lewat Menu Access (`canAccessMenu`), BUKAN daftar RoleId
+     * hardcode — supaya keputusan admin di Control Center benar-benar berlaku.
+     *
+     * @return \App\Models\Employee|\Illuminate\Http\JsonResponse
+     */
+    private function consultantAssignmentGuard()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        $employee = \App\Models\Employee::find($sessionUser->id);
+        if (!$employee || !$employee->canAccessMenu('reporting.consultant-assignment')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        return $employee;
+    }
+
+    /**
+     * Bangun baris laporan Consultant Assignment + ringkasannya.
+     *
+     * Seluruh filter dikerjakan di sini (server-side) supaya halaman dan tombol
+     * Export memakai hasil yang sama persis — tidak ada logika filter kembar di
+     * JavaScript yang bisa menyimpang.
+     *
+     * `stats` dihitung SEBELUM filter Assignment Status diterapkan, karena kartu
+     * ringkasan di halaman itu sendiri yang menjadi kontrol filter tersebut.
+     *
+     * @return array{0: array<int,array<string,mixed>>, 1: array<string,mixed>}
+     */
+    private function consultantAssignmentRows(Request $request): array
+    {
+        $today = Carbon::today();
+
+        // ── Planned MD: total working-day duration dari activity_employee ──────
+        $plannedMd = DB::table('activity_employee as ae')
+            ->join('delivery_project_activities as a', 'a.id', '=', 'ae.delivery_project_activity_id')
+            ->where('ae.is_active', true)
+            ->groupBy('a.delivery_projects_id', 'ae.employee_id')
+            ->select(
+                'a.delivery_projects_id as project_id',
+                'ae.employee_id',
+                DB::raw('SUM(COALESCE(ae.duration, 0)) as md')
+            )
+            ->get()
+            ->keyBy(fn ($r) => $r->project_id . '|' . $r->employee_id);
+
+        // ── Actual MD: timesheet approved yang dibebankan ke project ini ──────
+        $actualMd = DB::table('timesheets')
+            ->whereNotNull('delivery_projects_id')
+            ->where('status', 'approved')
+            ->whereNull('deleted_at')
+            ->groupBy('delivery_projects_id', 'employee_id')
+            ->select(
+                'delivery_projects_id as project_id',
+                'employee_id',
+                DB::raw('SUM(COALESCE(md_consumed, duration_minutes / 480.0, 0)) as md')
+            )
+            ->get()
+            ->keyBy(fn ($r) => $r->project_id . '|' . $r->employee_id);
+
+        // ── Baris pivot (sumber utama Team Members) ───────────────────────────
+        $pivotRows = DB::table('delivery_project_employee as dpe')
+            ->join('delivery_projects as p', 'p.id', '=', 'dpe.delivery_projects_id')
+            ->leftJoin('employee as e', 'e.employee_id', '=', 'dpe.employee_id')
+            ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'dpe.employee_id')
+            ->leftJoin('customer_basic_data as cbd', 'cbd.customer_id', '=', 'p.client_id')
+            ->select(
+                'dpe.id as assignment_id',
+                'dpe.delivery_projects_id as project_id',
+                'dpe.employee_id',
+                'dpe.module',
+                'dpe.role',
+                'dpe.employee_type',
+                'dpe.vendor_name',
+                // Anggota vendor tidak ada di master employee — identitasnya di pivot.
+                'dpe.member_name',
+                'dpe.member_position',
+                'dpe.start_date',
+                'dpe.end_date',
+                'dpe.notes',
+                'p.name as project_name',
+                'p.io_number',
+                'p.category as project_category',
+                'p.status as project_status',
+                'p.phase as project_phase',
+                'p.is_closed',
+                'p.project_owner',
+                'p.project_type',
+                'e.eci',
+                'e.is_active as employee_is_active',
+                'ebd.first_name',
+                'ebd.last_name',
+                'ebd.position',
+                'ebd.division',
+                'ebd.department',
+                'ebd.home_base',
+                DB::raw("COALESCE(cbd.name_1, '') as customer_name")
+            )
+            ->get();
+
+        $rows     = [];
+        $seenKeys = [];
+
+        foreach ($pivotRows as $r) {
+            $seenKeys[$r->project_id . '|' . $r->employee_id . '|' . mb_strtolower((string) $r->role)] = true;
+            $rows[] = $this->consultantAssignmentRow($r, (string) $r->role, $plannedMd, $actualMd, $today, false);
+        }
+
+        // ── Baris FK-fallback: PM / Co PM / Project Admin yang hanya tersimpan
+        // di kolom project (project lama tanpa entri pivot). Tanpa ini laporan
+        // kehilangan PM dari project-project tersebut.
+        $fkProjects = DB::table('delivery_projects as p')
+            ->leftJoin('customer_basic_data as cbd', 'cbd.customer_id', '=', 'p.client_id')
+            ->where(function ($q) {
+                $q->whereNotNull('p.project_manager_id')
+                    ->orWhereNotNull('p.co_pm_id')
+                    ->orWhereNotNull('p.project_admin_id');
+            })
+            ->select(
+                'p.id as project_id',
+                'p.name as project_name',
+                'p.io_number',
+                'p.category as project_category',
+                'p.status as project_status',
+                'p.phase as project_phase',
+                'p.is_closed',
+                'p.project_owner',
+                'p.project_type',
+                'p.project_manager_id',
+                'p.co_pm_id',
+                'p.project_admin_id',
+                DB::raw("COALESCE(cbd.name_1, '') as customer_name")
+            )
+            ->get();
+
+        $fkRoleColumns = [
+            'project_manager_id' => 'Project Manager',
+            'co_pm_id'           => 'Co Project Manager',
+            'project_admin_id'   => 'Project Admin',
+        ];
+
+        // Kumpulkan employee_id yang perlu dilengkapi datanya, lalu ambil sekali
+        // saja (hindari query per baris).
+        $fkEmployeeIds = collect();
+        foreach ($fkProjects as $p) {
+            foreach (array_keys($fkRoleColumns) as $col) {
+                if ($p->$col) {
+                    $fkEmployeeIds->push($p->$col);
+                }
+            }
+        }
+
+        $fkEmployees = $fkEmployeeIds->isEmpty()
+            ? collect()
+            : DB::table('employee as e')
+                ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'e.employee_id')
+                ->whereIn('e.employee_id', $fkEmployeeIds->unique()->values())
+                ->select(
+                    'e.employee_id',
+                    'e.eci',
+                    'e.is_active as employee_is_active',
+                    'ebd.first_name',
+                    'ebd.last_name',
+                    'ebd.position',
+                    'ebd.division',
+                    'ebd.department',
+                    'ebd.home_base'
+                )
+                ->get()
+                ->keyBy('employee_id');
+
+        foreach ($fkProjects as $p) {
+            foreach ($fkRoleColumns as $col => $roleLabel) {
+                $empId = $p->$col;
+                if (!$empId) {
+                    continue;
+                }
+
+                $key = $p->project_id . '|' . $empId . '|' . mb_strtolower($roleLabel);
+                if (isset($seenKeys[$key])) {
+                    continue; // sudah ada baris pivot dengan peran yang sama
+                }
+                $seenKeys[$key] = true;
+
+                $emp = $fkEmployees->get($empId);
+
+                $merged = (object) array_merge((array) $p, [
+                    'assignment_id'      => null,
+                    'employee_id'        => $empId,
+                    'module'             => null,
+                    'role'               => $roleLabel,
+                    'employee_type'      => 'Internal',
+                    'vendor_name'        => null,
+                    'start_date'         => null,
+                    'end_date'           => null,
+                    'notes'              => null,
+                    'eci'                => $emp->eci ?? null,
+                    'employee_is_active' => $emp->employee_is_active ?? null,
+                    'first_name'         => $emp->first_name ?? null,
+                    'last_name'          => $emp->last_name ?? null,
+                    'position'           => $emp->position ?? null,
+                    'division'           => $emp->division ?? null,
+                    'department'         => $emp->department ?? null,
+                    'home_base'          => $emp->home_base ?? null,
+                ]);
+
+                $rows[] = $this->consultantAssignmentRow($merged, $roleLabel, $plannedMd, $actualMd, $today, true);
+            }
+        }
+
+        // ── Filter (server-side) ──────────────────────────────────────────────
+        $search      = mb_strtolower(trim((string) $request->input('search', '')));
+        $consultant  = mb_strtolower(trim((string) $request->input('consultant', '')));
+        $projectId   = trim((string) $request->input('project_id', ''));
+        $customer    = trim((string) $request->input('customer', ''));
+        $module      = trim((string) $request->input('module', ''));
+        $position    = trim((string) $request->input('position', ''));
+        $roleList    = $this->csvFilter($request->input('role', ''));
+        $typeList    = $this->csvFilter($request->input('employee_type', ''));
+        $categoryList = $this->csvFilter($request->input('project_category', ''));
+        $periodFrom  = trim((string) $request->input('period_from', ''));
+        $periodTo    = trim((string) $request->input('period_to', ''));
+        // Lensa kartu MD di ringkasan: "planned" / "actual" = tampilkan hanya
+        // penugasan yang IKUT MENYUMBANG angka kartu tersebut (nilainya > 0).
+        $mdOnly      = mb_strtolower(trim((string) $request->input('md_only', '')));
+
+        $rows = array_values(array_filter($rows, function (array $r) use (
+            $search, $consultant, $projectId, $customer, $module, $position,
+            $roleList, $categoryList, $periodFrom, $periodTo
+        ) {
+            if ($search !== '') {
+                $haystack = mb_strtolower(implode(' ', [
+                    $r['consultant_name'], $r['eci'], $r['project_name'], $r['io_number'],
+                    $r['customer_name'], $r['module'], $r['role'], $r['position'],
+                    $r['vendor_name'], $r['notes'],
+                ]));
+                if (!str_contains($haystack, $search)) {
+                    return false;
+                }
+            }
+            if ($consultant !== '' && !str_contains(mb_strtolower($r['consultant_name']), $consultant)) {
+                return false;
+            }
+            if ($projectId !== '' && (string) $r['project_id'] !== $projectId) {
+                return false;
+            }
+            if ($customer !== '' && $r['customer_name'] !== $customer) {
+                return false;
+            }
+            if ($module !== '') {
+                $tokens = array_map('mb_strtoupper', $this->consultantModuleTokens($r['module']));
+                if ($module === '__none__') {
+                    if ($tokens !== []) {
+                        return false;
+                    }
+                } elseif (!in_array(mb_strtoupper($module), $tokens, true)) {
+                    return false;
+                }
+            }
+            if ($position !== '' && $r['position'] !== $position) {
+                return false;
+            }
+            if ($roleList && !in_array(mb_strtolower($r['role']), $roleList, true)) {
+                return false;
+            }
+            if ($categoryList && !in_array(mb_strtolower($r['project_category']), $categoryList, true)) {
+                return false;
+            }
+
+            // Rentang periode: penugasan lolos bila periodenya BERSINGGUNGAN
+            // dengan rentang yang diminta (bukan harus termuat seluruhnya).
+            // Penugasan tanpa tanggal tidak bisa dinilai → selalu lolos, supaya
+            // baris FK-fallback tidak hilang diam-diam saat filter dipakai.
+            if (($periodFrom !== '' || $periodTo !== '') && $r['start_date']) {
+                $start = $r['start_date'];
+                $end   = $r['end_date'] ?: '9999-12-31';
+                if ($periodTo !== '' && $start > $periodTo) {
+                    return false;
+                }
+                if ($periodFrom !== '' && $end < $periodFrom) {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
+
+        // ── Facet Internal / External ─────────────────────────────────────────
+        // Kartu Internal & External/Vendor DI RINGKASAN sekaligus jadi kontrol
+        // filter employee_type. Angkanya karena itu dihitung SEBELUM filter
+        // employee_type diterapkan — kalau ikut dipersempit oleh pilihannya
+        // sendiri, kartu External akan menampilkan 0 padahal mengkliknya
+        // memunculkan baris. Filter lain (project, periode, dst.) tetap ikut.
+        $facet = collect($rows);
+        $facetInternal = $facet->where('employee_type', 'Internal')->count();
+        $facetExternal = $facet->whereIn('employee_type', ['External', 'Vendor'])->count();
+
+        if ($typeList) {
+            $rows = array_values(array_filter(
+                $rows,
+                fn (array $r) => in_array(mb_strtolower($r['employee_type']), $typeList, true)
+            ));
+        }
+
+        // ── Ringkasan (dihitung sebelum lensa MD & Assignment Status) ─────────
+        $collection = collect($rows);
+        $stats = [
+            'assignments'  => $collection->count(),
+            // Anggota vendor tidak punya employee_id — dihitung per nama supaya
+            // tidak semuanya melebur jadi satu "konsultan null".
+            'consultants'  => $collection
+                ->map(fn (array $r) => $r['employee_id'] !== null
+                    ? 'e:' . $r['employee_id']
+                    : 'v:' . mb_strtolower($r['consultant_name']))
+                ->unique()
+                ->count(),
+            'projects'     => $collection->pluck('project_id')->unique()->count(),
+            'active'       => $collection->where('assignment_status', 'Active')->count(),
+            'upcoming'     => $collection->where('assignment_status', 'Upcoming')->count(),
+            'ended'        => $collection->where('assignment_status', 'Ended')->count(),
+            'undated'      => $collection->where('assignment_status', 'No Period')->count(),
+            'internal'     => $facetInternal,
+            'external'     => $facetExternal,
+            'planned_md'   => round((float) $collection->sum('planned_md'), 2),
+            'actual_md'    => round((float) $collection->sum('actual_md'), 2),
+        ];
+
+        // ── Lensa kartu MD (md_only) ──────────────────────────────────────────
+        // Diterapkan SESUDAH ringkasan, sama seperti Assignment Status: kartu
+        // hanya mempersempit isi tabel, angka ringkasannya tetap utuh sebagai
+        // acuan. Baris ber-MD 0 tidak menyumbang total, jadi jumlah MD memang
+        // tidak berubah saat lensa ini aktif.
+        if ($mdOnly === 'planned' || $mdOnly === 'actual') {
+            $key  = $mdOnly === 'planned' ? 'planned_md' : 'actual_md';
+            $rows = array_values(array_filter($rows, fn (array $r) => (float) $r[$key] > 0));
+        }
+
+        // ── Filter Assignment Status (kartu ringkasan) ────────────────────────
+        $statusList = $this->csvFilter($request->input('assignment_status', ''));
+        if ($statusList) {
+            $rows = array_values(array_filter(
+                $rows,
+                fn (array $r) => in_array(mb_strtolower($r['assignment_status']), $statusList, true)
+            ));
+        }
+
+        // ── Urutan default: consultant → project → mulai penugasan ───────────
+        usort($rows, function (array $a, array $b) {
+            return [$a['consultant_name'], $a['project_name'], $a['start_date'] ?? '']
+                <=> [$b['consultant_name'], $b['project_name'], $b['start_date'] ?? ''];
+        });
+
+        return [$rows, $stats];
+    }
+
+    /** Normalisasi filter multi-pilih ("a,b,c") menjadi array lowercase. */
+    private function csvFilter($raw): array
+    {
+        return collect(explode(',', (string) $raw))
+            ->map(fn ($v) => mb_strtolower(trim($v)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Bentuk satu baris laporan dari row hasil query.
+     *
+     * @param  \Illuminate\Support\Collection  $plannedMd
+     * @param  \Illuminate\Support\Collection  $actualMd
+     */
+    private function consultantAssignmentRow(
+        object $r,
+        string $role,
+        $plannedMd,
+        $actualMd,
+        Carbon $today,
+        bool $isFkFallback
+    ): array {
+        // Baris vendor tidak punya employee: nama & posisi diambil dari pivot.
+        $name = trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? ''));
+        if ($name === '') {
+            $name = trim((string) ($r->member_name ?? ''));
+        }
+        $position = (string) ($r->position ?? '');
+        if ($position === '') {
+            $position = (string) ($r->member_position ?? '');
+        }
+        $key  = $r->project_id . '|' . $r->employee_id;
+
+        $plannedRow = $plannedMd->get($key);
+        $actualRow   = $actualMd->get($key);
+        $planned = (float) ($plannedRow->md ?? 0);
+        $actual  = (float) ($actualRow->md ?? 0);
+
+        $start = $r->start_date ? Carbon::parse($r->start_date)->format('Y-m-d') : null;
+        $end   = $r->end_date   ? Carbon::parse($r->end_date)->format('Y-m-d')   : null;
+
+        // Status penugasan murni turunan tanggal — tidak dipersist, jadi tidak
+        // bisa jadi basi. Tanpa start_date tidak ada yang bisa disimpulkan.
+        if (!$start) {
+            $assignmentStatus = 'No Period';
+        } elseif ($start > $today->format('Y-m-d')) {
+            $assignmentStatus = 'Upcoming';
+        } elseif ($end && $end < $today->format('Y-m-d')) {
+            $assignmentStatus = 'Ended';
+        } else {
+            $assignmentStatus = 'Active';
+        }
+
+        $durationDays = ($start && $end)
+            ? Carbon::parse($start)->diffInDays(Carbon::parse($end)) + 1
+            : null;
+
+        return [
+            'assignment_id'     => $r->assignment_id !== null ? (int) $r->assignment_id : null,
+            'is_fk_fallback'    => $isFkFallback,
+            'employee_id'       => $r->employee_id !== null ? (int) $r->employee_id : null,
+            'consultant_name'   => $name !== '' ? $name : ($r->employee_id !== null ? 'Employee #' . $r->employee_id : '-'),
+            'eci'               => (string) ($r->eci ?? ''),
+            'position'          => $position,
+            'division'          => (string) ($r->division ?? ''),
+            'department'        => (string) ($r->department ?? ''),
+            'home_base'         => (string) ($r->home_base ?? ''),
+            'employee_active'   => (bool) ($r->employee_is_active ?? false),
+            'project_id'        => (int) $r->project_id,
+            'project_name'      => (string) ($r->project_name ?? '-'),
+            'io_number'         => (string) ($r->io_number ?? ''),
+            'project_type'      => (string) ($r->project_type ?? ''),
+            'project_owner'     => (string) ($r->project_owner ?? ''),
+            'project_category'  => (string) ($r->project_category ?? ''),
+            'project_status'    => (string) ($r->project_status ?? ''),
+            'project_phase'     => (string) ($r->project_phase ?? ''),
+            'project_closed'    => (bool) ($r->is_closed ?? false),
+            'customer_name'     => (string) ($r->customer_name ?? ''),
+            'module'            => (string) ($r->module ?? ''),
+            'role'              => $role !== '' ? $role : 'Member',
+            'employee_type'     => (string) ($r->employee_type ?? 'Internal'),
+            'vendor_name'       => (string) ($r->vendor_name ?? ''),
+            'start_date'        => $start,
+            'end_date'          => $end,
+            'duration_days'     => $durationDays,
+            'assignment_status' => $assignmentStatus,
+            'planned_md'        => round($planned, 2),
+            'actual_md'         => round($actual, 2),
+            'utilization'       => $planned > 0 ? round($actual / $planned * 100, 1) : null,
+            'notes'             => (string) ($r->notes ?? ''),
+        ];
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────
+
+    /**
+     * Pecah nilai `delivery_project_employee.module` jadi token satuan.
+     * Kolomnya bebas teks: ada yang satu modul ("CO"), ada yang beberapa dalam
+     * satu kolom ("FI, CO, FM" / "CO , FM"), dan ada placeholder "-".
+     *
+     * @return array<int,string>
+     */
+    private function consultantModuleTokens(?string $raw): array
+    {
+        $tokens = preg_split('/[,;\/|]+/', (string) $raw) ?: [];
+
+        return array_values(array_filter(
+            array_map('trim', $tokens),
+            fn ($t) => $t !== '' && $t !== '-'
+        ));
+    }
 
     private function monthName(int $month): string
     {

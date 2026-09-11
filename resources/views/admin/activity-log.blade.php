@@ -17,6 +17,15 @@
         cursor: pointer;
     }
     input[type="date"] { position: relative; }
+    /* Segmented user-type buttons */
+    .seg-btn { color: #4b5563; background: #fff; }
+    .seg-btn:hover { background: #f9fafb; }
+    .seg-btn.active { background: #7f1d1d; border-color: #7f1d1d; color: #fff; }
+    /* Header filter popovers detach to <body> on open — keep them above everything */
+    .hdr-filter-panel { z-index: 9999; }
+    /* Jaga ukuran/berat teks label Status konsisten dengan header lain,
+       walau custom-dd menimpa class-nya (text-sm) saat item dipilih. */
+    #ddStatus .custom-dd-label { font-size: 0.75rem; font-weight: 600; }
 </style>
 
 <div class="space-y-6">
@@ -41,90 +50,19 @@
         </div>
     </div>
 
-    <!-- Filters -->
-    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-        <div class="flex flex-wrap gap-3 items-end">
-            <!-- Search -->
-            <div class="flex-1 min-w-[200px]">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Search</label>
-                <input type="text" id="filterSearch" placeholder="Name, IP, browser, location…"
-                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-            </div>
-            <!-- Status -->
-            <div class="min-w-[140px]">
-                <label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
-                <div class="custom-dd relative">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Status</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterStatus" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="success">Success</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="failed">Failed</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="logout">Logout</button>
-                    </div>
-                </div>
-            </div>
-            <!-- User Type -->
-            <div class="min-w-[140px]">
-                <label class="block text-xs font-medium text-gray-600 mb-1">User Type</label>
-                <div class="custom-dd relative">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Types</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterUserType" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Types</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="employee">Employee</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="customer">Customer</button>
-                    </div>
-                </div>
-            </div>
-            <!-- Date From -->
-            <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Date From</label>
-                <div class="relative">
-                    <input type="date" id="filterDateFrom"
-                        class="pl-3 pr-9 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white hover:border-gray-400 transition-all cursor-pointer">
-                    <div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                        </svg>
-                    </div>
-                </div>
-            </div>
-            <!-- Date To -->
-            <div>
-                <label class="block text-xs font-medium text-gray-600 mb-1">Date To</label>
-                <div class="relative">
-                    <input type="date" id="filterDateTo"
-                        class="pl-3 pr-9 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white hover:border-gray-400 transition-all cursor-pointer">
-                    <div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                        </svg>
-                    </div>
-                </div>
-            </div>
-            <!-- Apply -->
-            <div class="flex gap-2">
-                <button onclick="applyFilters()" class="px-4 py-2 text-sm font-semibold bg-red-800 text-white rounded-lg hover:bg-red-900 transition-all">
-                    Apply
-                </button>
-                <button onclick="resetFilters()" class="px-4 py-2 text-sm font-semibold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all">
-                    Reset
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Table -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <h3 class="text-sm font-semibold text-gray-800">Activity Records</h3>
+            <div class="flex items-center gap-2.5">
+                <h3 class="text-sm font-semibold text-gray-800">Activity Records</h3>
+                <button id="btnResetFilters" onclick="resetFilters()"
+                    class="hidden inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                    <span id="btnResetFiltersLabel">Clear filters</span>
+                </button>
+            </div>
             <div class="flex items-center gap-3">
                 <div class="custom-dd relative" style="min-width:100px" data-onchange="onPerPageChange">
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs hover:border-gray-400 transition-all text-left">
@@ -147,13 +85,89 @@
                 <thead>
                     <tr class="bg-gray-50 text-left">
                         <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">#</th>
-                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">User</th>
-                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Status</th>
+
+                        {{-- USER: keyword search + user type filter popover --}}
+                        <th class="p-0 whitespace-nowrap">
+                            <button type="button" id="userFilterBtn" onclick="toggleHeaderFilter('userFilterPanel', this)"
+                                class="hdr-filter-btn w-full flex items-center gap-1.5 px-4 py-3 text-left hover:bg-gray-100 transition-colors">
+                                <span class="text-xs font-semibold text-gray-600">User</span>
+                                <svg id="userFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <div id="userFilterPanel" class="hdr-filter-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:260px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search</label>
+                                <input type="text" id="filterSearch" placeholder="Name, IP, browser, location…"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                <div class="border-t border-gray-100 mt-3 pt-3">
+                                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">User Type</label>
+                                    <input type="hidden" id="filterUserType" value="">
+                                    <div id="userTypeSeg" class="grid grid-cols-3 gap-1.5">
+                                        <button type="button" data-value="" onclick="setUserType('')"
+                                            class="seg-btn px-2 py-1.5 text-xs font-medium border border-gray-200 rounded-md transition-colors">All</button>
+                                        <button type="button" data-value="employee" onclick="setUserType('employee')"
+                                            class="seg-btn px-2 py-1.5 text-xs font-medium border border-gray-200 rounded-md transition-colors">Employee</button>
+                                        <button type="button" data-value="customer" onclick="setUserType('customer')"
+                                            class="seg-btn px-2 py-1.5 text-xs font-medium border border-gray-200 rounded-md transition-colors">Customer</button>
+                                    </div>
+                                </div>
+                                <div class="flex justify-end mt-3">
+                                    <button type="button" onclick="clearUserFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+
+                        {{-- STATUS: single-select dropdown --}}
+                        <th class="p-0 whitespace-nowrap">
+                            <div class="custom-dd relative w-full" id="ddStatus" data-fixed="true" data-onchange="applyFilters">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3 text-left hover:bg-gray-100 transition-colors">
+                                    <span class="custom-dd-label text-xs font-semibold text-gray-600">Status</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="filterStatus" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5" style="min-width:160px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="success">Success</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="failed">Failed</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="logout">Logout</button>
+                                </div>
+                            </div>
+                        </th>
+
                         <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">IP Address</th>
                         <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Device</th>
                         <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Browser / OS</th>
                         <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Location</th>
-                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Time (WIB)</th>
+
+                        {{-- TIME: date range popover --}}
+                        <th class="p-0 whitespace-nowrap">
+                            <button type="button" id="timeFilterBtn" onclick="toggleHeaderFilter('timeFilterPanel', this)"
+                                class="hdr-filter-btn w-full flex items-center gap-1.5 px-4 py-3 text-left hover:bg-gray-100 transition-colors">
+                                <span class="text-xs font-semibold text-gray-600">Time (WIB)</span>
+                                <svg id="timeFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <div id="timeFilterPanel" class="hdr-filter-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:240px;">
+                                <div class="space-y-2">
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Date From</label>
+                                        <input type="date" id="filterDateFrom"
+                                            class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Date To</label>
+                                        <input type="date" id="filterDateTo"
+                                            class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <p id="dateFilterError" class="hidden text-xs text-red-500">"Date To" must be on/after "Date From".</p>
+                                </div>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearTimeFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="applyTimeFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
+                                </div>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
@@ -352,6 +366,101 @@ function escAttr(str) {
     return String(str).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
 }
 
+// ─── Header filter popovers ─────────────────────────────────────────────────────
+// Popover panel di-detach ke <body> saat dibuka + di-posisikan fixed, supaya tidak
+// ter-clip oleh `overflow-x-auto` pada wrapper tabel (pola sama seperti custom-dd).
+function _positionHeaderPanel(btn, panel) {
+    const r = btn.getBoundingClientRect();
+    panel.style.position = 'fixed';
+    panel.style.zIndex   = '9999';
+    panel.style.top      = `${r.bottom + 4}px`;
+    panel.style.left     = `${r.left}px`;
+    panel.style.right    = 'auto';
+    // Jaga agar panel tetap di dalam viewport secara horizontal.
+    requestAnimationFrame(() => {
+        const pr = panel.getBoundingClientRect();
+        if (pr.right > window.innerWidth - 8) {
+            panel.style.left = `${Math.max(8, window.innerWidth - 8 - pr.width)}px`;
+        }
+    });
+}
+
+function toggleHeaderFilter(panelId, btn) {
+    const panel  = document.getElementById(panelId);
+    const isOpen = !panel.classList.contains('hidden');
+    // Tutup panel header lain + dropdown custom-dd yang mungkin terbuka.
+    closeHeaderFilters();
+    if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
+    if (isOpen) return;
+
+    if (!panel._origParent) panel._origParent = panel.parentElement;
+    document.body.appendChild(panel);
+    panel.classList.remove('hidden');
+    _positionHeaderPanel(btn, panel);
+
+    // Auto-focus input teks pertama (search) untuk kenyamanan.
+    const firstInput = panel.querySelector('input[type="text"], input[type="date"]');
+    if (firstInput) requestAnimationFrame(() => firstInput.focus());
+}
+
+function closeHeaderFilters() {
+    document.querySelectorAll('.hdr-filter-panel').forEach(p => {
+        if (p.classList.contains('hidden')) return;
+        p.classList.add('hidden');
+        if (p._origParent && p.parentElement !== p._origParent) {
+            p._origParent.appendChild(p);
+            p.style.position = '';
+            p.style.top      = '';
+            p.style.left     = '';
+            p.style.right    = '';
+            p.style.zIndex   = '';
+        }
+    });
+}
+
+// Klik di luar panel/tombol header → tutup.
+document.addEventListener('click', function (e) {
+    if (e.target.closest('.hdr-filter-panel') || e.target.closest('.hdr-filter-btn')) return;
+    closeHeaderFilters();
+});
+
+// ─── Segmented User Type ─────────────────────────────────────────────────────────
+function setUserType(val) {
+    document.getElementById('filterUserType').value = val;
+    document.querySelectorAll('#userTypeSeg .seg-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.value === val);
+    });
+    applyFilters();
+}
+
+// ─── Time range apply/clear ──────────────────────────────────────────────────────
+function applyTimeFilter() {
+    const from = document.getElementById('filterDateFrom').value;
+    const to   = document.getElementById('filterDateTo').value;
+    const err  = document.getElementById('dateFilterError');
+    if (from && to && to < from) {
+        err.classList.remove('hidden');
+        return;
+    }
+    err.classList.add('hidden');
+    applyFilters();
+    closeHeaderFilters();
+}
+
+function clearTimeFilter() {
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value   = '';
+    document.getElementById('dateFilterError').classList.add('hidden');
+    applyFilters();
+    closeHeaderFilters();
+}
+
+function clearUserFilter() {
+    document.getElementById('filterSearch').value = '';
+    setUserType('');            // juga men-trigger applyFilters()
+    closeHeaderFilters();
+}
+
 // ─── Filters ──────────────────────────────────────────────────────────────────
 function applyFilters() {
     currentFilters = {};
@@ -367,17 +476,37 @@ function applyFilters() {
     if (dateFrom) currentFilters.date_from = dateFrom;
     if (dateTo)   currentFilters.date_to   = dateTo;
 
+    updateFilterIndicators({ search, status, userType, dateFrom, dateTo });
     loadTable(1);
 }
 
 function resetFilters() {
     document.getElementById('filterSearch').value = '';
     setCustomDropdownValue('filterStatus', '');
-    setCustomDropdownValue('filterUserType', '');
+    document.getElementById('filterUserType').value = '';
+    document.querySelectorAll('#userTypeSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.value === ''));
     document.getElementById('filterDateFrom').value = '';
     document.getElementById('filterDateTo').value   = '';
+    document.getElementById('dateFilterError').classList.add('hidden');
     currentFilters = {};
+    updateFilterIndicators({});
+    closeHeaderFilters();
     loadTable(1);
+}
+
+// Sorot ikon corong + tampilkan tombol "Clear filters" saat ada filter aktif.
+function updateFilterIndicators({ search = '', status = '', userType = '', dateFrom = '', dateTo = '' } = {}) {
+    const userActive = !!(search || userType);
+    const timeActive = !!(dateFrom || dateTo);
+    document.getElementById('userFilterIcon').classList.toggle('text-red-600', userActive);
+    document.getElementById('userFilterIcon').classList.toggle('text-gray-300', !userActive);
+    document.getElementById('timeFilterIcon').classList.toggle('text-red-600', timeActive);
+    document.getElementById('timeFilterIcon').classList.toggle('text-gray-300', !timeActive);
+
+    const anyActive = userActive || timeActive || !!status;
+    const resetBtn  = document.getElementById('btnResetFilters');
+    resetBtn.classList.toggle('hidden', !anyActive);
+    resetBtn.classList.toggle('inline-flex', anyActive);
 }
 
 function onPerPageChange() {
@@ -404,9 +533,14 @@ document.getElementById('uaModal').addEventListener('click', function(e) {
     if (e.target === this) closeUaModal();
 });
 
-// ─── Search on Enter ──────────────────────────────────────────────────────────
+// ─── Search: Enter langsung apply + debounce saat mengetik ─────────────────────
+let _searchDebounce = null;
 document.getElementById('filterSearch').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') applyFilters();
+    if (e.key === 'Enter') { clearTimeout(_searchDebounce); applyFilters(); }
+});
+document.getElementById('filterSearch').addEventListener('input', function() {
+    clearTimeout(_searchDebounce);
+    _searchDebounce = setTimeout(applyFilters, 400);
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -419,6 +553,12 @@ document.addEventListener('DOMContentLoaded', function () {
     } else {
         console.warn('initCustomDropdowns belum tersedia — dropdown filter dinonaktifkan, tabel tetap dimuat.');
     }
+    // Tandai "All" sebagai user-type default aktif.
+    document.querySelectorAll('#userTypeSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.value === ''));
+    // Membuka dropdown Status harus menutup popover header lain (custom-dd
+    // memakai stopPropagation sehingga listener document tidak ter-trigger).
+    const statusBtn = document.querySelector('#ddStatus .custom-dd-btn');
+    if (statusBtn) statusBtn.addEventListener('click', closeHeaderFilters);
     loadStats();
     loadTable(1);
 });

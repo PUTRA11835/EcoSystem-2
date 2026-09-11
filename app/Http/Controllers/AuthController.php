@@ -19,7 +19,7 @@ class AuthController extends Controller
     public const REMEMBER_COOKIE = 'remember_ecosystem';
 
     /** Durasi remember-me dalam hari */
-    private const REMEMBER_DAYS = 30;
+    private const REMEMBER_DAYS = 1;
 
     // =========================================================================
     // HELPER: Bangun session data dari employee_id
@@ -36,7 +36,6 @@ class AuthController extends Controller
         $employee = DB::table('employee as e')
             ->join('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
             ->leftJoin('employee_address as ea', 'e.employee_id', '=', 'ea.employee_id')
-            ->leftJoin('employee_role as r', 'e.role_id', '=', 'r.id')
             ->where('e.employee_id', $employeeId)
             ->select(
                 'e.employee_id',
@@ -48,14 +47,32 @@ class AuthController extends Controller
                 'ea.cell_phone as phone_number',
                 'eb.position',
                 'eb.employee_subgroup as department',
-                'r.id as role_id',
-                'r.name as role_name'
+                'eb.employee_type',
+                'eb.block',
+                'eb.deletion_flag'
             )
             ->first();
 
-        if (!$employee || !$employee->is_active) {
+        // Employee di-blok atau ditandai untuk dihapus di Master Employee (Basic
+        // Data) — perlakukan sama seperti is_active = false: tidak boleh login,
+        // dan sesi remember-me yang coba di-restore juga langsung gagal.
+        if (!$employee || !$employee->is_active || $employee->block || $employee->deletion_flag) {
             return null;
         }
+
+        // Ambil semua roles dari employee_role_assignment (cara baru)
+        $allRoles = DB::table('employee_role_assignment as era')
+            ->join('employee_role as er', 'era.role_id', '=', 'er.id')
+            ->where('era.employee_id', $employeeId)
+            ->select('er.id', 'er.name')
+            ->get();
+
+        $roleIds   = $allRoles->pluck('id')->map(fn($id) => (int) $id)->toArray();
+        $rolesData = $allRoles->map(fn($r) => ['id' => (int) $r->id, 'name' => $r->name])->toArray();
+
+        // Primary role: utamakan dari assignment, fallback ke legacy role_id
+        $primaryRoleId   = $roleIds[0] ?? 0;
+        $primaryRoleName = $rolesData[0]['name'] ?? '';
 
         // Ambil email dari auth_users (bukan employee_address) agar konsisten
         $authEmail = DB::table('auth_users')
@@ -68,19 +85,24 @@ class AuthController extends Controller
         return [
             'token'    => $token,
             'userData' => [
-                'id'         => (int) $employee->employee_id,
-                'type'       => 'employee',
-                'eci'        => $employee->eci,
-                'name'       => $employee->full_name,
-                'nick_name'  => $employee->nick_name ?: explode(' ', trim($employee->full_name))[0],
-                'email'      => $authEmail ?? $employee->email,
-                'phone'      => $employee->phone_number,
-                'position'   => $employee->position,
-                'department' => $employee->department,
-                'role'       => [
-                    'id'   => (int) $employee->role_id,
-                    'name' => $employee->role_name,
+                'id'            => (int) $employee->employee_id,
+                'type'          => 'employee',
+                'employee_type' => $employee->employee_type ?? 'Internal',
+                'eci'           => $employee->eci,
+                'name'          => $employee->full_name,
+                'nick_name'     => $employee->nick_name ?: explode(' ', trim($employee->full_name))[0],
+                'email'         => $authEmail ?? $employee->email,
+                'phone'         => $employee->phone_number,
+                'position'      => $employee->position,
+                'department'    => $employee->department,
+                // Legacy: primary role (backward compat — masih dipakai banyak fitur)
+                'role'          => [
+                    'id'   => $primaryRoleId,
+                    'name' => $primaryRoleName,
                 ],
+                // Baru: semua roles (dipakai sistem baru)
+                'role_ids'   => $roleIds,
+                'roles'      => $rolesData,
             ],
         ];
     }
@@ -758,12 +780,16 @@ class AuthController extends Controller
                 $rememberUpdates = ['last_login_at' => now()];
 
                 // ── Remember Me ──────────────────────────────────────────────
+                // Catatan: blok ini hanya tercapai untuk akun is_already_cp = 1,
+                // karena akun is_already_cp = 0 sudah di-return di atas (jalur
+                // require_password_change) sebelum sampai ke sini. Jadi untuk
+                // akun password-initial, checkbox otomatis diabaikan.
                 $responseCookies = [];
                 if ($remember) {
                     $rawRememberToken = Str::random(60);
                     $rememberUpdates['remember_token'] = hash('sha256', $rawRememberToken);
 
-                    // Cookie HttpOnly, SameSite=Lax, 30 hari
+                    // Cookie HttpOnly, SameSite=Lax, REMEMBER_DAYS hari
                     // secure: ikut SESSION_SECURE_COOKIE (.env) — false lokal, true production HTTPS
                     $responseCookies[] = cookie(
                         self::REMEMBER_COOKIE,

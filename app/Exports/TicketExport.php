@@ -17,7 +17,7 @@ class TicketExport implements
     WithStyles,
     ShouldAutoSize
 {
-    // Column count: A–U (21 columns)
+    // Column count: A–U (21 columns, Jarvies Status column removed)
     private const LAST_COL = 'U';
 
     protected Collection $rows;
@@ -31,31 +31,22 @@ class TicketExport implements
     {
         return $this->rows->map(function ($t) {
             $statusLabel = match ($t['status'] ?? '') {
-                'open'          => 'Open',
-                'in_progress'   => 'In Progress',
-                'hold'          => 'Hold',
-                'wait_to_close' => 'Wait to Close',
-                'cancel'        => 'Cancel',
-                'closed'        => 'Closed',
-                'reply'         => 'Reply',
-                default         => $t['status'] ?? '-',
-            };
-
-            $jarviesLabel = match ($t['jarvies_status'] ?? '') {
-                'sent it to support' => 'To Support',
-                'in process'         => 'In Process',
-                'author action'      => 'Author Action',
-                'proposed solution'  => 'Proposed Solution',
-                'sent in to SAP'     => 'Sent to SAP',
-                'closed'             => 'Closed',
-                default              => $t['jarvies_status'] ?? '-',
+                'open'                    => 'Open',
+                'inprocess'               => 'Inprocess',
+                'waiting_on_customer'     => 'Waiting on Customer',
+                'waiting_on_3rd_party'    => 'Waiting on 3rd Party',
+                'waiting_to_confirmation' => 'Waiting to Confirmation',
+                'hold'                    => 'Hold',
+                'cancelled'               => 'Cancelled',
+                'closed'                  => 'Closed',
+                default                   => $t['status'] ?? '-',
             };
 
             return [
                 'ticket_number'            => $t['ticket_number'] ?? '-',
                 'description'              => $t['description'] ?? '-',
-                'date'                     => $t['created_at']
-                    ? \Carbon\Carbon::parse($t['created_at'])->timezone('Asia/Jakarta')->format('d M Y')
+                'date'                     => ($t['start_date'] ?? $t['created_at'])
+                    ? \Carbon\Carbon::parse($t['start_date'] ?? $t['created_at'])->timezone('Asia/Jakarta')->format('d M Y')
                     : '-',
                 'customer'                 => $t['customer']['customer_name'] ?? '-',
                 'end_customer'             => $t['end_customer_name'] ?? '-',
@@ -63,9 +54,9 @@ class TicketExport implements
                 'priority'                 => $t['ticket_priority'] ?? '-',
                 'scale'                    => $t['scale'] ?? '-',
                 'status'                   => $statusLabel,
-                'jarvies_status'           => $jarviesLabel,
                 'type'                     => $t['ticket_type'] ?? '-',
-                'assign_delivery'          => '-',
+                'module'                   => $t['module'] ?? '-',
+                'assign_delivery'          => $t['assign_delivery'] ?? '-',
                 'customer_mandays'         => $t['customer_mandays'] !== null
                     ? number_format((float) $t['customer_mandays'], 1)
                     : '-',
@@ -97,8 +88,8 @@ class TicketExport implements
             'Priority',
             'Scale',
             'Status',
-            'Jarvies Status',
             'Type',
+            'Module',
             'Assign Delivery',
             'Customer Mandays',
             'Progress',

@@ -1,11 +1,20 @@
-<div class="space-y-6">
+<div class="space-y-6 {{ (isset($isReadonly) && $isReadonly) ? 'profile-readonly' : '' }}">
     <!-- General Information -->
     <div>
         <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
-            <h3 class="text-base font-semibold text-gray-900">General Information</h3>
-            <button onclick="saveCurrentSection()" class="px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+            <div class="flex items-center gap-2">
+                <h3 class="text-base font-semibold text-gray-900">General Information</h3>
+                @if(isset($isReadonly) && $isReadonly)
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">
+                        <i class="fas fa-lock text-[10px]"></i> View Only
+                    </span>
+                @endif
+            </div>
+            @if(!isset($isReadonly) || !$isReadonly)
+            <button onclick="saveCurrentSection()" class="js-section-action px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
                 Save Changes
             </button>
+            @endif
         </div>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="flex flex-col">
@@ -26,7 +35,7 @@
                 </div>
             </div>
             <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Nick Name</label>
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Nick Name <span class="text-red-500">*</span></label>
                 <input type="text" id="nickName" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
             <div class="flex flex-col">
@@ -123,34 +132,118 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Personnel Area</label>
-                <input type="text" id="personnelArea" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div class="custom-dd relative">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">Select Personnel Area</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="personnelArea" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Personnel Area</button>
+                        @foreach(($personnelAreaOptions ?? []) as $pa)
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pa }}">{{ $pa }}</button>
+                        @endforeach
+                    </div>
+                </div>
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Personnel Subarea</label>
-                <input type="text" id="personnelSubarea" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div class="custom-dd relative">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">Select Personnel Subarea</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="personnelSubarea" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Personnel Subarea</button>
+                        @foreach(($personnelSubareaOptions ?? []) as $psa)
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $psa }}">{{ $psa }}</button>
+                        @endforeach
+                    </div>
+                </div>
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Employee Group</label>
-                <input type="text" id="employeeGroup" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div class="custom-dd relative">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">Select Employee Group</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="employeeGroup" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Employee Group</button>
+                        @foreach(($employeeGroupOptions ?? []) as $eg)
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $eg }}">{{ $eg }}</button>
+                        @endforeach
+                    </div>
+                </div>
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Employee Subgroup</label>
-                <input type="text" id="employeeSubgroup" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div class="custom-dd relative">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">Select Employee Subgroup</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="employeeSubgroup" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Employee Subgroup</button>
+                        @foreach(($employeeSubgroupOptions ?? []) as $esg)
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $esg }}">{{ $esg }}</button>
+                        @endforeach
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Position</label>
-                <input type="text" id="position" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div class="custom-dd relative">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">Select Position</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="position" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Position</button>
+                        @foreach(($positionOptions ?? []) as $pos)
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pos }}">{{ $pos }}</button>
+                        @endforeach
+                    </div>
+                </div>
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Division</label>
-                <input type="text" id="division" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div class="custom-dd relative">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">Select Division</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="division" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Division</button>
+                        @foreach(($divisionOptions ?? []) as $div)
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $div }}">{{ $div }}</button>
+                        @endforeach
+                    </div>
+                </div>
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Department</label>
-                <input type="text" id="department" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div class="custom-dd relative">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">Select Department</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="department" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Department</button>
+                        @foreach(($departmentOptions ?? []) as $dept)
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $dept }}">{{ $dept }}</button>
+                        @endforeach
+                    </div>
+                </div>
             </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Authorization Group</label>
@@ -159,6 +252,22 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
+            <div class="flex flex-col">
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Current Assignment</label>
+                <div class="custom-dd relative" data-searchable="true" data-search-placeholder="Search customer...">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">Select Customer</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="currentAssignment" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Customer</button>
+                        @foreach(($customerOptions ?? []) as $cust)
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $cust }}">{{ $cust }}</button>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Home Base</label>
                 <div class="custom-dd relative">
@@ -169,29 +278,9 @@
                     <input type="hidden" id="homeBase" value="">
                     <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Home Base</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Jakarta">Jakarta</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Yogyakarta">Yogyakarta</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Surabaya">Surabaya</button>
-                    </div>
-                </div>
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Grade</label>
-                <div class="custom-dd relative">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">Select Grade</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="grade" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Grade</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Management Trainee">Management Trainee</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Junior Consultant">Junior Consultant</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Associate Consultant">Associate Consultant</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Middle Consultant">Middle Consultant</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Senior Consultant">Senior Consultant</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Principal Consultant">Principal Consultant</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Expert Consultant">Expert Consultant</button>
+                        @foreach(($homeBaseOptions ?? []) as $hb)
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $hb }}">{{ $hb }}</button>
+                        @endforeach
                     </div>
                 </div>
             </div>
@@ -206,11 +295,11 @@
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Manager</label>
                 <input type="text" id="manager" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <input type="checkbox" id="block" class="w-5 h-5 text-red-800 border-gray-300 rounded focus:ring-red-800">
                 <label for="block" class="text-sm font-semibold text-gray-700">Block Employee</label>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <input type="checkbox" id="deletionFlag" class="w-5 h-5 text-red-800 border-gray-300 rounded focus:ring-red-800">
                 <label for="deletionFlag" class="text-sm font-semibold text-gray-700">Deletion Flag</label>
             </div>

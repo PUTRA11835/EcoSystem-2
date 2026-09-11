@@ -1,7 +1,16 @@
 @extends('dashboard')
 @section('title', 'Project Detail')
 @section('page-title', 'Project Detail')
-@section('page-subtitle', 'View complete project information')
+@section('page-subtitle', e($project->name))
+@php
+    // Project Owner project ini boleh CRUD Risk Register meski role-nya tidak
+    // punya slug risk.*. Grant hanya berlaku di project ini (bukan lintas
+    // project) — sisi server dijaga middleware `menu.owner:`.
+    $isProjectOwner = $isProjectOwner ?? false;
+    $canRiskView    = $can('delivery-project.risk.view')   || $isProjectOwner;
+    $canRiskEdit    = $can('delivery-project.risk.edit')   || $isProjectOwner;
+    $canRiskManage  = $can('delivery-project.risk.manage') || $isProjectOwner;
+@endphp
 {{-- ✅ LOAD GANTT LIBRARIES --}}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
@@ -81,6 +90,38 @@
         background: #94a3b8;
     }
 
+    /* Scrollbar horizontal yang selalu terlihat.
+       Dipakai pada tabel di dalam modal (mis. Actual Expense Details): default
+       macOS/Windows menyembunyikan overlay scrollbar sampai user men-scroll,
+       sehingga user tidak tahu ada isi yang terpotong ke kanan. */
+    .tbl-scroll {
+        scrollbar-width: thin;                 /* Firefox */
+        scrollbar-color: #cbd5e1 #f1f5f9;
+    }
+    .tbl-scroll::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    .tbl-scroll::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 5px;
+    }
+    .tbl-scroll::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 5px;
+        border: 2px solid #f1f5f9;
+    }
+    .tbl-scroll::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
+    /* overflow-x:auto membuat overflow-y ikut jadi 'auto' (spec CSS); underline
+       tab aktif (::after bottom:-1px) meluber 1px → memunculkan scrollbar
+       vertikal yang tak perlu. Kunci overflow-y agar hanya scroll horizontal. */
+    #sectionNav nav {
+        overflow-y: hidden;
+    }
+
     /* Scrollbar untuk tab navigation */
     #sectionNav nav::-webkit-scrollbar {
         height: 4px;
@@ -143,6 +184,20 @@
         z-index: 15;
         transition: width 0.1s ease;
     }
+
+    /* Nilai read-only pada section (editing pindah ke modal). Bentuknya sengaja
+       menyerupai input agar tata letak section tidak berubah dari versi form. */
+    .display-box {
+        display: block; width: 100%;
+        padding: 0.625rem 0.75rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.375rem;
+        background: #f9fafb;
+        font-size: 0.875rem;
+        color: #111827;
+        min-height: 2.625rem;
+    }
+    .edit-btn:hover { color: var(--primary-color) !important; background-color: rgba(var(--primary-rgb), 0.08) !important; }
 
     .primary-tab-active { color: var(--primary-color) !important; border-color: var(--primary-color) !important; }
     .primary-text { color: var(--primary-color) !important; }
@@ -267,49 +322,96 @@
     section {
         scroll-margin-top: 130px;
     }
+
+    /* Read-only saat project di-close: nonaktifkan seluruh kontrol form &
+       tombol di dalam section (termasuk yang dirender dinamis oleh JS).
+       Link <a> & scroll tetap berfungsi agar konten masih bisa dibaca. */
+    body.project-closed section.section-animate :is(input, select, textarea, button) {
+        pointer-events: none !important;
+        opacity: .55;
+        cursor: not-allowed;
+    }
 </style>
 @section('content')
 {{-- ✅ SCROLL PROGRESS INDICATOR --}}
 <div class="scroll-indicator" id="scrollIndicator"></div>
 {{-- ✅ Sticky Navigation Tabs - PALING ATAS --}}
+{{-- Tiap tab ikut izin `.view` section tujuannya, supaya tidak ada tab yang
+     mengarah ke section yang tidak dirender untuk role tersebut. --}}
 <div class="bg-white" id="sectionNav">
     <nav class="flex overflow-x-auto scrollbar-hide border-b border-gray-200">
+        @if($can('delivery-project.general.view'))
         <button onclick="scrollToSection('general')" data-section="general" class="section-tab active text-sm font-medium text-gray-600 whitespace-nowrap">
             General
         </button>
-        <button onclick="scrollToSection('delivery')" data-section="delivery" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
+        @endif
+        {{-- Tab ini menaungi dua section: Delivery Data (di atas) + Delivery
+             Information. Klik diarahkan ke section pertama yang boleh dilihat. --}}
+        @if($can('delivery-project.delivery-data.view') || $can('delivery-project.delivery-info.view'))
+        <button onclick="scrollToSection('{{ $can('delivery-project.delivery-data.view') ? 'delivery-data' : 'delivery' }}')" data-section="delivery" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Delivery Info
         </button>
+        @endif
+        @if($can('delivery-project.stakeholder.view'))
+        <button onclick="scrollToSection('stakeholders')" data-section="stakeholders" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6-4a3 3 0 11-3-3M6 11a3 3 0 11-3-3"></path>
+            </svg>
+            Stakeholders
+        </button>
+        @endif
+        @if($can('delivery-project.team.view'))
         <button onclick="scrollToSection('team')" data-section="team" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Team
         </button>
+        @endif
+        @if($can('delivery-project.documents.view'))
         <button onclick="scrollToSection('documents')" data-section="documents" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Documents
         </button>
+        @endif
+        @if($can('delivery-project.issue-log.view'))
         <button onclick="scrollToSection('issues')" data-section="issues" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Issues
         </button>
+        @endif
+        @if($canRiskView)
         <button onclick="scrollToSection('risks')" data-section="risks" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
             </svg>
             Risks
         </button>
+        @endif
+        @if($can('delivery-project.location.view'))
         <button onclick="scrollToSection('location')" data-section="location" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap">
             Location
         </button>
+        @endif
+        @if($can('delivery-project.planning.view'))
         <button onclick="scrollToSection('planning')" data-section="planning" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
             </svg>
             Planning
         </button>
+        @endif
+        @if($can('delivery-project.wricef.view'))
+        <button onclick="scrollToSection('wricef')" data-section="wricef" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+            </svg>
+            WRICEF
+        </button>
+        @endif
+        @if($can('delivery-project.plan-cost.view'))
         <button onclick="scrollToSection('plancost')" data-section="plancost" class="section-tab text-sm font-medium text-gray-600 whitespace-nowrap flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
             Plan Cost
         </button>
+        @endif
     </nav>
 </div>
 
@@ -336,6 +438,19 @@
                 {{ $project->client->basicData->name_1 ?? 'N/A' }} •
                 <span class="font-semibold">{{ $project->project_type ?? 'N/A' }}</span>
             </p>
+            {{-- Status share link OneDrive: siapa yang sebenarnya bisa membuka "Open Folder". --}}
+            @if($project->onedrive_folder_url)
+            <p id="odrLinkBadgeWrap" class="mt-1.5">
+                <span id="odrLinkBadge"
+                      class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium
+                             {{ $project->onedrive_link_is_public ? 'bg-green-100 text-green-800' : ($project->onedrive_link_warning ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700') }}">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5m4.5-4.5l1.5-1.5a4 4 0 115.656 5.656l-3 3a4 4 0 01-5.656 0"/>
+                    </svg>
+                    <span id="odrLinkBadgeText">Folder link: {{ $project->onedrive_link_scope_label }}</span>
+                </span>
+            </p>
+            @endif
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
             @if($project->onedrive_folder_url)
@@ -346,7 +461,7 @@
                 </svg>
                 Open Folder
             </a>
-            @else
+            @elseif($can('delivery-project.documents.manage'))
             <button type="button" id="headerFolderBtn" onclick="openOneDriveModal()"
                     class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -355,119 +470,139 @@
                 Create Folder
             </button>
             @endif
+            @if($can('delivery-project.close-project'))
+                @if($project->is_closed)
+                <form id="reopenProjectForm" method="POST" action="{{ route('projects.reopen', $project->id) }}" class="contents">
+                    @csrf
+                    <button type="button" onclick="openProjectStateModal('reopen')"
+                            class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all duration-200">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                        </svg>
+                        Reopen Project
+                    </button>
+                </form>
+                @else
+                <form id="closeProjectForm" method="POST" action="{{ route('projects.close', $project->id) }}" class="contents">
+                    @csrf
+                    <button type="button" onclick="openProjectStateModal('close')"
+                            class="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-all duration-200">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                        Close Project
+                    </button>
+                </form>
+                @endif
+            @endif
+            @if($can('delivery-project.delete-project'))
             <button type="button"
                     onclick="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')"
                     class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Delete Project
             </button>
+            @endif
         </div>
     </div>
 </div>
 
+{{-- Banner peringatan share link OneDrive: muncul saat link tidak benar-benar publik
+     (scope internal, kedaluwarsa, atau yang tersimpan bukan share link) — inilah
+     kondisi yang membuat penerima kena "Request access". --}}
+<div id="odrLinkWarningBanner"
+     class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3 {{ $project->onedrive_link_warning ? '' : 'hidden' }}">
+    <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/>
+    </svg>
+    <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-amber-800">Folder link may not be accessible</p>
+        <p id="odrLinkWarningText" class="text-xs text-amber-700 mt-0.5">{{ $project->onedrive_link_warning }}</p>
+    </div>
+    @if($can('delivery-project.documents.manage'))
+    <button type="button" id="odrRefreshLinkBtn" onclick="refreshProjectFolderLink()"
+            class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 transition-all">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Refresh Link
+    </button>
+    @endif
+</div>
+
+@if($project->is_closed)
+{{-- Banner read-only project yang sudah di-close --}}
+<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
+    <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+    </svg>
+    <div>
+        <p class="text-sm font-semibold text-amber-800">This project is closed — read-only</p>
+        <p class="text-xs text-amber-700 mt-0.5">
+            Closed{{ $project->closed_at ? ' on ' . $project->closed_at->format('d M Y, H:i') : '' }}@if($project->closedBy?->basicData?->full_name) by {{ $project->closedBy->basicData->full_name }}@endif.
+            @if($can('delivery-project.close-project')) Use <span class="font-semibold">Reopen Project</span> above to make changes. @endif
+        </p>
+    </div>
+</div>
+{{-- Kunci tampilan + pagar request: delivery/partials/project-closed-lock.blade.php
+     (di-include di akhir file; ia yang memasang class body.project-closed). --}}
+@endif
+
 {{-- General Information Section --}}
-<section id="general" class="mb-6 card-hover section-animate">
+@if($can('delivery-project.general.view'))
+<section id="general" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.general.edit') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
-        <div class="p-6 border-b border-gray-200">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-700">General Information</h2>
+            @if($can('delivery-project.general.edit'))
+            <button type="button" onclick="openModal('generalInfoModal')" title="Edit General Information"
+                    class="p-2 text-gray-400 edit-btn rounded-lg transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            @endif
         </div>
-        <form id="generalInfoForm" action="{{ route('projects.updateGeneralInfo', $project->id) }}" method="POST" class="p-6">
-            @csrf @method('PATCH')
-            @php $clientLabel = $project->client->basicData->name_1 ?? ''; @endphp
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {{-- Customer --}}
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Customer</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $clientLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $clientLabel ?: '-- Select Client --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="client_id" value="{{ $project->client_id }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search client…" autocomplete="off" spellcheck="false">
-                            </div>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Client --</button>
-                            @foreach($clients as $client)
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $client->customer_id }}">{{ $client->basicData->name_1 ?? $client->email ?? 'Unknown' }}</button>
-                            @endforeach
-                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                        </div>
-                    </div>
+                    <div class="display-box">{{ $project->client->basicData->name_1 ?? '—' }}</div>
                 </div>
-                {{-- Project Name --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Project Name</label>
-                    <input type="text" name="name" value="{{ $project->name }}" required
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                           placeholder="Enter project name">
+                    <div class="display-box font-semibold">{{ $project->name ?: '—' }}</div>
                 </div>
-                {{-- Project Owner --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Project Owner</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->project_owner ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->project_owner ?: '-- Select Project Owner --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="project_owner" value="{{ $project->project_owner }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                            <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
-                            </div>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Project Owner --</button>
-                            @foreach($employees as $employee)
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
-                            @endforeach
-                            <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                        </div>
-                    </div>
+                    <div class="display-box">{{ $project->project_owner ?: '—' }}</div>
                 </div>
-                {{-- Project Type --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Project Type</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->project_type ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->project_type ?: '-- Select Type --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="project_type" value="{{ $project->project_type }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Type --</button>
-                            @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF'] as $pt)
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pt }}">{{ $pt }}</button>
-                            @endforeach
-                        </div>
-                    </div>
+                    <div class="display-box">{{ $project->project_type ?: '—' }}</div>
                 </div>
-                {{-- High Level Risk --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">High Level Risk</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->high_level_risk ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->high_level_risk ?: '-- Select Risk Level --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="high_level_risk" value="{{ $project->high_level_risk }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Risk Level --</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Low">Low</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Moderate">Moderate</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="High">High</button>
-                        </div>
+                    <div class="display-box">
+                        @if($project->high_level_risk)
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                @if($project->high_level_risk === 'Low') bg-green-100 text-green-800
+                                @elseif($project->high_level_risk === 'Moderate') bg-yellow-100 text-yellow-800
+                                @else bg-red-100 text-red-800 @endif">
+                                {{ $project->high_level_risk }}
+                            </span>
+                        @else
+                            <span class="text-gray-400">—</span>
+                        @endif
                     </div>
                 </div>
-                {{-- IO/Number Order --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">IO/Number Order</label>
-                    <input type="text" name="io_number" value="{{ $project->io_number }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                           placeholder="e.g. IO-2026-001">
+                    <div class="display-box">{{ $project->io_number ?: '—' }}</div>
                 </div>
-                {{-- Category (read-only) --}}
+                {{-- Category (auto dari Project Planning) --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Category</label>
-                    <div class="block w-full py-2.5 px-3 border border-gray-200 rounded-md bg-gray-50 shadow-sm text-sm">
+                    <div class="display-box">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                             @if($project->category == 'Open') bg-yellow-100 text-yellow-800
                             @elseif($project->category == 'In Process') bg-blue-100 text-blue-800
@@ -478,184 +613,157 @@
                     </div>
                     <p class="mt-1 text-xs text-amber-600">*Auto-filled from Project Planning</p>
                 </div>
-                {{-- Phase (read-only) --}}
+                {{-- Phase (auto dari Project Planning) --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Phase</label>
-                    <div class="block w-full py-2.5 px-3 border border-gray-200 rounded-md bg-gray-50 shadow-sm text-sm">
+                    <div class="display-box">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                             {{ $project->phase ?? 'N/A' }}
                         </span>
                     </div>
                     <p class="mt-1 text-xs text-amber-600">*Auto-filled from Project Planning</p>
                 </div>
-                {{-- Contract Start Date --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Contract Start Date <span class="text-red-500">*</span></label>
-                    <input type="text" name="contract_start_date" id="contract_start_date" autocomplete="off" readonly required
-                           value="{{ $project->contract_start_date ? \Carbon\Carbon::parse($project->contract_start_date)->format('Y-m-d') : '' }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus bg-white cursor-pointer"
-                           placeholder="dd-mon-yyyy">
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Contract Start Date</label>
+                    <div class="display-box">{{ $project->contract_start_date ? \Carbon\Carbon::parse($project->contract_start_date)->format('d M Y') : '—' }}</div>
                 </div>
-                {{-- Contract End Date --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Contract End Date <span class="text-red-500">*</span></label>
-                    <input type="text" name="contract_end_date" id="contract_end_date" autocomplete="off" readonly required
-                           value="{{ $project->contract_end_date ? \Carbon\Carbon::parse($project->contract_end_date)->format('Y-m-d') : '' }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus bg-white cursor-pointer"
-                           placeholder="dd-mon-yyyy">
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Contract End Date</label>
+                    <div class="display-box">{{ $project->contract_end_date ? \Carbon\Carbon::parse($project->contract_end_date)->format('d M Y') : '—' }}</div>
                 </div>
-                {{-- Go Live Estimated (read-only) --}}
+                {{-- Go Live Estimated (auto dari activity Go-Live) --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Go Live Estimated</label>
-                    <div class="block w-full py-2.5 px-3 border border-gray-200 rounded-md bg-gray-50 shadow-sm text-sm text-gray-700">
-                        {{ $project->go_live_estimated ? \Carbon\Carbon::parse($project->go_live_estimated)->format('d M Y') : 'N/A' }}
-                    </div>
-                    <p class="mt-1 text-xs text-amber-600">*Derived from the latest date in phase marked as 'Go-Live Phase'</p>
+                    <div class="display-box">{{ $project->go_live_estimated ? \Carbon\Carbon::parse($project->go_live_estimated)->format('d M Y') : 'N/A' }}</div>
+                    <p class="mt-1 text-xs text-amber-600">*Derived from the Planned Start Date of the activity marked as 'Go-Live'</p>
                 </div>
-                {{-- Description (full width) --}}
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-900 mb-1">Description</label>
-                    <textarea name="description" rows="4"
-                              class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                              placeholder="Enter project description">{{ $project->description }}</textarea>
+                    <div class="display-box whitespace-pre-line min-h-[5rem]">{{ $project->description ?: '—' }}</div>
                 </div>
             </div>
-            <div class="mt-6 text-right">
-                <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                    Update Information
-                </button>
-            </div>
-        </form>
+        </div>
     </div>
 </section>
+@endif
+
+{{-- Delivery Data — sengaja ditempatkan SEBELUM Delivery Information; keduanya
+     berbagi tab "Delivery Info" dan izin `edit-delivery-info`. --}}
+@if($can('delivery-project.delivery-data.view'))
+<section id="delivery-data" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.delivery-data.edit') ? '1' : '0' }}">
+    <div class="bg-white shadow-md rounded-lg">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-700">Delivery Data</h2>
+                <p class="mt-1 text-sm text-gray-600">Delivery method, warranty, and mandays</p>
+            </div>
+            @if($can('delivery-project.delivery-data.edit'))
+            <button type="button" onclick="openModal('deliveryDataModal')" title="Edit Delivery Data"
+                    class="p-2 text-gray-400 edit-btn rounded-lg transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            @endif
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Warranty Period <span class="text-gray-400 font-normal">(months)</span></label>
+                    <div class="display-box">{{ $project->warranty_period !== null && $project->warranty_period !== '' ? $project->warranty_period . ' months' : '—' }}</div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Method</label>
+                    <div class="display-box">{{ $project->delivery_method ?: '—' }}</div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Total Mandays</label>
+                    <div class="display-box">{{ $project->total_mandays !== null && $project->total_mandays !== '' ? $project->total_mandays . ' days' : '—' }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+@endif
 
 {{-- Delivery Information Section --}}
-<section id="delivery" class="mb-6 card-hover section-animate">
+@if($can('delivery-project.delivery-info.view'))
+<section id="delivery" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.delivery-info.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.delivery-info.manage') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
-        <div class="p-6 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-700">Delivery Information</h2>
-            <p class="mt-1 text-sm text-gray-600">Delivery and sales information</p>
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-700">Delivery Information</h2>
+                <p class="mt-1 text-sm text-gray-600">Delivery and sales information</p>
+            </div>
+            @if($can('delivery-project.delivery-info.edit'))
+            <button type="button" onclick="openModal('deliveryInfoModal')" title="Edit Delivery Information"
+                    class="p-2 text-gray-400 edit-btn rounded-lg transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            @endif
         </div>
-        <form id="deliveryInfoForm" action="{{ route('projects.updateDeliveryInfo', $project->id) }}" method="POST" class="p-6">
-            @csrf @method('PATCH')
-
-            {{-- Sales Data Sub-section --}}
-            <div class="mb-6">
+        <div class="p-6">
+            {{-- Sales Data (read-only; editing lewat modal Edit Delivery Information) --}}
+            @php
+                $dispRev    = (float) ($project->revenue ?? 0);
+                $dispPc     = (float) ($project->plan_cost ?? 0);
+                $dispGp     = (float) ($project->gross_profit ?? 0);
+                $dispGpPct  = $project->gross_profit_percentage;
+                $dispAc     = (float) ($actualCost ?? 0);
+                $dispAgp    = $dispRev - $dispAc;
+                $dispAgpPct = $dispRev > 0 ? ($dispAgp / $dispRev) * 100 : 0;
+                $rp         = fn($v) => 'Rp ' . number_format((float) $v, 0, ',', '.');
+                $pct        = fn($v) => number_format((float) $v, 2, ',', '.') . '%';
+            @endphp
             <h4 class="text-lg font-medium text-gray-900 mb-4">Sales Data</h4>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Account Executive Type</label>
-                    <div class="custom-dd relative" data-fixed="true" data-onchange="toggleAEFields">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->ae_type ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->ae_type ?: '-- Select --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="ae_type" id="ae_type" value="{{ $project->ae_type }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Internal">Internal</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="External">External</button>
-                        </div>
-                    </div>
+                    <div class="display-box">{{ $project->ae_type ?: '—' }}</div>
                 </div>
-                <div id="ae_name_container">
+                <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Account Executive Name</label>
-                    @php
-                        $aeName       = $project->ae_name;
-                        $aeIsInternal = ($project->ae_type === 'Internal');
-                        $aeIsExternal = ($project->ae_type === 'External');
-                        $aeHasType    = ($aeIsInternal || $aeIsExternal);
-                    @endphp
-                    {{-- Placeholder ter-disable: tampil sampai Account Executive Type dipilih --}}
-                    <input type="text" id="ae_name_placeholder" disabled
-                           placeholder="-- Select type first --"
-                           style="{{ $aeHasType ? 'display:none;' : '' }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm bg-gray-100 text-gray-400 cursor-not-allowed">
-                    {{-- Custom-dd dengan search untuk AE Internal (konsisten dengan halaman create) --}}
-                    <div id="ae_employee_dd_wrapper" style="{{ $aeIsInternal ? '' : 'display:none;' }}">
-                        <div class="custom-dd relative" data-fixed="true" data-onchange="fillAEContactInfo">
-                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between py-2.5 px-3 bg-white border border-gray-300 rounded-md shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                                <span class="custom-dd-label {{ ($aeIsInternal && $aeName) ? 'text-gray-700' : 'text-gray-500' }}">{{ ($aeIsInternal && $aeName) ? $aeName : '-- Select Employee --' }}</span>
-                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                            </button>
-                            <input type="hidden" name="{{ $aeIsInternal ? 'ae_name' : '' }}" id="ae_employee_hidden" value="{{ $aeIsInternal ? $aeName : '' }}">
-                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
-                                <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
-                                    <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
-                                </div>
-                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                                @foreach($employees as $employee)
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
-                                @endforeach
-                                <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
-                            </div>
-                        </div>
-                    </div>
-                    {{-- Text input untuk AE External --}}
-                    <input type="text" name="{{ $aeIsExternal ? 'ae_name' : '' }}" id="ae_name_input"
-                           value="{{ $aeIsExternal ? $aeName : '' }}"
-                           style="{{ $aeIsExternal ? '' : 'display:none;' }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                    <div class="display-box">{{ $project->ae_name ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">AE Phone</label>
-                    <input type="text" name="ae_phone" value="{{ $project->ae_phone }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                           placeholder="e.g. +6281234567890">
+                    <div class="display-box">{{ $project->ae_phone ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">AE Email</label>
-                    <input type="email" name="ae_email" value="{{ $project->ae_email }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                           placeholder="e.g. ae@example.com">
+                    <div class="display-box break-all">{{ $project->ae_email ?: '—' }}</div>
                 </div>
-                {{-- Revenue --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Revenue</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
-                        <input type="text" id="sfin_rev_disp" inputmode="numeric" autocomplete="off"
-                               class="block w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-md shadow-sm text-sm primary-focus text-right"
-                               placeholder="0">
-                        <input type="hidden" name="revenue" id="sfin_rev_val" value="{{ $project->revenue }}">
-                    </div>
+                    <div class="display-box text-right">{{ $rp($dispRev) }}</div>
                 </div>
-                {{-- Plan Cost --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Plan Cost</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
-                        <input type="text" id="sfin_pc_disp" inputmode="numeric" autocomplete="off"
-                               class="block w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-md shadow-sm text-sm primary-focus text-right"
-                               placeholder="0">
-                        <input type="hidden" name="plan_cost" id="sfin_pc_val" value="{{ $project->plan_cost }}">
-                    </div>
+                    <div class="display-box text-right">{{ $rp($dispPc) }}</div>
                 </div>
-                {{-- Gross Profit (auto-calc: Revenue - Plan Cost) --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">
-                        Gross Profit
-                    </label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
-                        <input type="text" id="sfin_gp_disp" readonly tabindex="-1"
-                               class="block w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-md bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
-                               placeholder="0">
-                        <input type="hidden" name="gross_profit" id="sfin_gp_val" value="{{ $project->gross_profit }}">
-                    </div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Gross Profit</label>
+                    <div class="display-box text-right">{{ $rp($dispGp) }}</div>
                 </div>
-                {{-- % Gross Profit (auto-calc: GP / Revenue × 100) --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">
-                        % Gross Profit
-                    </label>
-                    <div class="relative">
-                        <input type="text" id="sfin_pct_disp" readonly tabindex="-1"
-                               class="block w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-md bg-gray-50 cursor-not-allowed text-sm text-gray-500 text-right"
-                               placeholder="0,00">
-                        <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-gray-500 pointer-events-none">%</span>
-                        <input type="hidden" name="gross_profit_percentage" id="sfin_pct_val" value="{{ $project->gross_profit_percentage }}">
-                    </div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">% Gross Profit</label>
+                    <div class="display-box text-right">{{ $dispGpPct === null ? '—' : $pct($dispGpPct) }}</div>
+                </div>
+                {{-- Baris Actual: lg:col-start-2 agar sejajar di bawah Plan Cost, sama
+                     seperti tata letak form lamanya. --}}
+                <div class="lg:col-start-2">
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Actual Cost</label>
+                    <div class="display-box text-right">{{ $rp($dispAc) }}</div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">Actual Gross Profit</label>
+                    <div class="display-box text-right">{{ $rp($dispAgp) }}</div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-1">% Actual Gross Profit</label>
+                    <div class="display-box text-right">{{ $pct($dispAgpPct) }}</div>
                 </div>
             </div>
 
@@ -713,132 +821,226 @@
                     </table>
                 </div>
             </div>
-            </div>{{-- /Sales Data --}}
-
-            {{-- Delivery Data Sub-section --}}
-            <div class="border-t border-gray-200 pt-6">
-            <h4 class="text-lg font-medium text-gray-900 mb-4">Delivery Data</h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Warranty Period <span class="text-gray-400 font-normal">(months)</span></label>
-                    <input type="number" name="warranty_period" value="{{ $project->warranty_period }}"
-                           min="0"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                           placeholder="e.g. 12">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Delivery Method</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->delivery_method ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->delivery_method ?: '-- Select --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="delivery_method" value="{{ $project->delivery_method }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Onsite">Onsite</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Hybrid">Hybrid</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="WFH">WFH</button>
-                        </div>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-900 mb-1">Total Mandays</label>
-                    <input type="number" name="total_mandays" value="{{ $project->total_mandays }}"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
-                </div>
-            </div>
-            </div>{{-- /Delivery Data --}}
-            <div class="mt-6 text-right">
-                <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                    Update Information
-                </button>
-            </div>
-        </form>
+        </div>
     </div>
 </section>
+@endif
+
+@php
+    // ──────────────────────────────────────────────────────────────────
+    // Daftar orang yang dipakai bersama beberapa dropdown di halaman ini.
+    //
+    // Sengaja dihitung DI LUAR section Team Members: dropdown pemakainya
+    // (Risk Register, Issue Log, WRICEF) berada di balik izin masing-masing,
+    // jadi kalau perhitungan ini ikut terkunci izin `delivery-project.team.view`
+    // dropdown-dropdown itu ikut kosong / error saat izin tim dicabut.
+    //
+    // $teamPivotRows & $employees dikirim controller, selalu tersedia.
+    // ──────────────────────────────────────────────────────────────────
+
+    // Semua employee_id yang punya baris pivot — penentu FK-fallback di bawah.
+    $pivotEmpIds = $teamPivotRows->pluck('employee_id')->unique()->toArray();
+
+    // FK-fallback rows: kolom FK PM/Co PM/PA lama hanya ditampilkan bila
+    // employee-nya TIDAK punya baris pivot sama sekali (project era pra-pivot).
+    $fkFallbacks = [];
+    foreach ([
+        ['id' => $project->project_manager_id, 'role' => 'Project Manager'],
+        ['id' => $project->co_pm_id,            'role' => 'Co Project Manager'],
+        ['id' => $project->project_admin_id,    'role' => 'Project Admin'],
+    ] as $fk) {
+        if ($fk['id'] && !in_array($fk['id'], $pivotEmpIds)) {
+            $fbEmp = $employees->firstWhere('employee_id', $fk['id']);
+            if ($fbEmp) {
+                $fkFallbacks[] = ['emp' => $fbEmp, 'role' => $fk['role']];
+            }
+        }
+    }
+
+    $hasAnyTeam = $teamPivotRows->isNotEmpty() || !empty($fkFallbacks);
+
+    // $teamPeople = persis nama-nama yang tampil di tabel Team Members
+    // (FK-fallback PM/Co PM/Project Admin + seluruh anggota pivot) ditambah
+    // delivery owner & manager. Dipakai dropdown PIC WRICEF.
+    $teamPeople = collect();
+    if ($project->deliveryOwner && $project->deliveryOwner->basicData) {
+        $teamPeople->push($project->deliveryOwner->basicData->full_name);
+    }
+    if ($project->deliveryManager && $project->deliveryManager->basicData) {
+        $teamPeople->push($project->deliveryManager->basicData->full_name);
+    }
+    foreach ($fkFallbacks as $fb) {
+        $teamPeople->push($fb['emp']->basicData->full_name ?? null);
+    }
+    foreach ($teamPivotRows as $tpRow) {
+        // Anggota vendor tidak ada di master employee — pakai nama di baris pivot.
+        $tpEmp = $tpRow->employee_id ? $employees->firstWhere('employee_id', $tpRow->employee_id) : null;
+        $teamPeople->push($tpEmp?->basicData->full_name ?: $tpRow->member_name);
+    }
+    $teamPeople = $teamPeople->filter()->unique()->sort()->values();
+
+    // $projectPeople = $teamPeople + AE + Project Owner. Dipakai dropdown yang
+    // boleh menunjuk orang di luar tim inti: Risk Owner (Risk Register) dan
+    // Originator/Owner (Issue Log).
+    //
+    // Catatan kolom: `ae_name` dan `project_owner` menyimpan NAMA (string),
+    // bukan foreign key — jadi cukup digabung apa adanya, hanya di-trim.
+    $projectPeople = $teamPeople
+        ->merge([$project->ae_name, $project->project_owner])
+        ->map(fn ($n) => trim((string) $n))
+        ->filter()
+        ->unique()
+        ->sort()
+        ->values();
+@endphp
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- STAKEHOLDER REGISTER SECTION                                   --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- Output proses PMBOK "Identify Stakeholders". Kolomnya dipetakan
+     dari sheet "Stakeholder Register" pada template Excel. Kolom
+     "Kuadran Power-Interest" terisi otomatis dari Power + Interest. --}}
+@if($can('delivery-project.stakeholder.view'))
+<section id="stakeholders" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.stakeholder.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.stakeholder.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
+    <div class="bg-white shadow-md rounded-lg">
+
+        {{-- ── Header ─────────────────────────────────────────────── --}}
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex justify-between items-center flex-wrap gap-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 flex items-center">
+                        <svg class="w-5 h-5 mr-2 primary-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6-4a3 3 0 11-3-3M6 11a3 3 0 11-3-3"/>
+                        </svg>
+                        Stakeholder Register
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-1">Identifikasi &amp; strategi engagement stakeholder proyek (PMBOK — Identify / Plan / Manage / Monitor Stakeholder Engagement)</p>
+                </div>
+                @if($can('delivery-project.stakeholder.manage'))
+                <button type="button" onclick="StakeholderRegister.openAdd()"
+                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Add Stakeholder
+                </button>
+                @endif
+            </div>
+        </div>
+
+        {{-- ── Table ───────────────────────────────────────────────── --}}
+        <div class="p-6">
+            <div class="overflow-x-auto overflow-y-auto max-h-[560px] rounded-lg border border-gray-200 risk-scroll">
+                <table class="min-w-full text-sm border-collapse" id="stakeholderTable">
+                    <thead class="sticky top-0 z-10">
+                        <tr class="bg-gray-700 text-white">
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap w-[80px]">ID</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Nama Stakeholder</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px]">Jabatan / Peran</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Organisasi / Departemen</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[90px]">Kategori</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[140px]">Tipe / Klasifikasi</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[180px]">Email</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">No. Telepon</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Power</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Interest</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[190px]">Kuadran Power-Interest</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[110px]">Sikap Saat Ini</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[110px]">Sikap Diharapkan</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Harapan Utama</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Kebutuhan Informasi / Concern</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Strategi Engagement</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[130px]">Frekuensi Komunikasi</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[170px]">Metode / Channel Komunikasi</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[140px]">PIC Internal</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Risiko Terkait Stakeholder</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px]">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Tanggal Identifikasi</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">Update Terakhir</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[180px]">Catatan</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stakeholderTableBody" class="divide-y divide-gray-100 bg-white">
+                        <tr>
+                            <td colspan="25" class="text-center py-10">
+                                <svg class="animate-spin h-6 w-6 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                </svg>
+                                <p class="text-gray-500 text-xs">Loading stakeholder register…</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">ID (SH-001, SH-002, …) dibuat otomatis. Kuadran Power-Interest terisi otomatis dari kolom Power &amp; Interest sesuai matriks pada Panduan.</p>
+        </div>
+    </div>
+</section>
+@endif
 
 {{-- Team Section WITH CHECKBOX SELECTION --}}
-<section id="team" class="mb-6 card-hover section-animate">
+@if($can('delivery-project.team.view'))
+<section id="team" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.team.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.team.manage') ? '1' : '0' }}" data-perm-delete="{{ $can('delivery-project.team.delete') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-700">Team Members</h2>
+            @if($can('delivery-project.team.manage'))
             <button onclick="openModal('teamModal')" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Add Team Member
             </button>
+            @endif
         </div>
         <div class="p-6">
-            @php
-                // Collect all pivot employee IDs so we know which FK-only fallbacks to show
-                $pivotEmpIds = $teamPivotRows->pluck('employee_id')->unique()->toArray();
-
-                // FK-fallback rows: show legacy PM/Co PM/PA FK columns only when the
-                // employee has NO pivot entry at all (e.g. project created before pivot flow)
-                $fkFallbacks = [];
-                foreach ([
-                    ['id' => $project->project_manager_id, 'role' => 'Project Manager'],
-                    ['id' => $project->co_pm_id,            'role' => 'Co Project Manager'],
-                    ['id' => $project->project_admin_id,    'role' => 'Project Admin'],
-                ] as $fk) {
-                    if ($fk['id'] && !in_array($fk['id'], $pivotEmpIds)) {
-                        $fbEmp = $employees->firstWhere('employee_id', $fk['id']);
-                        if ($fbEmp) {
-                            $fkFallbacks[] = ['emp' => $fbEmp, 'role' => $fk['role']];
-                        }
-                    }
-                }
-
-                $hasAnyTeam = $teamPivotRows->isNotEmpty() || !empty($fkFallbacks);
-
-                // People list shared by the Owner / Originator (Issue Log) and
-                // Risk Owner (Risk Register) dropdowns. Mirrors exactly the names
-                // shown in the Team Members table (FK-fallback PM/Co PM/Project
-                // Admin + every pivot member/lead) plus the project delivery
-                // owner & manager.
-                $teamPeople = collect();
-                if ($project->deliveryOwner && $project->deliveryOwner->basicData) {
-                    $teamPeople->push($project->deliveryOwner->basicData->full_name);
-                }
-                if ($project->deliveryManager && $project->deliveryManager->basicData) {
-                    $teamPeople->push($project->deliveryManager->basicData->full_name);
-                }
-                foreach ($fkFallbacks as $fb) {
-                    $teamPeople->push($fb['emp']->basicData->full_name ?? null);
-                }
-                foreach ($teamPivotRows as $tpRow) {
-                    $tpEmp = $employees->firstWhere('employee_id', $tpRow->employee_id);
-                    $teamPeople->push($tpEmp?->basicData->full_name);
-                }
-                $teamPeople = $teamPeople->filter()->unique()->sort()->values();
-            @endphp
+            {{-- $fkFallbacks / $hasAnyTeam / $teamPeople dihitung di blok PHP
+                 tepat sebelum section ini (di luar pagar izin). --}}
 
             {{-- Team Members Table --}}
             <div>
             @if($hasAnyTeam)
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200" id="teamMembersTable">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left">
+                @php
+                    // Badge role & employee type — dipakai kedua blok baris di bawah.
+                    $teamRoleBadge = [
+                        'Project Manager'    => 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+                        'Co Project Manager' => 'bg-sky-50 text-sky-700 ring-sky-200',
+                        'Project Admin'      => 'bg-violet-50 text-violet-700 ring-violet-200',
+                        'Lead'               => 'bg-amber-50 text-amber-700 ring-amber-200',
+                        'Member'             => 'bg-gray-50 text-gray-600 ring-gray-200',
+                    ];
+                    $teamTypeBadge = [
+                        'Internal' => 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+                        'External' => 'bg-orange-50 text-orange-700 ring-orange-200',
+                        'Vendor'   => 'bg-rose-50 text-rose-700 ring-rose-200',
+                    ];
+                @endphp
+                <div class="overflow-x-auto -mx-6 px-6">
+                    <table class="min-w-full text-xs" id="teamMembersTable">
+                        <thead>
+                            <tr class="bg-gray-50 border-y border-gray-200">
+                                <th class="px-3 py-2 text-left w-8">
                                     <input type="checkbox" id="selectAllTeam" class="row-checkbox" onchange="toggleSelectAll('team')">
                                 </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Module</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee Type</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Name</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Position</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Module</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Role</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Period</th>
+                                <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Notes</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody class="divide-y divide-gray-100">
 
                             {{-- ── FK-fallback rows: legacy projects without pivot entries ── --}}
                             @foreach($fkFallbacks as $fb)
                             @php $fbKey = $fb['emp']->employee_id . '::' . $fb['role']; @endphp
                             <tr class="hover:bg-gray-50 team-row" data-member-id="{{ $fb['emp']->employee_id }}">
-                                <td class="px-6 py-4">
+                                <td class="px-3 py-2 align-middle">
                                     <input type="checkbox" class="row-checkbox team-checkbox"
                                            data-id="{{ $fbKey }}"
+                                           {{-- Tanpa baris pivot: tidak ada entri yang bisa diedit. --}}
+                                           data-row-id=""
                                            data-employee-id="{{ $fb['emp']->employee_id }}"
                                            data-name="{{ $fb['emp']->basicData->full_name ?? '-' }}"
                                            data-position="{{ $fb['emp']->basicData->position ?? '-' }}"
@@ -852,28 +1054,41 @@
                                            data-employee-name="{{ $fb['emp']->basicData->full_name ?? '-' }}"
                                            onchange="handleRowSelection('team')">
                                 </td>
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $fb['emp']->basicData->full_name ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $fb['emp']->basicData->position ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">—</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $fb['role'] }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">—</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">—</td>
+                                <td class="px-3 py-2 align-middle font-medium text-gray-900 whitespace-nowrap">{{ $fb['emp']->basicData->full_name ?? '-' }}</td>
+                                <td class="px-3 py-2 align-middle text-gray-500 whitespace-nowrap">{{ $fb['emp']->basicData->position ?? '-' }}</td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
+                                <td class="px-3 py-2 align-middle whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ring-inset {{ $teamRoleBadge[$fb['role']] ?? 'bg-gray-50 text-gray-600 ring-gray-200' }}">{{ $fb['role'] }}</span>
+                                </td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
+                                <td class="px-3 py-2 align-middle text-gray-400">—</td>
                             </tr>
                             @endforeach
 
                             {{-- ── All pivot rows (one table row per pivot entry) ── --}}
                             @foreach($teamPivotRows as $row)
                             @php
-                                $rEmp   = $employees->firstWhere('employee_id', $row->employee_id);
-                                $rowKey = $row->employee_id . '::' . $row->role;
+                                $rEmp   = $row->employee_id ? $employees->firstWhere('employee_id', $row->employee_id) : null;
+                                // Anggota vendor tidak ada di master employee: nama & posisinya
+                                // tersimpan di baris pivot (member_name / member_position).
+                                $rowName     = $rEmp?->basicData->full_name ?: ($row->member_name ?: '-');
+                                $rowPosition = $rEmp?->basicData->position ?: ($row->member_position ?: '-');
+                                $rowKey = $row->id;
+                                // Module disimpan sebagai string ("FI, TR") — dipecah jadi chip biar terbaca.
+                                $rowModules = collect(explode(',', (string) ($row->module ?? '')))
+                                    ->map(fn ($m) => trim($m))
+                                    ->filter()
+                                    ->values();
                             @endphp
                             <tr class="hover:bg-gray-50 team-row" data-member-id="{{ $row->employee_id }}">
-                                <td class="px-6 py-4">
+                                <td class="px-3 py-2 align-middle">
                                     <input type="checkbox" class="row-checkbox team-checkbox"
                                            data-id="{{ $rowKey }}"
+                                           data-row-id="{{ $row->id }}"
                                            data-employee-id="{{ $row->employee_id }}"
-                                           data-name="{{ $rEmp?->basicData->full_name ?? '-' }}"
-                                           data-position="{{ $rEmp?->basicData->position ?? '-' }}"
+                                           data-name="{{ $rowName }}"
+                                           data-position="{{ $rowPosition }}"
                                            data-module="{{ $row->module ?? '' }}"
                                            data-role="{{ $row->role ?? '' }}"
                                            data-employee-type="{{ $row->employee_type ?? 'Internal' }}"
@@ -881,23 +1096,54 @@
                                            data-start-date="{{ $row->start_date ?? '' }}"
                                            data-end-date="{{ $row->end_date ?? '' }}"
                                            data-notes="{{ $row->notes ?? '' }}"
-                                           data-employee-name="{{ $rEmp?->basicData->full_name ?? '-' }}"
+                                           data-employee-name="{{ $rowName }}"
                                            onchange="handleRowSelection('team')">
                                 </td>
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $rEmp?->basicData->full_name ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $rEmp?->basicData->position ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $row->module ?? '—' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $row->role ?? '—' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">
-                                    {{ $row->employee_type ?? '—' }}
-                                    @if(($row->employee_type ?? '') === 'Vendor' && $row->vendor_name)
-                                        <span class="text-gray-400">({{ $row->vendor_name }})</span>
+                                <td class="px-3 py-2 align-middle font-medium text-gray-900 whitespace-nowrap">{{ $rowName }}</td>
+                                <td class="px-3 py-2 align-middle text-gray-500 whitespace-nowrap">{{ $rowPosition }}</td>
+                                <td class="px-3 py-2 align-middle">
+                                    @if($rowModules->isNotEmpty())
+                                        <span class="flex flex-wrap gap-1">
+                                            @foreach($rowModules as $mod)
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px] font-medium">{{ $mod }}</span>
+                                            @endforeach
+                                        </span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
                                     @endif
                                 </td>
-                                <td class="px-6 py-4 text-sm text-gray-500">
+                                <td class="px-3 py-2 align-middle whitespace-nowrap">
+                                    @if($row->role)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ring-inset {{ $teamRoleBadge[$row->role] ?? 'bg-gray-50 text-gray-600 ring-gray-200' }}">{{ $row->role }}</span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 align-middle whitespace-nowrap">
+                                    @if($row->employee_type)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ring-inset {{ $teamTypeBadge[$row->employee_type] ?? 'bg-gray-50 text-gray-600 ring-gray-200' }}">{{ $row->employee_type }}</span>
+                                        @if($row->employee_type === 'Vendor' && $row->vendor_name)
+                                            <span class="text-gray-400">{{ $row->vendor_name }}</span>
+                                        @endif
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 align-middle text-gray-500 whitespace-nowrap tabular-nums">
                                     {{ $row->start_date ? \Carbon\Carbon::parse($row->start_date)->format('d M Y') : '—' }}
-                                    –
-                                    {{ $row->end_date ? \Carbon\Carbon::parse($row->end_date)->format('d M Y') : 'Present' }}
+                                    <span class="text-gray-300">–</span>
+                                    @if($row->end_date)
+                                        {{ \Carbon\Carbon::parse($row->end_date)->format('d M Y') }}
+                                    @else
+                                        <span class="text-emerald-600 font-medium">Present</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 align-middle text-gray-500 max-w-[14rem]">
+                                    @if($row->notes)
+                                        <span class="block truncate" title="{{ $row->notes }}">{{ $row->notes }}</span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
                                 </td>
                             </tr>
                             @endforeach
@@ -912,9 +1158,11 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- Documents Section WITH CHECKBOX SELECTION --}}
-<section id="documents" class="mb-6 card-hover section-animate">
+@if($can('delivery-project.documents.view'))
+<section id="documents" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.documents.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.documents.manage') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <div>
@@ -923,6 +1171,7 @@
                     <p class="text-xs text-amber-600 mt-0.5">Please create an OneDrive folder before uploading documents.</p>
                 @endif
             </div>
+            @if($can('delivery-project.documents.manage'))
             <button onclick="openUploadDocumentModal()"
                     class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -930,6 +1179,7 @@
                 </svg>
                 Upload Document
             </button>
+            @endif
         </div>
         <div class="p-6">
             {{-- Empty state: shown when no documents --}}
@@ -996,9 +1246,11 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- Issues Section WITH CHECKBOX SELECTION --}}
-<section id="issues" class="mb-6 card-hover section-animate" data-project-id="{{ $project->id }}">
+@if($can('delivery-project.issue-log.view'))
+<section id="issues" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.issue-log.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.issue-log.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
 
         {{-- ── Header ─────────────────────────────────────────────── --}}
@@ -1013,6 +1265,7 @@
                     </h2>
                     <p class="text-xs text-gray-500 mt-1">Project Issue Log</p>
                 </div>
+                @if($can('delivery-project.issue-log.manage'))
                 <button type="button" onclick="IssueLog.openAdd()"
                         class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1020,6 +1273,7 @@
                     </svg>
                     Add Issue
                 </button>
+                @endif
             </div>
         </div>
 
@@ -1064,11 +1318,13 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- PROJECT RISK REGISTER SECTION                                 --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
-<section id="risks" class="mb-6 card-hover section-animate" data-project-id="{{ $project->id }}">
+@if($canRiskView)
+<section id="risks" class="mb-6 card-hover section-animate" data-perm-edit="{{ $canRiskEdit ? '1' : '0' }}" data-perm-manage="{{ $canRiskManage ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
 
         {{-- ── Header ─────────────────────────────────────────────── --}}
@@ -1091,6 +1347,7 @@
                         </svg>
                         Risk Dashboard
                     </button>
+                    @if($canRiskManage)
                     <button type="button" onclick="RiskRegister.openAdd()"
                             class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1098,6 +1355,7 @@
                         </svg>
                         Add Risk
                     </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -1145,6 +1403,7 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- Selection Toolbar (Floating Action Bar) --}}
 <div id="selectionToolbar" class="selection-toolbar">
@@ -1157,7 +1416,10 @@
             </svg>
             <span>Edit</span>
         </button>
-        {{-- Delete: disembunyikan untuk Team Member (hanya tampil untuk document/issue) --}}
+        {{-- Delete: toolbar ini berada DI LUAR <section>, jadi skrip izin
+             per-section tidak menjangkaunya. Izin per jenis baris dikirim ke JS
+             lewat DELETE_PERMISSION, dan tombolnya disembunyikan kalau jenis
+             yang sedang dipilih tidak boleh dihapus oleh role ini. --}}
         <button id="toolbarDeleteBtn" onclick="handleBulkDelete()" class="flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-400 rounded-md transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1174,89 +1436,186 @@
 </div>
 
 {{-- Location Section --}}
-<section id="location" class="mb-6 card-hover section-animate">
+@if($can('delivery-project.location.view'))
+<section id="location" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.location.edit') ? '1' : '0' }}">
     <div class="bg-white shadow-md rounded-lg">
-        <div class="p-6 border-b border-gray-200">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
             <h2 class="text-lg font-semibold text-gray-700">Location Information</h2>
+            @if($can('delivery-project.location.edit'))
+            <button type="button" onclick="openModal('locationInfoModal')" title="Edit Location Information"
+                    class="p-2 text-gray-400 edit-btn rounded-lg transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            @endif
         </div>
-        <form id="locationInfoForm" action="{{ route('projects.updateLocationInfo', $project->id) }}" method="POST" class="p-6">
-            @csrf @method('PATCH')
+        <div class="p-6">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Location Name</label>
-                    <input type="text" name="location_name" value="{{ $project->location_name }}"
-                           placeholder="Enter Location Name"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                    <div class="display-box">{{ $project->location_name ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Type of Address</label>
-                    <div class="custom-dd relative" data-fixed="true">
-                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                            <span class="custom-dd-label {{ $project->location_type ? 'text-gray-700' : 'text-gray-500' }}">{{ $project->location_type ?: '-- Select --' }}</span>
-                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" name="location_type" value="{{ $project->location_type }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select --</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Head Office">Head Office</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Plant">Plant</button>
-                        </div>
-                    </div>
+                    <div class="display-box">{{ $project->location_type ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Country</label>
-                    <input type="text" value="Indonesia" readonly
-                           class="block w-full py-2.5 px-3 border border-gray-200 rounded-md shadow-sm text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
+                    <div class="display-box">{{ $project->location_country ?: 'Indonesia' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Geographical</label>
-                    <input type="text" name="location_geographical" value="{{ $project->location_geographical }}"
-                           placeholder="Enter Geographical Info"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                    <div class="display-box">{{ $project->location_geographical ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Region / Province</label>
-                    <input type="text" name="location_region" value="{{ $project->location_region }}"
-                            placeholder="Enter Region or Province"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                    <div class="display-box">{{ $project->location_region ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">City</label>
-                    <input type="text" name="location_city" value="{{ $project->location_city }}"
-                           placeholder="Enter City"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                    <div class="display-box">{{ $project->location_city ?: '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Valid From</label>
-                    <input type="text" name="location_valid_from" id="loc_valid_from" readonly
-                           value="{{ $project->location_valid_from ? \Carbon\Carbon::parse($project->location_valid_from)->format('Y-m-d') : '' }}"
-                           placeholder="Select Valid From Date"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus cursor-pointer">
+                    <div class="display-box">{{ $project->location_valid_from ? \Carbon\Carbon::parse($project->location_valid_from)->format('d M Y') : '—' }}</div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">Valid To</label>
-                    <input type="text" name="location_valid_to" id="loc_valid_to" readonly
-                           value="{{ $project->location_valid_to ? \Carbon\Carbon::parse($project->location_valid_to)->format('Y-m-d') : '' }}"
-                           placeholder="Select Valid To Date"
-                           class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus cursor-pointer">
+                    <div class="display-box">{{ $project->location_valid_to ? \Carbon\Carbon::parse($project->location_valid_to)->format('d M Y') : '—' }}</div>
                 </div>
                 <div class="md:col-span-2 lg:col-span-3">
                     <label class="block text-sm font-medium text-gray-900 mb-1">Street Address</label>
-                    <textarea name="location_street" rows="2"
-                              class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">{{ $project->location_street }}</textarea>
+                    <div class="display-box whitespace-pre-line">{{ $project->location_street ?: '—' }}</div>
                 </div>
             </div>
-            <div class="mt-6 text-right">
-                <button type="submit" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                    Update Location
-                </button>
-            </div>
-        </form>
+        </div>
     </div>
 </section>
+@endif
+
+{{-- Location Information — cascading Geographical → Region → City dropdowns.
+     Sumber data & pola identik dengan form create (projects/create.blade.php)
+     supaya tampilan & perilaku seragam. --}}
+<script>
+(function () {
+    const locRegions = {
+        'Jawa': ['DKI Jakarta', 'Jawa Barat', 'Jawa Tengah', 'DI Yogyakarta', 'Jawa Timur', 'Banten'],
+        'Sumatera': ['Aceh', 'Sumatera Utara', 'Sumatera Barat', 'Riau', 'Kepulauan Riau', 'Jambi', 'Sumatera Selatan', 'Bengkulu', 'Lampung', 'Kepulauan Bangka Belitung'],
+        'Bali & N.Tenggara': ['Bali', 'Nusa Tenggara Barat', 'Nusa Tenggara Timur'],
+        'Kalimantan': ['Kalimantan Barat', 'Kalimantan Tengah', 'Kalimantan Selatan', 'Kalimantan Timur', 'Kalimantan Utara'],
+        'Sulawesi': ['Sulawesi Utara', 'Sulawesi Tengah', 'Sulawesi Selatan', 'Sulawesi Tenggara', 'Gorontalo', 'Sulawesi Barat'],
+        'Maluku': ['Maluku', 'Maluku Utara'],
+        'Papua': ['Papua', 'Papua Barat', 'Papua Selatan', 'Papua Tengah', 'Papua Pegunungan', 'Papua Barat Daya']
+    };
+
+    const locCities = {
+        'DKI Jakarta': ['Jakarta Pusat', 'Jakarta Utara', 'Jakarta Barat', 'Jakarta Selatan', 'Jakarta Timur', 'Kepulauan Seribu'],
+        'Banten': ['Serang', 'Tangerang', 'Tangerang Selatan', 'Cilegon', 'Pandeglang', 'Lebak'],
+        'Jawa Barat': ['Bandung', 'Bekasi', 'Bogor', 'Cirebon', 'Depok', 'Sukabumi', 'Tasikmalaya', 'Banjar', 'Cimahi', 'Garut', 'Indramayu', 'Karawang', 'Kuningan', 'Majalengka', 'Purwakarta', 'Subang', 'Sumedang', 'Ciamis', 'Cianjur', 'Pangandaran'],
+        'Jawa Tengah': ['Semarang', 'Solo', 'Magelang', 'Salatiga', 'Pekalongan', 'Tegal', 'Banyumas', 'Cilacap', 'Purbalingga', 'Banjarnegara', 'Kebumen', 'Purworejo', 'Wonosobo', 'Klaten', 'Boyolali', 'Sukoharjo', 'Wonogiri', 'Karanganyar', 'Sragen', 'Grobogan', 'Blora', 'Rembang', 'Pati', 'Kudus', 'Jepara', 'Demak', 'Kendal', 'Temanggung', 'Batang', 'Pemalang', 'Brebes'],
+        'Jawa Timur': ['Surabaya', 'Malang', 'Sidoarjo', 'Gresik', 'Mojokerto', 'Kediri', 'Jember', 'Batu', 'Blitar', 'Madiun', 'Pasuruan', 'Probolinggo', 'Bangkalan', 'Banyuwangi', 'Bojonegoro', 'Bondowoso', 'Jombang', 'Lamongan', 'Lumajang', 'Magetan', 'Nganjuk', 'Ngawi', 'Pacitan', 'Pamekasan', 'Ponorogo', 'Sampang', 'Situbondo', 'Sumenep', 'Trenggalek', 'Tuban', 'Tulungagung'],
+        'DI Yogyakarta': ['Yogyakarta', 'Bantul', 'Sleman', 'Gunungkidul', 'Kulon Progo'],
+        'Aceh': ['Banda Aceh', 'Sabang', 'Langsa', 'Lhokseumawe', 'Subulussalam', 'Aceh Besar', 'Aceh Jaya', 'Aceh Selatan', 'Aceh Singkil', 'Aceh Tengah', 'Aceh Tenggara', 'Aceh Timur', 'Aceh Utara', 'Bener Meriah', 'Bireuen', 'Gayo Lues', 'Nagan Raya', 'Pidie', 'Pidie Jaya', 'Simeulue'],
+        'Sumatera Utara': ['Medan', 'Binjai', 'Pematangsiantar', 'Tanjungbalai', 'Tebing Tinggi', 'Padang Sidempuan', 'Gunungsitoli', 'Sibolga', 'Asahan', 'Batubara', 'Dairi', 'Deli Serdang', 'Humbang Hasundutan', 'Karo', 'Labuhanbatu', 'Labuhanbatu Selatan', 'Labuhanbatu Utara', 'Langkat', 'Mandailing Natal', 'Nias', 'Nias Barat', 'Nias Selatan', 'Nias Utara', 'Padang Lawas', 'Padang Lawas Utara', 'Pakpak Bharat', 'Samosir', 'Serdang Bedagai', 'Simalungun', 'Tapanuli Selatan', 'Tapanuli Tengah', 'Tapanuli Utara', 'Toba Samosir'],
+        'Sumatera Barat': ['Padang', 'Bukittinggi', 'Padang Panjang', 'Pariaman', 'Payakumbuh', 'Sawahlunto', 'Solok', 'Agam', 'Dharmasraya', 'Kepulauan Mentawai', 'Lima Puluh Kota', 'Padang Pariaman', 'Pasaman', 'Pasaman Barat', 'Pesisir Selatan', 'Sijunjung', 'Solok Selatan', 'Tanah Datar'],
+        'Riau': ['Pekanbaru', 'Dumai', 'Bengkalis', 'Indragiri Hilir', 'Indragiri Hulu', 'Kampar', 'Kepulauan Meranti', 'Kuantan Singingi', 'Pelalawan', 'Rokan Hilir', 'Rokan Hulu', 'Siak'],
+        'Kepulauan Riau': ['Batam', 'Tanjung Pinang', 'Bintan', 'Karimun', 'Kepulauan Anambas', 'Lingga', 'Natuna'],
+        'Jambi': ['Jambi', 'Sungai Penuh', 'Batang Hari', 'Bungo', 'Kerinci', 'Merangin', 'Muaro Jambi', 'Sarolangun', 'Tanjung Jabung Barat', 'Tanjung Jabung Timur', 'Tebo'],
+        'Sumatera Selatan': ['Palembang', 'Lubuklinggau', 'Pagar Alam', 'Prabumulih', 'Banyuasin', 'Empat Lawang', 'Lahat', 'Muara Enim', 'Musi Banyuasin', 'Musi Rawas', 'Musi Rawas Utara', 'Ogan Ilir', 'Ogan Komering Ilir', 'Ogan Komering Ulu', 'Ogan Komering Ulu Selatan', 'Ogan Komering Ulu Timur', 'Penukal Abab Lematang Ilir'],
+        'Bengkulu': ['Bengkulu', 'Bengkulu Selatan', 'Bengkulu Tengah', 'Bengkulu Utara', 'Kaur', 'Kepahiang', 'Lebong', 'Mukomuko', 'Rejang Lebong', 'Seluma'],
+        'Lampung': ['Bandar Lampung', 'Metro', 'Lampung Barat', 'Lampung Selatan', 'Lampung Tengah', 'Lampung Timur', 'Lampung Utara', 'Mesuji', 'Pesawaran', 'Pesisir Barat', 'Pringsewu', 'Tanggamus', 'Tulang Bawang', 'Tulang Bawang Barat', 'Way Kanan'],
+        'Kepulauan Bangka Belitung': ['Pangkal Pinang', 'Bangka', 'Bangka Barat', 'Bangka Selatan', 'Bangka Tengah', 'Belitung', 'Belitung Timur'],
+        'Bali': ['Denpasar', 'Badung', 'Bangli', 'Buleleng', 'Gianyar', 'Jembrana', 'Karangasem', 'Klungkung', 'Tabanan'],
+        'Nusa Tenggara Barat': ['Mataram', 'Bima', 'Dompu', 'Lombok Barat', 'Lombok Tengah', 'Lombok Timur', 'Lombok Utara', 'Sumbawa', 'Sumbawa Barat'],
+        'Nusa Tenggara Timur': ['Kupang', 'Alor', 'Belu', 'Ende', 'Flores Timur', 'Lembata', 'Manggarai', 'Manggarai Barat', 'Manggarai Timur', 'Nagekeo', 'Ngada', 'Rote Ndao', 'Sabu Raijua', 'Sikka', 'Sumba Barat', 'Sumba Barat Daya', 'Sumba Tengah', 'Sumba Timur', 'Timor Tengah Selatan', 'Timor Tengah Utara'],
+        'Kalimantan Barat': ['Pontianak', 'Singkawang', 'Bengkayang', 'Kapuas Hulu', 'Kayong Utara', 'Ketapang', 'Kubu Raya', 'Landak', 'Melawi', 'Mempawah', 'Sambas', 'Sanggau', 'Sekadau', 'Sintang'],
+        'Kalimantan Tengah': ['Palangka Raya', 'Barito Selatan', 'Barito Timur', 'Barito Utara', 'Gunung Mas', 'Kapuas', 'Katingan', 'Kotawaringin Barat', 'Kotawaringin Timur', 'Lamandau', 'Murung Raya', 'Pulang Pisau', 'Seruyan', 'Sukamara'],
+        'Kalimantan Selatan': ['Banjarmasin', 'Banjarbaru', 'Balangan', 'Banjar', 'Barito Kuala', 'Hulu Sungai Selatan', 'Hulu Sungai Tengah', 'Hulu Sungai Utara', 'Kotabaru', 'Tabalong', 'Tanah Bumbu', 'Tanah Laut', 'Tapin'],
+        'Kalimantan Timur': ['Balikpapan', 'Bontang', 'Samarinda', 'Berau', 'Kutai Barat', 'Kutai Kartanegara', 'Kutai Timur', 'Mahakam Ulu', 'Paser', 'Penajam Paser Utara'],
+        'Kalimantan Utara': ['Tarakan', 'Bulungan', 'Malinau', 'Nunukan', 'Tana Tidung'],
+        'Sulawesi Utara': ['Manado', 'Bitung', 'Kotamobagu', 'Tomohon', 'Bolaang Mongondow', 'Bolaang Mongondow Selatan', 'Bolaang Mongondow Timur', 'Bolaang Mongondow Utara', 'Kepulauan Sangihe', 'Kepulauan Siau Tagulandang Biaro', 'Kepulauan Talaud', 'Minahasa', 'Minahasa Selatan', 'Minahasa Tenggara', 'Minahasa Utara'],
+        'Sulawesi Tengah': ['Palu', 'Banggai', 'Banggai Kepulauan', 'Banggai Laut', 'Buol', 'Donggala', 'Morowali', 'Morowali Utara', 'Parigi Moutong', 'Poso', 'Sigi', 'Tojo Una-Una', 'Toli-Toli'],
+        'Sulawesi Selatan': ['Makassar', 'Palopo', 'Parepare', 'Bantaeng', 'Barru', 'Bone', 'Bulukumba', 'Enrekang', 'Gowa', 'Jeneponto', 'Kepulauan Selayar', 'Luwu', 'Luwu Timur', 'Luwu Utara', 'Maros', 'Pangkajene dan Kepulauan', 'Pinrang', 'Sidenreng Rappang', 'Sinjai', 'Soppeng', 'Takalar', 'Tana Toraja', 'Toraja Utara', 'Wajo'],
+        'Sulawesi Tenggara': ['Kendari', 'Baubau', 'Bombana', 'Buton', 'Buton Selatan', 'Buton Tengah', 'Buton Utara', 'Kolaka', 'Kolaka Timur', 'Kolaka Utara', 'Konawe', 'Konawe Kepulauan', 'Konawe Selatan', 'Konawe Utara', 'Muna', 'Muna Barat', 'Wakatobi'],
+        'Gorontalo': ['Gorontalo', 'Boalemo', 'Bone Bolango', 'Gorontalo Utara', 'Pohuwato'],
+        'Sulawesi Barat': ['Mamuju', 'Majene', 'Mamasa', 'Mamuju Tengah', 'Mamuju Utara', 'Polewali Mandar'],
+        'Maluku': ['Ambon', 'Tual', 'Buru', 'Buru Selatan', 'Kepulauan Aru', 'Maluku Barat Daya', 'Maluku Tengah', 'Maluku Tenggara', 'Maluku Tenggara Barat', 'Seram Bagian Barat', 'Seram Bagian Timur'],
+        'Maluku Utara': ['Ternate', 'Tidore Kepulauan', 'Halmahera Barat', 'Halmahera Selatan', 'Halmahera Tengah', 'Halmahera Timur', 'Halmahera Utara', 'Kepulauan Sula', 'Pulau Morotai', 'Pulau Taliabu'],
+        'Papua': ['Jayapura', 'Biak Numfor', 'Keerom', 'Kepulauan Yapen', 'Mamberamo Raya', 'Sarmi', 'Supiori', 'Waropen'],
+        'Papua Barat': ['Manokwari', 'Fakfak', 'Kaimana', 'Manokwari Selatan', 'Pegunungan Arfak', 'Teluk Bintuni', 'Teluk Wondama'],
+        'Papua Selatan': ['Merauke', 'Asmat', 'Boven Digoel', 'Mappi'],
+        'Papua Tengah': ['Nabire', 'Mimika', 'Paniai', 'Puncak Jaya', 'Puncak', 'Dogiyai', 'Intan Jaya', 'Deiyai'],
+        'Papua Pegunungan': ['Jayawijaya', 'Lanny Jaya', 'Tolikara', 'Mamberamo Tengah', 'Yalimo', 'Nduga', 'Pegunungan Bintang', 'Yahukimo'],
+        'Papua Barat Daya': ['Sorong', 'Sorong Selatan', 'Raja Ampat', 'Maybrat', 'Tambrauw']
+    };
+
+    function geoEl()    { return document.getElementById('loc_geographical'); }
+    function regionEl() { return document.getElementById('loc_region'); }
+    function cityEl()   { return document.getElementById('loc_city'); }
+
+    // Build region options from selected geographical. preserve = nilai region
+    // tersimpan yang ingin dipertahankan (saat init), kosongkan saat user ganti geo.
+    function buildRegions(preserve) {
+        const region = regionEl();
+        if (!region) return;
+        const selected = preserve ?? '';
+        region.innerHTML = '<option value="">-- Select Region --</option>';
+        if (cityEl()) cityEl().innerHTML = '<option value="">-- Select City --</option>';
+
+        const geo = geoEl() ? geoEl().value : '';
+        if (geo && locRegions[geo]) {
+            locRegions[geo].forEach(function (r) {
+                const opt = document.createElement('option');
+                opt.value = r;
+                opt.textContent = r;
+                if (selected === r) opt.selected = true;
+                region.appendChild(opt);
+            });
+        }
+    }
+
+    function buildCities(preserve) {
+        const city = cityEl();
+        if (!city) return;
+        const selected = preserve ?? '';
+        city.innerHTML = '<option value="">-- Select City --</option>';
+
+        const region = regionEl() ? regionEl().value : '';
+        if (region && locCities[region]) {
+            locCities[region].forEach(function (c) {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                if (selected === c) opt.selected = true;
+                city.appendChild(opt);
+            });
+        }
+    }
+
+    // Dipanggil custom-dropdown.js via data-onchange saat Geographical berubah.
+    window.locUpdateRegions = function () {
+        buildRegions('');   // user ganti geo → reset region & city
+    };
+
+    // Dipanggil native <select> onchange saat Region berubah.
+    window.locUpdateCities = function () {
+        buildCities('');
+    };
+
+    // Init: populate dropdown dari nilai tersimpan project.
+    document.addEventListener('DOMContentLoaded', function () {
+        const savedRegion = regionEl() ? (regionEl().dataset.selected || '') : '';
+        const savedCity   = cityEl()   ? (cityEl().dataset.selected   || '') : '';
+        buildRegions(savedRegion);
+        buildCities(savedCity);
+    });
+})();
+</script>
 
 {{-- ✅✅✅ PROJECT PLANNING SECTION (INTEGRATED) ✅✅✅ --}}
-<section id="planning" class="mb-6 card-hover section-animate" data-project-id="{{ $project->id }}">
+@if($can('delivery-project.planning.view'))
+<section id="planning" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.planning.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.planning.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
         <div class="p-6 border-b border-gray-200">
             <div class="flex justify-between items-center flex-wrap gap-4">
@@ -1413,11 +1772,130 @@
         </div>
     </div>
 </section>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- WRICEF LOG SECTION                                            --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-project.wricef.view'))
+<section id="wricef" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.wricef.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.wricef.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
+    <div class="bg-white shadow-md rounded-lg">
+
+        {{-- ── Header ─────────────────────────────────────────────── --}}
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex justify-between items-center flex-wrap gap-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 flex items-center">
+                        <svg class="w-5 h-5 mr-2 primary-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                        </svg>
+                        WRICEF Log
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-1">Workflow, Report, Interface, Conversion, Enhancement &amp; Form objects — FSD → Development → Testing</p>
+                </div>
+                @if($can('delivery-project.wricef.manage'))
+                <button type="button" onclick="WricefLog.openAdd()"
+                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Add WRICEF
+                </button>
+                @endif
+            </div>
+        </div>
+
+        {{-- ── Table ───────────────────────────────────────────────── --}}
+        {{-- Header dua baris: baris pertama mengelompokkan tahapan
+             (FSD / Development / Testing) persis seperti WRICEF Log sheet. --}}
+        <div class="p-6">
+            <div class="overflow-x-auto overflow-y-auto max-h-[560px] rounded-lg border border-gray-200 risk-scroll">
+                <table class="min-w-full text-sm border-collapse" id="wricefTable">
+                    <thead class="sticky top-0 z-10">
+                        {{-- Tiap tahap punya warna sendiri (FSD merah, Development biru,
+                             Testing oren) supaya batas antar tahap langsung terlihat
+                             pada tabel yang sangat lebar ini. Warna diterapkan pada
+                             baris grup DAN sub-header agar tetap terbaca saat di-scroll
+                             horizontal dan judul grupnya keluar dari layar. --}}
+                        <tr class="bg-gray-800 text-white">
+                            <th colspan="14" class="px-3 py-2 text-left font-semibold whitespace-nowrap border-r border-gray-600">WRICEF Log</th>
+                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-red-900 bg-red-700">FSD</th>
+                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-blue-900 bg-blue-700">Development</th>
+                            <th colspan="5" class="px-3 py-2 text-center font-semibold whitespace-nowrap border-r border-orange-800 bg-orange-600">Testing</th>
+                            <th rowspan="2" class="px-3 py-2 text-center font-semibold whitespace-nowrap w-[80px] bg-gray-700">Action</th>
+                        </tr>
+                        <tr class="bg-gray-700 text-white">
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[140px]">Company</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[90px]">SAP Module</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Category</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[90px]">Obj ID</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Obj Name</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[200px]">Capability</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[90px]">TCode</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Priority</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px]">Requestor</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Request Date</th>
+                            <th class="px-3 py-3 text-right font-semibold whitespace-nowrap min-w-[110px]">Effort (Mandays)</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Approved By</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[110px]">Approved Date</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[110px] border-r border-gray-600">Status</th>
+
+                            {{-- FSD --}}
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px] bg-red-600">PIC</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-red-600">Start</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-red-600">End</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px] bg-red-600">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] bg-red-600 border-r border-red-900">Remarks</th>
+
+                            {{-- Development --}}
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px] bg-blue-600">PIC</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-blue-600">Start</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-blue-600">End</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[130px] bg-blue-600">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] bg-blue-600 border-r border-blue-900">Remarks</th>
+
+                            {{-- Testing --}}
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[120px] bg-orange-500">PIC</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-orange-500">Start</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[100px] bg-orange-500">End</th>
+                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px] bg-orange-500">Status</th>
+                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px] bg-orange-500 border-r border-orange-800">Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody id="wricefTableBody" class="divide-y divide-gray-100 bg-white">
+                        <tr>
+                            <td colspan="30" class="text-center py-10">
+                                <svg class="animate-spin h-6 w-6 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                </svg>
+                                <p class="text-gray-500 text-xs">Loading WRICEF log…</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                    {{-- Total Mandays — akumulasi kolom Effort (Mandays) seluruh baris,
+                         mengikuti pola footer Total pada Term Of Payment Plan.
+                         colspan 10 + 1 kolom Effort + 19 kolom sisanya = 30 kolom. --}}
+                    <tfoot class="sticky bottom-0 z-10 bg-gray-50 border-t-2 border-gray-300">
+                        <tr id="wricefFooter" class="font-semibold text-gray-700">
+                            <td class="px-3 py-3 text-right text-xs whitespace-nowrap" colspan="10">Total Mandays</td>
+                            <td class="px-3 py-3 text-right text-xs whitespace-nowrap" id="wricefTotalMandays">0</td>
+                            <td class="px-3 py-3" colspan="19"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Obj ID dibuat otomatis dari SAP Module + Category (contoh: MM + Report → MMR001). Company mengikuti customer project.</p>
+        </div>
+    </div>
+</section>
+@endif
 
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- PLAN COST SECTION                                             --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
-<section id="plancost" class="mb-6 card-hover section-animate" data-project-id="{{ $project->id }}">
+@if($can('delivery-project.plan-cost.view'))
+<section id="plancost" class="mb-6 card-hover section-animate" data-perm-edit="{{ $can('delivery-project.plan-cost.edit') ? '1' : '0' }}" data-perm-manage="{{ $can('delivery-project.plan-cost.manage') ? '1' : '0' }}" data-project-id="{{ $project->id }}">
     <div class="bg-white shadow-md rounded-lg">
 
         {{-- ── Header ─────────────────────────────────────────────── --}}
@@ -1432,6 +1910,7 @@
                     </h2>
                     <p class="text-xs text-gray-500 mt-1">Project cost recapitulation: Indirect Cost &amp; Direct Cost</p>
                 </div>
+                @if($can('delivery-project.plan-cost.manage'))
                 <button type="button" onclick="PlanCost.openAddParentModal()"
                         class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1439,6 +1918,7 @@
                     </svg>
                     Add Cost Item
                 </button>
+                @endif
             </div>
         </div>
 
@@ -1488,6 +1968,7 @@
         </div>
     </div>
 </section>
+@endif
 
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- PLAN COST — MODALS                                            --}}
@@ -1565,9 +2046,10 @@
                     </div>
                 </div>
 
-                {{-- Budget / Release / Actual grid (disembunyikan untuk parent-with-children) --}}
+                {{-- Budget / Release grid (disembunyikan untuk parent-with-children) --}}
+                {{-- Actual TIDAK diinput di sini — nilainya otomatis dari total expense detail --}}
                 <div id="costAmountsSection">
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Budget (Rp)</label>
                             <input type="text" id="costBudgetInput" inputmode="numeric"
@@ -1583,15 +2065,16 @@
                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus text-right"
                                    placeholder="0">
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                                Actual (Rp)
-                                <span class="inline-block w-3 h-3 rounded-full bg-orange-500"></span>
-                            </label>
-                            <input type="text" id="costActualInput" inputmode="numeric"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus text-right"
-                                   placeholder="0">
-                        </div>
+                    </div>
+
+                    {{-- Info: Actual otomatis dari expense detail --}}
+                    <div class="mt-3 flex items-start gap-2 text-xs text-gray-500">
+                        <span class="inline-block w-3 h-3 rounded-full bg-orange-500 mt-0.5 flex-shrink-0"></span>
+                        <span>
+                            <span class="font-medium text-orange-700">Actual</span> is calculated automatically
+                            from the total of the expense details. Click the
+                            <span class="font-medium">Actual</span> column on the table to add or view expenses.
+                        </span>
                     </div>
 
                     {{-- Live preview computed values --}}
@@ -1656,6 +2139,122 @@
     </div>
 </div>
 
+{{-- Delete Expense Confirm Modal (pengganti native confirm()) --}}
+<div id="expenseDeleteModal" class="fixed inset-0 z-[55] hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PlanCost.closeExpenseDeleteModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-gray-900 mb-1">Delete Expense?</h3>
+                <p class="text-sm text-gray-500 mb-1">Expense "<span id="expenseDeleteName" class="font-medium text-gray-700"></span>" will be deleted.</p>
+                <p class="text-xs text-red-500 mb-5">The actual amount will be recalculated automatically.</p>
+                <div class="flex gap-3 justify-center">
+                    <button type="button" onclick="PlanCost.closeExpenseDeleteModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" id="expenseDeleteConfirmBtn" onclick="PlanCost.confirmDeleteExpense()"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
+                        Yes, Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Edit Expense Modal --}}
+<div id="expenseEditModal" class="fixed inset-0 z-[55] hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PlanCost.closeExpenseEditModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:90vh;">
+
+            {{-- Header --}}
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900">Edit Expense</h3>
+                <button type="button" onclick="PlanCost.closeExpenseEditModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Body --}}
+            <div class="overflow-y-auto flex-1 p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Expense Name <span class="text-red-500">*</span></label>
+                    <input type="text" id="aeDescInput" maxlength="200"
+                           class="block w-full py-2 px-3 border border-gray-300 rounded-lg shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                           placeholder="e.g. Transportation, Accommodation…">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Amount (Rp) <span class="text-red-500">*</span></label>
+                    <input type="text" id="aeAmountInput" inputmode="numeric"
+                           class="block w-full py-2 px-3 border border-gray-300 rounded-lg shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
+                           placeholder="0">
+                </div>
+
+                {{-- Current document (shown only when one exists) --}}
+                <div id="aeCurrentDocRow" class="hidden">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Current Document</label>
+                    <div class="flex items-center justify-between gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+                        <a id="aeCurrentDocLink" href="#" target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline truncate">
+                            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                            </svg>
+                            <span id="aeCurrentDocName" class="truncate">View</span>
+                        </a>
+                        <button type="button" onclick="PlanCost.removeEditDoc()"
+                                class="text-xs text-red-500 hover:text-red-700 font-medium flex-shrink-0">Remove</button>
+                    </div>
+                </div>
+
+                {{-- Replace / add document --}}
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">
+                        <span id="aeDropTitle">Supporting Document</span>
+                        <span class="font-normal text-gray-400">(optional)</span>
+                    </label>
+                    <div id="aeDropZone"
+                         class="border-2 border-dashed border-gray-300 rounded-lg py-4 px-4 text-center cursor-pointer hover:border-orange-300 hover:bg-orange-50/30 transition-all duration-200"
+                         onclick="document.getElementById('aeFileInput').click()"
+                         ondragover="event.preventDefault();this.classList.add('border-orange-400','bg-orange-50/40')"
+                         ondragleave="this.classList.remove('border-orange-400','bg-orange-50/40')"
+                         ondrop="PlanCost.handleEditDocDrop(event)">
+                        <svg class="w-6 h-6 text-gray-300 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                        </svg>
+                        <p class="text-xs text-gray-400" id="aeDropLabel">Click or drag &amp; drop proof document</p>
+                        <input type="file" id="aeFileInput" class="hidden"
+                               onchange="PlanCost.onEditFileSelected(this)">
+                    </div>
+                </div>
+            </div>
+
+            {{-- Footer --}}
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="PlanCost.closeExpenseEditModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                <button type="button" id="aeSaveBtn" onclick="PlanCost.saveEditExpense()"
+                        class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- CONTRACT WINDOW WARNING MODAL (pengganti native alert)        --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
@@ -1693,7 +2292,7 @@
 <div id="actualDetailModal" class="fixed inset-0 z-50 hidden">
     <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PlanCost.closeActualDetailModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
-        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col" style="max-height:90vh;">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col" style="max-height:90vh;">
 
             {{-- Header --}}
             <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
@@ -1711,37 +2310,38 @@
             {{-- Scrollable body --}}
             <div class="overflow-y-auto flex-1 p-6 space-y-5">
 
-                {{-- Summary bar: nominal vs total rincian --}}
-                <div id="actualDetailSummary" class="grid grid-cols-3 gap-3">
-                    <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+                {{-- Summary bar: Actual = total of all expense details --}}
+                <div id="actualDetailSummary" class="flex justify-center">
+                    <div class="bg-orange-50 border border-orange-200 rounded-lg px-6 py-4 text-center w-full max-w-xs">
                         <p class="text-xs text-orange-600 font-medium uppercase tracking-wide mb-1">Actual Amount</p>
-                        <p class="text-sm font-bold text-orange-700 font-mono" id="adNominalActual">—</p>
-                        <p class="text-xs text-orange-400 mt-0.5">Recorded on cost item</p>
-                    </div>
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-                        <p class="text-xs text-blue-600 font-medium uppercase tracking-wide mb-1">Expense Total</p>
-                        <p class="text-sm font-bold text-blue-700 font-mono" id="adTotalItems">Rp 0</p>
-                        <p class="text-xs text-blue-400 mt-0.5">Sum of all expenses</p>
-                    </div>
-                    <div class="rounded-lg p-3 text-center border" id="adStatusCard">
-                        <p class="text-xs font-medium uppercase tracking-wide mb-1" id="adStatusLabel">Status</p>
-                        <p class="text-sm font-bold font-mono" id="adStatusValue">—</p>
-                        <p class="text-xs mt-0.5" id="adStatusNote"></p>
+                        <p class="text-lg font-bold text-orange-700 font-mono" id="adTotalItems">Rp 0</p>
+                        <p class="text-xs text-orange-400 mt-0.5">Auto-calculated from the expense total below</p>
                     </div>
                 </div>
 
                 {{-- Table rincian pengeluaran --}}
                 <div>
                     <h4 class="text-sm font-semibold text-gray-700 mb-2">Expense List</h4>
-                    <div class="overflow-x-auto rounded-lg border border-gray-200">
-                        <table class="min-w-full text-sm">
+                    {{-- table-fixed + colgroup: lebar kolom ditentukan di sini, bukan
+                         oleh isi sel. Tanpa ini nama dokumen yang panjang (nowrap)
+                         merebut hampir seluruh lebar tabel dan Expense Name terjepit
+                         jadi kolom sempit yang sulit dibaca. --}}
+                    <div class="overflow-x-auto rounded-lg border border-gray-200 tbl-scroll">
+                        <table class="min-w-[720px] w-full text-sm table-fixed">
+                            <colgroup>
+                                <col class="w-10">   {{-- #        --}}
+                                <col>                {{-- Expense Name: sisa lebar --}}
+                                <col class="w-36">   {{-- Amount   --}}
+                                <col class="w-44">   {{-- Document --}}
+                                <col class="w-20">   {{-- Action   --}}
+                            </colgroup>
                             <thead class="bg-gray-50 text-gray-600">
                                 <tr>
                                     <th class="px-4 py-2.5 text-left font-medium">#</th>
                                     <th class="px-4 py-2.5 text-left font-medium">Expense Name</th>
                                     <th class="px-4 py-2.5 text-right font-medium">Amount</th>
                                     <th class="px-4 py-2.5 text-center font-medium">Document</th>
-                                    <th class="px-4 py-2.5 text-center font-medium w-12">Delete</th>
+                                    <th class="px-4 py-2.5 text-center font-medium">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="actualDetailTableBody" class="divide-y divide-gray-100">
@@ -1766,8 +2366,10 @@
                     </div>
                 </div>
 
-                {{-- Form tambah pengeluaran --}}
-                <div class="border border-dashed border-gray-300 rounded-xl p-4 bg-gray-50/60">
+                {{-- Form tambah pengeluaran.
+                     data-closed-hide: seluruh blok disembunyikan saat project
+                     closed (lihat delivery/partials/project-closed-lock). --}}
+                <div data-closed-hide class="border border-dashed border-gray-300 rounded-xl p-4 bg-gray-50/60">
                     <h4 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
                         <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -1933,18 +2535,22 @@
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {{-- Paid Date --}}
+                    {{-- Paid Date — wajib saat Status = Paid --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Paid Date</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Paid Date <span id="pt_paid_date_req" class="text-red-500 hidden">*</span>
+                        </label>
                         <input type="text" id="pt_paid_date" autocomplete="off"
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
                                placeholder="dd/mm/yyyy">
+                        <p id="pt_paid_date_hint" class="mt-1 text-xs text-gray-400 hidden">Required because Status is Paid.</p>
                     </div>
 
                     {{-- Status --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
-                        <select id="pt_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
+                        <select id="pt_status" onchange="PaymentTermPlan.togglePaidDateRequired()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
                             @foreach(['Open','Paid','Delay'] as $s)
                                 <option value="{{ $s }}">{{ $s }}</option>
                             @endforeach
@@ -2122,9 +2728,10 @@
                     {{-- Risk Owner --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Risk Owner <span class="text-red-500">*</span></label>
+                        {{-- $projectPeople = Project Team + AE + Project Owner. --}}
                         <select id="risk_owner" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
                             <option value="">-- Select Risk Owner --</option>
-                            @foreach($teamPeople as $person)
+                            @foreach($projectPeople as $person)
                                 <option value="{{ $person }}">{{ $person }}</option>
                             @endforeach
                         </select>
@@ -2334,7 +2941,7 @@
     const BASE_URL   = `/projects/${PROJECT_ID}/costs`;
     // CSRF dibaca di sini untuk digunakan di dalam request (bukan di top-level)
     function getCsrf() {
-        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     }
 
     // ── Formatter ──────────────────────────────────────────────────
@@ -2371,8 +2978,16 @@
 
     // Actual detail modal state
     let _adCostId      = null;  // current cost item id
-    let _adActualAmt   = null;  // actual_amount on the cost item
-    let _adTotal       = 0;     // sum of expense line-items
+    let _adTotal       = 0;     // sum of expense line-items (= the actual amount)
+    let _adDirty       = false; // expenses changed → main cost table needs reload
+    let _adDeleteId    = null;  // expense item id pending deletion (confirm modal)
+    let _adDeleteRowEl = null;  // <tr> element pending removal on confirm
+    let _adEditId      = null;  // expense item id being edited
+    let _adEditRowEl   = null;  // <tr> element being edited
+    let _adEditRemoveDoc = false; // user asked to remove the existing document
+
+    // Cost form modal: current actual_amount (derived from expenses, read-only here)
+    let _currentActual = 0;
 
     // ── Init ───────────────────────────────────────────────────────
     async function init() {
@@ -2427,7 +3042,8 @@
         // For parent: aggregate display; for child/leaf: own values
         const budget  = item.display_budget;
         const release = item.display_release;
-        const actual  = item.display_actual;
+        // Actual is derived from expense details → always numeric (0 = no expenses).
+        const actual  = item.display_actual ?? 0;
         const avBudg  = item.avail_budget;
         const avRel   = item.avail_release;
 
@@ -2518,11 +3134,25 @@
         const wrap = document.getElementById('planCostSummaryCards');
         if (!wrap) return;
 
-        function card(label, value, colorClass, icon) {
+        // Inline SVG (heroicons-outline) — jangan pakai emoji literal (mojibake via HTTP).
+        const icon = (path) =>
+            `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">`
+            + `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${path}"/></svg>`;
+
+        // Path ikon per kartu.
+        const ICONS = {
+            budget:  'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+            release: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12',
+            actual:  'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
+            check:   'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+            chart:   'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+        };
+
+        function card(label, value, colorClass, iconPath, iconTint) {
             return `
             <div class="bg-white rounded-lg border border-gray-200 p-4 flex flex-col gap-1 shadow-sm">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="text-lg">${icon}</span>
+                    <span class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${iconTint}">${icon(iconPath)}</span>
                     <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">${label}</span>
                 </div>
                 <span class="text-base font-bold ${colorClass} font-mono">Rp ${fmt(value ?? 0)}</span>
@@ -2530,11 +3160,15 @@
         }
 
         wrap.innerHTML =
-            card('Total Budget',        s.total_budget,        'text-gray-800',   '📋') +
-            card('Total Release',       s.total_release,       'text-blue-700',   '📤') +
-            card('Total Actual',        s.total_actual,        'text-orange-600', '💸') +
-            card('Avail. Budget',       s.total_avail_budget,  s.total_avail_budget  < 0 ? 'text-red-600' : 'text-green-700', '✅') +
-            card('Avail. Release',      s.total_avail_release, s.total_avail_release < 0 ? 'text-red-600' : 'text-teal-700',  '📊');
+            card('Total Budget',   s.total_budget,   'text-gray-800',   ICONS.budget,  'bg-gray-100 text-gray-600') +
+            card('Total Release',  s.total_release,  'text-blue-700',   ICONS.release, 'bg-blue-100 text-blue-600') +
+            card('Total Actual',   s.total_actual,   'text-orange-600', ICONS.actual,  'bg-orange-100 text-orange-600') +
+            card('Avail. Budget',  s.total_avail_budget,  s.total_avail_budget  < 0 ? 'text-red-600' : 'text-green-700', ICONS.check, 'bg-green-100 text-green-600') +
+            card('Avail. Release', s.total_avail_release, s.total_avail_release < 0 ? 'text-red-600' : 'text-teal-700',  ICONS.chart, 'bg-teal-100 text-teal-600');
+
+        // Keep Delivery Information → Actual Cost / GP / % in sync with the
+        // Plan Cost "Total Actual" (no page reload needed).
+        if (window.sfinSetActualCost) window.sfinSetActualCost(s.total_actual ?? 0);
     }
 
     // ── Modal helpers ─────────────────────────────────────────────
@@ -2546,7 +3180,7 @@
         document.getElementById('costNameInput').value     = '';
         document.getElementById('costBudgetInput').value   = '';
         document.getElementById('costReleaseInput').value  = '';
-        document.getElementById('costActualInput').value   = '';
+        _currentActual = 0;
         document.getElementById('costModalId').value       = '';
         document.getElementById('costModalParentId').value = '';
         document.getElementById('costModalMode').value     = 'create';
@@ -2562,9 +3196,10 @@
     function refreshPreview() {
         const b  = parseNum(document.getElementById('costBudgetInput').value.replace(/\./g,''));
         const r  = parseNum(document.getElementById('costReleaseInput').value.replace(/\./g,''));
-        const a  = parseNum(document.getElementById('costActualInput').value.replace(/\./g,''));
+        // Actual is derived from expense detail (not an input on this form).
+        const a  = _currentActual ?? 0;
         const ab = (b !== null || r !== null) ? (b ?? 0) - (r ?? 0) : null;
-        const ar = (r !== null || a !== null) ? (r ?? 0) - (a ?? 0) : null;
+        const ar = (r !== null || a > 0) ? (r ?? 0) - a : null;
 
         const abEl = document.getElementById('previewAvailBudget');
         const arEl = document.getElementById('previewAvailRelease');
@@ -2662,7 +3297,8 @@
                 }
                 setFmtVal('costBudgetInput',  item.budget);
                 setFmtVal('costReleaseInput', item.release_amount);
-                setFmtVal('costActualInput',  item.actual_amount);
+                // Actual is derived from expenses → used for preview only, not editable here.
+                _currentActual = item.actual_amount ?? 0;
                 refreshPreview();
             }
 
@@ -2683,7 +3319,7 @@
             const name     = document.getElementById('costNameInput').value.trim();
 
             if (!name) {
-                alert('Item name is required.');
+                showNotification('Item name is required.', 'warning');
                 return;
             }
 
@@ -2716,7 +3352,7 @@
                 cost_type:      costType,
                 budget:         amountsHidden ? null : getRawVal('costBudgetInput'),
                 release_amount: amountsHidden ? null : getRawVal('costReleaseInput'),
-                actual_amount:  amountsHidden ? null : getRawVal('costActualInput'),
+                // actual_amount is derived server-side from expense details — not sent here.
                 _token:         getCsrf(),
             };
 
@@ -2727,7 +3363,8 @@
                 if (mode === 'create') {
                     await axios.post(BASE_URL, payload);
                 } else {
-                    await axios.put(`${BASE_URL}/${id}`, payload);
+                    // POST + X-HTTP-Method-Override:PUT — verb PUT diblokir sebagian edge production.
+                    await axios.post(`${BASE_URL}/${id}`, payload, { headers: { 'X-HTTP-Method-Override': 'PUT' } });
                 }
                 _close();
                 await load();
@@ -2747,7 +3384,7 @@
             if (!id) return;
 
             try {
-                await axios.delete(`${BASE_URL}/${id}`);
+                await axios.post(`${BASE_URL}/${id}/delete`);
                 PlanCost.closeDeleteModal();
                 await load();
                 showPlanCostToast('Cost item deleted successfully.', 'success');
@@ -2760,16 +3397,10 @@
 
         async openActualDetailModal(costId, costName) {
             _adCostId = costId;
-
-            // Find actual_amount from cached cost tree
-            const item = findItem(costId, _costs);
-            _adActualAmt = item ? item.actual_amount : null;
+            _adDirty  = false;
 
             // Set subtitle
             document.getElementById('actualDetailSubtitle').textContent = costName;
-            // Set nominal actual card
-            document.getElementById('adNominalActual').textContent =
-                _adActualAmt !== null ? `Rp ${fmt(_adActualAmt)}` : '—';
 
             // Reset form
             _adResetForm();
@@ -2781,11 +3412,16 @@
             await _adLoadItems();
         },
 
-        closeActualDetailModal() {
+        async closeActualDetailModal() {
             document.getElementById('actualDetailModal').classList.add('hidden');
-            _adCostId    = null;
-            _adActualAmt = null;
-            _adTotal     = 0;
+            _adCostId = null;
+            _adTotal  = 0;
+
+            // Expenses changed → actual_amount was updated server-side; refresh the table.
+            if (_adDirty) {
+                _adDirty = false;
+                await load();
+            }
         },
 
         async addExpenseItem() {
@@ -2820,6 +3456,7 @@
                 });
 
                 _adTotal = res.data.total ?? 0;
+                _adDirty = true;
                 _adAppendRow(res.data.item, _adGetCurrentCount() + 1);
                 _adUpdateSummary();
                 _adResetForm();
@@ -2836,18 +3473,41 @@
             }
         },
 
-        async deleteExpenseItem(itemId, rowEl) {
-            if (!confirm('Delete this expense?')) return;
+        // Opens the confirm modal (view-consistent, replaces native confirm()).
+        deleteExpenseItem(itemId, rowEl) {
+            _adDeleteId    = itemId;
+            _adDeleteRowEl = rowEl;
+            const name = rowEl?.querySelector('td:nth-child(2)')?.textContent?.trim() || '';
+            document.getElementById('expenseDeleteName').textContent = name;
+            document.getElementById('expenseDeleteModal').classList.remove('hidden');
+        },
+
+        closeExpenseDeleteModal() {
+            document.getElementById('expenseDeleteModal').classList.add('hidden');
+            _adDeleteId    = null;
+            _adDeleteRowEl = null;
+        },
+
+        async confirmDeleteExpense() {
+            if (!_adDeleteId) return;
+            const itemId = _adDeleteId;
+            const rowEl  = _adDeleteRowEl;
+            const btn    = document.getElementById('expenseDeleteConfirmBtn');
+            btn.disabled = true;
             try {
-                const res = await axios.delete(`${BASE_URL}/${_adCostId}/items/${itemId}`);
+                const res = await axios.post(`${BASE_URL}/${_adCostId}/items/${itemId}/delete`);
                 _adTotal = res.data.total ?? 0;
-                rowEl.remove();
+                _adDirty = true;
+                rowEl?.remove();
                 _adRenumberRows();
                 _adUpdateSummary();
                 if (_adGetCurrentCount() === 0) _adShowEmpty();
+                PlanCost.closeExpenseDeleteModal();
                 showPlanCostToast('Expense deleted.', 'success');
             } catch (err) {
                 showPlanCostToast('Failed to delete expense.', 'error');
+            } finally {
+                btn.disabled = false;
             }
         },
 
@@ -2871,6 +3531,132 @@
             } else {
                 label.textContent = 'Click or drag & drop proof document';
                 label.className   = 'text-xs text-gray-400';
+            }
+        },
+
+        // ── Edit Expense Modal ───────────────────────────────────────
+
+        openEditExpenseModal(itemId, rowEl) {
+            _adEditId        = itemId;
+            _adEditRowEl     = rowEl;
+            _adEditRemoveDoc = false;
+
+            const desc   = rowEl?.dataset.desc   ?? '';
+            const amount = parseFloat(rowEl?.dataset.amount ?? '0') || 0;
+            const docName = rowEl?.dataset.docName ?? '';
+            const docUrl  = rowEl?.dataset.docUrl  ?? '';
+
+            document.getElementById('aeDescInput').value   = desc;
+            document.getElementById('aeAmountInput').value = amount
+                ? new Intl.NumberFormat('id-ID').format(amount) : '';
+
+            // Current document row (only when the item already has one)
+            const curRow = document.getElementById('aeCurrentDocRow');
+            if (docUrl) {
+                document.getElementById('aeCurrentDocLink').href        = docUrl;
+                document.getElementById('aeCurrentDocName').textContent = docName || 'View';
+                curRow.classList.remove('hidden');
+                document.getElementById('aeDropTitle').textContent = 'Replace Document';
+            } else {
+                curRow.classList.add('hidden');
+                document.getElementById('aeDropTitle').textContent = 'Supporting Document';
+            }
+
+            // Reset "attach new file" input
+            document.getElementById('aeFileInput').value = '';
+            const label = document.getElementById('aeDropLabel');
+            label.textContent = 'Click or drag & drop proof document';
+            label.className   = 'text-xs text-gray-400';
+
+            document.getElementById('expenseEditModal').classList.remove('hidden');
+        },
+
+        closeExpenseEditModal() {
+            document.getElementById('expenseEditModal').classList.add('hidden');
+            _adEditId        = null;
+            _adEditRowEl     = null;
+            _adEditRemoveDoc = false;
+        },
+
+        removeEditDoc() {
+            _adEditRemoveDoc = true;
+            document.getElementById('aeCurrentDocRow').classList.add('hidden');
+            document.getElementById('aeDropTitle').textContent = 'Supporting Document';
+        },
+
+        onEditFileSelected(input) {
+            const file = input.files[0];
+            const label = document.getElementById('aeDropLabel');
+            if (file) {
+                // A freshly attached file supersedes any "remove existing" intent.
+                _adEditRemoveDoc = false;
+                label.textContent = file.name;
+                label.className   = 'text-xs text-orange-600 font-medium';
+            } else {
+                label.textContent = 'Click or drag & drop proof document';
+                label.className   = 'text-xs text-gray-400';
+            }
+        },
+
+        handleEditDocDrop(event) {
+            event.preventDefault();
+            document.getElementById('aeDropZone').classList.remove('border-orange-400', 'bg-orange-50/40');
+            const file = event.dataTransfer.files[0];
+            if (!file) return;
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            document.getElementById('aeFileInput').files = dt.files;
+            PlanCost.onEditFileSelected(document.getElementById('aeFileInput'));
+        },
+
+        async saveEditExpense() {
+            if (!_adEditId) return;
+            const desc   = document.getElementById('aeDescInput').value.trim();
+            const rawAmt = document.getElementById('aeAmountInput').value.replace(/\./g, '').replace(',', '.');
+            const amount = parseFloat(rawAmt);
+            const file   = document.getElementById('aeFileInput').files[0];
+
+            if (!desc) {
+                showPlanCostToast('Expense name is required.', 'error');
+                document.getElementById('aeDescInput').focus();
+                return;
+            }
+            if (!rawAmt || isNaN(amount) || amount <= 0) {
+                showPlanCostToast('Amount must be greater than 0.', 'error');
+                document.getElementById('aeAmountInput').focus();
+                return;
+            }
+
+            const btn = document.getElementById('aeSaveBtn');
+            btn.disabled = true;
+            try {
+                const fd = new FormData();
+                fd.append('description', desc);
+                fd.append('amount', amount);
+                if (file) fd.append('document', file);
+                if (_adEditRemoveDoc) fd.append('remove_document', '1');
+
+                // POST + X-HTTP-Method-Override:PUT — verb PUT diblokir sebagian edge
+                // production; Laravel tetap merutekan ke updateItem() (lihat confirmDeleteExpense).
+                const res = await axios.post(
+                    `${BASE_URL}/${_adCostId}/items/${_adEditId}`,
+                    fd,
+                    { headers: { 'Content-Type': 'multipart/form-data', 'X-HTTP-Method-Override': 'PUT' } }
+                );
+
+                _adTotal = res.data.total ?? 0;
+                _adDirty = true;
+                _adUpdateRow(_adEditRowEl, res.data.item);
+                _adUpdateSummary();
+                PlanCost.closeExpenseEditModal();
+                showPlanCostToast('Expense updated successfully.', 'success');
+            } catch (err) {
+                const msg = err.response?.data?.message
+                         ?? (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join(' ') : null)
+                         ?? 'Failed to update expense.';
+                showPlanCostToast(msg, 'error');
+            } finally {
+                btn.disabled = false;
             }
         },
     };
@@ -2926,35 +3712,72 @@
         const emptyRow = tbody.querySelector('[data-empty]');
         if (emptyRow) emptyRow.remove();
 
-        const docCell = item.document_url
-            ? `<a href="${item.document_url}" target="_blank" rel="noopener"
-                  class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                   </svg>
-                   ${item.document_name ?? 'View'}
-               </a>`
-            : `<span class="text-gray-300 text-xs">—</span>`;
+        const docCell = _adDocCellHtml(item);
 
         const tr = document.createElement('tr');
         tr.className   = 'hover:bg-gray-50 transition-colors';
-        tr.dataset.itemId = item.id;
+        tr.dataset.itemId  = item.id;
+        // Raw values cached on the row so the edit modal can be populated
+        // without another round-trip.
+        tr.dataset.desc    = item.description ?? '';
+        tr.dataset.amount  = item.amount ?? 0;
+        tr.dataset.docName = item.document_name ?? '';
+        tr.dataset.docUrl  = item.document_url ?? '';
         tr.innerHTML = `
-            <td class="px-4 py-2.5 text-gray-400 text-xs">${no}</td>
-            <td class="px-4 py-2.5 text-gray-700 text-sm">${_esc(item.description)}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-sm text-blue-700 font-medium">${fmtRp(item.amount)}</td>
-            <td class="px-4 py-2.5 text-center">${docCell}</td>
-            <td class="px-4 py-2.5 text-center">
-                <button type="button" title="Delete"
-                        onclick="PlanCost.deleteExpenseItem(${item.id}, this.closest('tr'))"
-                        class="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                </button>
+            <td class="px-4 py-2.5 text-gray-400 text-xs align-top">${no}</td>
+            <td class="px-4 py-2.5 text-gray-700 text-sm align-top break-words">${_esc(item.description)}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-sm text-blue-700 font-medium whitespace-nowrap align-top">${fmtRp(item.amount)}</td>
+            <td class="px-4 py-2.5 text-center align-top">${docCell}</td>
+            <td class="px-4 py-2.5 text-center whitespace-nowrap align-top">
+                <div class="inline-flex items-center gap-0.5">
+                    <button type="button" title="Edit"
+                            onclick="PlanCost.openEditExpenseModal(${item.id}, this.closest('tr'))"
+                            class="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    <button type="button" title="Delete"
+                            onclick="PlanCost.deleteExpenseItem(${item.id}, this.closest('tr'))"
+                            class="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
             </td>`;
         tbody.appendChild(tr);
         tfoot.classList.remove('hidden');
+    }
+
+    // Nama dokumen bisa sangat panjang. Kolomnya sempit & fixed-width, jadi
+    // teksnya dipotong dengan ellipsis; nama lengkapnya tetap terbaca lewat
+    // tooltip (title) dan tetap bisa diklik untuk membuka file.
+    function _adDocCellHtml(item) {
+        const name = item.document_name ?? 'View';
+        return item.document_url
+            ? `<a href="${item.document_url}" target="_blank" rel="noopener"
+                  title="${_esc(name)}"
+                  class="flex items-center gap-1 text-xs text-blue-600 hover:underline min-w-0">
+                   <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                   </svg>
+                   <span class="truncate">${_esc(name)}</span>
+               </a>`
+            : `<span class="text-gray-300 text-xs">—</span>`;
+    }
+
+    // Update an existing row (cells + cached dataset) after an edit.
+    function _adUpdateRow(tr, item) {
+        if (!tr || !item) return;
+        tr.dataset.desc    = item.description ?? '';
+        tr.dataset.amount  = item.amount ?? 0;
+        tr.dataset.docName = item.document_name ?? '';
+        tr.dataset.docUrl  = item.document_url ?? '';
+        const tds = tr.querySelectorAll('td');
+        if (tds[1]) tds[1].textContent = item.description ?? '';
+        if (tds[2]) tds[2].textContent = fmtRp(item.amount);
+        if (tds[3]) tds[3].innerHTML   = _adDocCellHtml(item);
     }
 
     function _adRenumberRows() {
@@ -2969,56 +3792,9 @@
     }
 
     function _adUpdateSummary() {
-        // Update total card & footer
-        document.getElementById('adTotalItems').textContent = fmtRp(_adTotal);
+        // Actual amount = sum of all expense items. Update header card & footer.
+        document.getElementById('adTotalItems').textContent  = fmtRp(_adTotal);
         document.getElementById('adFooterTotal').textContent = fmtRp(_adTotal);
-
-        // Status card: compare total vs actual_amount
-        const statusCard  = document.getElementById('adStatusCard');
-        const statusLabel = document.getElementById('adStatusLabel');
-        const statusValue = document.getElementById('adStatusValue');
-        const statusNote  = document.getElementById('adStatusNote');
-
-        if (_adActualAmt === null) {
-            statusCard.className  = 'rounded-lg p-3 text-center border border-gray-200 bg-gray-50';
-            statusLabel.className = 'text-xs text-gray-500 font-medium uppercase tracking-wide mb-1';
-            statusLabel.textContent = 'Status';
-            statusValue.className   = 'text-sm font-bold font-mono text-gray-400';
-            statusValue.textContent = '—';
-            statusNote.className    = 'text-xs text-gray-400 mt-0.5';
-            statusNote.textContent  = 'Actual amount not yet set';
-            return;
-        }
-
-        const diff = _adTotal - _adActualAmt;
-        if (Math.abs(diff) < 0.01) {
-            // Match
-            statusCard.className  = 'rounded-lg p-3 text-center border border-green-300 bg-green-50';
-            statusLabel.className = 'text-xs text-green-600 font-medium uppercase tracking-wide mb-1';
-            statusLabel.textContent = 'Status';
-            statusValue.className   = 'text-sm font-bold font-mono text-green-700';
-            statusValue.textContent = 'Matched';
-            statusNote.className    = 'text-xs text-green-500 mt-0.5';
-            statusNote.textContent  = 'Expense total matches actual amount';
-        } else if (diff > 0) {
-            // Over
-            statusCard.className  = 'rounded-lg p-3 text-center border border-red-300 bg-red-50';
-            statusLabel.className = 'text-xs text-red-600 font-medium uppercase tracking-wide mb-1';
-            statusLabel.textContent = 'Status';
-            statusValue.className   = 'text-sm font-bold font-mono text-red-700';
-            statusValue.textContent = 'Exceeded';
-            statusNote.className    = 'text-xs text-red-400 mt-0.5';
-            statusNote.textContent  = `+${fmtRp(diff)} over the actual amount`;
-        } else {
-            // Under
-            statusCard.className  = 'rounded-lg p-3 text-center border border-yellow-300 bg-yellow-50';
-            statusLabel.className = 'text-xs text-yellow-600 font-medium uppercase tracking-wide mb-1';
-            statusLabel.textContent = 'Status';
-            statusValue.className   = 'text-sm font-bold font-mono text-yellow-700';
-            statusValue.textContent = 'Short';
-            statusNote.className    = 'text-xs text-yellow-500 mt-0.5';
-            statusNote.textContent  = `${fmtRp(diff)} below the actual amount`;
-        }
     }
 
     function _adResetForm() {
@@ -3039,7 +3815,7 @@
         // Setup axios CSRF header — dilakukan di sini agar axios sudah tersedia
         axios.defaults.headers.common['X-CSRF-TOKEN'] = getCsrf();
 
-        ['costBudgetInput', 'costReleaseInput', 'costActualInput', 'adAmountInput'].forEach(id => {
+        ['costBudgetInput', 'costReleaseInput', 'adAmountInput', 'aeAmountInput'].forEach(id => {
             const el = document.getElementById(id);
             if (el) formatCurrencyInput(el);
         });
@@ -3054,6 +3830,28 @@
 
 {{-- ALL MODALS --}}
 
+{{-- ── Section edit modals ───────────────────────────────────────────────────
+     Section General / Delivery Information / Delivery Data / Location kini
+     read-only; formnya pindah ke modal ini (klik pensil → isi → Save →
+     notifikasi), mengikuti pola Delivery Support.
+
+     Modal hanya dirender bila role-nya berhak. Ini penting: lapisan read-only
+     `data-perm-edit` hanya mengunci field DI DALAM <section>, sedangkan modal
+     berada di luar section — tanpa @if di bawah, form-nya jadi tak terkunci
+     sama sekali. --}}
+@if($can('delivery-project.general.edit'))
+    @include('delivery.project.projects.partials.modal-general-info')
+@endif
+@if($can('delivery-project.delivery-info.edit'))
+    @include('delivery.project.projects.partials.modal-delivery-info')
+@endif
+@if($can('delivery-project.delivery-data.edit'))
+    @include('delivery.project.projects.partials.modal-delivery-data')
+@endif
+@if($can('delivery-project.location.edit'))
+    @include('delivery.project.projects.partials.modal-location-info')
+@endif
+
 {{-- Team Modal --}}
 <div id="teamModal" class="fixed inset-0 z-50 hidden">
     <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('teamModal')"></div>
@@ -3064,29 +3862,126 @@
             </div>
             <form id="addTeamMemberForm" action="{{ route('projects.team.store', $project->id) }}" method="POST">
                 @csrf
+                {{-- Jalur pengisian: "employee" (master Employee) atau "vendor" (orang
+                     vendor yang tidak terdaftar sebagai employee). Menentukan field
+                     mana yang tampil DAN cabang mana yang dipakai di server. --}}
+                <input type="hidden" name="member_source" id="member_source" value="employee">
                 <div class="modal-body p-6 overflow-y-auto">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {{-- Pemilih sumber anggota --}}
+                    <div class="mb-4">
+                        <span class="block text-sm font-medium text-gray-900 mb-1.5">Member Source</span>
+                        <div class="inline-flex rounded-lg border border-gray-300 p-0.5 bg-gray-50">
+                            <button type="button" id="srcBtnEmployee" onclick="setTeamMemberSource('employee')"
+                                    class="px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200">
+                                Employee
+                            </button>
+                            <button type="button" id="srcBtnVendor" onclick="setTeamMemberSource('vendor')"
+                                    class="px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200">
+                                Vendor
+                            </button>
+                        </div>
+                        <p id="srcHint" class="text-xs text-gray-400 mt-1.5"></p>
+                    </div>
+
+                    {{-- ── Pane EMPLOYEE ─────────────────────────────────────── --}}
+                    <div id="teamPaneEmployee" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-900 mb-1">Consultant</label>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Consultant <span class="text-red-500">*</span></label>
                             <select name="employee_id" id="employee_id" required data-searchable="true"
                                     class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
                                 <option value="">-- Select Employee --</option>
                                 @foreach($employees as $employee)
+                                    @php
+                                        // Module diambil dari kualifikasi employee (employee_qualification → modules),
+                                        // bukan lagi diketik manual. Dipisah "|" agar aman untuk nama bermuatan koma.
+                                        $empModules = $employee->qualifications
+                                            ->map(fn ($q) => trim((string) ($q->module->name ?? '')))
+                                            ->filter()
+                                            ->unique()
+                                            ->sort()
+                                            ->values();
+                                    @endphp
                                     <option value="{{ $employee->employee_id }}"
                                             data-department="{{ $employee->basicData->department ?? '' }}"
                                             data-whatsapp="{{ $employee->addresses->first()->cell_phone ?? '' }}"
-                                            data-email="{{ $employee->addresses->first()->email_work ?? '' }}">
+                                            data-email="{{ $employee->addresses->first()->email_work ?? '' }}"
+                                            data-position="{{ $employee->basicData->position ?? '' }}"
+                                            data-employee-type="{{ $employee->basicData->employee_type ?? 'Internal' }}"
+                                            data-modules="{{ $empModules->implode('|') }}">
                                         {{ $employee->basicData->full_name ?? 'N/A' }}
                                     </option>
                                 @endforeach
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-900 mb-1">Module</label>
-                            <input type="text" name="module" id="modul"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                                   placeholder="e.g. FI, CO, MM">
+                            <label class="block text-sm font-medium text-gray-900 mb-1">
+                                Employee Type
+                                <span class="text-xs text-gray-400 font-normal">— from employee data</span>
+                            </label>
+                            <input type="text" id="employee_type_display" readonly
+                                   placeholder="Select a consultant first"
+                                   class="block w-full py-2.5 px-3 border border-gray-200 rounded-md shadow-sm text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
                         </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">
+                                Module
+                                <span class="text-xs text-gray-400 font-normal">— from consultant qualification</span>
+                            </label>
+                            {{-- Nilai akhir (nama modul dipisah koma) dikirim lewat hidden input ini. --}}
+                            <input type="hidden" name="module" id="modul">
+                            <div id="module_picker"
+                                 class="block w-full min-h-[42px] max-h-28 overflow-y-auto py-2 px-3 border border-gray-300 rounded-md shadow-sm bg-white">
+                                <p id="module_placeholder" class="text-sm text-gray-400">Select a consultant first.</p>
+                                <div id="module_options" class="flex flex-wrap gap-x-4 gap-y-1"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">WhatsApp</label>
+                            <input type="text" id="whatsapp_number" readonly
+                                   class="block w-full py-2.5 px-3 border border-gray-200 rounded-md shadow-sm text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
+                        </div>
+                    </div>
+
+                    {{-- ── Pane VENDOR ───────────────────────────────────────── --}}
+                    <div id="teamPaneVendor" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" style="display:none;">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-900 mb-1">
+                                Vendor <span class="text-red-500">*</span>
+                                <span class="text-xs text-gray-400 font-normal">— from Business Partner (type Vendor)</span>
+                            </label>
+                            <select name="vendor_id" id="vendor_id" data-searchable="true" disabled
+                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                                <option value="">-- Select Vendor --</option>
+                                @foreach($vendors as $vendor)
+                                    <option value="{{ $vendor->customer_id }}">{{ $vendor->basicData->name_1 ?? $vendor->customer_code }}</option>
+                                @endforeach
+                            </select>
+                            @if($vendors->isEmpty())
+                                <p class="text-xs text-amber-600 mt-1">No Business Partner of type Vendor yet — add one in Master → Business Partner.</p>
+                            @endif
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Consultant Name <span class="text-red-500">*</span></label>
+                            <input type="text" name="member_name" id="member_name" disabled maxlength="255"
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                   placeholder="Vendor consultant name">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Position <span class="text-xs text-gray-400 font-normal">— optional</span></label>
+                            <input type="text" name="member_position" id="member_position" disabled maxlength="255"
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                   placeholder="e.g. SAP Consultant">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-900 mb-1">Module <span class="text-xs text-gray-400 font-normal">— optional, comma separated</span></label>
+                            <input type="text" name="vendor_module" id="vendor_module" disabled maxlength="255"
+                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                                   placeholder="e.g. FI, CO">
+                        </div>
+                    </div>
+
+                    {{-- ── Field bersama ─────────────────────────────────────── --}}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Role <span class="text-red-500">*</span></label>
                             <select name="role" required
@@ -3098,27 +3993,6 @@
                                 <option value="Lead">Lead</option>
                                 <option value="Member">Member</option>
                             </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-900 mb-1">WhatsApp</label>
-                            <input type="text" id="whatsapp_number" readonly
-                                   class="block w-full py-2.5 px-3 border border-gray-200 rounded-md shadow-sm text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-900 mb-1">Employee Type <span class="text-red-500">*</span></label>
-                            <select name="employee_type" id="employee_type" required
-                                    class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                                    onchange="toggleVendorName('vendor_name_wrap', this.value)">
-                                <option value="Internal">Internal</option>
-                                <option value="External">External</option>
-                                <option value="Vendor">Vendor</option>
-                            </select>
-                        </div>
-                        <div id="vendor_name_wrap" style="display:none;">
-                            <label class="block text-sm font-medium text-gray-900 mb-1">Vendor Name</label>
-                            <input type="text" name="vendor_name" id="vendor_name"
-                                   class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                                   placeholder="Vendor name">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-900 mb-1">Start Date <span class="text-red-500">*</span></label>
@@ -3169,8 +4043,6 @@
             <form id="editTeamMemberForm" method="POST">
                 @csrf
                 @method('PUT')
-                {{-- Hidden: menyimpan old_role untuk identifikasi baris pivot --}}
-                <input type="hidden" id="edit_old_role" name="old_role">
                 <div class="modal-body p-6 overflow-y-auto">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {{-- Consultant (disabled) --}}
@@ -3507,9 +4379,10 @@
                     {{-- Originator --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Originator <span class="text-red-500">*</span></label>
+                        {{-- $projectPeople = Project Team + AE + Project Owner. --}}
                         <select id="issue_originator" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
                             <option value="">-- Select Originator --</option>
-                            @foreach($teamPeople as $person)
+                            @foreach($projectPeople as $person)
                                 <option value="{{ $person }}">{{ $person }}</option>
                             @endforeach
                         </select>
@@ -3520,7 +4393,7 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">Owner <span class="text-red-500">*</span></label>
                         <select id="issue_owner" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
                             <option value="">-- Select Owner --</option>
-                            @foreach($teamPeople as $person)
+                            @foreach($projectPeople as $person)
                                 <option value="{{ $person }}">{{ $person }}</option>
                             @endforeach
                         </select>
@@ -3600,6 +4473,656 @@
         </div>
     </div>
 </div>
+
+@if($can('delivery-project.wricef.view'))
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- WRICEF LOG — DELETE CONFIRMATION MODAL                         --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="wricefDeleteModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="WricefLog.closeDeleteModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-gray-900 mb-1">Delete <span id="wricefDeleteLabel"></span>?</h3>
+                <p class="text-sm text-gray-500 mb-5">This WRICEF object will be permanently deleted.</p>
+                <input type="hidden" id="wricefDeleteId" value="">
+                <div class="flex gap-3 justify-center">
+                    <button type="button" onclick="WricefLog.closeDeleteModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" id="wricefDeleteConfirmBtn" onclick="WricefLog.confirmDelete()"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
+                        Yes, Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- WRICEF LOG — ADD / EDIT MODAL                                  --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- PITFALL: modal dirender DI LUAR <section>, jadi lapisan izin
+     `data-perm-*` tidak menjangkaunya. Kontrol tulis di sini harus
+     dipagari @if($can(...)) sendiri (lihat delivery/partials/section-permissions). --}}
+@php
+    // PIC tiap tahap harus anggota tim yang mengerjakan, jadi sengaja memakai
+    // $teamPeople (tanpa AE & Project Owner — itu $projectPeople).
+    $wricefPeople  = $teamPeople;
+    $wricefCompany = $project->client->basicData->name_1 ?? '—';
+@endphp
+<div id="wricefModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="WricefLog.closeModal()"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+
+            {{-- Header --}}
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900" id="wricefModalTitle">Add WRICEF</h3>
+                <button type="button" onclick="WricefLog.closeModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Body --}}
+            <div class="p-6 overflow-y-auto space-y-5">
+                <input type="hidden" id="wricefModalMode" value="create">
+                <input type="hidden" id="wricefModalId" value="">
+
+                {{-- ── Blok 1: identitas objek ─────────────────────────── --}}
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Object</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {{-- Company — mengikuti customer project, tidak disimpan per baris --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                            <input type="text" value="{{ $wricefCompany }}" readonly
+                                   class="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg text-sm cursor-not-allowed">
+                        </div>
+
+                        {{-- SAP Module --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">SAP Module <span class="text-red-500">*</span></label>
+                            <select id="wricef_sap_module" onchange="WricefLog.onObjIdSourceChange()"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select Module --</option>
+                                @foreach(\App\Models\DeliveryProjectWricef::SAP_MODULES as $mod)
+                                    <option value="{{ $mod }}">{{ $mod }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Category --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Category <span class="text-red-500">*</span></label>
+                            <select id="wricef_category" onchange="WricefLog.onObjIdSourceChange()"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select Category --</option>
+                                @foreach(array_keys(\App\Models\DeliveryProjectWricef::CATEGORY_LETTERS) as $cat)
+                                    <option value="{{ $cat }}">{{ $cat }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Obj ID — dibuat otomatis oleh server --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Obj ID</label>
+                            <input type="text" id="wricef_obj_id_preview" readonly
+                                   class="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg text-sm font-mono cursor-not-allowed"
+                                   placeholder="Auto">
+                            <p class="text-[11px] text-gray-400 mt-1">Otomatis dari Module + Category.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Obj Name <span class="text-red-500">*</span></label>
+                            <input type="text" id="wricef_obj_name" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. Sinkronisasi data master ke aplikasi eksternal">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">TCode</label>
+                            <input type="text" id="wricef_tcode" maxlength="100"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. ZXX001">
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Capability</label>
+                        <textarea id="wricef_capability" rows="3"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Satu kemampuan per baris, mis.&#10;Otomatis membuat dokumen A&#10;Otomatis memperbarui status B"></textarea>
+                    </div>
+                </div>
+
+                {{-- ── Blok 2: request & approval ──────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Request &amp; Approval</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Priority <span class="text-red-500">*</span></label>
+                            <select id="wricef_priority" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="High">High</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Requestor</label>
+                            <input type="text" id="wricef_requestor" maxlength="150"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. Budi Santoso">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Request Date</label>
+                            <input type="text" id="wricef_request_date" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Effort (Mandays)</label>
+                            <input type="number" id="wricef_effort_mandays" min="0" step="0.5"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. 3">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Approved By</label>
+                            {{-- Diketik manual (bukan dropdown Project Team): approver
+                                 sering pihak di luar tim project, mis. dari sisi customer. --}}
+                            <input type="text" id="wricef_approved_by" maxlength="150"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. Budi Santoso">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Approved Date</label>
+                            <input type="text" id="wricef_approved_date" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
+                            <select id="wricef_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="Open" selected>Open</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Closed">Closed</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Blok 3: FSD ─────────────────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">FSD</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">PIC</label>
+                            <select id="wricef_fsd_pic" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select PIC --</option>
+                                @foreach($wricefPeople as $person)
+                                    <option value="{{ $person }}">{{ $person }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                            <input type="text" id="wricef_fsd_start" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">End</label>
+                            <input type="text" id="wricef_fsd_end" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <select id="wricef_fsd_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Not Started --</option>
+                                @foreach(\App\Models\DeliveryProjectWricef::FSD_STATUSES as $st)
+                                    <option value="{{ $st }}">{{ $st }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                        <textarea id="wricef_fsd_remarks" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Catatan tahap FSD…"></textarea>
+                    </div>
+                </div>
+
+                {{-- ── Blok 4: Development ─────────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Development</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">PIC</label>
+                            <select id="wricef_dev_pic" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select PIC --</option>
+                                @foreach($wricefPeople as $person)
+                                    <option value="{{ $person }}">{{ $person }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                            <input type="text" id="wricef_dev_start" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">End</label>
+                            <input type="text" id="wricef_dev_end" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <select id="wricef_dev_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Not Started --</option>
+                                @foreach(\App\Models\DeliveryProjectWricef::DEV_STATUSES as $st)
+                                    <option value="{{ $st }}">{{ $st }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                        <textarea id="wricef_dev_remarks" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Catatan tahap Development…"></textarea>
+                    </div>
+                </div>
+
+                {{-- ── Blok 5: Testing ─────────────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Testing</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">PIC</label>
+                            <select id="wricef_test_pic" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select PIC --</option>
+                                @foreach($wricefPeople as $person)
+                                    <option value="{{ $person }}">{{ $person }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                            <input type="text" id="wricef_test_start" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">End</label>
+                            <input type="text" id="wricef_test_end" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <select id="wricef_test_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Not Started --</option>
+                                @foreach(\App\Models\DeliveryProjectWricef::TEST_STATUSES as $st)
+                                    <option value="{{ $st }}">{{ $st }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                        <textarea id="wricef_test_remarks" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Catatan tahap Testing…"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Footer --}}
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="WricefLog.closeModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                @if($can('delivery-project.wricef.edit') || $can('delivery-project.wricef.manage'))
+                <button type="button" id="wricefModalSaveBtn" onclick="WricefLog.save()"
+                        class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    Save
+                </button>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
+@if($can('delivery-project.stakeholder.view'))
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- STAKEHOLDER REGISTER — DELETE CONFIRMATION MODAL               --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="stakeholderDeleteModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="StakeholderRegister.closeDeleteModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-gray-900 mb-1">Delete <span id="stakeholderDeleteLabel"></span>?</h3>
+                <p class="text-sm text-gray-500 mb-5">This stakeholder record will be permanently deleted.</p>
+                <input type="hidden" id="stakeholderDeleteId" value="">
+                <div class="flex gap-3 justify-center">
+                    <button type="button" onclick="StakeholderRegister.closeDeleteModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" id="stakeholderDeleteConfirmBtn" onclick="StakeholderRegister.confirmDelete()"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
+                        Yes, Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- STAKEHOLDER REGISTER — ADD / EDIT MODAL                        --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- PITFALL: modal dirender DI LUAR <section>, jadi lapisan izin
+     `data-perm-*` tidak menjangkaunya. Kontrol tulis di sini dipagari
+     @if($can(...)) sendiri (lihat delivery/partials/section-permissions). --}}
+@php
+    // PIC Internal = anggota tim proyek + AE + Project Owner (sama seperti
+    // dropdown Risk Owner). Boleh diketik manual bila namanya tidak ada.
+    $stakeholderPeople = $projectPeople ?? collect();
+@endphp
+<div id="stakeholderModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="StakeholderRegister.closeModal()"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+
+            {{-- Header --}}
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900" id="stakeholderModalTitle">Add Stakeholder</h3>
+                <button type="button" onclick="StakeholderRegister.closeModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Body --}}
+            <div class="p-6 overflow-y-auto space-y-5">
+                <input type="hidden" id="stakeholderModalMode" value="create">
+                <input type="hidden" id="stakeholderModalId" value="">
+
+                {{-- ── Blok 1: identitas ───────────────────────────────── --}}
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Identitas</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ID</label>
+                            <input type="text" id="stakeholder_sid_preview" readonly
+                                   class="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg text-sm font-mono cursor-not-allowed"
+                                   placeholder="Auto">
+                            <p class="text-[11px] text-gray-400 mt-1">Otomatis: SH-001, SH-002, …</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nama Stakeholder <span class="text-red-500">*</span></label>
+                            <input type="text" id="stakeholder_name" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="Nama individu / unit">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Jabatan / Peran</label>
+                            <input type="text" id="stakeholder_role_title" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. Direktur Keuangan">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Organisasi / Departemen</label>
+                            <input type="text" id="stakeholder_organization" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="Unit kerja / perusahaan">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Kategori <span class="text-red-500">*</span></label>
+                            <select id="stakeholder_category" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                @foreach(\App\Models\DeliveryProjectStakeholder::CATEGORIES as $cat)
+                                    <option value="{{ $cat }}">{{ $cat }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tipe / Klasifikasi</label>
+                            <select id="stakeholder_classification" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::CLASSIFICATIONS as $cls)
+                                    <option value="{{ $cls }}">{{ $cls }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" id="stakeholder_email" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="nama@perusahaan.com">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">No. Telepon</label>
+                            <input type="text" id="stakeholder_phone" maxlength="50"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="0812-xxxx-xxxx">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Blok 2: Power / Interest ────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Power / Interest</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Power</label>
+                            <select id="stakeholder_power" onchange="StakeholderRegister.refreshQuadrant()"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::LEVELS as $lvl)
+                                    <option value="{{ $lvl }}">{{ $lvl }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Interest</label>
+                            <select id="stakeholder_interest" onchange="StakeholderRegister.refreshQuadrant()"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::LEVELS as $lvl)
+                                    <option value="{{ $lvl }}">{{ $lvl }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Kuadran Power-Interest</label>
+                            <input type="text" id="stakeholder_quadrant_preview" readonly
+                                   class="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-gray-600 rounded-lg text-sm cursor-not-allowed"
+                                   placeholder="Otomatis dari Power + Interest">
+                        </div>
+                    </div>
+
+                    {{-- Power/Interest Grid — referensi matriks 2x2 (Panduan).
+                         Sel yang cocok dengan Power + Interest terpilih di-highlight
+                         oleh StakeholderRegister.refreshQuadrant(). "Tinggi" = sisi
+                         high; "Sedang" & "Rendah" = sisi low. --}}
+                    <div class="mt-4">
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">Power / Interest Grid</p>
+                        <div class="grid grid-cols-2 gap-2 text-xs" id="stakeholderGridRef">
+                            <div class="border border-gray-200 rounded-lg p-2.5 transition" data-quadrant="high|low">
+                                <p class="text-[11px] text-gray-500">Power Tinggi &amp; Interest Sedang/Rendah</p>
+                                <p class="font-bold text-gray-700">Jaga Kepuasan (Keep Satisfied)</p>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-2.5 transition" data-quadrant="high|high">
+                                <p class="text-[11px] text-gray-500">Power Tinggi &amp; Interest Tinggi</p>
+                                <p class="font-bold text-gray-700">Kelola Intensif (Manage Closely)</p>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-2.5 transition" data-quadrant="low|low">
+                                <p class="text-[11px] text-gray-500">Power Sedang/Rendah &amp; Interest Sedang/Rendah</p>
+                                <p class="font-bold text-gray-700">Pantau Seperlunya (Monitor)</p>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-2.5 transition" data-quadrant="low|high">
+                                <p class="text-[11px] text-gray-500">Power Sedang/Rendah &amp; Interest Tinggi</p>
+                                <p class="font-bold text-gray-700">Selalu Diinformasikan (Keep Informed)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Blok 3: Engagement ──────────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Engagement</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Sikap Saat Ini</label>
+                            <select id="stakeholder_current_attitude" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::ATTITUDES as $att)
+                                    <option value="{{ $att }}">{{ $att }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Sikap Diharapkan</label>
+                            <select id="stakeholder_expected_attitude" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::ATTITUDES as $att)
+                                    <option value="{{ $att }}">{{ $att }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Harapan Utama</label>
+                        <textarea id="stakeholder_key_expectations" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Ekspektasi / tujuan utama stakeholder terhadap proyek"></textarea>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Kebutuhan Informasi / Concern</label>
+                        <textarea id="stakeholder_information_needs" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Informasi yang perlu diterima & isu / kekhawatiran utama"></textarea>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Strategi Engagement</label>
+                        <textarea id="stakeholder_engagement_strategy" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Tindakan konkret untuk menggeser sikap saat ini menuju sikap diharapkan"></textarea>
+                    </div>
+                </div>
+
+                {{-- ── Blok 4: Komunikasi ──────────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Komunikasi</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Frekuensi Komunikasi</label>
+                            <select id="stakeholder_communication_frequency" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select --</option>
+                                @foreach(\App\Models\DeliveryProjectStakeholder::FREQUENCIES as $freq)
+                                    <option value="{{ $freq }}">{{ $freq }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Metode / Channel Komunikasi</label>
+                            <input type="text" id="stakeholder_communication_method" maxlength="255"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="e.g. Meeting tatap muka, Email, Steering Committee">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">PIC Internal</label>
+                            <select id="stakeholder_pic_internal" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                <option value="">-- Select PIC --</option>
+                                @foreach($stakeholderPeople as $person)
+                                    <option value="{{ $person }}">{{ $person }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Blok 5: Risiko & audit ──────────────────────────── --}}
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Risiko &amp; Audit Trail</h4>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Risiko Terkait Stakeholder</label>
+                        <textarea id="stakeholder_stakeholder_risk" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder='e.g. Berpotensi menahan persetujuan anggaran'></textarea>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
+                            <select id="stakeholder_status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent">
+                                @foreach(\App\Models\DeliveryProjectStakeholder::STATUSES as $st)
+                                    <option value="{{ $st }}" @if($st === 'Aktif') selected @endif>{{ $st }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Identifikasi</label>
+                            <input type="text" id="stakeholder_identified_date" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Update Terakhir</label>
+                            <input type="text" id="stakeholder_last_updated_date" autocomplete="off"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                   placeholder="dd/mm/yyyy">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+                        <textarea id="stakeholder_notes" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                                  placeholder="Informasi tambahan yang relevan"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Footer --}}
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="StakeholderRegister.closeModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                @if($can('delivery-project.stakeholder.edit') || $can('delivery-project.stakeholder.manage'))
+                <button type="button" id="stakeholderModalSaveBtn" onclick="StakeholderRegister.save()"
+                        class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    Save
+                </button>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- Edit Document Modal --}}
 <div id="editDocumentModal" class="fixed inset-0 z-50 hidden">
@@ -3930,6 +5453,59 @@
     </div>
 </div>
 
+@if($can('delivery-project.close-project'))
+{{-- Confirm modal untuk Close / Reopen Project (pengganti confirm() native) --}}
+{{-- data-lock-exempt: satu-satunya modal yang harus tetap aktif saat project
+     closed — dari sinilah project di-Reopen. --}}
+<div id="projectStateModal" data-lock-exempt class="fixed inset-0 z-[9998] hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 z-[9998]" onclick="closeModal('projectStateModal')"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
+        <div class="modal-content bg-white rounded-lg shadow-xl max-w-md w-full relative">
+            <div class="p-6">
+                <h3 id="projectStateTitle" class="text-lg font-semibold text-gray-900 mb-2">Close Project?</h3>
+                <p id="projectStateMessage" class="text-sm text-gray-600">This project will become read-only until it is reopened.</p>
+            </div>
+            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                <button type="button" onclick="closeModal('projectStateModal')"
+                        class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                    Cancel
+                </button>
+                <button type="button" id="projectStateConfirmBtn"
+                        class="inline-flex items-center px-4 py-2 bg-gray-700 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-all duration-200">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    // Modal konfirmasi Close/Reopen — submit form tersembunyi saat dikonfirmasi.
+    let _projectStateForm = null;
+    function openProjectStateModal(mode) {
+        const title = document.getElementById('projectStateTitle');
+        const msg   = document.getElementById('projectStateMessage');
+        const btn   = document.getElementById('projectStateConfirmBtn');
+        if (mode === 'reopen') {
+            _projectStateForm = document.getElementById('reopenProjectForm');
+            title.textContent = 'Reopen Project?';
+            msg.textContent   = 'This project will become editable again. Its status will be recalculated from planning progress.';
+            btn.textContent   = 'Reopen Project';
+            btn.className      = 'inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-all duration-200';
+        } else {
+            _projectStateForm = document.getElementById('closeProjectForm');
+            title.textContent = 'Close Project?';
+            msg.textContent   = 'This project will become read-only until it is reopened.';
+            btn.textContent   = 'Close Project';
+            btn.className      = 'inline-flex items-center px-4 py-2 bg-gray-700 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-all duration-200';
+        }
+        document.getElementById('projectStateModal').classList.remove('hidden');
+    }
+    document.getElementById('projectStateConfirmBtn')?.addEventListener('click', function () {
+        if (_projectStateForm) _projectStateForm.submit();
+    });
+</script>
+@endif
+
 {{-- ✅ LOAD SCRIPTS (IN CORRECT ORDER) --}}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
@@ -3974,7 +5550,38 @@
         if (pctVal)  pctVal.value  = pct.toFixed(2);
         if (gpDisp)  gpDisp.value  = fmtRp(gp);
         if (pctDisp) pctDisp.value = pct.toFixed(2).replace('.', ',');
+
+        // Actual GP juga bergantung pada Revenue → ikut dihitung ulang.
+        sfinRecalcActual();
     }
+    // Actual Cost = Total Actual (dari expense detail Plan Cost).
+    // Actual Gross Profit = Revenue − Actual Cost; % = Actual GP / Revenue × 100.
+    function sfinRecalcActual() {
+        const rev = parseNum(document.getElementById('sfin_rev_val')?.value);
+        const ac  = parseNum(document.getElementById('sfin_ac_val')?.value);
+        const agp = rev - ac;
+        const apct = (rev !== 0) ? (agp / rev) * 100 : 0;
+
+        const agpVal   = document.getElementById('sfin_agp_val');
+        const apctVal  = document.getElementById('sfin_apct_val');
+        const acDisp   = document.getElementById('sfin_ac_disp');
+        const agpDisp  = document.getElementById('sfin_agp_disp');
+        const apctDisp = document.getElementById('sfin_apct_disp');
+
+        if (agpVal)   agpVal.value   = agp;
+        if (apctVal)  apctVal.value  = apct.toFixed(2);
+        if (acDisp)   acDisp.value   = fmtRp(ac);
+        if (agpDisp)  agpDisp.value  = fmtRp(agp);
+        if (apctDisp) apctDisp.value = apct.toFixed(2).replace('.', ',');
+    }
+    // Dipanggil oleh section Plan Cost saat "Total Actual" berubah agar
+    // Delivery Information → Actual Cost / GP / % tetap sinkron tanpa reload.
+    window.sfinSetActualCost = function (actualCost) {
+        const acVal = document.getElementById('sfin_ac_val');
+        if (!acVal) return;
+        acVal.value = actualCost ?? 0;
+        sfinRecalcActual();
+    };
     function bindInput(dispId, valId) {
         const disp = document.getElementById(dispId);
         const val  = document.getElementById(valId);
@@ -4046,6 +5653,10 @@ function scrollToSection(sectionId) {
 
 // ✅ Update Active Tab
 function updateActiveTab(sectionId) {
+    // Delivery Data section tersendiri tapi berbagi tab "Delivery Info", jadi
+    // dinormalkan di sini — berlaku baik saat dipanggil scrollToSection maupun
+    // scroll-spy.
+    if (sectionId === 'delivery-data') sectionId = 'delivery';
     document.querySelectorAll('.section-tab').forEach(tab => {
         const tabSection = tab.getAttribute('data-section');
         if (tabSection === sectionId) {
@@ -4068,7 +5679,9 @@ const observerOptions = {
 const sectionObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
         if (entry.isIntersecting) {
-            const sectionId = entry.target.id;
+            let sectionId = entry.target.id;
+            // Delivery Data is its own section but shares the "Delivery Info" tab.
+            if (sectionId === 'delivery-data') sectionId = 'delivery';
             updateActiveTab(sectionId);
         }
     });
@@ -4393,6 +6006,17 @@ function handleRowSelection(type) {
     updateSelectionToolbar(type);
 }
 
+// Izin hapus per jenis baris yang bisa dipilih di tabel. Ini lapisan UI saja —
+// penegakan sebenarnya ada di middleware `menu:` pada route hapus masing-masing
+// (delivery-project.team.delete / delivery-project.documents.manage).
+const DELETE_PERMISSION = {
+    team:     @json($can('delivery-project.team.delete')),
+    document: @json($can('delivery-project.documents.manage')),
+};
+
+// Label yang dipakai di dialog konfirmasi hapus.
+const DELETE_LABEL = { team: 'team member', document: 'document' };
+
 function updateSelectionToolbar(type) {
     const toolbar = document.getElementById('selectionToolbar');
     const count = selectedItems[type].size;
@@ -4403,9 +6027,8 @@ function updateSelectionToolbar(type) {
         toolbar.classList.add('show');
         countSpan.textContent = `${count} item${count > 1 ? 's' : ''} selected`;
         currentType = type;
-        // Team members cannot be deleted — only edited (role/end_date/notes)
         if (deleteBtn) {
-            deleteBtn.style.display = (type === 'team') ? 'none' : '';
+            deleteBtn.style.display = DELETE_PERMISSION[type] ? '' : 'none';
         }
     } else {
         toolbar.classList.remove('show');
@@ -4459,10 +6082,15 @@ function handleBulkDelete() {
         return;
     }
     
+    if (!DELETE_PERMISSION[currentType]) {
+        showNotification('You do not have permission to delete this data', 'error');
+        return;
+    }
+
     const count = selectedItems[currentType].size;
-    const itemType = currentType.charAt(0).toUpperCase() + currentType.slice(1);
-    
-    document.getElementById('deleteMessage').textContent = 
+    const itemType = DELETE_LABEL[currentType] || currentType;
+
+    document.getElementById('deleteMessage').textContent =
         `Are you sure you want to delete ${count} ${itemType}${count > 1 ? 's' : ''}? This action cannot be undone.`;
     
     openModal('deleteModal');
@@ -4474,41 +6102,73 @@ function handleBulkDelete() {
 
 async function executeBulkDelete() {
     const selectedIds = Array.from(selectedItems[currentType]);
-    
+    const type = currentType;
+
+    let deleted = 0;
+    let skipped = 0;
+    let failed = 0;
+
     for (const id of selectedIds) {
+        const cb = document.querySelector(`.${type}-checkbox[data-id="${id}"]`);
+
         try {
             let url;
-            let fetchOptions = {
-                method: 'DELETE',
+            const fetchOptions = {
+                method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'Accept': 'application/json',
                 }
             };
 
-            if (currentType === 'document') {
-                url = `/project/documents/${id}`;
+            if (type === 'document') {
+                url = `/project/documents/${id}/delete`;
+            } else if (type === 'team') {
+                // Baris pivot diidentifikasi lewat ID barisnya: anggota vendor
+                // tidak punya employee_id. Baris FK-fallback (PM/Co PM lama yang
+                // hanya tersimpan di kolom project) tidak punya baris pivot,
+                // jadi tidak ada yang bisa dihapus dari sini.
+                const rowId = cb?.dataset.rowId || '';
+                if (!rowId) {
+                    skipped++;
+                    continue;
+                }
+                url = `/projects/{{ $project->id }}/team-rows/${rowId}/delete`;
             } else {
-                // Team members cannot be deleted — delete button is hidden for type 'team'
                 continue;
             }
 
             const response = await fetch(url, fetchOptions);
 
             if (response.ok) {
-                // Remove the specific row that was selected
-                const cb = document.querySelector(`.${currentType}-checkbox[data-id="${id}"]`);
+                deleted++;
                 if (cb) cb.closest('tr')?.remove();
+            } else {
+                failed++;
+                console.error('Delete failed:', url, response.status);
             }
         } catch (error) {
+            failed++;
             console.error('Delete error:', error);
         }
     }
 
-    showNotification(`Successfully deleted ${selectedIds.length} item(s)`, 'success');
+    if (deleted > 0) {
+        showNotification(`Successfully deleted ${deleted} item(s)`, 'success');
+    }
+    if (skipped > 0) {
+        showNotification(`${skipped} legacy entr${skipped > 1 ? 'ies are' : 'y is'} stored on the project itself and cannot be deleted here.`, 'warning');
+    }
+    if (failed > 0) {
+        showNotification(`${failed} item(s) could not be deleted. Please check your permission and try again.`, 'error');
+    }
+
     clearAllSelections();
     closeModal('deleteModal');
-    setTimeout(() => location.reload(), 800);
+
+    if (deleted > 0) {
+        setTimeout(() => location.reload(), 800);
+    }
 }
 
 // ============================================
@@ -4559,15 +6219,6 @@ function onDocTypeChange() {
     toggleOthersInput(val, 'doc_others_wrap');
 }
 
-function toggleVendorName(wrapId, type) {
-    const wrap = document.getElementById(wrapId);
-    if (!wrap) return;
-    const show = type === 'Vendor';
-    wrap.style.display = show ? '' : 'none';
-    const input = wrap.querySelector('input[name="vendor_name"]');
-    if (input) input.required = show;
-}
-
 // Auto-fill Position field when Consultant select changes in edit modal
 function updateEditPosition(select) {
     const opt = select.options[select.selectedIndex];
@@ -4576,9 +6227,16 @@ function updateEditPosition(select) {
 }
 
 function openEditTeamMemberModal(checkbox) {
-    // data-id is now a composite "employee_id::role" key used for row tracking.
-    // For the URL we need the plain employee_id stored in data-employee-id.
-    const employeeId   = checkbox.dataset.employeeId || checkbox.dataset.id;
+    // Baris pivot diidentifikasi lewat ID barisnya (data-row-id): anggota vendor
+    // tidak punya employee_id sama sekali. Baris FK-fallback (PM/Co PM/Project
+    // Admin lama yang hanya tersimpan di kolom project) tidak punya baris pivot,
+    // jadi tidak ada yang bisa diedit.
+    const rowId = checkbox.dataset.rowId || '';
+    if (!rowId) {
+        showNotification('This role is stored on the project itself (legacy entry) and has no team record to edit. Re-add the person as a team member to manage the period.', 'error');
+        return;
+    }
+
     const employeeName = checkbox.dataset.employeeName  || '-';
     const position     = checkbox.dataset.position      || '';
     const module       = checkbox.dataset.module        || '';
@@ -4589,11 +6247,8 @@ function openEditTeamMemberModal(checkbox) {
     const endDate      = checkbox.dataset.endDate       || '';
     const notes        = checkbox.dataset.notes         || '';
 
-    // Set form action URL (employee ID di URL)
-    document.getElementById('editTeamMemberForm').action = `/projects/{{ $project->id }}/team-members/${employeeId}`;
-
-    // Simpan old_role untuk identifikasi baris pivot di server
-    document.getElementById('edit_old_role').value = role;
+    // Set form action URL (ID baris pivot di URL)
+    document.getElementById('editTeamMemberForm').action = `/projects/{{ $project->id }}/team-rows/${rowId}`;
 
     // Populate disabled fields
     document.getElementById('edit_employee_name_display').value = employeeName;
@@ -4638,7 +6293,7 @@ function openEditTeamMemberModal(checkbox) {
 }
 
 // Edit Team Member Form Submit
-// Hanya mengirim: old_role (identifikasi), role (baru), end_date, notes
+// Baris diidentifikasi dari URL (ID baris pivot); body cukup role, end_date, notes.
 document.getElementById('editTeamMemberForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const form = e.target;
@@ -4654,13 +6309,15 @@ document.getElementById('editTeamMemberForm')?.addEventListener('submit', async 
         const response = await fetch(form.action, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 'Accept': 'application/json',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                // Body JSON: `_method` di body TIDAK dibaca sebagai method spoofing
+                // (Symfony hanya melihat form-encoded), jadi override lewat header.
+                'X-HTTP-Method-Override': 'PUT'
             },
             body: JSON.stringify({
                 _method:  'PUT',
-                old_role: formData.get('old_role'),
                 role:     role,
                 end_date: formData.get('end_date') || null,
                 notes:    formData.get('notes')    || null,
@@ -4698,13 +6355,22 @@ document.getElementById('addTeamMemberForm')?.addEventListener('submit', async f
     }
 
     try {
+        const payload = new FormData(form);
+
+        // Mode vendor: modulnya free text (input terpisah) — pindahkan ke field
+        // `module` yang dibaca server.
+        if (document.getElementById('member_source')?.value === 'vendor') {
+            payload.set('module', document.getElementById('vendor_module')?.value || '');
+            payload.delete('vendor_module');
+        }
+
         const response = await fetch(form.action, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
                 'X-CSRF-TOKEN': '{{ csrf_token() }}',
             },
-            body: new FormData(form),
+            body: payload,
         });
 
         const data = await response.json();
@@ -4821,6 +6487,17 @@ function openModal(modalId) {
         modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
+
+    // Add Team Member: mulai selalu dari mode Employee dan samakan daftar Module
+    // dengan consultant yang sedang terpilih (kosong = placeholder), supaya tidak
+    // menyisakan pilihan dari sesi sebelumnya.
+    if (modalId === 'teamModal' && typeof renderTeamModuleOptions === 'function') {
+        setTeamMemberSource('employee');
+        const sel = document.getElementById('employee_id');
+        const opt = sel && sel.value ? sel.options[sel.selectedIndex] : null;
+        renderTeamModuleOptions(opt ? (opt.dataset.modules || '') : null);
+        document.getElementById('employee_type_display').value = opt ? (opt.dataset.employeeType || 'Internal') : '';
+    }
 }
 
 function closeModal(modalId) {
@@ -4881,7 +6558,7 @@ document.getElementById('roleModalForm').addEventListener('submit', async functi
 });
 
 async function clearRole(field, roleName) {
-    if (!confirm('Clear ' + roleName + ' assignment?')) return;
+    if (!await showConfirm('Clear ' + roleName + ' assignment?', 'Clear Assignment', 'danger')) return;
     try {
         const fd = new FormData();
         fd.append('_method', 'PATCH');
@@ -4944,8 +6621,8 @@ async function executeProjectDelete(projectId) {
     btn.disabled = true;
     
     try {
-        const response = await fetch(`/projects/${projectId}`, {
-            method: 'DELETE',
+        const response = await fetch(`/projects/${projectId}/delete`, {
+            method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': '{{ csrf_token() }}',
                 'Accept': 'application/json',
@@ -4979,21 +6656,22 @@ async function executeProjectDelete(projectId) {
 // Close modal on ESC key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        const modals = ['teamModal', 'editTeamModal', 'roleModal', 'documentModal', 'issueModal', 'issueDeleteModal', 'deleteModal', 'editDocumentModal', 'deleteFolderConfirmModal', 'noFolderWarningModal'];
+        const modals = ['teamModal', 'editTeamModal', 'roleModal', 'documentModal', 'issueModal', 'issueDeleteModal', 'deleteModal', 'editDocumentModal', 'deleteFolderConfirmModal', 'noFolderWarningModal',
+                        'generalInfoModal', 'deliveryInfoModal', 'deliveryDataModal', 'locationInfoModal',
+                        'wricefModal', 'wricefDeleteModal'];
         modals.forEach(modalId => closeModal(modalId));
     }
 });
 
 // ============================================
 // FLASH NOTIFICATIONS (DOMContentLoaded agar showNotification sudah terdefinisi)
+//
+// JANGAN tampilkan session('success')/('error')/('warning') di sini — layout
+// dashboard.blade.php SUDAH memunculkannya untuk semua halaman. Menambahkannya
+// lagi membuat toast dobel (mis. "Project closed successfully." muncul 2x).
+// Yang tersisa di bawah adalah $errors (validasi), yang tidak ditangani layout.
 // ============================================
 document.addEventListener('DOMContentLoaded', function() {
-    @if(session('success'))
-    showNotification({!! json_encode(session('success')) !!}, 'success');
-    @endif
-    @if(session('error'))
-    showNotification({!! json_encode(session('error')) !!}, 'error');
-    @endif
     @if($errors->has('error'))
     showNotification({!! json_encode($errors->first('error')) !!}, 'error');
     @endif
@@ -5029,6 +6707,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const data = await res.json();
                 if (res.ok && data.success) {
+                    // Form section kini hidup di dalam modal: tutup dulu supaya
+                    // notifikasi & warning modal tidak tertimbun di belakangnya.
+                    const host = form.closest('.fixed.inset-0');
+                    if (host) { host.classList.add('hidden'); document.body.style.overflow = ''; }
                     showNotification(data.message || fallbackSuccess, 'success');
                     // A clear, acknowledged warning when the save left planning outside the
                     // contract window — shown in a styled modal (consistent with the rest of
@@ -5057,6 +6739,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     attachSectionForm('generalInfoForm',  'General information updated successfully.',  'Failed to update general information.');
     attachSectionForm('deliveryInfoForm', 'Delivery information updated successfully.', 'Failed to update delivery information.');
+    attachSectionForm('deliveryDataForm', 'Delivery data updated successfully.', 'Failed to update delivery data.');
     attachSectionForm('locationInfoForm', 'Location information updated successfully.', 'Failed to update location information.');
 })();
 
@@ -5137,11 +6820,106 @@ function closeContractWarningModal() {
 // ============================================
 // OTHER EXISTING FUNCTIONS
 // ============================================
+// ── Module picker (Add Team Member) ──────────────────────────────────────────
+// Modul TIDAK lagi diketik manual: daftarnya berasal dari kualifikasi consultant
+// yang dipilih (data-modules pada <option>, dipisah "|"). Checkbox yang dicentang
+// digabung ke hidden input #modul sebagai "FI, CO".
+function syncTeamModuleValue() {
+    const hidden = document.getElementById('modul');
+    if (!hidden) return;
+    const picked = Array.from(document.querySelectorAll('.team-module-option:checked')).map(cb => cb.value);
+    hidden.value = picked.join(', ');
+}
+
+function renderTeamModuleOptions(rawModules) {
+    const box    = document.getElementById('module_options');
+    const ph     = document.getElementById('module_placeholder');
+    const hidden = document.getElementById('modul');
+    if (!box || !ph || !hidden) return;
+
+    hidden.value = '';
+    box.innerHTML = '';
+
+    const modules = (rawModules || '').split('|').map(m => m.trim()).filter(Boolean);
+
+    if (!modules.length) {
+        ph.textContent = rawModules === null
+            ? 'Select a consultant first.'
+            : 'No module found in this consultant\'s qualification.';
+        ph.classList.remove('hidden');
+        return;
+    }
+
+    ph.classList.add('hidden');
+    modules.forEach(function (name) {
+        const label = document.createElement('label');
+        label.className = 'inline-flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer';
+        const cb = document.createElement('input');
+        cb.type      = 'checkbox';
+        cb.value     = name;
+        cb.className = 'team-module-option rounded border-gray-300';
+        cb.addEventListener('change', syncTeamModuleValue);
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(name));
+        box.appendChild(label);
+    });
+}
+
+// ── Member source: Employee vs Vendor (Add Team Member) ──────────────────────
+// Employee  → orang dari master Employee; Employee Type & Module ikut datanya.
+// Vendor    → orang vendor yang tidak ada di master Employee: vendor dipilih dari
+//             master Business Partner (type Vendor), sisanya diketik manual.
+// Field pane yang tersembunyi selalu di-`disabled` agar (a) tidak ikut terkirim
+// dan (b) tidak memicu validasi HTML pada elemen yang tak terlihat.
+function setTeamMemberSource(source) {
+    const isVendor = source === 'vendor';
+    const srcInput = document.getElementById('member_source');
+    if (!srcInput) return;
+    srcInput.value = isVendor ? 'vendor' : 'employee';
+
+    const paneEmp = document.getElementById('teamPaneEmployee');
+    const paneVen = document.getElementById('teamPaneVendor');
+    if (paneEmp) paneEmp.style.display = isVendor ? 'none' : 'grid';
+    if (paneVen) paneVen.style.display = isVendor ? 'grid' : 'none';
+
+    const empSel = document.getElementById('employee_id');
+    if (empSel) { empSel.disabled = isVendor; empSel.required = !isVendor; }
+
+    const vendorSel = document.getElementById('vendor_id');
+    if (vendorSel) { vendorSel.disabled = !isVendor; vendorSel.required = isVendor; }
+
+    const memberName = document.getElementById('member_name');
+    if (memberName) { memberName.disabled = !isVendor; memberName.required = isVendor; }
+
+    ['member_position', 'vendor_module'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !isVendor;
+    });
+
+    // Tombol segmented
+    const active   = 'px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 bg-white text-gray-900 shadow-sm';
+    const inactive = 'px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 text-gray-500 hover:text-gray-700';
+    const btnEmp = document.getElementById('srcBtnEmployee');
+    const btnVen = document.getElementById('srcBtnVendor');
+    if (btnEmp) btnEmp.className = isVendor ? inactive : active;
+    if (btnVen) btnVen.className = isVendor ? active : inactive;
+
+    const hint = document.getElementById('srcHint');
+    if (hint) {
+        hint.textContent = isVendor
+            ? 'Vendor is taken from Master Business Partner (type Vendor); the consultant details are typed in manually.'
+            : 'Consultant comes from Master Employee — Employee Type and Module follow their data.';
+    }
+}
+
 // Employee selection auto-fill
 document.getElementById('employee_id')?.addEventListener('change', function() {
     const selectedOption = this.options[this.selectedIndex];
-    document.getElementById('modul').value = selectedOption.dataset.modul || '';
-    document.getElementById('whatsapp_number').value = selectedOption.dataset.whatsapp || '';
+    const picked  = selectedOption && selectedOption.value ? selectedOption : null;
+    renderTeamModuleOptions(picked ? (picked.dataset.modules || '') : null);
+    document.getElementById('whatsapp_number').value = picked?.dataset.whatsapp || '';
+    // Employee Type murni turunan data employee (Internal / External) — read-only.
+    document.getElementById('employee_type_display').value = picked ? (picked.dataset.employeeType || 'Internal') : '';
 });
 
 // Initialize page on load
@@ -5497,9 +7275,9 @@ async function confirmDeleteFolder() {
     btn.disabled = true;
     btn.innerHTML = `<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Deleting...`;
     try {
-        const res  = await fetch('/projects/{{ $project->id }}/folder', {
-            method:  'DELETE',
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+        const res  = await fetch('/projects/{{ $project->id }}/folder/delete', {
+            method:  'POST',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
         });
         const data = await res.json();
         if (data.success) {
@@ -5547,7 +7325,7 @@ async function generateProjectFolder() {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept':       'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
             },
             body: JSON.stringify({ folder_name: document.getElementById('odrFolderName').value.trim() }),
         });
@@ -5555,7 +7333,12 @@ async function generateProjectFolder() {
 
         if (data.success) {
             _showOdrSuccess(data.folder_url);
-            showNotification('OneDrive folder created successfully!', 'success');
+            _applyOdrLinkStatus(data);
+            if (data.link_warning) {
+                showNotification(data.link_warning, 'error');
+            } else {
+                showNotification('OneDrive folder created successfully!', 'success');
+            }
         } else {
             showNotification(data.message || 'Failed to create folder.', 'error');
             label.textContent = 'Generate Folder';
@@ -5567,6 +7350,64 @@ async function generateProjectFolder() {
         btn.disabled = false;
         icon.classList.remove('hidden');
         spinner.classList.add('hidden');
+    }
+}
+
+// Perbarui badge + banner status link setelah folder dibuat / link di-refresh.
+function _applyOdrLinkStatus(data) {
+    const badge   = document.getElementById('odrLinkBadge');
+    const text    = document.getElementById('odrLinkBadgeText');
+    const banner  = document.getElementById('odrLinkWarningBanner');
+    const warnTxt = document.getElementById('odrLinkWarningText');
+
+    if (badge && text) {
+        text.textContent = 'Folder link: ' + (data.link_scope_label || 'Not verified');
+        badge.className  = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium '
+            + (data.link_warning ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800');
+    }
+
+    if (banner && warnTxt) {
+        warnTxt.textContent = data.link_warning || '';
+        banner.classList.toggle('hidden', !data.link_warning);
+    }
+}
+
+// Buat ulang share link folder (folder-nya sendiri tidak disentuh).
+async function refreshProjectFolderLink() {
+    const btn = document.getElementById('odrRefreshLinkBtn');
+    if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); }
+
+    try {
+        const res  = await fetch('/projects/{{ $project->id }}/generate-folder', {
+            method:  'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            },
+            body: JSON.stringify({}),
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            showNotification(data.message || 'Failed to refresh the folder link.', 'error');
+            return;
+        }
+
+        _applyOdrLinkStatus(data);
+
+        const headerBtn = document.getElementById('headerFolderBtn');
+        if (headerBtn && headerBtn.tagName === 'A') headerBtn.href = data.folder_url;
+
+        if (data.link_warning) {
+            showNotification(data.link_warning, 'error');
+        } else {
+            showNotification('Folder link refreshed — anyone with the link can open it.', 'success');
+        }
+    } catch (err) {
+        showNotification('Error: ' + err.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
     }
 }
 
@@ -5682,6 +7523,26 @@ document.addEventListener('DOMContentLoaded', function () {
         window._fpIssueEstClosed  = HolidayCalendar.initPicker(document.getElementById('issue_estimated_closed'));
         window._fpIssueClosed     = HolidayCalendar.initPicker(document.getElementById('issue_closed_date'));
 
+        // WRICEF modal — Request/Approved + Start & End tiap tahap.
+        // Disimpan dalam satu map supaya reset/isi ulang bisa di-loop.
+        window._fpWricef = {};
+        [
+            'request_date', 'approved_date',
+            'fsd_start', 'fsd_end',
+            'dev_start', 'dev_end',
+            'test_start', 'test_end',
+        ].forEach(function (key) {
+            const el = document.getElementById('wricef_' + key);
+            if (el) window._fpWricef[key] = HolidayCalendar.initPicker(el);
+        });
+
+        // Stakeholder Register modal — Tanggal Identifikasi / Update Terakhir.
+        window._fpStakeholder = {};
+        ['identified_date', 'last_updated_date'].forEach(function (key) {
+            const el = document.getElementById('stakeholder_' + key);
+            if (el) window._fpStakeholder[key] = HolidayCalendar.initPicker(el);
+        });
+
         // Location Information — Valid From / Valid To
         window._fpLocFrom = HolidayCalendar.initPicker(document.getElementById('loc_valid_from'));
         window._fpLocTo   = HolidayCalendar.initPicker(document.getElementById('loc_valid_to'));
@@ -5721,7 +7582,7 @@ window.RiskRegister = (function () {
     };
 
     function getCsrf() {
-        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     }
 
     let _risks  = [];
@@ -6079,7 +7940,7 @@ window.RiskRegister = (function () {
         btn.innerHTML = 'Deleting…';
 
         try {
-            const res = await axios.delete(`${BASE_URL}/${id}`, {
+            const res = await axios.post(`${BASE_URL}/${id}/delete`, {}, {
                 headers: { 'X-CSRF-TOKEN': getCsrf() },
             });
             closeDeleteModal();
@@ -6159,7 +8020,7 @@ window.IssueLog = (function () {
     const RISK_URL   = `/projects/${PROJECT_ID}/risks`;
 
     function getCsrf() {
-        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     }
 
     let _issues = [];
@@ -6467,7 +8328,7 @@ window.IssueLog = (function () {
         btn.innerHTML = 'Deleting…';
 
         try {
-            const res = await axios.delete(`${BASE_URL}/${id}`, {
+            const res = await axios.post(`${BASE_URL}/${id}/delete`, {}, {
                 headers: { 'X-CSRF-TOKEN': getCsrf() },
             });
             closeDeleteModal();
@@ -6489,6 +8350,829 @@ window.IssueLog = (function () {
 </script>
 
 {{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- WRICEF LOG — JAVASCRIPT                                        --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-project.wricef.view'))
+<script>
+window.WricefLog = (function () {
+    'use strict';
+
+    const PROJECT_ID = {{ $project->id }};
+    const BASE_URL   = `/projects/${PROJECT_ID}/wricefs`;
+
+    // Huruf Obj_Id per kategori — harus sama dengan
+    // App\Models\DeliveryProjectWricef::CATEGORY_LETTERS (server tetap yang
+    // menentukan nilai final; ini cuma pratinjau prefix di modal).
+    const CATEGORY_LETTERS = @json(\App\Models\DeliveryProjectWricef::CATEGORY_LETTERS);
+
+    // Field teks/select sederhana: id elemen = 'wricef_' + key, key = nama kolom.
+    const TEXT_FIELDS = [
+        'sap_module', 'category', 'obj_name', 'capability', 'tcode',
+        'priority', 'requestor', 'effort_mandays', 'approved_by', 'status',
+        'fsd_pic', 'fsd_status', 'fsd_remarks',
+        'dev_pic', 'dev_status', 'dev_remarks',
+        'test_pic', 'test_status', 'test_remarks',
+    ];
+
+    const DATE_FIELDS = [
+        'request_date', 'approved_date',
+        'fsd_start', 'fsd_end',
+        'dev_start', 'dev_end',
+        'test_start', 'test_end',
+    ];
+
+    let _rows    = [];
+    let _company = '';
+
+    function getCsrf() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }
+
+    function esc(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function el(key) {
+        return document.getElementById('wricef_' + key);
+    }
+
+    // Set nilai <select>, menyisipkan opsi bila nilainya tidak ada lagi di
+    // daftar (mis. PIC yang sudah dikeluarkan dari Project Team).
+    function setSelectValue(sel, val) {
+        if (!sel) return;
+        const v = val ?? '';
+        if (v && !Array.from(sel.options).some(o => o.value === v)) {
+            sel.add(new Option(v, v));
+        }
+        sel.value = v;
+    }
+
+    // ── Badges ────────────────────────────────────────────────────
+    function statusBadge(status) {
+        const map = {
+            'Open':        'bg-yellow-100 text-yellow-800',
+            'In Progress': 'bg-blue-100 text-blue-800',
+            'Closed':      'bg-green-100 text-green-800',
+        };
+        if (!status) return '—';
+        const cls = map[status] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(status)}</span>`;
+    }
+
+    // Warna dipakai bersama tiga tahap; label "Done" selalu hijau, "Revisi"
+    // selalu merah, sisanya netral/biru supaya mudah dipindai per kolom.
+    function stageBadge(status) {
+        const map = {
+            'Done':             'bg-green-100 text-green-800',
+            'Revisi':           'bg-red-100 text-red-700',
+            'Review':           'bg-purple-100 text-purple-700',
+            'Testing':          'bg-blue-100 text-blue-800',
+            'Develop':          'bg-amber-100 text-amber-800',
+            'Develop Scenario': 'bg-amber-100 text-amber-800',
+        };
+        if (!status) return '<span class="text-gray-300">—</span>';
+        const cls = map[status] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${cls}">${esc(status)}</span>`;
+    }
+
+    function priorityBadge(priority) {
+        const map = {
+            'High':   'bg-red-100 text-red-700',
+            'Medium': 'bg-orange-100 text-orange-700',
+            'Low':    'bg-green-100 text-green-700',
+        };
+        if (!priority) return '—';
+        const cls = map[priority] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-bold ${cls}">${esc(priority)}</span>`;
+    }
+
+    function fmtMandays(v) {
+        if (v === null || v === undefined || v === '') return '—';
+        const num = Number(v);
+        if (isNaN(num)) return '—';
+        return Number.isInteger(num) ? String(num) : num.toFixed(2).replace('.', ',');
+    }
+
+    // Capability boleh multi-baris (lihat contoh CSV) — pertahankan barisnya.
+    function multiline(text) {
+        if (!text) return '—';
+        return esc(text).replace(/\r?\n/g, '<br>');
+    }
+
+    // ── Load & render ─────────────────────────────────────────────
+    async function load() {
+        try {
+            const res = await axios.get(BASE_URL);
+            _rows    = res.data.wricefs ?? [];
+            _company = res.data.company ?? '';
+            renderTable();
+        } catch (e) {
+            const tbody = document.getElementById('wricefTableBody');
+            if (tbody) tbody.innerHTML =
+                `<tr><td colspan="30" class="text-center py-8 text-red-500 text-sm">Failed to load data. Please refresh.</td></tr>`;
+        }
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('wricefTableBody');
+        if (!tbody) return;
+
+        if (!_rows.length) {
+            tbody.innerHTML = `<tr><td colspan="30" class="text-center py-10 text-gray-400 text-sm">No WRICEF objects yet. Click "Add WRICEF" to get started.</td></tr>`;
+            renderTotals();
+            return;
+        }
+        tbody.innerHTML = _rows.map(w => rowHtml(w)).join('');
+        renderTotals();
+    }
+
+    // Total Mandays = jumlah effort_mandays semua baris; baris tanpa nilai
+    // dihitung 0 (bukan membatalkan total).
+    function renderTotals() {
+        const cell = document.getElementById('wricefTotalMandays');
+        if (!cell) return;
+
+        const total = _rows.reduce(function (sum, w) {
+            const num = Number(w.effort_mandays);
+            return sum + (isNaN(num) ? 0 : num);
+        }, 0);
+
+        cell.textContent = Number.isInteger(total)
+            ? String(total)
+            : total.toFixed(2).replace('.', ',');
+    }
+
+    function rowHtml(w) {
+        return `<tr class="hover:bg-gray-50 align-top">
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.company) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-center font-semibold text-gray-700 whitespace-nowrap">${esc(w.sap_module)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.category)}</td>
+            <td class="px-3 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">${esc(w.obj_id)}</td>
+            <td class="px-3 py-3 text-xs text-gray-800 max-w-[240px]"><div class="line-clamp-3">${esc(w.obj_name)}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[240px]"><div class="line-clamp-4">${multiline(w.capability)}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.tcode) || '—'}</td>
+            <td class="px-3 py-3 text-center">${priorityBadge(w.priority)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.requestor) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.request_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-right text-gray-700 whitespace-nowrap">${fmtMandays(w.effort_mandays)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.approved_by) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.approved_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-center border-r border-gray-200">${statusBadge(w.status)}</td>
+
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.fsd_pic) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.fsd_start_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.fsd_end_label) || '—'}</td>
+            <td class="px-3 py-3 text-center">${stageBadge(w.fsd_status)}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[180px] border-r border-gray-200"><div class="line-clamp-3">${esc(w.fsd_remarks) || '—'}</div></td>
+
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.dev_pic) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.dev_start_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.dev_end_label) || '—'}</td>
+            <td class="px-3 py-3 text-center">${stageBadge(w.dev_status)}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[180px] border-r border-gray-200"><div class="line-clamp-3">${esc(w.dev_remarks) || '—'}</div></td>
+
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(w.test_pic) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.test_start_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(w.test_end_label) || '—'}</td>
+            <td class="px-3 py-3 text-center">${stageBadge(w.test_status)}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[180px] border-r border-gray-200"><div class="line-clamp-3">${esc(w.test_remarks) || '—'}</div></td>
+
+            <td class="px-3 py-3 text-center whitespace-nowrap">
+                <button onclick="WricefLog.openEdit(${w.id})"
+                        class="inline-flex items-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition" title="Edit">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                </button>
+                <button onclick="WricefLog.openDeleteModal(${w.id}, '${esc(w.obj_id)}')"
+                        class="inline-flex items-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition" title="Delete">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </button>
+            </td>
+        </tr>`;
+    }
+
+    // ── Obj ID preview ────────────────────────────────────────────
+    // Nilai final tetap dari server. Saat menambah, nomor urutnya belum
+    // diketahui sehingga hanya prefix yang ditampilkan; saat mengedit, Obj ID
+    // lama dipertahankan selama modul & kategorinya tidak berubah.
+    function onObjIdSourceChange() {
+        const preview = document.getElementById('wricef_obj_id_preview');
+        if (!preview) return;
+
+        const mod = el('sap_module')?.value || '';
+        const cat = el('category')?.value || '';
+        const id  = document.getElementById('wricefModalId').value;
+
+        if (id) {
+            const current = _rows.find(x => String(x.id) === String(id));
+            if (current && current.sap_module === mod && current.category === cat) {
+                preview.value = current.obj_id;
+                return;
+            }
+        }
+
+        if (!mod || !cat) {
+            preview.value = '';
+            return;
+        }
+        preview.value = mod + (CATEGORY_LETTERS[cat] ?? cat.charAt(0).toUpperCase()) + '###';
+    }
+
+    // ── Modal helpers ─────────────────────────────────────────────
+    function resetForm() {
+        TEXT_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (node) node.value = '';
+        });
+        // Nilai default yang tidak boleh kosong.
+        if (el('priority')) el('priority').value = 'Medium';
+        if (el('status'))   el('status').value   = 'Open';
+
+        DATE_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (node) node.value = '';
+            if (window._fpWricef && window._fpWricef[key]) window._fpWricef[key].clear();
+        });
+
+        const preview = document.getElementById('wricef_obj_id_preview');
+        if (preview) preview.value = '';
+    }
+
+    function openAdd() {
+        document.getElementById('wricefModalMode').value = 'create';
+        document.getElementById('wricefModalId').value   = '';
+        resetForm();
+        document.getElementById('wricefModalTitle').textContent = 'Add WRICEF';
+        onObjIdSourceChange();
+        document.getElementById('wricefModal').classList.remove('hidden');
+    }
+
+    function openEdit(id) {
+        const w = _rows.find(x => x.id === id);
+        if (!w) return;
+
+        document.getElementById('wricefModalMode').value = 'edit';
+        document.getElementById('wricefModalId').value   = id;
+        resetForm();
+        document.getElementById('wricefModalTitle').textContent = `Edit WRICEF — ${w.obj_id}`;
+
+        TEXT_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (!node) return;
+            const val = w[key] ?? '';
+            if (node.tagName === 'SELECT') {
+                setSelectValue(node, val === null ? '' : String(val));
+            } else {
+                node.value = val === null ? '' : val;
+            }
+        });
+
+        DATE_FIELDS.forEach(function (key) {
+            if (w[key] && window._fpWricef && window._fpWricef[key]) {
+                window._fpWricef[key].setDate(w[key], false, 'Y-m-d');
+            }
+        });
+
+        onObjIdSourceChange();
+        document.getElementById('wricefModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('wricefModal').classList.add('hidden');
+    }
+
+    // ── Save (create / update) ────────────────────────────────────
+    async function save() {
+        const mode = document.getElementById('wricefModalMode').value;
+
+        const val = key => (el(key)?.value ?? '').trim();
+
+        const sapModule = val('sap_module');
+        const category  = val('category');
+        const objName   = val('obj_name');
+
+        if (!sapModule) { showNotification('SAP Module is required.', 'error'); return; }
+        if (!category)  { showNotification('Category is required.', 'error'); return; }
+        if (!objName)   { showNotification('Obj Name is required.', 'error'); return; }
+
+        const effort = val('effort_mandays');
+
+        const payload = {
+            sap_module:     sapModule,
+            category:       category,
+            obj_name:       objName,
+            capability:     val('capability') || null,
+            tcode:          val('tcode') || null,
+            priority:       val('priority') || 'Medium',
+            requestor:      val('requestor') || null,
+            request_date:   val('request_date') || null,
+            effort_mandays: effort === '' ? null : Number(effort),
+            approved_by:    val('approved_by') || null,
+            approved_date:  val('approved_date') || null,
+            status:         val('status') || 'Open',
+
+            fsd_pic:     val('fsd_pic') || null,
+            fsd_start:   val('fsd_start') || null,
+            fsd_end:     val('fsd_end') || null,
+            fsd_status:  val('fsd_status') || null,
+            fsd_remarks: val('fsd_remarks') || null,
+
+            dev_pic:     val('dev_pic') || null,
+            dev_start:   val('dev_start') || null,
+            dev_end:     val('dev_end') || null,
+            dev_status:  val('dev_status') || null,
+            dev_remarks: val('dev_remarks') || null,
+
+            test_pic:     val('test_pic') || null,
+            test_start:   val('test_start') || null,
+            test_end:     val('test_end') || null,
+            test_status:  val('test_status') || null,
+            test_remarks: val('test_remarks') || null,
+
+            _token: getCsrf(),
+        };
+
+        const btn = document.getElementById('wricefModalSaveBtn');
+        if (!btn) return;
+        const orig = btn.innerHTML;
+        btn.disabled  = true;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>';
+
+        try {
+            let res;
+            if (mode === 'create') {
+                res = await axios.post(BASE_URL, payload);
+            } else {
+                const id = document.getElementById('wricefModalId').value;
+                res = await axios.put(`${BASE_URL}/${id}`, payload);
+            }
+            showNotification(res.data.message ?? 'Saved.', 'success');
+            closeModal();
+            await load();
+        } catch (e) {
+            let msg = 'Something went wrong. Please try again.';
+            if (e.response?.data?.errors) {
+                const first = Object.values(e.response.data.errors)[0];
+                msg = Array.isArray(first) ? first[0] : String(first);
+            } else if (e.response?.data?.message) {
+                msg = e.response.data.message;
+            }
+            showNotification(msg, 'error');
+        } finally {
+            btn.disabled  = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Delete ────────────────────────────────────────────────────
+    function openDeleteModal(id, label) {
+        document.getElementById('wricefDeleteId').value        = id;
+        document.getElementById('wricefDeleteLabel').textContent = label ?? '';
+        document.getElementById('wricefDeleteModal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('wricefDeleteModal').classList.add('hidden');
+    }
+
+    async function confirmDelete() {
+        const id = document.getElementById('wricefDeleteId').value;
+        if (!id) return;
+
+        const btn  = document.getElementById('wricefDeleteConfirmBtn');
+        const orig = btn.innerHTML;
+        btn.disabled  = true;
+        btn.innerHTML = 'Deleting…';
+
+        try {
+            // Lewat POST: verb DELETE diblokir edge/WAF di production.
+            const res = await axios.post(`${BASE_URL}/${id}/delete`, {}, {
+                headers: { 'X-CSRF-TOKEN': getCsrf() },
+            });
+            closeDeleteModal();
+            showNotification(res.data.message ?? 'Deleted.', 'success');
+            await load();
+        } catch (e) {
+            showNotification(e.response?.data?.message ?? 'Failed to delete.', 'error');
+        } finally {
+            btn.disabled  = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Auto-load on page ready ───────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () { load(); });
+
+    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, onObjIdSourceChange };
+})();
+</script>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- STAKEHOLDER REGISTER — JAVASCRIPT                              --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+@if($can('delivery-project.stakeholder.view'))
+<script>
+window.StakeholderRegister = (function () {
+    'use strict';
+
+    const PROJECT_ID = {{ $project->id }};
+    const BASE_URL   = `/projects/${PROJECT_ID}/stakeholders`;
+
+    // Label kuadran — harus sama dengan
+    // App\Models\DeliveryProjectStakeholder::QUADRANTS. Server tetap yang
+    // menentukan nilai final; ini hanya pratinjau di modal & grid.
+    const QUADRANTS = {
+        'high|high': 'Kelola Intensif (Manage Closely)',
+        'high|low' : 'Jaga Kepuasan (Keep Satisfied)',
+        'low|high' : 'Selalu Diinformasikan (Keep Informed)',
+        'low|low'  : 'Pantau Seperlunya (Monitor)',
+    };
+
+    // id elemen = 'stakeholder_' + key, key = nama kolom.
+    const TEXT_FIELDS = [
+        'name', 'role_title', 'organization', 'category', 'classification',
+        'email', 'phone', 'power', 'interest',
+        'current_attitude', 'expected_attitude',
+        'key_expectations', 'information_needs', 'engagement_strategy',
+        'communication_frequency', 'communication_method', 'pic_internal',
+        'stakeholder_risk', 'status', 'notes',
+    ];
+
+    const DATE_FIELDS = ['identified_date', 'last_updated_date'];
+
+    let _rows = [];
+
+    function getCsrf() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }
+
+    function esc(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function el(key) {
+        return document.getElementById('stakeholder_' + key);
+    }
+
+    function setSelectValue(sel, val) {
+        if (!sel) return;
+        const v = val ?? '';
+        if (v && !Array.from(sel.options).some(o => o.value === v)) {
+            sel.add(new Option(v, v));
+        }
+        sel.value = v;
+    }
+
+    function multiline(text) {
+        if (!text) return '<span class="text-gray-300">—</span>';
+        return esc(text).replace(/\r?\n/g, '<br>');
+    }
+
+    // "Tinggi" → high; "Sedang"/"Rendah" → low (matriks 2x2 pada Panduan).
+    function side(level) {
+        if (!level) return null;
+        return String(level).trim().toLowerCase() === 'tinggi' ? 'high' : 'low';
+    }
+
+    function quadrantOf(power, interest) {
+        const p = side(power), i = side(interest);
+        if (!p || !i) return null;
+        return QUADRANTS[`${p}|${i}`] ?? null;
+    }
+
+    // ── Badges ────────────────────────────────────────────────────
+    function levelBadge(level) {
+        const map = {
+            'Tinggi': 'bg-red-100 text-red-700',
+            'Sedang': 'bg-amber-100 text-amber-800',
+            'Rendah': 'bg-gray-100 text-gray-600',
+        };
+        if (!level) return '<span class="text-gray-300">—</span>';
+        const cls = map[level] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(level)}</span>`;
+    }
+
+    function categoryBadge(cat) {
+        if (!cat) return '—';
+        const cls = cat === 'Internal' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(cat)}</span>`;
+    }
+
+    function attitudeBadge(att) {
+        const map = {
+            'Unaware':    'bg-gray-100 text-gray-600',
+            'Resistant':  'bg-red-100 text-red-700',
+            'Neutral':    'bg-yellow-100 text-yellow-800',
+            'Supportive': 'bg-green-100 text-green-800',
+            'Leading':    'bg-emerald-100 text-emerald-800',
+        };
+        if (!att) return '<span class="text-gray-300">—</span>';
+        const cls = map[att] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${cls}">${esc(att)}</span>`;
+    }
+
+    function statusBadge(status) {
+        const map = {
+            'Aktif':       'bg-green-100 text-green-800',
+            'Tidak Aktif': 'bg-gray-100 text-gray-600',
+            'Selesai':     'bg-blue-100 text-blue-800',
+        };
+        if (!status) return '—';
+        const cls = map[status] ?? 'bg-gray-100 text-gray-700';
+        return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(status)}</span>`;
+    }
+
+    // ── Load & render ────────────────────────────────────────────
+    async function load() {
+        try {
+            const res = await axios.get(BASE_URL);
+            _rows = res.data.stakeholders ?? [];
+            renderTable();
+        } catch (e) {
+            const tbody = document.getElementById('stakeholderTableBody');
+            if (tbody) tbody.innerHTML =
+                `<tr><td colspan="25" class="text-center py-8 text-red-500 text-sm">Failed to load data. Please refresh.</td></tr>`;
+        }
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('stakeholderTableBody');
+        if (!tbody) return;
+
+        if (!_rows.length) {
+            tbody.innerHTML = `<tr><td colspan="25" class="text-center py-10 text-gray-400 text-sm">No stakeholders yet. Click "Add Stakeholder" to get started.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = _rows.map(s => rowHtml(s)).join('');
+    }
+
+    function rowHtml(s) {
+        const quadrant = s.quadrant ?? quadrantOf(s.power, s.interest);
+        return `<tr class="hover:bg-gray-50 align-top">
+            <td class="px-3 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">${esc(s.stakeholder_id)}</td>
+            <td class="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">${esc(s.name)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(s.role_title) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(s.organization) || '—'}</td>
+            <td class="px-3 py-3 text-center">${categoryBadge(s.category)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(s.classification) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">${esc(s.email) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">${esc(s.phone) || '—'}</td>
+            <td class="px-3 py-3 text-center">${levelBadge(s.power)}</td>
+            <td class="px-3 py-3 text-center">${levelBadge(s.interest)}</td>
+            <td class="px-3 py-3 text-xs text-gray-700">${esc(quadrant) || '<span class="text-gray-300">—</span>'}</td>
+            <td class="px-3 py-3 text-center">${attitudeBadge(s.current_attitude)}</td>
+            <td class="px-3 py-3 text-center">${attitudeBadge(s.expected_attitude)}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[240px]"><div class="line-clamp-3">${multiline(s.key_expectations)}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[240px]"><div class="line-clamp-3">${multiline(s.information_needs)}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[240px]"><div class="line-clamp-3">${multiline(s.engagement_strategy)}</div></td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(s.communication_frequency) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-700">${esc(s.communication_method) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">${esc(s.pic_internal) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[220px]"><div class="line-clamp-3">${multiline(s.stakeholder_risk)}</div></td>
+            <td class="px-3 py-3 text-center">${statusBadge(s.status)}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(s.identified_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(s.last_updated_date_label) || '—'}</td>
+            <td class="px-3 py-3 text-xs text-gray-600 max-w-[200px]"><div class="line-clamp-3">${multiline(s.notes)}</div></td>
+            <td class="px-3 py-3 text-center whitespace-nowrap">
+                <button onclick="StakeholderRegister.openEdit(${s.id})"
+                        class="inline-flex items-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition" title="Edit">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                </button>
+                <button onclick="StakeholderRegister.openDeleteModal(${s.id}, '${esc(s.stakeholder_id)}')"
+                        class="inline-flex items-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition" title="Delete">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </button>
+            </td>
+        </tr>`;
+    }
+
+    // ── Kuadran preview + highlight grid referensi di modal ──────
+    function refreshQuadrant() {
+        const p   = el('power')?.value;
+        const i   = el('interest')?.value;
+        const key = (side(p) && side(i)) ? `${side(p)}|${side(i)}` : null;
+
+        const preview = document.getElementById('stakeholder_quadrant_preview');
+        if (preview) preview.value = key ? (QUADRANTS[key] ?? '') : '';
+
+        const grid = document.getElementById('stakeholderGridRef');
+        if (grid) {
+            grid.querySelectorAll('[data-quadrant]').forEach(function (box) {
+                const on = box.getAttribute('data-quadrant') === key;
+                box.classList.toggle('border-red-400', on);
+                box.classList.toggle('bg-red-50', on);
+                box.classList.toggle('border-gray-200', !on);
+            });
+        }
+    }
+
+    // ── Modal helpers ───────────────────────────────────────────
+    function resetForm() {
+        TEXT_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (node) node.value = '';
+        });
+        if (el('category')) el('category').value = 'Internal';
+        if (el('status'))   el('status').value   = 'Aktif';
+
+        DATE_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (node) node.value = '';
+            if (window._fpStakeholder && window._fpStakeholder[key]) window._fpStakeholder[key].clear();
+        });
+
+        const sid = document.getElementById('stakeholder_sid_preview');
+        if (sid) sid.value = '';
+        refreshQuadrant();
+    }
+
+    function openAdd() {
+        document.getElementById('stakeholderModalMode').value = 'create';
+        document.getElementById('stakeholderModalId').value   = '';
+        resetForm();
+        document.getElementById('stakeholderModalTitle').textContent = 'Add Stakeholder';
+        const sid = document.getElementById('stakeholder_sid_preview');
+        if (sid) sid.value = 'SH-###';
+        document.getElementById('stakeholderModal').classList.remove('hidden');
+    }
+
+    function openEdit(id) {
+        // id dari onclick bisa Number, id di _rows bisa Number — samakan sbagai string.
+        const s = _rows.find(x => String(x.id) === String(id));
+        if (!s) return;
+
+        document.getElementById('stakeholderModalMode').value = 'edit';
+        document.getElementById('stakeholderModalId').value   = s.id;
+        resetForm();
+        document.getElementById('stakeholderModalTitle').textContent = `Edit Stakeholder — ${s.stakeholder_id}`;
+
+        const sid = document.getElementById('stakeholder_sid_preview');
+        if (sid) sid.value = s.stakeholder_id;
+
+        // Semua field diisi ulang dari data baris — teks, textarea, DAN setiap
+        // <select> (Kategori, Tipe/Klasifikasi, Power, Interest, Sikap, Frekuensi,
+        // PIC Internal, Status). Nilai yang tidak lagi ada di daftar opsi
+        // disisipkan oleh setSelectValue() supaya tetap tampil.
+        TEXT_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (!node) return;
+            const raw = s[key];
+            const val = (raw === null || raw === undefined) ? '' : String(raw);
+            if (node.tagName === 'SELECT') {
+                setSelectValue(node, val);
+            } else {
+                node.value = val;
+            }
+        });
+
+        DATE_FIELDS.forEach(function (key) {
+            const node = el(key);
+            if (!node) return;
+            if (s[key] && window._fpStakeholder && window._fpStakeholder[key]) {
+                window._fpStakeholder[key].setDate(s[key], false, 'Y-m-d');
+            } else {
+                // Flatpickr belum siap — isi nilai mentah supaya tetap tersimpan.
+                node.value = s[key] || '';
+            }
+        });
+
+        refreshQuadrant();
+        document.getElementById('stakeholderModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('stakeholderModal').classList.add('hidden');
+    }
+
+    // ── Save (create / update) ──────────────────────────────────
+    async function save() {
+        const mode = document.getElementById('stakeholderModalMode').value;
+        const val  = key => (el(key)?.value ?? '').trim();
+
+        const name = val('name');
+        if (!name) { showNotification('Nama Stakeholder is required.', 'error'); return; }
+
+        const payload = {
+            name:                    name,
+            role_title:              val('role_title') || null,
+            organization:            val('organization') || null,
+            category:                val('category') || 'Internal',
+            classification:          val('classification') || null,
+            email:                   val('email') || null,
+            phone:                   val('phone') || null,
+            power:                   val('power') || null,
+            interest:                val('interest') || null,
+            current_attitude:        val('current_attitude') || null,
+            expected_attitude:       val('expected_attitude') || null,
+            key_expectations:        val('key_expectations') || null,
+            information_needs:        val('information_needs') || null,
+            engagement_strategy:     val('engagement_strategy') || null,
+            communication_frequency: val('communication_frequency') || null,
+            communication_method:    val('communication_method') || null,
+            pic_internal:            val('pic_internal') || null,
+            stakeholder_risk:        val('stakeholder_risk') || null,
+            status:                  val('status') || 'Aktif',
+            identified_date:         val('identified_date') || null,
+            last_updated_date:       val('last_updated_date') || null,
+            notes:                   val('notes') || null,
+            _token:                  getCsrf(),
+        };
+
+        const btn = document.getElementById('stakeholderModalSaveBtn');
+        if (!btn) return;
+        const orig = btn.innerHTML;
+        btn.disabled  = true;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>';
+
+        try {
+            let res;
+            if (mode === 'create') {
+                res = await axios.post(BASE_URL, payload);
+            } else {
+                const id = document.getElementById('stakeholderModalId').value;
+                res = await axios.put(`${BASE_URL}/${id}`, payload);
+            }
+            showNotification(res.data.message ?? 'Saved.', 'success');
+            closeModal();
+            await load();
+        } catch (e) {
+            let msg = 'Something went wrong. Please try again.';
+            if (e.response?.data?.errors) {
+                const first = Object.values(e.response.data.errors)[0];
+                msg = Array.isArray(first) ? first[0] : String(first);
+            } else if (e.response?.data?.message) {
+                msg = e.response.data.message;
+            }
+            showNotification(msg, 'error');
+        } finally {
+            btn.disabled  = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Delete ──────────────────────────────────────────────────
+    function openDeleteModal(id, label) {
+        document.getElementById('stakeholderDeleteId').value          = id;
+        document.getElementById('stakeholderDeleteLabel').textContent = label ?? '';
+        document.getElementById('stakeholderDeleteModal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('stakeholderDeleteModal').classList.add('hidden');
+    }
+
+    async function confirmDelete() {
+        const id = document.getElementById('stakeholderDeleteId').value;
+        if (!id) return;
+
+        const btn  = document.getElementById('stakeholderDeleteConfirmBtn');
+        const orig = btn.innerHTML;
+        btn.disabled  = true;
+        btn.innerHTML = 'Deleting…';
+
+        try {
+            // Lewat POST: verb DELETE diblokir edge/WAF di production.
+            const res = await axios.post(`${BASE_URL}/${id}/delete`, {}, {
+                headers: { 'X-CSRF-TOKEN': getCsrf() },
+            });
+            closeDeleteModal();
+            showNotification(res.data.message ?? 'Deleted.', 'success');
+            await load();
+        } catch (e) {
+            showNotification(e.response?.data?.message ?? 'Failed to delete.', 'error');
+        } finally {
+            btn.disabled  = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Auto-load on page ready ─────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () { load(); });
+
+    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, refreshQuadrant };
+})();
+</script>
+@endif
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
 {{-- TERM OF PAYMENT (TOP) PLAN — JAVASCRIPT                        --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <script>
@@ -6503,7 +9187,7 @@ window.PaymentTermPlan = (function () {
     let _revenue = parseFloat('{{ $project->revenue ?? 0 }}') || 0;
 
     function getCsrf() {
-        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     }
 
     function esc(str) {
@@ -6636,6 +9320,15 @@ window.PaymentTermPlan = (function () {
         if (hint) hint.classList.toggle('hidden', !hasDate);
     }
 
+    // Toggle indikator "wajib" pada Paid Date sesuai nilai Status (Paid → wajib)
+    function togglePaidDateRequired() {
+        const isPaid = document.getElementById('pt_status').value === 'Paid';
+        const req  = document.getElementById('pt_paid_date_req');
+        const hint = document.getElementById('pt_paid_date_hint');
+        if (req)  req.classList.toggle('hidden', !isPaid);
+        if (hint) hint.classList.toggle('hidden', !isPaid);
+    }
+
     // ── Modal helpers ──────────────────────────────────────────────
     function resetForm() {
         document.getElementById('pt_payment_term').value        = '';
@@ -6651,6 +9344,7 @@ window.PaymentTermPlan = (function () {
         if (window._fpPtSubmitInvoice) window._fpPtSubmitInvoice.clear();
         if (window._fpPtPaid)          window._fpPtPaid.clear();
         toggleInvoiceRequired();
+        togglePaidDateRequired();
     }
 
     function openAdd() {
@@ -6685,6 +9379,7 @@ window.PaymentTermPlan = (function () {
         else if (t.paid_date) document.getElementById('pt_paid_date').value = t.paid_date;
 
         toggleInvoiceRequired();
+        togglePaidDateRequired();
         recalcAmount();
         document.getElementById('paymentTermModal').classList.remove('hidden');
     }
@@ -6701,11 +9396,14 @@ window.PaymentTermPlan = (function () {
 
         const submitInvoiceDate = document.getElementById('pt_submit_invoice_date').value || null;
         const invoiceNumber     = document.getElementById('pt_invoice_number').value.trim();
+        const paidDate          = document.getElementById('pt_paid_date').value || null;
+        const status            = document.getElementById('pt_status').value;
 
         if (!term) { showNotification('Payment Term is required.', 'error'); return; }
         if (pct === '' || isNaN(parseFloat(pct))) { showNotification('Payment % is required.', 'error'); return; }
         if (parseFloat(pct) < 0 || parseFloat(pct) > 100) { showNotification('Payment % must be between 0 and 100.', 'error'); return; }
         if (submitInvoiceDate && !invoiceNumber) { showNotification('Invoice Number is required when Submit Invoice Date is filled.', 'error'); return; }
+        if (status === 'Paid' && !paidDate) { showNotification('Paid Date is required when Status is Paid.', 'error'); return; }
 
         // Guard: total payment terms tidak boleh melebihi 100% / revenue
         const editId    = mode === 'edit' ? parseInt(document.getElementById('paymentTermModalId').value, 10) : null;
@@ -6731,8 +9429,8 @@ window.PaymentTermPlan = (function () {
             estimated_date:      document.getElementById('pt_estimated_date').value || null,
             submit_invoice_date: submitInvoiceDate,
             invoice_number:      invoiceNumber || null,
-            paid_date:           document.getElementById('pt_paid_date').value || null,
-            status:              document.getElementById('pt_status').value,
+            paid_date:           paidDate,
+            status:              status,
             _token:              getCsrf(),
         };
 
@@ -6783,7 +9481,7 @@ window.PaymentTermPlan = (function () {
         btn.innerHTML = 'Deleting…';
 
         try {
-            const res = await axios.delete(`${BASE_URL}/${id}`, {
+            const res = await axios.post(`${BASE_URL}/${id}/delete`, {}, {
                 headers: { 'X-CSRF-TOKEN': getCsrf() },
             });
             closeDeleteModal();
@@ -6799,7 +9497,10 @@ window.PaymentTermPlan = (function () {
 
     document.addEventListener('DOMContentLoaded', function () { load(); });
 
-    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, recalcAmount, toggleInvoiceRequired, reload: load };
+    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, recalcAmount, toggleInvoiceRequired, togglePaidDateRequired, reload: load };
 })();
 </script>
 @endsection
+
+@include('delivery.partials.section-permissions')
+@include('delivery.partials.project-closed-lock', ['project' => $project])

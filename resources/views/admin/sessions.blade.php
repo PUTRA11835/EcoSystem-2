@@ -94,7 +94,7 @@
 </div>
 
 <script>
-const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 let sessions = [];
 let selectedSessionId = null;
 
@@ -136,6 +136,8 @@ function renderTable(data) {
         const agent = parseAgent(s.user_agent || '');
         const badge = s.is_current
             ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">You</span>'
+            : s.is_protected
+            ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Protected</span>'
             : '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Active</span>';
 
         const row = document.createElement('tr');
@@ -150,7 +152,7 @@ function renderTable(data) {
             <td class="px-4 py-3 text-gray-500 text-xs">${htmlEsc(s.last_activity_at)}</td>
             <td class="px-4 py-3">${badge}</td>
             <td class="px-4 py-3 text-right">
-                ${!s.is_current ? `<button onclick='openModal(${JSON.stringify(s)})' class="text-xs text-red-600 hover:text-red-800 font-medium">Force Logout</button>` : ''}
+                ${(!s.is_current && !s.is_protected) ? `<button onclick='openModal(${JSON.stringify(s)})' class="text-xs text-red-600 hover:text-red-800 font-medium">Force Logout</button>` : ''}
             </td>
         `;
         tbody.appendChild(row);
@@ -192,16 +194,16 @@ function closeModal() {
 
 document.getElementById('modalForceLogout').addEventListener('click', async () => {
     if (!selectedSessionId) return;
-    if (!confirm('Force logout this session?')) return;
+    if (!await showConfirm('Force logout this session?', 'Force Logout', 'danger')) return;
     await forceLogout(selectedSessionId);
     closeModal();
 });
 
 document.getElementById('btnLogoutAll').addEventListener('click', async () => {
-    if (!confirm('Force logout ALL other sessions? This cannot be undone.')) return;
+    if (!await showConfirm('Force logout ALL other sessions? This cannot be undone.', 'Force Logout All', 'danger')) return;
     try {
-        const res = await fetch('/api/admin/sessions', {
-            method: 'DELETE',
+        const res = await fetch('/api/admin/sessions/delete-all', {
+            method: 'POST',
             credentials: 'same-origin',
             headers: { 'X-CSRF-TOKEN': CSRF },
         });
@@ -219,8 +221,8 @@ document.getElementById('btnLogoutAll').addEventListener('click', async () => {
 
 async function forceLogout(sessionId) {
     try {
-        const res = await fetch(`/api/admin/sessions/${sessionId}`, {
-            method: 'DELETE',
+        const res = await fetch(`/api/admin/sessions/${sessionId}/delete`, {
+            method: 'POST',
             credentials: 'same-origin',
             headers: { 'X-CSRF-TOKEN': CSRF },
         });

@@ -16,7 +16,7 @@ class ActivityLogController extends Controller
     {
         $user = session('user');
 
-        if (($user['role']['id'] ?? 0) !== RoleId::ADMIN->value) {
+        if (($user['role']['id'] ?? 0) !== RoleId::EC_ADMINISTRATOR->value) {
             abort(403, 'Access denied.');
         }
 
@@ -33,11 +33,11 @@ class ActivityLogController extends Controller
     {
         $user = session('user');
 
-        if (($user['role']['id'] ?? 0) !== RoleId::ADMIN->value) {
+        if (($user['role']['id'] ?? 0) !== RoleId::EC_ADMINISTRATOR->value) {
             return response()->json(['success' => false, 'message' => 'Access denied.'], 403);
         }
 
-        $perPage  = max(1, min((int) $request->input('per_page', 25), 100));
+        $perPage  = max(1, min((int) $request->input('per_page', 200), 500));
         $search   = trim($request->input('search', ''));
         $status   = $request->input('status', '');
         $userType = $request->input('user_type', '');

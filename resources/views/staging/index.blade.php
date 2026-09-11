@@ -1,98 +1,125 @@
-@extends('dashboard')
+﻿@extends('dashboard')
 @section('title', 'Incoming Ticket Validation')
 @section('page-title', 'Incoming Ticket Validation')
 @section('page-subtitle', 'Tickets submitted by customers awaiting approval')
 
 @section('content')
-{{-- ===== STATS CARDS ===== --}}
-<div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-    <div class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-all duration-200">
-        <p class="text-xs font-medium text-gray-500 mb-1">Pending Validation</p>
-        <p class="text-2xl font-bold text-gray-900" id="statUnvalidated">—</p>
-    </div>
-    <div class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-all duration-200">
-        <p class="text-xs font-medium text-gray-500 mb-1">Approved</p>
-        <p class="text-2xl font-bold text-gray-900" id="statApproved">—</p>
-    </div>
-    <div class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-all duration-200">
-        <p class="text-xs font-medium text-gray-500 mb-1">Rejected</p>
-        <p class="text-2xl font-bold text-gray-900" id="statRejected">—</p>
-    </div>
-</div>
+<script>
+const canApproveStaging = {{ $can('staging.approve') ? 'true' : 'false' }};
+const canRejectStaging  = {{ $can('staging.reject')  ? 'true' : 'false' }};
+</script>
 
-{{-- ===== TOOLBAR ===== --}}
-<div class="bg-white rounded-xl border border-gray-200 p-4 mb-6 shadow-sm">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div class="flex items-center gap-3">
-            <h3 class="text-sm font-semibold text-gray-700">Incoming Tickets</h3>
-            <span id="fetchEmailStatus" class="text-xs text-gray-400"></span>
+<style>
+    /* AI Analyzer: bar INDETERMINATE (bukan lagi persentase karangan — lihat
+       runAiAnalysis()/#aiAnalysisStatusText untuk status ASLI dari stream).
+       Sengaja tidak mengklaim seberapa jauh prosesnya, cuma menunjukkan
+       "masih berjalan". */
+    @keyframes aiAnalysisIndeterminate {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(300%); }
+    }
+    .ai-analysis-indeterminate {
+        animation: aiAnalysisIndeterminate 1.4s ease-in-out infinite;
+    }
+</style>
+
+{{-- ── Header ────────────────────────────────────────────────────────────────── --}}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+    <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl primary-gradient flex items-center justify-center shadow-sm">
+            <i class="fas fa-inbox text-white text-sm"></i>
         </div>
-        <div class="flex items-center gap-2 flex-wrap">
-            {{-- custom-dd manual (sama dengan Employee/Customer/Ticket filter).
-                 data-fixed="true" supaya panel tidak terpotong oleh container.
-                 Default selected = "Pending Validation" — di-set oleh init script. --}}
-            <div class="custom-dd relative" data-onchange="loadStagingTickets" data-fixed="true" style="min-width:170px">
-                <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                    <span class="custom-dd-label text-gray-700">Pending Validation</span>
-                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                </button>
-                <input type="hidden" id="filterStatus" value="unvalidated">
-                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
-                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-900 font-medium bg-gray-50 hover:bg-gray-50 transition-colors" data-value="unvalidated">Pending Validation</button>
-                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="approved">Approved</button>
-                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="rejected">Rejected</button>
-                </div>
-            </div>
-            <button onclick="handleRefresh()" id="btnRefresh"
-                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Refresh
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 leading-tight">Incoming Ticket Validation</h1>
+            <p class="text-xs text-gray-400 mt-0.5">Tickets submitted by customers awaiting approval</p>
+        </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+        {{-- Status filter --}}
+        <div class="custom-dd relative" data-onchange="loadStagingTickets" data-fixed="true" style="min-width:170px">
+            <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold hover:border-gray-300 transition-all text-left shadow-sm">
+                <span class="custom-dd-label text-gray-700">Pending Validation</span>
+                <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
             </button>
-            <a href="{{ route('staging.rejected') }}"
-                class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                View Rejected
-                <span id="rejectedNavBadge" class="hidden bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center ml-1.5"></span>
-            </a>
+            <input type="hidden" id="filterStatus" value="unvalidated">
+            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
+                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-900 font-medium bg-gray-50 hover:bg-gray-50 transition-colors" data-value="unvalidated">Pending Validation</button>
+                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="approved">Approved</button>
+                <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="rejected">Rejected</button>
+            </div>
+        </div>
+        <button onclick="handleRefresh()" id="btnRefresh"
+            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm">
+            <i class="fas fa-sync-alt text-xs"></i>Refresh
+        </button>
+        <a href="{{ route('staging.rejected') }}"
+            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm">
+            <i class="fas fa-times-circle text-red-400 text-xs"></i>View Rejected
+            <span id="rejectedNavBadge" class="hidden bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"></span>
+        </a>
+    </div>
+</div>
+
+{{-- ── Stats Cards ──────────────────────────────────────────────────────────── --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mb-4">
+    <div class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-amber-200 transition-all duration-200">
+        <div class="flex items-center gap-1.5 mb-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Pending</p>
+        </div>
+        <p class="text-2xl font-bold text-amber-600 leading-none" id="statUnvalidated">—</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-green-200 transition-all duration-200">
+        <div class="flex items-center gap-1.5 mb-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Approved</p>
+        </div>
+        <p class="text-2xl font-bold text-green-600 leading-none" id="statApproved">—</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-red-200 transition-all duration-200">
+        <div class="flex items-center gap-1.5 mb-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Rejected</p>
+        </div>
+        <p class="text-2xl font-bold text-red-600 leading-none" id="statRejected">—</p>
+    </div>
+</div>
+
+{{-- ── Table ────────────────────────────────────────────────────────────────── --}}
+<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    {{-- Table Toolbar --}}
+    <div class="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
+        <span id="fetchEmailStatus" class="text-xs text-gray-400"></span>
+        <div id="paginationArea" class="hidden items-center gap-1">
+            <span class="text-xs text-gray-400 mr-2" id="pageInfo"></span>
+            <button id="btnPrev" onclick="changePage(-1)"
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+                Prev
+            </button>
+            <button id="btnNext" onclick="changePage(1)"
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                Next
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+            </button>
         </div>
     </div>
-</div>
-
-{{-- ===== PAGINATION ===== --}}
-<div id="paginationArea" class="items-center justify-between mb-4 hidden">
-    <span class="text-sm text-gray-500" id="pageInfo"></span>
-    <div class="flex items-center gap-1">
-        <button id="btnPrev" onclick="changePage(-1)"
-                class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-600">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-            </svg>
-        </button>
-        <button id="btnNext" onclick="changePage(1)"
-                class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-600">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-            </svg>
-        </button>
-    </div>
-</div>
-
-{{-- ===== TABLE ===== --}}
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
     <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="border-b border-gray-200 bg-gray-50 text-xs text-gray-500 font-bold uppercase tracking-wide">
-                    <th class="px-6 py-3 text-left">ID</th>
-                    <th class="px-6 py-3 text-left">Customer / Sender</th>
-                    <th class="px-6 py-3 text-left">Description / Subject</th>
-                    <th class="px-6 py-3 text-left">Priority</th>
-                    <th class="px-6 py-3 text-left">Channel</th>
-                    <th class="px-6 py-3 text-left">Status</th>
-                    <th class="px-6 py-3 text-left">Submit Date</th>
-                    <th class="px-6 py-3 text-left">Actions</th>
+        <table class="w-full text-sm border-collapse">
+            <thead class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:60px">#</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:180px">Customer / Sender</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:280px">Description / Subject</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:100px">Priority</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:90px">Channel</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:130px">Status</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px">Submit Date</th>
+                    <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:90px">Action</th>
                 </tr>
             </thead>
-            <tbody id="stagingTableBody">
+            <tbody id="stagingTableBody" class="divide-y divide-gray-100 bg-white">
                 <tr>
                     <td colspan="8" class="px-6 py-12 text-center text-gray-400">
                         <i class="fas fa-spinner fa-spin text-2xl mb-2 block"></i>
@@ -138,11 +165,12 @@
 
 @push('scripts')
 <script>
-const CSRF = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 let currentPage = 1;
 let meta = {};
 let currentStagingId = null;
 let currentStagingData = null;
+let _lastAiAnalysis = null;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -191,7 +219,7 @@ function updateSidebarBadge(count) {
 async function loadStagingTickets(page = 1) {
     currentPage = page;
     const status = document.getElementById('filterStatus').value;
-    const params = new URLSearchParams({ per_page: 15, page });
+    const params = new URLSearchParams({ per_page: 200, page });
     if (status) params.append('status', status);
 
     const url = '/api/staging-tickets?' + params.toString();
@@ -229,68 +257,92 @@ async function loadStagingTickets(page = 1) {
 function renderTable(rows) {
     const tbody = document.getElementById('stagingTableBody');
     if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-12 text-center text-gray-400 text-sm">
-            <i class="fas fa-inbox text-3xl mb-3 block opacity-30"></i>No data found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-16 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-inbox text-gray-300 text-2xl"></i>
+            </div>
+            <p class="text-gray-600 font-semibold text-sm mb-1">No tickets found</p>
+            <p class="text-gray-400 text-xs">Try changing the status filter</p>
+        </td></tr>`;
         return;
     }
 
-    const prioColor = { 'Very High': 'bg-purple-100 text-purple-700', High: 'bg-red-100 text-red-700', Medium: 'bg-blue-100 text-blue-700', Low: 'bg-green-100 text-green-700' };
-    const statusBadge = {
-        unvalidated: '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>Pending</span>',
-        approved:    '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700"><span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>Approved</span>',
-        rejected:    '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700"><span class="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>Rejected</span>',
+    const badge = (label, cls, dot) =>
+        `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold ${cls}">
+            ${dot ? `<span class="w-1.5 h-1.5 rounded-full ${dot} flex-shrink-0"></span>` : ''}${label}
+         </span>`;
+
+    const prioCfg = {
+        'Very High': { cls: 'bg-red-50 text-red-700',    dot: 'bg-red-500'    },
+        'High':      { cls: 'bg-orange-50 text-orange-700', dot: 'bg-orange-500' },
+        'Medium':    { cls: 'bg-yellow-50 text-yellow-700', dot: 'bg-yellow-500' },
+        'Low':       { cls: 'bg-blue-50 text-blue-700',  dot: 'bg-blue-400'   },
+    };
+    const statusCfg = {
+        unvalidated: { label: 'Pending',  cls: 'bg-amber-50 text-amber-700',  dot: 'bg-amber-500'  },
+        approved:    { label: 'Approved', cls: 'bg-green-50 text-green-700',  dot: 'bg-green-500'  },
+        rejected:    { label: 'Rejected', cls: 'bg-red-50 text-red-700',      dot: 'bg-red-500'    },
     };
 
     tbody.innerHTML = rows.map(s => {
-        const date   = s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric' }) : '—';
-        const short  = s.description ? (s.description.length > 60 ? s.description.substring(0, 60) + '…' : s.description) : '—';
-        const prio   = s.ticket_priority;
-        const prioBadge = prio
-            ? `<span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${prioColor[prio] ?? 'bg-gray-100 text-gray-600'}">${prio}</span>`
-            : `<span class="text-gray-400 text-xs italic">—</span>`;
-        const ch = s.channel === 'email'
-            ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md"><i class="fas fa-envelope text-[9px]"></i> Email</span>'
-            : '<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md"><i class="fas fa-globe text-[9px]"></i> Web</span>';
+        const date  = s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'short', year:'numeric' }) : '—';
+        const short = s.description ? (s.description.length > 65 ? s.description.substring(0, 65) + '…' : s.description) : '—';
+
+        const pCfg = prioCfg[s.ticket_priority];
+        const prioBadge = pCfg
+            ? badge(s.ticket_priority, pCfg.cls, pCfg.dot)
+            : `<span class="text-gray-300 text-xs">—</span>`;
+
+        const chBadge = s.channel === 'email'
+            ? badge('<i class="fas fa-envelope text-[9px]"></i>&nbsp;Email', 'bg-blue-50 text-blue-700')
+            : badge('<i class="fas fa-globe text-[9px]"></i>&nbsp;Web',   'bg-gray-100 text-gray-600');
+
+        const sCfg = statusCfg[s.status] ?? { label: s.status, cls: 'bg-gray-100 text-gray-500', dot: 'bg-gray-400' };
+        const statusHtml = badge(sCfg.label, sCfg.cls, sCfg.dot)
+            + (s.status === 'approved' && s.ticket_number
+                ? `<br><a href="/ticket/${s.ticket_id}" class="text-[10px] text-green-600 hover:underline font-mono mt-0.5 inline-block">${escHtml(s.ticket_number)}</a>`
+                : '');
 
         const actionBtn = s.status === 'unvalidated'
             ? `<button onclick="openModal(${s.id})"
-                       class="inline-flex items-center px-3 py-1.5 primary-gradient text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all">
-                   Validate
+                       class="inline-flex items-center gap-1 px-3 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">
+                   <i class="fas fa-clipboard-check text-[10px]"></i>Validate
                </button>`
             : `<button onclick="openModal(${s.id})"
-                       class="inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-all">
-                   Detail
+                       class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all">
+                   <i class="fas fa-eye text-[10px]"></i>Detail
                </button>`;
 
         const senderDisplay = s.customer_name ?? s.sender_name ?? 'Unknown';
 
-        return `<tr class="border-b border-gray-50 hover:bg-gray-50/60 transition-colors">
-            <td class="px-6 py-4 text-gray-500 font-mono text-xs">#${s.id}</td>
-            <td class="px-6 py-4">
-                <p class="font-semibold text-gray-900 text-xs">${escHtml(senderDisplay)}</p>
-                ${s.end_customer_name ? `<p class="text-[10px] text-gray-400">&#8627; ${escHtml(s.end_customer_name)}</p>` : ''}
+        return `<tr class="hover:bg-gray-50/60 transition-colors cursor-pointer">
+            <td class="px-3 py-3 text-gray-400 font-mono text-xs whitespace-nowrap">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-[11px] font-bold text-gray-500">#${s.id}</span>
+            </td>
+            <td class="px-3 py-3 whitespace-nowrap">
+                <p class="text-sm font-semibold text-gray-800 leading-snug">${escHtml(senderDisplay)}</p>
+                ${s.end_customer_name ? `<p class="text-[10px] text-gray-400 mt-0.5">↳ ${escHtml(s.end_customer_name)}</p>` : ''}
                 ${s.submitted_by_email ? `<p class="text-[10px] text-gray-400">${escHtml(s.submitted_by_email)}</p>` : ''}
             </td>
-            <td class="px-6 py-4 text-gray-600 max-w-xs text-xs">${escHtml(short)}</td>
-            <td class="px-6 py-4">${prioBadge}</td>
-            <td class="px-6 py-4">${ch}</td>
-            <td class="px-6 py-4">
-                ${statusBadge[s.status] ?? s.status}
-                ${s.status === 'approved' && s.ticket_number ? `<br><a href="/ticket/${s.ticket_id}" class="text-xs text-green-600 hover:underline font-mono mt-0.5 inline-block">${escHtml(s.ticket_number)}</a>` : ''}
+            <td class="px-3 py-3 text-sm text-gray-600" style="max-width:320px">
+                <span class="block truncate" title="${escHtml(s.description ?? '')}">${escHtml(short)}</span>
             </td>
-            <td class="px-6 py-4 text-gray-500 text-xs whitespace-nowrap">${date}</td>
-            <td class="px-6 py-4">${actionBtn}</td>
+            <td class="px-3 py-3 whitespace-nowrap">${prioBadge}</td>
+            <td class="px-3 py-3 whitespace-nowrap">${chBadge}</td>
+            <td class="px-3 py-3 whitespace-nowrap">${statusHtml}</td>
+            <td class="px-3 py-3 whitespace-nowrap"><span class="text-xs text-gray-500">${date}</span></td>
+            <td class="px-3 py-3 whitespace-nowrap">${actionBtn}</td>
         </tr>`;
     }).join('');
 }
 
 function renderPagination() {
     const area = document.getElementById('paginationArea');
-    if (!meta.total) { area.classList.add('hidden'); area.classList.remove('flex'); return; }
+    if (!meta.total || meta.last_page <= 1) { area.classList.add('hidden'); area.classList.remove('flex'); return; }
     area.classList.remove('hidden');
     area.classList.add('flex');
     document.getElementById('pageInfo').textContent =
-        `Showing ${Math.min((currentPage-1)*meta.per_page+1, meta.total)}–${Math.min(currentPage*meta.per_page, meta.total)} of ${meta.total}`;
+        `${Math.min((currentPage-1)*meta.per_page+1, meta.total)}–${Math.min(currentPage*meta.per_page, meta.total)} of ${meta.total}`;
     document.getElementById('btnPrev').disabled = currentPage <= 1;
     document.getElementById('btnNext').disabled = currentPage >= meta.last_page;
 }
@@ -303,6 +355,7 @@ function changePage(dir) {
 async function openModal(id) {
     currentStagingId   = id;
     currentStagingData = null;
+    _stagingDsSelected = { id: null, name: '' };
     document.getElementById('stagingModal').style.display = 'flex';
     document.getElementById('modalStagingId').textContent  = `Staging #${id}`;
     document.getElementById('modalStatusBadge').innerHTML  = '';
@@ -347,7 +400,7 @@ function fillModal(s) {
     if (badge) badge.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${st.cls}"><i class="${st.icon}"></i>${st.label}</span>`;
 
     const prioColors = { 'Very High': 'bg-purple-100 text-purple-700', High: 'bg-red-100 text-red-700', Medium: 'bg-blue-100 text-blue-700', Low: 'bg-green-100 text-green-700' };
-    const typeColors = { Incident: 'bg-red-50 text-red-600 border-red-200', 'Service Request': 'bg-indigo-50 text-indigo-600 border-indigo-200', 'Change Request': 'bg-amber-50 text-amber-600 border-amber-200', Consult: 'bg-teal-50 text-teal-600 border-teal-200' };
+    const typeColors = { Incident: 'bg-red-50 text-red-600 border-red-200', 'Change Request': 'bg-amber-50 text-amber-600 border-amber-200', 'Service Request': 'bg-indigo-50 text-indigo-600 border-indigo-200', EWA: 'bg-orange-50 text-orange-600 border-orange-200', RISE: 'bg-violet-50 text-violet-600 border-violet-200', Consult: 'bg-teal-50 text-teal-600 border-teal-200', Internal: 'bg-slate-100 text-slate-600 border-slate-200' };
 
     // ── Parse CC ──
     let ccDisplay = '';
@@ -452,25 +505,32 @@ function fillModal(s) {
     }
 
     // ── Validation panel ──
+    // Delivery support milik customer tiket ini. Aturan bisnis:
+    //   • customer punya ≥1 delivery support  → WAJIB dipilih (tak ada opsi kosong)
+    //   • tepat 1                             → langsung terisi otomatis
+    //   • tidak punya sama sekali             → field dikunci & approve tetap boleh
+    const dsOptions  = DELIVERY_SUPPORTS.filter(ds => ds.client_id == s.customer_id);
+    const dsRequired = dsOptions.length > 0;
+
+    // Reset pilihan setiap kali modal dibuka supaya tidak bocor dari staging sebelumnya.
+    _stagingDsSelected = { id: null, name: '' };
+
     let validationHtml = '';
     if (isUnvalidated) {
         validationHtml = `
+        ${aiAnalysisPanelHtml(s)}
         <div class="border border-gray-200 rounded-xl overflow-hidden mb-5">
             <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
                 <i class="fas fa-clipboard-check text-gray-500 text-xs"></i>
                 <span class="text-xs font-semibold text-gray-600">Ticket Classification</span>
                 <span class="text-xs text-gray-400 ml-1">— required before approving</span>
             </div>
-            <div class="px-4 py-4 grid grid-cols-3 gap-4">
+            <div class="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-500">*</span></label>
                     <select id="approveTicketType"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
-                        <option value="">Select type…</option>
-                        <option value="Incident">Incident</option>
-                        <option value="Service Request">Service Request</option>
-                        <option value="Change Request">Change Request</option>
-                        <option value="Consult">Consult</option>
+                        ${buildOptionsHtml(TICKET_TYPES, 'Select type…')}
                     </select>
                     <p id="typeError" class="hidden mt-1 text-xs text-red-500">Required.</p>
                 </div>
@@ -478,26 +538,117 @@ function fillModal(s) {
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority <span class="text-red-500">*</span></label>
                     <select id="approvePriority"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
-                        <option value="">Select priority…</option>
-                        <option value="Very High">Very High</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
+                        ${buildOptionsHtml(TICKET_PRIORITIES, 'Select priority…')}
                     </select>
                     <p id="priorityError" class="hidden mt-1 text-xs text-red-500">Required.</p>
                 </div>
-                {{-- Scale: opsional. Daftar value masih didiskusikan — placeholder
-                     berikut bisa diubah belakangan tanpa migrasi (kolom VARCHAR). --}}
+                {{-- Scale: opsional. --}}
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Scale</label>
                     <select id="approveScale"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
-                        <option value="">Select scale…</option>
-                        <option value="Simple">Simple</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Complex">Complex</option>
+                        ${buildOptionsHtml(TICKET_SCALES, 'Select scale…')}
                     </select>
                     <p class="mt-1 text-[11px] text-gray-400">Optional</p>
+                </div>
+            </div>
+            <div class="border-t border-gray-100 px-4 pt-3 pb-3">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Delivery Support
+                    ${dsRequired
+                        ? '<span class="text-red-500">*</span>'
+                        : '<span class="text-gray-400 font-normal">(no delivery support registered for this customer)</span>'}
+                </label>
+                <input type="hidden" id="stagingDsHidden" value="">
+                <div id="stagingDsDd" class="relative">
+                    <input type="text" id="stagingDsSearch"
+                        placeholder="${dsRequired ? 'Select delivery support…' : 'Not available for this customer'}"
+                        autocomplete="off"
+                        ${dsRequired ? '' : 'disabled'}
+                        oninput="filterStagingDs(this.value)"
+                        onfocus="openStagingDsDd()"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm ${dsRequired ? 'bg-white' : 'bg-gray-50 text-gray-400 cursor-not-allowed'} focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                    <div id="stagingDsPanel" class="hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-y-auto" style="max-height:200px;">
+                        ${dsOptions.map(ds =>
+                            '<button type="button" class="staging-ds-opt w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition" ' +
+                            'onclick="selectStagingDs(this.dataset.id, this.dataset.name)" ' +
+                            'data-id="' + ds.id + '" data-name="' + escHtml(ds.name) + '">' + escHtml(ds.name) + '</button>'
+                        ).join('')}
+                    </div>
+                </div>
+                <p id="dsError" class="hidden mt-1 text-xs text-red-500">Delivery support is required.</p>
+                ${dsRequired && dsOptions.length > 1
+                    ? '<p class="mt-1 text-[11px] text-gray-400">This customer has ' + dsOptions.length + ' delivery supports — choose the right one.</p>'
+                    : ''}
+            </div>
+            <div id="forCustomerWrap" class="hidden border-t border-gray-100 px-4 pt-3 pb-3">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">For customer <span class="text-gray-400 font-normal">(end-customer under this parent)</span></label>
+                <select id="approveEndCustomer"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                    <option value="">— On behalf of the parent itself —</option>
+                </select>
+                <p class="mt-1 text-[11px] text-gray-400">This email was routed to the parent customer. Choose which end-customer it is actually for.</p>
+            </div>
+            <div class="border-t border-gray-100 px-4 pt-3 pb-4">
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Additional Info <span class="font-normal normal-case">(optional)</span></p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Name</label>
+                        <input type="text" id="approveName" maxlength="255"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all"
+                               placeholder="Contact person name">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">No HP</label>
+                        <input type="text" id="approveNoHp" maxlength="255"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all"
+                               placeholder="Phone number">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module (as written by submitter)</label>
+                        <input type="text" id="approveModule" maxlength="255"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all"
+                               placeholder="Related module">
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module</label>
+                        <select id="approveModule"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
+                            <option value="">-- none --</option>
+                            @foreach ($modules as $moduleOption)
+                            <option value="{{ $moduleOption['id'] }}">{{ $moduleOption['name'] }}</option>
+                            @endforeach
+                        </select>
+                        {{-- Modul yang tertulis di staging tapi tidak cocok dengan Master Module
+                             (tiket email menulisnya sebagai teks bebas) ditampilkan sebagai
+                             patokan, bukan diam-diam hilang. --}}
+                        <p id="approveModuleHint" class="text-[11px] text-gray-400 mt-1 hidden"></p>
+                    </div>
+                    <div>
+                        {{-- Pilihan modul TERSTRUKTUR — beda dari teks bebas "Module" di atas
+                             (yang cuma diketik pengirim, tidak divalidasi). Ini yang benar-benar
+                             tersimpan ke ticket_module saat tiket dibuat; boleh pilih lebih dari
+                             satu. Pre-fill dari saran AI lihat autoFillEmptyFromAi(). --}}
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module(s)</label>
+                        <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Select module(s)">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                <span class="custom-dd-label text-gray-500">Select module(s)</span>
+                                <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <input type="hidden" name="module_ids" id="approveModuleIds" value="">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:320px;">
+                                @foreach($modules ?? [] as $moduleOption)
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $moduleOption->id }}">
+                                        <span class="custom-dd-item-text">{{ $moduleOption->name }}</span>
+                                        <svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Client</label>
+                        <input type="text" id="approveClient" maxlength="255"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all"
+                               placeholder="Client name">
+                    </div>
                 </div>
             </div>
         </div>`;
@@ -550,6 +701,7 @@ function fillModal(s) {
         const iframe = document.getElementById('emailBodyIframe');
         if (iframe) {
             const setIframeContent = (html) => {
+                if (!html) return; // guard: jangan panggil startsWith pada null/undefined
                 // Wrap bare text/HTML in basic styling for consistent look
                 const wrapped = html.startsWith('<') ? html
                     : `<div style="font-family:system-ui,sans-serif;font-size:14px;color:#374151;padding:4px;white-space:pre-wrap">${html}</div>`;
@@ -573,7 +725,7 @@ function fillModal(s) {
                 /\[[^\]]+\.(png|jpe?g|gif|bmp|webp)\]/i.test(s.email_body_html || '')
             );
             if (needsEmailImageResolve && s.id) {
-                setIframeContent(s.email_body_html); // show immediately while loading
+                setIframeContent(bodySource); // show immediately while loading (pakai bodySource, bukan s.email_body_html yang bisa null)
                 fetch(`/api/staging-tickets/${s.id}/preview-body`, {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin',
@@ -596,20 +748,706 @@ function fillModal(s) {
 
     // ── Footer buttons ──
     renderFooter(s);
+
+    // ── Pre-fill additional info fields (if staging already has data) ──
+    if (isUnvalidated) {
+        const prefill = [
+            ['approveName',   s.name   ?? ''],
+            ['approveNoHp',   s.no_hp  ?? ''],
+            ['approveClient', s.client ?? ''],
+        ];
+        prefill.forEach(([id, val]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val;
+        });
+        setApproveModule(s.module_id ?? null, s.module ?? '');
+        // Pre-select type if staging already has a value
+        if (s.ticket_type) {
+            const typeEl = document.getElementById('approveTicketType');
+            if (typeEl) typeEl.value = s.ticket_type;
+        }
+        // Pre-select priority if staging already has a value
+        if (s.ticket_priority) {
+            const prioEl = document.getElementById('approvePriority');
+            if (prioEl) prioEl.value = s.ticket_priority;
+        }
+        // Pre-select scale if staging already has a value
+        if (s.scale) {
+            const scaleEl = document.getElementById('approveScale');
+            if (scaleEl) scaleEl.value = s.scale;
+        }
+
+        // Delivery support: kalau customer hanya punya satu, langsung pilihkan —
+        // validator tetap jalan, tapi user tak perlu memilih manual.
+        if (dsOptions.length === 1) {
+            selectStagingDs(dsOptions[0].id, dsOptions[0].name);
+        }
+
+        // Analisa AI: otomatis sekali saat modal dibuka pertama kali, admin
+        // bisa memicu ulang manual lewat tombol Re-analyze (lihat komentar di
+        // aiAnalysisPanelHtml()). Kalau sudah ada hasil tersimpan, isi field
+        // yang masih kosong. Kalau belum pernah dicoba sama sekali (status
+        // null), picu sekarang — panel sudah terlanjur nampilin state loading
+        // dari aiAnalysisPanelHtml() di atas. Status 'pending'/'failed' TIDAK
+        // memicu apa pun di sini secara otomatis (lihat catatan di aiAnalysisPanelHtml()).
+        _lastAiAnalysis = s.ai_analysis || null;
+        if (s.ai_analysis) {
+            autoFillEmptyFromAi(s.ai_analysis);
+        } else if (!s.ai_analysis_status) {
+            runAiAnalysis(s.id);
+        }
+
+        // ── "For customer": tampil hanya jika customer ter-match adalah parent
+        //    yang punya end-customers (kasus tiket email di-route via domain). ──
+        if (s.customer_id) {
+            loadForCustomerOptions(s.customer_id, s.end_customer_id);
+        }
+    }
+}
+
+// ─── AI Ticket Analyzer ───────────────────────────────────────────────────────
+
+// Analisa AI otomatis dipicu saat modal validasi dibuka (fillModal() →
+// runAiAnalysis()) — tapi admin juga bisa memicu ulang secara sengaja lewat
+// tombol "Re-analyze" (muncul begitu ada hasil atau status failed) yang
+// memanggil runAiAnalysis(id, true).
+//
+// Urutan prioritas SENGAJA begini, bukan sekadar dua flag independen:
+//   1. status === 'pending'  → SEDANG berjalan (request ini atau tab/admin
+//      lain) — SELALU tampil loading & tombol Re-analyze disembunyikan,
+//      APAPUN isi s.ai_analysis. Awalnya urutan ini kebalik (hasResult
+//      dicek duluan) — akibatnya re-analyze pada tiket yang sudah punya
+//      hasil lama tetap menampilkan hasil lama itu SELAMA request berjalan,
+//      dan tombol Re-analyze tetap bisa diklik. User yang tidak melihat
+//      indikasi apa pun sedang terjadi lalu klik dua kali, dan klik kedua
+//      itu yang menabrak klaim atomic pertama (lihat
+///     StagingTicketController::analyze()) dengan pesan "already running".
+//   2. s.ai_analysis ada     → hasil tersedia (status completed, ATAU staging
+//      lama dari sebelum kolom ai_analysis_status ditambahkan — migration
+//      2026_08_24_000002 — yang punya ai_analysis terisi tapi status masih
+//      NULL, lihat staging #316).
+//   3. status === 'failed'   → gagal, tombol Re-analyze tersedia.
+//   4. lainnya (null, belum ada hasil) → belum dicoba, akan dipicu fillModal.
+function aiAnalysisPanelHtml(s) {
+    const status = s.ai_analysis_status || null;
+    const isRunning = 'pending' === status;
+    const hasResult = !isRunning && !!s.ai_analysis;
+    const timeNote = (hasResult && s.ai_analysis_generated_at)
+        ? `<span class="text-[11px] text-gray-400 ml-2">Analyzed ${timeAgo(s.ai_analysis_generated_at)}</span>`
+        : '';
+    const reanalyzeBtn = (hasResult || status === 'failed')
+        ? `<button type="button" onclick="runAiAnalysis(${s.id}, true)" class="ml-auto text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
+               <i class="fas fa-rotate-right text-[10px]"></i> Re-analyze
+           </button>`
+        : '';
+
+    // Analisa AI di sini TIDAK auto-invalidate seperti AI Summarize (sidik
+    // jari isi tiket) — memicu ulang Opus-5 + Agent Skill otomatis tiap kali
+    // staging ticket diedit terlalu mahal. Ini cukup peringatan pasif: kalau
+    // tiketnya diperbarui SETELAH analisis dibuat (lihat
+    // StagingTicketController::isAiAnalysisStale()), validator diberi tahu
+    // supaya bisa memutuskan sendiri perlu Re-analyze atau tidak.
+    const staleNotice = (hasResult && s.ai_analysis_stale) ? `
+        <div class="px-4 py-2 bg-amber-50 border-b border-amber-100 text-[11px] text-amber-700 flex items-center gap-1.5">
+            <i class="fas fa-triangle-exclamation"></i>
+            Ticket details changed since this analysis was generated — consider clicking Re-analyze.
+        </div>` : '';
+
+    // Sesi tanya-jawab baru setiap kali panel ini dibangun ulang dengan hasil
+    // (modal baru dibuka, ATAU Re-analyze selesai) — lihat blok JS "Tanya-jawab
+    // AI Analyzer" di bawah untuk alasan kenapa ini SENGAJA tidak dipertahankan
+    // lintas render, beda dari conversation id di halaman AI Assistant.
+    if (hasResult) {
+        stagingQaSessionId = stagingQaNewSessionId();
+    }
+
+    let bodyHtml;
+    if (hasResult) {
+        bodyHtml = renderAiAnalysisBody(s.ai_analysis);
+    } else if ('failed' === status) {
+        bodyHtml = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> AI analysis failed for this ticket. Click Re-analyze to try again, or fill in the classification (Type/Priority/Scale/Module) manually.</p>`;
+    } else {
+        // null (belum dicoba, akan dipicu fillModal) atau pending (sedang jalan).
+        // Bar-nya INDETERMINATE (bukan lagi persentase karangan) — status di
+        // #aiAnalysisStatusText diisi label ASLI dari event SSE 'status' yang
+        // dikirim StagingTicketController::analyze() (lihat runAiAnalysis()),
+        // bukan animasi berbasis waktu yang tidak berhubungan dengan proses
+        // sebenarnya.
+        bodyHtml = `
+            <div class="flex items-center gap-2 text-sm text-gray-400 py-1">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span id="aiAnalysisStatusText">Connecting…</span>
+            </div>
+            <div class="w-full h-1.5 bg-indigo-100 rounded-full overflow-hidden mt-2">
+                <div class="h-full w-1/3 bg-indigo-500 rounded-full ai-analysis-indeterminate"></div>
+            </div>`;
+    }
+
+    // Widget tanya-jawab: hanya tampil kalau sudah ada hasil untuk ditanyakan
+    // (lihat AiTicketQaService — konteksnya dibangun dari ai_analysis).
+    const qaWidget = hasResult ? `
+        <div class="border-t border-indigo-100 px-4 py-3">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">
+                <i class="fas fa-comment-dots text-indigo-400"></i> Ask a question
+            </p>
+            <div id="aiQaThread" class="space-y-2 max-h-48 overflow-y-auto mb-2"></div>
+            <div class="flex items-center gap-2">
+                <input type="text" id="aiQaInput" placeholder="e.g. what's the first step here?"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();stagingQaSend(${s.id});}"
+                       class="flex-1 text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:border-indigo-400">
+                <button type="button" id="aiQaSendBtn" onclick="stagingQaSend(${s.id})"
+                        class="w-8 h-8 shrink-0 inline-flex items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all">
+                    <i class="fas fa-paper-plane text-[10px]"></i>
+                </button>
+            </div>
+        </div>` : '';
+
+    return `
+    <div class="border border-indigo-200 rounded-xl overflow-hidden mb-5 bg-indigo-50/40">
+        <div class="px-4 py-2.5 border-b border-indigo-100 bg-indigo-50 flex items-center gap-2">
+            <i class="fas fa-wand-magic-sparkles text-indigo-500 text-xs"></i>
+            <span class="text-xs font-semibold text-indigo-700">AI Ticket Analyzer</span>
+            ${timeNote}
+            ${reanalyzeBtn}
+        </div>
+        ${staleNotice}
+        <div id="aiAnalysisBody" class="px-4 py-4">
+            ${bodyHtml}
+        </div>
+        ${qaWidget}
+    </div>`;
+}
+
+// Satu pola visual dipakai berulang di semua section supaya konsisten
+// (sebelumnya tiap section pakai ukuran/struktur beda-beda — itu yang bikin
+// panel ini terlihat berantakan).
+const AI_LABEL_CLS = 'text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5';
+const AI_BODY_CLS  = 'text-sm text-gray-700 leading-relaxed';
+const AI_SECTION_CLS = 'pt-3 mt-3 border-t border-indigo-100/70 first:pt-0 first:mt-0 first:border-0';
+
+function aiSection(label, innerHtml) {
+    return `<div class="${AI_SECTION_CLS}">
+        <p class="${AI_LABEL_CLS}">${label}</p>
+        ${innerHtml}
+    </div>`;
+}
+
+function renderAiAnalysisBody(data) {
+    const confidencePct = (data.confidence !== null && data.confidence !== undefined)
+        ? Math.round(data.confidence * 100) : null;
+
+    // ── Ringkasan saran klasifikasi + confidence, sebagai chip di paling atas ──
+    const chip = (text, cls) => text
+        ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cls}">${escHtml(text)}</span>` : '';
+    // Satu chip per modul yang disarankan — tiket boleh menyentuh lebih dari satu.
+    const moduleChips = (data.suggested_module_names || [])
+        .map(name => chip(`Module: ${name}`, 'bg-white text-gray-600 border-gray-200'));
+    const chipsHtml = [
+        chip(data.suggested_ticket_type, 'bg-white text-gray-600 border-gray-200'),
+        chip(data.suggested_priority,    'bg-white text-gray-600 border-gray-200'),
+        chip(data.suggested_scale,       'bg-white text-gray-600 border-gray-200'),
+        ...moduleChips,
+        confidencePct !== null ? chip(`Confidence ${confidencePct}%`, 'bg-indigo-600 text-white border-indigo-600') : '',
+    ].filter(Boolean).join('');
+
+    // ── Langkah penyelesaian: nomor bulat + teks, semua text-sm konsisten ──
+    const steps = data.resolution_steps || [];
+    const stepsHtml = steps.length
+        ? `<ol class="space-y-2">${steps.map((step, i) => `
+            <li class="flex gap-2.5">
+                <span class="shrink-0 w-5 h-5 mt-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold flex items-center justify-center">${i + 1}</span>
+                <span class="${AI_BODY_CLS}">${escHtml(step)}</span>
+            </li>`).join('')}</ol>`
+        : `<p class="${AI_BODY_CLS} text-gray-400">No specific steps provided by AI.</p>`;
+
+    // ── Risiko/catatan ──
+    const risks = data.risks || [];
+    const risksHtml = risks.length
+        ? `<ul class="space-y-1.5">${risks.map(r => `
+            <li class="flex gap-2 text-sm text-amber-800 leading-relaxed">
+                <i class="fas fa-triangle-exclamation text-amber-500 mt-0.5 text-xs shrink-0"></i>
+                <span>${escHtml(r)}</span>
+            </li>`).join('')}</ul>`
+        : '';
+
+    // ── Kandidat paling cocok: diranking dari modul + pernah menangani isu
+    //    serupa + workload (lihat AiTicketAnalyzerService::resolveAssignees())
+    //    — urutan array INI ADALAH rank-nya, makanya diberi nomor 1..N. ──
+    const assignees = data.suggested_assignees || [];
+    let assigneesInner;
+    if (assignees.length) {
+        assigneesInner = `<div class="space-y-1.5">
+            ${assignees.map((a, i) => {
+                const wp = Math.round(a.workload_pct ?? 0);
+                const wColor = a.warning ? 'text-red-600' : (wp >= 50 ? 'text-amber-600' : 'text-green-600');
+                const similar = a.similar_issues_handled ?? 0;
+                return `<div class="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-lg px-3 py-2">
+                    <span class="shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">${i + 1}</span>
+                    <span class="font-semibold text-gray-800">${escHtml(a.name)}</span>
+                    <span class="text-gray-400 text-xs">(${escHtml(a.eci ?? '-')})</span>
+                    ${a.is_module_lead ? '<span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-semibold">Module Lead</span>' : ''}
+                    ${a.qualification_level ? `<span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-semibold">${escHtml(a.qualification_level)}</span>` : ''}
+                    ${similar > 0 ? `<span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-semibold">${similar} similar ticket${similar > 1 ? 's' : ''}</span>` : ''}
+                    <span class="ml-auto font-semibold text-xs ${wColor}">${wp}% workload</span>
+                    ${a.warning ? `<i class="fas fa-triangle-exclamation text-red-500 text-xs" title="${escHtml(a.warning_message || '')}"></i>` : ''}
+                </div>`;
+            }).join('')}
+        </div>`;
+    } else if (data.suggested_module_name) {
+        assigneesInner = `<p class="text-sm text-gray-400">No Module Lead or certified consultant registered in the system for module <span class="font-semibold text-gray-500">${escHtml(data.suggested_module_name)}</span>.</p>`;
+    } else {
+        assigneesInner = `<p class="text-sm text-gray-400">AI did not identify a clear module, so no assignee suggestion is available.</p>`;
+    }
+
+    // ── Konsultan customer ini: histori nyata (lead/member tiket lama), bukan
+    //    saran kualifikasi seperti assignee di atas ──
+    const consultants = data.customer_consultants || [];
+    let consultantsInner;
+    if (consultants.length) {
+        consultantsInner = `<div class="space-y-1.5">
+            ${consultants.map(c => `<div class="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-lg px-3 py-2">
+                <span class="font-semibold text-gray-800">${escHtml(c.name)}</span>
+                <span class="text-gray-400 text-xs">(${escHtml(c.eci ?? '-')})</span>
+                ${c.is_lead ? '<span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-semibold">Lead</span>' : ''}
+                <span class="ml-auto text-xs text-gray-500">
+                    ${c.tickets_count} ticket${c.tickets_count > 1 ? 's' : ''}${c.last_ticket_number ? ' · last: ' + escHtml(c.last_ticket_number) : ''}
+                </span>
+            </div>`).join('')}
+        </div>`;
+    } else {
+        consultantsInner = `<p class="text-sm text-gray-400">No prior consultant history found for this customer.</p>`;
+    }
+
+    // ── Tiket lama dengan isu serupa (pencocokan kata kunci, bukan pencarian
+    //    semantik — lihat AiTicketAnalyzerService::resolveSimilarTickets()) ──
+    const similarTickets = data.similar_tickets || [];
+    let similarInner;
+    if (similarTickets.length) {
+        similarInner = `<div class="space-y-1.5">
+            ${similarTickets.map(t => `<div class="text-sm bg-white border border-gray-200 rounded-lg px-3 py-2">
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold text-gray-800">${escHtml(t.ticket_number ?? '-')}</span>
+                    <span class="text-gray-400 text-xs ml-auto">${escHtml(timeAgo(t.created_at))}</span>
+                </div>
+                <p class="text-gray-500 text-xs mt-1">${escHtml(t.excerpt ?? '')}</p>
+                <p class="text-gray-400 text-[11px] mt-1">Handled by ${escHtml(t.consultant_name ?? '-')}</p>
+            </div>`).join('')}
+        </div>`;
+    } else {
+        similarInner = `<p class="text-sm text-gray-400">No similar past tickets found (matched by module + keywords in the description).</p>`;
+    }
+
+    return `
+        ${chipsHtml ? `<div class="flex flex-wrap items-center gap-1.5 mb-3">${chipsHtml}</div>` : ''}
+        ${aiSection('Overview', `<p class="${AI_BODY_CLS}">${escHtml(data.overview || '-')}</p>`)}
+        ${data.root_cause_hypothesis ? aiSection('Root Cause Hypothesis', `<p class="${AI_BODY_CLS}">${escHtml(data.root_cause_hypothesis)}</p>`) : ''}
+        ${aiSection('Resolution Steps', stepsHtml)}
+        ${risks.length ? aiSection('Notes / Risks', risksHtml) : ''}
+        ${aiSection('Best-Fit Consultants (Ranked)', assigneesInner)}
+        ${aiSection('Consultants for This Customer', consultantsInner)}
+        ${aiSection('Similar Past Tickets', similarInner)}
+        <div class="pt-3 mt-3 border-t border-indigo-100/70">
+            <button type="button" onclick="applyAiSuggestions()" class="text-xs font-semibold text-indigo-700 hover:underline">
+                <i class="fas fa-arrow-turn-down text-[10px]"></i> Apply suggestion to form
+            </button>
+        </div>`;
+}
+
+// Dipanggil OTOMATIS dari fillModal() saat modal validasi dibuka untuk tiket
+// yang belum pernah dianalisa, dan juga dipanggil MANUAL dari tombol
+// "Re-analyze" di panel (force=true) untuk memicu ulang setelah completed/
+// failed. Endpoint-nya sendiri yang menegakkan aturan klaim (lihat
+// StagingTicketController::analyze()) — force cuma dikirim sebagai niat,
+// server tetap menolak kalau ternyata sedang 'pending' di request lain.
+//
+// _aiAnalysisInFlight menjaga tab INI sendiri tidak menembak dua request
+// sekaligus buat tiket yang sama — insiden nyata: staging #316 dan #317
+// sama-sama sukses dianalisa (ada di audit log), TAPI ai_analysis_status
+// balik lagi ke 'pending' segera sesudahnya dan macet berjam-jam, pola yang
+// paling cocok dengan klik Re-analyze kedua menembak SELAGI klik pertama
+// masih berjalan (server sisi klaim atomic tetap benar — masalahnya baris
+// ini yang membiarkan tab yang sama memicu request kedua sama sekali).
+// Ini pelengkap, bukan pengganti, klaim atomic & stale-reclaim di server:
+// kalau tab LAIN atau admin lain yang memicu bersamaan, itu tetap ditangani
+// di sana.
+let _aiAnalysisInFlight = null;
+
+/**
+ * Loop parsing SSE (event:/data: frame, dipisah "\n\n") — port kecil dari
+ * pola yang sama dipakai di resources/views/ticket/show.blade.php
+ * (consumeSse). Disalin, bukan di-share lintas file: kedua Blade view ini
+ * tidak punya modul JS bersama.
+ */
+async function consumeStagingSse(response, onEvent) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        let boundary;
+        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+            const frame = buffer.slice(0, boundary);
+            buffer = buffer.slice(boundary + 2);
+
+            let eventName = 'message';
+            let dataLine = '';
+            frame.split('\n').forEach(line => {
+                if (line.startsWith('event:')) eventName = line.slice(6).trim();
+                if (line.startsWith('data:')) dataLine = line.slice(5).trim();
+            });
+            if (!dataLine) continue;
+
+            let payload;
+            try { payload = JSON.parse(dataLine); } catch { continue; }
+
+            onEvent(eventName, payload);
+        }
+    }
+}
+
+async function runAiAnalysis(id, force = false) {
+    if (_aiAnalysisInFlight === id) {
+        return;
+    }
+    _aiAnalysisInFlight = id;
+
+    if (currentStagingData && currentStagingData.id === id) {
+        currentStagingData.ai_analysis_status = 'pending';
+    }
+    refreshAiAnalysisPanel(id);
+
+    try {
+        // StagingTicketController::analyze() kadang balas JSON biasa (langsung
+        // instan — sudah completed/pending/failed dari klaim atomic sisi
+        // server, TIDAK berubah dari sebelumnya) dan kadang SSE (baru mulai
+        // memanggil AI, bisa menitan) — dibedakan lewat Content-Type, bukan
+        // dua endpoint terpisah.
+        const res = await fetch(`/api/staging-tickets/${id}/analyze`, {
+            method: 'POST',
+            headers: { 'Accept': 'text/event-stream', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+            credentials: 'same-origin',
+            body: JSON.stringify(force ? { force: true } : {}),
+        });
+
+        const contentType = res.headers.get('Content-Type') || '';
+        let data;
+
+        if (contentType.includes('text/event-stream')) {
+            let doneData = null;
+            let errorMessage = null;
+
+            await consumeStagingSse(res, (eventName, payload) => {
+                if ('status' === eventName) {
+                    const el = document.getElementById('aiAnalysisStatusText');
+                    if (el && payload.label) el.textContent = payload.label;
+                } else if ('done' === eventName) {
+                    doneData = payload.data;
+                } else if ('error' === eventName) {
+                    errorMessage = payload.message;
+                }
+            });
+
+            if (errorMessage) throw new Error(errorMessage);
+            if (!doneData) throw new Error('AI analysis ended without a result. Please try again.');
+            data = doneData;
+        } else {
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Request failed');
+            data = json.data;
+        }
+
+        _lastAiAnalysis = data;
+        if (currentStagingData && currentStagingData.id === id) {
+            currentStagingData.ai_analysis = data;
+            currentStagingData.ai_analysis_status = 'completed';
+            currentStagingData.ai_analysis_generated_at = new Date().toISOString();
+            // Analisa baru saja dibuat dari isi tiket SAAT INI, jadi per
+            // definisi tidak basi lagi — lihat StagingTicketController::
+            // isAiAnalysisStale() untuk perhitungan aslinya (di server, saat
+            // panel dibuka lagi/di-refresh dari daftar).
+            currentStagingData.ai_analysis_stale = false;
+        }
+        autoFillEmptyFromAi(data);
+        refreshAiAnalysisPanel(id);
+    } catch (e) {
+        if (currentStagingData && currentStagingData.id === id) {
+            currentStagingData.ai_analysis_status = 'failed';
+        }
+        // Refresh dulu (supaya header ikut ter-render ulang — kalau tidak,
+        // tombol Re-analyze tetap hilang karena disembunyikan saat status
+        // sempat 'pending' di atas), baru timpa isi body dengan pesan
+        // spesifik dari server (mis. rate limit/config) alih-alih pesan
+        // generik "gagal" dari aiAnalysisPanelHtml().
+        refreshAiAnalysisPanel(id);
+        const freshBody = document.getElementById('aiAnalysisBody');
+        if (freshBody) freshBody.innerHTML = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> ${escHtml(e.message || 'AI analysis failed. Please fill in the classification manually.')}</p>`;
+    } finally {
+        // WAJIB finally, bukan ditaruh lepas di akhir try/catch: harus tetap
+        // kelepas apa pun jalur keluarnya (sukses, gagal, atau exception tak
+        // terduga lain), atau tab ini tidak akan pernah bisa memicu
+        // analyze() lagi buat tiket ini sampai halaman di-reload.
+        _aiAnalysisInFlight = null;
+    }
+}
+
+// Render ulang seluruh panel (header dengan tombol Re-analyze + body) —
+// dipakai setelah status berubah supaya tombol Re-analyze langsung
+// tampil/hilang sesuai status terbaru, bukan cuma isi body-nya.
+function refreshAiAnalysisPanel(id) {
+    if (!currentStagingData || currentStagingData.id !== id) return;
+    const panel = document.getElementById('aiAnalysisBody')?.closest('div.border-indigo-200');
+    if (panel) panel.outerHTML = aiAnalysisPanelHtml(currentStagingData);
+}
+
+/* ── Tanya-jawab AI Analyzer ──────────────────────────────────────────────
+   Beda dari halaman AI Assistant: sesi ini SENGAJA TIDAK dipertahankan lintas
+   buka-tutup modal atau lintas Re-analyze. stagingQaSessionId dibuat ulang
+   setiap kali aiAnalysisPanelHtml() membangun panel dengan hasil (lihat di
+   atas) — supaya thread yang tampil kosong di layar tidak pernah diam-diam
+   menyambung ke sesi lama di server (AiTicketQaService::cacheKey() memakai id
+   ini), dan supaya konteks yang dipakai model selalu mengikuti ai_analysis
+   yang sedang tampil, bukan versi lama sebelum Re-analyze.
+   ────────────────────────────────────────────────────────────────────── */
+let stagingQaSessionId = null;
+let stagingQaBusy = false;
+let stagingQaMsgSeq = 0;
+
+function stagingQaNewSessionId() {
+    return 'qa' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+
+function stagingQaAppendUser(text) {
+    const thread = document.getElementById('aiQaThread');
+    if (!thread) return;
+    thread.insertAdjacentHTML('beforeend', `
+        <div class="flex justify-end">
+            <div class="max-w-[85%] bg-indigo-600 text-white text-xs rounded-xl rounded-br-sm px-3 py-1.5 whitespace-pre-wrap break-words">${escHtml(text)}</div>
+        </div>`);
+    thread.scrollTop = thread.scrollHeight;
+}
+
+/** Bubble jawaban kosong + spinner. Kembalikan id-nya. */
+function stagingQaAppendAssistantPending() {
+    const thread = document.getElementById('aiQaThread');
+    if (!thread) return null;
+
+    const id = 'aiQaMsg' + (++stagingQaMsgSeq);
+    thread.insertAdjacentHTML('beforeend', `
+        <div class="flex justify-start" id="${id}">
+            <div class="max-w-[85%] bg-white border border-gray-200 text-gray-700 text-xs rounded-xl rounded-bl-sm px-3 py-1.5 whitespace-pre-wrap break-words">
+                <i class="fas fa-spinner fa-spin text-gray-400"></i>
+            </div>
+        </div>`);
+    thread.scrollTop = thread.scrollHeight;
+    return id;
+}
+
+function stagingQaAppendDelta(id, deltaText) {
+    const wrap = document.getElementById(id);
+    if (!wrap) return;
+
+    const bubble = wrap.querySelector('div');
+    if (!bubble.dataset.streaming) {
+        bubble.dataset.streaming = '1';
+        bubble.dataset.text = '';
+        bubble.innerHTML = '';
+    }
+    bubble.dataset.text += deltaText;
+    bubble.textContent = bubble.dataset.text;
+
+    const thread = document.getElementById('aiQaThread');
+    if (thread) thread.scrollTop = thread.scrollHeight;
+}
+
+function stagingQaResolve(id, errorText) {
+    const wrap = document.getElementById(id);
+    if (!wrap) return;
+
+    const bubble = wrap.querySelector('div');
+    if (errorText) {
+        bubble.innerHTML = `<span class="text-red-600">${escHtml(errorText)}</span>`;
+    } else if (!bubble.dataset.streaming) {
+        bubble.innerHTML = `<span class="text-gray-400">(no reply)</span>`;
+    }
+}
+
+/**
+ * SATU-SATUNYA titik sentuh backend untuk widget ini. Streaming Server-Sent
+ * Events dari POST /api/staging-tickets/{id}/ask — bentuk framingnya sama
+ * persis dengan aiSendToBackend() di halaman AI Assistant (event delta/done/
+ * error), cuma parsingnya ditulis ulang di sini karena file ini tidak berbagi
+ * script dengan halaman itu.
+ */
+async function stagingQaSend(stagingId) {
+    if (stagingQaBusy) return;
+
+    const input = document.getElementById('aiQaInput');
+    const text = (input?.value || '').trim();
+    if (!text) return;
+
+    if (!stagingQaSessionId) stagingQaSessionId = stagingQaNewSessionId();
+
+    input.value = '';
+    stagingQaAppendUser(text);
+    stagingQaBusy = true;
+    const sendBtn = document.getElementById('aiQaSendBtn');
+    if (sendBtn) sendBtn.disabled = true;
+
+    const pendingId = stagingQaAppendAssistantPending();
+    let sawError = null;
+
+    try {
+        const response = await fetch(`/api/staging-tickets/${stagingId}/ask`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'text/event-stream',
+            },
+            body: JSON.stringify({ session_id: stagingQaSessionId, message: text }),
+        });
+
+        if (!response.ok || !response.body) {
+            throw new Error('Could not reach the assistant (HTTP ' + response.status + ').');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            let boundary;
+            while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                const frame = buffer.slice(0, boundary);
+                buffer = buffer.slice(boundary + 2);
+
+                let eventName = 'message';
+                let dataLine = '';
+                frame.split('\n').forEach(line => {
+                    if (line.startsWith('event:')) eventName = line.slice(6).trim();
+                    if (line.startsWith('data:')) dataLine = line.slice(5).trim();
+                });
+                if (!dataLine) continue;
+
+                let payload;
+                try { payload = JSON.parse(dataLine); } catch { continue; }
+
+                if (eventName === 'delta' && payload.text) {
+                    stagingQaAppendDelta(pendingId, payload.text);
+                } else if (eventName === 'error') {
+                    sawError = payload.message || 'Something went wrong.';
+                }
+                // 'done' tidak perlu ditangani secara khusus di sini.
+            }
+        }
+
+        if (sawError) throw new Error(sawError);
+        stagingQaResolve(pendingId, null);
+    } catch (e) {
+        stagingQaResolve(pendingId, e.message || 'Something went wrong.');
+    } finally {
+        stagingQaBusy = false;
+        if (sendBtn) sendBtn.disabled = false;
+    }
+}
+
+// Isi field klasifikasi HANYA yang masih kosong — tidak menimpa input admin.
+function autoFillEmptyFromAi(data) {
+    [
+        ['approveTicketType', data.suggested_ticket_type],
+        ['approvePriority',   data.suggested_priority],
+        ['approveScale',      data.suggested_scale],
+    ].forEach(([id, val]) => {
+        if (!val) return;
+        const el = document.getElementById(id);
+        if (el && !el.value) el.value = val;
+    });
+
+    // Widget modul terstruktur (multi-select) — cuma diisi kalau validator
+    // belum memilih apa-apa, sama seperti field lain di atas.
+    const moduleIdsEl = document.getElementById('approveModuleIds');
+    if (moduleIdsEl && !moduleIdsEl.value && Array.isArray(data.suggested_module_ids) && data.suggested_module_ids.length) {
+        setCustomDropdownMulti('approveModuleIds', data.suggested_module_ids);
+    const moduleEl = document.getElementById('approveModule');
+    if (moduleEl && !moduleEl.value && data.suggested_module_name) {
+        setApproveModule(null, data.suggested_module_name);
+    }
+}
+
+// Paksa terapkan saran AI terakhir ke form (dipanggil manual dari panel).
+function applyAiSuggestions() {
+    if (!_lastAiAnalysis) return;
+    const d = _lastAiAnalysis;
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    setVal('approveTicketType', d.suggested_ticket_type);
+    setVal('approvePriority',   d.suggested_priority);
+    setVal('approveScale',      d.suggested_scale);
+    if (d.suggested_module_name) setApproveModule(null, d.suggested_module_name);
+    showNotif('AI suggestions applied to form.', 'success');
+}
+
+function timeAgo(iso) {
+    if (!iso) return '';
+    const diffSec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (diffSec < 60) return 'just now';
+    if (diffSec < 3600) return Math.floor(diffSec / 60) + ' min ago';
+    if (diffSec < 86400) return Math.floor(diffSec / 3600) + ' hr ago';
+    return Math.floor(diffSec / 86400) + ' d ago';
+}
+
+async function loadForCustomerOptions(parentId, selectedEndCustomerId) {
+    try {
+        const res = await fetch(`/api/customers/${parentId}/end-customers`, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.data) || !data.data.length) return;
+
+        const sel  = document.getElementById('approveEndCustomer');
+        const wrap = document.getElementById('forCustomerWrap');
+        if (!sel || !wrap) return;
+
+        data.data.forEach(ec => {
+            const opt = document.createElement('option');
+            opt.value = ec.id;
+            opt.textContent = ec.name + (ec.code ? ` (${ec.code})` : '');
+            sel.appendChild(opt);
+        });
+
+        if (selectedEndCustomerId) {
+            sel.value = String(selectedEndCustomerId);
+            sel.dispatchEvent(new Event('change'));
+        }
+
+        wrap.classList.remove('hidden');
+    } catch (e) {
+        console.error('loadForCustomerOptions error', e);
+    }
 }
 
 function renderFooter(s) {
     const footer = document.getElementById('modalFooter');
     if (s.status === 'unvalidated') {
         footer.innerHTML = `
-            <button onclick="showRejectInput(${s.id})" id="btnReject"
+            ${canRejectStaging ? `<button onclick="showRejectInput(${s.id})" id="btnReject"
                     class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                 Reject
-            </button>
-            <button onclick="submitApprove(${s.id})" id="btnApprove"
+            </button>` : ''}
+            ${canApproveStaging ? `<button onclick="submitApprove(${s.id})" id="btnApprove"
                     class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Approve
-            </button>`;
+            </button>` : ''}`;
     } else {
         footer.innerHTML = `
             <button onclick="closeModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Close</button>`;
@@ -648,11 +1486,16 @@ function buildAttachmentsBlock(files, source = 'local') {
         const url      = escHtml(f.url || '#');
         const icon     = mimeIcon(mime);
         const isImage  = mime.startsWith('image/');
+        const isPdf    = mime === 'application/pdf';
         const preview  = isImage
             ? `<img src="${url}" alt="${name}" class="max-h-32 max-w-full rounded object-contain border border-gray-200 mt-2" onerror="this.remove()">`
             : '';
+        // Image/PDF: browser punya viewer bawaan, buka di tab baru. Tipe lain (docx, xlsx, zip, dst):
+        // browser tidak bisa render inline, jadi paksa download dengan nama file yang benar —
+        // tanpa atribut `download` ini, sebagian browser fallback ke nama dari URL (rusak/acak).
+        const linkAttrs = (isImage || isPdf) ? 'target="_blank" rel="noopener"' : `download="${name}"`;
         return `<div class="border-b border-gray-100 last:border-0">
-            <a href="${url}" target="_blank" rel="noopener"
+            <a href="${url}" ${linkAttrs}
                class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group">
                 <i class="fas ${icon} text-gray-400 group-hover:text-red-500 text-base w-5 text-center flex-shrink-0"></i>
                 <span class="text-sm text-gray-800 truncate flex-1">${name}</span>
@@ -715,13 +1558,58 @@ function cancelReject() {
     if (currentStagingData) renderFooter(currentStagingData);
 }
 
+/**
+ * Pilih modul di dropdown berdasarkan id (kalau staging sudah punya module_id)
+ * atau berdasarkan NAMA (tiket email menyimpan modul sebagai teks bebas).
+ * Nama yang tidak cocok baris mana pun ditampilkan sebagai hint, supaya
+ * helpdesk tahu apa yang tertulis sebelumnya dan bisa memilih padanannya.
+ */
+function setApproveModule(moduleId, moduleName) {
+    const el   = document.getElementById('approveModule');
+    const hint = document.getElementById('approveModuleHint');
+    if (!el) return;
+
+    let matched = '';
+    if (moduleId) {
+        matched = [...el.options].some(o => o.value === String(moduleId)) ? String(moduleId) : '';
+    }
+    if (!matched && moduleName) {
+        const needle = String(moduleName).trim().toLowerCase();
+        matched = [...el.options].find(o => o.value && o.textContent.trim().toLowerCase() === needle)?.value ?? '';
+    }
+    el.value = matched;
+
+    if (hint) {
+        const stale = !matched && moduleName ? String(moduleName).trim() : '';
+        hint.textContent = stale ? `Tertulis di tiket: "${stale}" — tidak ada di Master Module.` : '';
+        hint.classList.toggle('hidden', stale === '');
+    }
+}
+
+/** Nama modul terpilih — ikut dikirim supaya kolom teks `module` tetap konsisten. */
+function selectedApproveModuleName() {
+    const el = document.getElementById('approveModule');
+    if (!el || !el.value) return '';
+    return el.options[el.selectedIndex]?.textContent.trim() ?? '';
+}
+
 async function submitApprove(id) {
-    const ticketType = document.getElementById('approveTicketType')?.value ?? '';
-    const priority   = document.getElementById('approvePriority')?.value   ?? '';
-    const scale      = document.getElementById('approveScale')?.value      ?? '';
+    const ticketType        = document.getElementById('approveTicketType')?.value ?? '';
+    const priority          = document.getElementById('approvePriority')?.value   ?? '';
+    const scale             = document.getElementById('approveScale')?.value      ?? '';
+    const name              = document.getElementById('approveName')?.value.trim()   ?? '';
+    const noHp              = document.getElementById('approveNoHp')?.value.trim()   ?? '';
+    const module            = document.getElementById('approveModule')?.value.trim() ?? '';
+    const moduleIds         = (document.getElementById('approveModuleIds')?.value || '').split(',').filter(Boolean).map(Number);
+    const moduleId          = document.getElementById('approveModule')?.value || null;
+    const module            = selectedApproveModuleName();
+    const client            = document.getElementById('approveClient')?.value.trim() ?? '';
+    const deliverySupportId = _stagingDsSelected.id || null;
+    const endCustomerId     = document.getElementById('approveEndCustomer')?.value || null;
 
     const typeErr = document.getElementById('typeError');
     const prioErr = document.getElementById('priorityError');
+    const dsErr   = document.getElementById('dsError');
     let valid = true;
 
     if (!ticketType) { typeErr?.classList.remove('hidden'); valid = false; }
@@ -729,6 +1617,11 @@ async function submitApprove(id) {
 
     if (!priority)    { prioErr?.classList.remove('hidden'); valid = false; }
     else              { prioErr?.classList.add('hidden'); }
+
+    // Wajib hanya bila customer memang punya delivery support terdaftar.
+    const dsAvailable = document.querySelectorAll('#stagingDsPanel .staging-ds-opt').length > 0;
+    if (dsAvailable && !deliverySupportId) { dsErr?.classList.remove('hidden'); valid = false; }
+    else                                   { dsErr?.classList.add('hidden'); }
 
     if (!valid) return;
 
@@ -740,9 +1633,20 @@ async function submitApprove(id) {
 
     try {
         const res = await apiFetch(`/api/staging-tickets/${id}/approve`, 'POST', {
-            ticket_type:     ticketType,
-            ticket_priority: priority,
-            scale:           scale || null,
+            ticket_type:          ticketType,
+            ticket_priority:      priority,
+            scale:                scale  || null,
+            name:                 name   || null,
+            no_hp:                noHp   || null,
+            module:               module || null,
+            module_ids:           moduleIds,
+            // Modul hanya ditimpa kalau helpdesk benar-benar memilih. Dibiarkan
+            // "-- none --" berarti teks modul asli dari staging tetap tersimpan
+            // (tiket email lama menulis modul sebagai teks bebas).
+            ...(moduleId ? { module: module, module_id: moduleId } : { module_id: null }),
+            client:               client || null,
+            delivery_support_id:  deliverySupportId,
+            end_customer_id:      endCustomerId,
         });
         const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
         console.groupEnd();
@@ -837,7 +1741,7 @@ async function fetchEmailInbox(silent = false) {
     const btn    = document.getElementById('btnRefresh');
     const status = document.getElementById('fetchEmailStatus');
 
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>'; }
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Refreshing…'; }
     if (status) { status.textContent = 'Refreshing...'; }
 
     const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -867,7 +1771,9 @@ async function fetchEmailInbox(silent = false) {
         if (inboxData.status === 'rejected') console.error(`[FetchEmail] process-inbox NETWORK ERROR:`, inboxData.reason);
         if (sentData.status  === 'rejected') console.error(`[FetchEmail] process-sent NETWORK ERROR:`, sentData.reason);
 
-        const newFromInbox = inbox.processed ?? 0;
+        // staged  = email baru yang masuk ke staging (notif harus bunyi)
+        // linked  = email reply ke tiket existing (JANGAN trigger notif staging)
+        const newStaged    = inbox.staged    ?? inbox.processed ?? 0;
         const linkedSent   = sent.linked     ?? 0;
 
         if (inbox.errors?.length) console.warn(`[FetchEmail] Inbox errors:`, inbox.errors);
@@ -875,19 +1781,41 @@ async function fetchEmailInbox(silent = false) {
         if (!inbox.success && inbox.message) console.warn(`[FetchEmail] process-inbox server error:`, inbox.message);
         if (!sent.success && sent.message)   console.warn(`[FetchEmail] process-sent server error:`, sent.message);
 
-        const hasChanges = newFromInbox > 0 || linkedSent > 0;
+        const hasChanges = newStaged > 0 || linkedSent > 0;
+
+        if (newStaged > 0) {
+            // ── 1. Sound on current tab (staging page) ──────────────────────
+            if (typeof playStagingSound === 'function') playStagingSound();
+
+            // ── 2. OS notification hanya saat tab ini di background ─────────
+            if (document.hidden && typeof showOsNotification === 'function') {
+                showOsNotification(
+                    'Email Baru · Ticket Validation',
+                    `${newStaged} email baru menunggu validasi`,
+                    '/staging'
+                );
+            }
+
+            // ── 3. Broadcast ke tab lain di browser yang sama ───────────────
+            // localStorage hanya sebagai fallback jika BroadcastChannel tidak tersedia
+            // (mencegah double-play: BC dan storage event keduanya terpicu di tab penerima)
+            const _evt = { type: 'new-staging-email', count: newStaged, ts: Date.now() };
+            let _bcSent = false;
+            try { const _bc = new BroadcastChannel('ecosystem-staging'); _bc.postMessage(_evt); _bc.close(); _bcSent = true; } catch (_e) {}
+            if (!_bcSent) { try { localStorage.setItem('_eco_staging_evt', JSON.stringify(_evt)); } catch (_e) {} }
+        }
 
         if (!silent || hasChanges) {
             const parts = [];
-            if (newFromInbox > 0) parts.push(`${newFromInbox} new ticket(s) from inbox`);
-            if (linkedSent > 0)   parts.push(`${linkedSent} staging(s) linked to sent email`);
+            if (newStaged > 0)  parts.push(`${newStaged} new ticket(s) from inbox`);
+            if (linkedSent > 0) parts.push(`${linkedSent} staging(s) linked to sent email`);
             if (parts.length > 0) showNotif(parts.join(', ') + '.', 'success');
             else if (!silent) showNotif('No new emails.', 'info');
         }
 
         const statusParts = [];
-        if (newFromInbox > 0) statusParts.push(`${newFromInbox} inbox`);
-        if (linkedSent > 0)   statusParts.push(`${linkedSent} linked`);
+        if (newStaged > 0)  statusParts.push(`${newStaged} inbox`);
+        if (linkedSent > 0) statusParts.push(`${linkedSent} linked`);
         if (status) status.textContent = `Updated ${now} (WIB)${statusParts.length ? ' · ' + statusParts.join(', ') : ''}`;
 
         if (hasChanges) { loadStagingTickets(); loadStats(); }
@@ -898,9 +1826,68 @@ async function fetchEmailInbox(silent = false) {
         if (!silent) showNotif('Failed to connect to email server.', 'error');
         if (status) status.textContent = `Error ${now} (WIB)`;
     } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = 'Refresh'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt text-xs"></i> Refresh'; }
     }
 }
+
+// ── Delivery Support combobox (validation modal) ──────────────────────────────
+
+const DELIVERY_SUPPORTS = @json($deliverySupportsJson);
+
+// Type/Priority/Scale enums — sumbernya App\Support\TicketClassification (PHP),
+// dikirim lewat controller supaya <option> di sini tidak jadi salinan lepas yang
+// bisa diam-diam beda dari validasi server / schema AI Ticket Analyzer.
+const TICKET_TYPES      = @json($ticketClassification['types']);
+const TICKET_PRIORITIES = @json($ticketClassification['priorities']);
+const TICKET_SCALES     = @json($ticketClassification['scales']);
+
+function buildOptionsHtml(values, placeholder) {
+    const opts = values.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+    return `<option value="">${escHtml(placeholder)}</option>${opts}`;
+}
+
+let _stagingDsSelected = { id: null, name: '' };
+
+function openStagingDsDd() {
+    const input = document.getElementById('stagingDsSearch');
+    const panel = document.getElementById('stagingDsPanel');
+    if (!input || !panel) return;
+    input.select();
+    filterStagingDs('');
+    panel.classList.remove('hidden');
+}
+
+function filterStagingDs(q) {
+    const panel = document.getElementById('stagingDsPanel');
+    if (!panel) return;
+    const term = q.toLowerCase().trim();
+    panel.querySelectorAll('.staging-ds-opt').forEach(btn => {
+        btn.style.display = (!term || btn.dataset.name.toLowerCase().includes(term)) ? '' : 'none';
+    });
+    panel.classList.remove('hidden');
+}
+
+function selectStagingDs(id, name) {
+    _stagingDsSelected = { id: id ? parseInt(id) : null, name };
+    const hidden = document.getElementById('stagingDsHidden');
+    const input  = document.getElementById('stagingDsSearch');
+    if (hidden) hidden.value = id ?? '';
+    if (input)  input.value  = name;
+    const panel = document.getElementById('stagingDsPanel');
+    if (panel)  panel.classList.add('hidden');
+}
+
+document.addEventListener('click', function (e) {
+    const dd = document.getElementById('stagingDsDd');
+    if (dd && !dd.contains(e.target)) {
+        const input = document.getElementById('stagingDsSearch');
+        if (input) input.value = _stagingDsSelected.name;
+        const panel = document.getElementById('stagingDsPanel');
+        if (panel) panel.classList.add('hidden');
+    }
+});
+
+
 </script>
 {{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
      cache buster supaya production auto-invalidate setiap deploy. --}}

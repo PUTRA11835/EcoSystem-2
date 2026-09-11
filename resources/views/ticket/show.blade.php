@@ -1,35 +1,37 @@
-﻿@extends('dashboard')
+@extends('dashboard')
 @section('content-class', 'p-4')
 @section('title', 'Ticket ' . $ticket->ticket_number)
 @section('page-title', 'Support Ticket')
 @section('page-subtitle')
-#{{ $ticket->ticket_number }} - {{ Str::limit($ticket->description, 50) }}
-@if(isset($deliverySupport) && $deliverySupport)
-<span id="headbarTopDsBadge" class="inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 align-middle">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" /></svg>
-    DS: {{ $deliverySupport->name }}@if($deliverySupport->type) <span class="opacity-70">({{ $deliverySupport->type }})</span>@endif
+{{-- Baris 1 = nomor+deskripsi + badge manager/admin di sampingnya; baris 2 = badge DS.
+     white-space:normal meng-override `truncate` dari layout dashboard agar bisa multi-baris. --}}
+<span id="headbarSubtitleCol" style="display:flex;flex-direction:column;gap:3px;white-space:normal;line-height:1.35;">
+    <span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;">
+        <span>#{{ $ticket->ticket_number }} - {{ Str::limit($ticket->description, 50) }}</span>
+        @if(isset($deliverySupport) && $deliverySupport)
+        @php
+            $managerLabel = $deliverySupport->support_manager_name ?: '<span class="italic opacity-50">Unassigned</span>';
+            $adminLabel   = $deliverySupport->support_admin_name   ?: '<span class="italic opacity-50">Unassigned</span>';
+            $hasAny = $deliverySupport->support_manager_name || $deliverySupport->support_admin_name;
+        @endphp
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold align-middle {{ $hasAny ? 'bg-gray-100 text-gray-600' : 'bg-yellow-50 text-yellow-600 border border-yellow-200' }}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>
+            {!! $managerLabel !!} / {!! $adminLabel !!}
+        </span>
+        @endif
+    </span>
+    <span id="headbarBadgeRow" style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px;">
+        @if(isset($deliverySupport) && $deliverySupport)
+        <span id="headbarTopDsBadge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 align-middle">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" /></svg>
+            DS: {{ $deliverySupport->name }}@if($deliverySupport->type) <span class="opacity-70">({{ $deliverySupport->type }})</span>@endif
+        </span>
+        @endif
+    </span>
 </span>
-@endif
 @endsection
 
 @section('page-actions')
-@if($ticket->onedrive_folder_url)
-<a id="ticketFolderBtn" href="{{ $ticket->onedrive_folder_url }}" target="_blank" rel="noopener"
-   class="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-    </svg>
-    Open Folder
-</a>
-@else
-<button type="button" id="ticketFolderBtn" onclick="openOneDriveModal()"
-        class="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
-    </svg>
-    Create Folder
-</button>
-@endif
 @endsection
 
 {{-- Override sidebar with ticket inbox --}}
@@ -48,18 +50,21 @@
     </div>
 
     {{-- Filter Tabs --}}
-    @php $ticketManagerOrEmployee = array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::EMPLOYEE->value]); @endphp
-    @if(in_array($user->role->role_id, $ticketManagerOrEmployee, true))
+    @if($can('room-chat.tab-all-ticket') || $can('room-chat.tab-my-ticket'))
     <div class="px-4 pb-3">
         <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
+            @if($can('room-chat.tab-all-ticket'))
             <button id="sidebarTabAll" onclick="switchSidebarView('all')"
                 class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-white" style="background:rgba(255,255,255,0.2)">
                 All Ticket
             </button>
+            @endif
+            @if($can('room-chat.tab-my-ticket'))
             <button id="sidebarTabMy" onclick="switchSidebarView('my')"
                 class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-white opacity-60">
                 My Ticket
             </button>
+            @endif
         </div>
     </div>
     @endif
@@ -109,30 +114,39 @@
                     <span class="text-sm text-gray-400 font-mono">{{ $ticket->ticket_number }}</span>
                     @php
                         $statusColors = [
-                            'open' => 'bg-blue-100 text-blue-700',
-                            'in_progress' => 'bg-yellow-100 text-yellow-700',
-                            'hold' => 'bg-orange-100 text-orange-700',
-                            'cancel' => 'bg-gray-100 text-gray-500',
-                            'closed' => 'bg-green-100 text-green-700',
-                            'reply' => 'bg-purple-100 text-purple-700',
-                            'wait_to_close' => 'bg-teal-100 text-teal-700',
+                            'open'                    => 'bg-blue-100 text-blue-700',
+                            'inprocess'               => 'bg-yellow-100 text-yellow-700',
+                            'waiting_on_customer'     => 'bg-amber-100 text-amber-700',
+                            'waiting_on_3rd_party'    => 'bg-indigo-100 text-indigo-700',
+                            'waiting_to_confirmation' => 'bg-teal-100 text-teal-700',
+                            'hold'                    => 'bg-orange-100 text-orange-700',
+                            'cancelled'               => 'bg-gray-100 text-gray-500',
+                            'closed'                  => 'bg-green-100 text-green-700',
                         ];
                         $statusLabels = [
-                            'open' => 'Open', 'in_progress' => 'In Progress', 'hold' => 'Hold',
-                            'cancel' => 'Cancel', 'closed' => 'Closed', 'reply' => 'Reply',
-                            'wait_to_close' => 'Wait to Close',
+                            'open'                    => 'Open',
+                            'inprocess'               => 'Inprocess',
+                            'waiting_on_customer'     => 'Waiting on Customer',
+                            'waiting_on_3rd_party'    => 'Waiting on 3rd Party',
+                            'waiting_to_confirmation' => 'Waiting to Confirmation',
+                            'hold'                    => 'Hold',
+                            'cancelled'               => 'Cancelled',
+                            'closed'                  => 'Closed',
                         ];
                     @endphp
-                    <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
-                        {{ $statusLabels[$ticket->status] ?? 'Open' }}
+                    <span id="ticketStatusBadge" class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
+                        {{ $statusLabels[$ticket->status] ?? ucfirst($ticket->status) }}
                     </span>
                     @if($ticket->ticket_type)
                     @php
                         $typeColors = [
-                            'Incident' => 'bg-red-100 text-red-700',
+                            'Incident'        => 'bg-red-100 text-red-700',
+                            'Change Request'  => 'bg-amber-100 text-amber-700',
                             'Service Request' => 'bg-indigo-100 text-indigo-700',
-                            'Change Request' => 'bg-amber-100 text-amber-700',
-                            'Consult' => 'bg-teal-100 text-teal-700',
+                            'EWA'             => 'bg-orange-100 text-orange-700',
+                            'RISE'            => 'bg-violet-100 text-violet-700',
+                            'Consult'         => 'bg-teal-100 text-teal-700',
+                            'Internal'        => 'bg-slate-200 text-slate-700',
                         ];
                     @endphp
                     <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $typeColors[$ticket->ticket_type] ?? 'bg-gray-100 text-gray-600' }}">
@@ -144,25 +158,38 @@
                     <span>{{ $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</span>
                     <span class="text-gray-300">|</span>
                     <span>{{ $ticket->created_at->format('d M Y H:i') }} WIB</span>
-                    @if($ticket->employee)
+                    @if($ticket->ticketLead)
                         <span class="text-gray-300">|</span>
-                        <span>PIC: {{ $ticket->employee->basicData ? trim($ticket->employee->basicData->first_name . ' ' . ($ticket->employee->basicData->last_name ?? '')) : 'Assigned' }}</span>
+                        <span>Ticket Lead: {{ $ticket->ticketLead->basicData ? ($ticket->ticketLead->basicData->nick_name ?: trim($ticket->ticketLead->basicData->first_name . ' ' . ($ticket->ticketLead->basicData->last_name ?? ''))) : 'Assigned' }}</span>
                     @endif
                 </div>
             </div>
             @php
-                $canViewCredential =
-                    in_array($user->role->role_id, array_merge(\App\Enums\RoleId::TICKET_MANAGER_GROUP, [\App\Enums\RoleId::HEAD_OF_SUPPORT->value]), true)
-                    || $ticket->employee_id == $user->id
+                $canViewCredential = $can('ticket.view-credential')
+                    || $ticket->ticket_lead_id == $user->id
                     || $ticket->members->contains('employee_id', $user->id);
             @endphp
-            @if($canViewCredential && $ticket->customer_id)
+            @if($canViewCredential && ($ticket->end_customer_id || $ticket->customer_id))
             <button onclick="openCredentialModal()"
                 title="Customer Credential"
-                class="ml-4 flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                </svg>
+                class="ml-4 flex-shrink-0 h-9 px-3 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
+                Credential
+            </button>
+            @endif
+            @if($can('ticket.sla-log') && $ticket->ticket_type === 'Incident')
+            <button onclick="openSlaLogModal()"
+                title="Log SLA"
+                class="ml-2 flex-shrink-0 h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
+                <i class="fas fa-history text-xs"></i> Log SLA
+            </button>
+            @endif
+            @if($can('ticket.shifting-log'))
+            {{-- Shortcut ke modal Log Shifting (data sama dengan klik-kanan di list ticket).
+                 Berlaku untuk SEMUA ticket type, tidak hanya Incident seperti Log SLA. --}}
+            <button onclick="openLogShiftingTicketModal()"
+                title="Log Shifting"
+                class="ml-2 flex-shrink-0 h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
+                <i class="fas fa-exchange-alt text-xs"></i> Log Shifting
             </button>
             @endif
             {{-- Toggle right panel --}}
@@ -198,10 +225,21 @@
                         <i class="fas fa-envelope text-[10px]"></i>
                         <span>Replies will be sent to customer via <strong>Email</strong></span>
                     </div>
+                    @elseif($ticket->channel === 'imported')
+                    {{-- Imported ticket: offer option to start email thread --}}
+                    <div class="px-4 pt-2 pb-0.5 flex items-center gap-2">
+                        <i class="fas fa-comment text-[10px] text-gray-400"></i>
+                        <span class="text-xs text-gray-400 flex-1">Replies saved internally — no email will be sent to customer</span>
+                        <button onclick="showEmailInitMode()" id="btnStartEmailThread"
+                            class="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors">
+                            <i class="fas fa-envelope text-[10px]"></i> Start Email to Customer
+                        </button>
+                    </div>
                     @else
+                    {{-- Ticket web biasa (bukan import): tidak ada opsi email --}}
                     <div class="px-4 pt-2 pb-0.5 flex items-center gap-1.5 text-xs text-gray-400">
                         <i class="fas fa-comment text-[10px]"></i>
-                        <span>Replies only visible in <strong>Jarvies</strong> — no email will be sent</span>
+                        <span>Replies saved internally — no email will be sent to customer</span>
                     </div>
                     @endif
                 </div>
@@ -222,37 +260,53 @@
                  menyembunyikan konten yang ter-collapse. --}}
             <div id="replyComposeInner" style="max-height:600px;overflow:visible;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
 
-            {{-- To Row: tag input — initial value dari resolved customer email, bisa ditambah/dihapus --}}
-            @if($ticket->channel === 'email' || $ticket->email_thread_id)
-            <div class="px-4 pt-1.5" id="toRow">
-                <div class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('toInput').focus()">
+            {{-- To Row: selalu dirender; untuk non-email ticket dikontrol JS (showEmailInitMode/hideEmailInitMode) --}}
+            <div class="px-4 pt-1.5" id="toRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
+                <div id="toDropZone"
+                     class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text transition-colors"
+                     onclick="document.getElementById('toInput').focus()"
+                     ondragover="emailChipDragOver(event)"
+                     ondragenter="emailChipDragEnter(event,'to')"
+                     ondragleave="emailChipDragLeave(event,'to')"
+                     ondrop="emailChipDrop(event,'to')">
                     <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">To</span>
                     <div id="toTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
-                    <input type="text" id="toInput"
-                           placeholder="Add email and press Enter..."
-                           class="text-xs border-none bg-transparent outline-none flex-1 min-w-[150px] placeholder-gray-300 py-0.5"
-                           onkeydown="handleToKeydown(event)"
-                           onblur="commitToInput()"
-                           onpaste="handleToPaste(event)">
+                    <div class="relative flex-1 min-w-[150px]">
+                        <input type="text" id="toInput"
+                               placeholder="Add email and press Enter..."
+                               class="text-xs border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                               onkeydown="handleToKeydown(event)"
+                               oninput="showEmailSuggest(event,'to')"
+                               onblur="handleToBlur()"
+                               onpaste="handleToPaste(event)">
+                        <div id="toSuggest" class="hidden absolute left-0 top-full mt-0.5 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 max-h-44 overflow-y-auto"></div>
+                    </div>
                 </div>
             </div>
-            @endif
 
-            {{-- CC Row: hanya tampil untuk email tickets --}}
-            @if($ticket->channel === 'email' || $ticket->email_thread_id)
-            <div class="px-4 pt-1.5" id="ccRow">
-                <div class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text" onclick="document.getElementById('ccInput').focus()">
+            {{-- CC Row: selalu dirender; untuk non-email ticket dikontrol JS --}}
+            <div class="px-4 pt-1.5" id="ccRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
+                <div id="ccDropZone"
+                     class="flex flex-wrap items-center gap-1 min-h-[30px] border border-gray-200 rounded-lg bg-gray-50 px-2 py-1 cursor-text transition-colors"
+                     onclick="document.getElementById('ccInput').focus()"
+                     ondragover="emailChipDragOver(event)"
+                     ondragenter="emailChipDragEnter(event,'cc')"
+                     ondragleave="emailChipDragLeave(event,'cc')"
+                     ondrop="emailChipDrop(event,'cc')">
                     <span class="text-[11px] text-gray-500 font-semibold mr-0.5 flex-shrink-0">CC</span>
                     <div id="ccTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
-                    <input type="text" id="ccInput"
-                           placeholder="Add email and press Enter..."
-                           class="text-xs border-none bg-transparent outline-none flex-1 min-w-[150px] placeholder-gray-300 py-0.5"
-                           onkeydown="handleCcKeydown(event)"
-                           onblur="commitCcInput()"
-                           onpaste="handleCcPaste(event)">
+                    <div class="relative flex-1 min-w-[150px]">
+                        <input type="text" id="ccInput"
+                               placeholder="Add email and press Enter..."
+                               class="text-xs border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                               onkeydown="handleCcKeydown(event)"
+                               oninput="showEmailSuggest(event,'cc')"
+                               onblur="handleCcBlur()"
+                               onpaste="handleCcPaste(event)">
+                        <div id="ccSuggest" class="hidden absolute left-0 top-full mt-0.5 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 max-h-44 overflow-y-auto"></div>
+                    </div>
                 </div>
             </div>
-            @endif
 
             {{-- Reply-to context bar (WhatsApp-style) --}}
             <div id="replyContextBar" class="hidden px-4 pt-2">
@@ -277,8 +331,10 @@
                 {{-- NOTE: wrapper TIDAK pakai overflow-hidden — itu memotong dropdown picker
                      "Normal" Quill yang muncul ke bawah. Border-radius cukup pakai rounded-lg
                      tanpa overflow clip; konten editor sudah dibatasi oleh .ql-editor overflow. --}}
+
                 <div class="relative">
                     <div class="bg-white border border-gray-300 rounded-lg">
+                        <div id="replyResizeHandle" class="reply-resize-handle" title="Tarik untuk mengubah ukuran editor"></div>
                         <div id="quillEditor" style="min-height: 80px;"></div>
                     </div>
                     {{-- @mention autocomplete dropdown — fixed so it's never clipped by overflow parents --}}
@@ -298,13 +354,38 @@
                     <button onclick="sendReply('internal_note')" class="inline-flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all duration-200">
                         Internal Note
                     </button>
+                    @if($can('ticket.meeting'))
+                    <button id="meetingBtn" onclick="openMeetingPanel()"
+                        {{ $inMeeting ? 'title=\'Meeting sedang berjalan — klik untuk menjadwalkan meeting baru\'' : '' }}
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                        </svg>
+                        {{ $inMeeting ? 'Meeting Active' : 'Meeting' }}
+                    </button>
+                    @endif
                     <span id="attachCount" class="hidden text-xs text-blue-600 font-medium ml-2"></span>
                     {{-- Send button dipisah ke pojok kanan --}}
                     @if($ticket->channel === 'email')
                     <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
                         Send via Email
                     </button>
+                    @elseif($ticket->email_thread_id)
+                    <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
+                        Send Reply
+                    </button>
+                    @elseif($ticket->channel === 'imported')
+                    {{-- Imported ticket: Send First Email button (hidden, shown when email init mode is active) --}}
+                    <button id="btnSendInitEmail" onclick="doInitiateEmail()"
+                        class="ml-auto hidden inline-flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all duration-200">
+                        <i class="fas fa-paper-plane text-[10px]"></i> Send First Email
+                    </button>
+                    <button id="btnCancelInitEmail" onclick="hideEmailInitMode()"
+                        class="hidden inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-200 transition-all duration-200">
+                        Cancel
+                    </button>
                     @else
+                    {{-- Ticket web biasa: Send Reply normal --}}
                     <button onclick="sendReply('reply')" class="ml-auto inline-flex items-center px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all duration-200">
                         Send Reply
                     </button>
@@ -319,9 +400,22 @@
     @php
         $mandaysStatus   = $ticket->mandays_proposal_status   ?? 'none';
         $resolutionStatus  = $ticket->resolution_days_status    ?? 'none';
-        $isPic           = $user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value;
-        $isHelpdesk      = in_array($user->role->role_id, \App\Enums\RoleId::HELPDESK_GROUP, true);
-        $isHead          = $user->role->role_id === \App\Enums\RoleId::HEAD_OF_SUPPORT->value;
+        $isHelpdesk = $can('ticket.review-mandays');
+        $isHead     = $can('ticket.head-mandays');
+        // Propose (Customer Mandays / Resolution Days) and Review/Head are independently
+        // configurable — a user who holds both a propose and a review/head permission
+        // (whether via one role or several) sees BOTH the propose UI and the review UI,
+        // for both Customer Mandays and Resolution Days. No mutual-exclusion override.
+        $isPicCustomer   = $can('ticket.propose-mandays-customer');
+        $isPicResolution = $can('ticket.propose-mandays-resolution');
+        $hdCanEditActivity    = $isHelpdesk && $can('ticket.review-mandays.edit-activity');
+        $hdCanEditDesc        = $isHelpdesk && $can('ticket.review-mandays.edit-description');
+        $hdCanEditNotes       = $isHelpdesk && $can('ticket.review-mandays.edit-proposal-notes');
+        $hdCanSaveDraft       = $isHelpdesk && $can('ticket.review-mandays.save-draft');
+        $hdCanSendToCustomer  = $isHelpdesk && $can('ticket.review-mandays.send-to-customer');
+        $hdCanApprove         = $isHelpdesk && $can('ticket.review-mandays.approve');
+        $hdCanCancel          = $isHelpdesk && $can('ticket.review-mandays.cancel');
+        $hdCanCancelApproved  = $isHelpdesk && $can('ticket.review-mandays.cancel-approved');
         $mandaysBadge    = [
             'none'            => ['bg-gray-100 text-gray-500',   'None'],
             'pic_draft'       => ['bg-yellow-100 text-yellow-700','Draft'],
@@ -347,20 +441,69 @@
             'none'  => 'Propose Resolution Days',
             default => 'Update Resolution Days',
         };
-        $ticketAssigned    = $ticket->employee_id !== null;
-        $canTakeTicket     = $user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value
-                             && !$ticketAssigned;
-        $canAssignPic      = in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true);
+        $ticketAssigned    = $ticket->ticket_lead_id !== null;
+        $canTakeTicket     = $can('ticket.take') && !$ticketAssigned;
+        $canAssignPic      = $can('ticket.assign-pic');
+        $canAssignDelivery = $can('ticket.assign-delivery-support');
+        // Ticket Lead tiket ini / Module Lead (module mana pun) → boleh assign Ticket
+        // Lead & kelola member walau tanpa permission manajemen (data-driven).
+        $canManageTicketTeam  = $canManageTicketTeam ?? false;
+        $canAssignTicketLead  = $canAssignPic || $canManageTicketTeam;
+        // Change Request tickets: only the ticket's team lead (not other members) may
+        // propose Customer Mandays. Head-level permission bypasses this restriction.
+        $isChangeRequestTicket  = $ticket->ticket_type === 'Change Request';
+        $isTicketTeamLead       = (int) $ticket->ticket_lead_id === (int) $user->id;
+        $canProposeCrMandays    = !$isChangeRequestTicket || $isTicketTeamLead || $isHead;
         // Mandays buttons only visible when ticket has a PIC
-        $isPicMandays      = $isPic && $ticketAssigned;
-        $isHelpdeskMandays = $isHelpdesk && $ticketAssigned;
-        $isHeadMandays          = $isHead && $ticketAssigned && in_array($resolutionStatus, ['pending_head', 'approved', 'rejected', 'draft']);
-        $isHeadCustomerMandays  = $isHead && $ticketAssigned && in_array($mandaysStatus, ['pic_draft', 'pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']);
-        $hasMandaysSection = $isPicMandays || $isHelpdeskMandays || $isHeadMandays || $isHeadCustomerMandays
-                           || $canTakeTicket || $canAssignPic || in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true);
+        $isPicCustomerMandays   = $isPicCustomer   && $ticketAssigned && $canProposeCrMandays;
+        $isPicResolutionDays    = $isPicResolution && $ticketAssigned;
+        $isHelpdeskMandays      = $isHelpdesk && $ticketAssigned;
+        $isHeadMandays          = $isHead     && $ticketAssigned;
+        // Tampilkan Head "View Mandays Proposal" hanya jika user tidak punya akses Helpdesk review
+        // (jika punya keduanya, Helpdesk block sudah cukup — hindari duplikasi Customer Mandays di sidebar)
+        $isHeadCustomerMandays  = $isHead && !$isHelpdesk && $ticketAssigned;
+        $hasMandaysSection = $isPicCustomerMandays || $isPicResolutionDays || $isHelpdeskMandays || $isHeadMandays || $isHeadCustomerMandays
+                           || $canTakeTicket || $canAssignTicketLead || $canAssignDelivery;
     @endphp
 
     <div id="rightSidePanel" class="hidden xl:flex xl:flex-col w-64 gap-3 flex-shrink-0 overflow-y-auto" style="transition: width 0.25s ease, opacity 0.25s ease;">
+
+        {{-- AI Summarize --}}
+        @php $canAiSummarize = $can('ui.ticket.btn-ai-summarize'); @endphp
+        @if($canAiSummarize)
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0 p-3">
+            <button type="button" onclick="openTicketSummary({{ $ticket->ticket_id }}, '{{ $ticket->ticket_number }}')"
+                class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors">
+                <svg class="w-3.5 h-3.5 text-indigo-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10 1.5l1.6 4.2 4.4 1.3-4.4 1.3L10 12.5 8.4 8.3 4 7l4.4-1.3L10 1.5zM15.5 12l.9 2.3 2.6.7-2.6.7-.9 2.3-.9-2.3-2.6-.7 2.6-.7.9-2.3zM4.5 11l.7 1.8 2 .5-2 .5-.7 1.8-.7-1.8-2-.5 2-.5.7-1.8z" />
+                </svg>
+                AI Summarize
+            </button>
+        </div>
+        @endif
+
+        {{-- Ask AI (Research) — dua gerbang BERLAPIS, lihat migration
+             add_ai_research_ticket_button_menu.php:
+               1. ui.ticket.btn-ai-research — role mana yang BOLEH memakai
+                  fitur ini sama sekali, admin-only secara default, diatur
+                  admin lewat Control Center > Menu Access.
+               2. isLeadOrMember() ATAU EC Administrator — KE TIKET MANA
+                  (cuma yang orang itu benar-benar tangani; admin selalu
+                  lolos lintas-tiket). hasRole() dicek, bukan
+                  $user->role->role_id (primary saja), supaya employee
+                  dengan banyak role tetap kebagian walau EC Administrator
+                  bukan role utamanya. --}}
+        @if($can('ui.ticket.btn-ai-research') && (\App\Support\TicketTeamAccess::isLeadOrMember($user->id, $ticket) || $user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value)))
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0 p-3">
+            <a href="{{ route('ticket.ai-research', $ticket->ticket_id) }}"
+                class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors">
+                <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Ask AI (Research)
+            </a>
+        </div>
+        @endif
 
         {{-- â"€â"€ Mandays Panel â"€â"€ --}}
         @if($hasMandaysSection)
@@ -371,8 +514,8 @@
                 <i id="mandaysChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
             </div>
             <div id="mandaysPanel" class="px-4 pb-4 pt-3 space-y-4 border-t border-gray-100">
-                {{-- PIC: Customer Mandays & Resolution Days --}}
-                @if($isPicMandays)
+                {{-- PIC: Customer Mandays --}}
+                @if($isPicCustomerMandays)
                 <div>
                     <div class="flex items-center justify-between mb-1.5">
                         <label class="text-xs font-semibold text-gray-500">Customer Mandays</label>
@@ -382,7 +525,10 @@
                         {{ $picMandaysLabel }}
                     </button>
                 </div>
-                <div class="pt-1 border-t border-gray-100">
+                @endif
+                {{-- PIC: Resolution Days --}}
+                @if($isPicResolutionDays)
+                <div class="{{ $isPicCustomerMandays ? 'pt-1 border-t border-gray-100' : '' }}">
                     <div class="flex items-center justify-between mb-1.5">
                         <label class="text-xs font-semibold text-gray-500">Resolution Days</label>
                         <span id="resolutionBadge" class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
@@ -399,15 +545,9 @@
                         <label class="text-xs font-semibold text-gray-500">Mandays Review</label>
                         <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $mBadgeClass }}">{{ $mBadgeLabel }}</span>
                     </div>
-                    @if(in_array($mandaysStatus, ['pic_draft', 'pending_helpdesk', 'sent_to_chat', 'approved', 'canceled']))
                     <button onclick="openMandaysVersionList('hd')" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Review Mandays Proposal
                     </button>
-                    @else
-                    <p class="text-[11px] text-gray-400 italic text-center py-1">
-                        {{ $mandaysStatus === 'none' ? 'Waiting for PIC proposal' : 'PIC is drafting proposal...' }}
-                    </p>
-                    @endif
                 </div>
                 @endif
                 {{-- Delivery Support Head: Customer Mandays (view only) --}}
@@ -424,7 +564,7 @@
                 @endif
                 {{-- Delivery Support Head: Resolution Days --}}
                 @if($isHeadMandays)
-                <div {{ $isHeadCustomerMandays ? 'class="pt-1 border-t border-gray-100"' : '' }}>
+                <div class="pt-1 border-t border-gray-100">
                     <div class="flex items-center justify-between mb-1.5">
                         <label class="text-xs font-semibold text-gray-500">Resolution Days</label>
                         <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold {{ $iBadgeClass }}">{{ $iBadgeLabel }}</span>
@@ -442,17 +582,17 @@
                     </button>
                 </div>
                 @endif
-                {{-- Assign / Change PIC (TICKET_MANAGER_GROUP) --}}
-                @if($canAssignPic)
+                {{-- Assign / Change Ticket Lead (TICKET_MANAGER_GROUP, atau Ticket Lead tiket ini / Module Lead) --}}
+                @if($canAssignTicketLead)
                 <div>
-                    <button onclick="openAssignPicModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        {{ $ticketAssigned ? 'Change PIC' : 'Assign PIC' }}
+                    <button onclick="openAssignTicketLeadModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                        {{ $ticketAssigned ? 'Change Ticket Lead' : 'Assign Ticket Lead' }}
                     </button>
                 </div>
                 @endif
-                {{-- Assign to Delivery Support (Admin/Helpdesk only) --}}
-                @if(in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true))
-                <div class="{{ ($isPicMandays || $isHelpdeskMandays || $isHeadMandays) ? 'pt-1 border-t border-gray-100' : '' }}">
+                {{-- Assign to Delivery Support --}}
+                @if($canAssignDelivery)
+                <div class="{{ ($isPicCustomerMandays || $isPicResolutionDays || $isHelpdeskMandays || $isHeadMandays) ? 'pt-1 border-t border-gray-100' : '' }}">
                     <button onclick="openAssignSupportModal()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Assign to Delivery Support
                     </button>
@@ -487,7 +627,7 @@
                  onclick="toggleSidebarPanel('propertiesPanel', 'propertiesChevron')">
                 <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Properties</h4>
                 <div class="flex items-center gap-2">
-                    @if(in_array($user->role->role_id, [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value, \App\Enums\RoleId::HELPDESK->value], true))
+                    @if($can('ui.ticket.edit-fields'))
                     <button onclick="event.stopPropagation(); saveAllProperties()"
                             class="inline-flex items-center px-2.5 py-1 primary-gradient text-white text-[10px] font-semibold rounded-md hover:opacity-90 transition-all duration-200">
                         Save All
@@ -497,11 +637,13 @@
                 </div>
             </div>
             @php
-                $canEditProps  = in_array($user->role->role_id, [\App\Enums\RoleId::ADMIN->value, \App\Enums\RoleId::HEAD_OF_SUPPORT->value, \App\Enums\RoleId::HELPDESK->value], true);
+                $canEditProps  = $can('ui.ticket.edit-fields');
+                // Permission terpisah khusus Additional Info (Contact/Phone/Module/Client),
+                // dikonfigurasi per-role via Manajemen → Roles/Permissions.
+                $canEditAdditionalInfo = $can('ui.ticket.edit-additional-info');
                 $ddBtnCls      = 'custom-dd-btn w-full flex items-center justify-between gap-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white hover:border-gray-400 transition-all';
                 $roValCls      = 'text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 w-full block';
-                $statusLabels  = ['open'=>'Open','in_progress'=>'In Progress','hold'=>'Hold','wait_to_close'=>'Wait to Close','cancel'=>'Cancel','closed'=>'Closed','reply'=>'Reply'];
-                $jarviesLabels = ['in process'=>'In Process','author action'=>'Author Action','proposed solution'=>'Proposed Solution','sent in to SAP'=>'Sent in to SAP','sent it to support'=>'Sent it to Support','closed'=>'Closed'];
+                $statusLabels  = ['open'=>'Open','inprocess'=>'Inprocess','waiting_on_customer'=>'Waiting on Customer','waiting_on_3rd_party'=>'Waiting on 3rd Party','waiting_to_confirmation'=>'Waiting to Confirmation','hold'=>'Hold','cancelled'=>'Cancelled','closed'=>'Closed'];
             @endphp
             <div id="propertiesPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
                 {{-- Status --}}
@@ -514,43 +656,20 @@
                             <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                         </button>
                         <input type="hidden" id="detailStatus" value="{{ $ticket->status }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:150px;">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:190px;">
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="open">Open</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="in_progress">In Progress</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="inprocess">Inprocess</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="waiting_on_customer">Waiting on Customer</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="waiting_on_3rd_party">Waiting on 3rd Party</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="waiting_to_confirmation">Waiting to Confirmation</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="hold">Hold</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="wait_to_close">Wait to Close</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="cancel">Cancel</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="cancelled">Cancelled</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="closed">Closed</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="reply">Reply</button>
                         </div>
                     </div>
                     @else
                     <input type="hidden" id="detailStatus" value="{{ $ticket->status }}">
                     <span class="{{ $roValCls }}">{{ $statusLabels[$ticket->status] ?? ucfirst($ticket->status) }}</span>
-                    @endif
-                </div>
-                {{-- Jarvies Status --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Jarvies Status</label>
-                    @if($canEditProps)
-                    <div class="custom-dd relative w-full">
-                        <button type="button" class="{{ $ddBtnCls }}">
-                            <span class="custom-dd-label text-gray-700">{{ $jarviesLabels[$ticket->jarvies_status] ?? ucfirst($ticket->jarvies_status ?? '—') }}</span>
-                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <input type="hidden" id="detailJarviesStatus" value="{{ $ticket->jarvies_status }}">
-                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:160px;">
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="in process">In Process</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="author action">Author Action</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="proposed solution">Proposed Solution</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="sent in to SAP">Sent in to SAP</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="sent it to support">Sent it to Support</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="closed">Closed</button>
-                        </div>
-                    </div>
-                    @else
-                    <input type="hidden" id="detailJarviesStatus" value="{{ $ticket->jarvies_status }}">
-                    <span class="{{ $roValCls }}">{{ $jarviesLabels[$ticket->jarvies_status] ?? ucfirst($ticket->jarvies_status ?? '—') }}</span>
                     @endif
                 </div>
                 {{-- Priority --}}
@@ -608,9 +727,13 @@
                         <input type="hidden" id="detailType" value="{{ $ticket->ticket_type ?? 'Incident' }}">
                         <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;min-width:150px;">
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Incident">Incident</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Change Request">Change Request</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Service Request">Service Request</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="EWA">EWA</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="RISE">RISE</button>
                             <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Consult">Consult</button>
+                            {{-- Internal: tiket ini TIDAK ditampilkan ke customer di Jarvies --}}
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50" data-value="Internal">Internal</button>
                         </div>
                     </div>
                     @else
@@ -618,34 +741,86 @@
                     <span class="{{ $roValCls }}">{{ $ticket->ticket_type ?? 'Incident' }}</span>
                     @endif
                 </div>
-                {{-- Agent (PIC) --}}
+                {{-- Ticket Lead --}}
                 <div>
-                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Agent (PIC)</label>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Lead</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                        @if($ticket->employee && $ticket->employee->basicData)
-                            {{ trim($ticket->employee->basicData->first_name . ' ' . ($ticket->employee->basicData->last_name ?? '')) }}
+                        @if($ticket->ticketLead && $ticket->ticketLead->basicData)
+                            {{ trim($ticket->ticketLead->basicData->first_name . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) }}
                         @else
                             <span class="text-gray-400 italic">— Unassigned —</span>
                         @endif
                     </p>
                 </div>
+                {{-- PIC (In Charge) --}}
+                @php
+                    $canEditPic = $can('ticket.assign-pic')
+                        || $ticket->ticket_lead_id == $user->id
+                        || $ticket->members->contains('employee_id', $user->id)
+                        || ($canManageTicketTeam ?? false); // Ticket Lead tiket ini / Module Lead
+                    $picOptions = [];
+                    if ($ticket->ticketLead && $ticket->ticketLead->basicData) {
+                        $leadName = trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? ''));
+                        $picOptions[] = ['name' => $leadName, 'label' => $leadName . ' (Ticket Lead)'];
+                    }
+                    foreach ($ticket->allMembers as $m) {
+                        if ($m->pivot->is_active && $m->basicData && $m->employee_id != $ticket->ticket_lead_id) {
+                            $mName = trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? ''));
+                            $picOptions[] = ['name' => $mName, 'label' => $mName];
+                        }
+                    }
+                @endphp
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">PIC (In Charge)</label>
+                    @if($canEditPic && count($picOptions) > 0)
+                    <div class="custom-dd relative w-full" data-onchange="onPicDropdownChange">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between gap-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white hover:border-gray-400 transition-all">
+                            <span class="custom-dd-label text-gray-700 truncate">{{ $ticket->pic ?? 'Helpdesk' }}</span>
+                            <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="picSelectHidden" value="{{ $ticket->pic ?? '' }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:200px;">
+                            @foreach($picOptions as $opt)
+                            <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 {{ $ticket->pic === $opt['name'] ? 'bg-gray-50 font-medium text-gray-900' : '' }}" data-value="{{ $opt['name'] }}">{{ $opt['label'] }}</button>
+                            @endforeach
+                        </div>
+                    </div>
+                    @else
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->pic ?? 'Helpdesk' }}</p>
+                    @endif
+                </div>
                 {{-- Team Members --}}
                 @php
-                    $canManageMembers = in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true)
-                        || ($user->role->role_id === \App\Enums\RoleId::EMPLOYEE->value && $ticket->employee_id == $user->id);
-                    $currentMemberIds = $ticket->members->pluck('employee_id')->toArray();
+                    $canManageMembers = ($can('ui.ticket.manage-members') && (
+                            !$user->hasRole(\App\Enums\RoleId::DELIVERY_SUPPORT_USER->value) // non-DS-User roles: always OK
+                            || $ticket->ticket_lead_id == $user->id                          // DS User: only if they are the lead
+                        ))
+                        || $canManageTicketTeam; // Ticket Lead tiket ini / Module Lead (data-driven)
+                    $allMemberIds = $ticket->allMembers->pluck('employee_id')->toArray();
                 @endphp
                 <div class="pt-3 border-t border-gray-200">
                     <label class="text-xs font-semibold text-gray-500 mb-2 block">Team Members</label>
+                    @php
+                        // Ticket lead sudah ditampilkan terpisah sebagai PIC — jangan tampilkan
+                        // lagi row ticket_member miliknya (aktif/nonaktif) di sini, karena tombol
+                        // aktifkan-kembali untuk row itu selalu gagal (PIC tidak boleh jadi member).
+                        $visibleMembers = $ticket->allMembers->where('employee_id', '!=', $ticket->ticket_lead_id);
+                    @endphp
                     <div id="membersList" class="space-y-1 mb-2">
-                        @forelse($ticket->members as $member)
-                            @php $mName = trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? '')); @endphp
-                            <div class="member-chip flex items-center justify-between gap-1 px-2.5 py-1.5 bg-blue-50 rounded-lg" data-id="{{ $member->employee_id }}">
-                                <span class="text-xs text-blue-700 font-medium truncate">{{ $mName }}</span>
+                        @forelse($visibleMembers as $member)
+                            @php
+                                $mName    = trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? ''));
+                                $mActive  = (bool) $member->pivot->is_active;
+                            @endphp
+                            <div class="member-chip flex items-center justify-between gap-1 px-2.5 py-1.5 rounded-lg {{ $mActive ? 'bg-blue-50' : 'bg-gray-100' }}"
+                                 data-id="{{ $member->employee_id }}" data-active="{{ $mActive ? '1' : '0' }}">
+                                <span class="text-xs font-medium truncate {{ $mActive ? 'text-blue-700' : 'text-gray-400 line-through' }}">{{ $mName }}</span>
                                 @if($canManageMembers)
-                                <button type="button" onclick="removeMemberBtn({{ $member->employee_id }})"
-                                        class="text-blue-300 hover:text-red-500 transition-colors flex-shrink-0 ml-1">
-                                    <i class="fas fa-times text-[9px]"></i>
+                                <button type="button"
+                                        onclick="toggleMemberBtn({{ $member->employee_id }}, {{ $mActive ? 'true' : 'false' }})"
+                                        class="flex-shrink-0 ml-1 transition-colors {{ $mActive ? 'text-blue-300 hover:text-red-500' : 'text-gray-400 hover:text-green-500' }}"
+                                        title="{{ $mActive ? 'Nonaktifkan member' : 'Aktifkan kembali member' }}">
+                                    <i class="fas {{ $mActive ? 'fa-eye-slash' : 'fa-eye' }} text-[9px]"></i>
                                 </button>
                                 @endif
                             </div>
@@ -664,7 +839,8 @@
                             <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:320px;">
                                 <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Add member --</button>
                                 @foreach($employees as $emp)
-                                    @if(!in_array($emp['employee_id'], $currentMemberIds) && $emp['employee_id'] != $ticket->employee_id)
+                                    @php $empInAll = in_array($emp['employee_id'], $allMemberIds); @endphp
+                                    @if(!$empInAll && $emp['employee_id'] != $ticket->ticket_lead_id)
                                         <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $emp['employee_id'] }}">{{ $emp['name'] }}</button>
                                     @endif
                                 @endforeach
@@ -689,38 +865,6 @@
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
                         &#8627; {{ $ticket->endCustomer?->basicData?->name_1 ?? 'N/A' }}
                     </p>
-                </div>
-                @endif
-                {{-- Additional Info --}}
-                @if($ticket->name || $ticket->no_hp || $ticket->module || $ticket->client)
-                <div class="pt-3 border-t border-gray-200">
-                    <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Additional Info</label>
-                    <div class="space-y-1.5">
-                        @if($ticket->name)
-                        <div>
-                            <span class="text-[10px] text-gray-400 font-semibold uppercase">Name</span>
-                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->name }}</p>
-                        </div>
-                        @endif
-                        @if($ticket->no_hp)
-                        <div>
-                            <span class="text-[10px] text-gray-400 font-semibold uppercase">No HP</span>
-                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->no_hp }}</p>
-                        </div>
-                        @endif
-                        @if($ticket->module)
-                        <div>
-                            <span class="text-[10px] text-gray-400 font-semibold uppercase">Module</span>
-                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->module }}</p>
-                        </div>
-                        @endif
-                        @if($ticket->client)
-                        <div>
-                            <span class="text-[10px] text-gray-400 font-semibold uppercase">Client</span>
-                            <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 mt-0.5">{{ $ticket->client }}</p>
-                        </div>
-                        @endif
-                    </div>
                 </div>
                 @endif
                 {{-- Man Days (from approved customer mandays proposal) --}}
@@ -766,8 +910,34 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->created_at->format('d M Y H:i') }} WIB</p>
                 </div>
+                {{-- Penanda tiket internal: type "Internal" tidak tampil di Jarvies --}}
+                @if($ticket->isInternal())
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Visibility</label>
+                    <p class="text-xs text-amber-800 px-2.5 py-1.5 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-1.5">
+                        <i class="fas fa-user-slash text-xs mt-0.5"></i>
+                        <span>Tiket internal — tidak ditampilkan ke customer di Jarvies.</span>
+                    </p>
+                </div>
+                @endif
+                {{-- Hide / Unhide Ticket --}}
+                @if($can('ticket.hide'))
+                <div class="pt-3 border-t border-gray-200">
+                    @if($ticket->is_hidden)
+                    <button onclick="unhideTicket()" id="btnUnhideTicket"
+                        class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-all duration-200">
+                        <i class="fas fa-eye text-xs"></i> Tampilkan Kembali
+                    </button>
+                    @else
+                    <button onclick="hideTicket()" id="btnHideTicket"
+                        class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-all duration-200">
+                        <i class="fas fa-eye-slash text-xs"></i> Sembunyikan Tiket
+                    </button>
+                    @endif
+                </div>
+                @endif
                 {{-- Admin only: Delete Ticket --}}
-                @if($user->role->role_id === \App\Enums\RoleId::ADMIN->value)
+                @if($can('ticket.delete'))
                 <div class="pt-3 border-t border-gray-200">
                     <button onclick="deleteTicket()" class="w-full inline-flex items-center justify-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Delete Ticket
@@ -777,8 +947,539 @@
             </div>
         </div>
 
+        {{-- ── Additional Info Panel ── --}}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
+            <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+                 onclick="toggleSidebarPanel('additionalInfoPanel', 'additionalInfoChevron')">
+                <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide">Additional Info</h4>
+                <div class="flex items-center gap-2">
+                    @if($canEditAdditionalInfo)
+                    <button id="additionalInfoSaveBtn" onclick="event.stopPropagation(); saveAdditionalInfo()"
+                            class="inline-flex items-center px-2.5 py-1 primary-gradient text-white text-[10px] font-semibold rounded-md hover:opacity-90 transition-all duration-200">
+                        Save
+                    </button>
+                    @endif
+                    <i id="additionalInfoChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
+                </div>
+            </div>
+            <div id="additionalInfoPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
+                {{-- Contact Name --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Contact Name</label>
+                    @if($canEditAdditionalInfo)
+                    <input id="additionalInfoName" type="text" value="{{ $ticket->name ?: $ticket->submitted_by_name }}"
+                           placeholder="Enter contact name..."
+                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->name ?: ($ticket->submitted_by_name ?? '—') }}</span>
+                    @endif
+                </div>
+                {{-- Phone Number --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Phone Number</label>
+                    @if($canEditAdditionalInfo)
+                    <input id="additionalInfoNoHp" type="text" value="{{ $ticket->no_hp }}"
+                           placeholder="Enter phone number..."
+                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->no_hp ?? '—' }}</span>
+                    @endif
+                </div>
+                @if($ticket->submitted_by_email)
+                {{-- Contact Email (always read-only) --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Contact Email</label>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->submitted_by_email }}</p>
+                </div>
+                @endif
+                {{-- Module — tiket boleh menyentuh lebih dari satu (Ticket::modules());
+                     module_id (scalar) tetap ada sebagai "modul utama", otomatis mengikuti
+                     modul pertama di sini (lihat Ticket::syncModules()). --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Module</label>
+                    @if($canEditAdditionalInfo)
+                    <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Select module(s)">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs hover:border-gray-300 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select module(s)</span>
+                            <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="module_ids" id="additionalInfoModuleIds" value="{{ $ticket->modules->pluck('id')->implode(',') }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:320px;">
+                            @foreach ($modules as $moduleOption)
+                            <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $moduleOption['id'] }}">
+                                <span class="custom-dd-item-text">{{ $moduleOption['name'] }}</span>
+                                <svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            </button>
+                            @endforeach
+                        </div>
+                    </div>
+                    @if($ticket->module)
+                    <p class="text-[11px] text-gray-400 mt-1">Nilai lama (patokan): {{ $ticket->module }}</p>
+                    @endif
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->modules->pluck('name')->implode(', ') ?: '—' }}</span>
+                    @endif
+                </div>
+                {{-- Client --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Client</label>
+                    @if($canEditAdditionalInfo)
+                    <input id="additionalInfoClient" type="text" value="{{ $ticket->client }}"
+                           placeholder="Enter client name..."
+                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
+                    @else
+                    <span class="{{ $roValCls }}">{{ $ticket->client ?? '—' }}</span>
+                    @endif
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
+
+{{-- ══════════════════ AI SUMMARIZE ══════════════════ --}}
+@if($canAiSummarize)
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+
+<style>
+    /* Preflight Tailwind mematikan marker list dan ukuran heading. Markdown
+       hasil AI butuh keduanya kembali — dibatasi ke dalam .ai-sum-body saja
+       supaya tidak bocor ke halaman detail tiket. Sengaja tanpa warna: pewarnaan
+       tetap lewat utility Tailwind di elemen induk, jadi dark mode global ikut. */
+    .ai-sum-body ul { list-style: disc; padding-left: 1.15rem; margin: .25rem 0; }
+    .ai-sum-body ol { list-style: decimal; padding-left: 1.35rem; margin: .25rem 0; }
+    .ai-sum-body li { margin: .2rem 0; }
+    .ai-sum-body p { margin: .35rem 0; }
+    .ai-sum-body p:first-child { margin-top: 0; }
+    .ai-sum-body strong { font-weight: 600; }
+    .ai-sum-body code { font-family: ui-monospace, monospace; font-size: .85em; }
+    /* Tautan rujukan dokumentasi luar; preflight Tailwind menanggalkan garis
+       bawahnya, jadi dikembalikan di sini supaya terbaca sebagai tautan. */
+    .ai-sum-body a { text-decoration: underline; text-underline-offset: 2px; word-break: break-word; }
+</style>
+
+<div id="ticketSummaryModal" class="hidden fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-4">
+    {{-- Lebar 5xl: isinya kini langkah teknis bernomor berikut TCODE, nama tabel,
+         dan URL rujukan — kolom sempit membuat satu langkah pecah jadi 6-7 baris. --}}
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+        {{-- Header --}}
+        <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <span class="shrink-0 w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M10 1.5l1.6 4.2 4.4 1.3-4.4 1.3L10 12.5 8.4 8.3 4 7l4.4-1.3L10 1.5zM15.5 12l.9 2.3 2.6.7-2.6.7-.9 2.3-.9-2.3-2.6-.7 2.6-.7.9-2.3zM4.5 11l.7 1.8 2 .5-2 .5-.7 1.8-.7-1.8-2-.5 2-.5.7-1.8z" />
+                    </svg>
+                </span>
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-gray-800">AI Summarize</h3>
+                    <p id="ticketSummaryTicketNo" class="text-xs text-gray-500 truncate">—</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <span id="ticketSummaryStatus" class="text-[11px] text-gray-400"></span>
+                {{-- Copy: ringkasan hanya hidup di modal ini, dan sengaja dibuat
+                     ulang setiap kali isi tiket berubah (lihat AiTicketSummaryController).
+                     Tanpa tombol ini satu-satunya cara membawa hasilnya ke chat,
+                     email, atau work log adalah blok-seret manual melintasi tiga
+                     kartu — yang justru kehilangan penanda markdown-nya. Yang
+                     disalin adalah markdown MENTAH, bukan HTML yang terlihat. --}}
+                <button type="button" id="ticketSummaryCopy" onclick="copyTicketSummary()" disabled
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2v-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                    <span id="ticketSummaryCopyLabel">Copy</span>
+                </button>
+                <button type="button" onclick="closeTicketSummary()" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        {{-- Body: tiga kartu tetap, diisi sambil teksnya mengalir --}}
+        <div class="overflow-y-auto px-5 py-4 space-y-3">
+            <div id="ticketSummaryError" class="hidden rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700"></div>
+            {{-- Peringatan, bukan kegagalan: ringkasan yang mentok di plafon token
+                 tetap ditampilkan (sebagian besar isinya masih berguna) tapi tidak
+                 disimpan, jadi warnanya amber dan terpisah dari kotak error merah. --}}
+            <div id="ticketSummaryNotice" class="hidden rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800"></div>
+
+            @foreach ([
+                ['key' => 'issue',      'label' => 'Issue',            'tone' => 'amber'],
+                ['key' => 'resolution', 'label' => 'Resolution Steps', 'tone' => 'blue'],
+                ['key' => 'conclusion', 'label' => 'Conclusion',       'tone' => 'emerald'],
+            ] as $sec)
+            <div class="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+                <div class="px-4 py-2 border-b border-gray-100 bg-{{ $sec['tone'] }}-50">
+                    <span class="text-[11px] font-bold uppercase tracking-widest text-{{ $sec['tone'] }}-700">{{ $sec['label'] }}</span>
+                </div>
+                <div id="ticketSummary-{{ $sec['key'] }}" class="ai-sum-body px-4 py-3 text-sm text-gray-700 leading-relaxed">
+                    <span class="text-gray-300 italic">Waiting…</span>
+                </div>
+                @if ('resolution' === $sec['key'])
+                {{-- Rujukan dokumentasi luar yang benar-benar dibuka model saat
+                     menyusun langkah penyelesaian. Diisi dari event 'sources'. --}}
+                <div id="ticketSummarySources" class="hidden px-4 pb-3 pt-0 border-t border-gray-100">
+                    <div class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mt-2.5 mb-1.5">Documentation sources</div>
+                    <ul id="ticketSummarySourcesList" class="space-y-1"></ul>
+                </div>
+                @endif
+            </div>
+            @endforeach
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    // Judul heading di bawah adalah KONTRAK dengan system prompt di
+    // App\Services\Ai\AiTicketSummaryService::systemPrompt(). Kalau di sana
+    // berubah, ubah juga di sini — kalau tidak, teksnya mengalir masuk ke kartu
+    // yang salah (atau tidak masuk sama sekali).
+    const TICKET_SUMMARY_SECTIONS = {
+        'issue': 'issue',
+        'resolution steps': 'resolution',
+        'conclusion': 'conclusion',
+
+        // Alias heading Indonesia dari ringkasan versi lama. Prompt sudah lama
+        // berbahasa Inggris, tapi ringkasan yang terlanjur tersimpan di cache
+        // (atau sedang ditampilkan dari tab yang belum di-reload) masih memakai
+        // judul lama — tanpa alias ini seluruh isinya jatuh ke satu kartu.
+        'isu': 'issue',
+        'cara penyelesaian': 'resolution',
+        'kesimpulan': 'conclusion',
+    };
+
+    let summaryAbort = null;
+
+    // Markdown mentah ringkasan yang sedang ditampilkan, plus rujukannya —
+    // dipegang di sini supaya tombol Copy punya sesuatu untuk disalin setelah
+    // stream selesai. Ringkasan sengaja TIDAK disimpan permanen (isinya wajib
+    // ikut berubah setiap kali tiket berubah), jadi menyalin adalah satu-satunya
+    // cara membawanya keluar dari modal ini.
+    let summaryText = '';
+    let summarySources = [];
+    let summaryTicketNo = '';
+    let summaryTicketId = null;
+    let summaryCopyTimer = null;
+
+    function el(id) { return document.getElementById(id); }
+
+    function mdToHtml(text) {
+        return DOMPurify.sanitize(marked.parse(String(text ?? '')));
+    }
+
+    /**
+     * Loop parsing SSE (event:/data: frame, dipisah "\n\n") dipakai
+     * ringkasan awal (openTicketSummary).
+     */
+    async function consumeSse(response, onEvent) {
+        if (!response.ok || !response.body) {
+            throw new Error('Could not reach the AI service (HTTP ' + response.status + ').');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            let boundary;
+            while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                const frame = buffer.slice(0, boundary);
+                buffer = buffer.slice(boundary + 2);
+
+                let eventName = 'message';
+                let dataLine = '';
+                frame.split('\n').forEach(line => {
+                    if (line.startsWith('event:')) eventName = line.slice(6).trim();
+                    if (line.startsWith('data:')) dataLine = line.slice(5).trim();
+                });
+                if (!dataLine) continue;
+
+                let payload;
+                try { payload = JSON.parse(dataLine); } catch { continue; }
+
+                onEvent(eventName, payload);
+            }
+        }
+    }
+
+    /**
+     * Pecah teks yang sedang mengalir pada heading "## ", lalu render tiap
+     * bagian ke kartunya. Dipanggil ulang setiap delta: heading terakhir
+     * mungkin masih setengah tertulis, dan itu tidak apa-apa — bagian yang
+     * belum dikenali cukup diabaikan sampai barisnya utuh.
+     */
+    function renderSummary(full) {
+        const buckets = { issue: '', resolution: '', conclusion: '' };
+        let current = null;
+        let preamble = '';
+
+        // Di sela pencarian, model kadang menulis satu kalimat kerja ("Ada hasil
+        // bagus. Mari fetch halaman berikutnya.") lalu menyambung heading TANPA
+        // baris baru — jadi "…langkah.## Isu". Tanpa dipisahkan, heading itu tak
+        // pernah cocok dan seluruh jawaban menumpuk di satu kartu.
+        const normalized = String(full).replace(
+            /([^\n])(#{1,3}\s*(?:Issue|Resolution Steps|Conclusion|Isu|Cara Penyelesaian|Kesimpulan)\b)/gi,
+            '$1\n$2'
+        );
+
+        normalized.split('\n').forEach(line => {
+            const heading = line.match(/^\s*#{1,3}\s*(.+?)\s*$/);
+            if (heading) {
+                const key = TICKET_SUMMARY_SECTIONS[heading[1].trim().toLowerCase()];
+                if (key) { current = key; return; }
+            }
+            // Teks sebelum heading pertama ditahan dulu, JANGAN langsung
+            // ditumpahkan ke kartu Isu: itu biasanya narasi kerja model di sela
+            // pencarian, bukan isi ringkasan. Baru dipakai kalau sampai akhir
+            // tidak ada satu pun heading yang dikenali (lihat di bawah).
+            if (!current) { preamble += line + '\n'; return; }
+            buckets[current] += line + '\n';
+        });
+
+        // Belum ada heading sama sekali — tampilkan apa adanya di kartu Issue
+        // supaya streaming tetap terlihat bergerak, bukan diam "Waiting…".
+        if (!current && preamble.trim()) {
+            buckets.issue = preamble;
+        }
+
+        Object.keys(buckets).forEach(key => {
+            const target = el('ticketSummary-' + key);
+            const body = buckets[key].trim();
+            if (body) {
+                target.innerHTML = mdToHtml(body);
+                // Tautan rujukan di dalam langkah penyelesaian mengarah ke luar
+                // sistem — jangan menimpa halaman detail tiket yang sedang dibuka.
+                target.querySelectorAll('a[href]').forEach(a => {
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                });
+            }
+        });
+    }
+
+    /**
+     * Daftar rujukan dokumentasi luar. Judul & URL datang dari hasil web_search
+     * di sisi server — dianggap teks asing, jadi judulnya di-set lewat
+     * textContent dan hanya URL http(s) yang boleh menjadi href.
+     */
+    function renderSources(items) {
+        const box = el('ticketSummarySources');
+        const list = el('ticketSummarySourcesList');
+        list.innerHTML = '';
+        summarySources = (items || []).filter(item => /^https?:\/\//i.test(item.url || ''));
+
+        (items || []).forEach(item => {
+            if (!/^https?:\/\//i.test(item.url || '')) return;
+
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.href = item.url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.className = 'text-xs text-indigo-600 hover:underline break-all';
+            a.textContent = item.title || item.url;
+            li.appendChild(a);
+            list.appendChild(li);
+        });
+
+        box.classList.toggle('hidden', list.children.length === 0);
+    }
+
+    function resetSummary() {
+        el('ticketSummaryError').classList.add('hidden');
+        el('ticketSummaryError').textContent = '';
+        el('ticketSummaryNotice').classList.add('hidden');
+        el('ticketSummaryNotice').textContent = '';
+        renderSources([]);
+        summaryText = '';
+        setCopyEnabled(false);
+        ['issue', 'resolution', 'conclusion'].forEach(key => {
+            el('ticketSummary-' + key).innerHTML = '<span class="text-gray-300 italic">Waiting…</span>';
+        });
+    }
+
+    function showSummaryError(message) {
+        const box = el('ticketSummaryError');
+        box.textContent = message;
+        box.classList.remove('hidden');
+    }
+
+    /**
+     * Copy baru hidup setelah ada teks: menyalin ringkasan setengah jadi
+     * menghasilkan catatan yang terpotong di tengah langkah, dan itu justru
+     * paling berbahaya di bagian Resolution Steps.
+     */
+    function setCopyEnabled(enabled) {
+        const btn = el('ticketSummaryCopy');
+        if (!btn) return;
+        btn.disabled = !enabled;
+        if (!enabled) {
+            clearTimeout(summaryCopyTimer);
+            el('ticketSummaryCopyLabel').textContent = 'Copy';
+        }
+    }
+
+    /** Markdown mentah + daftar rujukan, siap ditempel ke work log atau email. */
+    function buildSummaryClipboardText() {
+        const parts = [];
+
+        if (summaryTicketNo) parts.push('AI Summary — Ticket ' + summaryTicketNo);
+        parts.push(summaryText.trim());
+
+        if (summarySources.length) {
+            parts.push('## Documentation sources\n' + summarySources
+                .map(item => '- ' + (item.title || item.url) + ' — ' + item.url)
+                .join('\n'));
+        }
+
+        return parts.filter(Boolean).join('\n\n') + '\n';
+    }
+
+    window.copyTicketSummary = async function () {
+        if (!summaryText.trim()) return;
+
+        const text = buildSummaryClipboardText();
+        let ok = false;
+
+        try {
+            // navigator.clipboard hanya ada di secure context (https/localhost).
+            // Deployment internal sering diakses lewat http di jaringan kantor,
+            // jadi jalur execCommand di bawah BUKAN sekadar dukungan browser
+            // lama — di sanalah tombol ini benar-benar bekerja.
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                ok = true;
+            }
+        } catch (e) {
+            ok = false;
+        }
+
+        if (!ok) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            // Di luar viewport, tapi tetap fokusable — readOnly mencegah
+            // keyboard virtual muncul di perangkat sentuh.
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '-1000px';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            document.body.removeChild(ta);
+        }
+
+        const label = el('ticketSummaryCopyLabel');
+        label.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+        clearTimeout(summaryCopyTimer);
+        summaryCopyTimer = setTimeout(() => { label.textContent = 'Copy'; }, 1800);
+    };
+
+    window.openTicketSummary = async function (ticketId, ticketNumber) {
+        if (summaryAbort) summaryAbort.abort();
+
+        summaryTicketId = ticketId;
+        summaryTicketNo = ticketNumber || ('#' + ticketId);
+        el('ticketSummaryTicketNo').textContent = summaryTicketNo;
+        el('ticketSummaryModal').classList.remove('hidden');
+        el('ticketSummaryStatus').textContent = 'Analyzing…';
+        resetSummary();
+
+        summaryAbort = new AbortController();
+        const controller = summaryAbort;
+
+        let full = '';
+        let sawError = null;
+
+        try {
+            const response = await fetch('/ticket/' + ticketId + '/ai-summary', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'text/event-stream',
+                },
+                signal: controller.signal,
+            });
+
+            await consumeSse(response, (eventName, payload) => {
+                if (eventName === 'meta') {
+                    // 'cached' = tiket belum berubah sejak ringkasan terakhir,
+                    // jadi yang diputar ulang ini persis hasil sebelumnya —
+                    // bukan hasil baru yang kebetulan mirip.
+                    el('ticketSummaryStatus').textContent = payload.cached ? 'Saved summary' : 'Analyzing…';
+                } else if (eventName === 'status') {
+                    // Progres riset dokumentasi luar dari driver provider:
+                    // "Searching the web…", "Reading the results…".
+                    if (payload.label) el('ticketSummaryStatus').textContent = payload.label;
+                } else if (eventName === 'sources') {
+                    renderSources(payload.items);
+                } else if (eventName === 'delta' && payload.text) {
+                    full += payload.text;
+                    summaryText = full;
+                    renderSummary(full);
+                    setCopyEnabled(true);
+                } else if (eventName === 'notice') {
+                    // Ringkasan mentok di plafon token: tampil, tapi tidak disimpan.
+                    const box = el('ticketSummaryNotice');
+                    box.textContent = payload.message || '';
+                    box.classList.toggle('hidden', !payload.message);
+                } else if (eventName === 'error') {
+                    sawError = payload.message || 'Something went wrong.';
+                } else if (eventName === 'done') {
+                    el('ticketSummaryStatus').textContent = payload.cached
+                        ? 'Saved summary · regenerated when the ticket changes'
+                        : 'Done';
+                }
+            });
+
+            if (sawError) throw new Error(sawError);
+
+            // Model membalas tanpa satu pun heading yang dikenali: jangan biarkan
+            // ketiga kartu diam bertuliskan "Menunggu…" seolah masih memuat.
+            if (!full.trim()) {
+                showSummaryError('The AI returned no summary at all. Please try again.');
+                el('ticketSummaryStatus').textContent = '';
+                setCopyEnabled(false);
+            }
+        } catch (e) {
+            if (e.name === 'AbortError') return;
+            showSummaryError(e.message);
+            el('ticketSummaryStatus').textContent = '';
+        } finally {
+            if (summaryAbort === controller) summaryAbort = null;
+        }
+    };
+
+    window.closeTicketSummary = function () {
+        // Batalkan stream yang masih jalan — tanpa ini koneksi SSE-nya menggantung
+        // di server sampai model selesai bicara ke modal yang sudah tertutup.
+        if (summaryAbort) { summaryAbort.abort(); summaryAbort = null; }
+        el('ticketSummaryModal').classList.add('hidden');
+    };
+
+    document.getElementById('ticketSummaryModal').addEventListener('click', function (e) {
+        if (e.target === this) closeTicketSummary();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !el('ticketSummaryModal').classList.contains('hidden')) {
+            closeTicketSummary();
+        }
+    });
+})();
+</script>
+@endif
 
 <style>
 /* Message Bubbles */
@@ -792,7 +1493,12 @@
 .email-html-body { word-break: break-word; }
 .email-html-body p  { margin-bottom: 0.3rem; }
 .email-html-body a  { color: #2563eb; text-decoration: underline; }
-.email-html-body ul, .email-html-body ol { padding-left: 1.25rem; margin-bottom: 0.4rem; }
+.email-html-body ul, .email-html-body ol { padding-left: 1.5rem; margin-bottom: 0.4rem; }
+/* Tailwind preflight me-reset list-style→none; kembalikan marker agar bullet/nomor
+   dari Quill/Outlook tetap tampil di luar .ql-editor. */
+.email-html-body ol { list-style-type: decimal !important; list-style-position: inside !important; }
+.email-html-body ul { list-style-type: disc !important; list-style-position: inside !important; }
+.email-html-body li { display: list-item !important; }
 .email-html-body blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; margin: 0.25rem 0; }
 /* !important diperlukan karena HTML email dari Outlook/Gmail sering menyertakan
    inline style="width: NNNpx" pada <img> yang akan override CSS biasa. */
@@ -807,11 +1513,57 @@
     margin: 4px 0;
 }
 .email-html-body table { border-collapse: collapse; font-size: 12px; max-width: 100%; }
-.email-html-body td, .email-html-body th { border: 1px solid #e5e7eb; padding: 4px 8px; }
+.email-html-body td, .email-html-body th { border: 1px solid #000 !important; padding: 4px 8px; }
+
+/* Deliverable card: bubble deliverable memakai tabel key-value tanpa border kotak
+   (border hitam paksaan `.email-html-body/.message-content td` di-reset). Layout jadi
+   bersih & tidak terpotong; padding/nowrap diatur via inline style di server. */
+.email-html-body table.deliv-card,
+.message-content table.deliv-card { border: none !important; }
+.email-html-body table.deliv-card td, .email-html-body table.deliv-card th,
+.message-content table.deliv-card td, .message-content table.deliv-card th { border: none !important; }
 
 /* Links di semua bubble (plain text, Quill HTML, internal note) */
 .message-content a { color: #2563eb !important; text-decoration: underline !important; word-break: break-all; cursor: pointer; }
 .message-content a:hover { color: #1d4ed8 !important; }
+
+/* ─── Rich-text (Quill) di dalam bubble internal note ─────────────────────────
+   Quill 1.3.7 me-render list/heading sebagai <ol>/<ul>/<hN> polos + counter CSS
+   yang hanya aktif di dalam .ql-editor. Saat HTML dirender di bubble (di luar
+   editor), Tailwind preflight me-reset list-style, margin, dan ukuran heading →
+   format numbering/bullet/heading "hilang". Kembalikan semua di sini agar tampilan
+   internal note yang terkirim sama persis dengan yang diketik di editor. */
+.message-content ol, .message-content ul { padding-left: 1.5em; margin: 0.25rem 0; }
+.message-content ol { list-style-type: decimal; }
+.message-content ul { list-style-type: disc; }
+.message-content li { display: list-item; margin: 0.1rem 0; }
+.message-content p  { margin: 0.15rem 0; }
+.message-content h1 { font-size: 1.5em;  font-weight: 700; margin: 0.35rem 0; }
+.message-content h2 { font-size: 1.3em;  font-weight: 700; margin: 0.35rem 0; }
+.message-content h3 { font-size: 1.15em; font-weight: 700; margin: 0.35rem 0; }
+.message-content h4, .message-content h5, .message-content h6 { font-size: 1em; font-weight: 700; margin: 0.35rem 0; }
+.message-content strong, .message-content b { font-weight: 700; }
+.message-content em, .message-content i { font-style: italic; }
+.message-content u { text-decoration: underline; }
+.message-content s, .message-content strike { text-decoration: line-through; }
+.message-content blockquote {
+    border-left: 3px solid #d1d5db;
+    padding-left: 0.75rem;
+    color: #6b7280;
+    margin: 0.25rem 0;
+}
+/* Quill alignment & indent (class-based, butuh CSS Quill yang tak ter-load di bubble) */
+.message-content .ql-align-center  { text-align: center; }
+.message-content .ql-align-right   { text-align: right; }
+.message-content .ql-align-justify { text-align: justify; }
+.message-content .ql-indent-1 { padding-left: 3em; }
+.message-content .ql-indent-2 { padding-left: 6em; }
+.message-content .ql-indent-3 { padding-left: 9em; }
+.message-content .ql-indent-4 { padding-left: 12em; }
+.message-content .ql-indent-5 { padding-left: 15em; }
+.message-content .ql-indent-6 { padding-left: 18em; }
+.message-content .ql-indent-7 { padding-left: 21em; }
+.message-content .ql-indent-8 { padding-left: 24em; }
 .email-html-body a  { color: #2563eb !important; text-decoration: underline !important; }
 /* Links di Quill editor saat mengetik */
 .ql-editor a { color: #2563eb !important; text-decoration: underline !important; cursor: pointer; }
@@ -863,8 +1615,39 @@
     min-width: 200px;
 }
 .ql-container.ql-snow { border: none !important; font-size: 13px; }
-.ql-editor { min-height: 80px; max-height: 180px; overflow-y: auto; overflow-x: hidden; padding: 8px 12px; }
+.ql-editor { min-height: 80px; max-height: 180px; overflow-y: auto; overflow-x: auto; padding: 8px 12px; }
 .ql-editor.ql-blank::before { font-style: normal; color: #9ca3af; font-size: 13px; }
+
+/* Pasted-table block embed inside the editor — read-only, scrolls horizontally
+   when wide so it never pushes the editor out of shape. */
+.ql-editor .ql-table-embed { margin: 6px 0; overflow-x: auto; max-width: 100%; }
+.ql-editor .ql-table-embed table { border-collapse: collapse; font-size: 12px; }
+.ql-editor .ql-table-embed td, .ql-editor .ql-table-embed th {
+    border: 1px solid #000 !important; padding: 4px 8px; text-align: left; vertical-align: top;
+}
+
+/* Drag handle to resize the reply editor's height */
+.reply-resize-handle {
+    height: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: ns-resize;
+    user-select: none;
+    touch-action: none;
+}
+.reply-resize-handle::before {
+    content: '';
+    width: 32px;
+    height: 4px;
+    border-radius: 2px;
+    background: #e5e7eb;
+    transition: background .15s;
+}
+.reply-resize-handle:hover::before,
+.reply-resize-handle.is-resizing::before {
+    background: #9ca3af;
+}
 
 /* Images inside editor — fit width, cap height */
 .ql-editor img {
@@ -893,7 +1676,46 @@
     border-radius: 6px;
     display: block;
     margin: 4px 0;
+    cursor: zoom-in;            /* klik gambar untuk buka preview full */
 }
+
+/* ── Image lightbox (preview full-view saat gambar diklik) ─────────────── */
+#imageLightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 24px;
+    cursor: zoom-out;
+}
+#imageLightbox.open { display: flex; }
+#imageLightbox img {
+    max-width: 94vw;
+    max-height: 92vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    cursor: default;
+}
+#imageLightbox .lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+#imageLightbox .lightbox-close:hover { background: rgba(255, 255, 255, 0.25); }
 
 /* Quill Toolbar Tooltips */
 .ql-toolbar button, .ql-toolbar .ql-picker { position: relative; }
@@ -927,7 +1749,7 @@
 
 /* Status delivery indicator (WhatsApp-style) — hanya untuk reply helpdesk */
 .msg-status-row {
-    display: flex; justify-content: flex-end;
+    display: flex; justify-content: flex-end; align-items: center; gap: 8px;
     margin-top: 6px; padding-top: 4px;
     border-top: 1px solid rgba(0,0,0,0.04);
 }
@@ -937,17 +1759,95 @@
     line-height: 1;
 }
 .msg-status.read { color: #2563eb; font-weight: 600; }
+.msg-status.failed { color: #dc2626; font-weight: 600; }
+.msg-status.failed svg { width: 12px; height: 12px; flex-shrink: 0; }
+.msg-status.partial { color: #b45309; font-weight: 600; }
+.msg-status.partial svg { width: 12px; height: 12px; flex-shrink: 0; }
 .msg-status .check-pair {
     display: inline-flex; align-items: center; flex-shrink: 0;
 }
 .msg-status .check-pair svg { width: 12px; height: 12px; }
 .msg-status .check-pair svg + svg { margin-left: -7px; }
 
+/* Bubble reply yang emailnya GAGAL terkirim */
+.message-bubble.email-failed {
+    border: 1px solid #fecaca;
+    background: #fff5f5;
+}
+.msg-failed-banner {
+    display: flex; align-items: flex-start; gap: 6px;
+    margin-top: 8px; padding: 8px 10px;
+    background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+    color: #b91c1c; text-align: left;
+}
+.msg-failed-banner svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+.msg-failed-title  { display: block; font-size: 11px; font-weight: 700; line-height: 1.3; }
+.msg-failed-reason { display: block; font-size: 11px; color: #7f1d1d; line-height: 1.4; margin-top: 1px; }
+
+/* Bubble reply yang emailnya terkirim SEBAGIAN (partial) — nuansa amber, bukan merah */
+.message-bubble.email-partial {
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+}
+.msg-warn-banner {
+    display: flex; align-items: flex-start; gap: 6px;
+    margin-top: 8px; padding: 8px 10px;
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+    color: #92400e; text-align: left;
+}
+.msg-warn-banner svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+.msg-warn-title  { display: block; font-size: 11px; font-weight: 700; line-height: 1.3; }
+.msg-warn-reason { display: block; font-size: 11px; color: #78350f; line-height: 1.4; margin-top: 1px; }
+
+/* Input To/CC saat alamat tidak valid — flash merah singkat */
+.recipient-invalid {
+    background: #fef2f2 !important;
+    box-shadow: 0 0 0 2px #fecaca inset;
+    border-radius: 6px;
+    animation: recipientShake 0.3s ease;
+}
+@keyframes recipientShake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+}
+
+/* SLA button next to Read/status indicator */
+.sla-open-btn {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10px; font-weight: 600;
+    color: #9ca3af;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    padding: 2px 6px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.sla-open-btn:hover { color: #6b7280; border-color: #9ca3af; background: #f3f4f6; }
+.sla-open-btn.has-sla { color: #16a34a; border-color: #86efac; background: #f0fdf4; }
+.sla-open-btn.has-sla:hover { color: #15803d; border-color: #4ade80; background: #dcfce7; }
+.sla-open-btn svg { width: 10px; height: 10px; flex-shrink: 0; }
+
 /* Message content */
 .message-content p { margin-bottom: 0.25rem; }
 .message-content p:last-child { margin-bottom: 0; }
+/* !important WAJIB: Tailwind preflight (`ol,ul{list-style:none}`) dan reset lain
+   ikut ter-load di halaman ini; tanpa !important marker numbering/bullet Quill
+   tetap hilang saat dirender di bubble (di luar .ql-editor). list-style-position
+   inside agar marker tak terpotong oleh overflow bubble. */
 .message-content ul, .message-content ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
+.message-content ol { list-style-type: decimal !important; list-style-position: inside !important; }
+.message-content ul { list-style-type: disc !important; list-style-position: inside !important; }
+.message-content li { display: list-item !important; }
 .message-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; }
+/* Pasted tables in the thread (internal notes / web replies use .message-content
+   without .email-html-body, so mirror the table border styling here). */
+.message-content table { border-collapse: collapse; font-size: 12px; max-width: 100%; margin: 4px 0; }
+.message-content td, .message-content th { border: 1px solid #000 !important; padding: 4px 8px; text-align: left; vertical-align: top; }
+.message-content .ql-table-embed { overflow-x: auto; max-width: 100%; }
 
 /* â"€â"€â"€ Sidebar resize handle hover glow â"€â"€â"€ */
 #sidebarResizeHandle:hover,
@@ -995,17 +1895,16 @@
 .sb-prio-medium    { background:#dbeafe; color:#1d4ed8; }
 .sb-prio-low       { background:#dcfce7; color:#15803d; }
 .sb-prio-default   { background:#f3f4f6; color:#4b5563; }
-/* Jarvies status */
-.sb-jarvies        { background:#fef9c3; color:#a16207; }
 /* Ticket status */
-.sb-status-open         { background:#dbeafe; color:#1d4ed8; }
-.sb-status-in_progress  { background:#ede9fe; color:#6d28d9; }
-.sb-status-closed       { background:#dcfce7; color:#15803d; }
-.sb-status-wait_to_close{ background:#ffedd5; color:#c2410c; }
-.sb-status-hold         { background:#f3f4f6; color:#4b5563; }
-.sb-status-reply        { background:#fef9c3; color:#a16207; }
-.sb-status-cancel       { background:#fee2e2; color:#b91c1c; }
-.sb-status-default      { background:#f3f4f6; color:#6b7280; }
+.sb-status-open                    { background:#dbeafe; color:#1d4ed8; }
+.sb-status-inprocess               { background:#fef9c3; color:#92400e; }
+.sb-status-waiting_on_customer     { background:#fef3c7; color:#b45309; }
+.sb-status-waiting_on_3rd_party    { background:#e0e7ff; color:#4338ca; }
+.sb-status-waiting_to_confirmation { background:#ccfbf1; color:#0f766e; }
+.sb-status-hold                    { background:#ffedd5; color:#c2410c; }
+.sb-status-cancelled               { background:#fee2e2; color:#b91c1c; }
+.sb-status-closed                  { background:#dcfce7; color:#15803d; }
+.sb-status-default                 { background:#f3f4f6; color:#6b7280; }
 
 /* â"€â"€â"€ Internal note reply button (hidden until hover on group) â"€â"€â"€ */
 .note-reply-btn {
@@ -1019,10 +1918,161 @@
     box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important;
 }
 .primary-text { color: var(--primary-color) !important; }
+
+/* Hide native calendar/clock icons so our custom SVGs show cleanly */
+#meetingStartDate::-webkit-calendar-picker-indicator,
+#meetingEndDate::-webkit-calendar-picker-indicator,
+#meetingStartHour::-webkit-calendar-picker-indicator,
+#meetingEndHour::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+
+/* ── Meeting modal: expand sideways as recipients grow, never squeeze notes ──
+   The chip list scrolls in its own area; the "add email" input row stays put
+   below it so it's never scrolled out of view while the list grows. */
+#meetingModalCard { transition: max-width .2s ease; }
+#meetingToTagsContainer,
+#meetingCcTagsContainer { max-height: 7.5rem; overflow-y: auto; transition: max-height .2s ease; }
+#meetingToTagsContainer:not(:empty) + div,
+#meetingCcTagsContainer:not(:empty) + div { border-top: 1px solid #f3f4f6; }
+@media (min-width: 640px) {
+    #meetingRecipientsCol { width: 22rem; transition: width .2s ease; }
+    #meetingModalCard.meeting-wide #meetingRecipientsCol { width: 34rem; }
+    #meetingModalCard.meeting-wide #meetingToTagsContainer,
+    #meetingModalCard.meeting-wide #meetingCcTagsContainer { max-height: 11rem; }
+}
+
+@if(session('user_preferences.theme', 'light') === 'dark')
+/* ── Dark mode: elemen ber-warna HARDCODED khusus halaman ticket ─────────────
+   Override global di dashboard.blade.php hanya menjangkau utilitas Tailwind
+   (`.bg-white`, `.text-gray-*`, …). Elemen di bawah distyle lewat CSS mentah /
+   inline style, jadi tak tersentuh. Teks bubble memakai `text-gray-700` yang
+   sudah di-terangkan global → latar bubble WAJIB digelapkan di sini, jika tidak
+   jadi terang-di-atas-terang (tak terbaca). */
+
+/* Bubble pesan */
+.message-bubble.customer            { background: rgba(59,130,246,.14) !important; }
+.message-bubble.employee            { background: #273244 !important; }
+.message-bubble.internal-note       { background: rgba(234,179,8,.14) !important; border-color: #b45309 !important; }
+.message-bubble.internal-note.mine  { background: rgba(245,158,11,.18) !important; border-color: #d97706 !important; }
+
+/* Link di dalam bubble → biru terang agar kontras di latar gelap */
+.message-content a, .email-html-body a, .ql-editor a { color: #60a5fa !important; }
+.message-content a:hover               { color: #93c5fd !important; }
+
+/* Chip @mention (internal note) disisipkan Quill dengan inline color PEKAT
+   (#1d4ed8 employee / #7c3aed role) — di latar gelap terlihat menyolok /
+   kontras berlebih. Lembutkan ke tone pastel tema (biru/ungu) agar tetap jelas
+   sebagai mention tapi menyatu. Quill menserialisasi warna ke `rgb(...)` saat
+   disimpan, jadi cocokkan kedua bentuk (hex saat mengetik + rgb tersimpan). */
+.message-content span[style*="rgb(29, 78, 216)"],  .message-content span[style*="#1d4ed8"],
+.ql-editor span[style*="rgb(29, 78, 216)"],        .ql-editor span[style*="#1d4ed8"]   { color: #93c5fd !important; }
+.message-content span[style*="rgb(124, 58, 237)"], .message-content span[style*="#7c3aed"],
+.ql-editor span[style*="rgb(124, 58, 237)"],       .ql-editor span[style*="#7c3aed"]   { color: #c4b5fd !important; }
+
+/* Border tabel HTML email (#000 → abu gelap agar tak "keras") & blockquote */
+.email-html-body td, .email-html-body th,
+.message-content td, .message-content th { border-color: #4b5563 !important; }
+.email-html-body blockquote, .message-content blockquote { border-left-color: #4b5563 !important; color: #9ca3af !important; }
+
+/* Deliverable card: label/colon inline #6b7280 → dicerahkan */
+.deliv-card td { color: #cbd5e1 !important; }
+
+/* ── Modal "Deliverable Documents" ───────────────────────────────────────────
+   Header kolom (text-gray-500) redup di latar gelap, dan badge ber-latar pastel
+   (Doc Type bg-indigo-50, Status bg-green-100/bg-orange-100) TIDAK dijangkau
+   override global → teks berwarna gelapnya (text-indigo/green/orange-700) jadi
+   nyaru di atas latar terang. Gelapkan latar badge + cerahkan teksnya di sini. */
+#deliverableModal thead th        { color: #cbd5e1 !important; }
+#deliverableModal .bg-indigo-50 {
+    background-color: rgba(99,102,241,.20) !important;
+    border-color: rgba(129,140,248,.40) !important;
+    color: #c7d2fe !important;
+}
+#deliverableModal .bg-green-100 {
+    background-color: rgba(34,197,94,.20) !important;
+    color: #86efac !important;
+}
+#deliverableModal .bg-orange-100 {
+    background-color: rgba(249,115,22,.20) !important;
+    color: #fdba74 !important;
+}
+/* Placeholder em-dash "—" (text-gray-300 → terlalu redup) sedikit dinaikkan */
+#deliverableModal .text-gray-300 { color: #7c8595 !important; }
+/* Bulk action bar: bg-indigo-50 tak dijangkau override global → gelapkan. */
+#delivBulkBar {
+    background-color: rgba(99,102,241,.14) !important;
+    border-color: rgba(99,102,241,.30) !important;
+}
+
+/* Baris status delivery (garis pemisah hitam samar → putih samar) */
+.msg-status-row      { border-top-color: rgba(255,255,255,.08) !important; }
+.msg-status          { color: #9ca3af !important; }
+.msg-status.read     { color: #60a5fa !important; }
+.msg-status.failed   { color: #f87171 !important; }
+.msg-status.partial  { color: #fbbf24 !important; }
+
+/* Bubble & banner email GAGAL (merah) */
+.message-bubble.email-failed { background: rgba(153,27,27,.20) !important; border-color: #7f1d1d !important; }
+.msg-failed-banner  { background: rgba(153,27,27,.25) !important; border-color: #7f1d1d !important; color: #fca5a5 !important; }
+.msg-failed-reason  { color: #fecaca !important; }
+
+/* Bubble & banner email SEBAGIAN (amber) */
+.message-bubble.email-partial { background: rgba(245,158,11,.16) !important; border-color: #b45309 !important; }
+.msg-warn-banner   { background: rgba(245,158,11,.16) !important; border-color: #b45309 !important; color: #fcd34d !important; }
+.msg-warn-reason   { color: #fde68a !important; }
+
+/* Tombol SLA kecil di baris status */
+.sla-open-btn              { background: #1f2937 !important; border-color: #4b5563 !important; color: #9ca3af !important; }
+.sla-open-btn:hover        { background: #374151 !important; border-color: #6b7280 !important; color: #cbd5e1 !important; }
+.sla-open-btn.has-sla      { background: rgba(34,197,94,.16) !important; border-color: #15803d !important; color: #4ade80 !important; }
+.sla-open-btn.has-sla:hover{ background: rgba(34,197,94,.24) !important; border-color: #22c55e !important; color: #86efac !important; }
+
+/* Input To/CC flash saat alamat tidak valid */
+.recipient-invalid { background: rgba(153,27,27,.25) !important; box-shadow: 0 0 0 2px #7f1d1d inset; }
+
+/* Handle resize editor */
+.reply-resize-handle::before { background: #4b5563 !important; }
+.reply-resize-handle:hover::before,
+.reply-resize-handle.is-resizing::before { background: #6b7280 !important; }
+
+/* ── Quill editor (reply / internal note) ──────────────────────────────────
+   Toolbar & ikon Quill memakai warna terang/stroke gelap bawaan → dipetakan
+   ke permukaan gelap + ikon terang. */
+.ql-toolbar.ql-snow { background: #1f2937 !important; border-bottom-color: #374151 !important; }
+.ql-snow .ql-stroke        { stroke: #cbd5e1 !important; }
+.ql-snow .ql-fill,
+.ql-snow .ql-stroke.ql-fill { fill: #cbd5e1 !important; }
+.ql-snow .ql-picker-label  { color: #cbd5e1 !important; }
+.ql-snow .ql-picker-label .ql-stroke { stroke: #cbd5e1 !important; }
+.ql-snow.ql-toolbar button:hover,
+.ql-snow.ql-toolbar button.ql-active,
+.ql-snow .ql-picker-label:hover,
+.ql-snow .ql-picker-item:hover,
+.ql-snow .ql-picker-item.ql-selected { color: #ffffff !important; }
+.ql-snow.ql-toolbar button:hover .ql-stroke,
+.ql-snow.ql-toolbar button.ql-active .ql-stroke,
+.ql-snow .ql-picker-label:hover .ql-stroke,
+.ql-snow .ql-picker-item:hover .ql-stroke,
+.ql-snow .ql-picker-item.ql-selected .ql-stroke { stroke: #ffffff !important; }
+.ql-snow.ql-toolbar button:hover .ql-fill,
+.ql-snow.ql-toolbar button.ql-active .ql-fill { fill: #ffffff !important; }
+/* Panel dropdown picker & tooltip link */
+.ql-toolbar.ql-snow .ql-picker.ql-expanded .ql-picker-options { background: #1f2937 !important; border-color: #4b5563 !important; }
+.ql-snow .ql-picker-options { background: #1f2937 !important; }
+.ql-snow .ql-tooltip { background: #1f2937 !important; border-color: #4b5563 !important; color: #e5e7eb !important; box-shadow: 0 2px 12px rgba(0,0,0,.5) !important; }
+.ql-snow .ql-tooltip input[type=text] { background: #374151 !important; border-color: #4b5563 !important; color: #f9fafb !important; }
+.ql-snow .ql-tooltip a { color: #60a5fa !important; }
+.ql-editor.ql-blank::before { color: #6b7280 !important; }
+@endif
 </style>
 
 {{-- Assign to Delivery Support Modal --}}
-@if(in_array($user->role->role_id, \App\Enums\RoleId::TICKET_MANAGER_GROUP, true))
+@if($canAssignDelivery)
 <div id="assignSupportModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl">
         <div class="px-6 py-4 border-b border-gray-200">
@@ -1080,7 +2130,7 @@
 {{-- ===== MANDAYS MODALS ===== --}}
 
 {{-- PIC: Customer Mandays Modal --}}
-@if(isset($isPic) && $isPic)
+@if(isset($isPicCustomerMandays) && $isPicCustomerMandays)
 <div id="picMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
@@ -1118,10 +2168,6 @@
 
             {{-- Matrix table --}}
             <div class="border border-gray-200 rounded-lg overflow-hidden">
-                <div class="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                    <span class="text-xs font-semibold text-gray-600">Activity &times; Module Matrix</span>
-                    <span class="text-[10px] text-gray-400">Enter mandays per cell</span>
-                </div>
                 <div id="picMandaysTableWrap" class="overflow-x-auto">
                     <div id="picMandaysLoading" class="py-10 text-center">
                         <i class="fas fa-spinner fa-spin text-xl primary-text opacity-60 mb-2 block"></i>
@@ -1150,14 +2196,17 @@
                 </button>
             </div>
             <div class="flex gap-2">
+                <button id="picBtnDeleteDraft" onclick="picDeleteDraft()" class="hidden inline-flex items-center px-4 py-2 bg-white text-red-600 text-xs font-semibold rounded-lg border border-red-300 hover:bg-red-50 transition-all duration-200">Delete Draft</button>
                 <button id="picBtnSaveDraft" onclick="picSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save Draft</button>
                 <button id="picBtnSubmit" onclick="picSubmitDraft()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Submit to Helpdesk</button>
             </div>
         </div>
     </div>
 </div>
+@endif
 
 {{-- PIC: Resolution Days Modal --}}
+@if(isset($isPicResolutionDays) && $isPicResolutionDays)
 <div id="picResolutionModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
@@ -1181,14 +2230,20 @@
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Days — working days">Days</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Days proposed by PIC">Add.</th>
                         <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Approved Days — base days approved by Head">Appr. Days</th>
                         <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Approved Additional — extra days approved by Head">Appr. Add.</th>
-                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Days + Approved Additional">Total Days</th>
+                        <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Approved Days + Approved Additional">Total Days</th>
                     </tr>
                 </thead>
                 <tbody id="resolutionBody"></tbody>
                 <tfoot>
                     <tr class="bg-gray-50 font-bold">
-                        <td colspan="5" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                        <td class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterDays">0</td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterAdd">0</td>
+                        <td class="px-3 py-2 border border-gray-200"></td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterApprovedDays">0</td>
+                        <td class="px-3 py-2 border border-gray-200 text-center" id="resFooterApprAdd">0</td>
                         <td class="px-3 py-2 border border-gray-200 text-center" id="resolutionFooterTotal">0</td>
                     </tr>
                 </tfoot>
@@ -1200,46 +2255,170 @@
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
             <div class="text-xs text-gray-500">Total: <strong id="resolutionTotalDisplay">0</strong> days</div>
-            <div class="flex gap-2">
-                <button id="resolutionBtnSave" onclick="resolutionPicSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save</button>
-                <button id="resolutionBtnSubmit" onclick="resolutionPicSubmit()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Submit to Head</button>
+            <div class="flex flex-col items-end gap-1">
+                <p id="resolutionSubmitGateNote" class="hidden text-xs text-amber-600 text-right max-w-xs">Must fill &amp; submit Customer Mandays proposal (approved by Helpdesk) before submitting Resolution Days.</p>
+                <div class="flex gap-2">
+                    <button id="resolutionBtnSave" onclick="resolutionPicSaveDraft()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Save</button>
+                    <button id="resolutionBtnSubmit" onclick="resolutionPicSubmit()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">Submit to Head</button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 @endif
 
-{{-- Assign PIC Modal (Admin / Helpdesk / Delivery Support Head) --}}
-@if($canAssignPic)
-<div id="assignPicModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+{{-- Assign Ticket Lead Modal (Admin / Helpdesk / Delivery Support Head, atau Ticket Lead tiket ini / Module Lead) --}}
+@if($canAssignTicketLead)
+<div id="assignTicketLeadModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl flex flex-col">
         <div class="flex justify-between items-center px-5 py-4 border-b border-gray-200">
-            <h3 class="text-base font-bold text-gray-900">Assign PIC</h3>
-            <button onclick="closeAssignPicModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+            <h3 class="text-base font-bold text-gray-900">Assign Ticket Lead</h3>
+            <button onclick="closeAssignTicketLeadModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="p-5 space-y-4">
-            <p class="text-xs text-gray-500">Select a consultant to assign as PIC for this ticket.</p>
+            <p class="text-xs text-gray-500">Select a consultant to assign as Ticket Lead for this ticket.</p>
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Consultant</label>
                 <div class="relative">
-                    <input id="assignPicSearch" type="text" placeholder="Search name..."
+                    <input id="assignTicketLeadSearch" type="text" placeholder="Search name..."
                         autocomplete="off"
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus"
-                        oninput="filterAssignPicList()">
-                    <div id="assignPicDropdown" class="hidden absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-xs"></div>
+                        oninput="filterAssignTicketLeadList()">
+                    <div id="assignTicketLeadDropdown" class="hidden absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-xs"></div>
                 </div>
-                <input type="hidden" id="assignPicSelectedId">
-                <div id="assignPicSelectedName" class="mt-1.5 text-xs primary-text font-semibold hidden"></div>
+                <input type="hidden" id="assignTicketLeadSelectedId">
+                <div id="assignTicketLeadSelectedName" class="mt-1.5 text-xs primary-text font-semibold hidden"></div>
             </div>
         </div>
         <div class="px-5 py-4 border-t border-gray-200 flex justify-end gap-2">
-            <button id="assignPicBtn" onclick="submitAssignPic()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Assign</button>
+            <button id="assignTicketLeadBtn" onclick="submitAssignTicketLead()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Assign</button>
         </div>
     </div>
 </div>
 @endif
+
+{{-- ── Send Status Modal ───────────────────────────────────────────────── --}}
+<div id="sendStatusModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-xs shadow-2xl flex flex-col">
+        <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900">Send &amp; Set Status</h3>
+                <p id="sendStatusSubtitle" class="text-[11px] text-gray-400 mt-0.5">Pilih status setelah reply dikirim</p>
+            </div>
+            <button onclick="closeSendStatusModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="px-4 py-4 flex flex-col gap-2">
+            {{-- Inprocess --}}
+            <button onclick="confirmSendWithStatus('inprocess')"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-yellow-50 border border-yellow-200 hover:bg-yellow-400 hover:border-yellow-400 hover:text-white group transition-all duration-150">
+                <span class="w-8 h-8 rounded-lg bg-yellow-400 group-hover:bg-yellow-100 flex items-center justify-center transition-all shrink-0">
+                    <svg class="w-4 h-4 text-white group-hover:text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </span>
+                <div class="text-left">
+                    <div class="text-xs font-bold text-yellow-800 group-hover:text-white">Inprocess</div>
+                    <div class="text-[10px] text-yellow-600 group-hover:text-yellow-100">Helpdesk sedang mengerjakan</div>
+                </div>
+                <svg class="ml-auto w-4 h-4 text-yellow-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            {{-- Waiting on Customer --}}
+            <button onclick="confirmSendWithStatus('waiting_on_customer')"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-500 hover:border-amber-500 hover:text-white group transition-all duration-150">
+                <span class="w-8 h-8 rounded-lg bg-amber-400 group-hover:bg-amber-100 flex items-center justify-center transition-all shrink-0">
+                    <svg class="w-4 h-4 text-white group-hover:text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                </span>
+                <div class="text-left">
+                    <div class="text-xs font-bold text-amber-800 group-hover:text-white">Waiting on Customer</div>
+                    <div class="text-[10px] text-amber-600 group-hover:text-amber-100">Menunggu balasan customer</div>
+                </div>
+                <svg class="ml-auto w-4 h-4 text-amber-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            {{-- Waiting to Confirmation --}}
+            <button onclick="confirmSendWithStatus('waiting_to_confirmation')"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200 hover:bg-teal-500 hover:border-teal-500 hover:text-white group transition-all duration-150">
+                <span class="w-8 h-8 rounded-lg bg-teal-400 group-hover:bg-teal-100 flex items-center justify-center transition-all shrink-0">
+                    <svg class="w-4 h-4 text-white group-hover:text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div class="text-left">
+                    <div class="text-xs font-bold text-teal-800 group-hover:text-white">Waiting to Confirmation</div>
+                    <div class="text-[10px] text-teal-600 group-hover:text-teal-100">Menunggu konfirmasi customer</div>
+                </div>
+                <svg class="ml-auto w-4 h-4 text-teal-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            {{-- Waiting on 3rd Party --}}
+            <button onclick="confirmSendWithStatus('waiting_on_3rd_party')"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-500 hover:border-indigo-500 hover:text-white group transition-all duration-150">
+                <span class="w-8 h-8 rounded-lg bg-indigo-400 group-hover:bg-indigo-100 flex items-center justify-center transition-all shrink-0">
+                    <svg class="w-4 h-4 text-white group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/></svg>
+                </span>
+                <div class="text-left">
+                    <div class="text-xs font-bold text-indigo-800 group-hover:text-white">Waiting on 3rd Party</div>
+                    <div class="text-[10px] text-indigo-600 group-hover:text-indigo-100">Diteruskan ke SAP / pihak ketiga</div>
+                </div>
+                <svg class="ml-auto w-4 h-4 text-indigo-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            {{-- Hold --}}
+            <button onclick="confirmSendWithStatus('hold')"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-50 border border-orange-200 hover:bg-orange-500 hover:border-orange-500 hover:text-white group transition-all duration-150">
+                <span class="w-8 h-8 rounded-lg bg-orange-400 group-hover:bg-orange-100 flex items-center justify-center transition-all shrink-0">
+                    <svg class="w-4 h-4 text-white group-hover:text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div class="text-left">
+                    <div class="text-xs font-bold text-orange-800 group-hover:text-white">Hold</div>
+                    <div class="text-[10px] text-orange-600 group-hover:text-orange-100">Ticket ditahan sementara</div>
+                </div>
+                <svg class="ml-auto w-4 h-4 text-orange-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+        <div class="px-4 pb-4">
+            <button onclick="closeSendStatusModal()" class="w-full py-2 text-xs text-gray-400 hover:text-gray-600 transition-all">Cancel</button>
+        </div>
+    </div>
+</div>
+
+{{-- ── Confirm Send Modal (review To/Cc/message/status before sending) ──── --}}
+<div id="confirmSendModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
+        <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900">Konfirmasi Kirim</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">Periksa kembali sebelum mengirim</p>
+            </div>
+            <button onclick="closeConfirmSendModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="px-5 py-4 flex-1 overflow-y-auto space-y-3">
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</span>
+                <p id="confirmSendTo" class="text-xs text-gray-800 break-words">-</p>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Cc</span>
+                <p id="confirmSendCc" class="text-xs text-gray-800 break-words">-</p>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Pesan</span>
+                <div id="confirmSendMessage" class="text-xs text-gray-800 border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto bg-gray-50"></div>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Status</span>
+                <span id="confirmSendStatusBadge" class="sb-badge">-</span>
+            </div>
+        </div>
+        <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 flex-shrink-0">
+            <button onclick="closeConfirmSendModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">Edit</button>
+            <button onclick="finalizeSend()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Kirim</button>
+        </div>
+    </div>
+</div>
 
 {{-- Helpdesk: Customer Mandays Review Modal --}}
 @if(isset($isHelpdesk) && $isHelpdesk)
@@ -1267,6 +2446,26 @@
                     <p class="text-xs font-semibold text-red-700 mb-1">Customer Rejection Reason:</p>
                     <p id="hdRejectionReasonText" class="text-xs text-red-800"></p>
                 </div>
+                @if($hdCanEditDesc || $hdCanEditNotes)
+                <div id="hdMetaFieldsWrap" class="hidden mb-4 space-y-3">
+                    @if($hdCanEditDesc)
+                    <div>
+                        <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</label>
+                        <input type="text" id="hdDescriptionInput" maxlength="255"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-800"
+                            placeholder="Proposal description...">
+                    </div>
+                    @endif
+                    @if($hdCanEditNotes)
+                    <div>
+                        <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Proposal Notes</label>
+                        <textarea id="hdProposalNotesInput" rows="2" maxlength="2000"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-800 resize-none"
+                            placeholder="Notes for this proposal..."></textarea>
+                    </div>
+                    @endif
+                </div>
+                @endif
                 <div class="overflow-x-auto mb-4">
                     <table class="w-full text-xs border-collapse">
                         <thead id="hdMandaysHead"></thead>
@@ -1350,7 +2549,7 @@
                 <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"/></svg>
                 Click a row to view version detail
             </p>
-            @if($isPicMandays)
+            @if($isPicCustomerMandays)
             <button id="mandaysVersionBtnNewPropose" onclick="mandaysVersionNewPropose()" class="hidden inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                 New Proposal
@@ -1405,6 +2604,16 @@
                     </table>
                 </div>
                 <div class="mt-3 text-xs text-gray-500 text-right">Total: <strong id="mvdTotal">0</strong> mandays</div>
+                {{-- Cancel confirm section (shown when clicking "Cancel This Version") --}}
+                <div id="mvdCancelConfirmWrap" class="hidden mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p class="text-xs font-semibold text-red-700 mb-2">Cancel This Version — Confirmation</p>
+                    <label class="text-xs font-medium text-red-700">Reason / Notes <span class="text-gray-500 font-normal">(optional)</span></label>
+                    <textarea id="mvdCancelNotes" rows="2" class="mt-1 w-full px-3 py-2 border border-red-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="Explain why you are canceling this version..."></textarea>
+                    <div class="flex gap-2 mt-2 justify-end">
+                        <button type="button" onclick="mvdCancelAbort()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Back</button>
+                        <button type="button" onclick="mvdCancelConfirm()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">Confirm Cancel</button>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 gap-3">
@@ -1412,7 +2621,7 @@
                 &larr; Back to List
             </button>
             {{-- Only PIC: button to open edit modal if this version is still a draft --}}
-            @if($isPicMandays)
+            @if($isPicCustomerMandays)
             <button id="mvdBtnEditDraft" onclick="mvdOpenEditDraft()" class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Edit Draft
             </button>
@@ -1421,6 +2630,12 @@
             @if($isHelpdeskMandays)
             <button id="mvdBtnHdReview" onclick="mvdOpenHdReview()" class="hidden inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Review This Version
+            </button>
+            {{-- Cancel this specific version — including an older one already superseded
+                 by a newer version, which is always already-approved (gated by
+                 ticket.review-mandays.cancel-approved on top of the base cancel permission). --}}
+            <button id="mvdBtnCancel" onclick="mvdShowCancelConfirm()" class="hidden inline-flex items-center px-4 py-2 bg-white border border-red-300 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all duration-200">
+                Cancel This Version
             </button>
             @endif
         </div>
@@ -1454,14 +2669,20 @@
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-14" title="Days — working days">Days</th>
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-16" title="Additional Days proposed by PIC">Add.</th>
                             <th class="px-3 py-2 text-left font-semibold text-gray-600 border border-gray-200">Notes</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Enter approved days for each employee (out of the proposed Days)">Approved Days</th>
                             <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Enter approved additional for each employee">Approve Add.</th>
-                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Days + Approved Additional">Total Days</th>
+                            <th class="px-3 py-2 text-center font-semibold text-gray-600 border border-gray-200 w-20" title="Total Days = Approved Days + Approved Additional">Total Days</th>
                         </tr>
                     </thead>
                     <tbody id="headresolutionBody"></tbody>
                     <tfoot>
                         <tr class="bg-gray-50 font-bold">
-                            <td colspan="5" class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                            <td class="px-3 py-2 border border-gray-200 text-right text-xs">Total</td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterDays">0</td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterAdd">0</td>
+                            <td class="px-3 py-2 border border-gray-200"></td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterApprovedDays">0</td>
+                            <td class="px-3 py-2 border border-gray-200 text-center" id="headFooterApproveAdd">0</td>
                             <td class="px-3 py-2 border border-gray-200 text-center" id="headResolutionTotal">0</td>
                         </tr>
                     </tfoot>
@@ -1471,8 +2692,8 @@
             </div>
         </div>
         <div id="headResolutionFooter" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
-            <p class="text-xs text-gray-400">Edit the "Approve Add." column then save to approve additional days.</p>
-            <button id="headBtnApprove" onclick="headResolutionApprove()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+            <p id="headResolutionFooterHint" class="text-xs text-gray-400">Edit "Approved Days" / "Approve Add." then save to approve.</p>
+            <button id="headBtnApprove" onclick="headResolutionApprove()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
                 <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
                 Save Approval
             </button>
@@ -1529,13 +2750,260 @@
 @endif
 {{-- ===== END MANDAYS MODALS ===== --}}
 
+{{-- ===== MEETING MODAL ===== --}}
+@if($can('ticket.meeting'))
+<div id="meetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto" onclick="if(event.target===this) closeMeetingPanel()">
+    <div id="meetingModalCard" class="bg-white rounded-2xl shadow-2xl w-full max-w-md sm:w-auto sm:max-w-[95vw] my-auto max-h-[92vh] flex flex-col">
+        {{-- Header --}}
+        <div id="meetingModalHeader" class="flex items-center justify-between px-6 py-4 rounded-t-2xl">
+            <div class="flex items-center gap-3">
+                <div id="meetingModalIconWrap" class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <span id="meetingPanelTitle" class="text-base font-semibold"></span>
+            </div>
+            <button onclick="closeMeetingPanel()" class="text-gray-400 hover:text-gray-600 transition-colors p-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        {{-- Body — To/CC on the left, schedule on the right; notes span the full width below the split --}}
+        <div class="flex-1 overflow-y-auto px-6 pb-2 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:gap-6 sm:items-start">
+        {{-- Left column: recipients — this column and the modal widen sideways as chips fill --}}
+        <div id="meetingRecipientsCol" class="space-y-3 w-full sm:flex-shrink-0">
+            {{-- To --}}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">To</label>
+                <div id="meetingToDropZone"
+                     class="flex flex-col border border-gray-300 rounded-xl bg-white cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
+                     onclick="document.getElementById('meetingToInput').focus()">
+                    <div id="meetingToTagsContainer" class="flex flex-wrap gap-1 items-center px-2.5 pt-1.5 empty:pt-0 overflow-y-auto"></div>
+                    <div class="relative flex-shrink-0 px-2.5 py-1.5">
+                        <input type="text" id="meetingToInput"
+                               placeholder="Add an email then press Enter…"
+                               class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                               onkeydown="handleMeetingRecipientKeydown(event,'to')"
+                               onblur="handleMeetingRecipientBlur('to')"
+                               onpaste="handleMeetingRecipientPaste(event,'to')">
+                    </div>
+                </div>
+            </div>
+            {{-- CC --}}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                    CC <span class="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <div id="meetingCcDropZone"
+                     class="flex flex-col border border-gray-300 rounded-xl bg-white cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
+                     onclick="document.getElementById('meetingCcInput').focus()">
+                    <div id="meetingCcTagsContainer" class="flex flex-wrap gap-1 items-center px-2.5 pt-1.5 empty:pt-0 overflow-y-auto"></div>
+                    <div class="relative flex-shrink-0 px-2.5 py-1.5">
+                        <input type="text" id="meetingCcInput"
+                               placeholder="Add an email then press Enter…"
+                               class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                               onkeydown="handleMeetingRecipientKeydown(event,'cc')"
+                               onblur="handleMeetingRecipientBlur('cc')"
+                               onpaste="handleMeetingRecipientPaste(event,'cc')">
+                    </div>
+                </div>
+                <p class="mt-1 text-xs text-gray-400">Automatically filled with the same To/CC used last time on this ticket.</p>
+            </div>
+        </div>
+        {{-- Right column: template, schedule & link — fixed width, never squeezed --}}
+        <div class="space-y-3 w-full mt-4 pt-4 border-t border-gray-100 sm:mt-0 sm:pt-0 sm:border-t-0 sm:border-l sm:border-gray-100 sm:pl-6 sm:w-[20rem] sm:flex-shrink-0">
+            {{-- Meeting Template --}}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Use Template</label>
+                <div class="custom-dd relative w-full" data-onchange="onMeetingTemplateSelect" data-fixed="true">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between gap-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white hover:border-gray-400 transition-all">
+                        <span class="custom-dd-label text-gray-500">No template</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="meetingTemplateSelect" value="">
+                    <div id="meetingTemplatePanel" class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">No template (clear)</button>
+                    </div>
+                </div>
+            </div>
+            {{-- Schedule + link --}}
+            <div id="meetingLinkWrap">
+                {{-- Time --}}
+                <label id="meetingTimesLabel" class="block text-sm font-medium text-gray-700 mb-2">
+                    Meeting Time
+                </label>
+
+                {{-- Start: date + time --}}
+                <div id="meetingStartRow" class="mb-2">
+                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Start</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
+                            <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <input id="meetingStartDate" type="date"
+                                class="flex-1 text-sm bg-transparent focus:outline-none text-gray-700 min-w-0">
+                        </div>
+                        <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
+                            <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <input id="meetingStartHour" type="time"
+                                class="flex-1 text-sm bg-transparent focus:outline-none text-gray-700 min-w-0">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- End: date + time --}}
+                <div class="mb-3">
+                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">End</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
+                            <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <input id="meetingEndDate" type="date"
+                                class="flex-1 text-sm bg-transparent focus:outline-none text-gray-700 min-w-0">
+                        </div>
+                        <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
+                            <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <input id="meetingEndHour" type="time"
+                                class="flex-1 text-sm bg-transparent focus:outline-none text-gray-700 min-w-0">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Link --}}
+                <div id="meetingLinkSection">
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                        Meeting Link
+                        <span class="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <div class="flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 transition-all">
+                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                        </svg>
+                        <input id="meetingLink" type="url"
+                            class="flex-1 text-sm bg-transparent focus:outline-none"
+                            placeholder="https://meet.google.com/… or https://zoom.us/…">
+                    </div>
+                    <p class="mt-1 text-xs text-gray-400">The time and link will be emailed to the customer</p>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        {{-- Notes — full width, outside the split so it keeps a comfortable size --}}
+        <div>
+            <label id="meetingNotesLabel" class="block text-sm font-medium text-gray-700 mb-1.5"></label>
+            <textarea id="meetingNotes" rows="5"
+                class="w-full px-3 py-2.5 text-sm leading-relaxed border border-gray-300 rounded-xl resize-y min-h-[8rem] max-h-[24rem] focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all bg-white"
+                placeholder="News, editorial info, meeting invitation details, or other supplementary notes…"></textarea>
+        </div>
+
+        {{-- Save as template --}}
+        <div class="pt-1">
+            <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" id="saveAsTemplateCheckbox" class="rounded border-gray-300 text-purple-600 focus:ring-purple-400" onchange="toggleSaveTemplateFields()">
+                Save as template
+            </label>
+            <div id="saveTemplateFields" class="hidden mt-2 space-y-2">
+                <input id="templateNameInput" type="text" placeholder="Template name, e.g. Weekly Support Sync"
+                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300">
+                <p class="text-xs text-gray-400">This template can only be used on this ticket.</p>
+            </div>
+        </div>
+        </div>
+
+        {{-- Footer --}}
+        <div class="flex justify-end gap-3 px-6 py-4">
+            <button onclick="closeMeetingPanel()"
+                class="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all font-medium">
+                Cancel
+            </button>
+            <button id="meetingConfirmBtn" onclick="confirmMeeting()"
+                class="px-5 py-2 text-sm font-semibold text-white rounded-xl transition-all">
+            </button>
+        </div>
+    </div>
+</div>
+@endif
+{{-- ===== END MEETING MODAL ===== --}}
+
+{{-- ===== CONFIRM MEETING MODAL — review sebelum undangan benar-benar dikirim ===== --}}
+@if($can('ticket.meeting'))
+<div id="confirmMeetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
+        <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900">Confirm Meeting Invitation</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">Review before sending</p>
+            </div>
+            <button onclick="closeConfirmMeetingModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="px-5 py-4 flex-1 overflow-y-auto space-y-3">
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</span>
+                <p id="confirmMeetingTo" class="text-xs text-gray-800 break-words">-</p>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Cc</span>
+                <p id="confirmMeetingCc" class="text-xs text-gray-800 break-words">-</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Start</span>
+                    <p id="confirmMeetingStart" class="text-xs text-gray-800">-</p>
+                </div>
+                <div>
+                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">End</span>
+                    <p id="confirmMeetingEnd" class="text-xs text-gray-800">-</p>
+                </div>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Meeting Link</span>
+                <p id="confirmMeetingLink" class="text-xs text-purple-600 break-all">-</p>
+            </div>
+            <div>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Message / Notes</span>
+                <div id="confirmMeetingNotes" class="text-xs text-gray-800 border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto bg-gray-50 whitespace-pre-wrap">-</div>
+            </div>
+        </div>
+        <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 flex-shrink-0">
+            <button onclick="closeConfirmMeetingModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">Edit</button>
+            <button id="confirmMeetingSendBtn" onclick="finalizeMeetingSend()" class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all">Send Invitation</button>
+        </div>
+    </div>
+</div>
+@endif
+{{-- ===== END CONFIRM MEETING MODAL ===== --}}
+
 <script>
-    const ticketId         = {{ $ticket->ticket_id }};
-    const userRole         = {{ $user->role->role_id ?? 0 }};
-    const ticketCustomerId = {{ $ticket->customer_id ?? 'null' }};
-    const currentUserId    = {{ $user->id ?? 'null' }};
+    const ticketId                    = {{ $ticket->ticket_id }};
+    const userRoleIds                 = {!! json_encode($user->role_ids) !!};
+    const userRole                    = userRoleIds[0] ?? 0;
+    let inMeeting                     = {{ $inMeeting ? 'true' : 'false' }};
+    const EC_ADMINISTRATOR_ROLE       = {{ \App\Enums\RoleId::EC_ADMINISTRATOR->value }};
+    const DELIVERY_SUPPORT_USER_ROLE  = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_USER->value }};
+    const EC_USER_ROLE                = {{ \App\Enums\RoleId::EC_USER->value }};
+    const DELIVERY_HELPDESK_ROLE      = {{ \App\Enums\RoleId::DELIVERY_HELPDESK->value }};
+    const DELIVERY_RPMO_HEAD_ROLE     = {{ \App\Enums\RoleId::DELIVERY_RPMO_HEAD->value }};
+    const canViewMyTicketTab          = {{ $can('room-chat.tab-my-ticket') ? 'true' : 'false' }};
+    const ticketCustomerId            = {{ $ticket->customer_id ?? 'null' }};
+    const currentUserId               = {{ $user->id ?? 'null' }};
+    const DRAFT_KEY                   = `ticket_draft_${ticketId}_${currentUserId}`;
     const ticketChannel = @json($ticket->channel ?? 'web');
-    const assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
+    let assignedDsId   = {{ isset($deliverySupport) && $deliverySupport ? $deliverySupport->id : 'null' }};
+    const currentTicketLeadId   = {{ $ticket->ticket_lead_id ?? 'null' }};
+    const currentTicketLeadName = @json($ticket->ticketLead?->basicData ? trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : null);
     const assignedDsName = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->name : null);
     const assignedDsType = @json(isset($deliverySupport) && $deliverySupport ? $deliverySupport->type : null);
     let quillEditor     = null;
@@ -1554,6 +3022,88 @@
     function cancelReply() {
         replyToId = null;
         document.getElementById('replyContextBar').classList.add('hidden');
+    }
+
+    // ── Initiate Email Mode (untuk non-email tickets) ─────────────────────────
+
+    let _emailInitMode = false;
+
+    function showEmailInitMode() {
+        _emailInitMode = true;
+        const toRow     = document.getElementById('toRow');
+        const ccRow     = document.getElementById('ccRow');
+        const btnStart  = document.getElementById('btnStartEmailThread');
+        const btnSend   = document.getElementById('btnSendInitEmail');
+        const btnCancel = document.getElementById('btnCancelInitEmail');
+
+        if (toRow)     toRow.style.display = '';
+        if (ccRow)     ccRow.style.display = '';
+        if (btnStart)  btnStart.style.display = 'none';
+        if (btnSend)   btnSend.classList.remove('hidden');
+        if (btnCancel) btnCancel.classList.remove('hidden');
+
+        toEmails = [];
+        renderToTags();
+        quillEditor && quillEditor.focus();
+    }
+
+    function hideEmailInitMode() {
+        _emailInitMode = false;
+        const toRow     = document.getElementById('toRow');
+        const ccRow     = document.getElementById('ccRow');
+        const btnStart  = document.getElementById('btnStartEmailThread');
+        const btnSend   = document.getElementById('btnSendInitEmail');
+        const btnCancel = document.getElementById('btnCancelInitEmail');
+
+        if (toRow)     toRow.style.display = 'none';
+        if (ccRow)     ccRow.style.display = 'none';
+        if (btnStart)  btnStart.style.display = '';
+        if (btnSend)   btnSend.classList.add('hidden');
+        if (btnCancel) btnCancel.classList.add('hidden');
+
+        toEmails = [];
+        renderToTags();
+    }
+
+    async function doInitiateEmail() {
+        const to = toEmails[0] ?? '';
+        if (!to) { showNotification('Please enter a recipient email address in the To field.', 'error'); return; }
+
+        commitToInput();
+        commitCcInput();
+
+        const rawHtml  = quillEditor ? quillEditor.root.innerHTML : '';
+        const bodyHtml = trimQuillHtml(rawHtml);
+
+        const btn = document.getElementById('btnSendInitEmail');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<svg class="animate-spin h-3 w-3 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Sending...'; }
+
+        try {
+            const ccStr = ccEmails.map(e => (typeof e === 'string' ? e : e.address)).join(', ');
+            const res   = await fetch(`/api/tickets/${ticketId}/initiate-email`, {
+                method:  'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type':     'application/json',
+                    'Accept':           'application/json',
+                    'X-CSRF-TOKEN':     document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ to, cc: ccStr, body: bodyHtml }),
+            });
+
+            const json = await res.json();
+            if (json.success) {
+                showNotification('Email sent successfully. The chat thread is now active.', 'success');
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                showNotification(json.message ?? 'Failed to send email.', 'error');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane text-[10px]"></i> Send First Email'; }
+            }
+        } catch (err) {
+            showNotification('Error: ' + err.message, 'error');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane text-[10px]"></i> Send First Email'; }
+        }
     }
 
     function scrollToMessage(msgId) {
@@ -1601,19 +3151,102 @@
         if (iconUp)   iconUp.classList.toggle('hidden', !isExpanded);
     }
 
+    // ── Reply editor resize handle (drag to enlarge/shrink) ───────────────────
+    function initReplyEditorResize() {
+        const handle = document.getElementById('replyResizeHandle');
+        if (!handle) return;
+        const MIN_H = 80;
+        const MAX_H = 500;
+        const STORAGE_KEY = 'replyEditorHeight';
+        let dragging = false, startY = 0, startH = 0;
+
+        const getEditorEl = () => document.querySelector('#quillEditor .ql-editor');
+
+        function applyHeight(h) {
+            h = Math.max(MIN_H, Math.min(MAX_H, Math.round(h)));
+            const el = getEditorEl();
+            if (el) { el.style.height = h + 'px'; el.style.maxHeight = h + 'px'; }
+            return h;
+        }
+
+        const saved = parseInt(localStorage.getItem(STORAGE_KEY) || '', 10);
+        if (saved) applyHeight(saved);
+
+        function onMove(e) {
+            if (!dragging) return;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            // Handle is above the editor: dragging up (clientY decreases) grows it.
+            const h = applyHeight(startH + (startY - clientY));
+            localStorage.setItem(STORAGE_KEY, h);
+            e.preventDefault();
+        }
+        function onUp() {
+            if (!dragging) return;
+            dragging = false;
+            handle.classList.remove('is-resizing');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onUp);
+        }
+        function onDown(e) {
+            const el = getEditorEl();
+            if (!el) return;
+            dragging = true;
+            startY = e.touches ? e.touches[0].clientY : e.clientY;
+            startH = el.getBoundingClientRect().height;
+            handle.classList.add('is-resizing');
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'ns-resize';
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+            document.addEventListener('touchmove', onMove, { passive: false });
+            document.addEventListener('touchend', onUp);
+            e.preventDefault();
+        }
+        handle.addEventListener('mousedown', onDown);
+        handle.addEventListener('touchstart', onDown, { passive: false });
+    }
+
+    // Snapshot read-only recipient "To" tiket, dipakai untuk badge "To:" di bubble
+    // chat (lihat renderRecipientBadge). Terpisah dari `toEmails` di bawah karena
+    // itu adalah state MUTABLE composer reply — kalau dipakai langsung, bubble yang
+    // sudah terkirim akan ikut berubah tampilannya saat user mengetik di field To.
+    const ticketToEmailsInitial = @json(
+        !empty($ticket->to_emails)
+            ? collect($ticket->to_emails)
+                ->map(fn($t) => is_array($t) ? ($t['address'] ?? '') : (string)$t)
+                ->filter()
+                ->values()
+            : array_values(array_filter([$customerEmail ?? null]))
+    );
+
     // ── TO state ────────────────────────────────────────────────────────────
-    // Default seeded dengan resolved customer email (sama dengan tampilan lama).
-    // User dapat menambah/menghapus tag untuk mengirim ke multiple primary recipient.
-    // Tidak dipersist ke DB (tiap reply mulai dari customer email lagi) — sesuai
-    // permintaan minimal-MVP, persistensi bisa ditambah kemudian.
-    let toEmails = @json(array_values(array_filter([$customerEmail ?? null])));
+    // Seeded dari ticket.to_emails (primary customer + recipient tambahan yang
+    // sudah dipersist). Jika belum ada, fallback ke resolved customer email.
+    // User dapat menambah/menghapus tag; perubahan dipersist saat reply terkirim.
+    let toEmails = @json(
+        !empty($ticket->to_emails)
+            ? collect($ticket->to_emails)
+                ->map(fn($t) => is_array($t) ? ($t['address'] ?? '') : (string)$t)
+                ->filter()
+                ->values()
+            : array_values(array_filter([$customerEmail ?? null]))
+    );
 
     function renderToTags() {
         const container = document.getElementById('toTagsContainer');
         if (!container) return;
         container.innerHTML = toEmails.map((email, i) =>
-            `<span class="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 text-[11px] rounded-full px-2 py-0.5 max-w-[220px]">
-                <span class="truncate">${escHtmlCC(email)}</span>
+            `<span draggable="true"
+                   data-email="${escHtmlCC(email)}"
+                   data-source="to"
+                   ondragstart="emailChipDragStart(event)"
+                   ondragend="emailChipDragEnd(event)"
+                   class="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 text-[11px] rounded-full px-2 py-0.5 max-w-[220px] cursor-grab active:cursor-grabbing select-none">
+                <span class="truncate pointer-events-none">${escHtmlCC(email)}</span>
                 <button type="button" onclick="removeToTag(${i})" class="text-green-300 hover:text-red-500 transition-colors flex-shrink-0 leading-none ml-0.5">&times;</button>
             </span>`
         ).join('');
@@ -1625,6 +3258,23 @@
     }
 
     function handleToKeydown(e) {
+        const suggest = document.getElementById('toSuggest');
+        const isOpen  = suggest && !suggest.classList.contains('hidden');
+
+        if (e.key === 'Escape' && isOpen) {
+            e.preventDefault();
+            hideEmailSuggest('to');
+            return;
+        }
+        if (e.key === 'ArrowDown' && isOpen) { e.preventDefault(); navigateSuggest('to', 1); return; }
+        if (e.key === 'ArrowUp'   && isOpen) { e.preventDefault(); navigateSuggest('to', -1); return; }
+        if ((e.key === 'Enter' || e.key === ',') && isOpen && _suggestIndex >= 0) {
+            e.preventDefault();
+            const highlighted = suggest.querySelector('[data-suggest-idx="' + _suggestIndex + '"]');
+            if (highlighted) selectEmailSuggest(highlighted.dataset.suggestEmail, 'to');
+            return;
+        }
+
         if (e.key === 'Enter' || e.key === ',') {
             e.preventDefault();
             commitToInput();
@@ -1634,21 +3284,56 @@
         }
     }
 
-    function commitToInput() {
-        const input = document.getElementById('toInput');
+    // Regex validasi email (dipakai To & CC). Sama dengan filter_var(FILTER_VALIDATE_EMAIL)
+    // di backend secara garis besar — cegah alamat rusak masuk sejak di UI.
+    const RECIPIENT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    /**
+     * Commit isi input To/CC menjadi chip, dengan VALIDASI eksplisit:
+     * - alamat valid & belum ada  → jadi chip
+     * - alamat TIDAK valid         → tidak ditambah, dikembalikan ke input + notifikasi merah
+     * - duplikat                   → dilewati diam-diam
+     *
+     * @param {'to'|'cc'} field
+     * @param {boolean}   viaBlur  true = dipicu blur (jangan spam notifikasi, cukup tandai)
+     */
+    function commitRecipientInput(field, viaBlur = false) {
+        const input = document.getElementById(field === 'to' ? 'toInput' : 'ccInput');
         if (!input) return;
+        const list = field === 'to' ? toEmails : ccEmails;
         const parts = input.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+        const lowerExisting = new Set(list.map(e => String(e).toLowerCase()));
         let added = false;
-        const lowerExisting = new Set(toEmails.map(e => String(e).toLowerCase()));
+        const invalid = [];
         for (const email of parts) {
-            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !lowerExisting.has(email.toLowerCase())) {
-                toEmails.push(email);
-                lowerExisting.add(email.toLowerCase());
-                added = true;
-            }
+            if (!RECIPIENT_EMAIL_RE.test(email)) { invalid.push(email); continue; }
+            if (lowerExisting.has(email.toLowerCase())) continue; // duplikat → skip
+            list.push(email);
+            lowerExisting.add(email.toLowerCase());
+            saveEmailToHistory(email);
+            added = true;
         }
-        if (added) renderToTags();
-        input.value = '';
+        if (added) (field === 'to' ? renderToTags() : renderCcTags());
+
+        if (invalid.length) {
+            // Sisakan yang tidak valid di input agar bisa dikoreksi + tandai merah.
+            input.value = invalid.join(', ');
+            input.classList.add('recipient-invalid');
+            setTimeout(() => input.classList.remove('recipient-invalid'), 1500);
+            if (!viaBlur) {
+                showNotification('Alamat email tidak valid: ' + invalid.join(', '), 'error');
+            }
+        } else {
+            input.value = '';
+        }
+        hideEmailSuggest(field);
+    }
+
+    function commitToInput() { commitRecipientInput('to'); }
+
+    function handleToBlur() {
+        // Delay seluruh commit agar click pada item suggest sempat fire sebelum dropdown disembunyikan
+        setTimeout(() => { commitRecipientInput('to', true); hideEmailSuggest('to'); }, 150);
     }
 
     function handleToPaste(e) {
@@ -1670,8 +3355,13 @@
         const container = document.getElementById('ccTagsContainer');
         if (!container) return;
         container.innerHTML = ccEmails.map((email, i) =>
-            `<span class="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 text-[11px] rounded-full px-2 py-0.5 max-w-[200px]">
-                <span class="truncate">${escHtmlCC(email)}</span>
+            `<span draggable="true"
+                   data-email="${escHtmlCC(email)}"
+                   data-source="cc"
+                   ondragstart="emailChipDragStart(event)"
+                   ondragend="emailChipDragEnd(event)"
+                   class="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 text-[11px] rounded-full px-2 py-0.5 max-w-[200px] cursor-grab active:cursor-grabbing select-none">
+                <span class="truncate pointer-events-none">${escHtmlCC(email)}</span>
                 <button type="button" onclick="removeCcTag(${i})" class="text-blue-300 hover:text-red-500 transition-colors flex-shrink-0 leading-none ml-0.5">&times;</button>
             </span>`
         ).join('');
@@ -1683,6 +3373,23 @@
     }
 
     function handleCcKeydown(e) {
+        const suggest = document.getElementById('ccSuggest');
+        const isOpen  = suggest && !suggest.classList.contains('hidden');
+
+        if (e.key === 'Escape' && isOpen) {
+            e.preventDefault();
+            hideEmailSuggest('cc');
+            return;
+        }
+        if (e.key === 'ArrowDown' && isOpen) { e.preventDefault(); navigateSuggest('cc', 1); return; }
+        if (e.key === 'ArrowUp'   && isOpen) { e.preventDefault(); navigateSuggest('cc', -1); return; }
+        if ((e.key === 'Enter' || e.key === ',') && isOpen && _suggestIndex >= 0) {
+            e.preventDefault();
+            const highlighted = suggest.querySelector('[data-suggest-idx="' + _suggestIndex + '"]');
+            if (highlighted) selectEmailSuggest(highlighted.dataset.suggestEmail, 'cc');
+            return;
+        }
+
         if (e.key === 'Enter' || e.key === ',') {
             e.preventDefault();
             commitCcInput();
@@ -1692,19 +3399,10 @@
         }
     }
 
-    function commitCcInput() {
-        const input = document.getElementById('ccInput');
-        if (!input) return;
-        const parts = input.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
-        let added = false;
-        for (const email of parts) {
-            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !ccEmails.includes(email)) {
-                ccEmails.push(email);
-                added = true;
-            }
-        }
-        if (added) renderCcTags();
-        input.value = '';
+    function commitCcInput() { commitRecipientInput('cc'); }
+
+    function handleCcBlur() {
+        setTimeout(() => { commitRecipientInput('cc', true); hideEmailSuggest('cc'); }, 150);
     }
 
     function handleCcPaste(e) {
@@ -1716,6 +3414,182 @@
 
     function escHtmlCC(str) {
         return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Email chip drag & drop ──────────────────────────────────────────────
+    let _chipDragEmail  = null;
+    let _chipDragSource = null; // 'to' | 'cc'
+
+    function emailChipDragStart(e) {
+        const chip      = e.currentTarget;
+        _chipDragEmail  = chip.dataset.email;
+        _chipDragSource = chip.dataset.source;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', _chipDragEmail);
+        requestAnimationFrame(() => chip.classList.add('opacity-40'));
+    }
+
+    function emailChipDragEnd(e) {
+        e.target.classList.remove('opacity-40');
+        _cleanChipDropHighlights();
+    }
+
+    function emailChipDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }
+
+    function emailChipDragEnter(e, target) {
+        e.preventDefault();
+        const zone = document.getElementById(target === 'to' ? 'toDropZone' : 'ccDropZone');
+        if (!zone) return;
+        // Skip highlight when dragging over its own zone
+        if (target === _chipDragSource) return;
+        zone.classList.add('ring-2',
+                           target === 'to' ? 'ring-green-400' : 'ring-blue-400',
+                           target === 'to' ? 'bg-green-50' : 'bg-blue-50');
+    }
+
+    function emailChipDragLeave(e, target) {
+        const zone = document.getElementById(target === 'to' ? 'toDropZone' : 'ccDropZone');
+        // Only remove highlight when truly leaving the zone (not moving to a child element)
+        if (zone && !zone.contains(e.relatedTarget)) {
+            zone.classList.remove('ring-2', 'ring-green-400', 'ring-blue-400', 'bg-green-50', 'bg-blue-50');
+        }
+    }
+
+    function emailChipDrop(e, target) {
+        e.preventDefault();
+        const email  = _chipDragEmail;
+        const source = _chipDragSource;
+
+        _cleanChipDropHighlights();
+
+        if (!email || target === source) return;
+
+        const lower = email.toLowerCase();
+
+        if (target === 'to') {
+            ccEmails = ccEmails.filter(c => String(c).toLowerCase() !== lower);
+            if (!toEmails.some(t => String(t).toLowerCase() === lower)) toEmails.push(email);
+        } else {
+            toEmails = toEmails.filter(t => String(t).toLowerCase() !== lower);
+            if (!ccEmails.some(c => String(c).toLowerCase() === lower)) ccEmails.push(email);
+        }
+
+        saveEmailToHistory(email);
+        renderToTags();
+        renderCcTags();
+
+        _chipDragEmail  = null;
+        _chipDragSource = null;
+    }
+
+    function _cleanChipDropHighlights() {
+        ['toDropZone', 'ccDropZone'].forEach(id => {
+            document.getElementById(id)?.classList.remove(
+                'ring-2', 'ring-green-400', 'ring-blue-400', 'bg-green-50', 'bg-blue-50'
+            );
+        });
+    }
+
+    // ── Email suggest (localStorage history) ───────────────────────────────
+    const EMAIL_HISTORY_KEY = 'ec_email_history';
+    const EMAIL_HISTORY_MAX = 100;
+    let _suggestIndex = -1;
+
+    function loadEmailHistory() {
+        try { return JSON.parse(localStorage.getItem(EMAIL_HISTORY_KEY) || '[]'); }
+        catch { return []; }
+    }
+
+    function saveEmailToHistory(email) {
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+        let history = loadEmailHistory();
+        const lower = email.toLowerCase();
+        // Hapus duplikat, tambah ke depan (most recent first)
+        history = history.filter(e => e.toLowerCase() !== lower);
+        history.unshift(email);
+        if (history.length > EMAIL_HISTORY_MAX) history.length = EMAIL_HISTORY_MAX;
+        localStorage.setItem(EMAIL_HISTORY_KEY, JSON.stringify(history));
+    }
+
+    function showEmailSuggest(e, field) {
+        const q   = e.target.value.trim().toLowerCase();
+        const key = field === 'to' ? 'toSuggest' : 'ccSuggest';
+        const dropdown = document.getElementById(key);
+        if (!dropdown) return;
+
+        if (!q) { hideEmailSuggest(field); return; }
+
+        const existingSet = new Set(
+            (field === 'to' ? toEmails : ccEmails).map(x => String(x).toLowerCase())
+        );
+
+        const matches = loadEmailHistory()
+            .filter(email => email.toLowerCase().includes(q) && !existingSet.has(email.toLowerCase()))
+            .slice(0, 6);
+
+        if (!matches.length) { hideEmailSuggest(field); return; }
+
+        _suggestIndex = -1;
+        dropdown.innerHTML = matches.map((email, i) =>
+            `<div data-suggest-email="${escHtmlCC(email)}"
+                  data-suggest-idx="${i}"
+                  onmousedown="event.preventDefault()"
+                  onclick="selectEmailSuggest(this.dataset.suggestEmail,'${field}')"
+                  class="px-3 py-1.5 text-xs cursor-pointer hover:bg-gray-50 truncate text-gray-700">
+                ${escHtmlCC(email)}
+            </div>`
+        ).join('');
+        dropdown.classList.remove('hidden');
+    }
+
+    function hideEmailSuggest(field) {
+        document.getElementById(field === 'to' ? 'toSuggest' : 'ccSuggest')
+            ?.classList.add('hidden');
+        _suggestIndex = -1;
+    }
+
+    function selectEmailSuggest(email, field) {
+        if (!email) return;
+        const lower = email.toLowerCase();
+        if (field === 'to') {
+            if (!toEmails.some(t => String(t).toLowerCase() === lower)) {
+                toEmails.push(email);
+                renderToTags();
+            }
+            const inp = document.getElementById('toInput');
+            if (inp) { inp.value = ''; inp.focus(); }
+        } else {
+            if (!ccEmails.some(c => String(c).toLowerCase() === lower)) {
+                ccEmails.push(email);
+                renderCcTags();
+            }
+            const inp = document.getElementById('ccInput');
+            if (inp) { inp.value = ''; inp.focus(); }
+        }
+        saveEmailToHistory(email);
+        hideEmailSuggest(field);
+    }
+
+    function navigateSuggest(field, dir) {
+        const dropdown = document.getElementById(field === 'to' ? 'toSuggest' : 'ccSuggest');
+        if (!dropdown) return;
+        const items = dropdown.querySelectorAll('[data-suggest-idx]');
+        if (!items.length) return;
+
+        _suggestIndex = Math.max(-1, Math.min(items.length - 1, _suggestIndex + dir));
+
+        items.forEach((item, i) => {
+            const active = i === _suggestIndex;
+            item.classList.toggle('bg-blue-50', active);
+            item.classList.toggle('text-blue-700', active);
+            item.classList.toggle('hover:bg-gray-50', !active);
+        });
+
+        // Scroll item ke dalam view
+        if (_suggestIndex >= 0) items[_suggestIndex].scrollIntoView({ block: 'nearest' });
     }
 
     // Ekstrak alamat email dari raw CC value — dukung string, {address,name}, atau JSON string.
@@ -1756,10 +3630,26 @@
     }
 
     // â"€â"€ @mention state â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-    let pendingMentions   = [];   // [{ type:'employee'|'role', id, display }]
+    let pendingMentions   = [];   // [{ type:'employee'|'role', id, display }] — main compose editor
+    let editNotePendingMentions = []; // same shape — edit internal note modal editor
     let mentionQuery      = null; // null = not in mention mode
     let mentionStartIndex = -1;   // character index where '@' was typed
     let mentionFetchTimer = null;
+    // Editor yang sedang aktif ber-mention (composer utama atau modal edit note) —
+    // detectMention/insertMention/renderMentionDropdown beroperasi atas instance ini
+    // alih-alih hardcode quillEditor, supaya dropdown @mention yang sama bisa dipakai
+    // oleh editor manapun yang sedang difokus.
+    let activeMentionQuill   = null;   // di-set null s/d salah satu editor terinisialisasi
+    let activeMentionEditorElId = 'quillEditor';
+    let activeMentionPending = null;   // reference ke pendingMentions atau editNotePendingMentions
+    // Cache untuk menghilangkan delay: roles disimpan penuh (server balikan semua saat q kosong),
+    // employee di-cache per query. Bila sebuah query hasilnya "lengkap" (< limit server),
+    // query yang lebih spesifik cukup difilter di client → instan tanpa network.
+    const MENTION_EMP_LIMIT = 20;
+    let mentionAllRoles     = null;        // [{id, name}] — semua role
+    const mentionEmpCache   = new Map();   // q(lowercase) → { employees:[], complete:bool }
+    let mentionReqSeq       = 0;           // guard hasil fetch basi
+    const MENTION_COLORS  = ['#1d4ed8', '#7c3aed'];
 
     function toggleSidebarPanel(panelId, chevronId) {
         const panel   = document.getElementById(panelId);
@@ -1773,9 +3663,85 @@
     // Set berisi ID pesan yang sudah dirender ke DOM.
     // Digunakan agar polling tidak me-render ulang pesan lama &rarr; gambar tidak flicker.
     let renderedMessageIds = new Set();
+    const messageCache = new Map();
+
+    // ── Paste-table support (Quill 1.3.7) ─────────────────────────────────────
+    // Quill tidak mengenal <table> secara native, jadi tabel yang di-paste dari
+    // Excel/Word/Google Sheets biasanya hancur jadi teks. Kita daftarkan sebuah
+    // block-embed blot yang menyimpan tabel sebagai satu blok <table> HTML BERSIH
+    // (read-only di dalam editor). Karena yang tersimpan adalah <table> semantik
+    // standar, tampil rapi di thread maupun di email customer, dan lolos HTMLPurifier.
+    let _tableEmbedRegistered = false;
+    function registerTableEmbedBlot() {
+        if (_tableEmbedRegistered || !window.Quill) return;
+        const BlockEmbed = Quill.import('blots/block/embed');
+        class TableEmbedBlot extends BlockEmbed {
+            static create(value) {
+                const node = super.create();
+                node.setAttribute('contenteditable', 'false');
+                node.innerHTML = value || '';
+                return node;
+            }
+            static value(node) {
+                return node.innerHTML;
+            }
+        }
+        TableEmbedBlot.blotName  = 'tableEmbed';
+        TableEmbedBlot.tagName   = 'div';
+        TableEmbedBlot.className = 'ql-table-embed';
+        Quill.register(TableEmbedBlot, true);
+        _tableEmbedRegistered = true;
+    }
+
+    // Bersihkan tabel yang di-paste: buang atribut/junk (class, mso-*, dll) TAPI
+    // pertahankan colspan/rowspan + subset style aman (warna, alignment, border, lebar)
+    // agar tampilannya menyerupai sumber yang dicopy. Subset ini sama dengan yang
+    // di-whitelist HTMLPurifier di server, jadi tetap utuh setelah dikirim.
+    const _keepTableStyle = [
+        'background-color', 'background', 'color', 'text-align', 'vertical-align',
+        'font-weight', 'font-style', 'border', 'border-color', 'border-width',
+        'border-style', 'width', 'height', 'padding',
+    ];
+    function cleanPastedTable(tableEl) {
+        const clone   = tableEl.cloneNode(true);
+        const keepAttr = { colspan: true, rowspan: true };
+        const process = (el) => {
+            if (!el.attributes) return;
+            const styleVal = el.getAttribute('style');
+            Array.from(el.attributes).forEach(a => {
+                const n = a.name.toLowerCase();
+                if (n === 'style') return; // difilter di bawah
+                if (!keepAttr[n]) el.removeAttribute(a.name);
+            });
+            if (styleVal) {
+                const filtered = styleVal.split(';')
+                    .map(s => s.trim()).filter(Boolean)
+                    .filter(decl => _keepTableStyle.includes(decl.split(':')[0].trim().toLowerCase()));
+                if (filtered.length) el.setAttribute('style', filtered.join('; '));
+                else el.removeAttribute('style');
+            }
+        };
+        process(clone);
+        clone.querySelectorAll('*').forEach(process);
+        return clone.outerHTML;
+    }
+
+    // Pasang clipboard matcher: setiap <table> yang di-paste diganti dengan block embed.
+    function addTablePasteMatcher(quill) {
+        if (!quill || !quill.clipboard) return;
+        const Delta = Quill.import('delta');
+        quill.clipboard.addMatcher('TABLE', function (node) {
+            return new Delta()
+                .insert({ tableEmbed: cleanPastedTable(node) })
+                .insert('\n');
+        });
+    }
 
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
+        // Daftarkan blot tabel custom (read-only block) agar tabel yang di-paste dari
+        // Excel/Word/Google Sheets tetap utuh sebagai <table> HTML bersih.
+        registerTableEmbedBlot();
         // Initialize Quill
         quillEditor = new Quill('#quillEditor', {
             theme: 'snow',
@@ -1799,8 +3765,8 @@
                             input.onchange = () => {
                                 const file = input.files[0];
                                 if (!file) return;
-                                if (file.size > 10 * 1024 * 1024) {
-                                    showNotification('Image too large (max 10 MB)', 'error');
+                                if (file.size > 25 * 1024 * 1024) {
+                                    showNotification('Image too large (max 25 MB)', 'error');
                                     return;
                                 }
                                 const reader = new FileReader();
@@ -1813,11 +3779,51 @@
                             };
                         }
                     }
+                },
+                keyboard: {
+                    bindings: {
+                        // Hapus seluruh chip @mention sekaligus saat backspace mengenai
+                        // teks berwarna mention, alih-alih menghapus 1 karakter dan
+                        // menyisakan potongan teks yang masih berwarna biru/ungu.
+                        mentionBackspace: {
+                            key: 'Backspace',
+                            handler: function (range, context) {
+                                if (range.length > 0) return true;
+                                const idx = range.index;
+                                if (idx === 0) return true;
+                                const fmt = this.quill.getFormat(idx - 1, 1);
+                                if (!MENTION_COLORS.includes(fmt.color)) return true;
+                                let start = idx - 1;
+                                while (start > 0 && MENTION_COLORS.includes(this.quill.getFormat(start - 1, 1).color)) {
+                                    start--;
+                                }
+                                this.quill.deleteText(start, idx - start, 'user');
+                                this.quill.setSelection(start, 0, 'user');
+                                return false;
+                            }
+                        }
+                    }
                 }
             }
         });
 
-        // Handle image paste (Ctrl+V) — resize oversized pastes
+        // Saat teks disalin dari bubble lain (mis. internal note kuning) lalu ditempel,
+        // browser ikut menyalin background bubble. Buang background agar warna latar
+        // bubble asal tidak terbawa — TAPI pertahankan warna teks (color) agar teks
+        // berwarna yang sengaja disalin tetap ikut.
+        quillEditor.clipboard.addMatcher(Node.ELEMENT_NODE, function (node, delta) {
+            delta.ops.forEach(op => {
+                if (op.attributes) {
+                    delete op.attributes.background;
+                }
+            });
+            return delta;
+        });
+
+        // Paste tabel (Excel/Word/Google Sheets) → simpan sebagai block embed <table> bersih
+        addTablePasteMatcher(quillEditor);
+
+        // Handle image paste (Ctrl+V) — compress & resize before inserting
         quillEditor.root.addEventListener('paste', function (e) {
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
             for (const item of items) {
@@ -1827,9 +3833,24 @@
                     if (!file) continue;
                     const reader = new FileReader();
                     reader.onload = (ev) => {
-                        const range = quillEditor.getSelection(true);
-                        quillEditor.insertEmbed(range ? range.index : 0, 'image', ev.target.result, 'user');
-                        if (range) quillEditor.setSelection(range.index + 1, 0);
+                        const img = new Image();
+                        img.onload = () => {
+                            const MAX_W = 1024, MAX_H = 1024, QUALITY = 0.75;
+                            let w = img.width, h = img.height;
+                            if (w > MAX_W || h > MAX_H) {
+                                const ratio = Math.min(MAX_W / w, MAX_H / h);
+                                w = Math.round(w * ratio);
+                                h = Math.round(h * ratio);
+                            }
+                            const canvas = document.createElement('canvas');
+                            canvas.width = w; canvas.height = h;
+                            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                            const dataUrl = canvas.toDataURL('image/jpeg', QUALITY);
+                            const range = quillEditor.getSelection(true);
+                            quillEditor.insertEmbed(range ? range.index : 0, 'image', dataUrl, 'user');
+                            if (range) quillEditor.setSelection(range.index + 1, 0);
+                        };
+                        img.src = ev.target.result;
                     };
                     reader.readAsDataURL(file);
                 }
@@ -1868,38 +3889,29 @@
             toolbar.appendChild(attachGroup);
         }
 
+        initReplyEditorResize();
+
         // â"€â"€ @mention: detect @ in quill text-change â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        activeMentionQuill = quillEditor;
+        activeMentionEditorElId = 'quillEditor';
+        activeMentionPending = pendingMentions;
         quillEditor.on('text-change', function (delta, oldDelta, source) {
-            // Only react to direct user input — ignore API-triggered changes (e.g. from insertMention)
-            if (source !== 'user') return;
-
-            const selection = quillEditor.getSelection();
-            if (!selection) return;
-
-            const cursorPos = selection.index;
-            const text      = quillEditor.getText(0, cursorPos);
-
-            // Find last '@' in text before cursor
-            const atIdx = text.lastIndexOf('@');
-            if (atIdx === -1) { closeMentionDropdown(); return; }
-
-            const query = text.slice(atIdx + 1);
-
-            // If there's a space after @, close dropdown
-            if (query.includes(' ')) { closeMentionDropdown(); return; }
-
-            mentionQuery      = query;
-            mentionStartIndex = atIdx;
-
-            // Debounce fetch
-            clearTimeout(mentionFetchTimer);
-            mentionFetchTimer = setTimeout(() => fetchMentionables(query), 200);
+            handleMentionTextChange(quillEditor, 'quillEditor', pendingMentions, source);
         });
 
         // â"€â"€ Auto-link: detect URL saat user ketik spasi/enter setelah URL â"€â"€â"€â"€â"€â"€
         // Ketika user mengetik spasi atau Enter setelah URL, format teks sebagai hyperlink biru.
         // Gunakan posisi dari delta.ops (bukan getSelection) agar lebih reliable.
         // setTimeout untuk menghindari masalah re-entrancy Quill.
+        quillEditor.on('text-change', function (delta, oldDelta, source) {
+            if (source === 'user') clearMentionFormatIfNeeded(quillEditor);
+        });
+
+        // "#NNNNNNNN" → langsung terblok biru seperti chip @mention saat diketik
+        quillEditor.on('text-change', function (delta, oldDelta, source) {
+            autoFormatTicketRef(quillEditor, delta, source);
+        });
+
         quillEditor.on('text-change', function(delta, _old, source) {
             // Hanya proses input dari user (bukan format API call)
             if (source !== 'user' || !delta || !delta.ops) return;
@@ -1936,29 +3948,219 @@
             }, 0);
         });
 
+        // ── Draft restore ────────────────────────────────────────────────────────
+        const savedDraft = localStorage.getItem(DRAFT_KEY);
+        if (savedDraft) {
+            try { quillEditor.setContents(JSON.parse(savedDraft), 'api'); }
+            catch { localStorage.removeItem(DRAFT_KEY); }
+        }
+
+        // ── Draft auto-save (debounce 1 s) ───────────────────────────────────
+        let _draftTimer;
+        quillEditor.on('text-change', function(delta, old, source) {
+            if (source !== 'user') return;
+            clearTimeout(_draftTimer);
+            _draftTimer = setTimeout(function() {
+                const hasText = quillEditor.getText().trim().length > 0;
+                if (hasText) {
+                    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(quillEditor.getContents())); } catch {}
+                } else {
+                    localStorage.removeItem(DRAFT_KEY);
+                }
+            }, 1000);
+        });
+
         renderToTags();
         renderCcTags();
-        loadMessages();
-        loadSidebarTickets();
+        loadMessages().then(scrollToMessageFromHash);
+        switchSidebarView(canViewMyTicketTab ? 'my' : 'all');
         markMessagesRead();
         startMessagePolling();
+
+        // Warm-up cache mention (roles + 20 employee teratas) agar '@' pertama instan.
+        // Tidak me-render apa pun — hanya mengisi cache. Ditunda sedikit agar tidak
+        // bersaing dengan request awal loadMessages.
+        setTimeout(() => { try { fetchMentionables(''); } catch (_) {} }, 400);
     });
 
+    // Jika dibuka dari notifikasi mention (#msg-123), scroll ke bubble pesan tsb
+    function scrollToMessageFromHash() {
+        const match = /^#msg-(\d+)$/.exec(window.location.hash);
+        if (match) scrollToMessage(match[1]);
+    }
+
+    // Cegah format mention (warna+bold) "bocor" ke teks lanjutan — dipakai oleh
+    // composer utama & modal edit internal note (dipanggil dari text-change, source
+    // 'user' saja). Chip mention diberi warna+bold lalu diikuti spasi netral sebagai
+    // pemisah; jika spasi pemisah itu dihapus/hilang, kursor menempel tepat di belakang
+    // teks berwarna sehingga Quill melanjutkan format tsb saat mengetik lagi.
+    // NOTE: JANGAN panggil ini dari 'selection-change' — quill.format() pada selection
+    // kosong yang formatnya BERBEDA dari ambient bisa menyisipkan Cursor blot (embed
+    // placeholder internal Quill) ke dalam dokumen, yang bikin detectMention() (yang
+    // berhenti begitu ketemu op non-string / embed) langsung gagal mendeteksi '@'.
+    function clearMentionFormatIfNeeded(quill) {
+        const sel = quill.getSelection();
+        if (!sel || sel.length !== 0) return;
+        const fmt = quill.getFormat(sel.index);
+        if (MENTION_COLORS.includes(fmt.color)) {
+            quill.format('color', false);
+            if (fmt.bold) quill.format('bold', false);
+        }
+    }
+
+    // ── Auto-format ref tiket "#NNNNNNNN" di editor ──────────────────────────────
+    // Saat user mengetik spasi/enter tepat setelah "#" + 6–10 digit, token itu
+    // diberi warna+bold IDENTIK dengan chip @mention employee (#1d4ed8) supaya
+    // langsung "terblok biru" seperti tag username. Reuse warna mention berarti:
+    // dark-mode CSS ikut mencerahkan, dan binding Backspace menghapusnya sekaligus.
+    // Ini murni kosmetik di editor — hyperlink asli tetap dibuat saat render lewat
+    // linkifyTicketRefsHtml, jadi note lama / yang belum sempat ter-spasi tetap jalan.
+    // Pola sama persis dengan auto-link URL di composer.
+    function autoFormatTicketRef(quill, delta, source) {
+        if (source !== 'user' || !delta || !delta.ops) return;
+        const lastOp = delta.ops[delta.ops.length - 1];
+        if (!lastOp || typeof lastOp.insert !== 'string') return;
+        const sep = lastOp.insert;
+        if (sep !== ' ' && sep !== '\n') return;
+
+        let insertPos = 0;
+        for (const op of delta.ops) {
+            if (typeof op.retain === 'number') { insertPos = op.retain; break; }
+        }
+
+        const textBefore = quill.getText(0, insertPos);
+        // "#" harus di awal ATAU tidak menempel huruf/angka/"/"/"&" (bukan bagian kata/URL)
+        const m = /(?:^|[^\w/&#])(#\d{6,10})$/.exec(textBefore);
+        if (!m) return;
+
+        const refLen   = m[1].length;
+        const refStart = insertPos - refLen;
+
+        setTimeout(function () {
+            const fmt = quill.getFormat(refStart, refLen);
+            if (fmt.color === MENTION_COLORS[0] && fmt.bold) return; // sudah diformat
+            quill.formatText(refStart, refLen, { color: MENTION_COLORS[0], bold: true }, 'api');
+            // Spasi/enter pemisah jangan ikut berwarna
+            quill.formatText(refStart + refLen, sep.length, { color: false, bold: false }, 'api');
+        }, 0);
+    }
+
     // ==================== @MENTION AUTOCOMPLETE ====================
+    // Handler bersama dipakai oleh SEMUA editor Quill yang mendukung @mention
+    // (composer utama & modal edit internal note). Menandai editor pemanggil sebagai
+    // "aktif" dulu supaya detectMention/insertMention/dropdown beroperasi atas
+    // instance & pending-list yang benar, baru jalankan deteksi @ seperti biasa.
+    function handleMentionTextChange(quillInstance, editorElId, pendingList, source) {
+        if (source !== 'user') return;
+
+        activeMentionQuill      = quillInstance;
+        activeMentionEditorElId = editorElId;
+        activeMentionPending    = pendingList;
+
+        const selection = quillInstance.getSelection();
+        if (!selection) return;
+
+        const m = detectMention(selection.index);
+        if (!m) { closeMentionDropdown(); return; }
+
+        mentionQuery      = m.query;
+        mentionStartIndex = m.startIndex;
+
+        showMentions(m.query);
+    }
+
+    // Deteksi mention berbasis INDEX DOKUMEN (bukan getText, yang mengabaikan embed
+    // gambar/tabel sehingga index meleset). Jalan mundur dari cursor mengumpulkan
+    // teks sampai ketemu '@'. Berhenti bila kena spasi/newline/embed → bukan mention.
+    // Return { startIndex, query } dalam koordinat dokumen Quill, atau null.
+    function detectMention(cursorPos) {
+        if (!cursorPos || cursorPos <= 0) return null;
+        const contents = activeMentionQuill.getContents(0, cursorPos);
+        let docIndex = cursorPos;
+        let query = '';
+        const ops = contents.ops || [];
+        for (let i = ops.length - 1; i >= 0; i--) {
+            const op = ops[i];
+            if (typeof op.insert !== 'string') return null; // embed sebelum '@' → batal
+            const s = op.insert;
+            for (let j = s.length - 1; j >= 0; j--) {
+                docIndex--;
+                const ch = s[j];
+                if (ch === '@') return { startIndex: docIndex, query };
+                if (ch === ' ' || ch === '\n' || ch === '\t') return null;
+                query = ch + query;
+            }
+        }
+        return null;
+    }
+
+    // Gabungkan employees + roles jadi item dropdown
+    function buildMentionItems(employees, roles) {
+        const items = [];
+        (employees || []).forEach(e => items.push({ type: 'employee', id: e.id, display: e.display_name, sub: e.role_name }));
+        (roles     || []).forEach(r => items.push({ type: 'role',     id: r.id, display: '@' + r.name, sub: 'All in role' }));
+        return items;
+    }
+
+    // Filter roles dari cache lokal (semua role sudah di-cache) — instan.
+    function filterRoles(q) {
+        if (!mentionAllRoles) return [];
+        const ql = (q || '').toLowerCase();
+        return ql ? mentionAllRoles.filter(r => (r.name || '').toLowerCase().includes(ql)) : mentionAllRoles.slice();
+    }
+
+    // Coba dapatkan employees dari cache lokal: exact hit, atau filter dari hasil
+    // prefix yang sudah "lengkap". Return array bila bisa lokal, null bila harus fetch.
+    function localEmployees(q) {
+        const ql = (q || '').toLowerCase();
+        if (mentionEmpCache.has(ql)) return mentionEmpCache.get(ql).employees;
+        for (let i = ql.length - 1; i >= 0; i--) {
+            const pref = ql.slice(0, i);
+            const c = mentionEmpCache.get(pref);
+            if (c && c.complete) {
+                return c.employees.filter(e => (e.display_name || '').toLowerCase().includes(ql));
+            }
+        }
+        return null;
+    }
+
+    // Entry point: tampilkan dropdown mention untuk query q.
+    // Instan bila bisa dilayani dari cache; jika tidak, fetch (debounce pendek).
+    function showMentions(q) {
+        const roles    = filterRoles(q);
+        const localEmp = localEmployees(q);
+        if (localEmp !== null) {
+            renderMentionDropdown(buildMentionItems(localEmp, roles));
+            return;
+        }
+        // Belum ada di cache → fetch. Debounce pendek agar responsif tapi tidak spam.
+        clearTimeout(mentionFetchTimer);
+        mentionFetchTimer = setTimeout(() => fetchMentionables(q), 120);
+    }
+
     function fetchMentionables(q) {
-        fetch(`/api/employees/mentionable?q=${encodeURIComponent(q)}`, {
+        const seq = ++mentionReqSeq;
+        return fetch(`/api/employees/mentionable?q=${encodeURIComponent(q)}`, {
             credentials: 'same-origin',
             headers: { 'Accept': 'application/json' }
         })
         .then(r => r.json())
         .then(data => {
             if (!data.success) return;
-            const items = [];
-            (data.employees || []).forEach(e => items.push({ type: 'employee', id: e.id, display: e.display_name, sub: e.role_name }));
-            (data.roles     || []).forEach(r => items.push({ type: 'role',     id: r.id, display: '@' + r.name, sub: 'All in role' }));
-            renderMentionDropdown(items);
+            // Cache semua role sekali (server balikan semua saat q kosong)
+            if (mentionAllRoles === null || q === '') {
+                mentionAllRoles = (data.roles || []).map(r => ({ id: r.id, name: r.name }));
+            }
+            const employees = data.employees || [];
+            mentionEmpCache.set((q || '').toLowerCase(), {
+                employees,
+                complete: employees.length < MENTION_EMP_LIMIT,
+            });
+            if (seq !== mentionReqSeq) return;       // hasil basi — jangan render
+            if (mentionStartIndex < 0) return;       // warm-up / mention sudah ditutup — jangan render
+            renderMentionDropdown(buildMentionItems(employees, filterRoles(q)));
         })
-        .catch(() => closeMentionDropdown());
+        .catch(() => { if (seq === mentionReqSeq) closeMentionDropdown(); });
     }
 
     function renderMentionDropdown(items) {
@@ -1977,7 +4179,6 @@
                 </div>
                 <div class="min-w-0">
                     <div class="text-xs font-semibold text-gray-800 truncate">${escHtml(item.display)}</div>
-                    <div class="text-[10px] text-gray-400 truncate">${escHtml(item.sub)}</div>
                 </div>
             </div>`
         ).join('');
@@ -1990,17 +4191,29 @@
             });
         });
 
-        // Position relative to the quill editor using fixed coords (avoids overflow clipping)
-        const editorEl = document.getElementById('quillEditor');
+        // Anchor tepat DI ATAS posisi '@' yang sedang diketik (bukan selebar editor).
+        const editorEl = document.getElementById(activeMentionEditorElId);
         if (editorEl) {
-            const rect = editorEl.getBoundingClientRect();
-            dropdown.style.left  = rect.left + 'px';
-            dropdown.style.width = rect.width + 'px';
-            // Appear above the editor; clamp max-height so it never goes off screen
-            const spaceAbove = rect.top - 8;
-            dropdown.style.maxHeight = Math.min(192, spaceAbove) + 'px';
-            dropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
-            dropdown.style.top = 'auto';
+            const rect      = editorEl.getBoundingClientRect();
+            const anchorIdx = mentionStartIndex >= 0
+                ? mentionStartIndex
+                : (activeMentionQuill.getSelection()?.index ?? 0);
+            let caretLeft = rect.left, caretTop = rect.top;
+            try {
+                const b = activeMentionQuill.getBounds(anchorIdx);
+                caretLeft = rect.left + b.left;
+                caretTop  = rect.top + b.top;
+            } catch (_) {}
+
+            const DD_WIDTH = 260;
+            // Jaga agar tidak keluar tepi kanan viewport
+            const maxLeft = window.innerWidth - DD_WIDTH - 8;
+            dropdown.style.left   = Math.max(8, Math.min(caretLeft, maxLeft)) + 'px';
+            dropdown.style.width  = DD_WIDTH + 'px';
+            // Muncul tepat di atas baris caret
+            dropdown.style.bottom    = (window.innerHeight - caretTop + 4) + 'px';
+            dropdown.style.top       = 'auto';
+            dropdown.style.maxHeight = Math.min(220, caretTop - 8) + 'px';
         }
         dropdown.classList.remove('hidden');
     }
@@ -2013,31 +4226,40 @@
         if (startIdx < 0) return;
 
         const replaceLen = 1 + (savedQuery?.length ?? 0); // '@' + typed query
+        const quill      = activeMentionQuill;
+        const pending     = activeMentionPending || pendingMentions;
 
         // Delete the '@...' text
-        quillEditor.deleteText(startIdx, replaceLen);
+        quill.deleteText(startIdx, replaceLen);
 
-        // Insert a leading space if the character immediately before the '@' wasn't whitespace
-        const textBefore      = quillEditor.getText(0, startIdx);
-        const needsLeadSpace  = startIdx > 0 && !/\s$/.test(textBefore);
+        // Insert a leading space if the character immediately before the '@' wasn't whitespace.
+        // Pakai getContents (bukan getText) agar embed gambar/tabel sebelum '@' dianggap
+        // batas dan tidak salah hitung.
+        let needsLeadSpace = false;
+        if (startIdx > 0) {
+            const prevOp = quill.getContents(startIdx - 1, 1).ops[0];
+            needsLeadSpace = !!prevOp && typeof prevOp.insert === 'string' && !/\s$/.test(prevOp.insert);
+        }
         if (needsLeadSpace) {
-            quillEditor.insertText(startIdx, ' ', { color: false, bold: false });
+            quill.insertText(startIdx, ' ', { color: false, bold: false });
         }
 
         const chipPos = needsLeadSpace ? startIdx + 1 : startIdx;
-        const chip    = `@${display}`;
+        // Role sudah membawa '@' di display-nya (mis. "@Delivery Support User") —
+        // jangan tambah '@' lagi agar tidak jadi "@@...".
+        const chip    = display.startsWith('@') ? display : `@${display}`;
 
         // Insert chip with colour + bold, then trailing space with plain formatting
-        quillEditor.insertText(chipPos, chip, {
+        quill.insertText(chipPos, chip, {
             color: type === 'role' ? '#7c3aed' : '#1d4ed8',
             bold: true,
         });
-        quillEditor.insertText(chipPos + chip.length, ' ', { color: false, bold: false });
-        quillEditor.setSelection(chipPos + chip.length + 1);
+        quill.insertText(chipPos + chip.length, ' ', { color: false, bold: false });
+        quill.setSelection(chipPos + chip.length + 1);
 
         // Track for payload
-        const already = pendingMentions.find(m => m.type === type && m.id === id);
-        if (!already) pendingMentions.push({ type, id, display });
+        const already = pending.find(m => m.type === type && m.id === id);
+        if (!already) pending.push({ type, id, display });
 
         closeMentionDropdown();
     }
@@ -2050,8 +4272,61 @@
 
     // Close on Escape
     document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') closeMentionDropdown();
+        if (e.key === 'Escape') { closeMentionDropdown(); closeRecipientPopover(); }
     });
+
+    // ==================== IMAGE LIGHTBOX (preview full-view) ====================
+    // Klik gambar apa pun di thread pesan (inline image email atau thumbnail
+    // attachment) untuk membukanya dalam preview full-view. Overlay dibuat sekali
+    // dan di-append ke <body> agar tidak terpotong oleh ancestor overflow/transform.
+    (function initImageLightbox() {
+        let overlay = document.getElementById('imageLightbox');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'imageLightbox';
+            overlay.innerHTML =
+                '<button type="button" class="lightbox-close" aria-label="Close preview">' +
+                '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+                '</button>' +
+                '<img id="imageLightboxImg" src="" alt="">';
+            document.body.appendChild(overlay);
+        }
+        const lightboxImg = overlay.querySelector('#imageLightboxImg');
+
+        window.openImageLightbox = function (src, alt) {
+            if (!src) return;
+            lightboxImg.src = src;
+            lightboxImg.alt = alt || '';
+            overlay.classList.add('open');
+            document.body.style.overflow = 'hidden'; // cegah scroll di belakang
+        };
+        window.closeImageLightbox = function () {
+            overlay.classList.remove('open');
+            document.body.style.overflow = '';
+            lightboxImg.src = '';
+        };
+
+        // Klik overlay/tombol close → tutup. Klik pada gambar itu sendiri → jangan tutup.
+        overlay.addEventListener('click', function (e) {
+            if (e.target === lightboxImg) return;
+            window.closeImageLightbox();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && overlay.classList.contains('open')) window.closeImageLightbox();
+        });
+
+        // Event delegation: tangkap klik gambar di dalam thread pesan.
+        const thread = document.getElementById('messagesThread');
+        if (thread) {
+            thread.addEventListener('click', function (e) {
+                const img = e.target.closest('img');
+                if (!img) return;
+                if (!img.closest('.message-content') && !img.closest('.message-bubble')) return;
+                e.preventDefault();  // cegah navigasi <a> pembungkus (buka tab baru)
+                window.openImageLightbox(img.currentSrc || img.getAttribute('src'), img.getAttribute('alt'));
+            });
+        }
+    })();
 
     // ==================== AUTO POLLING: reload pesan & cek email baru ====================
     function startMessagePolling() {
@@ -2065,7 +4340,7 @@
                             'Accept': 'application/json',
                             'Content-Type': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                         },
                         credentials: 'same-origin'
                     });
@@ -2116,6 +4391,13 @@
             // Filter hanya pesan yang belum pernah dirender
             const newMessages = messages.filter(msg => !renderedMessageIds.has(msg.id));
 
+            // Rekonsiliasi status "Tidak terkirim" untuk bubble yang SUDAH dirender.
+            // Poll bersifat append-only (bubble lama tidak dirender ulang), sehingga NDR
+            // yang datang setelah reply terkirim tidak akan terlihat tanpa refresh manual.
+            // Update ini surgical: hanya menambah banner/indikator, tidak menyentuh isi
+            // pesan/gambar (menghindari flicker inline image).
+            reconcileMessageStatuses(messages);
+
             if (newMessages.length === 0) {
                 // Tidak ada pesan baru — DOM tidak disentuh, gambar tidak hilang
                 return;
@@ -2125,12 +4407,43 @@
                 // Load pertama: render semua sekaligus (innerHTML sekali, bukan per-pesan)
                 thread.innerHTML = messages.map(msg => createMessageBubble(msg)).join('');
                 messages.forEach(msg => renderedMessageIds.add(msg.id));
+
+                // Jika ada ?msg= dari notifikasi, scroll & highlight ke pesan tersebut
+                const targetMsgId = new URLSearchParams(window.location.search).get('msg');
+                if (targetMsgId) {
+                    setTimeout(() => scrollToMessage(parseInt(targetMsgId, 10)), 300);
+                }
             } else {
                 // Poll berikutnya: hanya append pesan baru di bawah, pesan lama tidak disentuh
                 newMessages.forEach(msg => {
                     thread.insertAdjacentHTML('beforeend', createMessageBubble(msg));
                     renderedMessageIds.add(msg.id);
                 });
+
+                // Bunyi + OS notif jika ada pesan baru dari orang lain (bukan diri sendiri)
+                const incomingMessages = newMessages.filter(msg => msg.sender_id !== currentUserId);
+                if (incomingMessages.length > 0) {
+                    var _chatFn = window.playChatSound || window.playNotifSound;
+                    if (typeof _chatFn === 'function') _chatFn();
+                    // OS notification hanya saat tab background/minimize
+                    if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+                        const latest = incomingMessages[incomingMessages.length - 1];
+                        const isNote = latest.message_type === 'internal_note';
+                        const senderLabel = latest.sender_name || (isNote ? 'Someone' : 'Customer');
+                        const title = isNote
+                            ? senderLabel + ' added an internal note'
+                            : senderLabel + ' replied to ticket ' + ({!! $ticket->ticket_number ? json_encode($ticket->ticket_number) : 'null' !!} || '');
+                        const body  = latest.message_text
+                            ? latest.message_text.substring(0, 100)
+                            : (latest.subject || '');
+                        const n = new Notification(title, {
+                            body: body,
+                            icon: '/images/logo_nobg.png',
+                            tag:  'ticket-msg-' + latest.id,
+                        });
+                        n.onclick = function () { window.focus(); n.close(); };
+                    }
+                }
             }
 
             // Auto-populate CC input saat ada reply customer baru yang bawa CC —
@@ -2149,19 +4462,58 @@
         }
     }
 
+    // Rekonsiliasi bubble yang sudah dirender saat status email berubah jadi 'failed'
+    // (merah) atau 'partial' (amber) — mis. NDR/bounce datang setelah reply terkirim.
+    // Poll bersifat append-only (bubble lama tidak dirender ulang), jadi tanpa ini banner
+    // baru terlihat setelah refresh. Surgical: hanya menambah/menukar banner + indikator
+    // status; isi pesan & gambar tidak disentuh.
+    function reconcileMessageStatuses(messages) {
+        messages.forEach(msg => {
+            const status = msg.email_status;
+            if (status !== 'failed' && status !== 'partial') return;
+            const wrap = document.querySelector(`[data-msg-id="${msg.id}"]`);
+            if (!wrap) return;
+            const bubble = wrap.querySelector('.message-bubble');
+            if (!bubble) return;
+
+            // Sudah ditandai dengan status yang sama → tidak perlu diapa-apakan.
+            const already = (status === 'failed'  && bubble.classList.contains('email-failed'))
+                         || (status === 'partial' && bubble.classList.contains('email-partial'));
+            if (already) return;
+
+            // Bersihkan penanda lama (menangani transisi partial → failed saat NDR menyusul).
+            bubble.classList.remove('email-failed', 'email-partial');
+            bubble.querySelectorAll('.msg-failed-banner, .msg-warn-banner').forEach(el => el.remove());
+            bubble.querySelectorAll('.msg-status.failed, .msg-status.partial').forEach(el => el.remove());
+
+            bubble.classList.add(status === 'failed' ? 'email-failed' : 'email-partial');
+            const banner    = deliveryBannerHtml(msg);
+            const statusRow = bubble.querySelector('.msg-status-row');
+            if (statusRow) {
+                statusRow.insertAdjacentHTML('beforebegin', banner);
+                statusRow.querySelectorAll('.msg-status').forEach(el => el.remove()); // ganti indikator lama
+                statusRow.insertAdjacentHTML('afterbegin', statusIndicator(msg));
+            } else {
+                bubble.insertAdjacentHTML('beforeend', banner);
+            }
+        });
+    }
+
     // â"€â"€ Render attachment list (gambar inline, file sebagai link download) â"€â"€â"€â"€â"€â"€
-    // isEmailWithHtml: true jika pesan email sudah punya message_html &rarr;
-    //   inline images sudah ditampilkan di dalam HTML body, jadi tidak perlu ditampilkan ulang sebagai thumbnail
-    function renderAttachments(attachments, isEmailWithHtml = false) {
+    // bodyHasInlineImages: true jika message_html sudah me-render inline image di
+    //   dalam body (email setelah CID replacement, ATAU internal note yang
+    //   inline image-nya sudah jadi <img src="/storage/..."> lewat InlineImageService).
+    //   Bila true, jangan tampilkan inline image lagi sebagai thumbnail (cegah double).
+    function renderAttachments(attachments, bodyHasInlineImages = false) {
         if (!attachments || attachments.length === 0) return '';
 
         // Pisahkan inline images dan file biasa
-        // Jika email dengan HTML body: abaikan inline images (sudah ada di message_html setelah CID replacement)
-        const inlineImgs = isEmailWithHtml
+        // Jika body sudah punya inline image: abaikan is_inline (sudah ada di message_html)
+        const inlineImgs = bodyHasInlineImages
             ? []
             : attachments.filter(a => a.is_inline && a.mime_type?.startsWith('image/'));
-        // Untuk email dengan HTML body: juga exclude is_inline=true dari files (sudah ada di HTML body)
-        const files = isEmailWithHtml
+        // Bila body sudah punya inline image: juga exclude is_inline=true dari files (sudah ada di HTML body)
+        const files = bodyHasInlineImages
             ? attachments.filter(a => !a.is_inline)
             : attachments.filter(a => !inlineImgs.includes(a));
 
@@ -2182,19 +4534,24 @@
         if (files.length > 0) {
             html += `<div class="mt-2 space-y-1">`;
             files.forEach(file => {
-                const icon  = attachmentIcon(file.attachment_type, file.mime_type);
-                const size  = formatFileSize(file.file_size);
-                const isImg = file.mime_type?.startsWith('image/');
+                const icon   = attachmentIcon(file.attachment_type, file.mime_type);
+                const size   = formatFileSize(file.file_size);
+                const isImg  = file.mime_type?.startsWith('image/');
+                // Link cloud (referenceAttachment OneDrive/SharePoint): buka di tab baru,
+                // bukan diunduh (file ada di drive pengirim, tak bisa kita proxy).
+                const isLink = file.attachment_type === 'link';
+                const actions = isLink
+                    ? `<a href="${file.url}" target="_blank" rel="noopener" class="text-xs text-blue-500 hover:underline">Open</a>`
+                    : `${isImg ? `<a href="${file.url}" target="_blank" class="text-xs text-blue-500 hover:underline">View</a>` : ''}
+                       <a href="${file.url}" download="${escHtml(file.file_name)}" class="text-xs text-blue-500 hover:underline">Download</a>`;
                 html += `<div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 max-w-xs">
                     ${icon}
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-medium text-gray-700 truncate">${escHtml(file.file_name)}</p>
-                        ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
+                        ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : (isLink ? `<p class="text-[10px] text-gray-400">Cloud link</p>` : '')}
                     </div>
                     <div class="flex gap-1 flex-shrink-0">
-                        ${isImg ? `<a href="${file.url}" target="_blank" class="text-xs text-blue-500 hover:underline">View</a>` : ''}
-                        <a href="${file.url}" download="${escHtml(file.file_name)}"
-                           class="text-xs text-blue-500 hover:underline">Download</a>
+                        ${actions}
                     </div>
                 </div>`;
             });
@@ -2209,6 +4566,8 @@
     // dan font emoji OS yang berbeda-beda.
     function attachmentIcon(type, mime, sizeClass = 'w-5 h-5') {
         const cls = `${sizeClass} flex-shrink-0`;
+        if (type === 'link') return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-sky-500" fill="currentColor" viewBox="0 0 20 20"><path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 13H5.5z"/></svg>`;
+        if (type === 'email' || mime === 'message/rfc822') return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>`;
         if (mime?.startsWith('image/')) return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-purple-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>`;
         if (type === 'pdf')             return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>`;
         if (type === 'document')        return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/><path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>`;
@@ -2263,6 +4622,33 @@
         );
     }
 
+    // ── Ref nomor tiket "#NNNNNNNN" di internal note → hyperlink ────────────────
+    // Sinkron: dijalankan saat string HTML bubble dibangun (sama jalur & mekanisme
+    // dengan linkifyHtml untuk URL). "#26070128" → <a href="/ticket/ref/26070128">;
+    // di server route itu me-resolve ke tiket-nya lalu redirect, atau tampilkan
+    // halaman "tiket tidak ditemukan" bila nomornya tidak ada.
+    //
+    // Hanya text node yang disentuh (pecah di semua tag). "#" cocok bila di awal string
+    // ATAU tidak menempel huruf/angka/underscore (bagian kata/ID), "/" (fragment URL
+    // mis. .../#12345), atau "&"/"#" (entity HTML) — karakter pembatas itu (pre) di-emit
+    // ulang apa adanya. Spasi opsional setelah "#" ("tiket # 26070128") dinormalisasi
+    // jadi "#26070128" pada teks link.
+    function linkifyTicketRefsHtml(html) {
+        if (!html) return html;
+        return html.split(/(<[^>]*>)/g).map((part, i) => {
+            if (i % 2 === 1) return part; // tag utuh — jangan disentuh
+            return part.replace(
+                /(^|[^\w/&#])#[ \t]?(\d{6,10})(?!\d)/g,
+                (m, pre, num) => `${pre}<a href="/ticket/ref/${num}" target="_blank" rel="noopener noreferrer" style="${_linkStyle}" title="Buka tiket #${num}">#${num}</a>`
+            );
+        }).join('');
+    }
+
+    // Untuk internal note: ref tiket DULU (menghasilkan href relatif), baru URL absolut.
+    function linkifyNoteHtml(html) {
+        return linkifyHtml(linkifyTicketRefsHtml(html));
+    }
+
     // Ganti sisa referensi cid: yang tidak ter-replace backend dengan placeholder
     function sanitizeEmailHtml(html) {
         if (!html) return html;
@@ -2283,13 +4669,13 @@
         // Fall back to plain text with mention highlighting if no html
         if (msg.message_type === 'internal_note') {
             if (msg.message_html) {
-                return `<div class="message-content text-sm text-gray-700">${linkifyHtml(msg.message_html)}</div>`;
+                return `<div class="message-content text-sm text-gray-700">${linkifyNoteHtml(msg.message_html)}</div>`;
             }
             if (!msg.message_body) return '';
             const highlighted = msg.message_body.replace(/@([\w.]+(?:\s[\w.]+)*)/g, (match) =>
                 `<span class="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">${escHtml(match)}</span>`
             );
-            return `<div class="message-content text-sm text-gray-700">${linkifyText(highlighted)}</div>`;
+            return `<div class="message-content text-sm text-gray-700">${linkifyTicketRefsHtml(linkifyText(highlighted))}</div>`;
         }
 
         // Employee reply dengan message_html &rarr; render HTML + linkify URL plain text
@@ -2316,9 +4702,23 @@
      * internal note, atau system message — indikator hanya relevan saat
      * helpdesk perlu tahu apakah pesannya sampai dan dibaca customer.
      */
+    const ICON_WARNING = `<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`;
+
     function statusIndicator(msg) {
         if (msg.sender_type !== 'employee') return '';
         if (msg.message_type === 'internal_note') return '';
+
+        // Email GAGAL total → indikator merah. Banner alasan penuh dirender di dalam bubble.
+        if (msg.email_status === 'failed') {
+            const reason = (msg.email_error || 'Email could not be delivered to the customer.').replace(/"/g, '&quot;');
+            return `<div class="msg-status failed" title="${reason}">${ICON_WARNING}<span>Not delivered</span></div>`;
+        }
+
+        // Email terkirim SEBAGIAN (sebagian penerima gagal) → indikator amber.
+        if (msg.email_status === 'partial') {
+            const reason = (msg.email_error || 'Some recipients did not receive the email.').replace(/"/g, '&quot;');
+            return `<div class="msg-status partial" title="${reason}">${ICON_WARNING}<span>Partially delivered</span></div>`;
+        }
 
         // Format read_at sebagai tooltip "Read at 06 May 2026, 14:25 (WIB)"
         let readAtTip = '';
@@ -2345,7 +4745,252 @@
         return `<div class="msg-status" title="Saved to ticket">${ICON_CHECK_SINGLE}<span>Sent</span></div>`;
     }
 
+    // Banner alasan di dalam bubble: merah untuk gagal total, amber untuk terkirim sebagian.
+    // Mengembalikan '' jika status normal. Dipakai createMessageBubble & reconcileMessageStatuses.
+    function deliveryBannerHtml(msg) {
+        if (msg.email_status !== 'failed' && msg.email_status !== 'partial') return '';
+        const partial = msg.email_status === 'partial';
+        const cls   = partial ? 'msg-warn-banner'  : 'msg-failed-banner';
+        const tcls  = partial ? 'msg-warn-title'   : 'msg-failed-title';
+        const rcls  = partial ? 'msg-warn-reason'  : 'msg-failed-reason';
+        const title = partial ? 'Email partially delivered' : 'Email not delivered to customer';
+        const reason = escHtml(msg.email_error || (partial
+            ? 'Some recipients did not receive the email.'
+            : 'There was a problem with the email server. Please try resending.'));
+        return `<div class="${cls}">${ICON_WARNING}<div>`
+            + `<span class="${tcls}">${title}</span>`
+            + `<span class="${rcls}">${reason}</span></div></div>`;
+    }
+
+    const SLA_ICON = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>`;
+
+    function slaMsgBtn(msg) {
+        const hasSla = !!(msg.sla_message && msg.sla_message.trim());
+        const tip    = hasSla ? escHtml(msg.sla_message) : 'Tambah pesan SLA';
+        return `<button class="sla-open-btn${hasSla ? ' has-sla' : ''}"
+                        title="${tip}"
+                        onclick="openSlaModal(${msg.id}, this)"
+                        data-sla-val="${escHtml(msg.sla_message || '')}">
+                    ${SLA_ICON}Note
+                </button>`;
+    }
+
+    let _slaCurrentMsgId   = null;
+    let _slaCurrentTrigger = null;
+
+    function openSlaModal(messageId, triggerBtn) {
+        _slaCurrentMsgId   = messageId;
+        _slaCurrentTrigger = triggerBtn;
+        const existing = triggerBtn.dataset.slaVal || '';
+        document.getElementById('slaMsgTextarea').value = existing;
+        document.getElementById('slaMsgModal').classList.remove('hidden');
+        document.getElementById('slaMsgTextarea').focus();
+    }
+
+    function closeSlaModal() {
+        document.getElementById('slaMsgModal').classList.add('hidden');
+        _slaCurrentMsgId   = null;
+        _slaCurrentTrigger = null;
+    }
+
+    async function submitSlaMessage() {
+        if (!_slaCurrentMsgId) return;
+        const val = document.getElementById('slaMsgTextarea').value.trim();
+        const btn = document.getElementById('slaSaveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Menyimpan...';
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/messages/${_slaCurrentMsgId}/sla-message`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify({ sla_message: val })
+            });
+            if (res.ok && _slaCurrentTrigger) {
+                _slaCurrentTrigger.dataset.slaVal = val;
+                _slaCurrentTrigger.classList.toggle('has-sla', val.length > 0);
+                _slaCurrentTrigger.title = val.length > 0 ? val : 'Tambah pesan SLA';
+            }
+            closeSlaModal();
+        } catch (err) {
+            console.error('Failed to save SLA message', err);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Simpan';
+        }
+    }
+
+    // ── To/Cc recipient badge (bubble chat) ─────────────────────────────────────
+    // Tampilkan maksimal 2 nama + tombol "+N lainnya" yang membuka popover kecil
+    // berisi daftar lengkap (scrollable). Dipakai untuk badge "To:" dan "Cc:" —
+    // dibuat lewat popover (bukan expand inline) supaya bubble tetap ringkas walau
+    // penerima CC-nya banyak (puluhan).
+    function renderRecipientBadge(kind, label, list, msgId, alignEnd) {
+        if (!list || list.length === 0) return '';
+
+        const recip = item => typeof item === 'string'
+            ? { addr: item, name: item }
+            : { addr: item.address || '', name: item.name || item.address || '' };
+
+        const VISIBLE = 2;
+        const extra   = list.length - VISIBLE;
+        const popId   = `recipPop-${kind}-${msgId}`;
+        const chip    = item => {
+            const { addr, name } = recip(item);
+            return `<span class="truncate max-w-[160px]" title="${escHtml(addr)}">${escHtml(name)}</span>`;
+        };
+        const iconSvg = kind === 'to'
+            ? `<svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>`
+            : `<svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>`;
+
+        const popoverList = list.map(item => {
+            const { addr, name } = recip(item);
+            return `<div class="truncate px-2 py-1 rounded hover:bg-gray-50" title="${escHtml(addr)}">${escHtml(name)}</div>`;
+        }).join('');
+
+        return `<span class="inline-flex flex-wrap ${alignEnd ? 'justify-end' : ''} items-center gap-x-1 gap-y-0.5 max-w-full text-[10px] text-gray-400 mt-0.5">
+            <span class="inline-flex items-center gap-1 flex-shrink-0">
+                ${iconSvg}
+                <span class="font-medium text-gray-500">${label}:</span>
+            </span>
+            ${list.slice(0, VISIBLE).map(chip).join('<span>,</span>')}
+            ${extra > 0 ? `
+                <span>,</span>
+                <button type="button" class="text-blue-500 hover:text-blue-700 font-medium hover:underline flex-shrink-0"
+                    onclick="toggleRecipientPopover(event, '${popId}')">+${extra} lainnya</button>
+                <div id="${popId}" class="hidden fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-xl py-1.5 min-w-[160px] max-w-[280px] max-h-[220px] overflow-y-auto text-[11px] text-gray-700 text-left">
+                    <div class="font-semibold text-gray-400 uppercase tracking-wide text-[9px] px-2 pb-1">${label} &middot; ${list.length}</div>
+                    ${popoverList}
+                </div>
+            ` : ''}
+        </span>`;
+    }
+
+    let openRecipientPopoverId = null;
+    function closeRecipientPopover() {
+        if (!openRecipientPopoverId) return;
+        document.getElementById(openRecipientPopoverId)?.classList.add('hidden');
+        openRecipientPopoverId = null;
+    }
+    function toggleRecipientPopover(event, popId) {
+        event.stopPropagation();
+        const el = document.getElementById(popId);
+        if (!el) return;
+
+        const wasOpen = popId === openRecipientPopoverId;
+        closeRecipientPopover();
+        if (wasOpen) return;
+
+        // Posisikan fixed relatif ke tombol pemicu agar tidak terpotong overflow bubble
+        const rect = event.currentTarget.getBoundingClientRect();
+        el.style.left = Math.min(rect.left, window.innerWidth - 290) + 'px';
+        const spaceBelow = window.innerHeight - rect.bottom;
+        if (spaceBelow < 230 && rect.top > 230) {
+            el.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+            el.style.top    = 'auto';
+        } else {
+            el.style.top    = (rect.bottom + 4) + 'px';
+            el.style.bottom = 'auto';
+        }
+        el.classList.remove('hidden');
+        openRecipientPopoverId = popId;
+    }
+    document.addEventListener('click', function (e) {
+        if (openRecipientPopoverId && !e.target.closest(`#${openRecipientPopoverId}`)) closeRecipientPopover();
+    });
+
     function createMessageBubble(msg) {
+        messageCache.set(msg.id, msg);
+        // Meeting events — kartu khusus di tengah chat
+        if (msg.message_type === 'meeting_started' || msg.message_type === 'meeting_ended') {
+            const isStart  = msg.message_type === 'meeting_started';
+            const cardBg   = isStart ? 'bg-purple-50 border-purple-200' : 'bg-green-50 border-green-200';
+            const iconClr  = isStart ? 'text-purple-500' : 'text-green-500';
+            const titleClr = isStart ? 'text-purple-800' : 'text-green-800';
+            const byClr    = isStart ? 'text-purple-600' : 'text-green-600';
+            const title    = isStart ? 'Meeting Dimulai' : 'Meeting Selesai';
+            const badge    = isStart
+                ? `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">SLA Dijeda</span>`
+                : `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700">SLA Dilanjutkan</span>`;
+            const date = new Date(msg.created_at).toLocaleString('en-GB', {
+                timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', hour12: false
+            }) + ' (WIB)';
+            const byLine = msg.sender_name
+                ? `<p class="text-[11px] ${byClr} mt-0.5">oleh ${escHtml(msg.sender_name)}</p>` : '';
+
+            // Parse metadata dari message body
+            let notesText = msg.message_body || '';
+            let linkHtml  = '';
+            let scheduleHtml = '';
+
+            // Extract MeetingStart / MeetingEnd
+            const fmtMeetingTime = (iso) => {
+                try {
+                    return new Date(iso).toLocaleString('id-ID', {
+                        timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit', hour12: false
+                    }) + ' WIB';
+                } catch { return iso; }
+            };
+            const startMatch = notesText.match(/(?:^|\n)MeetingStart:\s*(\S+)/i);
+            const endMatch   = notesText.match(/(?:^|\n)MeetingEnd:\s*(\S+)/i);
+            if (startMatch || endMatch) {
+                const startStr = startMatch ? fmtMeetingTime(startMatch[1]) : '—';
+                const endStr   = endMatch   ? fmtMeetingTime(endMatch[1])   : '—';
+                scheduleHtml = `<div class="mt-2 text-xs text-gray-600 space-y-0.5">
+                    <div class="flex items-center gap-1.5">
+                        <svg class="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span><span class="text-gray-400">Mulai:</span> ${startStr}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <svg class="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span><span class="text-gray-400">Selesai:</span> ${endStr}</span>
+                    </div>
+                </div>`;
+                notesText = notesText
+                    .replace(/(?:^|\n)MeetingStart:\s*\S+/i, '')
+                    .replace(/(?:^|\n)MeetingEnd:\s*\S+/i, '')
+                    .trim();
+            }
+
+            // Extract link
+            const linkMatch = notesText.match(/(?:^|\n)Link:\s*(https?:\/\/\S+)/i);
+            if (linkMatch) {
+                const url = linkMatch[1];
+                linkHtml  = `<a href="${url}" target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-700 text-white hover:bg-purple-800 transition-colors">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    Join Meeting
+                </a>`;
+                notesText = notesText.replace(/(?:^|\n)Link:\s*https?:\/\/\S+/i, '').trim();
+            }
+            const notesLine = notesText && notesText !== 'Meeting dimulai' && notesText !== 'Meeting selesai' && notesText !== 'Jadwal meeting dibuat'
+                ? `<p class="text-xs text-gray-600 mt-1.5 whitespace-pre-wrap">${escHtml(notesText)}</p>` : '';
+            return `<div class="flex justify-center my-3 px-4">
+                <div class="flex items-start gap-2.5 px-4 py-3 rounded-xl border ${cardBg} w-full max-w-md">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0 ${iconClr}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-2 flex-wrap">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-xs font-semibold ${titleClr}">${title}</span>
+                                ${badge}
+                            </div>
+                            <span class="text-[10px] text-gray-400 flex-shrink-0">${date}</span>
+                        </div>
+                        ${byLine}
+                        ${scheduleHtml}
+                        ${notesLine}
+                        ${linkHtml}
+                    </div>
+                </div>
+            </div>`;
+        }
+
         // System messages (status changes, audit log) &rarr; centered pill, no bubble.
         // Real system messages are never email-channel — they're web/null from server-side events.
         // CC email replies from unregistered senders get stored as sender_type='system' by
@@ -2375,21 +5020,31 @@
             ? `<span class="msg-channel-badge msg-channel-email"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg> Email</span>`
             : `<span class="msg-channel-badge msg-channel-web"><svg style="width:9px;height:9px;display:inline" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clip-rule="evenodd"/></svg> Web</span>`;
 
-        // CC badge — hanya tampil kalau ada CC
-        // Normalisasi: API mungkin kembalikan array atau JSON string (data lama) &rarr; selalu array
+        // To/Cc badge — hanya tampil untuk pesan email. Ringkas (2 nama + "+N lainnya"),
+        // sisanya dibuka lewat popover (lihat renderRecipientBadge) alih-alih expand inline,
+        // supaya bubble tidak melebar/terpecah saat CC-nya banyak (puluhan penerima).
+        // Normalisasi cc_emails: API mungkin kembalikan array atau JSON string (data lama).
         const rawCc  = msg.cc_emails;
         const ccList = Array.isArray(rawCc) ? rawCc
                      : (typeof rawCc === 'string' && rawCc ? ((() => { try { return JSON.parse(rawCc); } catch(e) { return []; } })()) : []);
-        const ccBadge  = ccList.length > 0
-            ? `<span class="inline-flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
-                <svg style="width:9px;height:9px;flex-shrink:0" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
-                <span class="font-medium text-gray-500">CC:</span>
-                ${ccList.map(c => `<span title="${c.address || c}">${c.name || c.address || c}</span>`).join(', ')}
-               </span>`
+        // To PER-PESAN: API menurunkannya dari `email_recipients` pesan itu sendiri (minus CC),
+        // dengan fallback ke ticket.to_emails untuk pesan lama. Pakai ini — BUKAN snapshot
+        // ticket global — supaya badge "To" mencerminkan penerima aktual pesan tsb (mis. saat
+        // helpdesk mengganti alamat To sebelum kirim), bukan To composer saat halaman dibuka.
+        const rawTo  = msg.to_emails;
+        const toList = Array.isArray(rawTo) ? rawTo
+                     : (typeof rawTo === 'string' && rawTo ? ((() => { try { return JSON.parse(rawTo); } catch(e) { return []; } })()) : []);
+        const toBadge = msg.channel === 'email'
+            ? renderRecipientBadge('to', 'To', (toList.length ? toList : ticketToEmailsInitial), msg.id, isEmployee)
             : '';
+        const ccBadge = renderRecipientBadge('cc', 'Cc', ccList, msg.id, isEmployee);
 
-        const isEmailWithHtml = msg.channel === 'email' && !!msg.message_html;
-        const attachmentsHtml = renderAttachments(msg.attachments, isEmailWithHtml);
+        // Body sudah me-render inline image bila: email dengan HTML body, ATAU
+        // internal note dengan message_html (inline image-nya jadi <img src="/storage/...">).
+        // Keduanya tidak boleh menampilkan ulang inline image sebagai thumbnail (cegah double).
+        const bodyHasInlineImages = !!msg.message_html
+            && (msg.channel === 'email' || msg.message_type === 'internal_note');
+        const attachmentsHtml = renderAttachments(msg.attachments, bodyHasInlineImages);
 
         if (isInternalNote) {
             const isMine = msg.sender_id && currentUserId && String(msg.sender_id) === String(currentUserId);
@@ -2397,6 +5052,54 @@
             const avatarTextNote = isMine ? 'text-white' : 'text-amber-800';
             const bubbleExtra = isMine ? 'mine' : '';
             const noteBadge = `<span class="inline-flex items-center gap-1 text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold leading-none"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z"/><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"/></svg>Internal Note</span>`;
+
+            // Soft-deleted placeholder
+            if (msg.is_deleted) {
+                const delText = isMine ? 'You deleted this note' : 'Internal note deleted';
+                const delBubble = `<div class="message-bubble internal-note ${bubbleExtra} p-3 inline-block text-left italic text-gray-400 text-sm flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    ${delText}
+                </div>`;
+                if (isMine) {
+                    return `<div class="flex gap-3 flex-row-reverse" data-msg-id="${msg.id}">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarBgNote} ${avatarTextNote} text-xs font-bold">${initials}</div>
+                        <div class="text-right">
+                            <div class="flex items-center gap-2 justify-end mb-1">
+                                ${noteBadge}<span class="text-sm font-semibold text-gray-900">${senderName}</span><span class="text-xs text-gray-400">${date}</span>
+                            </div>${delBubble}
+                        </div>
+                    </div>`;
+                } else {
+                    return `<div class="flex gap-3" data-msg-id="${msg.id}">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarBgNote} ${avatarTextNote} text-xs font-bold">${initials}</div>
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-sm font-semibold text-gray-900">${senderName}</span>${noteBadge}<span class="text-xs text-gray-400">${date}</span>
+                            </div>${delBubble}
+                        </div>
+                    </div>`;
+                }
+            }
+
+            // Edit window: 10 minutes from creation
+            const msgCreatedAt      = new Date(msg.created_at).getTime();
+            const msElapsed         = Date.now() - msgCreatedAt;
+            const editWindowMs      = 10 * 60 * 1000;
+            const withinEditWindow  = isMine && msElapsed < editWindowMs;
+            if (withinEditWindow) {
+                const msLeft = editWindowMs - msElapsed;
+                setTimeout(() => {
+                    document.querySelectorAll(`[data-note-edit-id="${msg.id}"]`).forEach(el => el.remove());
+                }, msLeft);
+            }
+            const editBtns = withinEditWindow ? `
+                <button data-note-edit-id="${msg.id}" onclick="openEditNoteModal(${msg.id})" class="note-reply-btn opacity-0 group-hover:opacity-100 transition-opacity text-amber-600 hover:text-amber-800 text-[10px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-amber-100 flex-shrink-0" title="Edit note">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <button data-note-edit-id="${msg.id}" onclick="confirmDeleteNote(${msg.id})" class="note-reply-btn opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600 text-[10px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-red-50 flex-shrink-0" title="Delete note">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>` : '';
+            const editedLabel = msg.edited_at ? `<span class="text-[10px] text-gray-400 italic">(edited)</span>` : '';
 
             // Quoted context if this is a reply to another note
             const replyQuote = msg.reply_to_preview
@@ -2418,15 +5121,18 @@
                     <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarBgNote} ${avatarTextNote} text-xs font-bold">${initials}</div>
                     <div class="text-right">
                         <div class="flex items-center gap-2 justify-end mb-1">
+                            ${editBtns}
                             ${replyBtn}
                             ${noteBadge}
                             <span class="text-sm font-semibold text-gray-900">${senderName}</span>
                             <span class="text-xs text-gray-400">${date}</span>
+                            ${editedLabel}
                         </div>
                         <div class="message-bubble internal-note ${bubbleExtra} p-3 inline-block text-left">
                             ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
+                            <div class="msg-status-row">${slaMsgBtn(msg)}</div>
                         </div>
                     </div>
                 </div>`;
@@ -2439,12 +5145,14 @@
                             <span class="text-sm font-semibold text-gray-900">${senderName}</span>
                             ${noteBadge}
                             <span class="text-xs text-gray-400">${date}</span>
+                            ${editedLabel}
                             ${replyBtn}
                         </div>
                         <div class="message-bubble internal-note ${bubbleExtra} p-3 inline-block text-left">
                             ${replyQuote}
                             ${messageContent(msg)}
                             ${attachmentsHtml}
+                            <div class="msg-status-row">${slaMsgBtn(msg)}</div>
                         </div>
                     </div>
                 </div>`;
@@ -2456,23 +5164,27 @@
 
         // Status delivery indicator (hanya untuk reply helpdesk &rarr; customer)
         const statusHtml    = statusIndicator(msg);
-        const statusSection = statusHtml ? `<div class="msg-status-row">${statusHtml}</div>` : '';
+        const statusSection = `<div class="msg-status-row">${statusHtml}${slaMsgBtn(msg)}</div>`;
+
+        // Banner alasan bila email GAGAL total (merah) atau terkirim SEBAGIAN (amber).
+        const deliveryBanner = (isEmployee ? deliveryBannerHtml(msg) : '');
 
         return `
-            <div class="flex gap-3 ${isEmployee ? 'flex-row-reverse' : ''}">
+            <div class="flex gap-3 ${isEmployee ? 'flex-row-reverse' : ''}" data-msg-id="${msg.id}">
                 <div class="w-8 h-8 ${avatarBg} rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">${initials}</div>
-                <div class="${isEmployee ? 'text-right' : ''}">
+                <div class="max-w-[85%] ${isEmployee ? 'text-right' : ''}">
                     <div class="flex flex-col mb-1 ${isEmployee ? 'items-end' : ''}">
                         <div class="flex items-center gap-2 ${isEmployee ? 'justify-end' : ''}">
                             <span class="text-sm font-semibold text-gray-900">${senderName}</span>
                             ${channelBadge}
                             <span class="text-xs text-gray-400">${date}</span>
                         </div>
-                        ${ccBadge}
+                        ${toBadge}${ccBadge}
                     </div>
-                    <div class="message-bubble ${bubbleClass} p-3 inline-block text-left">
+                    <div class="message-bubble ${bubbleClass}${msg.email_status === 'failed' ? ' email-failed' : msg.email_status === 'partial' ? ' email-partial' : ''} p-3 inline-block text-left">
                         ${messageContent(msg)}
                         ${attachmentsHtml}
+                        ${deliveryBanner}
                         ${statusSection}
                     </div>
                 </div>
@@ -2503,10 +5215,10 @@
     let selectedFiles = []; // File[] yang dipilih user untuk dikirim bersama reply
 
     document.getElementById('attachInput').addEventListener('change', function () {
-        const maxSize = 10 * 1024 * 1024; // 10 MB per file
+        const maxSize = 25 * 1024 * 1024; // 25 MB per file
         Array.from(this.files).forEach(file => {
             if (file.size > maxSize) {
-                showNotification(`${file.name} is too large (max 10 MB)`, 'error');
+                showNotification(`${file.name} is too large (max 25 MB)`, 'error');
                 return;
             }
             // Hindari duplikat berdasarkan nama + ukuran
@@ -2583,6 +5295,123 @@
         return html.trim();
     }
 
+    // ── Send Status Modal ─────────────────────────────────────────────────────
+    let _pendingSendType = null;
+    // Modal status dipakai dua konteks: 'reply' (kirim balasan) & 'deliverable'
+    // (kirim dokumen deliverable ke customer). Mode menentukan aksi setelah status dipilih.
+    let _statusModalMode      = 'reply';
+    let _pendingDeliverableId = null;
+
+    function setStatusModalSubtitle(text) {
+        const el = document.getElementById('sendStatusSubtitle');
+        if (el) el.textContent = text;
+    }
+
+    function openSendStatusModal(messageType) {
+        _statusModalMode = 'reply';
+        _pendingSendType = messageType;
+        setStatusModalSubtitle('Pilih status setelah reply dikirim');
+        // Reset ke default inprocess setiap kali modal dibuka
+        const defaultRadio = document.querySelector('input[name="sendStatus"][value="inprocess"]');
+        if (defaultRadio) defaultRadio.checked = true;
+        document.getElementById('sendStatusModal').classList.remove('hidden');
+    }
+
+    // Buka modal status untuk pengiriman dokumen deliverable. Helpdesk WAJIB memilih
+    // status tiket dulu; dokumen baru dikirim setelah status dipilih (lihat confirmSendWithStatus).
+    function openDeliverableStatusModal(id) {
+        _statusModalMode      = 'deliverable';
+        _pendingDeliverableId = id;
+        setStatusModalSubtitle('Pilih status tiket sebelum dokumen dikirim');
+        document.getElementById('sendStatusModal').classList.remove('hidden');
+    }
+
+    // Bulk send: status dipilih sekali, lalu dipakai untuk semua dokumen terpilih.
+    function openDeliverableBulkStatusModal() {
+        _statusModalMode = 'deliverable-bulk';
+        setStatusModalSubtitle('Pilih status tiket sebelum dokumen dikirim');
+        document.getElementById('sendStatusModal').classList.remove('hidden');
+    }
+
+    function closeSendStatusModal() {
+        document.getElementById('sendStatusModal').classList.add('hidden');
+        _pendingSendType      = null;
+        _pendingDeliverableId = null;
+        _statusModalMode      = 'reply';
+    }
+
+    function confirmSendWithStatus(chosenStatus) {
+        document.getElementById('sendStatusModal').classList.add('hidden');
+        if (_statusModalMode === 'deliverable') {
+            const id = _pendingDeliverableId;
+            _pendingDeliverableId = null;
+            _statusModalMode      = 'reply';
+            _doSendDeliverable(id, chosenStatus || 'inprocess');
+            return;
+        }
+        if (_statusModalMode === 'deliverable-bulk') {
+            _statusModalMode = 'reply';
+            _doBulkSendDeliverables(chosenStatus || 'inprocess');
+            return;
+        }
+        openConfirmSendModal(chosenStatus || 'inprocess');
+    }
+
+    // Klik backdrop modal → tutup
+    document.getElementById('sendStatusModal').addEventListener('click', function(e) {
+        if (e.target === this) closeSendStatusModal();
+    });
+
+    // ── Confirm Send Modal ────────────────────────────────────────────────────
+    let _pendingChosenStatus = null;
+
+    function openConfirmSendModal(chosenStatus) {
+        _pendingChosenStatus = chosenStatus;
+
+        // Pastikan input TO/CC yang belum ter-commit ikut ditampilkan.
+        commitToInput();
+        commitCcInput();
+
+        const statusLabels = {
+            'open':                    'Open',
+            'inprocess':               'Inprocess',
+            'waiting_on_customer':     'Waiting on Customer',
+            'waiting_on_3rd_party':    'Waiting on 3rd Party',
+            'waiting_to_confirmation': 'Waiting to Confirmation',
+            'hold':                    'Hold',
+            'cancelled':               'Cancelled',
+            'closed':                  'Closed',
+        };
+
+        document.getElementById('confirmSendTo').textContent = toEmails.length ? toEmails.join(', ') : '-';
+        document.getElementById('confirmSendCc').textContent = ccEmails.length ? ccEmails.join(', ') : '-';
+        document.getElementById('confirmSendMessage').innerHTML = trimQuillHtml(quillEditor.root.innerHTML) || '<span class="text-gray-400">(kosong)</span>';
+
+        const badge = document.getElementById('confirmSendStatusBadge');
+        badge.className = `sb-badge sb-status-${chosenStatus}`;
+        badge.textContent = statusLabels[chosenStatus] || chosenStatus;
+
+        document.getElementById('confirmSendModal').classList.remove('hidden');
+    }
+
+    function closeConfirmSendModal() {
+        document.getElementById('confirmSendModal').classList.add('hidden');
+        _pendingSendType = null;
+        _pendingChosenStatus = null;
+    }
+
+    async function finalizeSend() {
+        document.getElementById('confirmSendModal').classList.add('hidden');
+        await _doSendReply(_pendingSendType, _pendingChosenStatus);
+        _pendingSendType = null;
+        _pendingChosenStatus = null;
+    }
+
+    // Klik backdrop modal → tutup (setara tombol Edit, tidak jadi kirim)
+    document.getElementById('confirmSendModal').addEventListener('click', function(e) {
+        if (e.target === this) closeConfirmSendModal();
+    });
+
     async function sendReply(messageType) {
         const rawHtml      = quillEditor.root.innerHTML;
         const htmlContent  = trimQuillHtml(rawHtml);
@@ -2595,11 +5424,82 @@
             return;
         }
 
+        // Untuk reply employee → tampilkan modal pilih status dulu
+        // Kecuali tiket sudah closed/cancelled — langsung kirim tanpa mengubah status
+        if (messageType === 'reply') {
+            const currentStatus = document.getElementById('detailStatus')?.value;
+            if (currentStatus === 'closed' || currentStatus === 'cancelled') {
+                await _doSendReply(messageType, null);
+                return;
+            }
+            openSendStatusModal(messageType);
+            return;
+        }
+
+        // Internal note langsung kirim tanpa modal
+        await _doSendReply(messageType, null);
+    }
+
+    function updateStatusUI(newStatus) {
+        if (!newStatus) return;
+        const statusLabels = {
+            'open':                    'Open',
+            'inprocess':               'Inprocess',
+            'waiting_on_customer':     'Waiting on Customer',
+            'waiting_on_3rd_party':    'Waiting on 3rd Party',
+            'waiting_to_confirmation': 'Waiting to Confirmation',
+            'hold':                    'Hold',
+            'cancelled':               'Cancelled',
+            'closed':                  'Closed',
+        };
+        const statusColors = {
+            'open':                    ['bg-blue-100',  'text-blue-700'],
+            'inprocess':               ['bg-yellow-100','text-yellow-700'],
+            'waiting_on_customer':     ['bg-amber-100', 'text-amber-700'],
+            'waiting_on_3rd_party':    ['bg-indigo-100','text-indigo-700'],
+            'waiting_to_confirmation': ['bg-teal-100',  'text-teal-700'],
+            'hold':                    ['bg-orange-100','text-orange-700'],
+            'cancelled':               ['bg-gray-100',  'text-gray-500'],
+            'closed':                  ['bg-green-100', 'text-green-700'],
+        };
+        const allColorClasses = ['bg-blue-100','text-blue-700','bg-yellow-100','text-yellow-700','bg-amber-100','text-amber-700','bg-indigo-100','text-indigo-700','bg-teal-100','text-teal-700','bg-orange-100','text-orange-700','bg-gray-100','text-gray-500','bg-green-100','text-green-700','bg-gray-100','text-gray-600'];
+        const label = statusLabels[newStatus] || newStatus;
+
+        // Right panel: hidden input + dropdown label
+        const detailInput = document.getElementById('detailStatus');
+        if (detailInput) detailInput.value = newStatus;
+        const propertiesPanel = document.getElementById('propertiesPanel');
+        if (propertiesPanel) {
+            const ddLabel = propertiesPanel.querySelector('.custom-dd-label');
+            if (ddLabel) ddLabel.textContent = label;
+        }
+
+        // Top header badge
+        const topBadge = document.getElementById('ticketStatusBadge');
+        if (topBadge) {
+            topBadge.classList.remove(...allColorClasses);
+            topBadge.classList.add(...(statusColors[newStatus] || ['bg-gray-100','text-gray-600']));
+            topBadge.textContent = label;
+        }
+
+        // Sidebar: mutate in-memory array then re-render (no API call)
+        const sidebarTicket = allSidebarTickets.find(t => t.ticket_id === ticketId);
+        if (sidebarTicket) {
+            sidebarTicket.status = newStatus;
+            filterSidebarTickets();
+        }
+    }
+
+    async function _doSendReply(messageType, chosenStatus) {
         // Disable tombol kirim selama proses agar tidak double-submit
         const sendBtn = document.querySelector('button[onclick="sendReply(\'reply\')"]');
         const noteBtn = document.querySelector('button[onclick="sendReply(\'internal_note\')"]');
         if (sendBtn) { sendBtn.disabled = true; sendBtn.classList.add('opacity-60'); }
         if (noteBtn) { noteBtn.disabled = true; noteBtn.classList.add('opacity-60'); }
+
+        const rawHtml      = quillEditor.root.innerHTML;
+        const htmlContent  = trimQuillHtml(rawHtml);
+        const hasFiles     = selectedFiles.length > 0;
 
         try {
             let requestBody;
@@ -2621,9 +5521,8 @@
             commitToInput();
             commitCcInput();
 
-            if (hasFiles) {
-                // Kirim sebagai multipart/form-data
-                // Jangan set Content-Type manual — browser otomatis tambahkan boundary yang benar
+            const hasInlineImages = /<img[^>]+src=["']data:/i.test(htmlContent);
+            if (hasFiles || hasInlineImages) {
                 const formData = new FormData();
                 formData.append('message_body', htmlContent);
                 formData.append('message_type', messageType);
@@ -2633,6 +5532,7 @@
                 mentionedEmployeeIds.forEach(id => formData.append('mentioned_employee_ids[]', id));
                 mentionedRoleIds.forEach(id => formData.append('mentioned_role_ids[]', id));
                 if (replyToId && messageType === 'internal_note') formData.append('reply_to_id', replyToId);
+                if (chosenStatus) formData.append('ticket_status', chosenStatus);
                 requestBody = formData;
             } else {
                 headers['Content-Type'] = 'application/json';
@@ -2644,6 +5544,7 @@
                     mentioned_employee_ids: mentionedEmployeeIds,
                     mentioned_role_ids: mentionedRoleIds,
                     ...(replyToId && messageType === 'internal_note' ? { reply_to_id: replyToId } : {}),
+                    ...(chosenStatus ? { ticket_status: chosenStatus } : {}),
                 });
             }
 
@@ -2658,11 +5559,18 @@
 
             if (data.success) {
                 quillEditor.setContents([]);
+                localStorage.removeItem(DRAFT_KEY);
                 resetAttachments();
                 pendingMentions = []; // reset mentions
                 cancelReply();        // clear reply context
+                if (chosenStatus) updateStatusUI(chosenStatus);
                 await loadMessages();
-                showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
+                if (data.email_failed) {
+                    // Pesan tersimpan, tapi email TIDAK terkirim ke customer.
+                    showNotification(data.email_error || 'Message saved, but the email could not be delivered to the customer.', 'error');
+                } else {
+                    showNotification(messageType === 'internal_note' ? 'Internal note added' : 'Reply sent', 'success');
+                }
             } else {
                 console.warn('[sendReply] API error:', data.message, data.errors);
                 showNotification(data.message || 'Failed to send message', 'error');
@@ -2708,8 +5616,8 @@
     async function loadSidebarTickets() {
         try {
             let endpoint = '/api/tickets';
-            if (userRole === 3) endpoint = '/api/tickets/my';
-            else if ([1, 2, 6, 7].includes(userRole) && sidebarView === 'my') endpoint = '/api/tickets/my';
+            if (userRole === EC_USER_ROLE) endpoint = '/api/tickets/my';
+            else if ([EC_ADMINISTRATOR_ROLE, DELIVERY_SUPPORT_USER_ROLE, DELIVERY_HELPDESK_ROLE, DELIVERY_RPMO_HEAD_ROLE].includes(userRole) && sidebarView === 'my') endpoint = '/api/tickets/my';
 
             const response = await fetch(endpoint, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -2740,13 +5648,14 @@
         };
         // Status label + badge class mapping
         const statusMap = {
-            'open':          ['Open',           'sb-status-open'],
-            'in_progress':   ['In Progress',    'sb-status-in_progress'],
-            'closed':        ['Closed',         'sb-status-closed'],
-            'wait_to_close': ['Wait Close',     'sb-status-wait_to_close'],
-            'hold':          ['Hold',           'sb-status-hold'],
-            'reply':         ['Reply',          'sb-status-reply'],
-            'cancel':        ['Canceled',       'sb-status-cancel'],
+            'open':                    ['Open',                    'sb-status-open'],
+            'inprocess':               ['Inprocess',               'sb-status-inprocess'],
+            'waiting_on_customer':     ['Waiting Customer',        'sb-status-waiting_on_customer'],
+            'waiting_on_3rd_party':    ['Waiting 3rd Party',       'sb-status-waiting_on_3rd_party'],
+            'waiting_to_confirmation': ['Waiting Confirmation',    'sb-status-waiting_to_confirmation'],
+            'hold':                    ['Hold',                    'sb-status-hold'],
+            'cancelled':               ['Cancelled',               'sb-status-cancelled'],
+            'closed':                  ['Closed',                  'sb-status-closed'],
         };
 
         list.innerHTML = tickets.map(t => {
@@ -2765,12 +5674,6 @@
             const prioKey   = t.ticket_priority || 'Medium';
             const prioCls   = prioBadge[prioKey] || 'sb-prio-default';
 
-            // Jarvies status badge (only if available)
-            const jStatus   = t.jarvies_status;
-            const jBadge    = jStatus
-                ? `<span class="sb-badge sb-jarvies">JS: ${jStatus}</span>`
-                : '';
-
             // Ticket status badge
             const sRaw    = (t.status || 'open').toLowerCase();
             const [sLabel, sCls] = statusMap[sRaw] || ['Unknown', 'sb-status-default'];
@@ -2784,7 +5687,6 @@
                     <p class="text-[10px] text-gray-500 truncate mb-1.5 leading-snug">${desc}</p>
                     <div class="flex items-center gap-1 flex-wrap">
                         <span class="sb-badge ${prioCls}">${prioKey}</span>
-                        ${jBadge}
                         <span class="sb-badge ${sCls}">S: ${sLabel}</span>
                     </div>
                 </a>`;
@@ -2878,6 +5780,8 @@
     // ==================== TEAM MEMBERS ====================
     const allEmployees  = @json($employees);
     const canManageMembers = {{ $canManageMembers ? 'true' : 'false' }};
+    const ticketLeadId   = {{ $ticket->ticket_lead_id ?? 'null' }};
+    const ticketLeadName = @json($ticket->ticketLead && $ticket->ticketLead->basicData ? trim(($ticket->ticketLead->basicData->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData->last_name ?? '')) : null);
 
     function escHtmlMember(str) {
         const d = document.createElement('div');
@@ -2889,47 +5793,60 @@
         const list = document.getElementById('membersList');
         if (!list) return;
 
-        const memberIds = new Set(members.map(m => m.employee_id));
+        // All member IDs (active + inactive) — excluded from "add" dropdown
+        const allMemberIds = new Set(members.map(m => m.employee_id));
 
-        if (members.length === 0) {
+        // Ticket lead sudah ditampilkan terpisah sebagai PIC — jangan tampilkan lagi
+        // row ticket_member miliknya di sini (tombol aktifkan-kembali untuk row itu
+        // selalu gagal karena PIC tidak boleh jadi member).
+        const visibleMembers = members.filter(m => m.employee_id != ticketLeadId);
+
+        if (visibleMembers.length === 0) {
             list.innerHTML = '<p class="text-xs text-gray-400 italic" id="noMembersText">No members assigned.</p>';
         } else {
-            list.innerHTML = members.map(m => `
-                <div class="member-chip flex items-center justify-between gap-1 px-2.5 py-1.5 bg-blue-50 rounded-lg" data-id="${m.employee_id}">
-                    <span class="text-xs text-blue-700 font-medium truncate">${escHtmlMember(m.name)}</span>
-                    ${canManageMembers ? `<button type="button" onclick="removeMemberBtn(${m.employee_id})"
-                        class="text-blue-300 hover:text-red-500 transition-colors flex-shrink-0 ml-1">
-                        <i class="fas fa-times text-[9px]"></i></button>` : ''}
-                </div>`).join('');
+            list.innerHTML = visibleMembers.map(m => {
+                const isActive = m.is_active;
+                const chipBg   = isActive ? 'bg-blue-50' : 'bg-gray-100';
+                const nameCls  = isActive ? 'text-xs text-blue-700 font-medium truncate' : 'text-xs text-gray-400 font-medium truncate line-through';
+                const toggleIcon   = isActive ? 'fa-eye-slash' : 'fa-eye';
+                const toggleTitle  = isActive ? 'Deactivate member' : 'Reactivate member';
+                const toggleColor  = isActive ? 'text-blue-300 hover:text-red-500' : 'text-gray-400 hover:text-green-500';
+                const manageBtn = canManageMembers
+                    ? `<button type="button" onclick="toggleMemberBtn(${m.employee_id}, ${isActive})"
+                            title="${toggleTitle}"
+                            class="${toggleColor} transition-colors flex-shrink-0 ml-1">
+                            <i class="fas ${toggleIcon} text-[9px]"></i></button>`
+                    : '';
+                return `<div class="member-chip flex items-center justify-between gap-1 px-2.5 py-1.5 ${chipBg} rounded-lg" data-id="${m.employee_id}">
+                    <span class="${nameCls}">${escHtmlMember(m.name)}</span>
+                    ${manageBtn}
+                </div>`;
+            }).join('');
         }
 
-        // Rebuild custom-dd panel items: show only employees not already in members
-        // and not the PIC. Preserve search input wrapper + empty-state element.
+        // Rebuild custom-dd panel items: exclude ALL member records (active + inactive).
+        // Inactive members can be reactivated via toggle button directly.
         const ddPanel = document.querySelector('#addMemberDd .custom-dd-panel');
         const hidden  = document.getElementById('addMemberSelect');
         if (ddPanel) {
             const searchWrap = ddPanel.querySelector('.custom-dd-search-wrap');
             const emptyEl    = ddPanel.querySelector('.custom-dd-empty');
 
-            // Build new items HTML (placeholder + filtered employees)
             const escAttr = (s) => String(s).replace(/"/g, '&quot;');
             const escTxt  = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             const itemCls = 'custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors';
             let itemsHtml = `<button type="button" class="${itemCls}" data-value="">-- Add member --</button>`;
             allEmployees.forEach(emp => {
-                if (!memberIds.has(emp.employee_id) && emp.employee_id != {{ $ticket->employee_id ?? 'null' }}) {
+                if (!allMemberIds.has(emp.employee_id) && emp.employee_id != ticketLeadId) {
                     itemsHtml += `<button type="button" class="${itemCls}" data-value="${escAttr(emp.employee_id)}">${escTxt(emp.name)}</button>`;
                 }
             });
 
-            // Replace items, preserve search + empty-state refs (panel-level click delegation
-            // di custom-dropdown.js tetap menangkap item baru tanpa re-init).
             ddPanel.innerHTML = '';
             if (searchWrap) ddPanel.appendChild(searchWrap);
             ddPanel.insertAdjacentHTML('beforeend', itemsHtml);
             if (emptyEl) ddPanel.appendChild(emptyEl);
 
-            // Reset selection state
             if (hidden) hidden.value = '';
             const label = document.querySelector('#addMemberDd .custom-dd-label');
             if (label) {
@@ -2937,6 +5854,41 @@
                 label.className   = 'custom-dd-label text-gray-500 truncate';
             }
         }
+
+        rebuildPicDropdown(members);
+    }
+
+    // PIC (In Charge) dropdown options harus ikut berubah begitu member
+    // dinonaktifkan/diaktifkan-kembali — tanpa ini opsi PIC jadi basi sampai
+    // halaman di-refresh manual (member yang sudah di-remove masih bisa dipilih
+    // jadi PIC, dan member yang baru direaktivasi belum muncul sbg opsi).
+    function rebuildPicDropdown(members) {
+        const picPanel = document.querySelector('[data-onchange="onPicDropdownChange"] .custom-dd-panel');
+        if (!picPanel) return;
+
+        // Panel bisa sudah auto-inject search bar (kalau opsi > 7 saat init) —
+        // pertahankan node itu, jangan sampai innerHTML replace bikin referensi
+        // panel._ddSearch/_ddEmpty jadi stale.
+        const searchWrap = picPanel.querySelector('.custom-dd-search-wrap');
+        const emptyEl    = picPanel.querySelector('.custom-dd-empty');
+
+        const currentPic = document.getElementById('picSelectHidden')?.value || '';
+        const escAttr = (s) => String(s).replace(/"/g, '&quot;');
+        const escTxt  = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const itemCls = (name) => `custom-dd-item w-full text-left px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 ${currentPic === name ? 'bg-gray-50 font-medium text-gray-900' : ''}`;
+
+        let itemsHtml = '';
+        if (ticketLeadName) {
+            itemsHtml += `<button type="button" class="${itemCls(ticketLeadName)}" data-value="${escAttr(ticketLeadName)}">${escTxt(ticketLeadName)} (Ticket Lead)</button>`;
+        }
+        members.filter(m => m.is_active).forEach(m => {
+            itemsHtml += `<button type="button" class="${itemCls(m.name)}" data-value="${escAttr(m.name)}">${escTxt(m.name)}</button>`;
+        });
+
+        picPanel.innerHTML = '';
+        if (searchWrap) picPanel.appendChild(searchWrap);
+        picPanel.insertAdjacentHTML('beforeend', itemsHtml);
+        if (emptyEl) picPanel.appendChild(emptyEl);
     }
 
     async function addMemberBtn() {
@@ -2965,19 +5917,391 @@
         }
     }
 
-    async function removeMemberBtn(employeeId) {
+    async function toggleMemberBtn(employeeId, isActive) {
+        const method = 'POST';
+        const url    = isActive
+            ? `/api/tickets/${ticketId}/members/${employeeId}/remove`
+            : `/api/tickets/${ticketId}/members`;
+        const body   = isActive ? null : JSON.stringify({ employee_id: employeeId });
+
         try {
-            const res  = await fetch(`/api/tickets/${ticketId}/members/${employeeId}`, {
-                method: 'DELETE',
+            const res  = await fetch(url, {
+                method,
                 headers: getHeaders(),
                 credentials: 'same-origin',
+                ...(body ? { body } : {}),
+            });
+            let data;
+            try { data = await res.json(); } catch { showNotification(`Server error (HTTP ${res.status})`, 'error'); return; }
+            if (!data.success) { showNotification(data.message || 'Failed to update member.', 'error'); return; }
+            renderMembers(data.data);
+            showNotification(isActive ? 'Member deactivated.' : 'Member reactivated.', 'success');
+        } catch (err) {
+            showNotification('Network error: ' + (err?.message || 'unknown'), 'error');
+        }
+    }
+
+    // ==================== MEETING ====================
+    const MEETING_ICON_SVG = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>`;
+
+    // ── Meeting To/CC chip input — sama gaya visual dengan kolom To/CC composer
+    // reply biasa, tapi state terpisah (meetingToEmails/meetingCcEmails) karena
+    // daftar undangan meeting bisa diedit tanpa mengubah To/CC reply yang sedang diketik.
+    let meetingToEmails = [];
+    let meetingCcEmails = [];
+
+    function renderMeetingRecipientTags(field) {
+        const list      = field === 'to' ? meetingToEmails : meetingCcEmails;
+        const container = document.getElementById(field === 'to' ? 'meetingToTagsContainer' : 'meetingCcTagsContainer');
+        if (!container) return;
+        const isTo    = field === 'to';
+        const pillCls = isTo
+            ? 'bg-green-50 border-green-200 text-green-700'
+            : 'bg-blue-50 border-blue-200 text-blue-700';
+        const closeCls = isTo ? 'text-green-300' : 'text-blue-300';
+        container.innerHTML = list.map((email, i) => `
+            <span class="inline-flex items-center gap-1 border ${pillCls} text-[11px] rounded-full px-2 py-0.5 max-w-[220px] select-none">
+                <span class="truncate">${escHtmlCC(email)}</span>
+                <button type="button" onclick="removeMeetingRecipientTag('${field}',${i})" class="${closeCls} hover:text-red-500 transition-colors flex-shrink-0 leading-none ml-0.5">&times;</button>
+            </span>`
+        ).join('');
+        adjustMeetingModalWidth();
+    }
+
+    // Grow the modal sideways once the recipient list gets long, so the left
+    // column (schedule + notes) keeps its width instead of being squeezed.
+    function adjustMeetingModalWidth() {
+        const card = document.getElementById('meetingModalCard');
+        if (!card) return;
+        const total = meetingToEmails.length + meetingCcEmails.length;
+        card.classList.toggle('meeting-wide', total > 6);
+    }
+
+    function renderMeetingToTags() { renderMeetingRecipientTags('to'); }
+    function renderMeetingCcTags()  { renderMeetingRecipientTags('cc'); }
+
+    function removeMeetingRecipientTag(field, index) {
+        (field === 'to' ? meetingToEmails : meetingCcEmails).splice(index, 1);
+        renderMeetingRecipientTags(field);
+    }
+
+    function commitMeetingRecipientInput(field) {
+        const input = document.getElementById(field === 'to' ? 'meetingToInput' : 'meetingCcInput');
+        if (!input) return;
+        const list          = field === 'to' ? meetingToEmails : meetingCcEmails;
+        const parts         = input.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+        const lowerExisting = new Set(list.map(e => String(e).toLowerCase()));
+        const invalid       = [];
+        let added = false;
+        for (const email of parts) {
+            if (!RECIPIENT_EMAIL_RE.test(email)) { invalid.push(email); continue; }
+            if (lowerExisting.has(email.toLowerCase())) continue;
+            list.push(email);
+            lowerExisting.add(email.toLowerCase());
+            saveEmailToHistory(email);
+            added = true;
+        }
+        if (added) renderMeetingRecipientTags(field);
+
+        if (invalid.length) {
+            input.value = invalid.join(', ');
+            input.classList.add('recipient-invalid');
+            setTimeout(() => input.classList.remove('recipient-invalid'), 1500);
+        } else {
+            input.value = '';
+        }
+    }
+
+    function handleMeetingRecipientKeydown(e, field) {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            commitMeetingRecipientInput(field);
+        } else if (e.key === 'Backspace' && e.target.value === '') {
+            const list = field === 'to' ? meetingToEmails : meetingCcEmails;
+            if (list.length > 0) { list.pop(); renderMeetingRecipientTags(field); }
+        }
+    }
+
+    function handleMeetingRecipientBlur(field) {
+        setTimeout(() => commitMeetingRecipientInput(field), 150);
+    }
+
+    function handleMeetingRecipientPaste(e, field) {
+        e.preventDefault();
+        const text  = (e.clipboardData || window.clipboardData).getData('text');
+        const input = document.getElementById(field === 'to' ? 'meetingToInput' : 'meetingCcInput');
+        if (input) { input.value = text; commitMeetingRecipientInput(field); }
+    }
+
+    function openMeetingPanel() {
+        const modal      = document.getElementById('meetingModal');
+        const notesArea  = document.getElementById('meetingNotes');
+        const linkInput  = document.getElementById('meetingLink');
+        if (!modal) return;
+
+        notesArea.value = '';
+        if (linkInput) linkInput.value = '';
+
+        // Prefill To/CC dengan daftar yang terakhir dipakai pada tiket ini (state
+        // toEmails/ccEmails yang sama dengan dipakai composer reply biasa), supaya
+        // undangan meeting konsisten dengan penerima sebelumnya.
+        const normalizeEmails = (list) => (Array.isArray(list) ? list : [])
+            .map(e => (typeof e === 'string' ? e : e?.address))
+            .filter(Boolean);
+        meetingToEmails = normalizeEmails(typeof toEmails !== 'undefined' ? toEmails : []);
+        meetingCcEmails = normalizeEmails(typeof ccEmails !== 'undefined' ? ccEmails : []);
+        const meetingToInputEl = document.getElementById('meetingToInput');
+        const meetingCcInputEl = document.getElementById('meetingCcInput');
+        if (meetingToInputEl) meetingToInputEl.value = '';
+        if (meetingCcInputEl) meetingCcInputEl.value = '';
+        renderMeetingToTags();
+        renderMeetingCcTags();
+
+        // Reset pilihan template & form "simpan sebagai template" setiap kali modal dibuka
+        setCustomDropdownValue('meetingTemplateSelect', '');
+        const saveTplCheckbox = document.getElementById('saveAsTemplateCheckbox');
+        if (saveTplCheckbox) saveTplCheckbox.checked = false;
+        const templateNameInput = document.getElementById('templateNameInput');
+        if (templateNameInput) templateNameInput.value = '';
+        toggleSaveTemplateFields();
+        loadMeetingTemplates();
+
+        // Always "Schedule Meeting" mode — no manual End Meeting needed
+        const header     = document.getElementById('meetingModalHeader');
+        const iconWrap   = document.getElementById('meetingModalIconWrap');
+        const titleEl    = document.getElementById('meetingPanelTitle');
+        const notesLbl   = document.getElementById('meetingNotesLabel');
+        const confirmBtn = document.getElementById('meetingConfirmBtn');
+        const linkWrap   = document.getElementById('meetingLinkWrap');
+        const startRow   = document.getElementById('meetingStartRow');
+        const linkSec    = document.getElementById('meetingLinkSection');
+        const timesLbl   = document.getElementById('meetingTimesLabel');
+
+        if (header)     { header.classList.add('bg-purple-50'); header.classList.remove('bg-red-50'); }
+        if (iconWrap)   { iconWrap.classList.add('bg-purple-100', 'text-purple-600'); iconWrap.classList.remove('bg-red-100', 'text-red-600'); }
+        if (titleEl)    titleEl.textContent = 'Schedule Meeting';
+        if (notesLbl)   notesLbl.textContent = 'Notes (optional)';
+        if (confirmBtn) { confirmBtn.textContent = 'Schedule Meeting'; confirmBtn.className = confirmBtn.className.replace(/bg-\S+/g, ''); confirmBtn.classList.add('px-5', 'py-2', 'text-sm', 'font-semibold', 'text-white', 'rounded-xl', 'transition-all', 'bg-purple-500', 'hover:bg-purple-600'); }
+        if (linkWrap)   linkWrap.classList.remove('hidden');
+        if (startRow)   startRow.classList.remove('hidden');
+        if (linkSec)    linkSec.classList.remove('hidden');
+        if (timesLbl)   timesLbl.textContent = 'Meeting Time';
+
+        // Pre-fill: start = sekarang, end = +1 jam
+        const pad = (n) => String(n).padStart(2, '0');
+        const toDateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        const toTimeStr = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        const now = new Date();
+        const end = new Date(now.getTime() + 60 * 60 * 1000);
+        const sdEl = document.getElementById('meetingStartDate');
+        const shEl = document.getElementById('meetingStartHour');
+        const edEl = document.getElementById('meetingEndDate');
+        const ehEl = document.getElementById('meetingEndHour');
+        if (sdEl) sdEl.value = toDateStr(now);
+        if (shEl) shEl.value = toTimeStr(now);
+        if (edEl) edEl.value = toDateStr(end);
+        if (ehEl) ehEl.value = toTimeStr(end);
+
+        modal.classList.remove('hidden');
+        setTimeout(() => linkInput?.focus(), 50);
+    }
+
+    function closeMeetingPanel() {
+        const modal = document.getElementById('meetingModal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    // ==================== MEETING TEMPLATES ====================
+    let _meetingTemplates = [];
+
+    async function loadMeetingTemplates() {
+        const panel = document.getElementById('meetingTemplatePanel');
+        if (!panel) return;
+
+        try {
+            const res  = await fetch(`/api/tickets/${ticketId}/meeting-templates`, { headers: getHeaders(), credentials: 'same-origin' });
+            const data = await res.json();
+            _meetingTemplates = data.success ? (data.data || []) : [];
+        } catch {
+            _meetingTemplates = [];
+        }
+
+        // Catatan: item.textContent dipakai apa adanya oleh custom-dropdown.js sebagai
+        // label tombol setelah dipilih — jangan sisipkan teks tambahan (mis. "oleh X")
+        // di dalam .custom-dd-item, taruh di attribute `title` (tooltip) saja.
+        const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+        const renderItem = (t) => `
+            <div class="custom-dd-item w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer" data-value="${t.id}" title="${t.created_by_name ? 'Created by ' + escapeHtml(t.created_by_name) : ''}">
+                <span class="truncate">${escapeHtml(t.name)}</span>
+                ${t.is_owner ? `<button type="button" onclick="event.stopPropagation(); deleteMeetingTemplate(${t.id})" class="text-gray-300 hover:text-red-500 flex-shrink-0 p-0.5" title="Delete template">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>` : ''}
+            </div>`;
+
+        let html = `<button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">No template (clear)</button>`;
+        html += _meetingTemplates.map(renderItem).join('');
+        panel.innerHTML = html;
+    }
+
+    function onMeetingTemplateSelect() {
+        const val = document.getElementById('meetingTemplateSelect')?.value;
+        const linkInput = document.getElementById('meetingLink');
+        const notesArea = document.getElementById('meetingNotes');
+        if (!val) {
+            if (linkInput) linkInput.value = '';
+            if (notesArea) notesArea.value = '';
+            return;
+        }
+        const tpl = _meetingTemplates.find(t => String(t.id) === String(val));
+        if (!tpl) return;
+        if (linkInput) linkInput.value = tpl.meeting_link || '';
+        if (notesArea)  notesArea.value = tpl.notes || '';
+    }
+
+    function toggleSaveTemplateFields() {
+        const checked = !!document.getElementById('saveAsTemplateCheckbox')?.checked;
+        const fields  = document.getElementById('saveTemplateFields');
+        if (fields) fields.classList.toggle('hidden', !checked);
+    }
+
+    async function saveMeetingTemplateIfRequested(link, notes) {
+        const checkbox = document.getElementById('saveAsTemplateCheckbox');
+        if (!checkbox?.checked) return;
+
+        const name = document.getElementById('templateNameInput')?.value?.trim();
+        if (!name) return;
+
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/meeting-templates`, {
+                method: 'POST',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({ name, meeting_link: link, notes }),
             });
             const data = await res.json();
-            if (!data.success) { showNotification(data.message || 'Failed to remove member.', 'error'); return; }
-            renderMembers(data.data);
-            showNotification('Member removed.', 'success');
+            if (data.success) {
+                showNotification('Template "' + name + '" saved.', 'success');
+            } else {
+                showNotification(data.message || 'Failed to save template', 'error');
+            }
         } catch {
-            showNotification('Error removing member.', 'error');
+            showNotification('Meeting sent, but the template failed to save (network)', 'error');
+        }
+    }
+
+    async function deleteMeetingTemplate(id) {
+        if (!await showConfirm('Delete this template?', 'Delete Template', 'danger')) return;
+        try {
+            const res  = await fetch(`/api/tickets/${ticketId}/meeting-templates/${id}/delete`, { method: 'POST', headers: getHeaders(), credentials: 'same-origin' });
+            const data = await res.json();
+            if (data.success) {
+                loadMeetingTemplates();
+            } else {
+                showNotification(data.message || 'Failed to delete template', 'error');
+            }
+        } catch {
+            showNotification('A network error occurred', 'error');
+        }
+    }
+
+    // Payload meeting yang sedang direview di confirmMeetingModal — diisi oleh
+    // confirmMeeting(), dipakai ulang oleh finalizeMeetingSend() supaya tidak perlu
+    // membaca ulang form (yang sudah tersembunyi saat modal review terbuka).
+    let _pendingMeetingPayload = null;
+
+    function confirmMeeting() {
+        const notes     = document.getElementById('meetingNotes')?.value?.trim() || null;
+        const link      = document.getElementById('meetingLink')?.value?.trim() || null;
+        const startDate = document.getElementById('meetingStartDate')?.value || null;
+        const startH    = document.getElementById('meetingStartHour')?.value || null;
+        const endDate   = document.getElementById('meetingEndDate')?.value || null;
+        const endH      = document.getElementById('meetingEndHour')?.value || null;
+        const startTime = startDate && startH ? `${startDate}T${startH}` : null;
+        const endTime   = endDate   && endH   ? `${endDate}T${endH}`     : null;
+
+        if (!startTime || !endTime) {
+            showNotification('Meeting start and end time are required', 'error');
+            return;
+        }
+        if (new Date(endTime) <= new Date(startTime)) {
+            showNotification('Meeting end time must be after the start time', 'error');
+            return;
+        }
+
+        // Commit sisa teks yang belum di-Enter di kolom To/CC sebelum direview
+        commitMeetingRecipientInput('to');
+        commitMeetingRecipientInput('cc');
+
+        if (!meetingToEmails.length && !meetingCcEmails.length) {
+            showNotification('Add at least one recipient (To or CC) before sending the invitation', 'error');
+            return;
+        }
+
+        _pendingMeetingPayload = {
+            notes, meeting_link: link, meeting_start_time: startTime, meeting_end_time: endTime,
+            to_emails: meetingToEmails.slice(), cc_emails: meetingCcEmails.slice(),
+        };
+
+        openConfirmMeetingModal(_pendingMeetingPayload);
+    }
+
+    function openConfirmMeetingModal(payload) {
+        const fmt = (iso) => {
+            if (!iso) return '-';
+            const d = new Date(iso);
+            return isNaN(d) ? iso : d.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+        };
+
+        document.getElementById('confirmMeetingTo').textContent    = payload.to_emails.length ? payload.to_emails.join(', ') : '-';
+        document.getElementById('confirmMeetingCc').textContent    = payload.cc_emails.length ? payload.cc_emails.join(', ') : '-';
+        document.getElementById('confirmMeetingStart').textContent = fmt(payload.meeting_start_time);
+        document.getElementById('confirmMeetingEnd').textContent   = fmt(payload.meeting_end_time);
+        document.getElementById('confirmMeetingLink').textContent  = payload.meeting_link || '-';
+        document.getElementById('confirmMeetingNotes').textContent = payload.notes || '(no notes)';
+
+        document.getElementById('confirmMeetingModal').classList.remove('hidden');
+    }
+
+    function closeConfirmMeetingModal() {
+        document.getElementById('confirmMeetingModal').classList.add('hidden');
+    }
+
+    document.getElementById('confirmMeetingModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeConfirmMeetingModal();
+    });
+
+    async function finalizeMeetingSend() {
+        const payload = _pendingMeetingPayload;
+        if (!payload) return;
+
+        const sendBtn = document.getElementById('confirmMeetingSendBtn');
+        const btn     = document.getElementById('meetingConfirmBtn');
+        if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
+
+        try {
+            const res  = await fetch(`/api/tickets/${ticketId}/sla/meeting/start`, {
+                method: 'POST',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                closeConfirmMeetingModal();
+                closeMeetingPanel();
+                showNotification(data.message, 'success');
+                await saveMeetingTemplateIfRequested(payload.meeting_link, payload.notes);
+                try { await loadMessages(); } catch (_) {}
+            } else {
+                showNotification(data.message || 'Failed', 'error');
+            }
+        } catch {
+            showNotification('A network error occurred', 'error');
+        } finally {
+            if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send Invitation'; }
+            if (btn)     { btn.disabled = false; }
+            _pendingMeetingPayload = null;
         }
     }
 
@@ -2992,13 +6316,12 @@
     }
 
     async function saveAllProperties() {
-        const status       = document.getElementById('detailStatus').value;
-        const jarviesStatus = document.getElementById('detailJarviesStatus').value;
-        const priority     = document.getElementById('detailPriority').value;
-        const scale        = document.getElementById('detailScale').value;
-        const type         = document.getElementById('detailType').value;
+        const status   = document.getElementById('detailStatus').value;
+        const priority = document.getElementById('detailPriority').value;
+        const scale    = document.getElementById('detailScale').value;
+        const type     = document.getElementById('detailType').value;
         try {
-            const [, updateRes] = await Promise.all([
+            const [statusRes, updateRes] = await Promise.all([
                 fetch(`/api/tickets/${ticketId}/update-status`, {
                     method: 'PUT',
                     headers: getHeaders(),
@@ -3010,7 +6333,6 @@
                     headers: getHeaders(),
                     credentials: 'same-origin',
                     body: JSON.stringify({
-                        jarvies_status: jarviesStatus,
                         ticket_priority: priority,
                         scale: scale || null,
                         ticket_type: type || null,
@@ -3038,11 +6360,11 @@
                 method: 'PUT',
                 headers: getHeaders(),
                 credentials: 'same-origin',
-                body: JSON.stringify({ employee_id: {{ $user->id ?? 'null' }} }),
+                body: JSON.stringify({ ticket_lead_id: {{ $user->id ?? 'null' }} }),
             });
             const result = await response.json();
             if (result.success) {
-                showNotification('Ticket taken! You are now the PIC.', 'success');
+                showNotification('Ticket taken! You are now the Ticket Lead.', 'success');
                 setTimeout(() => location.reload(), 800);
             } else {
                 showNotification(result.message || 'Failed to take ticket.', 'error');
@@ -3054,86 +6376,151 @@
         }
     }
 
-    // ==================== ASSIGN PIC MODAL ====================
-    let assignPicList = [];
+    // ==================== PIC (IN CHARGE) ====================
+    function onPicDropdownChange() {
+        const val = document.getElementById('picSelectHidden')?.value;
+        if (val) updatePic(val);
+    }
 
-    async function openAssignPicModal() {
-        document.getElementById('assignPicModal').classList.remove('hidden');
-        document.getElementById('assignPicModal').classList.add('flex');
-        document.getElementById('assignPicSearch').value = '';
-        document.getElementById('assignPicSelectedId').value = '';
-        document.getElementById('assignPicSelectedName').classList.add('hidden');
-        document.getElementById('assignPicDropdown').classList.add('hidden');
+    async function updatePic(picName) {
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/pic`, {
+                method: 'PATCH',
+                headers: getHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({ pic: picName }),
+            });
+            const result = await res.json();
+            if (result.success) {
+                showNotification('PIC updated', 'success');
+            } else {
+                showNotification(result.message || 'Failed to update PIC', 'error');
+            }
+        } catch (e) {
+            showNotification('Error: ' + e.message, 'error');
+        }
+    }
 
-        if (assignPicList.length === 0) {
+    // ==================== ADDITIONAL INFO SAVE ====================
+    async function saveAdditionalInfo() {
+        const btn = document.getElementById('additionalInfoSaveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        try {
+            // POST alias (/update) dipakai karena server memblokir method PUT/DELETE
+            const res = await fetch(`/api/tickets/${ticketId}/update`, {
+                method: 'POST',
+                headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    name:       document.getElementById('additionalInfoName').value.trim()   || null,
+                    no_hp:      document.getElementById('additionalInfoNoHp').value.trim()   || null,
+                    module_ids: (document.getElementById('additionalInfoModuleIds').value || '').split(',').filter(Boolean).map(Number),
+                    client:     document.getElementById('additionalInfoClient').value.trim() || null,
+                }),
+            });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Failed to save');
+            showNotification('Additional info saved', 'success');
+        } catch (e) {
+            showNotification(e.message || 'Error saving additional info', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save';
+        }
+    }
+
+    // ==================== ASSIGN TICKET LEAD MODAL ====================
+    let assignTicketLeadList = [];
+
+    async function openAssignTicketLeadModal() {
+        document.getElementById('assignTicketLeadModal').classList.remove('hidden');
+        document.getElementById('assignTicketLeadModal').classList.add('flex');
+        document.getElementById('assignTicketLeadDropdown').classList.add('hidden');
+
+        // Pre-fill dengan Ticket Lead saat ini
+        if (currentTicketLeadId && currentTicketLeadName) {
+            document.getElementById('assignTicketLeadSearch').value = currentTicketLeadName;
+            document.getElementById('assignTicketLeadSelectedId').value = currentTicketLeadId;
+            const label = document.getElementById('assignTicketLeadSelectedName');
+            label.textContent = '✓ ' + currentTicketLeadName + ' selected';
+            label.classList.remove('hidden');
+        } else {
+            document.getElementById('assignTicketLeadSearch').value = '';
+            document.getElementById('assignTicketLeadSelectedId').value = '';
+            document.getElementById('assignTicketLeadSelectedName').classList.add('hidden');
+        }
+
+        if (assignTicketLeadList.length === 0) {
             try {
-                const res  = await fetch('/api/tickets/available-pics', { headers: getHeaders(), credentials: 'same-origin' });
+                const res  = await fetch(`/api/tickets/available-ticket-leads?ticket_id=${ticketId}`, { headers: getHeaders(), credentials: 'same-origin' });
                 const data = await res.json();
-                assignPicList = data.data || [];
+                assignTicketLeadList = data.data || [];
             } catch (e) {
                 showNotification('Failed to load consultant list', 'error');
             }
         }
-        renderAssignPicDropdown(assignPicList);
+        // Defer agar render terjadi setelah event bubble click selesai
+        setTimeout(() => renderAssignTicketLeadDropdown(assignTicketLeadList), 0);
     }
 
-    function closeAssignPicModal() {
-        document.getElementById('assignPicModal').classList.add('hidden');
-        document.getElementById('assignPicModal').classList.remove('flex');
+    function closeAssignTicketLeadModal() {
+        document.getElementById('assignTicketLeadModal').classList.add('hidden');
+        document.getElementById('assignTicketLeadModal').classList.remove('flex');
     }
 
-    function filterAssignPicList() {
-        const q = document.getElementById('assignPicSearch').value.trim().toLowerCase();
-        const filtered = q ? assignPicList.filter(p => p.name.toLowerCase().includes(q)) : assignPicList;
-        renderAssignPicDropdown(filtered);
-        document.getElementById('assignPicDropdown').classList.remove('hidden');
-        document.getElementById('assignPicSelectedId').value = '';
-        document.getElementById('assignPicSelectedName').classList.add('hidden');
+    function filterAssignTicketLeadList() {
+        const q = document.getElementById('assignTicketLeadSearch').value.trim().toLowerCase();
+        const filtered = q ? assignTicketLeadList.filter(p => p.name.toLowerCase().includes(q)) : assignTicketLeadList;
+        renderAssignTicketLeadDropdown(filtered);
+        document.getElementById('assignTicketLeadDropdown').classList.remove('hidden');
+        document.getElementById('assignTicketLeadSelectedId').value = '';
+        document.getElementById('assignTicketLeadSelectedName').classList.add('hidden');
     }
 
-    function renderAssignPicDropdown(list) {
-        const dd = document.getElementById('assignPicDropdown');
+    function renderAssignTicketLeadDropdown(list) {
+        const dd = document.getElementById('assignTicketLeadDropdown');
         if (!list.length) {
             dd.innerHTML = '<div class="px-3 py-2 text-gray-400 italic">No consultant found</div>';
         } else {
             dd.innerHTML = list.map(p =>
-                `<div class="px-3 py-2 hover:bg-red-50 cursor-pointer text-gray-700" onclick="selectAssignPic(${p.employee_id}, '${p.name.replace(/'/g, "\\'")}')">${p.name}</div>`
+                `<div class="px-3 py-2 hover:bg-red-50 cursor-pointer text-gray-700" onclick="selectAssignTicketLead(${p.employee_id}, '${p.name.replace(/'/g, "\\'")}')">${p.name}</div>`
             ).join('');
         }
         dd.classList.remove('hidden');
     }
 
-    function selectAssignPic(id, name) {
-        document.getElementById('assignPicSelectedId').value = id;
-        document.getElementById('assignPicSearch').value = name;
-        document.getElementById('assignPicDropdown').classList.add('hidden');
-        const label = document.getElementById('assignPicSelectedName');
+    function selectAssignTicketLead(id, name) {
+        document.getElementById('assignTicketLeadSelectedId').value = id;
+        document.getElementById('assignTicketLeadSearch').value = name;
+        document.getElementById('assignTicketLeadDropdown').classList.add('hidden');
+        const label = document.getElementById('assignTicketLeadSelectedName');
         label.textContent = '✓ ' + name + ' selected';
         label.classList.remove('hidden');
     }
 
-    async function submitAssignPic() {
-        const empId = document.getElementById('assignPicSelectedId').value;
+    async function submitAssignTicketLead() {
+        const empId = document.getElementById('assignTicketLeadSelectedId').value;
         if (!empId) { showNotification('Please select a consultant', 'warning'); return; }
 
-        const btn = document.getElementById('assignPicBtn');
+        const btn = document.getElementById('assignTicketLeadBtn');
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Assigning...';
 
         try {
-            const res    = await fetch(`/api/tickets/${ticketId}/assign-pic`, {
+            const res    = await fetch(`/api/tickets/${ticketId}/assign-ticket-lead`, {
                 method: 'POST',
                 headers: getHeaders(),
                 credentials: 'same-origin',
-                body: JSON.stringify({ employee_id: empId }),
+                body: JSON.stringify({ ticket_lead_id: empId }),
             });
             const result = await res.json();
             if (result.success) {
-                showNotification('PIC assigned successfully!', 'success');
-                closeAssignPicModal();
+                showNotification('Ticket Lead assigned successfully!', 'success');
+                closeAssignTicketLeadModal();
                 setTimeout(() => location.reload(), 800);
             } else {
-                showNotification(result.message || 'Failed to assign PIC', 'error');
+                showNotification(result.message || 'Failed to assign Ticket Lead', 'error');
                 btn.disabled = false;
                 btn.innerHTML = 'Assign';
             }
@@ -3144,19 +6531,68 @@
         }
     }
 
-    // Close dropdown on outside click
+    // Close dropdown on outside click (kecuali klik di dalam modal atau di search field)
     document.addEventListener('click', function(e) {
-        const dd = document.getElementById('assignPicDropdown');
-        if (dd && !dd.contains(e.target) && e.target.id !== 'assignPicSearch') {
-            dd.classList.add('hidden');
-        }
+        const dd    = document.getElementById('assignTicketLeadDropdown');
+        const modal = document.getElementById('assignTicketLeadModal');
+        if (!dd || dd.classList.contains('hidden')) return;
+        if (dd.contains(e.target)) return;
+        if (e.target.id === 'assignTicketLeadSearch') return;
+        if (modal && modal.querySelector('.bg-white')?.contains(e.target)) return;
+        dd.classList.add('hidden');
     });
 
-    async function deleteTicket() {
-        if (!confirm('Are you sure you want to delete this ticket?')) return;
+    async function hideTicket() {
+        if (!await showConfirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.', 'Hide Ticket', 'danger')) return;
         try {
-            const response = await fetch(`/api/tickets/${ticketId}`, {
-                method: 'DELETE',
+            const res = await fetch(`/api/tickets/${ticketId}/hide`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Tiket berhasil disembunyikan.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                showNotification(data.message || 'Gagal menyembunyikan tiket.', 'error');
+            }
+        } catch (e) {
+            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+        }
+    }
+
+    async function unhideTicket() {
+        if (!await showConfirm('Tampilkan kembali tiket ini? Tiket akan muncul di daftar utama.', 'Unhide Ticket', 'primary')) return;
+        try {
+            const res = await fetch(`/api/tickets/${ticketId}/unhide`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Tiket berhasil ditampilkan kembali.', 'success');
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                showNotification(data.message || 'Gagal menampilkan tiket.', 'error');
+            }
+        } catch (e) {
+            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+        }
+    }
+
+    async function deleteTicket() {
+        if (!await showConfirm('Are you sure you want to delete this ticket?', 'Delete Ticket', 'danger')) return;
+        try {
+            const response = await fetch(`/api/tickets/${ticketId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json', 'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -3235,16 +6671,14 @@
         const select = document.getElementById('deliverySupportSelect');
         if (!select) return;
 
-        // Gunakan cache jika sudah pernah di-fetch
-        if (deliverySupportList.length > 0) {
-            populateDeliverySupportSelect(select);
-            return;
-        }
-
         select.innerHTML = '<option value="">Loading...</option>';
 
         try {
-            const response = await fetch('/api/delivery/support/search', {
+            const url = ticketCustomerId
+                ? `/api/delivery/support/search?client_id=${ticketCustomerId}`
+                : '/api/delivery/support/search';
+
+            const response = await fetch(url, {
                 headers: getHeaders(),
                 credentials: 'same-origin'
             });
@@ -3254,7 +6688,7 @@
             if (data.success && data.data) {
                 deliverySupportList = data.data;
                 if (data.data.length === 0) {
-                    select.innerHTML = '<option value="">No delivery support found</option>';
+                    select.innerHTML = '<option value="">No delivery support found for this customer</option>';
                     return;
                 }
                 populateDeliverySupportSelect(select);
@@ -3290,6 +6724,7 @@
 
             if (data.success) {
                 showNotification('Ticket assigned to delivery support successfully!', 'success');
+                assignedDsId = Number(supportId);
                 closeAssignSupportModal();
                 if (data.data?.support_name) updateDsBadges(data.data.support_id || supportId, data.data.support_name, data.data.support_type ?? null);
                 showAssignSuccessModal(`/delivery/support/${supportId}`);
@@ -3309,16 +6744,18 @@
         const svgPath = `M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z`;
         const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="${svgPath}" /></svg>`;
 
-        // 1. Top headbar badge
+        // 1. Top headbar badge — sisipkan ke baris badge (stack di bawah nomor+deskripsi)
         const existing = document.getElementById('headbarTopDsBadge');
         if (existing) existing.remove();
-        const subtitleEl = document.querySelector('.text-xs.text-gray-500');
-        if (subtitleEl) {
+        const badgeRow = document.getElementById('headbarBadgeRow')
+            || document.querySelector('.text-xs.text-gray-500');
+        if (badgeRow) {
             const badge = document.createElement('span');
             badge.id = 'headbarTopDsBadge';
-            badge.className = 'inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 align-middle';
+            badge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 align-middle';
             badge.innerHTML = `${svgIcon}DS: ${dsName}${typeHtml}`;
-            subtitleEl.appendChild(badge);
+            // Taruh badge DS di depan (sebelum badge manager/admin bila ada)
+            badgeRow.insertBefore(badge, badgeRow.firstChild);
         }
 
         // 2. Properties panel
@@ -3499,7 +6936,7 @@
             // Load modules dari kualifikasi employee
             const modRes  = await fetch(MANDAYS_API('modules'), { headers: getHeaders(), credentials: 'same-origin' });
             const modData = await modRes.json();
-            picMandaysModules = modData.data || [];
+            picMandaysModules = (modData.data || []).map(m => m.name ?? m);
             picRenderMatrix({});
         } catch (e) {
             console.error(e);
@@ -3521,6 +6958,7 @@
         document.getElementById('mandaysVersionDetailModal').classList.add('flex');
         document.getElementById('mvdLoading').classList.remove('hidden');
         document.getElementById('mvdContent').classList.add('hidden');
+        document.getElementById('mvdCancelConfirmWrap')?.classList.add('hidden');
 
         try {
             const res  = await fetch(MANDAYS_API(`version/${mandaysId}`), { headers: getHeaders(), credentials: 'same-origin' });
@@ -3592,7 +7030,7 @@
         let footHtml = '<tr class="bg-gray-50 font-bold"><td class="px-2 py-1.5 border border-gray-200 text-xs">Total</td>';
         modules.forEach(m => {
             const colTotal = Object.values(detailMap).reduce((s, row) => s + (parseFloat(row[m]) || 0), 0);
-            footHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs text-center">${colTotal > 0 ? colTotal.toFixed(1) : '—'}</td>`;
+            footHtml += `<td class="px-2 py-1.5 border border-gray-200 text-xs text-center">${colTotal > 0 ? colTotal.toFixed(2) : '—'}</td>`;
         });
         footHtml += '</tr>';
         document.getElementById('mvdTableFoot').innerHTML = footHtml;
@@ -3605,7 +7043,51 @@
         const btnHd = document.getElementById('mvdBtnHdReview');
         if (btnHd) btnHd.classList.toggle('hidden', !['pending_helpdesk', 'sent_to_chat'].includes(p.status));
 
+        // Cancel this specific version — a non-latest (superseded) version is always
+        // already 'approved', so both cases need the same permission check here.
+        const btnCancel = document.getElementById('mvdBtnCancel');
+        if (btnCancel) {
+            const cancelableStatuses = ['pending_helpdesk', 'sent_to_chat', 'approved'];
+            const needsApprovedPerm  = p.status === 'approved';
+            const canCancel = HD_CAN_CANCEL && cancelableStatuses.includes(p.status) && (!needsApprovedPerm || HD_CAN_CANCEL_APPROVED);
+            btnCancel.classList.toggle('hidden', !canCancel);
+        }
+
         document.getElementById('mvdContent').classList.remove('hidden');
+    }
+
+    function mvdShowCancelConfirm() {
+        const wrap = document.getElementById('mvdCancelConfirmWrap');
+        if (!wrap) return;
+        document.getElementById('mvdCancelNotes').value = '';
+        wrap.classList.remove('hidden');
+        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function mvdCancelAbort() {
+        document.getElementById('mvdCancelConfirmWrap')?.classList.add('hidden');
+    }
+
+    async function mvdCancelConfirm() {
+        if (!mandaysCurrentVersionId) return;
+        const notes = document.getElementById('mvdCancelNotes')?.value.trim() || null;
+
+        try {
+            const res = await fetch(MANDAYS_API('hd-draft/cancel'), {
+                method: 'POST', headers: getHeaders(), credentials: 'same-origin',
+                body: JSON.stringify({ mandays_id: mandaysCurrentVersionId, cancel_notes: notes }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Proposal version canceled.', 'success');
+                closeMandaysVersionDetail();
+                await loadMandaysVersionList();
+            } else {
+                showNotification(data.message || 'Failed to cancel', 'error');
+            }
+        } catch (e) {
+            showNotification('Error: ' + e.message, 'error');
+        }
     }
 
     function mvdOpenEditDraft() {
@@ -3711,7 +7193,7 @@
 
             // Kolom hanya dari qualification member ticket
             // Jika belum diisi di master data, PIC tambah manual via "+ Column"
-            picMandaysModules = modData.data || [];
+            picMandaysModules = (modData.data || []).map(m => m.name ?? m);
 
             picRenderMatrix(valueMap);
         } catch (e) {
@@ -3780,6 +7262,8 @@
         document.getElementById('picAddRowWrap').classList.toggle('hidden', picReadOnly);
         document.getElementById('picBtnSaveDraft').classList.toggle('hidden', picReadOnly);
         document.getElementById('picBtnSubmit').classList.toggle('hidden', picReadOnly);
+        // Delete only makes sense for an already-saved draft (not a brand-new unsaved version)
+        document.getElementById('picBtnDeleteDraft').classList.toggle('hidden', picReadOnly || !picDraftData || picDraftData?.status !== 'draft');
 
         picUpdateTotal();
     }
@@ -3793,10 +7277,10 @@
             colTotals[m] = (colTotals[m] || 0) + v;
             grand += v;
         });
-        document.getElementById('picTotalDisplay').textContent = grand.toFixed(1);
+        document.getElementById('picTotalDisplay').textContent = grand.toFixed(2);
         Object.entries(colTotals).forEach(([m, t]) => {
             const el = document.getElementById(`picColTotal_${m}`);
-            if (el) el.textContent = t.toFixed(1);
+            if (el) el.textContent = t.toFixed(2);
         });
     }
 
@@ -3863,12 +7347,23 @@
     }
 
     async function picSaveDraft() {
+        const payload = picGetPayload();
+        const desc = (document.getElementById('picMandaysDescription')?.value || '').trim();
+        if (!desc) {
+            showNotification('Proposal Title wajib diisi.', 'warning');
+            document.getElementById('picMandaysDescription')?.focus();
+            return;
+        }
+        if (payload.details.length === 0) {
+            showNotification('Isi minimal satu nilai mandays sebelum menyimpan.', 'warning');
+            return;
+        }
         const btn = document.getElementById('picBtnSaveDraft');
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
             const res = await fetch(MANDAYS_API('pic-draft'), {
                 method: 'POST', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify(picGetPayload()),
+                body: JSON.stringify(payload),
             });
             const data = await res.json();
             if (data.success) {
@@ -3933,6 +7428,27 @@
         finally { btn.disabled = false; btn.textContent = 'Submit to Helpdesk'; }
     }
 
+    async function picDeleteDraft() {
+        if (!picDraftData || picDraftData.status !== 'draft') return;
+        if (!await showConfirm('Delete this draft? This cannot be undone.', 'Delete Draft', 'danger')) return;
+        const btn = document.getElementById('picBtnDeleteDraft');
+        btn.disabled = true; btn.textContent = 'Deleting...';
+        try {
+            const res = await fetch(MANDAYS_API('pic-draft'), {
+                method: 'DELETE', headers: getHeaders(), credentials: 'same-origin',
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Draft deleted.', 'success');
+                picMandaysUpdateSidebarBadge(data.ticket_mandays_status);
+                closePicMandaysModal();
+            } else {
+                showNotification(data.message || 'Failed to delete', 'error');
+            }
+        } catch(e) { showNotification('Error: ' + e.message, 'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Delete Draft'; }
+    }
+
     function picMandaysUpdateSidebarBadge(status) {
         const badges = {
             'none':             ['bg-gray-100 text-gray-500',   'None'],
@@ -3976,8 +7492,20 @@
             resolutionPicData    = data.data;
             resolutionPicPeople  = data.people || [];
             const status       = data.resolution_days_status || 'none';
+            const customerMandaysStatus = data.customer_mandays_status || 'none';
 
             resolutionPicReadOnly = false; // consultant can always edit
+
+            // On Change Request tickets only: submitting to Head requires the Customer
+            // Mandays proposal to already be approved by Helpdesk — drafting/saving
+            // Resolution Days itself stays unrestricted. Other ticket types keep the
+            // original unrestricted submit flow.
+            const isChangeRequestTicket = document.getElementById('detailType')?.value === 'Change Request';
+            const submitBtn = document.getElementById('resolutionBtnSubmit');
+            const gateNote  = document.getElementById('resolutionSubmitGateNote');
+            const canSubmit = !isChangeRequestTicket || customerMandaysStatus === 'approved';
+            submitBtn.disabled = !canSubmit;
+            gateNote.classList.toggle('hidden', canSubmit);
 
             document.getElementById('resolutionNotes').value = resolutionPicData?.notes || '';
             document.getElementById('resolutionNotes').readOnly = false;
@@ -4007,13 +7535,14 @@
             (resolutionPicData?.details || []).forEach(d => {
                 valueMap[d.employee_id] = {
                     mandays:             (valueMap[d.employee_id]?.mandays || 0) + d.mandays,
+                    approved_mandays:    (valueMap[d.employee_id]?.approved_mandays || 0) + (d.approved_mandays || 0),
                     additional_mandays:  (valueMap[d.employee_id]?.additional_mandays || 0) + (d.additional_mandays || 0),
                     approved_additional: (valueMap[d.employee_id]?.approved_additional || 0) + (d.approved_additional || 0),
                     notes:               d.notes || valueMap[d.employee_id]?.notes || '',
                 };
             });
 
-            resolutionPicRenderRows(valueMap);
+            resolutionPicRenderRows(valueMap, status);
         } catch(e) {
             console.error(e);
             showNotification('Failed to load resolution days', 'error');
@@ -4022,16 +7551,24 @@
         }
     }
 
-    function resolutionPicRenderRows(valueMap) {
+    function resolutionPicRenderRows(valueMap, status) {
         let html = '';
         resolutionPicPeople.forEach(person => {
             const existing = valueMap[person.employee_id] || {};
             const md  = existing.mandays || 0;
             const add = existing.additional_mandays || 0;
+            const apprDays = existing.approved_mandays || 0;
             const appAdd = existing.approved_additional || 0;
-            const totalMd = md + appAdd;
+            // Inputs always show what was proposed (md/add), unchanged — so the consultant
+            // can see exactly what they asked for. But while the proposal is still approved
+            // as-is (not yet re-edited), the Total shown reflects what Head actually approved
+            // (approved_mandays + approved_additional), not the raw proposed amount — so the
+            // consultant can see what was NOT approved. Once they start typing a revision,
+            // resolutionUpdateRowTotal() takes over and previews the new draft instead.
+            const totalMd = status === 'approved' ? (apprDays + appAdd) : (md + appAdd);
             const mdVal  = md  > 0 ? md  : '';
             const addVal = add > 0 ? add : '';
+            const apprDaysDisplay = apprDays > 0 ? apprDays.toFixed(1) : '—';
             const apprAddDisplay = appAdd > 0 ? appAdd.toFixed(1) : '—';
             html += `<tr>
                 <td class="px-3 py-2 border border-gray-200 font-medium text-gray-700">${person.name}</td>
@@ -4054,6 +7591,7 @@
                         placeholder="notes..."
                         oninput="internalClearNoteHighlight(this)">
                 </td>
+                <td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50 text-gray-500" data-emp-apprdays="${person.employee_id}">${apprDaysDisplay}</td>
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center bg-gray-50 text-gray-500" data-emp-appr="${person.employee_id}">${apprAddDisplay}</td>
                 <td class="px-2 py-1.5 border border-gray-200 text-xs text-center font-semibold bg-gray-50" data-emp-total="${person.employee_id}">${totalMd > 0 ? totalMd.toFixed(1) : '—'}</td>
             </tr>`;
@@ -4085,6 +7623,16 @@
         document.getElementById('resolutionTotalDisplay').textContent = total.toFixed(1);
         const footer = document.getElementById('resolutionFooterTotal');
         if (footer) footer.textContent = total.toFixed(1);
+
+        let days = 0, add = 0, apprDays = 0, apprAdd = 0;
+        document.querySelectorAll('.internal-md-cell').forEach(inp => { days += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('.internal-add-cell').forEach(inp => { add += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('[data-emp-apprdays]').forEach(cell => { apprDays += parseFloat(cell.textContent) || 0; });
+        document.querySelectorAll('[data-emp-appr]').forEach(cell => { apprAdd += parseFloat(cell.textContent) || 0; });
+        document.getElementById('resFooterDays').textContent        = days.toFixed(1);
+        document.getElementById('resFooterAdd').textContent         = add.toFixed(1);
+        document.getElementById('resFooterApprovedDays').textContent = apprDays.toFixed(1);
+        document.getElementById('resFooterApprAdd').textContent     = apprAdd.toFixed(1);
     }
 
     function resolutionPicGetPayload() {
@@ -4219,6 +7767,15 @@
 
 
     // ==================== HELPDESK: CUSTOMER MANDAYS REVIEW ====================
+    const HD_CAN_EDIT_ACTIVITY   = {{ ($hdCanEditActivity   ?? false) ? 'true' : 'false' }};
+    const HD_CAN_EDIT_DESC       = {{ ($hdCanEditDesc       ?? false) ? 'true' : 'false' }};
+    const HD_CAN_EDIT_NOTES      = {{ ($hdCanEditNotes      ?? false) ? 'true' : 'false' }};
+    const HD_CAN_SAVE_DRAFT      = {{ ($hdCanSaveDraft      ?? false) ? 'true' : 'false' }};
+    const HD_CAN_SEND_TO_CUSTOMER= {{ ($hdCanSendToCustomer ?? false) ? 'true' : 'false' }};
+    const HD_CAN_APPROVE         = {{ ($hdCanApprove        ?? false) ? 'true' : 'false' }};
+    const HD_CAN_CANCEL          = {{ ($hdCanCancel         ?? false) ? 'true' : 'false' }};
+    const HD_CAN_CANCEL_APPROVED = {{ ($hdCanCancelApproved ?? false) ? 'true' : 'false' }};
+
     async function openHdMandaysModal() {
         const modal = document.getElementById('hdMandaysModal');
         if (!modal) { console.warn('[hdMandays] modal element not found'); return; }
@@ -4238,7 +7795,7 @@
             }
             const modData   = await modRes.json();
             const draftData = await draftRes.json();
-            const modules   = modData.data || [];
+            const modules   = (modData.data || []).map(m => m.name ?? m);
             const proposal  = draftData.data;
             const status    = draftData.ticket_mandays_status || 'none';
 
@@ -4321,14 +7878,33 @@
 
             // Table is editable only when Helpdesk can still make changes
             const isEditable = isPicSubmitted || isCustomerRejected;
+
+            // Populate description/notes edit fields if editable & permitted
+            const metaWrap = document.getElementById('hdMetaFieldsWrap');
+            if (metaWrap) {
+                if (isEditable) {
+                    metaWrap.classList.remove('hidden');
+                    const descEl = document.getElementById('hdDescriptionInput');
+                    if (descEl) descEl.value = proposal.description || '';
+                    const notesEl = document.getElementById('hdProposalNotesInput');
+                    if (notesEl) notesEl.value = proposal.proposal_notes || '';
+                } else {
+                    metaWrap.classList.add('hidden');
+                }
+            }
+
+            const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             let bodyHtml = '';
             activities.forEach(act => {
-                bodyHtml += `<tr><td class="px-2 py-1.5 border border-gray-200 text-xs font-medium">${act}</td>`;
+                const actCell = (isEditable && HD_CAN_EDIT_ACTIVITY)
+                    ? `<input type="text" class="hd-activity-input w-full px-2 py-1.5 text-xs border-0 focus:outline-none focus:bg-gray-50 bg-white font-medium" value="${escAttr(act)}" placeholder="Activity...">`
+                    : `<span class="px-2 py-1.5 block text-xs font-medium">${escAttr(act)}</span>`;
+                bodyHtml += `<tr><td class="border border-gray-200 p-0">${actCell}</td>`;
                 mods.forEach(m => {
                     const val = valueMap[act]?.[m] || '';
                     bodyHtml += `<td class="border border-gray-200 p-0">
                         <input type="number" min="0" step="0.5" class="hd-cell w-full px-2 py-1.5 text-xs text-center focus:outline-none ${isEditable?'focus:bg-gray-100 bg-white':'bg-gray-50 cursor-not-allowed'}"
-                        data-activity="${act}" data-module="${m}" value="${val}" ${isEditable?'':'readonly'} oninput="hdUpdateTotal()">
+                        data-activity="${escAttr(act)}" data-module="${escAttr(m)}" value="${val}" ${isEditable?'':'readonly'} oninput="hdUpdateTotal()">
                     </td>`;
                 });
                 bodyHtml += '</tr>';
@@ -4345,23 +7921,23 @@
                 document.getElementById(id)?.classList.add('hidden');
             });
             if (isPicSubmitted) {
-                document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
-                document.getElementById('hdBtnSendToChat')?.classList.remove('hidden');
-                document.getElementById('hdBtnCancel')?.classList.remove('hidden');
-                // Show info banner: must send to chat before approving
+                if (HD_CAN_SAVE_DRAFT)       document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
+                if (HD_CAN_SEND_TO_CUSTOMER) document.getElementById('hdBtnSendToChat')?.classList.remove('hidden');
+                if (HD_CAN_APPROVE)          document.getElementById('hdBtnApprove')?.classList.remove('hidden');
+                if (HD_CAN_CANCEL)           document.getElementById('hdBtnCancel')?.classList.remove('hidden');
+                // Sending to chat is optional here, not required — approve/cancel work directly.
                 banner.innerHTML = `<i class="fas fa-info-circle text-blue-500 text-sm mt-0.5 flex-shrink-0"></i>
-                    <div><p class="font-semibold text-blue-800">Send to Customer First</p>
-                    <p class="text-xs font-normal text-blue-700 mt-0.5">You must send this proposal to the customer chat before it can be approved.</p></div>`;
+                    <div><p class="font-semibold text-blue-800">Awaiting Review</p>
+                    <p class="text-xs font-normal text-blue-700 mt-0.5">You can approve or cancel this proposal directly, or send it to the customer chat first if you'd like their confirmation.</p></div>`;
                 banner.classList.remove('hidden');
                 banner.classList.add('flex', 'bg-blue-50', 'border', 'border-blue-200', 'text-blue-800');
             } else if (isCustomerRejected) {
-                document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
-                document.getElementById('hdBtnReviseResend')?.classList.remove('hidden');
-                document.getElementById('hdBtnCancel')?.classList.remove('hidden');
+                if (HD_CAN_SAVE_DRAFT)       document.getElementById('hdBtnSaveDraft')?.classList.remove('hidden');
+                if (HD_CAN_SEND_TO_CUSTOMER) document.getElementById('hdBtnReviseResend')?.classList.remove('hidden');
+                if (HD_CAN_CANCEL)           document.getElementById('hdBtnCancel')?.classList.remove('hidden');
             } else if (isSentToChat) {
-                // Helpdesk approve setelah baca chat dari customer
-                document.getElementById('hdBtnApprove')?.classList.remove('hidden');
-                document.getElementById('hdBtnCancel')?.classList.remove('hidden');
+                if (HD_CAN_APPROVE) document.getElementById('hdBtnApprove')?.classList.remove('hidden');
+                if (HD_CAN_CANCEL)  document.getElementById('hdBtnCancel')?.classList.remove('hidden');
             } else if (isCanceled) {
                 document.getElementById('hdBtnNewProposal')?.classList.remove('hidden');
             }
@@ -4397,10 +7973,10 @@
         });
         Object.entries(colTotals).forEach(([m, t]) => {
             const el = document.getElementById(`hdColTotal_${m}`);
-            if (el) el.textContent = t.toFixed(1);
+            if (el) el.textContent = t.toFixed(2);
         });
         const totalEl = document.getElementById('hdTotalDisplay');
-        if (totalEl) totalEl.textContent = grand.toFixed(1);
+        if (totalEl) totalEl.textContent = grand.toFixed(2);
     }
 
     async function hdSaveAndAction(endpoint, method = 'POST', extraBody = {}) {
@@ -4408,12 +7984,26 @@
         const details = [];
         document.querySelectorAll('.hd-cell:not([readonly])').forEach(inp => {
             const v = parseFloat(inp.value) || 0;
-            if (v > 0) details.push({ activity: inp.dataset.activity, module: inp.dataset.module, mandays: v });
+            if (v > 0) {
+                const row = inp.closest('tr');
+                const actInput = row?.querySelector('.hd-activity-input');
+                const act = actInput ? (actInput.value.trim() || inp.dataset.activity) : inp.dataset.activity;
+                details.push({ activity: act, module: inp.dataset.module, mandays: v });
+            }
         });
         if (details.length > 0) {
+            const savePayload = { details };
+            if (HD_CAN_EDIT_DESC) {
+                const descEl = document.getElementById('hdDescriptionInput');
+                if (descEl) savePayload.description = descEl.value.trim();
+            }
+            if (HD_CAN_EDIT_NOTES) {
+                const notesEl = document.getElementById('hdProposalNotesInput');
+                if (notesEl) savePayload.proposal_notes = notesEl.value.trim();
+            }
             await fetch(MANDAYS_API('hd-draft'), {
                 method: 'PUT', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify({ details }),
+                body: JSON.stringify(savePayload),
             });
         }
         const res = await fetch(MANDAYS_API(endpoint), {
@@ -4430,15 +8020,29 @@
             const details = [];
             document.querySelectorAll('.hd-cell:not([readonly])').forEach(inp => {
                 const v = parseFloat(inp.value) || 0;
-                if (v > 0) details.push({ activity: inp.dataset.activity, module: inp.dataset.module, mandays: v });
+                if (v > 0) {
+                    const row = inp.closest('tr');
+                    const actInput = row?.querySelector('.hd-activity-input');
+                    const act = actInput ? (actInput.value.trim() || inp.dataset.activity) : inp.dataset.activity;
+                    details.push({ activity: act, module: inp.dataset.module, mandays: v });
+                }
             });
             if (details.length === 0) {
                 showNotification('Please fill in at least one mandays value.', 'warning');
                 return;
             }
+            const payload = { details };
+            if (HD_CAN_EDIT_DESC) {
+                const descEl = document.getElementById('hdDescriptionInput');
+                if (descEl) payload.description = descEl.value.trim();
+            }
+            if (HD_CAN_EDIT_NOTES) {
+                const notesEl = document.getElementById('hdProposalNotesInput');
+                if (notesEl) payload.proposal_notes = notesEl.value.trim();
+            }
             const res = await fetch(MANDAYS_API('hd-draft'), {
                 method: 'PUT', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify({ details }),
+                body: JSON.stringify(payload),
             });
             const data = await res.json();
             if (data.success) {
@@ -4453,6 +8057,11 @@
         }
     }
 
+    function hdEmailSentMsg(data, defaultMsg) {
+        if (data.email_warning) return null;
+        const to = data.email_to ? ` → ${data.email_to}` : '';
+        return (data.message || defaultMsg) + to;
+    }
     async function hdSubmitToChat() {
         const btn = document.getElementById('hdBtnSendToChat');
         if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
@@ -4462,7 +8071,7 @@
                 if (data.email_warning) {
                     showNotification('Status updated. Warning: ' + data.email_warning, 'warning');
                 } else {
-                    showNotification(data.message || 'Sent to customer via email!', 'success');
+                    showNotification(hdEmailSentMsg(data, 'Sent to customer via email!'), 'success');
                 }
                 closeHdMandaysModal();
             } else {
@@ -4483,7 +8092,7 @@
                 if (data.email_warning) {
                     showNotification('Status updated. Warning: ' + data.email_warning, 'warning');
                 } else {
-                    showNotification(data.message || 'Revised proposal sent to customer!', 'success');
+                    showNotification(hdEmailSentMsg(data, 'Revised proposal sent to customer!'), 'success');
                 }
                 closeHdMandaysModal();
             } else {
@@ -4584,20 +8193,25 @@
             const empMap = {};
             (proposal.details || []).forEach(d => {
                 const eid = d.employee_id;
-                if (!empMap[eid]) empMap[eid] = { name: d.employee_name || '—', mandays: 0, additional_mandays: 0, approved_additional: 0, notes: '' };
+                if (!empMap[eid]) empMap[eid] = { name: d.employee_name || '—', mandays: 0, approved_mandays: 0, additional_mandays: 0, approved_additional: 0, notes: '' };
                 empMap[eid].mandays            += parseFloat(d.mandays || 0);
+                empMap[eid].approved_mandays   += parseFloat(d.approved_mandays || 0);
                 empMap[eid].additional_mandays += parseFloat(d.additional_mandays || 0);
                 empMap[eid].approved_additional+= parseFloat(d.approved_additional || 0);
                 if (d.notes) empMap[eid].notes = d.notes;
             });
 
-            // Additional MD always editable by head of support
+            // Approved Days + Approved Additional both editable by head of support
             let bodyHtml = '';
             let grandTotal = 0;
+            let daysTotal = 0, addTotal = 0;
             Object.entries(empMap).forEach(([eid, emp]) => {
-                const currentApprAdd = emp.approved_additional;
-                const rowTotal = emp.mandays + currentApprAdd;
+                const currentApprDays = emp.approved_mandays;
+                const currentApprAdd  = emp.approved_additional;
+                const rowTotal = currentApprDays + currentApprAdd;
                 grandTotal += rowTotal;
+                daysTotal += emp.mandays;
+                addTotal  += emp.additional_mandays;
                 bodyHtml += `<tr>
                     <td class="px-3 py-2 border border-gray-200 text-xs font-medium">${emp.name}</td>
                     <td class="px-3 py-2 border border-gray-200 text-xs text-center">${emp.mandays > 0 ? emp.mandays.toFixed(1) : '—'}</td>
@@ -4605,8 +8219,16 @@
                     <td class="px-3 py-2 border border-gray-200 text-xs text-gray-500">${emp.notes || ''}</td>
                     <td class="border border-gray-200 p-0">
                         <input type="number" min="0" step="0.5"
+                            class="head-approve-days w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
+                            data-employee="${eid}"
+                            data-mandays="${emp.mandays}"
+                            value="${currentApprDays > 0 ? currentApprDays : ''}"
+                            oninput="headUpdateRowTotal(this)">
+                    </td>
+                    <td class="border border-gray-200 p-0">
+                        <input type="number" min="0" step="0.5"
                             class="head-approve-add w-full px-2 py-1.5 text-xs text-center focus:outline-none focus:bg-gray-100 bg-white"
-                            data-employee="${eid}" data-mandays="${emp.mandays}"
+                            data-employee="${eid}"
                             value="${currentApprAdd > 0 ? currentApprAdd : ''}"
                             oninput="headUpdateRowTotal(this)">
                     </td>
@@ -4615,6 +8237,9 @@
             });
             document.getElementById('headresolutionBody').innerHTML = bodyHtml;
             document.getElementById('headResolutionTotal').textContent = grandTotal.toFixed(1);
+            document.getElementById('headFooterDays').textContent = daysTotal.toFixed(1);
+            document.getElementById('headFooterAdd').textContent  = addTotal.toFixed(1);
+            headRecalcApprovedFooter();
 
             if (proposal.proposed_by) {
                 document.getElementById('headProposedBy').textContent = 'Proposed by: ' + proposal.proposed_by;
@@ -4643,7 +8268,23 @@
             }
 
             // Always show Save button when proposal exists (editable at any status)
-            document.getElementById('headBtnApprove').classList.remove('hidden');
+            const headApproveBtn = document.getElementById('headBtnApprove');
+            headApproveBtn.classList.remove('hidden');
+
+            // On Change Request tickets only: Head can only approve once the Customer
+            // Mandays proposal has been approved (by the customer via chat, or directly
+            // by Helpdesk).
+            const isChangeRequestTicket = document.getElementById('detailType')?.value === 'Change Request';
+            const hintEl = document.getElementById('headResolutionFooterHint');
+            if (isChangeRequestTicket && data.customer_mandays_status !== 'approved') {
+                headApproveBtn.disabled = true;
+                hintEl.textContent = 'Customer Mandays proposal must be approved before Resolution Days can be approved.';
+                hintEl.className = 'text-xs text-amber-600';
+            } else {
+                headApproveBtn.disabled = false;
+                hintEl.textContent = 'Edit "Approved Days" / "Approve Add." then save to approve.';
+                hintEl.className = 'text-xs text-gray-400';
+            }
 
             document.getElementById('headResolutionContent').classList.remove('hidden');
         } catch(e) {
@@ -4660,10 +8301,13 @@
     }
 
     function headUpdateRowTotal(inp) {
+        if (inp.classList.contains('head-approve-days') && inp.value.trim() !== '') {
+            inp.classList.remove('ring-2', 'ring-red-500', 'bg-red-50');
+        }
         const row      = inp.closest('tr');
-        const md       = parseFloat(inp.dataset.mandays) || 0;
-        const apprAdd  = parseFloat(inp.value) || 0;
-        const total    = md + apprAdd;
+        const apprDays = parseFloat(row.querySelector('.head-approve-days')?.value) || 0;
+        const apprAdd  = parseFloat(row.querySelector('.head-approve-add')?.value) || 0;
+        const total    = apprDays + apprAdd;
         const empId    = inp.dataset.employee;
         const cell     = row.querySelector(`[data-head-total="${empId}"]`);
         if (cell) cell.textContent = total > 0 ? total.toFixed(1) : '—';
@@ -4671,23 +8315,49 @@
         let grand = 0;
         document.querySelectorAll('[data-head-total]').forEach(c => grand += parseFloat(c.textContent) || 0);
         document.getElementById('headResolutionTotal').textContent = grand.toFixed(1);
+        headRecalcApprovedFooter();
     }
 
-    async function headResolutionApprove() {
+    function headRecalcApprovedFooter() {
+        let daysApproved = 0, addApproved = 0;
+        document.querySelectorAll('.head-approve-days').forEach(inp => { daysApproved += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('.head-approve-add').forEach(inp => { addApproved += parseFloat(inp.value) || 0; });
+        document.getElementById('headFooterApprovedDays').textContent = daysApproved.toFixed(1);
+        document.getElementById('headFooterApproveAdd').textContent   = addApproved.toFixed(1);
+    }
+
+    async function headResolutionApprove(confirmNegative = false) {
+        // Approved Days is a required judgment call per employee — a blank field silently
+        // became 0 before this check existed, so a Head could approve without actually
+        // reviewing someone's days. Block the save and flag every empty field instead —
+        // except rows where the PIC never proposed any Days for that employee (Days
+        // column shows "—"/0), since there's nothing there to make a judgment call on.
+        const emptyDaysInputs = Array.from(document.querySelectorAll('.head-approve-days'))
+            .filter(inp => inp.value.trim() === '' && parseFloat(inp.dataset.mandays) > 0);
+        document.querySelectorAll('.head-approve-days').forEach(inp => inp.classList.remove('ring-2', 'ring-red-500', 'bg-red-50'));
+        if (emptyDaysInputs.length > 0) {
+            emptyDaysInputs.forEach(inp => inp.classList.add('ring-2', 'ring-red-500', 'bg-red-50'));
+            showNotification('Approved Days must be filled for every employee before saving.', 'error');
+            emptyDaysInputs[0].focus();
+            return;
+        }
+
         const btn = document.getElementById('headBtnApprove');
         btn.disabled = true; btn.textContent = 'Saving...';
         try {
             const approvedDetails = [];
-            document.querySelectorAll('.head-approve-add').forEach(inp => {
+            document.querySelectorAll('.head-approve-days').forEach(inp => {
+                const row = inp.closest('tr');
                 approvedDetails.push({
                     employee_id:         parseInt(inp.dataset.employee),
-                    approved_additional: parseFloat(inp.value) || 0,
+                    approved_mandays:    parseFloat(inp.value) || 0,
+                    approved_additional: parseFloat(row.querySelector('.head-approve-add')?.value) || 0,
                 });
             });
 
             const res  = await fetch(MANDAYS_API('resolution/approve'), {
                 method: 'POST', headers: getHeaders(), credentials: 'same-origin',
-                body: JSON.stringify({ approved_details: approvedDetails }),
+                body: JSON.stringify({ approved_details: approvedDetails, confirm_negative: confirmNegative }),
             });
             const data = await res.json();
             if (data.success) {
@@ -4695,7 +8365,19 @@
                 resolutionUpdateSidebarBadge?.(data.resolution_days_status);
                 closeHeadResolutionModal();
                 setTimeout(() => location.reload(), 800);
-            } else showNotification(data.message || 'Failed', 'error');
+                return;
+            }
+            if (data.requires_confirmation) {
+                const lines = (data.warnings || []).map(w => `- ${w.employee_name}: remaining would be ${w.remaining} MD`);
+                const proceed = await showConfirm(`Some employees will go negative if you approve these numbers:\n\n${lines.join('\n')}\n\nApprove anyway?`, 'Approve Anyway?', 'danger');
+                if (proceed) {
+                    await headResolutionApprove(true);
+                } else {
+                    showNotification('Approval cancelled.', 'info');
+                }
+                return;
+            }
+            showNotification(data.message || 'Failed', 'error');
         } catch(e) { showNotification('Error: '+e.message,'error'); }
         finally { btn.disabled = false; btn.textContent = 'Save'; }
     }
@@ -4731,11 +8413,11 @@
                     bodyHtml += `<tr>
                         <td class="px-3 py-2 border border-gray-200 text-xs">${d.activity || '—'}</td>
                         <td class="px-3 py-2 border border-gray-200 text-xs">${d.module || '—'}</td>
-                        <td class="px-3 py-2 border border-gray-200 text-xs text-center font-semibold">${parseFloat(d.mandays || 0).toFixed(1)}</td>
+                        <td class="px-3 py-2 border border-gray-200 text-xs text-center font-semibold">${parseFloat(d.mandays || 0).toFixed(2)}</td>
                     </tr>`;
                 });
                 document.getElementById('headCustMandaysBody').innerHTML = bodyHtml;
-                document.getElementById('headCustMandaysTotal').textContent = total.toFixed(1);
+                document.getElementById('headCustMandaysTotal').textContent = total.toFixed(2);
 
                 if (proposal.notes) {
                     const nw = document.getElementById('headCustMandaysNotes');
@@ -4761,7 +8443,10 @@
 
     // ==================== CUSTOMER CREDENTIAL MODAL ====================
     @if($canViewCredential ?? false)
-    const _credentialCustomerId = {{ $ticket->customer_id ?? 'null' }};
+    // Prioritas end_customer_id (anak) di atas customer_id (induk) — ticket bisa
+    // ditujukan ke anak perusahaan spesifik dalam grup, dan credential-nya berbeda
+    // per entitas walau induknya sama.
+    const _credentialCustomerId = {{ $ticket->end_customer_id ?? $ticket->customer_id ?? 'null' }};
 
     async function openCredentialModal() {
         if (!_credentialCustomerId) return;
@@ -4815,6 +8500,195 @@
         }
     });
     @endif
+
+    // ==================== INTERNAL NOTE EDIT / DELETE ====================
+    let editNoteQuill = null;
+    let editNoteId    = null;
+    let editNoteRemovedAttachmentIds = [];
+
+    function openEditNoteModal(msgId) {
+        const msg = messageCache.get(msgId);
+        if (!msg) return;
+
+        editNoteId = msgId;
+        editNoteRemovedAttachmentIds = [];
+        editNotePendingMentions = []; // reset — hanya mention BARU yang ditambahkan selama sesi edit ini
+
+        // Lazy-init Quill editor for the edit modal
+        if (!editNoteQuill) {
+            editNoteQuill = new Quill('#editNoteEditorContainer', {
+                theme: 'snow',
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline'],
+                        ['blockquote'],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        ['clean']
+                    ],
+                    keyboard: {
+                        bindings: {
+                            mentionBackspace: {
+                                key: 'Backspace',
+                                handler: function (range, context) {
+                                    if (range.length > 0) return true;
+                                    const idx = range.index;
+                                    if (idx === 0) return true;
+                                    const fmt = this.quill.getFormat(idx - 1, 1);
+                                    if (!MENTION_COLORS.includes(fmt.color)) return true;
+                                    let start = idx - 1;
+                                    while (start > 0 && MENTION_COLORS.includes(this.quill.getFormat(start - 1, 1).color)) {
+                                        start--;
+                                    }
+                                    this.quill.deleteText(start, idx - start, 'user');
+                                    this.quill.setSelection(start, 0, 'user');
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            // Pertahankan tabel yang di-paste di editor edit internal note juga
+            addTablePasteMatcher(editNoteQuill);
+
+            // â"€â"€ @mention: sama seperti composer utama, pakai dropdown #mentionDropdown
+            // bersama (hanya satu editor aktif dalam satu waktu — modal ini modal overlay). â"€â"€
+            editNoteQuill.on('text-change', function (delta, oldDelta, source) {
+                handleMentionTextChange(editNoteQuill, 'editNoteEditorContainer', editNotePendingMentions, source);
+            });
+            editNoteQuill.on('text-change', function (delta, oldDelta, source) {
+                if (source === 'user') clearMentionFormatIfNeeded(editNoteQuill);
+            });
+            editNoteQuill.on('text-change', function (delta, oldDelta, source) {
+                autoFormatTicketRef(editNoteQuill, delta, source);
+            });
+        }
+
+        // Pre-fill content
+        if (msg.message_html) {
+            editNoteQuill.clipboard.dangerouslyPasteHTML(msg.message_html);
+        } else {
+            editNoteQuill.setText(msg.message_body || '');
+        }
+
+        // Render existing attachments — HANYA file non-inline. Inline image tidak
+        // ditampilkan sebagai baris removable karena byte-nya direferensikan langsung
+        // oleh <img src="/storage/..."> di dalam editor body. Menghapusnya lewat daftar
+        // ini akan meng-orphan URL di body → gambar 404 setelah cache browser hilang.
+        // Inline image dikelola lewat isi editor (hapus <img> dari body untuk membuang).
+        const attContainer = document.getElementById('editNoteExistingAtts');
+        attContainer.innerHTML = '';
+        (msg.attachments || []).filter(att => !att.is_inline).forEach(att => {
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2 text-xs text-gray-700 py-1';
+            row.dataset.attId = att.id;
+            row.innerHTML = `<svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                <span class="truncate max-w-xs">${escHtml(att.file_name)}</span>
+                <button type="button" onclick="removeEditNoteAtt(${att.id}, this.closest('[data-att-id]'))" class="ml-auto text-red-400 hover:text-red-600 flex-shrink-0" title="Remove attachment">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>`;
+            attContainer.appendChild(row);
+        });
+
+        // Clear new files input
+        document.getElementById('editNoteNewFiles').value = '';
+
+        document.getElementById('editNoteModal').classList.remove('hidden');
+    }
+
+    function removeEditNoteAtt(attId, rowEl) {
+        editNoteRemovedAttachmentIds.push(attId);
+        if (rowEl) {
+            rowEl.classList.add('opacity-30', 'line-through', 'pointer-events-none');
+            rowEl.querySelector('button')?.remove();
+        }
+    }
+
+    function closeEditNoteModal() {
+        document.getElementById('editNoteModal').classList.add('hidden');
+        editNoteId = null;
+        editNoteRemovedAttachmentIds = [];
+    }
+
+    async function saveEditNote() {
+        if (!editNoteId || !editNoteQuill) return;
+
+        const ticketId = {{ $ticket->ticket_id }};
+        const msgHtml  = editNoteQuill.root.innerHTML;
+        const formData = new FormData();
+        formData.append('message_html', msgHtml);
+
+        // Mention baru yang ditambahkan selama edit ini (mention lama tidak perlu dikirim
+        // ulang — backend union-kan dengan yang sudah tersimpan di message).
+        editNotePendingMentions
+            .filter(m => m.type === 'employee')
+            .forEach(m => formData.append('mentioned_employee_ids[]', m.id));
+        editNotePendingMentions
+            .filter(m => m.type === 'role')
+            .forEach(m => formData.append('mentioned_role_ids[]', m.id));
+
+        editNoteRemovedAttachmentIds.forEach(id => formData.append('remove_attachment_ids[]', id));
+
+        const newFiles = document.getElementById('editNoteNewFiles').files;
+        for (const file of newFiles) formData.append('attachments[]', file);
+
+        const btn = document.getElementById('editNoteSaveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+            const res  = await fetch(`/api/tickets/${ticketId}/messages/${editNoteId}/internal-note`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                credentials: 'same-origin',
+                body: formData,
+            });
+            let json;
+            try { json = await res.json(); } catch { showNotification(`Server error (${res.status})`, 'error'); return; }
+            if (!json.success) { showNotification(json.message || 'Failed to update note.', 'error'); return; }
+
+            // Update cache + re-render element in place
+            const updatedMsg = { ...messageCache.get(editNoteId), message_html: json.data.message_html, message_body: json.data.message_body, edited_at: json.data.edited_at, attachments: json.data.attachments };
+            const el = document.querySelector(`[data-msg-id="${editNoteId}"]`);
+            if (el) el.outerHTML = createMessageBubble(updatedMsg);
+
+            showNotification('Note updated.', 'success');
+            closeEditNoteModal();
+        } catch (e) {
+            showNotification('Failed to update note.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save';
+        }
+    }
+
+    async function confirmDeleteNote(msgId) {
+        const ok = await showConfirm('Delete this note? It will be replaced with a placeholder and cannot be restored.', 'Delete Internal Note', 'danger');
+        if (!ok) return;
+        deleteNote(msgId);
+    }
+
+    async function deleteNote(msgId) {
+        const ticketId = {{ $ticket->ticket_id }};
+        try {
+            const res  = await fetch(`/api/tickets/${ticketId}/messages/${msgId}/internal-note/delete`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '', 'Accept': 'application/json' },
+                credentials: 'same-origin',
+            });
+            let json;
+            try { json = await res.json(); } catch { showNotification(`Server error (${res.status})`, 'error'); return; }
+            if (!json.success) { showNotification(json.message || 'Failed to delete note.', 'error'); return; }
+
+            const updatedMsg = { ...messageCache.get(msgId), is_deleted: true };
+            const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+            if (el) el.outerHTML = createMessageBubble(updatedMsg);
+
+            showNotification('Note deleted.', 'success');
+        } catch (e) {
+            showNotification('Failed to delete note.', 'error');
+        }
+    }
 </script>
 
 @if($canViewCredential ?? false)
@@ -4826,7 +8700,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-500">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                 </svg>
-                <h3 class="text-base font-bold text-gray-900">Customer Credential — {{ $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</h3>
+                <h3 class="text-base font-bold text-gray-900">Customer Credential — {{ $ticket->endCustomer?->basicData?->name_1 ?? $ticket->customer?->basicData?->name_1 ?? 'Unknown Customer' }}</h3>
             </div>
             <button onclick="closeCredentialModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -4846,276 +8720,423 @@
 </div>
 @endif
 
-{{-- OneDrive Folder Modal --}}
-<div id="oneDriveModal" class="hidden fixed inset-0 z-[9999] overflow-y-auto">
-    <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeOneDriveModal()"></div>
-        <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full z-10 overflow-hidden">
+{{-- OneDrive folder generation dihapus — folder ticket kini otomatis dibuat di bawah
+     folder Customer Deliverable milik customer ticket saat upload deliverable. --}}
 
-            {{-- State 1: Generate form --}}
-            <div id="odrStateGenerate">
-                <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
-                    <div class="flex items-center gap-2">
-                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
-                        </svg>
-                        <h3 class="text-base font-semibold text-gray-900">Create OneDrive Folder</h3>
-                    </div>
-                    <button onclick="closeOneDriveModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                    </button>
+{{-- Confirm modal dipakai dari partial global: resources/views/partials/confirm-modal.blade.php --}}
+
+{{-- ==================== SLA MESSAGE MODAL ==================== --}}
+<div id="slaMsgModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeSlaModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
                 </div>
-                <div class="px-6 py-5 space-y-4">
-                    <p class="text-sm text-gray-500">
-                        The folder will be created inside the <strong class="text-gray-700">TICKETING</strong>
-                        folder in the OneDrive account <strong class="text-gray-700">{{ config('services.microsoft_graph.sender_email') }}</strong>
-                        and can be accessed by anyone with the link (edit &amp; upload access).
-                    </p>
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900">Pesan SLA</h3>
+                    <p class="text-xs text-gray-400 leading-none mt-0.5">Pesan ini akan tampil di laporan SLA menggantikan pesan asli</p>
+                </div>
+            </div>
+            <button onclick="closeSlaModal()" class="text-gray-400 hover:text-gray-600 transition p-1 rounded-lg hover:bg-gray-100">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-6 py-4">
+            <textarea id="slaMsgTextarea"
+                      rows="4"
+                      placeholder="Tulis pesan SLA di sini..."
+                      class="w-full text-sm text-gray-700 border border-gray-200 rounded-xl px-3 py-2.5 resize-none outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition font-inherit placeholder-gray-300"
+                      onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))submitSlaMessage()"></textarea>
+            <p class="text-xs text-gray-400 mt-1.5">Ctrl+Enter untuk simpan</p>
+        </div>
+        <div class="flex gap-2 justify-end px-6 pb-5">
+            <button onclick="closeSlaModal()"
+                    class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium">
+                Batal
+            </button>
+            <button id="slaSaveBtn" onclick="submitSlaMessage()"
+                    class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                Simpan
+            </button>
+        </div>
+    </div>
+</div>
+
+@if($can('ticket.sla-log'))
+{{-- ==================== SLA LOG MODAL ==================== --}}
+<div id="slaLogModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4" onclick="if(event.target===this)closeSlaLogModal()">
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+        <div class="flex-shrink-0 bg-white border-b border-gray-100">
+            <div class="flex items-center justify-between px-6 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                        <i class="fas fa-history text-gray-500 text-sm"></i>
+                    </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Folder Name <span class="font-normal text-gray-400">(optional)</span>
-                        </label>
-                        <input type="text" id="odrFolderName"
-                               value="{{ $ticket->ticket_number . ' - ' . $ticket->description }}"
-                               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        <p class="text-xs text-gray-400 mt-1">Name of the folder to be created inside TICKETING.</p>
-                    </div>
-                    <div class="flex gap-2 pt-1">
-                        <button onclick="generateTicketFolder()" id="odrGenerateBtn"
-                            class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-all disabled:opacity-60 disabled:cursor-not-allowed">
-                            <svg id="odrGenerateIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
-                            </svg>
-                            <svg id="odrGenerateSpinner" class="hidden animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                            </svg>
-                            <span id="odrGenerateLabel">{{ $ticket->onedrive_folder_id ? 'Regenerate Link' : 'Generate Folder' }}</span>
-                        </button>
-                        <button type="button" id="odrDeleteBtnForm" onclick="deleteTicketFolder()"
-                            class="{{ $ticket->onedrive_folder_id ? '' : 'hidden' }} px-4 py-2.5 border border-red-200 text-sm text-red-600 rounded-lg hover:bg-red-50 transition-all inline-flex items-center gap-1.5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                            Delete Folder
-                        </button>
-                        <button type="button" onclick="closeOneDriveModal()"
-                            class="px-4 py-2.5 border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-all">
-                            Cancel
-                        </button>
+                        <h3 class="text-sm font-semibold text-gray-800">SLA Log</h3>
+                        <p class="text-xs text-gray-400 mt-0.5">Ticket <span class="font-mono font-semibold text-gray-600">{{ $ticket->ticket_number }}</span></p>
                     </div>
                 </div>
-            </div>
-
-            {{-- State 2: Success --}}
-            <div id="odrStateSuccess" class="hidden">
-                <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
-                    <div class="flex items-center gap-2">
-                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        <h3 class="text-base font-semibold text-gray-900">OneDrive Folder Ready</h3>
-                    </div>
-                    <button onclick="closeOneDriveModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
+                <div class="flex items-center gap-2">
+                    <button onclick="refreshSlaLogModal()" title="Refresh SLA Log"
+                        class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 bg-white px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                        <i class="fas fa-sync-alt text-xs" id="slaLogRefreshIcon"></i> Refresh
+                    </button>
+                    <a href="{{ route('sla.ticket.log-pdf', $ticket->ticket_id) }}" target="_blank" title="Download SLA Log PDF"
+                        class="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                        <i class="fas fa-file-pdf text-xs"></i> Download PDF
+                    </a>
+                    <button onclick="closeSlaLogModal()"
+                        class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
+                        <i class="fas fa-times text-sm"></i>
                     </button>
                 </div>
-                <div class="px-6 py-5 space-y-4">
-                    <div class="flex justify-center">
-                        <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
-                            <svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                            </svg>
-                        </div>
+            </div>
+            <div id="slaLogStatsBar" class="hidden px-6 pb-4">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                        <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Response</p>
+                        <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaLogStatResponseVal">—</p>
+                        <p class="text-[10px] mt-0.5" id="slaLogStatResponseStatus"></p>
                     </div>
-                    <p class="text-sm text-gray-600 text-center">
-                        Folder created successfully inside <strong>TICKETING</strong>. Share the link below with anyone who needs access.
-                    </p>
-                    <div class="flex gap-2">
-                        <input type="text" id="odrFolderUrl" readonly
-                               class="flex-1 px-3 py-2 text-xs border border-gray-300 rounded-lg bg-gray-50 text-gray-700 focus:outline-none cursor-text select-all">
-                        <button onclick="copyFolderLink()" id="odrCopyBtn" title="Copy link"
-                            class="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition-all">
-                            <svg id="odrCopyIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                            </svg>
-                            <svg id="odrCopiedIcon" class="hidden w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                            </svg>
-                        </button>
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                        <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Resolution</p>
+                        <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaLogStatResolutionVal">—</p>
+                        <p class="text-[10px] mt-0.5" id="slaLogStatResolutionStatus"></p>
                     </div>
-                    <div class="flex gap-2 pt-1">
-                        <a id="odrOpenLink" href="#" target="_blank" rel="noopener"
-                           class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-all">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                            </svg>
-                            Open Folder
-                        </a>
-                        <button onclick="deleteTicketFolder()"
-                            class="px-4 py-2.5 border border-red-200 text-sm text-red-600 rounded-lg hover:bg-red-50 transition-all inline-flex items-center gap-1.5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                            Delete Folder
-                        </button>
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                        <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Waiting</p>
+                        <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaLogStatWaitingVal">—</p>
+                        <p class="text-[10px] text-gray-400 mt-0.5">total pause time</p>
+                    </div>
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                        <p class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Ball Holder</p>
+                        <p class="text-sm font-bold text-gray-800 mt-0.5" id="slaLogStatBallHolder">—</p>
+                        <p class="text-[10px] text-gray-400 mt-0.5" id="slaLogStatBallHolderSub"></p>
                     </div>
                 </div>
             </div>
-
+        </div>
+        <div id="slaLogContent" class="overflow-auto flex-1 bg-gray-50/30">
+            <div class="flex items-center justify-center h-32 text-gray-300">
+                <i class="fas fa-spinner fa-spin text-3xl"></i>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-// â"€â"€ OneDrive Modal (Ticket) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-let _odrHasFolder = {{ $ticket->onedrive_folder_id ? 'true' : 'false' }};
+const SLA_LOG_STATUS_CFG = {
+    'pending_validation': { label:'Pending Val.' },
+    'pending':            { label:'Active' },
+    'paused':             { label:'Paused' },
+    'met':                { label:'Terpenuhi' },
+    'breached':           { label:'Dilanggar' },
+};
+const SLA_LOG_EVENT_CFG = {
+    'email_received':       { icon:'fa-envelope',             color:'text-indigo-500', bg:'bg-indigo-50'  },
+    'ticket_validated':     { icon:'fa-check-circle',         color:'text-green-500',  bg:'bg-green-50'   },
+    'agent_replied':        { icon:'fa-comment-dots',         color:'text-blue-500',   bg:'bg-blue-50'    },
+    'customer_replied':     { icon:'fa-reply',                color:'text-orange-500', bg:'bg-orange-50'  },
+    'sla_warning':          { icon:'fa-exclamation-triangle', color:'text-yellow-500', bg:'bg-yellow-50'  },
+    'sla_breached':         { icon:'fa-times-circle',         color:'text-red-500',    bg:'bg-red-50'     },
+    'ticket_closed':        { icon:'fa-check-double',         color:'text-gray-500',   bg:'bg-gray-100'   },
+    'meeting_started':      { icon:'fa-video',                color:'text-violet-500', bg:'bg-violet-50'  },
+    'meeting_ended':        { icon:'fa-video-slash',          color:'text-gray-400',   bg:'bg-gray-50'    },
+    'escalated_to_sap':     { icon:'fa-arrow-circle-up',      color:'text-purple-500', bg:'bg-purple-50'  },
+    'escalated_to_support': { icon:'fa-undo',                 color:'text-teal-500',   bg:'bg-teal-50'    },
+};
 
-function openOneDriveModal() {
-    document.getElementById('oneDriveModal').classList.remove('hidden');
-    _showOdrGenerate();
+function slaLogFmtDT(dt) {
+    if (!dt) return '—';
+    return dt.substring(0, 16).replace('T', ' ');
 }
-function closeOneDriveModal() {
-    document.getElementById('oneDriveModal').classList.add('hidden');
+function slaLogFmtHHMM(h) {
+    if (h === null || h === undefined) return '—';
+    const totalMins = Math.round(parseFloat(h) * 60);
+    const hh = Math.floor(totalMins / 60);
+    const mm = totalMins % 60;
+    return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
 }
-function _showOdrGenerate() {
-    document.getElementById('odrStateGenerate').classList.remove('hidden');
-    document.getElementById('odrStateSuccess').classList.add('hidden');
-    const del = document.getElementById('odrDeleteBtnForm');
-    if (del) del.classList.toggle('hidden', !_odrHasFolder);
+function slaLogEscHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
 }
-function _showOdrSuccess(url) {
-    document.getElementById('odrStateGenerate').classList.add('hidden');
-    document.getElementById('odrStateSuccess').classList.remove('hidden');
-    document.getElementById('odrFolderUrl').value = url;
-    document.getElementById('odrOpenLink').href   = url;
-    document.getElementById('odrCopyIcon').classList.remove('hidden');
-    document.getElementById('odrCopiedIcon').classList.add('hidden');
-    _odrHasFolder = true;
-    // Swap header button to "Open Folder"
-    const btn = document.getElementById('ticketFolderBtn');
-    if (btn && btn.tagName === 'BUTTON') {
-        const a = document.createElement('a');
-        a.id = 'ticketFolderBtn'; a.href = url; a.target = '_blank'; a.rel = 'noopener';
-        a.className = btn.className;
-        a.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg> Open Folder`;
-        btn.replaceWith(a);
-    }
+
+function openSlaLogModal() {
+    document.getElementById('slaLogStatsBar').classList.add('hidden');
+    document.getElementById('slaLogContent').innerHTML =
+        '<div class="flex items-center justify-center h-32 text-gray-300"><i class="fas fa-spinner fa-spin text-3xl"></i></div>';
+    const modal = document.getElementById('slaLogModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    _loadSlaLogData();
 }
-async function deleteTicketFolder() {
-    if (!confirm('Are you sure you want to delete this OneDrive folder? The folder and all its contents will be permanently deleted.')) return;
+
+function closeSlaLogModal() {
+    const modal = document.getElementById('slaLogModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+}
+
+async function refreshSlaLogModal() {
+    const icon = document.getElementById('slaLogRefreshIcon');
+    icon?.classList.add('fa-spin');
+    await _loadSlaLogData();
+    icon?.classList.remove('fa-spin');
+}
+
+async function _loadSlaLogData() {
     try {
-        const res  = await fetch('{{ route('ticket.delete-folder', $ticket->ticket_id) }}', {
-            method:  'DELETE',
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
-        });
-        const data = await res.json();
-        if (data.success) {
-            _odrHasFolder = false;
-            closeOneDriveModal();
-            // Revert header button to "Create Folder"
-            const el = document.getElementById('ticketFolderBtn');
-            if (el) {
-                const btn = document.createElement('button');
-                btn.type = 'button'; btn.id = 'ticketFolderBtn'; btn.onclick = openOneDriveModal;
-                btn.className = el.className;
-                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg> Create Folder`;
-                el.replaceWith(btn);
-            }
-            showToast('Folder deleted successfully.', 'success');
-        } else {
-            showToast(data.message || 'Failed to delete folder.', 'error');
+        const res  = await fetch(`/api/tickets/${ticketId}/sla`, { credentials: 'include' });
+        const json = await res.json();
+        if (!json.success || !json.data) {
+            document.getElementById('slaLogContent').innerHTML =
+                '<p class="text-center text-gray-400 text-sm p-8">Tidak ada data SLA untuk tiket ini.</p>';
+            return;
         }
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-    }
-}
-async function generateTicketFolder() {
-    const btn     = document.getElementById('odrGenerateBtn');
-    const icon    = document.getElementById('odrGenerateIcon');
-    const spinner = document.getElementById('odrGenerateSpinner');
-    const label   = document.getElementById('odrGenerateLabel');
 
-    btn.disabled = true;
-    icon.classList.add('hidden');
-    spinner.classList.remove('hidden');
-    label.textContent = 'Creating folder…';
+        const d     = json.data;
+        const resp  = d.response;
+        const resol = d.resolution;
 
-    try {
-        const res  = await fetch('{{ route('ticket.generate-folder', $ticket->ticket_id) }}', {
-            method:  'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept':       'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-            },
-            body: JSON.stringify({ folder_name: document.getElementById('odrFolderName').value.trim() }),
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            _showOdrSuccess(data.folder_url);
-            showToast('OneDrive folder created successfully!', 'success');
-        } else {
-            showToast(data.message || 'Failed to create folder.', 'error');
-            label.textContent = 'Generate Folder';
+        if (resp) {
+            const rStat  = resp.status;
+            const rColor = rStat === 'met' ? 'text-green-600' : rStat === 'breached' ? 'text-red-600' : 'text-blue-600';
+            document.getElementById('slaLogStatResponseVal').innerHTML =
+                `<span class="${rColor}">${resp.actual_hours !== null ? slaLogFmtHHMM(resp.actual_hours) : '—'}</span>`;
+            document.getElementById('slaLogStatResponseStatus').textContent =
+                `${SLA_LOG_STATUS_CFG[rStat]?.label || rStat} / ${resp.target_hours ?? '—'} jam target`;
+            document.getElementById('slaLogStatResponseStatus').className = `text-[10px] mt-0.5 ${rColor}`;
         }
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-        label.textContent = 'Generate Folder';
-    } finally {
-        btn.disabled = false;
-        icon.classList.remove('hidden');
-        spinner.classList.add('hidden');
+        if (resol) {
+            const sStat  = resol.status;
+            const sColor = sStat === 'met' ? 'text-green-600' : sStat === 'breached' ? 'text-red-600' : 'text-blue-600';
+            document.getElementById('slaLogStatResolutionVal').innerHTML =
+                `<span class="${sColor}">${resol.actual_hours !== null ? slaLogFmtHHMM(resol.actual_hours) : '—'}</span>`;
+            document.getElementById('slaLogStatResolutionStatus').textContent =
+                `${SLA_LOG_STATUS_CFG[sStat]?.label || sStat} / ${resol.target_hours ?? '—'} jam target`;
+            document.getElementById('slaLogStatResolutionStatus').className = `text-[10px] mt-0.5 ${sColor}`;
+        }
+        document.getElementById('slaLogStatWaitingVal').textContent =
+            resol?.waiting_hours != null ? slaLogFmtHHMM(resol.waiting_hours) : '—';
+
+        const ballCfg = {
+            helpdesk: { label:'Helpdesk',        sub:'Waiting for agent'   },
+            customer: { label:'Customer',        sub:'Waiting for customer'},
+            sap:      { label:'SAP / 3rd Party', sub:'Escalated'           },
+            meeting:  { label:'Meeting',         sub:'On hold - meeting'   },
+        };
+        const bc = ballCfg[d.ball_holder] || { label: d.ball_holder, sub: '' };
+        document.getElementById('slaLogStatBallHolder').textContent    = bc.label;
+        document.getElementById('slaLogStatBallHolderSub').textContent = bc.sub;
+        document.getElementById('slaLogStatsBar').classList.remove('hidden');
+
+        const events = d.events || [];
+        if (!events.length) {
+            document.getElementById('slaLogContent').innerHTML =
+                '<p class="text-center text-gray-400 text-sm p-8">Belum ada event SLA tercatat.</p>';
+            return;
+        }
+
+        const rows = events.map(ev => {
+            const cfg = SLA_LOG_EVENT_CFG[ev.event_type] || { icon:'fa-circle', color:'text-gray-400', bg:'bg-gray-100' };
+            const waitBadge = ev.waiting_hours != null
+                ? `<span class="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full ml-1">${slaLogFmtHHMM(ev.waiting_hours)} wait</span>`
+                : '';
+            const respBadge = ev.response_hours != null
+                ? `<span class="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full ml-1">${slaLogFmtHHMM(ev.response_hours)} resp</span>`
+                : '';
+            const resBadge = ev.resolution_hours != null
+                ? `<span class="text-[10px] font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full ml-1">${slaLogFmtHHMM(ev.resolution_hours)} res</span>`
+                : '';
+            const preview = ev.message_preview
+                ? `<p class="text-[10px] text-gray-400 mt-1 italic truncate max-w-xs">"${slaLogEscHtml(ev.message_preview)}"</p>`
+                : '';
+            const ball = ev.ball_after
+                ? `<span class="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded ml-1">→ ${slaLogEscHtml(ev.ball_after)}</span>`
+                : '';
+
+            return `<tr class="border-b border-gray-50 hover:bg-gray-50/50">
+                <td class="px-4 py-3 text-[10px] text-gray-400 whitespace-nowrap">${slaLogFmtDT(ev.event_at)}</td>
+                <td class="px-4 py-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full ${cfg.bg} flex items-center justify-center flex-shrink-0">
+                            <i class="fas ${cfg.icon} text-[9px] ${cfg.color}"></i>
+                        </span>
+                        <div>
+                            <p class="text-xs font-medium text-gray-700">${slaLogEscHtml(ev.label || ev.event_type)}${ball}</p>
+                            ${ev.sender_name ? `<p class="text-[10px] text-gray-400">${slaLogEscHtml(ev.sender_name)}</p>` : ''}
+                            ${preview}
+                        </div>
+                    </div>
+                </td>
+                <td class="px-4 py-3 text-[10px] text-gray-500">${ev.jarvis_status ? `<span class="bg-gray-100 px-2 py-0.5 rounded font-mono">${slaLogEscHtml(ev.jarvis_status)}</span>` : '—'}</td>
+                <td class="px-4 py-3">${waitBadge || '—'}</td>
+                <td class="px-4 py-3">${respBadge || '—'}</td>
+                <td class="px-4 py-3">${resBadge || '—'}</td>
+                <td class="px-4 py-3 text-[10px] text-gray-400 max-w-[180px] truncate">${ev.notes ? slaLogEscHtml(ev.notes) : '—'}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('slaLogContent').innerHTML = `
+            <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead>
+                    <tr class="border-b border-gray-100 bg-gray-50/80 sticky top-0">
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Waktu</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Event</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Status Jarvis</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Waiting</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Response</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">Resolution</th>
+                        <th class="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+            </div>`;
+    } catch (e) {
+        document.getElementById('slaLogContent').innerHTML =
+            '<p class="text-center text-red-400 text-sm p-8">Gagal memuat data SLA.</p>';
     }
-}
-function copyFolderLink() {
-    const val = document.getElementById('odrFolderUrl').value;
-    navigator.clipboard.writeText(val).then(() => {
-        document.getElementById('odrCopyIcon').classList.add('hidden');
-        document.getElementById('odrCopiedIcon').classList.remove('hidden');
-        setTimeout(() => {
-            document.getElementById('odrCopyIcon').classList.remove('hidden');
-            document.getElementById('odrCopiedIcon').classList.add('hidden');
-        }, 2000);
-        showToast('Link copied!', 'success');
-    });
 }
 </script>
+@endif
 
-
-{{-- ==================== REUSABLE CONFIRM MODAL ==================== --}}
-<div id="confirmModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4">
-        <div class="px-6 pt-6 pb-3">
-            <div class="flex items-start gap-3">
-                <div id="confirmIconWrap" class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5"></div>
+@if($can('ticket.shifting-log'))
+{{-- ==================== LOG SHIFTING MODAL ====================
+     Shortcut dari room chat — sumber data sama dengan Reporting > Log Shifting
+     dan modal klik-kanan di list ticket (GET /api/reporting/log-shifting/{id}). --}}
+<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4" onclick="if(event.target===this)closeLogShiftingTicketModal()">
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                    <i class="fas fa-exchange-alt text-gray-500 text-sm"></i>
+                </div>
                 <div>
-                    <h3 id="confirmTitle" class="text-sm font-bold text-gray-900 mb-1">Confirm</h3>
-                    <p id="confirmMessage" class="text-sm text-gray-600 leading-relaxed"></p>
+                    <h3 class="text-sm font-semibold text-gray-800">Log Shifting</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Ticket <span class="font-mono font-semibold text-gray-600">{{ $ticket->ticket_number }}</span></p>
                 </div>
             </div>
+            <div class="flex items-center gap-2">
+                <button onclick="refreshLogShiftingTicketModal()" title="Refresh Log Shifting"
+                    class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 bg-white px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                    <i class="fas fa-sync-alt text-xs" id="lstRefreshIcon"></i> Refresh
+                </button>
+                <button onclick="closeLogShiftingTicketModal()"
+                    class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
+            </div>
         </div>
-        <div class="px-6 pb-5 pt-2 flex gap-2 justify-end">
-            <button id="confirmCancelBtn"
-                class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium">
-                Cancel
-            </button>
-            <button id="confirmOkBtn"
-                class="px-4 py-2 text-sm font-semibold text-white rounded-lg transition">
-                OK
-            </button>
+        <div class="flex-1 overflow-auto">
+            <table class="w-full text-xs border-collapse">
+                <thead class="sticky top-0 bg-gray-50 z-10">
+                    <tr>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Date</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">Time</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">SLA Message</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">PIC</th>
+                    </tr>
+                </thead>
+                <tbody id="lstModalBody">
+                    <tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
+<script>
+function lstEsc(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+}
+
+function openLogShiftingTicketModal() {
+    const modal = document.getElementById('logShiftingTicketModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    _loadLogShiftingData();
+}
+
+function closeLogShiftingTicketModal() {
+    const modal = document.getElementById('logShiftingTicketModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+}
+
+async function refreshLogShiftingTicketModal() {
+    const icon = document.getElementById('lstRefreshIcon');
+    icon?.classList.add('fa-spin');
+    await _loadLogShiftingData();
+    icon?.classList.remove('fa-spin');
+}
+
+async function _loadLogShiftingData() {
+    const body = document.getElementById('lstModalBody');
+    body.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">Loading…</td></tr>';
+
+    try {
+        const res = await fetch(`/api/reporting/log-shifting/{{ $ticket->ticket_id }}`, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+        const messages = json.data.messages || [];
+        if (!messages.length) {
+            body.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">No SLA messages found for this ticket.</td></tr>';
+            return;
+        }
+
+        body.innerHTML = messages.map(m => {
+            const bubble  = m.bubble_date ? new Date(m.bubble_date) : null;
+            const dateStr = bubble ? bubble.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+            const timeStr = bubble ? bubble.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' WIB' : '—';
+            return `
+            <tr class="border-b border-gray-100">
+                <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">${dateStr}</td>
+                <td class="px-3 py-2.5 text-gray-500 whitespace-nowrap">${timeStr}</td>
+                <td class="px-3 py-2.5 text-gray-700 whitespace-pre-wrap">${lstEsc(m.sla_message || '—')}</td>
+                <td class="px-3 py-2.5 text-gray-700 whitespace-nowrap">${m.sla_message_by ? lstEsc(m.sla_message_by) : '<span class="text-gray-300 italic">Unknown</span>'}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        body.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-red-500">${lstEsc(e.message)}</td></tr>`;
+    }
+}
+</script>
+@endif
+
 {{-- ==================== DELIVERABLE MODAL ==================== --}}
 <div id="deliverableModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col" style="max-height:90vh">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col relative" style="max-height:90vh">
+
+        {{-- Loading overlay (send to customer) --}}
+        <div id="deliverableLoadingOverlay" class="hidden absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl z-20 flex flex-col items-center justify-center gap-3">
+            <svg class="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <p class="text-sm font-semibold text-blue-600">Sending to Customer...</p>
+            <p class="text-xs text-gray-400">Please wait</p>
+        </div>
+
         {{-- Header --}}
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
             <div>
@@ -5139,11 +9160,42 @@ function copyFolderLink() {
             </div>
         </div>
 
+        {{-- Bulk action bar (muncul saat ≥1 dokumen terpilih) --}}
+        <div id="delivBulkBar" class="hidden items-center justify-between gap-3 px-6 py-2.5 bg-indigo-50 border-b border-indigo-100 shrink-0">
+            <div class="flex items-center gap-3 text-xs">
+                <span class="font-semibold text-gray-700">
+                    <span id="delivBulkCount">0</span> selected
+                </span>
+                <button onclick="clearDelivSelection()" class="text-[11px] font-medium text-gray-400 hover:text-gray-600 underline">Clear</button>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="bulkSendDeliverables()"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/>
+                    </svg>
+                    Send to Customer
+                </button>
+                <button onclick="bulkDeleteDeliverables()"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    Delete
+                </button>
+            </div>
+        </div>
+
         {{-- Table --}}
         <div class="overflow-auto flex-1 px-2">
             <table class="w-full text-xs border-collapse" id="deliverableTable">
                 <thead class="sticky top-0 bg-white z-10">
                     <tr class="border-b border-gray-200">
+                        <th class="px-3 py-2.5 w-9 text-center">
+                            <input type="checkbox" id="delivSelectAll" onchange="toggleDelivSelectAll(this.checked)"
+                                   title="Select all sendable documents"
+                                   class="w-4 h-4 accent-red-600 cursor-pointer align-middle disabled:opacity-40 disabled:cursor-not-allowed">
+                        </th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Upload Date</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Time</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style="min-width:90px">Doc Type</th>
@@ -5155,7 +9207,7 @@ function copyFolderLink() {
                 </thead>
                 <tbody id="deliverableBody">
                     <tr>
-                        <td colspan="7" class="text-center py-10 text-gray-400">Loading...</td>
+                        <td colspan="8" class="text-center py-10 text-gray-400">Loading...</td>
                     </tr>
                 </tbody>
             </table>
@@ -5181,10 +9233,7 @@ function copyFolderLink() {
             <div>
                 <label class="text-xs font-semibold text-gray-600 mb-1 block">Doc Type <span class="text-red-500">*</span></label>
                 <select id="ndDocType" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 focus:outline-none">
-                    <option value="">-- Select --</option>
-                    @foreach(['IR','RCA','CR Form','FSD','TD','UAT','MOM','BAST','Other'] as $dt)
-                    <option value="{{ $dt }}">{{ $dt }}</option>
-                    @endforeach
+                    <option value="" selected disabled hidden>Select Type</option>
                 </select>
             </div>
             {{-- Body Text --}}
@@ -5195,17 +9244,13 @@ function copyFolderLink() {
             </div>
             {{-- File --}}
             <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">File
-                    @if(!$ticket->onedrive_folder_id)
-                    <span class="ml-1 text-orange-500 font-normal">(generate folder first)</span>
-                    @endif
-                </label>
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">File</label>
                 <div class="flex items-center gap-2">
-                    <label class="flex-1 cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    <label class="flex-1 min-w-0 cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
                         <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
                         </svg>
-                        <span id="ndFileName" class="text-xs text-gray-400 truncate">Choose file...</span>
+                        <span id="ndFileName" class="text-xs text-gray-400 truncate flex-1 min-w-0">Choose file...</span>
                         <input type="file" id="ndFile" class="hidden" onchange="updateFileName()">
                     </label>
                     <button onclick="document.getElementById('ndFile').value=''; document.getElementById('ndFileName').textContent='Choose file...'"
@@ -5265,66 +9310,85 @@ function copyFolderLink() {
     </div>
 </div>
 
+{{-- ==================== EDIT INTERNAL NOTE MODAL ==================== --}}
+<div id="editNoteModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeEditNoteModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 flex flex-col" style="max-height:85vh">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 flex-shrink-0">
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1 text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold">
+                    <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z"/><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"/></svg>
+                    Edit Internal Note
+                </span>
+            </div>
+            <button onclick="closeEditNoteModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="px-5 pt-4 pb-2 flex-1 overflow-y-auto">
+            <div class="border border-gray-200 rounded-lg bg-white">
+                <div id="editNoteEditorContainer" style="min-height:120px;max-height:260px;overflow-y:auto"></div>
+            </div>
+            {{-- Existing attachments --}}
+            <div id="editNoteExistingAtts" class="mt-3 space-y-0.5"></div>
+            {{-- New attachments --}}
+            <div class="mt-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Add attachments</label>
+                <input type="file" id="editNoteNewFiles" multiple
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.csv"
+                    class="block w-full text-xs text-gray-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 cursor-pointer">
+            </div>
+            <p class="mt-2 text-[11px] text-gray-400">Note: edit and delete are only available within <strong>10 minutes</strong> of posting.</p>
+        </div>
+        <div class="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 flex-shrink-0">
+            <button onclick="closeEditNoteModal()"
+                class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                Cancel
+            </button>
+            <button id="editNoteSaveBtn" onclick="saveEditNote()"
+                class="px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+                Save
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
-// ==================== REUSABLE CONFIRM HELPER ====================
-/**
- * Tampilkan modal konfirmasi custom (mengganti browser confirm()).
- * @param {string} message   - Isi pesan konfirmasi
- * @param {string} title     - Judul modal (default: 'Confirm')
- * @param {string} variant   - 'danger' (tombol merah) | 'primary' (tombol biru) | default abu-abu
- * @returns {Promise<boolean>}
- */
-function showConfirm(message, title = 'Confirm', variant = 'default') {
-    return new Promise(resolve => {
-        const modal     = document.getElementById('confirmModal');
-        const titleEl   = document.getElementById('confirmTitle');
-        const msgEl     = document.getElementById('confirmMessage');
-        const okBtn     = document.getElementById('confirmOkBtn');
-        const cancelBtn = document.getElementById('confirmCancelBtn');
-        const iconWrap  = document.getElementById('confirmIconWrap');
-
-        titleEl.textContent = title;
-        msgEl.textContent   = message;
-
-        // Icon & warna tombol sesuai variant
-        if (variant === 'danger') {
-            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-red-100';
-            iconWrap.innerHTML = `<svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`;
-            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-red-700 hover:bg-red-800 rounded-lg transition';
-        } else if (variant === 'primary') {
-            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-blue-100';
-            iconWrap.innerHTML = `<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>`;
-            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition';
-        } else {
-            iconWrap.className = 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-gray-100';
-            iconWrap.innerHTML = `<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/></svg>`;
-            okBtn.className = 'px-4 py-2 text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 rounded-lg transition';
-        }
-
-        modal.classList.remove('hidden');
-
-        function cleanup() {
-            modal.classList.add('hidden');
-            okBtn.removeEventListener('click', onOk);
-            cancelBtn.removeEventListener('click', onCancel);
-            modal.removeEventListener('click', onBackdrop);
-        }
-        function onOk()      { cleanup(); resolve(true); }
-        function onCancel()  { cleanup(); resolve(false); }
-        function onBackdrop(e) { if (e.target === modal) onCancel(); }
-
-        okBtn.addEventListener('click', onOk);
-        cancelBtn.addEventListener('click', onCancel);
-        modal.addEventListener('click', onBackdrop);
-    });
-}
+// showConfirm() disediakan global oleh partials/confirm-modal.blade.php
 
 // ==================== DELIVERABLE JS ====================
 const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
-const CSRF = document.querySelector('meta[name="csrf-token"]')?.content ?? '{{ csrf_token() }}';
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
 let deliverableData = [];
 
-const DOC_TYPE_ROWS = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'Other'];
+// Doc Type dropdown dimuat dari master data (menu Management > Master Ticket
+// Settings > Document Type), bukan hardcode lagi — lihat DeliverableDocumentTypeController.
+let deliverableDocTypes       = [];
+let deliverableDocTypesLoaded = false;
+
+// Batas ukuran file deliverable (sinkron dengan validasi server: 100 MB).
+const DELIV_MAX_FILE_BYTES = 100 * 1024 * 1024;
+
+// Parse response API secara aman. Jika server membalas HTML (mis. halaman error
+// 413/419/500 dari nginx/PHP saat file melebihi batas upload), `res.json()` akan
+// melempar "Unexpected token '<'". Helper ini mengubahnya jadi pesan yang jelas.
+async function delivParseJson(res) {
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch (_) {
+        let msg;
+        if (res.status === 413) {
+            msg = 'File terlalu besar untuk server. Kecilkan ukuran file atau hubungi admin untuk menaikkan batas upload.';
+        } else if (res.status === 419) {
+            msg = 'Sesi kedaluwarsa. Muat ulang halaman lalu coba lagi.';
+        } else if (res.status >= 500) {
+            msg = `Server error (${res.status}). Coba lagi atau hubungi admin.`;
+        } else {
+            msg = `Respons server tidak valid (${res.status}).`;
+        }
+        throw new Error(msg);
+    }
+}
 
 async function openDeliverableModal() {
     document.getElementById('deliverableModal').classList.remove('hidden');
@@ -5337,7 +9401,8 @@ function closeDeliverableModal() {
 
 async function loadDeliverables() {
     document.getElementById('deliverableBody').innerHTML =
-        `<tr><td colspan="7" class="text-center py-10 text-gray-400">Loading...</td></tr>`;
+        `<tr><td colspan="8" class="text-center py-10 text-gray-400">Loading...</td></tr>`;
+    document.getElementById('deliverableFooter').innerHTML = '';
 
     try {
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
@@ -5360,22 +9425,22 @@ async function loadDeliverables() {
 
         const footer = document.getElementById('deliverableFooter');
         if (!json.has_folder) {
-            footer.innerHTML = '<span class="text-orange-500">âš  No OneDrive folder — generate folder first to enable file upload.</span>';
+            footer.innerHTML = '<span class="text-orange-500">' + (json.folder_message || 'Folder belum siap untuk upload file.') + '</span>';
         } else {
             footer.innerHTML = json.folder_url
-                ? `<a href="${json.folder_url}" target="_blank" rel="noopener" class="text-blue-500 hover:underline">ðŸ"— Open OneDrive Folder</a>`
+                ? `<a href="${json.folder_url}" target="_blank" rel="noopener" class="text-blue-500 hover:underline">Open OneDrive Folder</a>`
                 : '';
         }
     } catch (e) {
         document.getElementById('deliverableBody').innerHTML =
-            `<tr><td colspan="7" class="text-center py-8 text-red-500 text-xs">Failed to load: ${e.message}</td></tr>`;
+            `<tr><td colspan="8" class="text-center py-8 text-red-500 text-xs">Failed to load: ${e.message}</td></tr>`;
     }
 }
 
 function renderDeliverableTable(data) {
     if (!data || data.length === 0) {
         document.getElementById('deliverableBody').innerHTML =
-            `<tr><td colspan="7" class="text-center py-14 text-gray-400">
+            `<tr><td colspan="8" class="text-center py-14 text-gray-400">
                 <svg class="w-9 h-9 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                 </svg>
@@ -5385,7 +9450,9 @@ function renderDeliverableTable(data) {
     }
 
     const rows = data.map(d => {
-        const statusCls = d.status === 'Sended'
+        // Toleransi data lama: baris sebelum migrasi masih bisa bernilai "Sended".
+        const isSent = d.status === 'Sent' || d.status === 'Sended';
+        const statusCls = isSent
             ? 'bg-green-100 text-green-700'
             : 'bg-orange-100 text-orange-700';
 
@@ -5395,23 +9462,36 @@ function renderDeliverableTable(data) {
                 : `<span class="text-gray-600 truncate max-w-[160px] block">${escHtmlD(d.file_name)}</span>`)
             : '<span class="text-gray-300">—</span>';
 
-        const editBtn = d.status !== 'Sended'
+        const editBtn = !isSent
             ? `<button onclick="editDeliverable(${d.id})"
                 class="text-[10px] text-amber-600 hover:text-amber-800 font-semibold border border-amber-200 px-1.5 py-0.5 rounded hover:bg-amber-50 transition">
                 Edit</button>`
             : '';
 
-        const sendBtn = d.status !== 'Sended'
+        const sendBtn = !isSent
             ? `<button onclick="sendDeliverable(${d.id})"
                 class="text-[10px] text-blue-600 hover:text-blue-800 font-semibold border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-50 transition ml-1">
                 Send to Customer</button>`
             : '';
 
-        const delBtn = `<button onclick="deleteDeliverable(${d.id})"
-            class="text-[10px] text-red-500 hover:text-red-700 font-semibold border border-red-200 px-1.5 py-0.5 rounded hover:bg-red-50 transition ml-1">
-            Delete</button>`;
+        // Dokumen yang sudah dikirim ke customer tidak boleh dihapus.
+        const delBtn = !isSent
+            ? `<button onclick="deleteDeliverable(${d.id})"
+                class="text-[10px] text-red-500 hover:text-red-700 font-semibold border border-red-200 px-1.5 py-0.5 rounded hover:bg-red-50 transition ml-1">
+                Delete</button>`
+            : '';
+
+        // Hanya dokumen yang belum terkirim yang bisa dipilih (bulk send/delete).
+        const checkCell = isSent
+            ? `<td class="px-3 py-2 w-9"></td>`
+            : `<td class="px-3 py-2 w-9 text-center">
+                <input type="checkbox" class="deliv-row-check w-4 h-4 accent-red-600 cursor-pointer align-middle"
+                       data-id="${d.id}" ${_selectedDelivIds.has(d.id) ? 'checked' : ''}
+                       onchange="toggleDelivRow(${d.id}, this.checked)">
+               </td>`;
 
         return `<tr class="border-b border-gray-100 hover:bg-gray-50/60">
+            ${checkCell}
             <td class="px-3 py-2 text-gray-600 whitespace-nowrap">${escHtmlD(d.upload_date ?? '—')}</td>
             <td class="px-3 py-2 text-gray-600 whitespace-nowrap">${escHtmlD(d.upload_time ?? '—')}</td>
             <td class="px-3 py-2">
@@ -5429,6 +9509,146 @@ function renderDeliverableTable(data) {
     });
 
     document.getElementById('deliverableBody').innerHTML = rows.join('');
+
+    // Buang id terpilih yang barisnya sudah tak ada lagi (mis. setelah terkirim/dihapus),
+    // lalu segarkan bar & state select-all.
+    const validIds = new Set(delivSelectableIds());
+    _selectedDelivIds.forEach(id => { if (!validIds.has(id)) _selectedDelivIds.delete(id); });
+    const selectAll = document.getElementById('delivSelectAll');
+    if (selectAll) selectAll.disabled = validIds.size === 0;
+    updateDelivBulkBar();
+}
+
+// ── Bulk selection (Send/Delete beberapa dokumen sekaligus) ─────────────────
+let _selectedDelivIds = new Set();
+
+// ID dokumen yang boleh dipilih = yang BELUM terkirim ke customer.
+function delivSelectableIds() {
+    return (deliverableData || [])
+        .filter(d => !(d.status === 'Sent' || d.status === 'Sended'))
+        .map(d => d.id);
+}
+
+function toggleDelivRow(id, checked) {
+    if (checked) _selectedDelivIds.add(id); else _selectedDelivIds.delete(id);
+    updateDelivBulkBar();
+}
+
+function toggleDelivSelectAll(checked) {
+    _selectedDelivIds = checked ? new Set(delivSelectableIds()) : new Set();
+    document.querySelectorAll('#deliverableBody .deliv-row-check').forEach(cb => { cb.checked = checked; });
+    updateDelivBulkBar();
+}
+
+function clearDelivSelection() {
+    _selectedDelivIds.clear();
+    document.querySelectorAll('#deliverableBody .deliv-row-check').forEach(cb => { cb.checked = false; });
+    updateDelivBulkBar();
+}
+
+function updateDelivBulkBar() {
+    const n = _selectedDelivIds.size;
+    const countEl = document.getElementById('delivBulkCount');
+    if (countEl) countEl.textContent = n;
+
+    const bar = document.getElementById('delivBulkBar');
+    if (bar) {
+        bar.classList.toggle('hidden', n === 0);
+        bar.classList.toggle('flex', n > 0);
+    }
+
+    // State checkbox "select all": checked penuh / indeterminate / kosong.
+    const selectable = delivSelectableIds();
+    const all = document.getElementById('delivSelectAll');
+    if (all) {
+        if (n === 0)                                     { all.checked = false; all.indeterminate = false; }
+        else if (selectable.length > 0 && n >= selectable.length) { all.checked = true;  all.indeterminate = false; }
+        else                                             { all.checked = false; all.indeterminate = true;  }
+    }
+}
+
+async function bulkDeleteDeliverables() {
+    const ids = [..._selectedDelivIds];
+    if (ids.length === 0) return;
+    if (!await showConfirm(`Delete ${ids.length} document${ids.length > 1 ? 's' : ''}? This cannot be undone.`, 'Delete Documents', 'danger')) return;
+
+    const overlay = document.getElementById('deliverableLoadingOverlay');
+    if (overlay) overlay.classList.remove('hidden');
+
+    let ok = 0, fail = 0, lastErr = '';
+    for (const id of ids) {
+        try {
+            const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/delete`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+                credentials: 'same-origin',
+            });
+            const json = await delivParseJson(res);
+            if (!json.success) throw new Error(json.message);
+            ok++;
+        } catch (e) { fail++; lastErr = e.message; }
+    }
+
+    _selectedDelivIds.clear();
+    await loadDeliverables();
+    if (overlay) overlay.classList.add('hidden');
+
+    if (fail === 0)            showToast(`${ok} document${ok > 1 ? 's' : ''} deleted.`, 'success');
+    else if (ok === 0)        showToast('Failed to delete: ' + lastErr, 'error');
+    else                      showToast(`${ok} deleted, ${fail} failed.`, 'error');
+}
+
+// Bulk send: minta pilih status tiket dulu (sama seperti single send), lalu kirim
+// tiap dokumen berurutan. Eksekusi sebenarnya di _doBulkSendDeliverables.
+function bulkSendDeliverables() {
+    if (_selectedDelivIds.size === 0) return;
+    openDeliverableBulkStatusModal();
+}
+
+async function _doBulkSendDeliverables(chosenStatus) {
+    const ids = [..._selectedDelivIds];
+    if (ids.length === 0) return;
+
+    if (typeof commitToInput === 'function') commitToInput();
+    if (typeof commitCcInput === 'function') commitCcInput();
+    const toList     = (typeof toEmails !== 'undefined' && Array.isArray(toEmails)) ? toEmails : [];
+    const ccListSend = (typeof ccEmails !== 'undefined' && Array.isArray(ccEmails)) ? ccEmails : [];
+
+    const overlay = document.getElementById('deliverableLoadingOverlay');
+    if (overlay) overlay.classList.remove('hidden');
+
+    let ok = 0, emailFail = 0, hardFail = 0, lastErr = '';
+    for (const id of ids) {
+        try {
+            const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
+                method: 'PATCH',
+                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ ticket_status: chosenStatus || null, to_emails: toList, cc_emails: ccListSend }),
+            });
+            const json = await delivParseJson(res);
+            if (!json.success) throw new Error(json.message);
+            if (json.email_failed) emailFail++; else ok++;
+        } catch (e) { hardFail++; lastErr = e.message; }
+    }
+
+    _selectedDelivIds.clear();
+    if (chosenStatus && typeof updateStatusUI === 'function') updateStatusUI(chosenStatus);
+    await loadDeliverables();
+    if (typeof loadMessages === 'function') { try { await loadMessages(); } catch (_) {} }
+    if (overlay) overlay.classList.add('hidden');
+
+    if (hardFail === 0 && emailFail === 0) {
+        showToast(`${ok} document${ok > 1 ? 's' : ''} sent to customer.`, 'success');
+    } else if (hardFail === ids.length) {
+        showToast('Failed to send documents: ' + lastErr, 'error');
+    } else {
+        const parts = [];
+        if (ok)        parts.push(`${ok} sent`);
+        if (emailFail) parts.push(`${emailFail} saved but email failed`);
+        if (hardFail)  parts.push(`${hardFail} failed`);
+        showToast(parts.join(', ') + '.', 'error');
+    }
 }
 
 function escHtmlD(s) {
@@ -5437,6 +9657,26 @@ function escHtmlD(s) {
 }
 
 // â"€â"€ New Document modal â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Dimuat sekali lalu dicache — daftar tipe dokumen jarang berubah, jadi tidak
+// perlu fetch ulang tiap kali modal dibuka.
+async function loadDeliverableDocTypes() {
+    if (deliverableDocTypesLoaded) return;
+    const select = document.getElementById('ndDocType');
+    try {
+        const res  = await fetch('/api/deliverable-document-types?is_active=1', { credentials: 'same-origin' });
+        const json = await res.json();
+        deliverableDocTypes = json.success ? (json.data || []) : [];
+    } catch (e) {
+        deliverableDocTypes = [];
+    }
+    deliverableDocTypesLoaded = true;
+
+    // Placeholder tetap "selected disabled hidden" — hanya tampil sebagai label
+    // default, tidak bisa dipilih ulang dari daftar begitu tipe asli ada.
+    select.innerHTML = '<option value="" selected disabled hidden>Select Type</option>'
+        + deliverableDocTypes.map(t => `<option value="${escHtmlD(t.name)}">${escHtmlD(t.name)}</option>`).join('');
+}
+
 function openNewDocModal() {
     document.getElementById('ndDocType').value = '';
     document.getElementById('ndBodyText').value = '';
@@ -5445,6 +9685,7 @@ function openNewDocModal() {
     document.getElementById('ndError').classList.add('hidden');
     document.getElementById('ndSubmitBtn').disabled = false;
     document.getElementById('newDocModal').classList.remove('hidden');
+    loadDeliverableDocTypes();
 }
 
 function closeNewDocModal() {
@@ -5454,6 +9695,45 @@ function closeNewDocModal() {
 function updateFileName() {
     const f = document.getElementById('ndFile').files[0];
     document.getElementById('ndFileName').textContent = f ? f.name : 'Choose file...';
+}
+
+// Upload file langsung ke Graph dalam potongan (chunked), bypass server Laravel
+// sepenuhnya untuk byte file-nya — lihat createUploadSession() di
+// TicketDeliverableController untuk alasannya (batas post_max_size PHP & 4 MB
+// simple-PUT Graph).
+async function _deliverableUploadChunked(uploadUrl, file, onProgress) {
+    const CHUNK = 5 * 1024 * 1024; // 5 MB per chunk
+    let start  = 0;
+    let itemId = null;
+
+    while (start < file.size) {
+        const end   = Math.min(start + CHUNK, file.size);
+        const chunk = file.slice(start, end);
+
+        const res = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Range': `bytes ${start}-${end - 1}/${file.size}`,
+                'Content-Type': file.type || 'application/octet-stream',
+            },
+            body: chunk,
+        });
+
+        if (res.status === 202) {
+            onProgress(Math.round(end / file.size * 95));
+        } else if (res.status === 200 || res.status === 201) {
+            const data = await res.json();
+            itemId = data.id;
+            onProgress(100);
+        } else {
+            const errText = await res.text();
+            throw new Error(`OneDrive upload failed (${res.status}): ${errText}`);
+        }
+
+        start = end;
+    }
+
+    return itemId;
 }
 
 async function submitNewDoc() {
@@ -5466,23 +9746,57 @@ async function submitNewDoc() {
 
     if (!docType) { errEl.textContent = 'Please select a Doc Type.'; errEl.classList.remove('hidden'); return; }
 
+    // Cegah upload melebihi batas sebelum request dikirim, agar tidak berakhir
+    // dengan halaman error HTML dari server (penyebab "Unexpected token '<'").
+    if (file && file.size > DELIV_MAX_FILE_BYTES) {
+        const mb = (file.size / 1024 / 1024).toFixed(1);
+        errEl.textContent = `File terlalu besar (${mb} MB). Maksimal 100 MB.`;
+        errEl.classList.remove('hidden');
+        return;
+    }
+
     const submitBtn = document.getElementById('ndSubmitBtn');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Saving…';
 
     try {
-        const form = new FormData();
-        form.append('doc_type',  docType);
-        if (bodyText) form.append('body_text', bodyText);
-        if (file)     form.append('file', file);
+        let onedriveItemId = null;
+
+        if (file) {
+            // Step 1: minta upload session (tidak membawa byte file — request kecil).
+            submitBtn.textContent = 'Preparing upload…';
+            const sessionRes  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/upload-session`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ file_name: file.name }),
+            });
+            const sessionJson = await delivParseJson(sessionRes);
+            if (!sessionJson.success) throw new Error(sessionJson.message);
+
+            // Step 2: upload file langsung ke OneDrive (chunked).
+            onedriveItemId = await _deliverableUploadChunked(sessionJson.upload_url, file, pct => {
+                submitBtn.textContent = `Uploading… ${pct}%`;
+            });
+            if (!onedriveItemId) throw new Error('Upload completed but no item ID returned.');
+        }
+
+        // Step 3: simpan metadata dokumen (server buat share link kalau ada file).
+        submitBtn.textContent = 'Saving…';
+        const body = { doc_type: docType };
+        if (bodyText) body.body_text = bodyText;
+        if (onedriveItemId) {
+            body.onedrive_item_id = onedriveItemId;
+            body.file_name        = file.name;
+        }
 
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
             method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
             credentials: 'same-origin',
-            body: form,
+            body: JSON.stringify(body),
         });
-        const json = await res.json();
+        const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
 
         closeNewDocModal();
@@ -5498,33 +9812,72 @@ async function submitNewDoc() {
     }
 }
 
-async function sendDeliverable(id) {
-    if (!await showConfirm('Mark this document as "Sended to Customer"?', 'Send to Customer')) return;
+// Klik "Send to Customer" → wajib pilih status tiket dulu lewat modal (mirror alur reply
+// yang mengirim pesan ke email). Dokumen baru dikirim setelah status dipilih.
+function sendDeliverable(id) {
+    openDeliverableStatusModal(id);
+}
+
+// Pengiriman sebenarnya, dipanggil oleh confirmSendWithStatus setelah status dipilih.
+async function _doSendDeliverable(id, chosenStatus) {
+    // Ambil To/Cc dari kolom composer reply (sama seperti kirim pesan biasa) agar dokumen
+    // dikirim ke alamat yang diisi user, BUKAN email ticket default. Commit dulu input yang
+    // belum ter-Enter supaya nilai terakhir yang diketik ikut terkirim.
+    if (typeof commitToInput === 'function') commitToInput();
+    if (typeof commitCcInput === 'function') commitCcInput();
+    const toList = (typeof toEmails !== 'undefined' && Array.isArray(toEmails)) ? toEmails : [];
+    const ccListSend = (typeof ccEmails !== 'undefined' && Array.isArray(ccEmails)) ? ccEmails : [];
+
+    const overlay = document.getElementById('deliverableLoadingOverlay');
+    if (overlay) overlay.classList.remove('hidden');
     try {
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
             method: 'PATCH',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            headers: {
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
             credentials: 'same-origin',
+            body: JSON.stringify({
+                ticket_status: chosenStatus || null,
+                to_emails: toList,
+                cc_emails: ccListSend,
+            }),
         });
-        const json = await res.json();
+        const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
+        // Sinkronkan badge/label status tiket (header, panel properties, sidebar) tanpa reload.
+        if (chosenStatus && typeof updateStatusUI === 'function') updateStatusUI(chosenStatus);
         await loadDeliverables();
-        showToast('Document sent to customer.', 'success');
+        // Muat ulang chat agar bubble deliverable + status email (termasuk "Tidak terkirim") ikut update.
+        if (typeof loadMessages === 'function') { try { await loadMessages(); } catch (_) {} }
+        if (json.email_failed) {
+            // Dokumen tersimpan & masuk chat, tapi EMAIL ke customer gagal → peringatan, bukan sukses.
+            showToast(json.email_error || 'Document saved, but the email to the customer could not be delivered.', 'error');
+        } else {
+            showToast('Document sent to customer.', 'success');
+        }
     } catch (e) {
         showDelivError(e.message);
         showToast('Failed to send: ' + e.message, 'error');
+    } finally {
+        if (overlay) overlay.classList.add('hidden');
     }
 }
 
 async function deleteDeliverable(id) {
     if (!await showConfirm('Delete this deliverable document? This cannot be undone.', 'Delete Document', 'danger')) return;
     try {
-        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}`, {
-            method: 'DELETE',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/delete`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'application/json',
+            },
             credentials: 'same-origin',
         });
-        const json = await res.json();
+        const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
         await loadDeliverables();
         showToast('Document deleted.', 'success');
@@ -5572,7 +9925,7 @@ async function submitEditDeliv() {
             credentials: 'same-origin',
             body: JSON.stringify({ body_text: bodyText }),
         });
-        const json = await res.json();
+        const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
 
         const idx = deliverableData.findIndex(x => x.id === id);
@@ -5606,9 +9959,9 @@ function showDelivError(msg) {
 document.getElementById('deliverableModal').addEventListener('click', function(e) {
     if (e.target === this) closeDeliverableModal();
 });
-document.getElementById('newDocModal').addEventListener('click', function(e) {
-    if (e.target === this) closeNewDocModal();
-});
+// Intentionally no backdrop-click-to-close on #newDocModal — it should only
+// be dismissed via its own close controls (X / Cancel), never by an
+// accidental click outside while filling the "New Document" form.
 
 // Load badge on page load
 (async () => {

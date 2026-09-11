@@ -4,12 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectCost;
+use App\Models\DeliveryProjectType;
 use App\Models\Employee;
+use App\Models\EmployeeBasicData;
 use App\Models\Document;
 use App\Models\DeliveryProjectPlanning;
 use App\Models\DeliveryProjectPhase;
 use App\Models\DeliveryProjectActivity;
+use App\Models\DeliveryProjectPaymentTerm;
 use App\Services\OneDriveService;
+use App\Services\ProjectReminderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -24,21 +29,240 @@ class DeliveryProjectController extends Controller
         return view('delivery.project.projects.index', compact('projects'));
     }
 
+    /**
+     * Export daftar project ke Excel — satu baris per project, lengkap dengan
+     * angka progres (aktual, rencana, deviasi, SPI) dan ringkasan tiap section.
+     *
+     * Filter & sort tabel di halaman list dikerjakan client-side, jadi tombol
+     * Export mengirim `ids` = id baris yang sedang terlihat supaya isi file
+     * persis sama dengan isi layar. Tanpa `ids`, seluruh project diekspor.
+     */
+    public function export(Request $request)
+    {
+        $ids = collect(explode(',', (string) $request->query('ids', '')))
+            ->map(fn ($id) => (int) trim($id))
+            ->filter()
+            ->unique()
+            ->values();
+
+        // `plannings.stages` + `phases` di-eager load karena dipakai perhitungan
+        // progres (weightedProgressRaw) untuk SETIAP project — tanpa ini export
+        // memicu query per project per group.
+        $projects = DeliveryProject::with(['client.basicData', 'plannings.stages', 'phases'])
+            ->when($ids->isNotEmpty(), fn ($q) => $q->whereIn('id', $ids))
+            ->latest()
+            ->get();
+
+        $projectIds = $projects->pluck('id');
+
+        // Nama PIC: kolomnya menyimpan employee_id, sedangkan `full_name` adalah
+        // ACCESSOR di EmployeeBasicData (bukan kolom, tidak bisa di-join/where),
+        // jadi resolve lewat satu map sekali jalan.
+        $employeeIds = $projects->flatMap(fn ($p) => [
+            $p->delivery_owner_id,
+            $p->delivery_manager_id,
+            $p->project_manager_id,
+            $p->co_pm_id,
+            $p->project_admin_id,
+        ])->filter()->unique()->values();
+
+        $employeeNames = EmployeeBasicData::whereIn('employee_id', $employeeIds)
+            ->get()
+            ->mapWithKeys(fn ($b) => [$b->employee_id => $b->full_name]);
+
+        // Actual Cost = SUM actual_amount seluruh cost item (baris parent menyimpan
+        // null, jadi menjumlahkan semua baris = total leaf). Sama dengan angka
+        // "Total Actual" di section Plan Cost.
+        $actualCosts = DeliveryProjectCost::whereIn('delivery_projects_id', $projectIds)
+            ->selectRaw('delivery_projects_id, SUM(actual_amount) AS total')
+            ->groupBy('delivery_projects_id')
+            ->pluck('total', 'delivery_projects_id');
+
+        $teamCounts = DB::table('delivery_project_employee')
+            ->whereIn('delivery_projects_id', $projectIds)
+            ->selectRaw('delivery_projects_id, COUNT(*) AS total')
+            ->groupBy('delivery_projects_id')
+            ->pluck('total', 'delivery_projects_id');
+
+        $documentCounts = DB::table('documents')
+            ->whereIn('delivery_projects_id', $projectIds)
+            ->selectRaw('delivery_projects_id, COUNT(*) AS total')
+            ->groupBy('delivery_projects_id')
+            ->pluck('total', 'delivery_projects_id');
+
+        $issueStats  = $this->openTotalStats('delivery_project_issues', $projectIds);
+        $riskStats   = $this->openTotalStats('delivery_project_risks', $projectIds);
+        $wricefStats = $this->openTotalStats('delivery_project_wricefs', $projectIds);
+
+        // TOP: amount TIDAK dibaca dari kolom tersimpan — nilai turunan itu bisa
+        // basi kalau revenue berubah lewat jalur lain. Dihitung ulang di sini,
+        // sama seperti resyncAmount() di DeliveryProjectPaymentTermController.
+        $paymentTerms = DeliveryProjectPaymentTerm::whereIn('delivery_projects_id', $projectIds)
+            ->get()
+            ->groupBy('delivery_projects_id');
+
+        $rows = $projects->map(function (DeliveryProject $project) use (
+            $employeeNames, $actualCosts, $teamCounts, $documentCounts,
+            $issueStats, $riskStats, $wricefStats, $paymentTerms
+        ) {
+            $revenue    = (float) ($project->revenue ?? 0);
+            $actualCost = (float) ($actualCosts[$project->id] ?? 0);
+            $actualGp   = $revenue - $actualCost;
+
+            // Sekali hitung untuk keempat angka progres — lihat progressSnapshot().
+            $progress = $project->progressSnapshot();
+
+            $activities   = $project->plannings->where('is_group', false);
+            $activityDone = $activities->filter(fn ($a) => (float) ($a->progress_percentage ?? 0) >= 100)->count();
+
+            $terms       = $paymentTerms[$project->id] ?? collect();
+            $termAmount  = fn ($t) => round($revenue * ((float) $t->payment_percentage) / 100, 2);
+            $topAmount   = $terms->sum($termAmount);
+            $topPaid     = $terms->where('status', 'Paid')->sum($termAmount);
+
+            $name = fn ($id) => $id ? ($employeeNames[$id] ?? '-') : '-';
+            $date = fn ($d) => $d ? Carbon::parse($d)->format('Y-m-d') : '-';
+            $text = fn ($v) => filled($v) ? $v : '-';
+
+            return [
+                'name'                => $project->name,
+                'io_number'           => $text($project->io_number),
+                'customer'            => $text($project->client->basicData->name_1 ?? null),
+                'project_type'        => $text($project->project_type),
+                'category'            => $text($project->category),
+                'status'              => $text($project->status),
+                'phase'               => $text($project->phase),
+                'high_level_risk'     => $text($project->high_level_risk),
+                'project_owner'       => $text($project->project_owner),
+                'delivery_owner'      => $name($project->delivery_owner_id),
+                'delivery_manager'    => $name($project->delivery_manager_id),
+                'project_manager'     => $name($project->project_manager_id),
+                'co_pm'               => $name($project->co_pm_id),
+                'project_admin'       => $name($project->project_admin_id),
+                'ae_type'             => $text($project->ae_type),
+                'ae_name'             => $text($project->ae_name),
+                'ae_email'            => $text($project->ae_email),
+                'ae_phone'            => $text($project->ae_phone),
+                'contract_start_date' => $date($project->contract_start_date),
+                'contract_end_date'   => $date($project->contract_end_date),
+                'go_live_estimated'   => $date($project->go_live_estimated),
+                'delivery_method'     => $text($project->delivery_method),
+                'warranty_period'     => $project->warranty_period ?? 0,
+                'total_mandays'       => $project->total_mandays ?? 0,
+
+                'revenue'                        => $revenue,
+                'plan_cost'                      => (float) ($project->plan_cost ?? 0),
+                'actual_cost'                    => $actualCost,
+                'gross_profit'                   => (float) ($project->gross_profit ?? 0),
+                'gross_profit_percentage'        => (float) ($project->gross_profit_percentage ?? 0),
+                'actual_gross_profit'            => $actualGp,
+                'actual_gross_profit_percentage' => $revenue > 0 ? round($actualGp / $revenue * 100, 2) : 0,
+
+                'overall_progress'    => $progress['actual'],
+                'planned_progress'    => $progress['planned'],
+                'progress_deviation'  => $progress['deviation'],
+                'spi'                 => $progress['spi'] ?? '-',
+
+                'activities_total'    => $activities->count(),
+                'activities_done'     => $activityDone,
+                'team_members'        => (int) ($teamCounts[$project->id] ?? 0),
+                'issues_open'         => $issueStats[$project->id]['open'] ?? 0,
+                'issues_total'        => $issueStats[$project->id]['total'] ?? 0,
+                'risks_open'          => $riskStats[$project->id]['open'] ?? 0,
+                'risks_total'         => $riskStats[$project->id]['total'] ?? 0,
+                'wricefs_open'        => $wricefStats[$project->id]['open'] ?? 0,
+                'wricefs_total'       => $wricefStats[$project->id]['total'] ?? 0,
+                'documents'           => (int) ($documentCounts[$project->id] ?? 0),
+
+                'payment_terms'       => $terms->count(),
+                'top_amount'          => $topAmount,
+                'top_paid'            => $topPaid,
+                'top_outstanding'     => $topAmount - $topPaid,
+
+                'location_name'       => $text($project->location_name),
+                'location_type'       => $text($project->location_type),
+                'location_city'       => $text($project->location_city),
+                'location_region'     => $text($project->location_region),
+                'location_country'    => $text($project->location_country),
+
+                'is_closed'           => $project->is_closed ? 'Yes' : 'No',
+                'closed_at'           => $project->closed_at ? $project->closed_at->format('Y-m-d') : '-',
+                'updated_at'          => $project->updated_at ? $project->updated_at->format('Y-m-d H:i') : '-',
+                'description'         => $text($project->description),
+            ];
+        });
+
+        $filename = 'Delivery_Projects_' . now()->format('Ymd_His') . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\DeliveryProjectExport($rows),
+            $filename
+        );
+    }
+
+    /**
+     * Hitung jumlah baris total & yang belum Closed per project untuk salah satu
+     * tabel section (issue/risk/WRICEF) dalam satu query.
+     *
+     * @return array<int, array{total: int, open: int}>
+     */
+    private function openTotalStats(string $table, $projectIds): array
+    {
+        return DB::table($table)
+            ->whereIn('delivery_projects_id', $projectIds)
+            ->selectRaw("delivery_projects_id, COUNT(*) AS total, SUM(CASE WHEN status <> 'Closed' THEN 1 ELSE 0 END) AS open_count")
+            ->groupBy('delivery_projects_id')
+            ->get()
+            ->mapWithKeys(fn ($r) => [
+                (int) $r->delivery_projects_id => [
+                    'total' => (int) $r->total,
+                    'open'  => (int) $r->open_count,
+                ],
+            ])
+            ->all();
+    }
+
     public function create()
     {
-        $clients = Customer::with('basicData')->get()->sortBy(function($client) {
+        // Hanya Business Partner bertipe Customer yang bisa dipilih sebagai client.
+        $clients = Customer::with('basicData')->customers()->get()->sortBy(function($client) {
             return $client->basicData->name_1 ?? '';
         });
         $clientPicMap = $clients->pluck('pic', 'customer_id');
-        $employees = Employee::with(['basicData', 'addresses' => fn($q) => $q->where('is_primary', true)])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
+        // `qualifications.module` dipakai modal Add Team Member (Module bukan free text).
+        $employees = Employee::with(['basicData', 'qualifications.module', 'addresses' => fn($q) => $q->where('is_primary', true)])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
 
-        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees'));
+        // Dropdown "Vendor" pada Add Team Member (Business Partner bertipe Vendor).
+        $vendors = Customer::with('basicData')->vendors()->get()->sortBy(fn($v) => strtolower($v->basicData->name_1 ?? $v->customer_code ?? 'zzz'))->values();
+
+        // Account Executive dropdown: karyawan aktif ber-role family "Sales Operation"
+        // selain "Sales Operation User" (lihat salesRoleEmployees()).
+        $aeEmployees = $this->salesRoleEmployees();
+
+        // IO number existing per company (client) — dipakai form Body Hire untuk
+        // memilih IO yang sudah ada; hanya IO milik company yang sama yang muncul.
+        $iosByClient = $this->existingIosByClient();
+
+        // Dropdown "Project Type" — master data (menu Management > Master
+        // Delivery Settings > Project Type), bukan hardcode lagi.
+        $projectTypes = DeliveryProjectType::active()->orderBy('order_seq')->orderBy('name')->pluck('name');
+
+        return view('delivery.project.projects.create', compact('clients', 'clientPicMap', 'employees', 'vendors', 'aeEmployees', 'iosByClient', 'projectTypes'));
     }
 
     public function store(Request $request)
     {
+        // Body Hire boleh berbagi satu IO number lintas delivery — tapi HANYA dalam
+        // company yang sama. Type lain tetap wajib unik global.
+        $ioNumberRule = ['required', 'string', 'max:255'];
+        if ($request->input('project_type') === 'Body Hire') {
+            $ioNumberRule[] = $this->sameCompanyIoRule($request->input('client_id'));
+        } else {
+            $ioNumberRule[] = Rule::unique('delivery_projects', 'io_number');
+        }
+
         $request->validate([
-            'client_id' => 'required|exists:customer,customer_id',
+            'client_id' => ['required', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
             'project_owner' => 'required|string|max:255',
             'name' => 'required|string|max:255',
             'description' => 'required|string',
@@ -46,7 +270,7 @@ class DeliveryProjectController extends Controller
             'high_level_risk' => 'nullable|in:Low,Moderate,High',
             'contract_start_date' => 'required|date',
             'contract_end_date' => 'required|date|after_or_equal:contract_start_date',
-            'io_number' => 'required|string|max:255|unique:delivery_projects,io_number',
+            'io_number' => $ioNumberRule,
             'ae_type' => 'nullable|in:Internal,External',
             'ae_name' => 'nullable|string',
             'ae_phone' => 'nullable|string',
@@ -63,12 +287,24 @@ class DeliveryProjectController extends Controller
             'delivery_method' => 'nullable|in:Onsite,Hybrid,WFH',
             'warranty_period' => 'nullable|integer|min:0',
             'total_mandays' => 'nullable|integer|min:0',
+            'location_name' => 'nullable|string|max:255',
+            'location_type' => 'nullable|in:Head Office,Plant',
+            'location_country' => 'nullable|string|max:255',
+            'location_geographical' => 'nullable|string',
+            'location_region' => 'nullable|string',
+            'location_city' => 'nullable|string',
+            'location_street' => 'nullable|string',
+            // Anggota tim punya dua jalur: "employee" (master Employee) dan
+            // "vendor" (orang vendor di luar master). Kelengkapan tiap jalur
+            // diperiksa saat baris diproses — lihat loop attach di bawah.
             'team_members'                    => 'nullable|array',
-            'team_members.*.employee_id'      => 'required|exists:employee,employee_id',
+            'team_members.*.member_source'    => 'nullable|in:employee,vendor',
+            'team_members.*.employee_id'      => 'nullable|exists:employee,employee_id',
+            'team_members.*.vendor_id'        => 'nullable|exists:customer,customer_id',
+            'team_members.*.member_name'      => 'nullable|string|max:255',
+            'team_members.*.member_position'  => 'nullable|string|max:255',
             'team_members.*.module'           => 'nullable|string|max:255',
             'team_members.*.role'             => 'required|in:Member,Lead,Project Manager,Co Project Manager,Project Admin',
-            'team_members.*.employee_type'    => 'required|in:Internal,External,Vendor',
-            'team_members.*.vendor_name'      => 'nullable|string|max:255',
             'team_members.*.start_date'       => 'required|date',
             'team_members.*.end_date'         => 'nullable|date|after_or_equal:team_members.*.start_date',
             'team_members.*.notes'            => 'nullable|string',
@@ -90,7 +326,8 @@ class DeliveryProjectController extends Controller
             'io_number' => $request->io_number,
             'category' => 'Open',
             'phase' => null,
-            'status' => 'Monitoring',
+            // No planning baseline yet → SPI is undefined → On Track (no variance).
+            'status' => 'On Track',
             'created_by_id' => null,
         ];
 
@@ -99,7 +336,9 @@ class DeliveryProjectController extends Controller
             'delivery_owner_id', 'delivery_manager_id',
             'project_manager_id', 'co_pm_id', 'project_admin_id',
             'revenue', 'plan_cost', 'gross_profit', 'gross_profit_percentage',
-            'delivery_method', 'warranty_period', 'total_mandays'
+            'delivery_method', 'warranty_period', 'total_mandays',
+            'location_name', 'location_type', 'location_country',
+            'location_geographical', 'location_region', 'location_city', 'location_street'
         ]));
 
         try {
@@ -109,15 +348,59 @@ class DeliveryProjectController extends Controller
             if ($request->filled('team_members') && is_array($request->input('team_members'))) {
                 $roleColsDirty = false;
                 foreach ($request->input('team_members') as $tm) {
-                    $project->teamMembers()->attach($tm['employee_id'], [
-                        'module'        => $tm['module']       ?? null,
-                        'role'          => $tm['role'],
-                        'employee_type' => $tm['employee_type'],
-                        'vendor_name'   => $tm['vendor_name']  ?? null,
-                        'start_date'    => $tm['start_date'],
-                        'end_date'      => $tm['end_date']      ?: null,
-                        'notes'         => $tm['notes']         ?? null,
+                    $common = [
+                        'role'       => $tm['role'],
+                        'start_date' => $tm['start_date'],
+                        'end_date'   => $tm['end_date'] ?: null,
+                        'notes'      => $tm['notes'] ?? null,
+                    ];
+
+                    if (($tm['member_source'] ?? 'employee') === 'vendor') {
+                        // Orang vendor: tidak ada di master employee. Vendor wajib
+                        // Business Partner bertipe Vendor; nama diketik manual.
+                        $vendor = !empty($tm['vendor_id'])
+                            ? Customer::with('basicData')->vendors()->where('customer_id', $tm['vendor_id'])->first()
+                            : null;
+                        $memberName = trim((string) ($tm['member_name'] ?? ''));
+
+                        if (!$vendor || $memberName === '') {
+                            continue;
+                        }
+
+                        $vendorModules = collect(explode(',', (string) ($tm['module'] ?? '')))
+                            ->map(fn ($m) => trim($m))->filter()->unique()->values();
+
+                        DB::table('delivery_project_employee')->insert($common + [
+                            'delivery_projects_id' => $project->id,
+                            'employee_id'          => null,
+                            'vendor_id'            => $vendor->customer_id,
+                            'vendor_name'          => $vendor->basicData->name_1 ?? $vendor->customer_code,
+                            'member_name'          => $memberName,
+                            'member_position'      => !empty($tm['member_position']) ? trim($tm['member_position']) : null,
+                            'module'               => $vendorModules->isEmpty() ? null : $vendorModules->implode(', '),
+                            'employee_type'        => 'Vendor',
+                            'created_at'           => now(),
+                            'updated_at'           => now(),
+                        ]);
+
+                        // Kolom FK project-role menunjuk master employee — dilewati.
+                        continue;
+                    }
+
+                    if (empty($tm['employee_id'])) {
+                        continue;
+                    }
+
+                    // Employee Type & Module turunan data employee, bukan input form.
+                    [$moduleValue] = $this->sanitizeEmployeeModules($tm['employee_id'], $tm['module'] ?? null);
+
+                    $project->teamMembers()->attach($tm['employee_id'], $common + [
+                        'module'        => $moduleValue,
+                        'employee_type' => EmployeeBasicData::where('employee_id', $tm['employee_id'])->value('employee_type') ?: 'Internal',
+                        'vendor_id'     => null,
+                        'vendor_name'   => null,
                     ]);
+
                     // Sync FK columns if a project-level role was assigned via the table
                     if (isset(self::PROJECT_ROLE_COLUMNS[$tm['role']])) {
                         $col = self::PROJECT_ROLE_COLUMNS[$tm['role']];
@@ -136,6 +419,9 @@ class DeliveryProjectController extends Controller
                              ->with('error', 'Failed to create the project due to a server error. Please try again.');
         }
 
+        // A freshly created project may already sit inside the contract-end window.
+        app(ProjectReminderService::class)->syncAllQuietly();
+
         return redirect()->route('projects.index')
                          ->with('success', 'Project successfully created.');
     }
@@ -149,6 +435,7 @@ class DeliveryProjectController extends Controller
             'deliveryOwner.basicData',
             'deliveryManager.basicData',
             'createdBy',
+            'closedBy.basicData',
             'documents',
             'teamMembers.basicData',
             'plannings.phase'
@@ -177,8 +464,11 @@ class DeliveryProjectController extends Controller
                 }
             }
 
-            if ($plan->phase && $plan->phase->is_golive_phase) {
-                $goLiveDate = $plan->end_date;
+            // Go-Live ditandai di level activity (planning leaf). Estimasi = Planned
+            // Start Date activity tsb (tanggal otoritatif di tabel activities; planning
+            // leaf bisa lag). Hanya satu yang boleh go-live per project.
+            if ($plan->is_golive && !$plan->is_group) {
+                $goLiveDate = $plan->activity?->start_date ?: $plan->start_date;
             }
         }
 
@@ -201,9 +491,29 @@ class DeliveryProjectController extends Controller
             ]);
         }
 
-        $employees = Employee::with(['basicData', 'addresses'])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
+        // `qualifications.module` ikut di-eager-load: dropdown Module pada modal
+        // Add Team Member mengambil pilihannya dari kualifikasi employee
+        // (bukan lagi free text).
+        $employees = Employee::with(['basicData', 'addresses', 'qualifications.module'])->get()->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))->values();
 
-        $clients = Customer::with('basicData')->get()->sortBy(fn($c) => strtolower($c->basicData->name_1 ?? ''))->values();
+        // AE dropdown: karyawan aktif ber-role "Sales Operation" (lihat salesRoleEmployees()).
+        $aeEmployees = $this->salesRoleEmployees();
+
+        $clients = Customer::with('basicData')->customers()->get()->sortBy(fn($c) => strtolower($c->basicData->name_1 ?? ''))->values();
+
+        // Dropdown "Vendor" pada Add Team Member — master-nya sama dengan customer
+        // (tabel `customer`), dibedakan kolom `type` = Vendor.
+        $vendors = Customer::with('basicData')->vendors()->get()->sortBy(fn($v) => strtolower($v->basicData->name_1 ?? $v->customer_code ?? 'zzz'))->values();
+
+        // IO number existing milik company yang sama (untuk pilihan Body Hire).
+        $sameCompanyIos = DeliveryProject::where('client_id', $project->client_id)
+            ->where('id', '!=', $project->id)
+            ->whereNotNull('io_number')
+            ->where('io_number', '!=', '')
+            ->pluck('io_number')
+            ->filter()
+            ->unique()
+            ->values();
 
         $hasPlanning = DeliveryProjectPlanning::where('delivery_projects_id', $project->id)->exists();
 
@@ -248,15 +558,44 @@ class DeliveryProjectController extends Controller
             ->orderBy('created_at')
             ->get();
 
+        // Actual Cost = total actual spending across all cost items (mirrors the
+        // "Total Actual" summary in the Plan Cost section). Parent rows store a
+        // null actual (aggregate only), so summing every row yields the leaf
+        // total. Used to seed Delivery Information → Actual Cost / GP / % on
+        // first paint; the frontend keeps it live as expenses change.
+        $actualCost = (float) DeliveryProjectCost::where('delivery_projects_id', $project->id)
+            ->sum('actual_amount');
+
+        // Project Owner project ini dapat izin tambahan pada section tertentu
+        // (mis. Risk Register) walau role-nya tidak punya slug-nya. Grant ini
+        // hanya berlaku di project ini — lihat CheckMenuOrProjectOwner.
+        $isProjectOwner = $project->isOwnedByEmployee(session('user.id'));
+
+        // Dropdown "Project Type" (modal-general-info partial) — master data,
+        // bukan hardcode lagi. Nilai project_type project ini tetap dipastikan
+        // muncul di daftar walau tipenya sudah dinonaktifkan di master data,
+        // supaya form edit tidak diam-diam "menghilangkan" pilihan yang sedang
+        // terpakai.
+        $projectTypes = DeliveryProjectType::active()->orderBy('order_seq')->orderBy('name')->pluck('name');
+        if ($project->project_type && !$projectTypes->contains($project->project_type)) {
+            $projectTypes->push($project->project_type);
+        }
+
         return view('delivery.project.projects.show', compact(
             'project',
             'employees',
+            'aeEmployees',
             'clients',
+            'vendors',
             'hasPlanning',
             'phases',
             'deliveryActivities',
             'finalPhaseWeights',
-            'teamPivotRows'
+            'teamPivotRows',
+            'actualCost',
+            'sameCompanyIos',
+            'isProjectOwner',
+            'projectTypes'
         ));
     }
 
@@ -269,7 +608,7 @@ class DeliveryProjectController extends Controller
         if ($field === 'category') {
             $rules['value'] = ['required', Rule::in(['Open', 'In Process', 'Closed'])];
         } elseif ($field === 'status') {
-            $rules['value'] = ['required', Rule::in(['On Track', 'Monitoring', 'At Risk'])];
+            $rules['value'] = ['required', Rule::in(['On Track', 'At Risk', 'At Critical'])];
         } elseif ($field === 'phase') {
             $rules['value'] = ['required', Rule::in(['Prepare', 'Explore', 'Realize', 'Deploy'])];
         } elseif ($field === 'project_owner') {
@@ -277,15 +616,21 @@ class DeliveryProjectController extends Controller
         } elseif ($field === 'high_level_risk') {
             $rules['value'] = ['nullable', Rule::in(['Low', 'Moderate', 'High'])];
         } elseif ($field === 'io_number') {
-            $rules['value'] = ['required', 'string', 'max:255', Rule::unique('delivery_projects', 'io_number')->ignore($project->id)];
+            // Body Hire: IO boleh dipakai ulang dalam company yang sama; type lain unik.
+            $rules['value'] = ['required', 'string', 'max:255'];
+            if ($project->project_type === 'Body Hire') {
+                $rules['value'][] = $this->sameCompanyIoRule($project->client_id, $project->id);
+            } else {
+                $rules['value'][] = Rule::unique('delivery_projects', 'io_number')->ignore($project->id);
+            }
         } elseif ($field === 'description') {
             $rules['value'] = 'nullable|string|max:5000';
         } elseif ($field === 'name') {
             $rules['value'] = 'required|string|max:255';
         } elseif ($field === 'project_type') {
-            $rules['value'] = ['nullable', Rule::in(['Implementation', 'Roll Out', 'Migration', 'Upgrade', 'WRICEF'])];
+            $rules['value'] = ['nullable', Rule::in(DeliveryProjectType::active()->pluck('name'))];
         } elseif ($field === 'client_id') {
-            $rules['value'] = 'nullable|exists:customer,customer_id';
+            $rules['value'] = ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)];
         } else {
             $rules['value'] = 'nullable|string|max:255';
         }
@@ -325,19 +670,34 @@ class DeliveryProjectController extends Controller
 
     public function updateGeneralInfo(Request $request, DeliveryProject $project)
     {
+        // Body Hire: IO boleh dipakai ulang dalam company yang sama; type lain unik.
+        // Pakai type/client yang dikirim; fallback ke nilai project saat ini.
+        $incomingType   = $request->input('project_type', $project->project_type);
+        $incomingClient = $request->input('client_id', $project->client_id);
+        $ioNumberRule   = ['required', 'string', 'max:255'];
+        if ($incomingType === 'Body Hire') {
+            $ioNumberRule[] = $this->sameCompanyIoRule($incomingClient, $project->id);
+        } else {
+            $ioNumberRule[] = Rule::unique('delivery_projects', 'io_number')->ignore($project->id);
+        }
+
         $validated = $request->validate([
-            'client_id'           => 'nullable|exists:customer,customer_id',
+            'client_id'           => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
             'name'                => 'required|string|max:255',
             'project_owner'       => 'nullable|string|max:255',
-            'project_type'        => ['nullable', Rule::in(['Implementation','Roll Out','Migration','Upgrade','WRICEF'])],
+            'project_type'        => ['nullable', Rule::in(DeliveryProjectType::active()->pluck('name'))],
             'high_level_risk'     => ['nullable', Rule::in(['Low','Moderate','High'])],
             'contract_start_date' => 'required|date',
             'contract_end_date'   => 'required|date|after_or_equal:contract_start_date',
-            'io_number'           => ['required', 'string', 'max:255', Rule::unique('delivery_projects', 'io_number')->ignore($project->id)],
+            'io_number'           => $ioNumberRule,
             'description'         => 'nullable|string|max:5000',
         ]);
 
         $project->update($validated);
+
+        // Contract end date changed → re-evaluate the contract-deadline bell reminders now
+        // instead of waiting for the next daily run.
+        app(ProjectReminderService::class)->syncAllQuietly();
 
         // The new contract window is allowed to fall outside existing planning, but we
         // surface a clear warning so the user can reconcile against the contract document.
@@ -437,10 +797,35 @@ class DeliveryProjectController extends Controller
 
         $project->update($validatedData);
 
+        // Payment term amounts are derived (amount = revenue × % / 100). We resync on
+        // every save — not just when revenue changes on this request — so terms that
+        // went stale from an earlier revenue edit are corrected too. It's idempotent.
+        $this->syncPaymentTermAmounts($project);
+
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'message' => 'Delivery information updated successfully.']);
         }
         return back()->with('success', 'Delivery information updated successfully.');
+    }
+
+    // Delivery Data (warranty / delivery method / mandays) berdiri sebagai section
+    // & form tersendiri di halaman detail, terpisah dari Sales Data + Term Of Payment,
+    // agar tombol simpannya tidak rancu dengan "Update Information" milik Delivery
+    // Information. Endpoint ini sengaja tidak menyentuh field AE/finansial.
+    public function updateDeliveryData(Request $request, DeliveryProject $project)
+    {
+        $validatedData = $request->validate([
+            'delivery_method' => 'nullable|in:Onsite,Hybrid,WFH',
+            'warranty_period' => 'nullable|integer|min:0',
+            'total_mandays'   => 'nullable|integer|min:0',
+        ]);
+
+        $project->update($validatedData);
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Delivery data updated successfully.']);
+        }
+        return back()->with('success', 'Delivery data updated successfully.');
     }
 
     public function updateFinancialInfo(Request $request, DeliveryProject $project)
@@ -454,7 +839,85 @@ class DeliveryProjectController extends Controller
 
         $project->update($validatedData);
 
+        // Keep derived payment term amounts in sync with the current revenue (see above).
+        $this->syncPaymentTermAmounts($project);
+
         return back()->with('success', 'Financial information updated successfully.');
+    }
+
+    /**
+     * Karyawan aktif kandidat "Account Executive" (dropdown create & detail
+     * project) = pemegang role family "Sales Operation" SELAIN "Sales Operation
+     * User": yaitu Administrator, Director, Account Executive, dan Head.
+     * Role di-resolve via NAMA (`Sales Operation%` minus "Sales Operation User")
+     * karena ID role diverge antar environment. Pengecualian berada di closure
+     * `whereHas` yang sama, jadi karyawan yang juga punya role Sales Operation
+     * lain tetap muncul. Diurutkan berdasarkan nama lengkap agar konsisten
+     * dengan daftar karyawan lain di form.
+     */
+    /**
+     * IO number yang sudah ada, dikelompokkan per company (client_id):
+     * [client_id => ['IO-1', 'IO-2', ...]]. Dipakai form Body Hire agar user
+     * bisa memilih IO existing milik company yang sama.
+     */
+    private function existingIosByClient(): array
+    {
+        return DeliveryProject::whereNotNull('io_number')
+            ->where('io_number', '!=', '')
+            ->get(['io_number', 'client_id'])
+            ->groupBy('client_id')
+            ->map(fn($g) => $g->pluck('io_number')->filter()->unique()->values()->all())
+            ->all();
+    }
+
+    /**
+     * Rule IO number untuk project Body Hire: IO boleh dipakai ulang, TETAPI hanya
+     * dalam company (client) yang sama. Gagal bila IO yang sama sudah dipakai oleh
+     * project company lain. $ignoreId mengecualikan project yang sedang diedit.
+     */
+    private function sameCompanyIoRule($clientId, $ignoreId = null): \Closure
+    {
+        return function ($attribute, $value, $fail) use ($clientId, $ignoreId) {
+            $query = DeliveryProject::where('io_number', $value)
+                ->where('client_id', '!=', $clientId);
+            if ($ignoreId) {
+                $query->where('id', '!=', $ignoreId);
+            }
+            if ($query->exists()) {
+                $fail('IO Number tersebut sudah digunakan company lain. Untuk Body Hire, IO Number hanya boleh dipakai ulang dalam company yang sama.');
+            }
+        };
+    }
+
+    private function salesRoleEmployees()
+    {
+        return Employee::with('basicData')
+            ->where('is_active', true)
+            ->whereHas('roles', fn($q) => $q
+                ->where('employee_role.name', 'like', 'Sales Operation%')
+                ->where('employee_role.name', '!=', 'Sales Operation User'))
+            ->get()
+            ->sortBy(fn($e) => strtolower($e->basicData->full_name ?? 'zzz'))
+            ->values();
+    }
+
+    /**
+     * Hitung ulang amount setiap payment term dari revenue project terkini,
+     * mengikuti rumus amount = revenue × payment_percentage / 100 yang juga dipakai
+     * saat term dibuat/diedit (lihat DeliveryProjectPaymentTermController::computeAmount).
+     */
+    private function syncPaymentTermAmounts(DeliveryProject $project): void
+    {
+        $revenue = (float) ($project->revenue ?? 0);
+
+        DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
+            ->get()
+            ->each(function (DeliveryProjectPaymentTerm $term) use ($revenue) {
+                $amount = round($revenue * ((float) $term->payment_percentage) / 100, 2);
+                if (abs((float) $term->amount - $amount) > 0.001) {
+                    $term->update(['amount' => $amount]);
+                }
+            });
     }
 
     public function updateLocationInfo(Request $request, DeliveryProject $project)
@@ -591,12 +1054,17 @@ class DeliveryProjectController extends Controller
                 'dpe.role',
                 'dpe.module',
                 'dpe.employee_type',
+                'dpe.member_name',
                 'ebd.first_name',
                 'ebd.last_name',
             ]);
 
         $teamMembers = $rows->map(function ($r) {
+            // Anggota vendor tidak ada di master employee — namanya dari member_name.
             $name = trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? ''));
+            if ($name === '') {
+                $name = trim((string) ($r->member_name ?? ''));
+            }
             return [
                 'employee_id'   => $r->employee_id,
                 'name'          => $name !== '' ? $name : ('Employee #' . $r->employee_id),
@@ -671,22 +1139,111 @@ class DeliveryProjectController extends Controller
         $project->save();
     }
 
+    /**
+     * Tambah anggota tim. Dua jalur, dibedakan `member_source`:
+     *
+     *  - "employee" → orang dari master Employee. Employee Type TIDAK dikirim
+     *    dari form; diturunkan dari employee_basic_data.employee_type
+     *    (Internal/External, lihat EmployeeBasicData::deriveEmployeeType).
+     *    Module dipilih dari kualifikasi employee tersebut.
+     *
+     *  - "vendor" → orang vendor yang tidak ada di master Employee. Vendor
+     *    dipilih dari master Business Partner bertipe Vendor; nama, posisi, dan
+     *    module diisi manual. Employee Type selalu "Vendor".
+     */
     public function storeTeamMember(Request $request, DeliveryProject $project)
     {
+        $source = $request->input('member_source') === 'vendor' ? 'vendor' : 'employee';
+
         $request->validate([
-            'employee_id'   => 'required|exists:employee,employee_id',
-            'module'        => 'nullable|string|max:50',
+            'member_source' => 'nullable|in:employee,vendor',
             'role'          => 'required|in:Member,Lead,Project Manager,Co Project Manager,Project Admin',
-            'employee_type' => 'required|in:Internal,External,Vendor',
-            'vendor_name'   => 'nullable|required_if:employee_type,Vendor|string|max:255',
             'start_date'    => 'required|date',
             'end_date'      => 'nullable|date|after_or_equal:start_date',
             'notes'         => 'nullable|string',
+            'module'        => 'nullable|string|max:255',
+
+            // Jalur employee
+            'employee_id'   => [Rule::requiredIf($source === 'employee'), 'nullable', 'exists:employee,employee_id'],
+
+            // Jalur vendor
+            'vendor_id'     => [Rule::requiredIf($source === 'vendor'), 'nullable', 'exists:customer,customer_id'],
+            'member_name'   => [Rule::requiredIf($source === 'vendor'), 'nullable', 'string', 'max:255'],
+            'member_position' => 'nullable|string|max:255',
         ]);
+
+        $pivotData = [
+            'role'       => $request->role,
+            'start_date' => $request->start_date,
+            'end_date'   => $request->end_date,
+            'notes'      => $request->notes,
+        ];
+
+        if ($source === 'vendor') {
+            $vendor = Customer::with('basicData')->vendors()->where('customer_id', $request->vendor_id)->first();
+            if (!$vendor) {
+                return $this->teamMemberError($request, 'The selected vendor is not a Business Partner of type Vendor.');
+            }
+
+            $memberName = trim((string) $request->member_name);
+
+            // Duplikat vendor: nama orang yang sama pada vendor & role yang sama
+            // dan masih aktif (end_date NULL).
+            $existsActive = DB::table('delivery_project_employee')
+                ->where('delivery_projects_id', $project->id)
+                ->whereNull('employee_id')
+                ->where('vendor_id', $vendor->customer_id)
+                ->where('member_name', $memberName)
+                ->where('role', $request->role)
+                ->whereNull('end_date')
+                ->exists();
+
+            if ($existsActive) {
+                return $this->teamMemberError($request, 'This vendor person already has the same active role. Please set an end date on the previous entry first.');
+            }
+
+            // Module vendor bebas diketik — hanya dirapikan formatnya.
+            $moduleValue = collect(explode(',', (string) $request->module))
+                ->map(fn ($m) => trim($m))->filter()->unique()->values();
+
+            DB::table('delivery_project_employee')->insert($pivotData + [
+                'delivery_projects_id' => $project->id,
+                'employee_id'          => null,
+                'vendor_id'            => $vendor->customer_id,
+                'vendor_name'          => $vendor->basicData->name_1 ?? $vendor->customer_code,
+                'member_name'          => $memberName,
+                'member_position'      => $request->member_position ? trim($request->member_position) : null,
+                'module'               => $moduleValue->isEmpty() ? null : $moduleValue->implode(', '),
+                'employee_type'        => 'Vendor',
+                'created_at'           => now(),
+                'updated_at'           => now(),
+            ]);
+
+            // Kolom FK project-role (project_manager_id dkk) menunjuk ke master
+            // employee, jadi TIDAK bisa diisi orang vendor — sengaja dilewati.
+
+            if ($request->expectsJson()) {
+                return response()->json(['success' => true, 'message' => 'Team member added successfully']);
+            }
+            return back()->with('success', 'Team member added successfully.');
+        }
+
+        // ── Jalur employee ───────────────────────────────────────────────────
+        // Employee Type turunan data employee, bukan input form.
+        $employeeType = EmployeeBasicData::where('employee_id', $request->employee_id)->value('employee_type') ?: 'Internal';
+
+        [$moduleValue, $unknownModules] = $this->sanitizeEmployeeModules($request->employee_id, $request->module);
+
+        if ($unknownModules->isNotEmpty()) {
+            return $this->teamMemberError(
+                $request,
+                'Module "' . $unknownModules->implode('", "') . '" is not part of this employee\'s qualification.'
+            );
+        }
 
         // Cek duplikat: satu employee boleh punya role sama selama entry sebelumnya
         // sudah memiliki end_date. Jika masih aktif (end_date NULL), tolak.
-        $existsActive = \DB::table('delivery_project_employee')
+        $existsActive = DB::table('delivery_project_employee')
             ->where('delivery_projects_id', $project->id)
             ->where('employee_id', $request->employee_id)
             ->where('role', $request->role)
@@ -694,23 +1251,14 @@ class DeliveryProjectController extends Controller
             ->exists();
 
         if ($existsActive) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'This employee already has the same active role. Please set an end date on the previous entry first.'
-                ], 422);
-            }
-            return back()->with('error', 'This employee already has the same active role. Please set an end date on the previous entry first.');
+            return $this->teamMemberError($request, 'This employee already has the same active role. Please set an end date on the previous entry first.');
         }
 
-        $project->teamMembers()->attach($request->employee_id, [
-            'module'        => $request->module,
-            'role'          => $request->role,
-            'employee_type' => $request->employee_type,
-            'vendor_name'   => $request->employee_type === 'Vendor' ? $request->vendor_name : null,
-            'start_date'    => $request->start_date,
-            'end_date'      => $request->end_date,
-            'notes'         => $request->notes,
+        $project->teamMembers()->attach($request->employee_id, $pivotData + [
+            'module'        => $moduleValue,
+            'employee_type' => $employeeType,
+            'vendor_id'     => null,
+            'vendor_name'   => null,
         ]);
 
         // Sync project-role FK column if applicable
@@ -723,6 +1271,86 @@ class DeliveryProjectController extends Controller
             return response()->json(['success' => true, 'message' => 'Team member added successfully']);
         }
         return back()->with('success', 'Team member added successfully.');
+    }
+
+    /**
+     * Module anggota tim BUKAN free text: hanya modul yang ada pada kualifikasi
+     * employee (employee_qualification → modules) yang boleh dipakai. Dipanggil
+     * di jalur BACA input mana pun (create project & add team member) supaya
+     * request manual tidak bisa menyelundupkan modul asing.
+     *
+     * @return array{0: ?string, 1: \Illuminate\Support\Collection} [nilai siap simpan, modul tak dikenal]
+     */
+    private function sanitizeEmployeeModules($employeeId, $moduleInput): array
+    {
+        $allowed = DB::table('employee_qualification as eq')
+            ->join('modules as m', 'm.id', '=', 'eq.module_id')
+            ->where('eq.employee_id', $employeeId)
+            ->pluck('m.name')
+            ->map(fn ($n) => trim((string) $n))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $selected = collect(explode(',', (string) $moduleInput))
+            ->map(fn ($m) => trim($m))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $unknown = $selected->reject(
+            fn ($m) => $allowed->contains(fn ($a) => strcasecmp($a, $m) === 0)
+        )->values();
+
+        return [$selected->isEmpty() ? null : $selected->implode(', '), $unknown];
+    }
+
+    /**
+     * Balasan error seragam untuk aksi team member (AJAX 422 / redirect back).
+     */
+    private function teamMemberError(Request $request, string $message)
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+        return back()->with('error', $message);
+    }
+
+    /**
+     * Hapus SATU baris pivot team member berdasarkan ID barisnya.
+     *
+     * Identifikasinya lewat ID baris (bukan employee_id) karena anggota vendor
+     * tidak punya entri di master employee — employee_id-nya NULL. Kolom FK
+     * project-role (project_manager_id dkk) ikut dibersihkan kalau baris yang
+     * dihapus adalah baris yang sedang dirujuk kolom tersebut.
+     *
+     * Gated `menu:delivery-project.team.delete`.
+     */
+    public function destroyTeamRow(Request $request, DeliveryProject $project, $rowId)
+    {
+        $row = DB::table('delivery_project_employee')
+            ->where('delivery_projects_id', $project->id)
+            ->where('id', $rowId)
+            ->first();
+
+        if (!$row) {
+            return $this->teamMemberError($request, 'Team member entry not found.');
+        }
+
+        DB::table('delivery_project_employee')->where('id', $row->id)->delete();
+
+        if ($row->employee_id !== null && isset(self::PROJECT_ROLE_COLUMNS[$row->role])) {
+            $col = self::PROJECT_ROLE_COLUMNS[$row->role];
+            if ((string) $project->$col === (string) $row->employee_id) {
+                $project->$col = null;
+                $project->save();
+            }
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Team member removed successfully']);
+        }
+        return back()->with('success', 'Team member removed successfully.');
     }
 
     public function destroyTeamMember(Request $request, DeliveryProject $project, $employeeId)
@@ -766,73 +1394,130 @@ class DeliveryProjectController extends Controller
         return back()->with('success', 'Team member removed successfully.');
     }
 
-    public function updateTeamMember(Request $request, DeliveryProject $project, $employeeId)
+    /**
+     * Update satu baris penugasan tim (identifikasi via ID baris pivot).
+     *
+     * Baris diidentifikasi lewat ID pivot — bukan employee_id — karena anggota
+     * vendor tidak punya employee_id sama sekali (lihat storeTeamMember).
+     * Hanya role, end_date, dan notes yang boleh berubah.
+     */
+    public function updateTeamRow(Request $request, DeliveryProject $project, $rowId)
     {
-        // Hanya boleh mengubah: role, end_date, notes
-        // Employee, module, employee_type, vendor_name, start_date TIDAK dapat diubah
         $request->validate([
-            'old_role'  => 'required|string',
             'role'      => 'required|in:Member,Lead,Project Manager,Co Project Manager,Project Admin',
             'end_date'  => 'nullable|date',
             'notes'     => 'nullable|string',
         ]);
 
-        $oldRole = $request->old_role;
+        $row = DB::table('delivery_project_employee')
+            ->where('delivery_projects_id', $project->id)
+            ->where('id', $rowId)
+            ->first();
+
+        if (!$row) {
+            return $this->teamMemberError($request, 'Team member entry not found.');
+        }
+
+        $oldRole = (string) $row->role;
         $newRole = $request->role;
 
-        // If the role is changing, make sure the new role isn't already held
-        // by this employee with an active (null end_date) entry on a DIFFERENT row.
+        // Kalau role berubah, pastikan orang yang sama belum punya entri AKTIF
+        // (end_date NULL) dengan role baru tersebut di baris lain.
         if ($newRole !== $oldRole) {
-            $conflictExists = \DB::table('delivery_project_employee')
+            $conflictQuery = DB::table('delivery_project_employee')
                 ->where('delivery_projects_id', $project->id)
-                ->where('employee_id', $employeeId)
+                ->where('id', '!=', $row->id)
                 ->where('role', $newRole)
-                ->whereNull('end_date')
-                ->exists();
+                ->whereNull('end_date');
 
-            if ($conflictExists) {
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'This employee already has an active entry with the selected role. Please set an end date on that entry first.',
-                    ], 422);
-                }
-                return back()->with('error', 'This employee already has an active entry with the selected role. Please set an end date on that entry first.');
+            if ($row->employee_id !== null) {
+                $conflictQuery->where('employee_id', $row->employee_id);
+            } else {
+                $conflictQuery->whereNull('employee_id')
+                    ->where('vendor_id', $row->vendor_id)
+                    ->where('member_name', $row->member_name);
+            }
+
+            if ($conflictQuery->exists()) {
+                return $this->teamMemberError($request, 'This person already has an active entry with the selected role. Please set an end date on that entry first.');
             }
         }
 
-        // Update pivot row yang spesifik (identifikasi via employee_id + old_role)
-        $affected = \DB::table('delivery_project_employee')
-            ->where('delivery_projects_id', $project->id)
-            ->where('employee_id', $employeeId)
-            ->where('role', $oldRole)
+        DB::table('delivery_project_employee')
+            ->where('id', $row->id)
             ->update([
-                'role'     => $newRole,
-                'end_date' => $request->end_date ?: null,
-                'notes'    => $request->notes,
+                'role'       => $newRole,
+                'end_date'   => $request->end_date ?: null,
+                'notes'      => $request->notes,
+                'updated_at' => now(),
             ]);
 
-        // Sinkronkan FK column project-role jika role berubah
-        // Bersihkan FK kolom untuk old_role jika employee ini yang memegangnya
-        if (isset(self::PROJECT_ROLE_COLUMNS[$oldRole])) {
-            $oldCol = self::PROJECT_ROLE_COLUMNS[$oldRole];
-            if ((string) $project->$oldCol === (string) $employeeId) {
-                $project->$oldCol = null;
+        // Sinkronkan FK column project-role. Kolom ini menunjuk master employee,
+        // jadi hanya relevan untuk baris employee (baris vendor dilewati).
+        if ($row->employee_id !== null) {
+            if (isset(self::PROJECT_ROLE_COLUMNS[$oldRole])) {
+                $oldCol = self::PROJECT_ROLE_COLUMNS[$oldRole];
+                if ((string) $project->$oldCol === (string) $row->employee_id) {
+                    $project->$oldCol = null;
+                }
             }
-        }
 
-        // Set FK kolom untuk new_role
-        if (isset(self::PROJECT_ROLE_COLUMNS[$newRole])) {
-            $newCol = self::PROJECT_ROLE_COLUMNS[$newRole];
-            $project->$newCol = $employeeId;
-        }
+            if (isset(self::PROJECT_ROLE_COLUMNS[$newRole])) {
+                $newCol = self::PROJECT_ROLE_COLUMNS[$newRole];
+                $project->$newCol = $row->employee_id;
+            }
 
-        $project->save();
+            $project->save();
+        }
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'message' => 'Team member updated successfully']);
         }
         return back()->with('success', 'Team member updated successfully.');
+    }
+
+    /**
+     * Close a project manually. Overrides the auto-derived category (kept 'Closed'
+     * regardless of planning progress) and locks the project read-only until it is
+     * reopened. Gated by menu:delivery-project.close-project.
+     */
+    public function close(Request $request, DeliveryProject $project)
+    {
+        if (!$project->is_closed) {
+            $project->update([
+                'is_closed' => true,
+                'closed_at' => now(),
+                'closed_by' => session('user.id'),
+                'category'  => 'Closed',
+            ]);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Project closed successfully.']);
+        }
+        return back()->with('success', 'Project closed successfully.');
+    }
+
+    /**
+     * Reopen a closed project. Clears the manual-close flag and lets the category
+     * be recomputed from planning progress. Gated by menu:delivery-project.close-project.
+     */
+    public function reopen(Request $request, DeliveryProject $project)
+    {
+        if ($project->is_closed) {
+            $project->is_closed = false;
+            $project->closed_at = null;
+            $project->closed_by = null;
+            $project->save();
+
+            // Category was pinned to 'Closed' while locked — recompute from planning now.
+            $project->updateFromPlanning();
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Project reopened successfully.']);
+        }
+        return back()->with('success', 'Project reopened successfully.');
     }
 
     public function destroy(Request $request, $project)
@@ -1173,8 +1858,8 @@ class DeliveryProjectController extends Controller
 
             if ($project->onedrive_folder_id) {
                 // Folder already exists — just recreate the share link
-                $shareUrl = $oneDrive->createAnonymousLink($project->onedrive_folder_id);
-                $project->update(['onedrive_folder_url' => $shareUrl]);
+                $link = $oneDrive->createShareLink($project->onedrive_folder_id);
+                $project->applyOneDriveShareLink($link);
             } else {
                 // Hierarki: DELIVERY PROJECT > Customer > Project Folder
                 $project->load('client.basicData');
@@ -1186,17 +1871,22 @@ class DeliveryProjectController extends Controller
 
                 // Create project sub-folder inside customer folder
                 $folderId = $oneDrive->createSubFolder($customerFolderId, $folderName);
-                $shareUrl = $oneDrive->createAnonymousLink($folderId);
-                $project->update([
-                    'onedrive_folder_id'  => $folderId,
-                    'onedrive_folder_url' => $shareUrl,
-                ]);
+                $project->update(['onedrive_folder_id' => $folderId]);
+
+                $link = $oneDrive->createShareLink($folderId);
+                $project->applyOneDriveShareLink($link);
             }
 
             return response()->json([
-                'success'     => true,
-                'message'     => 'OneDrive folder ready.',
-                'folder_url'  => $shareUrl,
+                'success'          => true,
+                'message'          => 'OneDrive folder ready.',
+                'folder_url'       => $link['url'],
+                'link_scope'       => $link['scope'],
+                'link_scope_label' => $project->refresh()->onedrive_link_scope_label,
+                'link_expires_at'  => $link['expires_at']?->toIso8601String(),
+                // Ditampilkan sebagai peringatan di UI: link bukan "Anyone with the link",
+                // jadi customer di luar tenant tidak akan bisa membukanya.
+                'link_warning'     => $project->onedrive_link_warning,
             ]);
 
         } catch (\Exception $e) {
@@ -1380,7 +2070,13 @@ class DeliveryProjectController extends Controller
 
         try {
             (new OneDriveService())->deleteFolder($project->onedrive_folder_id);
-            $project->update(['onedrive_folder_id' => null, 'onedrive_folder_url' => null]);
+            $project->update([
+                'onedrive_folder_id'       => null,
+                'onedrive_folder_url'      => null,
+                'onedrive_link_scope'      => null,
+                'onedrive_link_expires_at' => null,
+                'onedrive_link_checked_at' => null,
+            ]);
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
             Log::error('OneDrive deleteFolder failed (project)', [

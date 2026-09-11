@@ -3,17 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Models\AuditLog;
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\StagingAttachment;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use App\Services\StagingTicketService;
+use App\Support\SessionUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * StagingTicketController
@@ -28,6 +32,14 @@ use Illuminate\Support\Facades\Storage;
  */
 class StagingTicketController extends Controller
 {
+    /**
+     * Ambang "terlantar" untuk klaim ai_analysis_status='pending' — lihat
+     * docblock analyze(). Margin di atas set_time_limit(630) (~10.5 menit)
+     * yang dipasang di bawah untuk pemanggilan AI itu sendiri, supaya baris
+     * yang MEMANG masih berjalan wajar tidak ikut ke-reclaim.
+     */
+    private const STALE_PENDING_MINUTES = 15;
+
     public function __construct(private StagingTicketService $service) {}
 
     // ─── Web view (admin) ─────────────────────────────────────────────────────
@@ -37,30 +49,49 @@ class StagingTicketController extends Controller
      */
     public function view(Request $request)
     {
-        $sessionUser = session('user');
-        $user = (object) [
-            'role' => (object) ['role_id' => $sessionUser['role']['id'] ?? 0],
-        ];
+        $user = SessionUser::fromSession(session('user'));
 
-        // Hanya admin (1) dan helpdesk (6,7) yang boleh akses
-        if (!in_array($user->role->role_id, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+        // Admin, Helpdesk, dan Head of Support yang boleh akses
+        $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP);
+        if (!$user || !$user->hasAnyRole($allowed)) {
             abort(403, 'Unauthorized');
         }
 
-        return view('staging.index', compact('user'));
+        $deliverySupports = \App\Models\DeliverySupport::orderBy('name')
+            ->get(['id', 'client_id', 'name', 'type']);
+
+        $deliverySupportsJson = $deliverySupports->map(fn($ds) => [
+            'id'        => $ds->id,
+            'client_id' => $ds->client_id,
+            'name'      => $ds->name . ($ds->type ? ' (' . $ds->type . ')' : ''),
+        ])->values();
+
+        // Modul untuk dropdown Module di modal validasi. Sengaja dropdown, bukan
+        // teks bebas: module_id inilah yang dipakai flow Power Automate untuk
+        // menemukan Module Lead (nama modul yang diketik tangan tidak pernah cocok).
+        $modules = \App\Models\Module::active()->orderBy('name')->get(['id', 'name'])->toArray();
+
+        $ticketClassification = [
+            'types' => \App\Support\TicketClassification::TYPES,
+            'priorities' => \App\Support\TicketClassification::PRIORITIES,
+            'scales' => \App\Support\TicketClassification::SCALES,
+        ];
+
+        // Untuk widget multi-select modul di modal approve (lihat approveModuleIds).
+        $modules = \App\Models\Module::active()->orderBy('name')->get(['id', 'name']);
+
+        return view('staging.index', compact('user', 'deliverySupports', 'deliverySupportsJson', 'ticketClassification', 'modules'));
     }
 
     /**
-     * Rejected staging tickets page for admin/helpdesk.
+     * Rejected staging tickets page for admin/helpdesk/head-of-support.
      */
     public function viewRejected(Request $request)
     {
-        $sessionUser = session('user');
-        $user = (object) [
-            'role' => (object) ['role_id' => $sessionUser['role']['id'] ?? 0],
-        ];
+        $user = SessionUser::fromSession(session('user'));
 
-        if (!in_array($user->role->role_id, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+        $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP);
+        if (!$user || !$user->hasAnyRole($allowed)) {
             abort(403, 'Unauthorized');
         }
 
@@ -94,7 +125,7 @@ class StagingTicketController extends Controller
             'ip'          => $request->ip(),
         ]);
 
-        if (in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value, RoleId::INTERNSHIP->value], RoleId::HELPDESK_GROUP), true)) {
+        if (in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value, RoleId::EC_USER->value], RoleId::STAGING_GROUP), true)) {
             $query = StagingTicket::query();
         } else {
             Log::warning('StagingTicketController@index: forbidden — role not allowed', [
@@ -112,10 +143,10 @@ class StagingTicketController extends Controller
             $query->where('customer_id', $request->customer_id);
         }
 
-        $query->with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData'])
+        $query->with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData', 'ticket'])
               ->orderBy('created_at', 'desc');
 
-        $perPage = max(1, min((int) $request->get('per_page', 20), 100));
+        $perPage = max(1, min((int) $request->get('per_page', 200), 500));
 
         try {
             $data = $query->paginate($perPage);
@@ -154,10 +185,21 @@ class StagingTicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $staging = StagingTicket::with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData', 'ticket', 'attachments'])
-            ->findOrFail($id);
+        try {
+            $staging = StagingTicket::with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData', 'ticket', 'attachments'])
+                ->findOrFail($id);
 
-        return response()->json(['success' => true, 'data' => $this->formatStaging($staging)]);
+            return response()->json(['success' => true, 'data' => $this->formatStaging($staging)]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['success' => false, 'message' => 'Staging ticket not found.'], 404);
+        } catch (\Throwable $e) {
+            Log::error('StagingTicketController@show: failed', [
+                'id'    => $id,
+                'error' => $e->getMessage(),
+                'file'  => $e->getFile() . ':' . $e->getLine(),
+            ]);
+            return response()->json(['success' => false, 'message' => 'Failed to load staging ticket details.'], 500);
+        }
     }
 
     // ─── API: Customer submit (dari Jarvies) ──────────────────────────────────
@@ -222,6 +264,7 @@ class StagingTicketController extends Controller
             'description'          => 'required|string|max:5000',
             'body'                 => 'nullable|string',
             'ticket_priority'      => 'nullable|in:Very High,High,Medium,Low',
+            'ticket_type'          => 'nullable|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult',
             'sender_name'          => 'nullable|string|max:255',
             'submitted_by_email'   => 'nullable|email|max:255',
             'cc_emails'            => 'nullable|string',    // JSON string dari JARVIES
@@ -235,6 +278,7 @@ class StagingTicketController extends Controller
             // Jika Jarvies sudah kirim email sendiri, kirim internet_message_id-nya
             // agar EcoSystem bisa link staging ke email tersebut (ambil graph_message_id + body)
             'internet_message_id'  => 'nullable|string|max:1000',
+            'scale'                => 'nullable|string|max:50',
         ]);
 
         try {
@@ -249,8 +293,11 @@ class StagingTicketController extends Controller
             $staging = $this->service->createFromWeb($validated, (int) $validated['customer_id']);
 
             Log::info('StagingTicketController@jarviesStore: staging created from JARVIES', [
-                'staging_id'  => $staging->id,
-                'customer_id' => $validated['customer_id'],
+                'staging_id'   => $staging->id,
+                'customer_id'  => $validated['customer_id'],
+                'ticket_type'  => $validated['ticket_type'] ?? null,
+                'scale'        => $validated['scale'] ?? null,
+                'scale_saved'  => $staging->scale,
             ]);
 
             // ── Link ke email Jarvies (jika internet_message_id dikirim) ─────────
@@ -293,26 +340,84 @@ class StagingTicketController extends Controller
         }
 
         $roleId = $sessionUser['role']['id'];
-        if (!in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+        if (!in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
+        // Select kosong ("-- none --") dikirim sebagai string kosong; jadikan null
+        // supaya lolos rule nullable|exists dan bisa dipakai mengosongkan modul.
+        if ($request->input('module_id') === '') {
+            $request->merge(['module_id' => null]);
+        }
+
         $request->validate([
-            'ticket_type'     => 'required|string|in:Incident,Service Request,Change Request,Consult',
-            'ticket_priority' => 'required|string|in:Very High,High,Medium,Low',
-            // Scale opsional. Daftar value masih didiskusikan — `nullable|string|max:50`
-            // membatasi panjang tapi tidak mengikat ke whitelist tertentu agar
-            // mudah diubah saat opsi final disepakati.
-            'scale'           => 'nullable|string|max:50',
+            'ticket_type'         => 'required|string|in:' . implode(',', \App\Support\TicketClassification::TYPES),
+            'ticket_priority'     => 'required|string|in:' . implode(',', \App\Support\TicketClassification::PRIORITIES),
+            'scale'               => 'nullable|string|in:' . implode(',', \App\Support\TicketClassification::SCALES),
+            'name'                => 'nullable|string|max:255',
+            'no_hp'               => 'nullable|string|max:255',
+            'module'              => 'nullable|string|max:255',
+            'module_ids'          => 'nullable|array',
+            'module_ids.*'        => 'integer|exists:modules,id',
+            'module_id'           => 'nullable|exists:modules,id',
+            'client'              => 'nullable|string|max:255',
+            'delivery_support_id' => 'nullable|exists:delivery_support,id',
+            'end_customer_id'     => 'nullable|integer|exists:customer,customer_id',
         ]);
 
         $staging = StagingTicket::findOrFail($id);
+
+        // Delivery support wajib dipilih SELAMA customer tiket ini memang punya
+        // delivery support terdaftar (kalau tidak punya, field boleh kosong).
+        // Yang dipilih juga harus benar-benar milik customer tersebut.
+        if ($staging->customer_id) {
+            $customerSupportIds = DB::table('delivery_support')
+                ->where('client_id', $staging->customer_id)
+                ->pluck('id')
+                ->all();
+
+            if (!empty($customerSupportIds)) {
+                $chosenSupportId = (int) $request->input('delivery_support_id');
+                if (!in_array($chosenSupportId, array_map('intval', $customerSupportIds), true)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Delivery support is required and must belong to this customer.',
+                        'errors'  => ['delivery_support_id' => ['Delivery support is required for this customer.']],
+                    ], 422);
+                }
+            }
+        }
+
+        // Override additional info fields jika dikirim dari modal (nilai bisa berbeda
+        // dari yang ada di staging, misal helpdesk menambahkan info saat validasi).
+        foreach (['name', 'no_hp', 'module', 'module_id', 'client'] as $field) {
+            if ($request->has($field)) {
+                $staging->$field = $request->input($field);
+            }
+        }
+
+        // "For customer" — saat tiket masuk via email & ter-route ke parent customer
+        // (lewat domain), helpdesk dapat memilih end-customer (anak) tujuan tiket.
+        // Hanya terima child yang benar-benar milik parent ini agar tidak salah assign.
+        if ($request->has('end_customer_id')) {
+            $endCustomerId = $request->input('end_customer_id') ?: null;
+            if ($endCustomerId) {
+                $isValidChild = Customer::where('customer_id', $endCustomerId)
+                    ->where('parent_customer_id', $staging->customer_id)
+                    ->exists();
+                $staging->end_customer_id = $isValidChild ? $endCustomerId : null;
+            } else {
+                $staging->end_customer_id = null;
+            }
+        }
+        $staging->save();
 
         try {
             $ticketType     = $request->input('ticket_type');
             $ticketPriority = $request->input('ticket_priority');
             $scale          = $request->input('scale');
-            $result         = $this->service->approve($staging, $sessionUser['id'], $ticketType, $ticketPriority, $scale);
+            $moduleIds      = $request->input('module_ids', []);
+            $result         = $this->service->approve($staging, $sessionUser['id'], $ticketType, $ticketPriority, $scale, $moduleIds);
             $ticket       = $result['ticket'];
             $firstMessage = $result['first_message'];
 
@@ -336,8 +441,34 @@ class StagingTicketController extends Controller
                 }
             }
 
+            // Assign ticket to delivery support if selected at validation time
+            if ($request->filled('delivery_support_id')) {
+                $this->assignTicketToDeliverySupport($ticket, (int) $request->delivery_support_id);
+            }
+
             // Kirim notifikasi balasan otomatis ke customer
             $this->sendApprovalNotification($staging, $ticket, $sessionUser, $firstMessage);
+
+            // Sync ke JARVIES DB (staging update + ticket upsert)
+            $this->syncApprovalToJarvies($staging, $ticket);
+
+            // Notifikasi bell Jarvies — ticket berhasil dibuat
+            if ($staging->customer_id) {
+                \App\Services\CustomerNotificationService::notify(
+                    customerId: (int) $staging->customer_id,
+                    type:       'ticket_assigned',
+                    ticketId:   (int) $ticket->ticket_id,
+                    fromName:   'Helpdesk Support',
+                    preview:    'Your ticket request has been validated. Ticket #' . $ticket->ticket_number . ' is now open.',
+                    link:       '/tickets/' . $ticket->ticket_id,
+                );
+            }
+
+            // Microsoft Teams lewat Power Automate: kartu tiket ke channel tim +
+            // chat pribadi ke lead modul. Dikirim setelah response supaya validator
+            // tidak menunggu Power Automate, dan kegagalannya tidak pernah
+            // membatalkan approve yang sudah tersimpan.
+            $this->notifyTeamsTicketValidated($ticket, $sessionUser);
 
             return response()->json([
                 'success' => true,
@@ -363,6 +494,412 @@ class StagingTicketController extends Controller
         }
     }
 
+    /**
+     * Kirim event "tiket divalidasi" ke Power Automate.
+     *
+     * Payload sudah memuat daftar lead modul beserta email kerjanya, jadi flow di
+     * Power Automate cukup melakukan dua hal (post kartu ke channel, kirim chat
+     * ke tiap lead) tanpa perlu menebak siapa penerimanya — pemetaan modul ->
+     * lead adalah pengetahuan EcoSystem, bukan pengetahuan flow.
+     *
+     * Tiket yang modulnya belum punya lead tetap dikirim: kartunya masih berguna
+     * di channel tim, dan flow bisa memilih melewati bagian chat pribadi dengan
+     * memeriksa `lead_emails` yang kosong.
+     */
+    private function notifyTeamsTicketValidated(Ticket $ticket, array $sessionUser): void
+    {
+        try {
+            $powerAutomate = app(\App\Services\PowerAutomateService::class);
+
+            if (!$powerAutomate->isFlowReady(\App\Services\PowerAutomateService::FLOW_TICKET_VALIDATED)) {
+                return;
+            }
+
+            $payloadTicket = $powerAutomate->ticketPayload($ticket);
+            $leads         = $powerAutomate->moduleLeads($payloadTicket['module_id'], $payloadTicket['module']);
+
+            $leadEmails    = $powerAutomate->leadEmails($leads);
+
+            $powerAutomate->dispatchAfterResponse(
+                \App\Services\PowerAutomateService::FLOW_TICKET_VALIDATED,
+                [
+                    'ticket'       => $payloadTicket,
+                    'module_leads' => $leads,
+                    'lead_emails'  => $leadEmails,
+                    // Nama channel tiket (aksi "Create a channel") — sudah
+                    // dipotong 50 karakter dan dibersihkan dari karakter
+                    // terlarang Teams. `channel.member_emails` berisi lead modul
+                    // PLUS pemegang role penjaga (Delivery Support Head dan
+                    // Delivery Support Service Helpdesk): standard channel tidak
+                    // punya daftar anggota sendiri, jadi flow menambahkan mereka
+                    // ke TEAM-nya supaya channel tiket ini terbaca.
+                    'channel'      => $powerAutomate->ticketChannelPayload($payloadTicket, $leadEmails),
+                    // Dipertahankan untuk jalur group chat (dipakai flow versi
+                    // lama dan tetap berguna kalau chat pribadi dihidupkan).
+                    'chat'         => $powerAutomate->ticketChatPayload(
+                        $payloadTicket,
+                        $leadEmails,
+                        $sessionUser['email'] ?? null
+                    ),
+                    'validated_by' => [
+                        'id'    => $sessionUser['id'] ?? null,
+                        'name'  => $sessionUser['name'] ?? null,
+                        'email' => $sessionUser['email'] ?? null,
+                    ],
+                ]
+            );
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketController@approve: gagal menyiapkan notifikasi Teams (non-fatal)', [
+                'ticket_id' => $ticket->ticket_id,
+                'error'     => $e->getMessage(),
+            ]);
+        }
+    }
+
+    // ─── API: AI ticket analysis ──────────────────────────────────────────────
+
+    /**
+     * POST /api/staging-tickets/{id}/analyze
+     * Analisa AI (skill "sap-ticket-analyzer") untuk bantu validasi: overview,
+     * dugaan akar masalah, saran klasifikasi, dan saran assignee.
+     *
+     * Dipanggil OTOMATIS oleh frontend begitu admin membuka satu staging
+     * ticket unvalidated (bukan tombol manual) — dan secara default cuma
+     * benar-benar memanggil AI SEKALI (ditegakkan lewat klaim atomic di
+     * kolom ai_analysis_status: baris klaim di bawah cuma sukses kalau
+     * statusnya masih NULL, jadi walau dua admin buka tiket yang sama
+     * bersamaan, cuma satu yang benar-benar sampai memanggil provider AI).
+     *
+     * Admin/validator bisa memicu ulang secara sengaja lewat tombol
+     * "Re-analyze" di panel — itu mengirim `force: true` di body request,
+     * yang mengizinkan klaim ulang selama status SAAT INI bukan 'pending'
+     * (supaya tidak menabrak request lain yang sedang berjalan). Hasil
+     * re-analyze menimpa ai_analysis/ai_analysis_generated_at/_by yang lama.
+     *
+     * 'pending' yang TERLANTAR (baris ini diklaim, lalu proses yang
+     * mengklaimnya mati di tengah jalan — timeout, worker di-recycle, PHP
+     * fatal error yang lolos dari try/catch di bawah — sebelum sempat
+     * menulis 'completed'/'failed') SEBALIKNYA HARUS bisa diklaim ulang,
+     * oleh auto-trigger maupun Re-analyze, atau tiket itu terkunci selamanya
+     * — insiden nyata: staging #316 macet di 'pending' >6 jam karena ini.
+     * Lihat STALE_PENDING_MINUTES.
+     */
+    public function analyze(Request $request, $id, \App\Services\Ai\AiTicketAnalyzerService $analyzer)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $roleId = $sessionUser['role']['id'];
+        if (!$this->canManageStagingTicket($roleId)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $staging = StagingTicket::findOrFail($id);
+
+        if ($staging->isProcessed()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ticket has already been validated/rejected — analysis is no longer relevant.',
+            ], 422);
+        }
+
+        $forceReanalyze = $request->boolean('force');
+        $staleBefore = now()->subMinutes(self::STALE_PENDING_MINUTES);
+
+        // Auto trigger: klaim kalau belum pernah dicoba sama sekali (NULL),
+        // ATAU 'pending' tapi sudah terlantar lebih lama dari ambang di atas.
+        // Re-analyze manual: itu plus status completed/failed (jadi semuanya
+        // boleh dipicu ulang KECUALI 'pending' yang masih segar).
+        //
+        // Semua kondisi dibungkus SATU closure di bawah supaya AND id=? tetap
+        // mengikat SELURUH sisi OR — tanpa ini, salah satu orWhere() lepas
+        // dari scope id dan bisa ikut meng-klaim baris staging ticket lain.
+        $claimed = StagingTicket::where('id', $id)
+            ->where(function ($q) use ($forceReanalyze, $staleBefore) {
+                $q->whereNull('ai_analysis_status')
+                    ->orWhere(function ($stale) use ($staleBefore) {
+                        $stale->where('ai_analysis_status', 'pending')
+                            ->where('updated_at', '<', $staleBefore);
+                    });
+
+                if ($forceReanalyze) {
+                    $q->orWhereIn('ai_analysis_status', ['completed', 'failed']);
+                }
+            })
+            ->update(['ai_analysis_status' => 'pending']);
+
+        if (!$claimed) {
+            // Sudah pernah diklaim sebelumnya (oleh request ini sendiri yang
+            // dipanggil dobel, request lain yang sedang berjalan, atau memang
+            // sudah selesai/gagal dan ini bukan re-analyze) — jangan panggil
+            // AI lagi, cukup laporkan state yang ada sekarang.
+            $staging->refresh();
+
+            if ('completed' === $staging->ai_analysis_status && $staging->ai_analysis) {
+                return response()->json(['success' => true, 'data' => $staging->ai_analysis]);
+            }
+
+            if ('pending' === $staging->ai_analysis_status) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'AI analysis for this ticket is already running, please wait a moment and try '
+                        . 'again. (If this message keeps appearing for several minutes, the previous attempt likely '
+                        . 'stalled — it will automatically become retryable after '
+                        . self::STALE_PENDING_MINUTES . ' minutes.)',
+                    'status'  => 'pending',
+                ], 409);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'AI analysis for this ticket has already been tried and failed. Use the Re-analyze button to try again, or fill in the classification manually.',
+                'status'  => 'failed',
+            ], 409);
+        }
+
+        // $staging di atas (baris findOrFail) dimuat SEBELUM klaim di atas —
+        // klaimnya sendiri jalan lewat query builder terpisah (StagingTicket::
+        // where(...)->update(...)), yang mengubah barisnya di DB tapi TIDAK
+        // pernah menyentuh object $staging yang sudah telanjur ada di memori.
+        // Tanpa refresh ini, atribut ai_analysis_status di $staging masih versi
+        // LAMA (mis. 'completed' dari analisa sebelumnya, pada re-analyze) —
+        // dan saat AiTicketAnalyzerService::analyze() nanti memanggil
+        // $staging->update(['ai_analysis_status' => 'completed', ...]),
+        // Eloquent membandingkan ke atribut lama itu, melihat 'completed' →
+        // 'completed' TIDAK berubah, dan diam-diam MEMBUANG kolom itu dari
+        // SQL UPDATE yang sungguhan dijalankan — kolom lain (ai_analysis,
+        // generated_at/_by) tetap tersimpan karena isinya memang beda, tapi
+        // status-nya nyangkut di 'pending' hasil klaim di atas SELAMANYA
+        // (baris berhasil dianalisa AI-nya, tapi UI tidak pernah tahu).
+        // Insiden nyata: staging #316 & #317 — audit log membuktikan
+        // analisanya sukses, tapi ai_analysis_status tetap 'pending' berjam-
+        // jam sesudahnya, tepat pola bug ini.
+        $staging->refresh();
+
+        // Agent Skill via code-execution container bisa makan waktu beberapa menit
+        // (provisioning container + Claude baca file skill + reasoning effort tinggi)
+        // — jauh di atas 60s yang tadinya dipasang di sini, yang bikin PHP fatal
+        // duluan sebelum respons Anthropic sempat balik. Dibatasi 630s (bukan
+        // unlimited) supaya selaras dengan timeout HTTP client di
+        // AppServiceProvider (600s) — kalau Guzzle-nya sendiri gagal timeout
+        // karena sebab lain, PHP tetap punya batas keras dan tidak menggantung
+        // worker selamanya.
+        set_time_limit(630);
+
+        // Lepas kunci file session sebelum stream panjang, supaya tab lain
+        // milik user yang sama tidak ikut menunggu — pola sama AiTicketSummaryController.
+        $request->session()->save();
+
+        return response()->stream(function () use ($analyzer, $staging, $id, $sessionUser, $roleId) {
+            set_time_limit(630);
+
+            $send = function (string $event, array $payload): void {
+                echo 'event: ' . $event . "\n";
+                echo 'data: ' . json_encode($payload) . "\n\n";
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            };
+
+            $isAborted = fn (): bool => 1 === connection_aborted();
+
+            try {
+                $result = $analyzer->analyze(
+                    staging: $staging,
+                    actorId: (int) $sessionUser['id'],
+                    actorRoleId: $roleId,
+                    actorName: $sessionUser['name'] ?? null,
+                    onEvent: fn (string $event, array $payload) => $send($event, $payload),
+                    isAborted: $isAborted,
+                );
+
+                $send('done', ['data' => $result]);
+            } catch (\Anthropic\Core\Exceptions\AuthenticationException |
+                     \Anthropic\Core\Exceptions\PermissionDeniedException |
+                     \Anthropic\Core\Exceptions\BadRequestException |
+                     \Anthropic\Core\Exceptions\NotFoundException $e) {
+                // Konfigurasi/kredit/otentikasi bermasalah di sisi provider — mencoba
+                // lagi TIDAK akan membantu sampai penyebabnya dibenahi (mis. saldo
+                // Anthropic/OpenAI habis, API key dicabut, skill ID salah). Dibedakan
+                // dari error transient di bawah supaya log-nya bisa dipantau/
+                // di-alert terpisah dari sekadar gangguan jaringan sesaat.
+                $this->logAndMarkAnalyzeFailure($id, $e, retryable: false);
+                $send('error', ['message' => self::ANALYZE_FAILURE_MESSAGE]);
+            } catch (\OpenAI\Exceptions\ErrorException $e) {
+                $retryable = !in_array($e->getStatusCode(), [400, 401, 403, 404], true);
+                $this->logAndMarkAnalyzeFailure($id, $e, retryable: $retryable);
+                $send('error', ['message' => self::ANALYZE_FAILURE_MESSAGE]);
+            } catch (\Anthropic\Core\Exceptions\RateLimitException |
+                     \Anthropic\Core\Exceptions\InternalServerException |
+                     \Anthropic\Core\Exceptions\APIConnectionException |
+                     \OpenAI\Exceptions\RateLimitException |
+                     \OpenAI\Exceptions\ServerException |
+                     \OpenAI\Exceptions\TransporterException $e) {
+                // Rate limit / server sibuk / koneksi terputus — genuinely transient,
+                // retry (termasuk retry otomatis bawaan SDK) punya peluang berhasil.
+                $this->logAndMarkAnalyzeFailure($id, $e, retryable: true);
+                $send('error', ['message' => self::ANALYZE_FAILURE_MESSAGE]);
+            } catch (\RuntimeException $e) {
+                // Guard rail internal AiTicketAnalyzerService sendiri (skill ID belum
+                // diisi di .env, jawaban AI gagal di-parse sebagai JSON valid, atau
+                // koneksi ditutup user di tengah stream) — bukan outage provider,
+                // tapi tetap bukan sesuatu yang pasti akan beda hasilnya kalau
+                // di-retry begitu saja.
+                $this->logAndMarkAnalyzeFailure($id, $e, retryable: true);
+                if (0 === connection_aborted()) {
+                    $send('error', ['message' => self::ANALYZE_FAILURE_MESSAGE]);
+                }
+            } catch (\Throwable $e) {
+                $this->logAndMarkAnalyzeFailure($id, $e, retryable: true);
+                $send('error', ['message' => self::ANALYZE_FAILURE_MESSAGE]);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache, no-transform',
+            'X-Accel-Buffering' => 'no',
+            'Connection' => 'keep-alive',
+        ]);
+    }
+
+    /** Pesan yang dilihat admin yang lagi validasi tiket — SAMA di semua jenis kegagalan analyze(). */
+    private const ANALYZE_FAILURE_MESSAGE = 'AI analysis failed for this ticket. Use the Re-analyze button to try again, or fill in the classification (Type/Priority/Scale/Module) manually.';
+
+    /**
+     * Satu titik keluar untuk semua kegagalan analyze() — menandai
+     * ai_analysis_status='failed' (admin masih bisa memicu ulang lewat tombol
+     * Re-analyze, tapi TIDAK ada retry otomatis dari sisi sistem), lalu log
+     * level & pesan diagnostik dibedakan berdasarkan apakah penyebabnya
+     * genuinely transient ($retryable, buat dipantau ops) atau butuh campur
+     * tangan admin sistem (billing/config).
+     *
+     * Dulu method ini juga membentuk response JSON (analyzeFailureResponse(),
+     * dengan status HTTP 503/502 dibedakan by $retryable) — sejak analyze()
+     * jadi SSE, badan responsnya sudah dikirim (event `error`) SEBELUM
+     * exception ini ditangani, jadi status code HTTP tidak relevan lagi di
+     * sini; frontend sudah lama tidak membedakan 409/502/503 sama sekali,
+     * cuma baca `message`.
+     */
+    private function logAndMarkAnalyzeFailure(int|string $stagingId, \Throwable $e, bool $retryable): void
+    {
+        StagingTicket::where('id', $stagingId)->update(['ai_analysis_status' => 'failed']);
+
+        $context = [
+            'staging_id' => $stagingId,
+            'exception'  => get_class($e),
+            'error'      => $e->getMessage(),
+        ];
+
+        if (!$retryable) {
+            Log::critical('StagingTicketController@analyze: non-retryable AI provider error', $context);
+        } else {
+            Log::error('StagingTicketController@analyze: failed to analyze (transient)', $context);
+        }
+    }
+
+    /**
+     * Peran yang boleh memicu analisa AI ATAU bertanya lewat panelnya —
+     * dipakai bersama oleh analyze() dan ask() supaya kedua pintu masuk ke
+     * fitur AI Analyzer tidak bisa diam-diam melenceng izinnya satu sama lain.
+     */
+    private function canManageStagingTicket(?int $roleId): bool
+    {
+        return in_array($roleId, array_merge(
+            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value],
+            RoleId::STAGING_GROUP,
+        ), true);
+    }
+
+    /**
+     * POST /api/staging-tickets/{id}/ask
+     * Tanya-jawab interaktif atas staging ticket yang sedang divalidasi (lihat
+     * AiTicketQaService) — SSE, bentuknya sama persis dengan
+     * AiAssistantController::chat(). Beda dari analyze(): endpoint ini boleh
+     * dipanggil berkali-kali per tiket (satu giliran chat per request), dan
+     * tidak butuh klaim atomic seperti ai_analysis_status — tidak ada state
+     * bersama yang diperebutkan, tiap sesi (session_id, dibuat baru oleh
+     * frontend setiap modal validasi dibuka) sudah terisolasi sendiri-sendiri
+     * lewat AiTicketQaService::cacheKey().
+     */
+    public function ask(Request $request, $id, \App\Services\Ai\AiTicketQaService $qa): StreamedResponse
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $roleId = $sessionUser['role']['id'] ?? null;
+        if (!$this->canManageStagingTicket($roleId)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'session_id' => 'required|string|max:100',
+            'message' => 'required|string|max:2000',
+        ]);
+
+        $staging = StagingTicket::findOrFail($id);
+
+        if ($staging->isProcessed()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This ticket has already been validated/rejected — asking about it is no longer relevant.',
+            ], 422);
+        }
+
+        $employee = Employee::find($sessionUser['id']);
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        // Lepas lock session sebelum stream panjang, supaya tab/request lain
+        // milik user yang sama tidak ikut terblokir — sama seperti analyze().
+        $request->session()->save();
+
+        return response()->stream(function () use ($employee, $staging, $validated, $qa, $sessionUser, $roleId) {
+            set_time_limit(0);
+
+            $send = function (string $event, array $payload): void {
+                echo 'event: ' . $event . "\n";
+                echo 'data: ' . json_encode($payload) . "\n\n";
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            };
+
+            try {
+                $qa->streamReply(
+                    employee: $employee,
+                    staging: $staging,
+                    sessionId: $validated['session_id'],
+                    userText: trim($validated['message']),
+                    onDelta: function (string $text) use ($send): void {
+                        $send('delta', ['text' => $text]);
+                    },
+                    isAborted: fn () => 1 === connection_aborted(),
+                    actorRoleId: $roleId,
+                    actorName: $sessionUser['name'] ?? null,
+                );
+
+                if (0 === connection_aborted()) {
+                    $send('done', []);
+                }
+            } catch (\Throwable $e) {
+                Log::error('Staging ticket Q&A failed', ['staging_id' => $staging->id, 'error' => $e->getMessage()]);
+                if (0 === connection_aborted()) {
+                    $send('error', ['message' => 'Something went wrong while answering. Please try again.']);
+                }
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+
     // ─── API: Admin reject ────────────────────────────────────────────────────
 
     /**
@@ -377,7 +914,7 @@ class StagingTicketController extends Controller
         }
 
         $roleId = $sessionUser['role']['id'];
-        if (!in_array($roleId, array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+        if (!in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -389,6 +926,21 @@ class StagingTicketController extends Controller
 
         try {
             $this->service->reject($staging, $sessionUser['id'], $request->reason);
+
+            // Sync penolakan ke JARVIES DB
+            $this->syncRejectionToJarvies($staging);
+
+            // Notifikasi bell Jarvies — ticket request ditolak
+            if ($staging->customer_id) {
+                \App\Services\CustomerNotificationService::notify(
+                    customerId: (int) $staging->customer_id,
+                    type:       'ticket_rejected',
+                    ticketId:   null,
+                    fromName:   'Helpdesk Support',
+                    preview:    'Your ticket request has been rejected. Reason: ' . \Illuminate\Support\Str::limit($request->reason, 80),
+                    link:       '/tickets',
+                );
+            }
 
             return response()->json([
                 'success' => true,
@@ -498,11 +1050,18 @@ class StagingTicketController extends Controller
             $data         = $response->json();
             $contentBytes = base64_decode($data['contentBytes'] ?? '');
             $contentType  = $data['contentType'] ?? 'application/octet-stream';
-            $name         = $data['name'] ?? 'attachment';
+            $name      = $data['name'] ?? 'attachment';
+            $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $name));
+
+            // Browser hanya punya viewer bawaan untuk image/PDF — tipe lain (docx, xlsx, zip, dst)
+            // yang dipaksa 'inline' membuat browser fallback ke auto-download tanpa menghormati
+            // nama file dari Content-Disposition, sehingga nama file berubah jadi acak/rusak.
+            $isInline    = $data['isInline'] ?? (str_starts_with($contentType, 'image/') || $contentType === 'application/pdf');
+            $disposition = $isInline ? 'inline' : 'attachment';
 
             return response($contentBytes, 200, [
                 'Content-Type'        => $contentType,
-                'Content-Disposition' => 'inline; filename="' . $name . '"',
+                'Content-Disposition' => $disposition . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($name),
                 'Content-Length'      => strlen($contentBytes),
             ]);
         } catch (\Exception $e) {
@@ -557,11 +1116,18 @@ class StagingTicketController extends Controller
             $data         = $response->json();
             $contentBytes = base64_decode($data['contentBytes'] ?? '');
             $contentType  = $data['contentType'] ?? 'application/octet-stream';
-            $name         = $data['name'] ?? 'attachment';
+            $name      = $data['name'] ?? 'attachment';
+            $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $name));
+
+            // Browser hanya punya viewer bawaan untuk image/PDF — tipe lain (docx, xlsx, zip, dst)
+            // yang dipaksa 'inline' membuat browser fallback ke auto-download tanpa menghormati
+            // nama file dari Content-Disposition, sehingga nama file berubah jadi acak/rusak.
+            $isInline    = $data['isInline'] ?? (str_starts_with($contentType, 'image/') || $contentType === 'application/pdf');
+            $disposition = $isInline ? 'inline' : 'attachment';
 
             return response($contentBytes, 200, [
                 'Content-Type'        => $contentType,
-                'Content-Disposition' => 'inline; filename="' . $name . '"',
+                'Content-Disposition' => $disposition . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($name),
                 'Content-Length'      => strlen($contentBytes),
             ]);
         } catch (\Exception $e) {
@@ -637,7 +1203,7 @@ class StagingTicketController extends Controller
     public function statistics()
     {
         $sessionUser = session('user');
-        if (!$sessionUser || !in_array($sessionUser['role']['id'], array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+        if (!$sessionUser || !in_array($sessionUser['role']['id'], array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -650,6 +1216,205 @@ class StagingTicketController extends Controller
                 'total'       => StagingTicket::count(),
             ],
         ]);
+    }
+
+    // ─── Private: Assign ticket ke delivery support saat validasi ───────────
+
+    private function assignTicketToDeliverySupport(Ticket $ticket, int $supportId): void
+    {
+        $support = DB::table('delivery_support')->where('id', $supportId)->first();
+        if (!$support) {
+            Log::warning('StagingTicketController@assignTicketToDeliverySupport: delivery support not found', [
+                'ticket_id'  => $ticket->ticket_id,
+                'support_id' => $supportId,
+            ]);
+            return;
+        }
+
+        // Cegah duplikat assignment
+        $alreadyAssigned = DB::table('delivery_support_activities')
+            ->where('delivery_support_id', $supportId)
+            ->where('ticket_id', $ticket->ticket_id)
+            ->exists();
+
+        if ($alreadyAssigned) {
+            app(\App\Services\SlaService::class)->syncPolicy($ticket, $supportId);
+            return;
+        }
+
+        // Cari phase default (system default → fallback: phase aktif pertama)
+        $phase = DB::table('delivery_support_phases')
+            ->where('delivery_support_id', $supportId)
+            ->where('is_system_default', true)
+            ->first()
+            ?? DB::table('delivery_support_phases')
+                ->where('delivery_support_id', $supportId)
+                ->where('is_active', true)
+                ->first();
+
+        if (!$phase) {
+            Log::warning('StagingTicketController@assignTicketToDeliverySupport: no active phase found', [
+                'ticket_id'  => $ticket->ticket_id,
+                'support_id' => $supportId,
+            ]);
+            app(\App\Services\SlaService::class)->syncPolicy($ticket, $supportId);
+            return;
+        }
+
+        $group = DB::table('delivery_support_planning')
+            ->where('delivery_support_id', $supportId)
+            ->where('phase_id', $phase->id)
+            ->where('is_group', true)
+            ->first();
+
+        $nextOrder = DB::table('delivery_support_activities')
+            ->where('delivery_support_id', $supportId)
+            ->where('delivery_support_phase_id', $phase->id)
+            ->max('order_sequence') + 1;
+
+        $complexity = match (strtolower($ticket->ticket_priority ?? '')) {
+            'very high', 'high' => 'complex',
+            'low'               => 'simple',
+            default             => 'medium',
+        };
+
+        $status = match ($ticket->status ?? '') {
+            'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation' => 'in_progress',
+            'hold'                  => 'on_hold',
+            'closed', 'cancelled'  => 'completed',
+            default                => 'not_started',
+        };
+
+        DB::transaction(function () use ($ticket, $supportId, $phase, $group, $nextOrder, $complexity, $status) {
+            $activityId = DB::table('delivery_support_activities')->insertGetId([
+                'delivery_support_id'       => $supportId,
+                'delivery_support_phase_id' => $phase->id,
+                'ticket_id'                 => $ticket->ticket_id,
+                'stage_id'                  => null,
+                'name'                      => $ticket->ticket_number . ' - ' . ($ticket->description ?? "Ticket #{$ticket->ticket_id}"),
+                'description'               => $ticket->description,
+                'order_sequence'            => $nextOrder,
+                'module'                    => null,
+                'new_issue'                 => true,
+                'object'                    => null,
+                'incident_type'             => 'incident',
+                'complexity'                => $complexity,
+                'deliverable'               => null,
+                'start_date'                => $ticket->start_date ?? now(),
+                'end_date'                  => $ticket->end_date,
+                'status'                    => $status,
+                'progress_percentage'       => 0,
+                'weight'                    => $ticket->man_days ?? 1,
+                'notes'                     => "Auto-created from Ticket #{$ticket->ticket_id}",
+                'created_at'                => now(),
+                'updated_at'                => now(),
+            ]);
+
+            $planningId = null;
+            if ($group) {
+                $planningId = DB::table('delivery_support_planning')->insertGetId([
+                    'delivery_support_id' => $supportId,
+                    'phase_id'            => $phase->id,
+                    'parent_id'           => $group->id,
+                    'activity_id'         => $activityId,
+                    'name'                => $ticket->ticket_number . ' - ' . ($ticket->description ?? "Ticket #{$ticket->ticket_id}"),
+                    'is_group'            => false,
+                    'level'               => 1,
+                    'order_sequence'      => $nextOrder,
+                    'start_date'          => $ticket->start_date ?? now(),
+                    'end_date'            => $ticket->end_date,
+                    'weight'              => $ticket->man_days ?? 1,
+                    'status'              => $status,
+                    'progress_percentage' => 0,
+                    'created_at'          => now(),
+                    'updated_at'          => now(),
+                ]);
+            }
+
+            AuditLog::recordAction(
+                module: 'Delivery Support',
+                auditableType: 'DeliverySupport',
+                auditableId: $supportId,
+                event: 'updated',
+                recordLabel: "Delivery Support #{$supportId}",
+                description: "assigned Ticket #{$ticket->ticket_number} to Delivery Support #{$supportId} (staging validation)",
+                old: null,
+                new: [
+                    'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'activity_id' => $activityId,
+                    'planning_id' => $planningId,
+                    'phase_id' => $phase->id,
+                ],
+            );
+        });
+
+        app(\App\Services\SlaService::class)->syncPolicy($ticket, $supportId);
+
+        Log::info('StagingTicketController@assignTicketToDeliverySupport: ticket assigned at validation time', [
+            'ticket_id'  => $ticket->ticket_id,
+            'support_id' => $supportId,
+        ]);
+    }
+
+    // ─── Private: Sync ke JARVIES DB setelah validasi ────────────────────────
+
+    private function syncApprovalToJarvies(StagingTicket $staging, Ticket $ticket): void
+    {
+        $url = rtrim(config('services.jarvies.url', ''), '/');
+        $key = config('services.jarvies.api_key');
+        if (!$url || !$key) return;
+
+        try {
+            Http::withHeaders(['X-Api-Key' => $key])
+                ->timeout(15)
+                ->post("{$url}/api/ecosystem/staging-approved", [
+                    'customer_id'        => $staging->customer_id,
+                    'staging_description'=> $staging->description,
+                    'ticket_id'          => $ticket->ticket_id,
+                    'ticket_number'      => $ticket->ticket_number,
+                    'description'        => $ticket->description,
+                    'status'             => $ticket->status,
+                    'ticket_priority'    => $ticket->ticket_priority,
+                    'ticket_type'        => $ticket->ticket_type,
+                    'channel'            => $ticket->channel,
+                    'submitted_by_email' => $ticket->submitted_by_email,
+                    'submitted_by_name'  => $ticket->submitted_by_name,
+                    'start_date'         => $ticket->start_date?->toDateString(),
+                ]);
+
+            Log::info('StagingTicketController@syncApprovalToJarvies: berhasil', [
+                'staging_id' => $staging->id,
+                'ticket_id'  => $ticket->ticket_id,
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('StagingTicketController@syncApprovalToJarvies: gagal (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function syncRejectionToJarvies(StagingTicket $staging): void
+    {
+        $url = rtrim(config('services.jarvies.url', ''), '/');
+        $key = config('services.jarvies.api_key');
+        if (!$url || !$key) return;
+
+        try {
+            Http::withHeaders(['X-Api-Key' => $key])
+                ->timeout(15)
+                ->post("{$url}/api/ecosystem/staging-rejected", [
+                    'customer_id'        => $staging->customer_id,
+                    'staging_description'=> $staging->description,
+                    'rejection_reason'   => $staging->rejection_reason,
+                ]);
+        } catch (\Exception $e) {
+            Log::warning('StagingTicketController@syncRejectionToJarvies: gagal (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
     }
 
     // ─── Private: Notifikasi balasan otomatis setelah approval ───────────────
@@ -718,11 +1483,16 @@ class StagingTicketController extends Controller
                   . '</div>'
                 : '';
 
-            $bodyPlain = "Baik akan disampaikan dengan Nomor Ticket {$ticketNumber}\n\nBest Regards,\n{$signatureName}";
+            $bodyPlain = "Terima kasih sudah menghubungi kami.\n"
+                       . "Kami sudah daftarkan tiket terkait issue yang sudah disampaikan dengan nomor {$ticketNumber}\n"
+                       . "Issue tersebut akan segera kami teruskan kepada konsultan yang terkait untuk diproses.\n\n\n"
+                       . "Regards,\nEclectic Support Team";
 
-            $bodyHtml  = "<p>Baik akan disampaikan dengan Nomor Ticket <strong>{$ticketNumber}</strong></p>"
+            $bodyHtml  = "<p>Terima kasih sudah menghubungi kami.<br>"
+                       . "Kami sudah daftarkan tiket terkait issue yang sudah disampaikan dengan nomor <strong>{$ticketNumber}</strong><br>"
+                       . "Issue tersebut akan segera kami teruskan kepada konsultan yang terkait untuk diproses.</p>"
                        . $detailBlock
-                       . "<br><p>Best Regards,<br><strong>{$signatureName}</strong></p>";
+                       . "<br><p>Regards,<br><strong>Eclectic Support Team</strong></p>";
 
             $safeNum  = htmlspecialchars($ticketNumber, ENT_QUOTES, 'UTF-8');
             $safeAgent = htmlspecialchars($signatureName, ENT_QUOTES, 'UTF-8');
@@ -738,8 +1508,10 @@ class StagingTicketController extends Controller
                 </tr>
                 <tr>
                     <td style="background-color:#ffffff;padding:24px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;font-size:14px;color:#374151;line-height:1.7;">
-                        <p>Baik akan disampaikan dengan Nomor Ticket <strong>#{$safeNum}</strong></p>
-                        <p>Best Regards,<br><strong>{$safeAgent}</strong></p>
+                        <p style="margin:0 0 16px 0;">Terima kasih sudah menghubungi kami.<br>
+                        Kami sudah daftarkan tiket terkait issue yang sudah disampaikan dengan nomor <strong>{$safeNum}</strong><br>
+                        Issue tersebut akan segera kami teruskan kepada konsultan yang terkait untuk diproses.</p>
+                        <p style="margin:0;">Regards,<br><strong>Eclectic Support Team</strong></p>
                     </td>
                 </tr>
                 <tr>
@@ -794,62 +1566,9 @@ class StagingTicketController extends Controller
                 }
             }
 
-            // ── Sertakan konten asli tiket sebagai quoted section ─────────────
-            // Prioritas: $firstMessage->message_html (sudah di-rewrite oleh
-            // processAttachmentsForMessage dengan URL /storage/... yang dapat diakses
-            // oleh browser EcoSystem dan email client).
-            // Fallback #1: $staging->email_body_html + resolve inline images sebagai data URI.
-            // Fallback #2: $staging->body (hindari jika mungkin — bisa berisi URL Jarvies
-            // proxy yang tidak bisa diakses di konteks EcoSystem).
-            $originalBody = null;
-            if ($firstMessage && trim(strip_tags($firstMessage->message_html ?? '')) !== '') {
-                $originalBody = $firstMessage->message_html;
-            } elseif (!empty($staging->email_body_html) && $staging->graph_message_id) {
-                try {
-                    $originalBody = app(EmailController::class)
-                        ->resolveInlineImagesAsDataUris($staging->graph_message_id, $staging->email_body_html);
-                } catch (\Exception $e) {
-                    $originalBody = $staging->email_body_html;
-                }
-            } else {
-                $originalBody = $staging->body ?? null;
-            }
-            if ($originalBody && trim(strip_tags($originalBody)) !== '') {
-                // Jadikan relative src/href URLs menjadi absolute agar gambar tampil di email client.
-                // Email client tidak bisa resolve relative URL — harus menggunakan full domain.
-                $appUrl = rtrim(config('app.url'), '/');
-                $originalBody = preg_replace_callback(
-                    '~((?:src|href)=")(/(?!/))([^"]*)~i',
-                    fn($m) => $m[1] . $appUrl . '/' . $m[3],
-                    $originalBody
-                );
-
-                // Bangun daftar nama file attachment untuk ditampilkan di body email
-                $attNamesHtml = '';
-                if (!empty($rawAttachments)) {
-                    $items = '';
-                    foreach ($rawAttachments as $att) {
-                        $items .= '<li style="margin:2px 0;">'
-                            . htmlspecialchars($att['name'] ?? 'attachment', ENT_QUOTES, 'UTF-8')
-                            . '</li>';
-                    }
-                    $attNamesHtml = '<div style="margin-top:12px;font-size:13px;color:#374151;">'
-                        . '<p style="margin:0 0 4px;font-weight:600;color:#6b7280;font-size:12px;">Attachments:</p>'
-                        . '<ul style="margin:0;padding-left:20px;">' . $items . '</ul>'
-                        . '</div>';
-                }
-
-                $bodyHtml .= <<<HTML
-
-                <div style="margin-top:24px;padding-top:16px;border-top:2px solid #e5e7eb;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280;max-width:600px;">
-                    <p style="margin:0 0 8px 0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;">Original Ticket Content</p>
-                    <div style="border-left:3px solid #e5e7eb;padding:0 0 0 16px;color:#374151;font-size:14px;line-height:1.7;">
-                        {$originalBody}
-                        {$attNamesHtml}
-                    </div>
-                </div>
-                HTML;
-            }
+            // Section "Original Ticket Content" sengaja DIHILANGKAN dari body email
+            // (sesuai permintaan): customer cukup menerima pesan sambutan + nomor tiket.
+            // $rawAttachments tetap dilampirkan sebagai attachment email yang sebenarnya.
 
             Log::info('StagingTicketController@sendApprovalNotification: step create-message', [
                 'staging_id'      => $staging->id,
@@ -896,8 +1615,12 @@ class StagingTicketController extends Controller
             ]);
 
             if ($customerEmail) {
-                // Subject format: "Ticket #26040014: FIX BISA"
-                $subject   = 'Ticket #' . $ticketNumber . ': ' . ($staging->description ?? 'Ticket Update');
+                // Subject format: "[JARVIES] #26040014 : FIX BISA"
+                // Format ini menjadi "anchor" subject thread email ticket. Semua email
+                // berikutnya (reply helpdesk, status, mandays, deliverable) WAJIB memakai
+                // format yang sama agar subjectTopicMatches() mengenali topik yang sama →
+                // Thread-Index Exchange tidak ter-reset → semua tetap satu thread.
+                $subject   = '[JARVIES] #' . $ticketNumber . ' : ' . ($staging->description ?? 'Ticket Update');
                 $inReplyTo = $staging->email_message_id; // null untuk web-only → buat thread baru
                 $threadId  = $staging->email_thread_id;   // conversationId fallback
 
@@ -1247,7 +1970,7 @@ class StagingTicketController extends Controller
             'description'         => $s->description,
             'body'                => $s->body,           // ← full message body dari Jarvies/web form
             'ticket_priority'     => $s->ticket?->ticket_priority ?? $s->ticket_priority,
-            'ticket_type'         => $s->ticket?->ticket_type,
+            'ticket_type'         => $s->ticket?->ticket_type ?? $s->ticket_type,
             'scale'               => $s->ticket?->scale ?? $s->scale,
             'status'              => $s->status,
             'rejection_reason'    => $s->rejection_reason,
@@ -1262,12 +1985,42 @@ class StagingTicketController extends Controller
             'ticket_id'           => $s->ticket_id,
             'ticket_number'       => $s->ticket?->ticket_number,
             'created_at'          => $s->created_at?->toIso8601String(),
+            'updated_at'          => $s->updated_at?->toIso8601String(),
             'attachments'         => $attachments,       // ← file attachments (web uploads)
             // Field tambahan
             'name'                => $s->name,
             'no_hp'               => $s->no_hp,
             'module'              => $s->module,
+            'module_id'           => $s->module_id,
             'client'              => $s->client,
+            // Analisa AI (cache — lihat AiTicketAnalyzerService)
+            'ai_analysis'              => $s->ai_analysis,
+            'ai_analysis_generated_at' => $s->ai_analysis_generated_at?->toIso8601String(),
+            'ai_analysis_status'       => $s->ai_analysis_status,
+            'ai_analysis_stale'        => $this->isAiAnalysisStale($s),
         ];
+    }
+
+    /**
+     * True kalau staging ticket ini diperbarui SETELAH analisis AI-nya dibuat
+     * — beda dari AI Summarize (yang auto-invalidate lewat sidik jari isi
+     * tiket), analisis AI di sini TIDAK auto-refresh karena panggilan Opus-5
+     * + Agent Skill mahal untuk dipicu ulang otomatis tiap kali staging
+     * ticket-nya diedit. Ini cukup jadi PERINGATAN pasif buat validator,
+     * bukan trigger auto re-analyze.
+     *
+     * Toleransi 3 detik menyerap selisih mikro-waktu wajar antara
+     * ai_analysis_generated_at (di-set eksplisit di
+     * AiTicketAnalyzerService::analyze()) dan updated_at (di-set Eloquent
+     * otomatis pada UPDATE query yang SAMA) — tanpa ini, hasil yang baru saja
+     * selesai dianalisis akan langsung tertandai basi oleh selisih milidetik.
+     */
+    private function isAiAnalysisStale(StagingTicket $s): bool
+    {
+        if (!$s->ai_analysis || !$s->ai_analysis_generated_at || !$s->updated_at) {
+            return false;
+        }
+
+        return $s->updated_at->gt($s->ai_analysis_generated_at->copy()->addSeconds(3));
     }
 }

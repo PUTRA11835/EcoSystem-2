@@ -133,7 +133,6 @@ class DeliveryDynamicPhaseController extends Controller
             'phase_id' => 'required|exists:delivery_project_phases,id',
             'weight' => 'required|numeric|min:0|max:100',
             'orientation' => 'required|in:vertical,horizontal',
-            'is_golive_phase' => 'nullable|boolean',
             'custom_settings' => 'nullable|array',
         ]);
 
@@ -154,7 +153,6 @@ class DeliveryDynamicPhaseController extends Controller
                 'color' => $systemPhase->color,
                 'weight' => $validated['weight'],
                 'is_visible' => true,
-                'is_golive_phase' => $validated['is_golive_phase'] ?? ($systemPhase->name === 'Go-Live & Support'),
                 'orientation' => $validated['orientation'],
                 'is_optional' => $systemPhase->is_optional,
                 'is_active' => true,
@@ -192,7 +190,6 @@ class DeliveryDynamicPhaseController extends Controller
         $validated = $request->validate([
             'weight' => 'nullable|numeric|min:0|max:100',
             'is_visible' => 'nullable|boolean',
-            'is_golive_phase' => 'nullable|boolean',
             'custom_settings' => 'nullable|array',
         ]);
 
@@ -210,10 +207,6 @@ class DeliveryDynamicPhaseController extends Controller
                 $updateData['is_visible'] = $validated['is_visible'];
             }
 
-            if (isset($validated['is_golive_phase'])) {
-                $updateData['is_golive_phase'] = $validated['is_golive_phase'];
-            }
-            
             if (isset($validated['custom_settings'])) {
                 $updateData['custom_settings'] = $validated['custom_settings'];
             }

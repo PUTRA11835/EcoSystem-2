@@ -1,18 +1,23 @@
-@extends('dashboard')
+﻿@extends('dashboard')
 
-@section('title', 'Master Customer')
-@section('page-title', 'Customer Management')
+@section('title', 'Master Business Partner')
+@section('page-title', 'Business Partner Management')
 
 @section('content')
+<script>
+// Menu 'Actions (Edit/Delete)' di bawah Master > Business Partner.
+// Mirror canEmployeeAction di master/employee/index.blade.php.
+const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }};
+</script>
 <div class="bg-white rounded-xl p-6 shadow-sm">
     <!-- Page Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-gray-100">
-        <h2 class="text-2xl font-bold text-gray-900">Customer Management</h2>
+        <h2 class="text-2xl font-bold text-gray-900">Business Partner Management</h2>
     </div>
 
     <!-- Filter Section -->
     <div class="bg-gray-50 rounded-lg p-5 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Status</label>
                 {{-- Markup custom-dd disamakan persis dengan Employee Management
@@ -31,8 +36,25 @@
                     </div>
                 </div>
             </div>
+            {{-- Filter Type (Business Partner: Customer / Vendor). Markup custom-dd
+                 disamakan dengan filter Status di atas. --}}
             <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Customer</label>
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Type</label>
+                <div class="custom-dd relative" data-onchange="applyFilters">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">All Type</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="filterType" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Type</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Customer">Customer</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Vendor">Vendor</button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-col">
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Business Partner</label>
                 <input type="text" id="filterCustomer" placeholder="Search by email or company name..." oninput="debouncedApplyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
             </div>
             <div class="flex flex-col">
@@ -53,7 +75,7 @@
     <!-- Table Section -->
     <div class="mt-6">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">Customer List</h3>
+            <h3 class="text-lg font-semibold text-gray-900">Business Partner List</h3>
             <div class="flex items-center gap-2">
                 <a href="{{ route('master.customer.grouping') }}" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1.5">
@@ -61,9 +83,11 @@
                     </svg>
                     View Grouping
                 </a>
+                @if($can('master.customer.create'))
                 <button onclick="openCreateModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                    Create Customer
+                    Create Business Partner
                 </button>
+                @endif
             </div>
         </div>
 
@@ -73,6 +97,7 @@
                     <tr>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Email</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Company Name</th>
+                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Type</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Customer Group</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Customer Category</th>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Industry Sector</th>
@@ -91,12 +116,12 @@
     </div>
 </div>
 
-<!-- SIMPLIFIED Modal Create Customer - Only Essential Fields -->
+<!-- SIMPLIFIED Modal Create Business Partner - Only Essential Fields -->
 <div id="customerModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         <!-- Modal Header -->
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
-            <h3 id="modalTitle" class="text-xl font-bold text-gray-900">Create Customer</h3>
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-900">Create Business Partner</h3>
             <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -122,9 +147,27 @@
                             <span>Login access is managed per <strong>Contact Person</strong> — go to the Contact tab after saving to grant Jarvies access.</span>
                         </div>
 
+                        {{-- Type Business Partner. Wajib: menentukan data ini muncul
+                             sebagai Customer (klien) atau Vendor di modul lain. --}}
+                        <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Type <span class="text-red-600">*</span></label>
+                            <div class="custom-dd relative" id="ddPartnerType" data-fixed="true" data-onchange="onPartnerTypeChange">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-600">Customer</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="partnerType" value="Customer" required>
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="Customer">Customer</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="Vendor">Vendor</button>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-400 mt-1">Vendors are selectable as the Vendor of a delivery support; customers as the client.</span>
+                        </div>
+
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Customer Code <span class="text-red-600">*</span></label>
-                            <input type="text" id="customerCode" required maxlength="4" placeholder="e.g. ACME"
+                            <input type="text" id="customerCode" required maxlength="50" placeholder="e.g. ACME"
                                 oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"
                                 class="px-3 py-2 border border-gray-300 rounded text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-red-800 uppercase">
                             <span class="text-xs text-gray-400 mt-1">Max 4 characters, letters and numbers only.</span>
@@ -168,18 +211,18 @@
                         </div>
 
                         <div class="flex flex-col">
-                            <label class="text-xs font-semibold text-gray-600 mb-1">Parent Customer</label>
-                            <div class="custom-dd relative" id="ddParentCustomer" data-searchable="true" data-fixed="true">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">AE (Account Executive)</label>
+                            <div class="custom-dd relative" id="ddAccountExecutive" data-searchable="true" data-fixed="true">
                                 <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
-                                    <span class="custom-dd-label text-gray-400">None (Top-level customer)</span>
+                                    <span class="custom-dd-label text-gray-400">— Select Employee —</span>
                                     <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                 </button>
-                                <input type="hidden" id="parentCustomerId" value="">
+                                <input type="hidden" id="ecAccountExecutive" value="">
                                 <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="">None (Top-level customer)</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="">— Select Employee —</button>
                                 </div>
                             </div>
-                            <span class="text-xs text-gray-400 mt-1">Leave empty if this is a top-level customer (e.g., Sinergi).</span>
+                            <span class="text-xs text-gray-400 mt-1">Only employees with a Sales role are listed.</span>
                         </div>
                     </div>
 
@@ -193,33 +236,56 @@
                         </div>
 
                         <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Building Name</label>
+                            <input type="text" id="buildingName" placeholder="Nama gedung / tempat" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                        </div>
+
+                        <div class="flex flex-col">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Full Address</label>
+                            <textarea id="fullAddress" rows="2" placeholder="Alamat lengkap" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800"></textarea>
+                        </div>
+
+                        <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Postal Code</label>
                             <input type="text" id="postalCode" placeholder="Postal code" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                         </div>
 
+                        {{-- Alamat cascading (Country → Region → City → District → Village)
+                             via tabel `wilayah` (API /api/regions/children). Nilai yang
+                             disimpan tetap NAMA. Mirror modal Create/Edit Employee. --}}
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Country</label>
-                            <input type="text" id="country" value="Indonesia" placeholder="Country" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <select id="country" class="addr-select px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                                <option value="Indonesia" selected>Indonesia</option>
+                            </select>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Region/Province</label>
-                            <input type="text" id="region" placeholder="Region or province" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <select id="region" onchange="addrOnRegionChange()" data-searchable="true" data-search-placeholder="Search region..." class="addr-select px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                                <option value="">-- Select Region --</option>
+                            </select>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">City</label>
-                            <input type="text" id="city" placeholder="City" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <select id="city" onchange="addrOnCityChange()" data-searchable="true" data-search-placeholder="Search city..." class="addr-select px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                                <option value="">-- Select City --</option>
+                            </select>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">District</label>
-                            <input type="text" id="district" placeholder="District" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <select id="district" onchange="addrOnDistrictChange()" data-searchable="true" data-search-placeholder="Search district..." class="addr-select px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                                <option value="">-- Select District --</option>
+                            </select>
                         </div>
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Rural / Urban Villages</label>
-                            <input type="text" id="village" placeholder="Village name" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <select id="village" data-searchable="true" data-search-placeholder="Search village..." class="addr-select px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                                <option value="">-- Select Village --</option>
+                            </select>
                         </div>
 
                         <div class="flex flex-col">
@@ -238,8 +304,36 @@
                         <h4 class="text-base font-bold text-gray-900 mb-4 pb-2 border-b-2 border-gray-200">Organizational Data</h4>
 
                         <div class="flex flex-col">
-                            <label class="text-xs font-semibold text-gray-600 mb-1">Customer Group</label>
-                            <input type="text" id="customerGroup" placeholder="Customer group code" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <label class="text-xs font-semibold text-gray-600 mb-1">Parent Customer</label>
+                            <div class="custom-dd relative" id="ddParentCustomer" data-searchable="true" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-400">None (Top-level customer)</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="parentCustomerId" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="">None (Top-level customer)</button>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-400 mt-1">Leave empty if this is a top-level customer (e.g., Sinergi).</span>
+                        </div>
+
+                        <div class="flex flex-col">
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-xs font-semibold text-gray-600">Customer Group</label>
+                                <button type="button" onclick="createGroupInline('parentCustomerGroupId')" class="text-xs font-semibold text-red-700 hover:text-red-900">+ New group</button>
+                            </div>
+                            <div class="custom-dd relative" id="ddCustomerGroup" data-searchable="true" data-fixed="true">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label text-gray-400">None (No group)</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="parentCustomerGroupId" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50" data-value="">None (No group)</button>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-400 mt-1">Customers in the same group are shown together in Customer Grouping.</span>
                         </div>
 
                         <div class="flex flex-col">
@@ -287,8 +381,8 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                 </svg>
             </div>
-            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Delete Customer</h3>
-            <p class="text-sm text-gray-600 text-center mb-6">Are you sure you want to delete this customer? This action cannot be undone.</p>
+            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Delete Business Partner</h3>
+            <p class="text-sm text-gray-600 text-center mb-6">Are you sure you want to delete this business partner? This action cannot be undone.</p>
             <div class="flex gap-3">
                 <button onclick="closeConfirmDelete()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
                 <button onclick="confirmDelete()" class="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Delete</button>
@@ -297,7 +391,25 @@
     </div>
 </div>
 
+{{-- New customer group modal --}}
+<div id="newGroupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-1">New Customer Group</h3>
+            <p class="text-sm text-gray-600 mb-4">Enter a name for the new customer group.</p>
+            <input type="text" id="newGroupName" placeholder="Customer group name"
+                   class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNewGroup();}">
+            <div class="flex gap-3 mt-6">
+                <button type="button" onclick="closeNewGroupModal()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                <button type="button" onclick="confirmNewGroup()" class="flex-1 px-4 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- Floating action menu (fixed position to avoid table stacking context) --}}
+@if($can('master.customer.action'))
 <div id="floatingCustMenu" class="hidden fixed z-[9999] w-40 bg-white border border-gray-200 rounded-lg shadow-xl py-1" onclick="event.stopPropagation()">
     <button onclick="custMenuDelete()" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-all">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
@@ -306,10 +418,20 @@
         Delete
     </button>
 </div>
+@endif
 
 @endsection
 
 <style>
+    /* Chevron kustom untuk dropdown alamat cascading (Country → … → Village)
+       di modal Create Customer. Mirror sections/address.blade.php. */
+    .addr-select {
+        -webkit-appearance: none; -moz-appearance: none; appearance: none;
+        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 0.625rem center; background-size: 1rem;
+        padding-right: 2rem;
+    }
+
     /* Hover effect untuk baris tabel yang bisa diklik */
     .customer-row {
         cursor: pointer;
@@ -336,7 +458,7 @@
     let deleteCustomerId = null;
     let currentPage = 1;
     let paginationMeta = null;
-    const PER_PAGE = 15;
+    const PER_PAGE = 200;
 
     // Toggle password visibility
     function togglePassword(fieldId) {
@@ -389,7 +511,7 @@
         const { total, per_page, current_page, last_page, from, to } = paginationMeta;
 
         if (last_page <= 1) {
-            el.innerHTML = `<span class="text-xs text-gray-500">Showing ${total} customer${total !== 1 ? 's' : ''}</span>`;
+            el.innerHTML = `<span class="text-xs text-gray-500">Showing ${total} business partner${total !== 1 ? 's' : ''}</span>`;
             return;
         }
 
@@ -426,7 +548,7 @@
         ).join('');
 
         el.innerHTML = `
-            <span class="text-xs text-gray-500">Showing ${from}–${to} of ${total} customers</span>
+            <span class="text-xs text-gray-500">Showing ${from}–${to} of ${total} business partners</span>
             <div class="flex items-center gap-1">
                 ${btn('&lsaquo;', current_page - 1, current_page === 1)}
                 ${pageButtons}
@@ -457,12 +579,12 @@
         if (data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="px-4 py-16 text-center">
+                    <td colspan="8" class="px-4 py-16 text-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
                         </svg>
-                        <p class="text-base font-medium text-gray-900 mb-2">No customers found</p>
-                        <small class="text-sm text-gray-500">Click "Create Customer" to add a new customer</small>
+                        <p class="text-base font-medium text-gray-900 mb-2">No business partners found</p>
+                        <small class="text-sm text-gray-500">Click "Create Business Partner" to add a new customer or vendor</small>
                     </td>
                 </tr>
             `;
@@ -471,6 +593,7 @@
 
         tbody.innerHTML = data.map(cust => {
             const statusInfo = getStatusInfo(cust);
+            const typeInfo   = getTypeInfo(cust);
             const parentTag = cust.parent_name
                 ? `<span class="block text-xs text-gray-400 mt-0.5">&#8627; ${cust.parent_name}</span>`
                 : '';
@@ -479,6 +602,11 @@
             <tr class="customer-row" onclick="navigateToDetail(${cust.id}, event)">
                 <td class="px-4 py-3.5 text-sm"><strong class="font-semibold text-gray-900">${cust.email || '-'}</strong></td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${cust.name_1 || '-'}${parentTag}</td>
+                <td class="px-4 py-3.5 text-sm">
+                    <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full ${typeInfo.class}">
+                        ${typeInfo.label}
+                    </span>
+                </td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${cust.customer_group || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${cust.customer_category || '-'}</td>
                 <td class="px-4 py-3.5 text-sm text-gray-600">${cust.industry_sector || '-'}</td>
@@ -488,17 +616,24 @@
                     </span>
                 </td>
                 <td class="px-4 py-3.5 text-sm">
-                    <div class="action-buttons" onclick="event.stopPropagation()">
+                    ${canCustomerAction ? `<div class="action-buttons" onclick="event.stopPropagation()">
                         <button onclick="openCustMenu(event, ${cust.id})" class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 transition-all">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
                             </svg>
                         </button>
-                    </div>
+                    </div>` : ''}
                 </td>
             </tr>
         `;
         }).join('');
+    }
+
+    // Badge Type (Business Partner): Customer = biru, Vendor = ungu.
+    function getTypeInfo(cust) {
+        return cust.type === 'Vendor'
+            ? { label: 'Vendor',   class: 'bg-purple-100 text-purple-800' }
+            : { label: 'Customer', class: 'bg-blue-100 text-blue-800' };
     }
 
     function getStatusInfo(cust) {
@@ -511,20 +646,128 @@
         return statusMap[status] || statusMap['active'];
     }
 
+    /* ─────────────────────────────────────────────────────────────────────
+       CASCADING DROPDOWN WILAYAH (Create Customer modal)
+       Country → Region → City → District → Rural/Urban Village.
+       Sumber: /api/regions/children (tabel `wilayah`). Nilai yang DISIMPAN
+       tetap NAMA (kolom region/city/district/rural_urban_village). Kode wilayah
+       dibawa di data-code tiap <option> untuk menautkan ke level di bawahnya.
+       Port dari modal Create/Edit Employee (master/employee/index.blade.php).
+       ───────────────────────────────────────────────────────────────────── */
+    const addrRegionSel   = () => document.getElementById('region');
+    const addrCitySel     = () => document.getElementById('city');
+    const addrDistrictSel = () => document.getElementById('district');
+    const addrVillageSel  = () => document.getElementById('village');
+
+    function addrSelectedCode(sel) {
+        const o = sel && sel.options[sel.selectedIndex];
+        return o ? (o.dataset.code || '') : '';
+    }
+
+    async function addrFetchWilayah(parentCode) {
+        try {
+            const res = await fetch(`/api/regions/children?parent=${encodeURIComponent(parentCode)}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            return data.success ? data.data : [];
+        } catch (e) {
+            console.error('Error loading wilayah:', e);
+            return [];
+        }
+    }
+
+    // Isi <select> dengan daftar wilayah. selectedName = nama yang ingin dipilih
+    // ulang (data lama free-text tetap ditambahkan sbg opsi agar tak hilang).
+    // Dispatch 'change' agar select-enhance menyegarkan label tampilannya.
+    function addrFillWilayah(sel, items, placeholder, selectedName = '') {
+        sel.innerHTML = `<option value="">${placeholder}</option>`;
+        let matched = false;
+        items.forEach(it => {
+            const opt = document.createElement('option');
+            opt.value = it.name;
+            opt.dataset.code = it.code;
+            opt.textContent = it.name;
+            if (selectedName && selectedName === it.name) { opt.selected = true; matched = true; }
+            sel.appendChild(opt);
+        });
+        if (selectedName && !matched) {
+            const opt = document.createElement('option');
+            opt.value = selectedName;
+            opt.textContent = selectedName;
+            opt.selected = true;
+            sel.appendChild(opt);
+        }
+        sel.dispatchEvent(new Event('change', { bubbles: false }));
+    }
+
+    function addrResetWilayah(sel, placeholder) {
+        sel.innerHTML = `<option value="">${placeholder}</option>`;
+        sel.dispatchEvent(new Event('change', { bubbles: false }));
+    }
+
+    let addrRegionsReady = null;
+    function addrLoadRegions(selectedName = '') {
+        addrRegionsReady = addrFetchWilayah('').then(items => {
+            addrFillWilayah(addrRegionSel(), items, '-- Select Region --', selectedName);
+        });
+        return addrRegionsReady;
+    }
+
+    async function addrOnRegionChange() {
+        addrResetWilayah(addrCitySel(), '-- Select City --');
+        addrResetWilayah(addrDistrictSel(), '-- Select District --');
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
+        const code = addrSelectedCode(addrRegionSel());
+        if (code) addrFillWilayah(addrCitySel(), await addrFetchWilayah(code), '-- Select City --');
+    }
+    async function addrOnCityChange() {
+        addrResetWilayah(addrDistrictSel(), '-- Select District --');
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
+        const code = addrSelectedCode(addrCitySel());
+        if (code) addrFillWilayah(addrDistrictSel(), await addrFetchWilayah(code), '-- Select District --');
+    }
+    async function addrOnDistrictChange() {
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
+        const code = addrSelectedCode(addrDistrictSel());
+        if (code) addrFillWilayah(addrVillageSel(), await addrFetchWilayah(code), '-- Select Village --');
+    }
+
+    // Kosongkan seluruh rantai dropdown ke kondisi awal (mode Create).
+    function addrResetLocation() {
+        addrLoadRegions();
+        addrResetWilayah(addrCitySel(), '-- Select City --');
+        addrResetWilayah(addrDistrictSel(), '-- Select District --');
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
+    }
+
     function openCreateModal() {
-        document.getElementById('modalTitle').textContent = 'Create Customer';
+        document.getElementById('modalTitle').textContent = 'Create Business Partner';
         document.getElementById('customerForm').reset();
         document.getElementById('customerId').value = '';
 
-        // Set default values
+        // Type default 'Customer' (form.reset() tidak menyentuh hidden input custom-dd)
+        if (typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('partnerType', 'Customer');
+        } else {
+            document.getElementById('partnerType').value = 'Customer';
+        }
+
+        // Set default values + reset rantai dropdown wilayah (kosong).
         document.getElementById('country').value = 'Indonesia';
         document.getElementById('language').value = 'Indonesian';
+        addrResetLocation();
 
-        // Reset parent customer dropdown
+        // Reset parent customer, group & AE dropdowns
         if (typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('parentCustomerId', '');
+            setCustomDropdownValue('parentCustomerGroupId', '');
+            setCustomDropdownValue('ecAccountExecutive', '');
         } else {
             document.getElementById('parentCustomerId').value = '';
+            document.getElementById('parentCustomerGroupId').value = '';
+            document.getElementById('ecAccountExecutive').value = '';
         }
 
         // Auto-generate search term when company name changes
@@ -533,14 +776,30 @@
         });
 
         loadTopLevelCustomers();
+        loadCustomerGroups();
+        loadSalesEmployees();
 
         document.getElementById('customerModal').classList.remove('hidden');
         document.getElementById('customerModal').classList.add('flex');
     }
 
-    async function loadTopLevelCustomers() {
+    // Type diganti di modal Create → kosongkan pilihan parent lama & muat ulang
+    // kandidat parent sesuai tipe yang baru.
+    function onPartnerTypeChange() {
+        if (typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('parentCustomerId', '');
+        } else {
+            document.getElementById('parentCustomerId').value = '';
+        }
+        loadTopLevelCustomers();
+    }
+
+    // Parent hanya boleh business partner bertipe SAMA, jadi daftar ini dimuat
+    // ulang setiap Type diganti (lihat onPartnerTypeChange).
+    async function loadTopLevelCustomers(type) {
+        const partnerType = type || document.getElementById('partnerType')?.value || 'Customer';
         try {
-            const res = await fetch('/api/customers/top-level', {
+            const res = await fetch(`/api/customers/top-level?type=${encodeURIComponent(partnerType)}`, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             });
@@ -578,6 +837,143 @@
         }
     }
 
+    // Employee ber-role Sales untuk dropdown AE. Value = ECI, sama dengan
+    // kolom `ec_account_executive` yang dipakai tab Basic Data di halaman detail.
+    async function loadSalesEmployees() {
+        try {
+            const res = await fetch('/api/customers/sales-employees', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (!data.success) return;
+
+            const dd = document.getElementById('ddAccountExecutive');
+            if (!dd) return;
+            const panel = dd._ddPanel || dd.querySelector('.custom-dd-panel');
+            if (!panel) return;
+
+            panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
+
+            const insertBefore = panel._ddEmpty || null;
+
+            const none = document.createElement('button');
+            none.type = 'button';
+            none.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50';
+            none.dataset.value = '';
+            none.textContent = '— Select Employee —';
+            panel.insertBefore(none, insertBefore);
+
+            data.data.forEach(emp => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50';
+                btn.dataset.value = emp.eci;
+                btn.textContent = `${emp.name} (${emp.eci})`;
+                panel.insertBefore(btn, insertBefore);
+            });
+        } catch (e) {
+            console.error('Failed to load sales employees', e);
+        }
+    }
+
+    async function loadCustomerGroups(selectedId = '') {
+        try {
+            const res = await fetch('/api/customer-groups?active_only=1', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (!data.success) return;
+
+            const dd = document.getElementById('ddCustomerGroup');
+            if (!dd) return;
+            const panel = dd._ddPanel || dd.querySelector('.custom-dd-panel');
+            if (!panel) return;
+
+            panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
+
+            const insertBefore = panel._ddEmpty || null;
+
+            const none = document.createElement('button');
+            none.type = 'button';
+            none.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50';
+            none.dataset.value = '';
+            none.textContent = 'None (No group)';
+            panel.insertBefore(none, insertBefore);
+
+            data.data.forEach(g => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50';
+                btn.dataset.value = g.id;
+                btn.textContent = g.name + (g.customers_count ? ` (${g.customers_count})` : '');
+                panel.insertBefore(btn, insertBefore);
+            });
+
+            if (selectedId !== '' && typeof setCustomDropdownValue === 'function') {
+                setCustomDropdownValue('parentCustomerGroupId', String(selectedId));
+            }
+        } catch (e) {
+            console.error('Failed to load customer groups', e);
+        }
+    }
+
+    let _newGroupResolver = null;
+
+    function openNewGroupModal() {
+        const modal = document.getElementById('newGroupModal');
+        const input = document.getElementById('newGroupName');
+        input.value = '';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => input.focus(), 50);
+        return new Promise((resolve) => { _newGroupResolver = resolve; });
+    }
+
+    function closeNewGroupModal() {
+        const modal = document.getElementById('newGroupModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        if (_newGroupResolver) { _newGroupResolver(null); _newGroupResolver = null; }
+    }
+
+    function confirmNewGroup() {
+        const name = (document.getElementById('newGroupName').value || '').trim();
+        const modal = document.getElementById('newGroupModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        if (_newGroupResolver) { _newGroupResolver(name); _newGroupResolver = null; }
+    }
+
+    async function createGroupInline(hiddenId) {
+        const name = (await openNewGroupModal() || '').trim();
+        if (!name) return;
+        try {
+            const res = await fetch('/api/customer-groups', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification('Customer group created.', 'success');
+                await loadCustomerGroups(data.data.id);
+            } else {
+                showNotification(data.message || 'Failed to create group', 'error');
+            }
+        } catch (e) {
+            console.error('Failed to create group', e);
+            showNotification('An error occurred while creating group', 'error');
+        }
+    }
+
     function closeModal() {
         document.getElementById('customerModal').classList.add('hidden');
         document.getElementById('customerModal').classList.remove('flex');
@@ -593,12 +989,15 @@
 
         const customerData = {
             customer_code: document.getElementById('customerCode').value.toUpperCase(),
+            type: document.getElementById('partnerType').value || 'Customer',
             email: document.getElementById('email').value || null,
             domain: document.getElementById('customerDomain').value || null,
             title: document.getElementById('title').value,
             name_1: document.getElementById('companyName').value,
             search_term_1: document.getElementById('searchTerm').value || document.getElementById('companyName').value.toUpperCase(),
             street: document.getElementById('street').value,
+            building_name: document.getElementById('buildingName').value,
+            full_address: document.getElementById('fullAddress').value,
             postal_code: document.getElementById('postalCode').value,
             country: document.getElementById('country').value,
             region: document.getElementById('region').value,
@@ -606,12 +1005,13 @@
             district: document.getElementById('district').value,
             rural_urban_village: document.getElementById('village').value,
             language: document.getElementById('language').value,
-            customer_group: document.getElementById('customerGroup').value,
+            customer_group_id: document.getElementById('parentCustomerGroupId').value || null,
             customer_category: document.getElementById('customerCategory').value,
             credit_limit_type: document.getElementById('creditLimitType').value,
             contact_name: document.getElementById('contactName').value,
             contact_phone: document.getElementById('contactPhone').value,
             parent_customer_id: document.getElementById('parentCustomerId').value || null,
+            ec_account_executive: document.getElementById('ecAccountExecutive').value || null,
             role: 3 // Default customer role
         };
 
@@ -631,11 +1031,11 @@
             const data = await response.json();
             
             if (data.success) {
-                showNotification('Customer created successfully!', 'success');
+                showNotification('Business partner created successfully!', 'success');
                 closeModal();
                 fetchCustomers();
             } else {
-                showNotification('Failed to save customer: ' + (data.message || 'Unknown error'), 'error');
+                showNotification('Failed to save business partner: ' + (data.message || 'Unknown error'), 'error');
                 if (data.errors) {
                     console.error('Validation errors:', data.errors);
                 }
@@ -662,8 +1062,8 @@
         if (!deleteCustomerId) return;
 
         try {
-            const response = await fetch(`/api/customers/${deleteCustomerId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/customers/${deleteCustomerId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -675,11 +1075,11 @@
             const data = await response.json();
             
             if (data.success) {
-                showNotification('Customer deleted successfully!', 'success');
+                showNotification('Business partner deleted successfully!', 'success');
                 closeConfirmDelete();
                 fetchCustomers();
             } else {
-                showNotification('Failed to delete customer: ' + (data.message || 'Unknown error'), 'error');
+                showNotification('Failed to delete business partner: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
             console.error('Error deleting customer:', error);
@@ -690,6 +1090,7 @@
     function getCurrentFilters() {
         return {
             status: document.getElementById('filterStatus').value,
+            type: document.getElementById('filterType').value,
             customer: document.getElementById('filterCustomer').value,
             customer_group: document.getElementById('filterCustomerGroup').value,
         };
@@ -709,8 +1110,10 @@
     function resetFilters() {
         if (typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('filterStatus', '');
+            setCustomDropdownValue('filterType', '');
         } else {
             document.getElementById('filterStatus').value = '';
+            document.getElementById('filterType').value = '';
         }
         document.getElementById('filterCustomer').value = '';
         document.getElementById('filterCustomerGroup').value = '';
@@ -746,6 +1149,8 @@
         event.stopPropagation();
         _custMenuId = id;
         const menu = document.getElementById('floatingCustMenu');
+        // Menu tidak dirender bila role tidak punya master.customer.action.
+        if (!menu) return;
         const btn  = event.currentTarget;
         const rect = btn.getBoundingClientRect();
         menu.classList.remove('hidden');
@@ -755,7 +1160,8 @@
     }
 
     function closeCustMenu() {
-        document.getElementById('floatingCustMenu').classList.add('hidden');
+        // Dipanggil pada setiap klik dokumen — elemennya bisa saja tidak ada.
+        document.getElementById('floatingCustMenu')?.classList.add('hidden');
     }
 
     function custMenuDelete() {

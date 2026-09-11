@@ -30,7 +30,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
         });
     </script>
     @endif
-    
+
     {{-- Basic Project Information --}}
     <div class="bg-white overflow-hidden shadow-md sm:rounded-lg mb-6">
         <div class="p-6 border-b border-gray-200">
@@ -43,7 +43,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                  mengirim value seperti <select> biasa. --}}
             <div>
                 <label class="block font-medium text-sm text-gray-700">Customer/Client <span class="text-red-500">*</span></label>
-                <div class="custom-dd relative mt-1" data-fixed="true">
+                <div class="custom-dd relative mt-1" data-fixed="true" data-onchange="refreshIoOptions">
                     @php $oldClient = old('client_id'); $oldClientLabel = ''; @endphp
                     @foreach($clients as $c)@if($oldClient == $c->customer_id)@php $oldClientLabel = $c->basicData->name_1 ?? $c->email ?? 'Unknown'; @endphp @endif @endforeach
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border {{ $errors->has('client_id') ? 'border-red-400' : 'border-gray-300' }} rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
@@ -87,15 +87,15 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
             </div>
             <div>
                 <label class="block font-medium text-sm text-gray-700">Project Type <span class="text-red-500">*</span></label>
-                <div class="custom-dd relative mt-1" data-fixed="true">
-                    @php $oldPt = old('project_type', 'Implementation'); @endphp
+                <div class="custom-dd relative mt-1" data-fixed="true" data-onchange="refreshIoOptions">
+                    @php $oldPt = old('project_type'); @endphp
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-700">{{ $oldPt }}</span>
+                        <span class="custom-dd-label {{ $oldPt ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldPt ?: 'Select Type' }}</span>
                         <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
                     <input type="hidden" name="project_type" id="project_type" value="{{ $oldPt }}" required>
                     <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                        @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF'] as $pt)
+                        @foreach($projectTypes as $pt)
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pt }}">{{ $pt }}</button>
                         @endforeach
                     </div>
@@ -158,10 +158,17 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                 <input type="text"
                        name="io_number"
                        id="io_number"
+                       list="io_number_options"
+                       autocomplete="off"
                        class="mt-1 block w-full border {{ $errors->has('io_number') ? 'border-red-400 bg-red-50' : 'border-gray-300' }} rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
                        value="{{ old('io_number') }}"
                        placeholder="e.g. IO-2026-001"
                        required>
+                {{-- Opsi IO existing (khusus Body Hire) diisi oleh refreshIoOptions() sesuai company terpilih. --}}
+                <datalist id="io_number_options"></datalist>
+                <p id="io_number_hint" class="mt-1 text-xs text-blue-600 hidden">
+                    <i class="fas fa-info-circle mr-1"></i>Body Hire: pilih IO number yang sudah ada milik company terpilih, atau ketik IO number baru.
+                </p>
                 @error('io_number')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
             <div class="md:col-span-2">
@@ -295,7 +302,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                                         <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
                                     </div>
                                     <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">-- Select Employee --</button>
-                                    @foreach($employees as $employee)
+                                    @foreach($aeEmployees as $employee)
                                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->basicData->full_name ?? '-' }}">{{ $employee->basicData->full_name ?? '-' }}</button>
                                     @endforeach
                                     <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
@@ -401,22 +408,22 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                             </div>
                         </div>
                     </div>
-                    
+
                     <div>
                         <label for="warranty_period" class="block text-sm font-medium text-gray-700 mb-1">
                             Warranty Period (Weeks)
                         </label>
-                        <input type="number" name="warranty_period" id="warranty_period" 
+                        <input type="number" name="warranty_period" id="warranty_period"
                                value="{{ old('warranty_period') }}"
                                min="0"
                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                     </div>
-                    
+
                     <div>
                         <label for="total_mandays" class="block text-sm font-medium text-gray-700 mb-1">
                             Total Mandays
                         </label>
-                        <input type="number" name="total_mandays" id="total_mandays" 
+                        <input type="number" name="total_mandays" id="total_mandays"
                                value="{{ old('total_mandays') }}"
                                min="0"
                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
@@ -478,11 +485,11 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                     <label for="location_name" class="block text-sm font-medium text-gray-700 mb-1">
                         Location Name
                     </label>
-                    <input type="text" name="location_name" id="location_name" 
+                    <input type="text" name="location_name" id="location_name"
                            value="{{ old('location_name') }}"
                            class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                 </div>
-                
+
                 <div>
                     <label for="location_type" class="block text-sm font-medium text-gray-700 mb-1">
                         Type of Address
@@ -501,17 +508,17 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         </div>
                     </div>
                 </div>
-                
+
                 <div>
                     <label for="location_country" class="block text-sm font-medium text-gray-700 mb-1">
                         Country
                     </label>
-                    <input type="text" name="location_country" id="location_country" 
+                    <input type="text" name="location_country" id="location_country"
                            value="Indonesia"
                            readonly
                            class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm bg-gray-50 text-sm px-4 py-2.5">
                 </div>
-                
+
                 <div>
                     <label for="location_geographical" class="block text-sm font-medium text-gray-700 mb-1">
                         Geographical
@@ -531,7 +538,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         </div>
                     </div>
                 </div>
-                
+
                 <div>
                     <label for="location_region" class="block text-sm font-medium text-gray-700 mb-1">
                         Region / Province
@@ -548,7 +555,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         <option value="">-- Select Region --</option>
                     </select>
                 </div>
-                
+
                 <div>
                     <label for="location_city" class="block text-sm font-medium text-gray-700 mb-1">
                         City
@@ -560,7 +567,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         <option value="">-- Select City --</option>
                     </select>
                 </div>
-                
+
                 <div class="md:col-span-2 lg:col-span-3">
                     <label for="location_street" class="block text-sm font-medium text-gray-700 mb-1">
                         Street Address
@@ -575,7 +582,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
     {{-- Submit Buttons --}}
     <div class="bg-white overflow-hidden shadow-md sm:rounded-lg">
         <div class="p-6 bg-gray-50 text-right">
-            <a href="{{ route('projects.index') }}" 
+            <a href="{{ route('projects.index') }}"
                class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 mr-3">
                 <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -605,13 +612,26 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                 </button>
             </div>
             <div class="p-6 overflow-y-auto flex-1">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {{-- Pemilih sumber anggota: master Employee vs orang Vendor --}}
+                <div class="mb-4">
+                    <span class="block text-sm font-medium text-gray-900 mb-1.5">Member Source</span>
+                    <div class="inline-flex rounded-lg border border-gray-300 p-0.5 bg-gray-50">
+                        <button type="button" id="ctmSrcBtnEmployee" onclick="ctmSetSource('employee')"
+                                class="px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200">Employee</button>
+                        <button type="button" id="ctmSrcBtnVendor" onclick="ctmSetSource('vendor')"
+                                class="px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200">Vendor</button>
+                    </div>
+                    <p id="ctmSrcHint" class="text-xs text-gray-400 mt-1.5"></p>
+                </div>
+
+                {{-- ── Pane EMPLOYEE ─────────────────────────────────────────── --}}
+                <div id="ctmPaneEmployee" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     {{-- Employee --}}
                     <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-gray-900 mb-1">
                             Consultant <span class="text-red-500">*</span>
                         </label>
-                        <div class="custom-dd relative" data-fixed="true" id="ctm_emp_dd">
+                        <div class="custom-dd relative" data-fixed="true" id="ctm_emp_dd" data-onchange="ctmOnEmployeeChange">
                             <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
                                 <span class="custom-dd-label text-gray-500">-- Select Employee --</span>
                                 <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -635,13 +655,70 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         </div>
                         <p id="ctm_emp_err" class="mt-1 text-xs text-red-500 hidden">Please select an employee.</p>
                     </div>
-                    {{-- Module --}}
+                    {{-- Employee Type (turunan data employee) --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-900 mb-1">Module</label>
-                        <input type="text" id="ctm_module"
-                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                               placeholder="e.g. FI, CO, MM">
+                        <label class="block text-sm font-medium text-gray-900 mb-1">
+                            Employee Type <span class="text-xs text-gray-400 font-normal">— from employee data</span>
+                        </label>
+                        <input type="text" id="ctm_employee_type_display" readonly
+                               placeholder="Select a consultant first"
+                               class="block w-full py-2.5 px-3 border border-gray-200 rounded-md shadow-sm text-sm bg-gray-50 text-gray-500 cursor-not-allowed">
                     </div>
+                    {{-- Module (dari kualifikasi employee) --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">
+                            Module <span class="text-xs text-gray-400 font-normal">— from consultant qualification</span>
+                        </label>
+                        <div id="ctm_module_picker"
+                             class="block w-full min-h-[42px] max-h-28 overflow-y-auto py-2 px-3 border border-gray-300 rounded-md shadow-sm bg-white">
+                            <p id="ctm_module_placeholder" class="text-sm text-gray-400">Select a consultant first.</p>
+                            <div id="ctm_module_options" class="flex flex-wrap gap-x-4 gap-y-1"></div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ── Pane VENDOR ───────────────────────────────────────────── --}}
+                <div id="ctmPaneVendor" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" style="display:none;">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-900 mb-1">
+                            Vendor <span class="text-red-500">*</span>
+                            <span class="text-xs text-gray-400 font-normal">— from Business Partner (type Vendor)</span>
+                        </label>
+                        <select id="ctm_vendor_id"
+                                class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
+                            <option value="">-- Select Vendor --</option>
+                            @foreach($vendors as $vendor)
+                                <option value="{{ $vendor->customer_id }}">{{ $vendor->basicData->name_1 ?? $vendor->customer_code }}</option>
+                            @endforeach
+                        </select>
+                        @if($vendors->isEmpty())
+                            <p class="text-xs text-amber-600 mt-1">No Business Partner of type Vendor yet — add one in Master → Business Partner.</p>
+                        @endif
+                        <p id="ctm_vendor_err" class="mt-1 text-xs text-red-500 hidden">Please select a vendor.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">Consultant Name <span class="text-red-500">*</span></label>
+                        <input type="text" id="ctm_member_name" maxlength="255"
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               placeholder="Vendor consultant name">
+                        <p id="ctm_member_name_err" class="mt-1 text-xs text-red-500 hidden">Consultant name is required.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-1">Position <span class="text-xs text-gray-400 font-normal">— optional</span></label>
+                        <input type="text" id="ctm_member_position" maxlength="255"
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               placeholder="e.g. SAP Consultant">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-900 mb-1">Module <span class="text-xs text-gray-400 font-normal">— optional, comma separated</span></label>
+                        <input type="text" id="ctm_vendor_module" maxlength="255"
+                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
+                               placeholder="e.g. FI, CO">
+                    </div>
+                </div>
+
+                {{-- ── Field bersama ─────────────────────────────────────────── --}}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {{-- Role --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-900 mb-1">Role <span class="text-red-500">*</span></label>
@@ -655,23 +732,6 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                             <option value="Member">Member</option>
                         </select>
                         <p id="ctm_role_err" class="mt-1 text-xs text-red-500 hidden">Please select a role.</p>
-                    </div>
-                    {{-- Employee Type --}}
-                    <div>
-                        <label class="block text-sm font-medium text-gray-900 mb-1">Employee Type <span class="text-red-500">*</span></label>
-                        <select id="ctm_employee_type" onchange="ctmToggleVendor()"
-                                class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus">
-                            <option value="Internal">Internal</option>
-                            <option value="External">External</option>
-                            <option value="Vendor">Vendor</option>
-                        </select>
-                    </div>
-                    {{-- Vendor Name (conditional) --}}
-                    <div id="ctm_vendor_wrap" style="display:none;">
-                        <label class="block text-sm font-medium text-gray-900 mb-1">Vendor Name</label>
-                        <input type="text" id="ctm_vendor_name"
-                               class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
-                               placeholder="Vendor name">
                     </div>
                     {{-- Start Date --}}
                     <div>
@@ -736,11 +796,11 @@ const indonesiaCities = {
 
     'Banten' : [ 'Serang', 'Tangerang', 'Tangerang Selatan', 'Cilegon', 'Pandeglang', 'Lebak'],
 
-    'Jawa Barat': ['Bandung', 'Bekasi', 'Bogor', 'Cirebon', 'Depok', 'Sukabumi', 'Tasikmalaya','Banjar', 'Cimahi', 'Garut', 'Indramayu', 'Karawang', 
+    'Jawa Barat': ['Bandung', 'Bekasi', 'Bogor', 'Cirebon', 'Depok', 'Sukabumi', 'Tasikmalaya','Banjar', 'Cimahi', 'Garut', 'Indramayu', 'Karawang',
                     'Kuningan', 'Majalengka', 'Purwakarta', 'Subang', 'Sumedang', 'Ciamis', 'Cianjur', 'Pangandaran'],
 
-    'Jawa Tengah': ['Semarang', 'Solo', 'Magelang', 'Salatiga', 'Pekalongan', 'Tegal', 'Banyumas', 'Cilacap', 'Purbalingga', 'Banjarnegara', 'Kebumen', 
-                    'Purworejo', 'Wonosobo', 'Klaten', 'Boyolali', 'Sukoharjo', 'Wonogiri', 'Karanganyar', 'Sragen', 'Grobogan', 'Blora', 'Rembang', 
+    'Jawa Tengah': ['Semarang', 'Solo', 'Magelang', 'Salatiga', 'Pekalongan', 'Tegal', 'Banyumas', 'Cilacap', 'Purbalingga', 'Banjarnegara', 'Kebumen',
+                    'Purworejo', 'Wonosobo', 'Klaten', 'Boyolali', 'Sukoharjo', 'Wonogiri', 'Karanganyar', 'Sragen', 'Grobogan', 'Blora', 'Rembang',
                     'Pati', 'Kudus', 'Jepara', 'Demak', 'Kendal', 'Temanggung', 'Batang', 'Pemalang', 'Brebes'],
 
     'Jawa Timur': ['Surabaya', 'Malang', 'Sidoarjo', 'Gresik', 'Mojokerto', 'Kediri', 'Jember', 'Batu', 'Blitar', 'Madiun', 'Pasuruan', 'Probolinggo',
@@ -751,75 +811,75 @@ const indonesiaCities = {
 
     'Aceh' : [ 'Banda Aceh', 'Sabang', 'Langsa', 'Lhokseumawe', 'Subulussalam', 'Aceh Besar', 'Aceh Jaya', 'Aceh Selatan', 'Aceh Singkil', 'Aceh Tengah',
                 'Aceh Tenggara', 'Aceh Timur', 'Aceh Utara', 'Bener Meriah', 'Bireuen', 'Gayo Lues', 'Nagan Raya', 'Pidie', 'Pidie Jaya', 'Simeulue'],
-    
+
     'Sumatera Utara' : ['Medan', 'Binjai', 'Pematangsiantar', 'Tanjungbalai', 'Tebing Tinggi', 'Padang Sidempuan', 'Gunungsitoli', 'Sibolga',
                         'Asahan', 'Batubara', 'Dairi', 'Deli Serdang', 'Humbang Hasundutan', 'Karo', 'Labuhanbatu', 'Labuhanbatu Selatan', 'Labuhanbatu Utara',
                         'Langkat', 'Mandailing Natal', 'Nias', 'Nias Barat', 'Nias Selatan', 'Nias Utara', 'Padang Lawas', 'Padang Lawas Utara', 'Pakpak Bharat',
                         'Samosir', 'Serdang Bedagai', 'Simalungun', 'Tapanuli Selatan', 'Tapanuli Tengah', 'Tapanuli Utara', 'Toba Samosir'],
-    
+
     'Sumatera Barat' : ['Padang', 'Bukittinggi', 'Padang Panjang', 'Pariaman', 'Payakumbuh', 'Sawahlunto', 'Solok', 'Agam', 'Dharmasraya', 'Kepulauan Mentawai', 'Lima Puluh Kota',
                         'Padang Pariaman', 'Pasaman', 'Pasaman Barat', 'Pesisir Selatan', 'Sijunjung', 'Solok Selatan', 'Tanah Datar'],
-    
+
     'Riau' : ['Pekanbaru', 'Dumai', 'Bengkalis', 'Indragiri Hilir', 'Indragiri Hulu', 'Kampar', 'Kepulauan Meranti', 'Kuantan Singingi', 'Pelalawan', 'Rokan Hilir',
                 'Rokan Hulu', 'Siak'],
-    
+
     'Kepulauan Riau' : ['Batam', 'Tanjung Pinang', 'Bintan', 'Karimun', 'Kepulauan Anambas', 'Lingga', 'Natuna'],
-    
+
     'Jambi': ['Jambi', 'Sungai Penuh', 'Batang Hari', 'Bungo', 'Kerinci', 'Merangin', 'Muaro Jambi', 'Sarolangun', 'Tanjung Jabung Barat', 'Tanjung Jabung Timur', 'Tebo'],
-    
+
     'Sumatera Selatan' : ['Palembang', 'Lubuklinggau', 'Pagar Alam', 'Prabumulih', 'Banyuasin', 'Empat Lawang', 'Lahat', 'Muara Enim', 'Musi Banyuasin',
                             'Musi Rawas', 'Musi Rawas Utara', 'Ogan Ilir', 'Ogan Komering Ilir', 'Ogan Komering Ulu', 'Ogan Komering Ulu Selatan', 'Ogan Komering Ulu Timur',
                             'Penukal Abab Lematang Ilir'],
-    
+
     'Bengkulu': ['Bengkulu', 'Bengkulu Selatan', 'Bengkulu Tengah', 'Bengkulu Utara', 'Kaur', 'Kepahiang', 'Lebong', 'Mukomuko', 'Rejang Lebong', 'Seluma'],
-    
+
     'Lampung' :['Bandar Lampung', 'Metro', 'Lampung Barat', 'Lampung Selatan', 'Lampung Tengah', 'Lampung Timur', 'Lampung Utara', 'Mesuji', 'Pesawaran', 'Pesisir Barat', 'Pringsewu',
                 'Tanggamus', 'Tulang Bawang', 'Tulang Bawang Barat', 'Way Kanan'],
-    
+
     'Kepulauan Bangka Belitung': ['Pangkal Pinang', 'Bangka', 'Bangka Barat', 'Bangka Selatan', 'Bangka Tengah', 'Belitung', 'Belitung Timur'],
-    
+
     'Bali' : ['Denpasar','Badung', 'Bangli', 'Buleleng', 'Gianyar', 'Jembrana', 'Karangasem', 'Klungkung', 'Tabanan'],
-    
+
     'Nusa Tenggara Barat': ['Mataram', 'Bima', 'Dompu', 'Lombok Barat', 'Lombok Tengah', 'Lombok Timur', 'Lombok Utara', 'Sumbawa', 'Sumbawa Barat'],
-    
+
     'Nusa Tenggara Timur' : ['Kupang', 'Alor', 'Belu', 'Ende', 'Flores Timur', 'Kupang', 'Lembata', 'Manggarai', 'Manggarai Barat', 'Manggarai Timur', 'Nagekeo', 'Ngada',
                                 'Rote Ndao', 'Sabu Raijua', 'Sikka', 'Sumba Barat', 'Sumba Barat Daya', 'Sumba Tengah', 'Sumba Timur', 'Timor Tengah Selatan', 'Timor Tengah Utara'],
-    
-    'Kalimantan Barat': ['Pontianak', 'Singkawang', 'Bengkayang', 'Kapuas Hulu', 'Kayong Utara', 'Ketapang', 'Kubu Raya', 
+
+    'Kalimantan Barat': ['Pontianak', 'Singkawang', 'Bengkayang', 'Kapuas Hulu', 'Kayong Utara', 'Ketapang', 'Kubu Raya',
                             'Landak', 'Melawi', 'Mempawah', 'Sambas', 'Sanggau', 'Sekadau', 'Sintang'],
-    
+
     'Kalimantan Tengah' :['Palangka Raya', 'Barito Selatan', 'Barito Timur', 'Barito Utara', 'Gunung Mas', 'Kapuas', 'Katingan', 'Kotawaringin Barat', 'Kotawaringin Timur',
                             'Lamandau', 'Murung Raya', 'Pulang Pisau', 'Seruyan', 'Sukamara'],
-    
+
     'Kalimantan Selatan': ['Banjarmasin', 'Banjarbaru', 'Balangan', 'Banjar', 'Barito Kuala', 'Hulu Sungai Selatan', 'Hulu Sungai Tengah', 'Hulu Sungai Utara', 'Kotabaru', 'Tabalong',
                             'Tanah Bumbu', 'Tanah Laut', 'Tapin'],
-    
+
     'Kalimantan Timur' : ['Balikpapan', 'Bontang', 'Samarinda', 'Berau', 'Kutai Barat', 'Kutai Kartanegara', 'Kutai Timur', 'Mahakam Ulu', 'Paser', 'Penajam Paser Utara'],
-    
+
     'Kalimantan Utara' :['Tarakan', 'Bulungan', 'Malinau', 'Nunukan', 'Tana Tidung'],
-    
-    'Sulawesi Utara' : ['Manado', 'Bitung', 'Kotamobagu', 'Tomohon', 'Bolaang Mongondow', 'Bolaang Mongondow Selatan', 'Bolaang Mongondow Timur', 'Bolaang Mongondow Utara', 
+
+    'Sulawesi Utara' : ['Manado', 'Bitung', 'Kotamobagu', 'Tomohon', 'Bolaang Mongondow', 'Bolaang Mongondow Selatan', 'Bolaang Mongondow Timur', 'Bolaang Mongondow Utara',
                         'Kepulauan Sangihe', 'Kepulauan Siau Tagulandang Biaro', 'Kepulauan Talaud', 'Minahasa', 'Minahasa Selatan', 'Minahasa Tenggara', 'Minahasa Utara'],
-    
+
     'Sulawesi Tengah' : ['Palu', 'Banggai', 'Banggai Kepulauan', 'Banggai Laut', 'Buol', 'Donggala', 'Morowali', 'Morowali Utara', 'Parigi Moutong', 'Poso', 'Sigi',
                             'Tojo Una-Una', 'Toli-Toli'],
-    
-    'Sulawesi Selatan' : ['Makassar', 'Palopo', 'Parepare', 'Bantaeng', 'Barru', 'Bone', 'Bulukumba', 'Enrekang', 'Gowa', 'Jeneponto', 'Kepulauan Selayar', 'Luwu', 
-                            'Luwu Timur', 'Luwu Utara', 'Maros', 'Pangkajene dan Kepulauan', 'Pinrang', 'Sidenreng Rappang', 'Sinjai', 'Soppeng', 'Takalar', 'Tana Toraja', 
+
+    'Sulawesi Selatan' : ['Makassar', 'Palopo', 'Parepare', 'Bantaeng', 'Barru', 'Bone', 'Bulukumba', 'Enrekang', 'Gowa', 'Jeneponto', 'Kepulauan Selayar', 'Luwu',
+                            'Luwu Timur', 'Luwu Utara', 'Maros', 'Pangkajene dan Kepulauan', 'Pinrang', 'Sidenreng Rappang', 'Sinjai', 'Soppeng', 'Takalar', 'Tana Toraja',
                             'Toraja Utara', 'Wajo'],
-    
-    'Sulawesi Tenggara' : ['Kendari', 'Baubau', 'Bombana', 'Buton', 'Buton Selatan', 'Buton Tengah', 'Buton Utara', 'Kolaka', 'Kolaka Timur', 'Kolaka Utara', 'Konawe', 
+
+    'Sulawesi Tenggara' : ['Kendari', 'Baubau', 'Bombana', 'Buton', 'Buton Selatan', 'Buton Tengah', 'Buton Utara', 'Kolaka', 'Kolaka Timur', 'Kolaka Utara', 'Konawe',
                             'Konawe Kepulauan', 'Konawe Selatan', 'Konawe Utara', 'Muna', 'Muna Barat', 'Wakatobi'],
-    
+
     'Gorontalo' : ['Gorontalo', 'Boalemo', 'Bone Bolango', 'Gorontalo', 'Gorontalo Utara', 'Pohuwato'],
-    
+
     'Sulawesi Barat' : ['Mamuju', 'Majene', 'Mamasa', 'Mamuju', 'Mamuju Tengah', 'Mamuju Utara', 'Polewali Mandar'],
-    
-    'Maluku' : ['Ambon', 'Tual', 'Buru', 'Buru Selatan', 'Kepulauan Aru', 'Maluku Barat Daya', 'Maluku Tengah', 'Maluku Tenggara', 'Maluku Tenggara Barat', 
+
+    'Maluku' : ['Ambon', 'Tual', 'Buru', 'Buru Selatan', 'Kepulauan Aru', 'Maluku Barat Daya', 'Maluku Tengah', 'Maluku Tenggara', 'Maluku Tenggara Barat',
                 'Seram Bagian Barat', 'Seram Bagian Timur'],
-    
-    'Maluku Utara' : ['Ternate', 'Tidore Kepulauan', 'Halmahera Barat', 'Halmahera Selatan', 'Halmahera Tengah', 'Halmahera Timur', 'Halmahera Utara', 'Kepulauan Sula', 
-                        'Pulau Morotai', 'Pulau Taliabu'], 
+
+    'Maluku Utara' : ['Ternate', 'Tidore Kepulauan', 'Halmahera Barat', 'Halmahera Selatan', 'Halmahera Tengah', 'Halmahera Timur', 'Halmahera Utara', 'Kepulauan Sula',
+                        'Pulau Morotai', 'Pulau Taliabu'],
 
     'Papua' : ['Jayapura', 'Biak Numfor', 'Jayapura', 'Keerom', 'Kepulauan Yapen', 'Mamberamo Raya', 'Sarmi', 'Supiori', 'Waropen'],
 
@@ -899,10 +959,10 @@ function updateRegions() {
     const regionSelect = document.getElementById('location_region');
     const selectedGeo = geoSelect.value;
     const oldRegion = '{{ old('location_region') }}';
-    
+
     regionSelect.innerHTML = '<option value="">-- Select Region --</option>';
     document.getElementById('location_city').innerHTML = '<option value="">-- Select City --</option>';
-    
+
     if (selectedGeo && indonesiaRegions[selectedGeo]) {
         indonesiaRegions[selectedGeo].forEach(region => {
             const option = document.createElement('option');
@@ -913,7 +973,7 @@ function updateRegions() {
             }
             regionSelect.appendChild(option);
         });
-        
+
         // If there's an old region value, update cities too
         if (oldRegion && indonesiaRegions[selectedGeo].includes(oldRegion)) {
             updateCities();
@@ -927,9 +987,9 @@ function updateCities() {
     const citySelect = document.getElementById('location_city');
     const selectedRegion = regionSelect.value;
     const oldCity = '{{ old('location_city') }}';
-    
+
     citySelect.innerHTML = '<option value="">-- Select City --</option>';
-    
+
     if (selectedRegion && indonesiaCities[selectedRegion]) {
         indonesiaCities[selectedRegion].forEach(city => {
             const option = document.createElement('option');
@@ -959,7 +1019,33 @@ document.addEventListener('DOMContentLoaded', function() {
     @if(old('location_geographical'))
         updateRegions();
     @endif
+
+    // Populate IO options for the currently-selected client/type (Body Hire flow).
+    refreshIoOptions();
 });
+
+// ===== Body Hire: pilih IO existing (per company) atau ketik baru =====
+// IO number existing dikelompokkan per client_id. Untuk Body Hire, datalist
+// diisi HANYA dengan IO milik company (client) yang sedang dipilih.
+window.IOS_BY_CLIENT = @json($iosByClient ?? []);
+window.refreshIoOptions = function () {
+    const type   = document.getElementById('project_type')?.value || '';
+    const client = document.getElementById('client_id')?.value || '';
+    const dl     = document.getElementById('io_number_options');
+    const hint   = document.getElementById('io_number_hint');
+    if (!dl) return;
+
+    const isBodyHire = (type === 'Body Hire');
+    dl.innerHTML = '';
+    if (isBodyHire && client && window.IOS_BY_CLIENT[client]) {
+        window.IOS_BY_CLIENT[client].forEach(io => {
+            const opt = document.createElement('option');
+            opt.value = io;
+            dl.appendChild(opt);
+        });
+    }
+    if (hint) hint.classList.toggle('hidden', !isBodyHire);
+};
 </script>
 {{-- ===== Sales Financial: Thousand Separator + Auto-Calculation ===== --}}
 <script>
@@ -1140,15 +1226,22 @@ document.addEventListener('DOMContentLoaded', function () {
 {{-- ===== Team Members (Create Form) ===== --}}
 <script>
 (function () {
-    // Employee data map: id → { name, position }
-    var empMap = {};
-    @foreach($employees as $employee)
-    @php
-        $empName = addslashes($employee->basicData->full_name ?? '-');
-        $empPos  = addslashes($employee->basicData->position ?? '');
-    @endphp
-    empMap['{{ $employee->employee_id }}'] = { name: '{{ $empName }}', position: '{{ $empPos }}' };
-    @endforeach
+    // Employee data map: id → { name, position, employee_type, modules }
+    // employee_type & modules ikut supaya keduanya TIDAK diketik manual:
+    // type = turunan data employee, modules = kualifikasi employee.
+    var empMap = {!! json_encode(
+        $employees->mapWithKeys(fn ($e) => [
+            (string) $e->employee_id => [
+                'name'          => $e->basicData->full_name ?? '-',
+                'position'      => $e->basicData->position ?? '',
+                'employee_type' => $e->basicData->employee_type ?? 'Internal',
+                'modules'       => $e->qualifications
+                    ->map(fn ($q) => trim((string) ($q->module->name ?? '')))
+                    ->filter()->unique()->sort()->values(),
+            ],
+        ]),
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    ) !!};
 
     var teamMembers = [];   // array of member objects
     var editIndex   = -1;   // -1 = add mode, >=0 = edit index
@@ -1166,12 +1259,75 @@ document.addEventListener('DOMContentLoaded', function () {
         return dt.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
     }
 
-    /* ---- vendor toggle ---- */
-    function ctmToggleVendor() {
-        var type = document.getElementById('ctm_employee_type').value;
-        document.getElementById('ctm_vendor_wrap').style.display = (type === 'Vendor') ? 'block' : 'none';
+    /* ---- member source: Employee vs Vendor ----
+       Employee → orang master Employee; Employee Type & Module ikut datanya.
+       Vendor   → orang vendor di luar master: vendornya dari Business Partner
+                  (type Vendor), identitas & modulnya diketik manual.          */
+    var ctmSource = 'employee';
+
+    function ctmSetSource(source) {
+        ctmSource = (source === 'vendor') ? 'vendor' : 'employee';
+        var isVendor = ctmSource === 'vendor';
+
+        document.getElementById('ctmPaneEmployee').style.display = isVendor ? 'none' : 'grid';
+        document.getElementById('ctmPaneVendor').style.display   = isVendor ? 'grid' : 'none';
+
+        var active   = 'px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 bg-white text-gray-900 shadow-sm';
+        var inactive = 'px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 text-gray-500 hover:text-gray-700';
+        document.getElementById('ctmSrcBtnEmployee').className = isVendor ? inactive : active;
+        document.getElementById('ctmSrcBtnVendor').className   = isVendor ? active : inactive;
+
+        document.getElementById('ctmSrcHint').textContent = isVendor
+            ? 'Vendor is taken from Master Business Partner (type Vendor); the consultant details are typed in manually.'
+            : 'Consultant comes from Master Employee — Employee Type and Module follow their data.';
     }
-    window.ctmToggleVendor = ctmToggleVendor;
+    window.ctmSetSource = ctmSetSource;
+
+    /* ---- module picker (dari kualifikasi employee) ---- */
+    function ctmRenderModules(modules, checked) {
+        var box = document.getElementById('ctm_module_options');
+        var ph  = document.getElementById('ctm_module_placeholder');
+        box.innerHTML = '';
+
+        var list = modules || [];
+        if (!list.length) {
+            ph.textContent = modules === null
+                ? 'Select a consultant first.'
+                : 'No module found in this consultant\'s qualification.';
+            ph.classList.remove('hidden');
+            return;
+        }
+        ph.classList.add('hidden');
+
+        var pre = (checked || []).map(function (m) { return m.trim().toLowerCase(); });
+        list.forEach(function (name) {
+            var label = document.createElement('label');
+            label.className = 'inline-flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer';
+            var cb = document.createElement('input');
+            cb.type      = 'checkbox';
+            cb.value     = name;
+            cb.className = 'ctm-module-option rounded border-gray-300';
+            cb.checked   = pre.indexOf(name.trim().toLowerCase()) !== -1;
+            label.appendChild(cb);
+            label.appendChild(document.createTextNode(name));
+            box.appendChild(label);
+        });
+    }
+
+    function ctmPickedModules() {
+        return Array.prototype.slice
+            .call(document.querySelectorAll('.ctm-module-option:checked'))
+            .map(function (cb) { return cb.value; });
+    }
+
+    /* Dipanggil custom-dd (data-onchange) setiap consultant berganti. */
+    function ctmOnEmployeeChange() {
+        var id   = document.getElementById('ctm_employee_id').value;
+        var info = id ? empMap[id] : null;
+        document.getElementById('ctm_employee_type_display').value = info ? (info.employee_type || 'Internal') : '';
+        ctmRenderModules(info ? (info.modules || []) : null, []);
+    }
+    window.ctmOnEmployeeChange = ctmOnEmployeeChange;
 
     /* ---- pickers ---- */
     function initModalPickers() {
@@ -1194,17 +1350,22 @@ document.addEventListener('DOMContentLoaded', function () {
         var ddLabel = document.querySelector('#ctm_emp_dd .custom-dd-label');
         if (ddLabel) { ddLabel.textContent = '-- Select Employee --'; ddLabel.className = 'custom-dd-label text-gray-500'; }
         document.getElementById('ctm_employee_id').value = '';
-        document.getElementById('ctm_module').value       = '';
+        document.getElementById('ctm_employee_type_display').value = '';
+        ctmRenderModules(null, []);
+
+        document.getElementById('ctm_vendor_id').value       = '';
+        document.getElementById('ctm_member_name').value     = '';
+        document.getElementById('ctm_member_position').value = '';
+        document.getElementById('ctm_vendor_module').value   = '';
+
         document.getElementById('ctm_role').value         = '';
-        document.getElementById('ctm_employee_type').value = 'Internal';
-        ctmToggleVendor();
-        document.getElementById('ctm_vendor_name').value  = '';
         document.getElementById('ctm_start_date').value   = '';
         document.getElementById('ctm_end_date').value     = '';
         document.getElementById('ctm_notes').value        = '';
-        ['ctm_emp_err', 'ctm_role_err', 'ctm_start_err'].forEach(function (id) {
+        ['ctm_emp_err', 'ctm_role_err', 'ctm_start_err', 'ctm_vendor_err', 'ctm_member_name_err'].forEach(function (id) {
             document.getElementById(id).classList.add('hidden');
         });
+        ctmSetSource('employee');
     }
 
     /* ---- open (add) ---- */
@@ -1230,16 +1391,25 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('cTeamModalTitle').textContent = 'Edit Team Member';
         resetModal();
 
-        // Fill employee custom-dd
-        var ddLabel = document.querySelector('#ctm_emp_dd .custom-dd-label');
-        if (ddLabel) { ddLabel.textContent = m.name; ddLabel.className = 'custom-dd-label text-gray-700'; }
-        document.getElementById('ctm_employee_id').value   = m.employee_id;
-        document.getElementById('ctm_module').value        = m.module || '';
-        document.getElementById('ctm_role').value          = m.role || '';
-        document.getElementById('ctm_employee_type').value = m.employee_type || 'Internal';
-        ctmToggleVendor();
-        document.getElementById('ctm_vendor_name').value   = m.vendor_name || '';
-        document.getElementById('ctm_notes').value         = m.notes || '';
+        ctmSetSource(m.member_source || 'employee');
+
+        if ((m.member_source || 'employee') === 'vendor') {
+            document.getElementById('ctm_vendor_id').value       = m.vendor_id || '';
+            document.getElementById('ctm_member_name').value     = m.member_name || '';
+            document.getElementById('ctm_member_position').value = m.member_position || '';
+            document.getElementById('ctm_vendor_module').value   = m.module || '';
+        } else {
+            // Fill employee custom-dd
+            var ddLabel = document.querySelector('#ctm_emp_dd .custom-dd-label');
+            if (ddLabel) { ddLabel.textContent = m.name; ddLabel.className = 'custom-dd-label text-gray-700'; }
+            document.getElementById('ctm_employee_id').value = m.employee_id;
+            var info = empMap[m.employee_id];
+            document.getElementById('ctm_employee_type_display').value = m.employee_type || (info ? info.employee_type : 'Internal');
+            ctmRenderModules(info ? (info.modules || []) : [], (m.module || '').split(','));
+        }
+
+        document.getElementById('ctm_role').value  = m.role || '';
+        document.getElementById('ctm_notes').value = m.notes || '';
 
         document.getElementById('cTeamModal').classList.remove('hidden');
         setTimeout(function () {
@@ -1270,33 +1440,63 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /* ---- save ---- */
     function saveCTeamMember() {
-        var empId = document.getElementById('ctm_employee_id').value;
+        var isVendor = ctmSource === 'vendor';
         var role  = document.getElementById('ctm_role').value;
         var start = document.getElementById('ctm_start_date').value;
         var valid = true;
 
-        if (!empId) { document.getElementById('ctm_emp_err').classList.remove('hidden'); valid = false; }
-        else         { document.getElementById('ctm_emp_err').classList.add('hidden'); }
-        if (!role)  { document.getElementById('ctm_role_err').classList.remove('hidden'); valid = false; }
-        else         { document.getElementById('ctm_role_err').classList.add('hidden'); }
-        if (!start) { document.getElementById('ctm_start_err').classList.remove('hidden'); valid = false; }
-        else         { document.getElementById('ctm_start_err').classList.add('hidden'); }
+        var empId      = document.getElementById('ctm_employee_id').value;
+        var vendorId   = document.getElementById('ctm_vendor_id').value;
+        var memberName = document.getElementById('ctm_member_name').value.trim();
+
+        function mark(id, bad) {
+            document.getElementById(id).classList.toggle('hidden', !bad);
+            if (bad) valid = false;
+        }
+        mark('ctm_emp_err',         !isVendor && !empId);
+        mark('ctm_vendor_err',      isVendor  && !vendorId);
+        mark('ctm_member_name_err', isVendor  && !memberName);
+        mark('ctm_role_err',        !role);
+        mark('ctm_start_err',       !start);
         if (!valid) return;
 
-        var empType  = document.getElementById('ctm_employee_type').value;
-        var empInfo  = empMap[empId] || { name: empId, position: '' };
-        var member = {
-            employee_id:   empId,
-            name:          empInfo.name,
-            position:      empInfo.position,
-            module:        document.getElementById('ctm_module').value.trim(),
-            role:          role,
-            employee_type: empType,
-            vendor_name:   (empType === 'Vendor') ? document.getElementById('ctm_vendor_name').value.trim() : '',
-            start_date:    start,
-            end_date:      document.getElementById('ctm_end_date').value || '',
-            notes:         document.getElementById('ctm_notes').value.trim(),
+        var common = {
+            role:       role,
+            start_date: start,
+            end_date:   document.getElementById('ctm_end_date').value || '',
+            notes:      document.getElementById('ctm_notes').value.trim(),
         };
+
+        var member;
+        if (isVendor) {
+            var vendorSel = document.getElementById('ctm_vendor_id');
+            member = Object.assign({
+                member_source:   'vendor',
+                employee_id:     '',
+                vendor_id:       vendorId,
+                vendor_name:     vendorSel.options[vendorSel.selectedIndex].text,
+                member_name:     memberName,
+                member_position: document.getElementById('ctm_member_position').value.trim(),
+                name:            memberName,
+                position:        document.getElementById('ctm_member_position').value.trim(),
+                module:          document.getElementById('ctm_vendor_module').value.trim(),
+                employee_type:   'Vendor',
+            }, common);
+        } else {
+            var empInfo = empMap[empId] || { name: empId, position: '', employee_type: 'Internal' };
+            member = Object.assign({
+                member_source:   'employee',
+                employee_id:     empId,
+                vendor_id:       '',
+                vendor_name:     '',
+                member_name:     '',
+                member_position: '',
+                name:            empInfo.name,
+                position:        empInfo.position,
+                module:          ctmPickedModules().join(', '),
+                employee_type:   empInfo.employee_type || 'Internal',
+            }, common);
+        }
 
         if (editIndex >= 0) {
             teamMembers[editIndex] = member;
@@ -1345,7 +1545,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Regenerate hidden inputs inside the main form
         hidden.innerHTML = '';
-        var fields = ['employee_id', 'module', 'role', 'employee_type', 'vendor_name', 'start_date', 'end_date', 'notes'];
+        var fields = ['member_source', 'employee_id', 'vendor_id', 'member_name', 'member_position',
+                      'module', 'role', 'start_date', 'end_date', 'notes'];
         teamMembers.forEach(function (m, i) {
             fields.forEach(function (f) {
                 var inp = document.createElement('input');

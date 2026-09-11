@@ -43,7 +43,8 @@ class DeliveryProjectCostController extends Controller
             'cost_type'      => 'required|in:indirect,direct',
             'budget'         => 'nullable|numeric|min:0',
             'release_amount' => 'nullable|numeric|min:0',
-            'actual_amount'  => 'nullable|numeric|min:0',
+            // actual_amount is NOT accepted here — it is derived from the
+            // sum of expense detail items (see syncActualFromItems()).
         ]);
 
         // Auto order_sequence: place at the end of siblings
@@ -54,6 +55,8 @@ class DeliveryProjectCostController extends Controller
         $cost = DeliveryProjectCost::create(array_merge($validated, [
             'delivery_projects_id' => $project->id,
             'order_sequence'       => $maxOrder + 1,
+            // New leaf starts with no expenses → actual is 0 (shows "Rp 0").
+            'actual_amount'        => 0,
         ]));
 
         $cost->load('children');
@@ -81,7 +84,8 @@ class DeliveryProjectCostController extends Controller
             'cost_type'      => 'required|in:indirect,direct',
             'budget'         => 'nullable|numeric|min:0',
             'release_amount' => 'nullable|numeric|min:0',
-            'actual_amount'  => 'nullable|numeric|min:0',
+            // actual_amount is NOT editable here — it is derived from the
+            // sum of expense detail items (see syncActualFromItems()).
         ]);
 
         $cost->update($validated);
@@ -188,6 +192,7 @@ class DeliveryProjectCostController extends Controller
         ]);
 
         $docName = null;
+        $docFile = null;
         $docUrl  = null;
 
         if ($request->hasFile('document')) {
@@ -197,23 +202,11 @@ class DeliveryProjectCostController extends Controller
                 ], 422);
             }
 
-            $file    = $request->file('document');
-            $docName = $file->getClientOriginalName();
-
             try {
-                $oneDrive    = new OneDriveService();
-                // Get or create "Plan Cost" subfolder inside the project's OneDrive folder
-                $planCostFolderId = $oneDrive->findOrCreateSubFolderById(
-                    $project->onedrive_folder_id,
-                    'Plan Cost'
-                );
-                $result  = $oneDrive->uploadFile(
-                    $planCostFolderId,
-                    $docName,
-                    file_get_contents($file->getRealPath()),
-                    $file->getMimeType() ?: 'application/octet-stream'
-                );
-                $docUrl = $result['webUrl'];
+                $upload  = $this->uploadDocument($project, $request->file('document'));
+                $docName = $upload['name'];
+                $docFile = $upload['file_id'];
+                $docUrl  = $upload['url'];
             } catch (\Throwable $e) {
                 Log::error('Plan Cost OneDrive upload failed', ['error' => $e->getMessage()]);
                 return response()->json([
@@ -227,16 +220,99 @@ class DeliveryProjectCostController extends Controller
             'description'              => $validated['description'],
             'amount'                   => $validated['amount'],
             'document_name'            => $docName,
+            'document_file_id'         => $docFile,
             'document_url'             => $docUrl,
         ]);
 
-        $total = (float) $cost->items()->sum('amount');
+        // Actual amount = sum of all expense items (single source of truth).
+        $total = $this->syncActualFromItems($cost);
 
         return response()->json([
             'message' => 'Expense item added.',
             'item'    => $this->formatItem($item),
             'total'   => $total,
         ], 201);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // PUT /projects/{project}/costs/{cost}/items/{item}
+    // Update an expense line-item (name, amount, optional document).
+    // NOTE: the frontend sends this as POST + X-HTTP-Method-Override:PUT
+    // because some production edges block the PUT verb — Laravel still
+    // routes it here. Multipart is parsed normally (real verb is POST).
+    // ──────────────────────────────────────────────────────────────
+    public function updateItem(
+        Request $request,
+        DeliveryProject $project,
+        DeliveryProjectCost $cost,
+        DeliveryProjectCostItem $item
+    ) {
+        if ($cost->delivery_projects_id !== $project->id
+            || $item->delivery_project_cost_id !== $cost->id) {
+            return response()->json(['message' => 'Not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'description'     => 'required|string|max:200',
+            'amount'          => 'required|numeric|min:0',
+            'document'        => 'nullable|file|max:102400',
+            // When true (and no new file), the existing document is cleared.
+            'remove_document' => 'nullable|boolean',
+        ]);
+
+        // Keep current document unless the user replaces or removes it.
+        $docName = $item->document_name;
+        $docFile = $item->document_file_id;
+        $docUrl  = $item->document_url;
+        $oldFile = $item->document_file_id;
+
+        if ($request->hasFile('document')) {
+            if (!$project->onedrive_folder_id) {
+                return response()->json([
+                    'message' => 'OneDrive folder has not been set up for this project. Please create the OneDrive folder first.',
+                ], 422);
+            }
+
+            try {
+                $upload  = $this->uploadDocument($project, $request->file('document'));
+                $docName = $upload['name'];
+                $docFile = $upload['file_id'];
+                $docUrl  = $upload['url'];
+            } catch (\Throwable $e) {
+                Log::error('Plan Cost OneDrive upload failed', ['error' => $e->getMessage()]);
+                return response()->json([
+                    'message' => 'Failed to upload document to OneDrive: ' . $e->getMessage(),
+                ], 500);
+            }
+
+            // File pengganti bisa saja file yang sama (nama identik ditimpa di
+            // tempat) — jangan hapus item yang baru saja diunggah.
+            if ($oldFile && $oldFile !== $docFile) {
+                $this->deleteOneDriveFile($oldFile);
+            }
+        } elseif ($request->boolean('remove_document')) {
+            $this->deleteOneDriveFile($oldFile);
+            $docName = null;
+            $docFile = null;
+            $docUrl  = null;
+        }
+
+        $item->update([
+            'description'      => $validated['description'],
+            'amount'           => $validated['amount'],
+            'document_name'    => $docName,
+            'document_file_id' => $docFile,
+            'document_url'     => $docUrl,
+        ]);
+
+        // Actual amount = sum of all expense items (single source of truth).
+        $total = $this->syncActualFromItems($cost);
+
+        return response()->json([
+            'message' => 'Expense item updated.',
+            'item'    => $this->formatItem($item),
+            'total'   => $total,
+        ]);
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -253,15 +329,99 @@ class DeliveryProjectCostController extends Controller
             return response()->json(['message' => 'Not found.'], 404);
         }
 
-        // File lives on OneDrive — we only remove the DB record.
-        // (OneDrive cleanup can be done manually from the folder if needed.)
+        // Supporting document ikut dihapus dari OneDrive supaya tidak ada file
+        // yatim yang link-nya masih beredar setelah datanya hilang di aplikasi.
+        $this->deleteOneDriveFile($item->document_file_id);
+
         $item->delete();
-        $total = (float) $cost->items()->sum('amount');
+
+        // Recompute actual amount from remaining expense items.
+        $total = $this->syncActualFromItems($cost);
 
         return response()->json([
             'message' => 'Expense item deleted.',
             'total'   => $total,
         ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Helper: upload supporting document ke subfolder "Plan Cost" milik
+    // project, lalu buat share link ANONIM.
+    //
+    // PENTING: yang disimpan HARUS share link (createShareLink), bukan
+    // `webUrl` hasil upload. webUrl adalah path SharePoint langsung — hanya
+    // bisa dibuka akun yang punya izin item tersebut, sehingga siapa pun yang
+    // lain akan dihadang halaman login / "Request access".
+    //
+    // @return array{name:string,file_id:string,url:string}
+    // ──────────────────────────────────────────────────────────────
+    private function uploadDocument(DeliveryProject $project, $file): array
+    {
+        $oneDrive = new OneDriveService();
+
+        $planCostFolderId = $oneDrive->findOrCreateSubFolderById(
+            $project->onedrive_folder_id,
+            'Plan Cost'
+        );
+
+        $result = $oneDrive->uploadFile(
+            $planCostFolderId,
+            $file->getClientOriginalName(),
+            file_get_contents($file->getRealPath()),
+            $file->getMimeType() ?: 'application/octet-stream'
+        );
+
+        $link = $oneDrive->createShareLink($result['id'], 'view');
+
+        if ($link['scope'] !== 'anonymous') {
+            // Bukan error aplikasi: kebijakan sharing tenant menolak "Anyone".
+            // Dicatat agar admin M365 bisa menindaklanjuti.
+            Log::warning('Plan Cost document share link is not anonymous', [
+                'project_id' => $project->id,
+                'file_id'    => $result['id'],
+                'scope'      => $link['scope'],
+            ]);
+        }
+
+        return [
+            // Nama final di OneDrive (bisa disanitasi / di-rename saat bentrok).
+            'name'    => $result['name'],
+            'file_id' => $result['id'],
+            'url'     => $link['url'],
+        ];
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Helper: hapus file OneDrive tanpa menggagalkan aksi utama.
+    // Baris lama belum punya document_file_id → tidak ada yang bisa dihapus.
+    // ──────────────────────────────────────────────────────────────
+    private function deleteOneDriveFile(?string $fileId): void
+    {
+        if (!$fileId) {
+            return;
+        }
+
+        try {
+            (new OneDriveService())->deleteItem($fileId);
+        } catch (\Throwable $e) {
+            Log::warning('Plan Cost OneDrive file delete failed', [
+                'file_id' => $fileId,
+                'error'   => $e->getMessage(),
+            ]);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Helper: recompute & persist a cost item's actual_amount as the
+    // sum of its expense detail items. Returns the new total.
+    // (Actual is fully derived from expenses — never entered manually.)
+    // ──────────────────────────────────────────────────────────────
+    private function syncActualFromItems(DeliveryProjectCost $cost): float
+    {
+        $total = (float) $cost->items()->sum('amount');
+        $cost->update(['actual_amount' => $total]);
+
+        return $total;
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -279,7 +439,8 @@ class DeliveryProjectCostController extends Controller
         } else {
             $budget        = $cost->budget;
             $releaseAmount = $cost->release_amount;
-            $actualAmount  = $cost->actual_amount;
+            // Actual is derived from expense items → always numeric (0 = no expenses).
+            $actualAmount  = (float) ($cost->actual_amount ?? 0);
         }
 
         // Available Budget  = Budget − Release
@@ -288,7 +449,9 @@ class DeliveryProjectCostController extends Controller
             : null;
 
         // Available Release = Release − Actual
-        $availRelease = ($releaseAmount !== null || $actualAmount !== null)
+        // Shown when a release is set OR there has been actual spending; an
+        // otherwise-empty row stays "—" (not "Rp 0") to match Avail. Budget.
+        $availRelease = ($releaseAmount !== null || (float)($actualAmount ?? 0) > 0)
             ? (float)($releaseAmount ?? 0) - (float)($actualAmount ?? 0)
             : null;
 

@@ -220,15 +220,15 @@
         showNotification('Check employee data', 'info');
     }
 
-    function saveEmployee() {
-        if (confirm('Save changes to employee data?')) {
+    async function saveEmployee() {
+        if (await showConfirm('Save changes to employee data?', 'Save Changes', 'primary')) {
             showNotification('Employee data saved successfully!', 'success');
             window.location.href = '{{ route("master") }}';
         }
     }
 
-    function discardChanges() {
-        if (confirm('Discard all changes?')) {
+    async function discardChanges() {
+        if (await showConfirm('Discard all changes?', 'Discard Changes', 'danger')) {
             window.location.href = '{{ route("master") }}';
         }
     }

@@ -6,6 +6,7 @@ let deleteTimesheetId = null;
 let myTicketsCache = []; // cache for support ticket auto-fill
 let _pendingTicketPreselect   = null; // ticket_id to preselect when edit opens support modal
 let _pendingActivityPreselect = null; // activity_id to preselect when edit opens project modal
+let _currentTicketRemainingMd = null; // remaining MD for the currently-selected support ticket (null = no quota tracked)
 
 const TH = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200';
 
@@ -17,21 +18,123 @@ let defaultTheadHTML = '';
 // from falling through to Branch 3 when condition flags mismatch.
 let supportLayoutActive = false;
 
-// Support-specific thead (13 columns — no separate Action column)
+// Support-specific thead — exact same custom-dd / text-panel pattern as blade
+// (keep in sync with @elseif($lockedType === 'support') section in timesheets.blade.php)
+const CHEVRON_SVG = `<svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>`;
+const DD_CHEVRON  = `<svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>`;
+const FUNNEL_SVG  = (id) => `<svg id="${id}" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>`;
+const TH_PLAIN = 'px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200';
+const TH_FILT  = 'p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50';
+const DD_ITEM  = 'custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50';
+
+const _STATUS_DD_ITEMS = `
+    <button type="button" class="${DD_ITEM}" data-value="">All</button>
+    <button type="button" class="${DD_ITEM}" data-value="draft">Draft</button>
+    <button type="button" class="${DD_ITEM}" data-value="submitted">Submitted</button>
+    <button type="button" class="${DD_ITEM}" data-value="approved">Approved</button>
+    <button type="button" class="${DD_ITEM}" data-value="rejected">Rejected</button>`;
+
+const _TYPE_DD_ITEMS = `
+    <button type="button" class="${DD_ITEM}" data-value="">All</button>
+    <button type="button" class="${DD_ITEM}" data-value="internal">Internal</button>
+    <button type="button" class="${DD_ITEM}" data-value="non_internal">Non Internal</button>`;
+
+const _ACT_TEXT_PANEL = `<div id="tsTextPanel_ActivityType" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search activity type</label>
+    <input type="text" id="colFilterTsActivityType" placeholder="e.g. Development…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+           class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+    <div class="flex justify-end gap-2 mt-2">
+        <button type="button" onclick="clearTsTextPanel('ActivityType')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+    </div>
+</div>`;
+
+const _MONTH_DD_ITEMS = `
+    <button type="button" class="${DD_ITEM}" data-value="">All</button>
+    <button type="button" class="${DD_ITEM}" data-value="1">January</button>
+    <button type="button" class="${DD_ITEM}" data-value="2">February</button>
+    <button type="button" class="${DD_ITEM}" data-value="3">March</button>
+    <button type="button" class="${DD_ITEM}" data-value="4">April</button>
+    <button type="button" class="${DD_ITEM}" data-value="5">May</button>
+    <button type="button" class="${DD_ITEM}" data-value="6">June</button>
+    <button type="button" class="${DD_ITEM}" data-value="7">July</button>
+    <button type="button" class="${DD_ITEM}" data-value="8">August</button>
+    <button type="button" class="${DD_ITEM}" data-value="9">September</button>
+    <button type="button" class="${DD_ITEM}" data-value="10">October</button>
+    <button type="button" class="${DD_ITEM}" data-value="11">November</button>
+    <button type="button" class="${DD_ITEM}" data-value="12">December</button>`;
+
+const _EMP_TEXT_PANEL = `<div id="tsTextPanel_Employee" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search name</label>
+    <input type="text" id="colFilterTsEmployee" placeholder="Type name…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+           class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+    <p class="text-[10px] text-gray-400 mt-1.5">Use the ⇅ icon in the header to sort by name.</p>
+    <div class="flex justify-end gap-2 mt-2">
+        <button type="button" onclick="clearTsTextPanel('Employee')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+    </div>
+</div>`;
+
+const _TKT_TEXT_PANEL = `<div id="tsTextPanel_Ticket" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket</label>
+    <input type="text" id="colFilterTsTicket" placeholder="e.g. TKT-001…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+           class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+    <div class="flex justify-end gap-2 mt-2">
+        <button type="button" onclick="clearTsTextPanel('Ticket')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+    </div>
+</div>`;
+
+const _CUST_TEXT_PANEL = `<div id="tsTextPanel_Customer" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search customer</label>
+    <input type="text" id="colFilterTsCustomer" placeholder="Type customer…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+           class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+    <div class="flex justify-end gap-2 mt-2">
+        <button type="button" onclick="clearTsTextPanel('Customer')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+    </div>
+</div>`;
+
+function _mkStatusDd() { return `<div class="custom-dd relative w-full" id="ddColFilterTsStatus" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Status</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsStatus" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:150px;">${_STATUS_DD_ITEMS}</div></div>`; }
+function _mkTypeDd()   { return `<div class="custom-dd relative w-full" id="ddColFilterTsType" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Type</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsType" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:150px;min-width:140px;">${_TYPE_DD_ITEMS}</div></div>`; }
+function _mkMonthDd()  { return `<div class="custom-dd relative w-full" id="ddColFilterTsMonth" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Month</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsMonth" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:120px;">${_MONTH_DD_ITEMS}</div></div>`; }
+// Year dropdown: panel items are filled dynamically from the loaded data
+// (years vary by dataset, unlike Month's fixed 12-item list) — see _populateTsYearDd().
+function _mkYearDd()   { return `<div class="custom-dd relative w-full" id="ddColFilterTsYear" data-fixed="true" data-onchange="applyColFilter"><button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Year</span>${DD_CHEVRON}</button><input type="hidden" id="colFilterTsYear" value=""><div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:100px;"><button type="button" class="${DD_ITEM}" data-value="">All</button></div></div>`; }
+function _mkActivityTextTh() { return `<th class="${TH_FILT}" style="min-width:130px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'ActivityType')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Activity</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_ActivityType')}</button>${_ACT_TEXT_PANEL}</th>`; }
+
+// Date range filter panel — pola sama dengan view ticket (From/To + Clear/Apply).
+const _DATE_FILTER_PANEL = `<div id="tsDateFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:240px;">
+    <div class="space-y-2">
+        <div>
+            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+            <input type="date" id="tsDateFrom" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+        </div>
+        <div>
+            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
+            <input type="date" id="tsDateTo" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+        </div>
+        <p id="tsDateFilterError" class="hidden text-xs text-red-500">"To" must be on/after "From".</p>
+    </div>
+    <div class="flex justify-end gap-2 mt-3">
+        <button type="button" onclick="clearTsDateFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+        <button type="button" onclick="applyTsDateFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
+    </div>
+</div>`;
+
 const SUPPORT_THEAD_HTML = `<tr>
-    <th class="${TH}" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
-    <th class="${TH}" style="min-width:100px;">Date</th>
-    <th class="${TH}" style="min-width:55px;">Month</th>
-    <th class="${TH}" style="min-width:55px;">Year</th>
-    <th class="${TH}" style="min-width:130px;">Name</th>
-    <th class="${TH}" style="min-width:100px;">Status</th>
-    <th class="${TH}" style="min-width:130px;">Ticket</th>
-    <th class="${TH}" style="min-width:180px;">Description</th>
-    <th class="${TH}" style="min-width:120px;">Customer</th>
-    <th class="${TH}" style="min-width:80px;">Quota MD</th>
-    <th class="${TH}" style="min-width:180px;">Activity</th>
-    <th class="${TH}" style="min-width:90px;">MD Consumed</th>
-    <th class="${TH}" style="min-width:70px;">On Site</th>
+    <th class="${TH_PLAIN}" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
+    <th class="${TH_FILT}" style="min-width:110px; position:relative;"><button type="button" onclick="toggleTsDatePanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Submit Date</span>${CHEVRON_SVG}${FUNNEL_SVG('tsDateFilterIcon')}<span id="tsSortDateIcon" onclick="event.stopPropagation(); toggleTsDateSort()" title="Click to toggle sort (descending ↔ ascending)" class="cursor-pointer text-[10px] text-red-500 font-bold shrink-0 ml-auto hover:text-red-700 transition-colors">↓</span></button>${_DATE_FILTER_PANEL}</th>
+    <th class="${TH_PLAIN}" style="min-width:100px;">Activity Date</th>
+    <th class="${TH_PLAIN}" style="min-width:110px;">Time</th>
+    <th class="${TH_FILT}" style="min-width:85px;">${_mkMonthDd()}</th>
+    <th class="${TH_FILT}" style="min-width:70px;">${_mkYearDd()}</th>
+    <th class="${TH_FILT}" style="min-width:150px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Employee')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Name</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Employee')}<span id="tsSortEmpIcon" onclick="event.stopPropagation(); toggleTsEmpSort()" title="Click to toggle sort (A–Z ↔ Z–A)" class="cursor-pointer text-[10px] text-gray-300 font-bold shrink-0 ml-auto hover:text-red-500 transition-colors">⇅</span></button>${_EMP_TEXT_PANEL}</th>
+    <th class="${TH_FILT}" style="min-width:120px;">${_mkStatusDd()}</th>
+    <th class="${TH_FILT}" style="min-width:150px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Ticket')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Ticket</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Ticket')}</button>${_TKT_TEXT_PANEL}</th>
+    <th class="${TH_PLAIN}" style="min-width:180px;">Description</th>
+    <th class="${TH_FILT}" style="min-width:130px; position:relative;"><button type="button" onclick="toggleTsTextPanel(event,'Customer')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors"><span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Customer</span>${CHEVRON_SVG}${FUNNEL_SVG('tsTextIcon_Customer')}</button>${_CUST_TEXT_PANEL}</th>
+    <th class="${TH_FILT}" style="min-width:110px;">${_mkTypeDd()}</th>
+    <th class="${TH_PLAIN}" style="min-width:80px;">Quota MD</th>
+    ${_mkActivityTextTh()}
+    <th class="${TH_PLAIN}" style="min-width:90px;">MD Consumed</th>
+    <th class="${TH_PLAIN}" style="min-width:70px;">On Site</th>
 </tr>`;
 let currentFilters = {
     start_date: null,
@@ -40,7 +143,9 @@ let currentFilters = {
     activity_type: '',
     type_filter: ''   // '' | 'project' | 'support' | 'office'
 };
-let itemsPerPage = 20;
+let tsSortKey = 'date';
+let tsSortDir = 'desc';
+let itemsPerPage = 200;
 let currentPage = 1;
 
 const activityTypeIcons = {
@@ -74,6 +179,18 @@ async function loadTsPeriodBadge() {
         const label  = document.getElementById('tsBadgeLabel');
         const status = document.getElementById('tsBadgeStatus');
         if (!badge) return;
+
+        // No period is globally open at all (RPMO hasn't opened one yet) — distinct
+        // from "open" and "closed", so it must not silently render as either.
+        if (p.status === 'not_open' || !p.month) {
+            label.textContent  = 'No active period';
+            status.textContent = '';
+            status.className   = 'font-semibold text-gray-500';
+            badge.classList.remove('hidden');
+            badge.classList.add('flex');
+            return;
+        }
+
         label.textContent  = `${MONTHS[p.month - 1]} ${p.year}`;
         status.textContent = p.is_closed ? '(Closed)' : '(Open)';
         status.className   = p.is_closed ? 'font-semibold text-red-500' : 'font-semibold text-green-500';
@@ -82,10 +199,28 @@ async function loadTsPeriodBadge() {
     } catch (e) {}
 }
 
+// Close text/date panels on outside click
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('[id^="tsTextPanel_"]') && !e.target.closest('#tsDateFilterPanel') &&
+        !e.target.closest('[onclick*="toggleTsTextPanel"]') && !e.target.closest('[onclick*="toggleTsDatePanel"]')) {
+        closeTsTextPanelAll();
+    }
+});
+
+// Tutup panel saat scroll di luar panel atau resize — panel pakai posisi
+// absolute terhadap header sehingga scroll bikin tidak sinkron dengan view.
+window.addEventListener('scroll', function(e) {
+    const t = e.target;
+    if (t && t.nodeType === 1 && t.closest && (t.closest('[id^="tsTextPanel_"]') || t.closest('#tsDateFilterPanel'))) return;
+    closeTsTextPanelAll();
+}, true);
+window.addEventListener('resize', closeTsTextPanelAll);
+
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
     initializeDateFilters();
     loadTsPeriodBadge();
+    _updateTsSortVisuals();
 
     // Save default thead so we can restore it after switching tabs (both modes)
     const thead = document.getElementById('timesheetTableHead');
@@ -126,6 +261,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     updateBulkActionButtons();
                 });
             }
+            // Re-init custom-dd dropdowns (Month/Year/Status) — the initCustomDropdowns()
+            // call above ran before this innerHTML swap, so those handlers were lost.
+            if (typeof initCustomDropdowns === 'function') initCustomDropdowns(thead);
         }
     }
 
@@ -302,77 +440,187 @@ async function confirmReject() {
 
 // ==================== END APPROVAL MODE FUNCTIONS ====================
 
-// Global callbacks for the time-picker custom dropdowns (called via data-onchange)
-function tsUpdateDuration() {
-    const startH = parseInt(document.getElementById('timesheetStartHour')?.value || '0');
-    const startM = parseInt(document.getElementById('timesheetStartMinute')?.value || '0');
-    const endH   = parseInt(document.getElementById('timesheetEndHour')?.value || '0');
-    const endM   = parseInt(document.getElementById('timesheetEndMinute')?.value || '0');
+// ── Timesheet time inputs ─────────────────────────────────────────────────────
+// #timesheetStartTime / #timesheetEndTime are plain text fields with a custom
+// (app-styled) dropdown of preset times — see initTsTimePickers() below and the
+// [data-ts-timepicker] markup in timesheets.blade.php. The user can type an HH:MM
+// value or pick one from the dropdown; tsNormalizeTimeInput() tidies loose input
+// ("8", "830", "8:5") into "HH:MM" on change/blur.
 
-    let startMins = startH * 60 + startM;
-    let endMins   = endH   * 60 + endM;
+// Parse "HH:MM" / "HH:MM:SS" → { h, m }, or null when malformed / out of range.
+function _tsParseTime(v) {
+    const match = String(v || '').match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return null;
+    const h = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    if (isNaN(h) || isNaN(m) || h > 23 || m > 59) return null;
+    return { h, m };
+}
+
+// Flag when end ≤ start: toggles the inline error + native validity so the form
+// cannot be submitted. Returns true when the order is valid.
+function _tsValidateTimeOrder() {
+    const startEl = document.getElementById('timesheetStartTime');
+    const endEl   = document.getElementById('timesheetEndTime');
+    const errEl   = document.getElementById('timesheetTimeError');
+    if (!startEl || !endEl) return true;
+
+    const s = _tsParseTime(startEl.value);
+    const e = _tsParseTime(endEl.value);
+    const bad = !!(s && e) && (e.h * 60 + e.m) <= (s.h * 60 + s.m);
+
+    endEl.setCustomValidity(bad ? 'End time must be later than start time.' : '');
+    endEl.classList.toggle('border-red-400', bad);
+    endEl.classList.toggle('border-gray-200', !bad);
+    if (errEl) errEl.classList.toggle('hidden', !bad);
+    return !bad;
+}
+
+function tsUpdateDuration() {
+    const s = _tsParseTime(document.getElementById('timesheetStartTime')?.value);
+    const e = _tsParseTime(document.getElementById('timesheetEndTime')?.value);
+
+    const durationField = document.getElementById('timesheetDuration');
+    if (!durationField) return;
+
+    if (!s || !e) {
+        if (durationField.tagName === 'INPUT') durationField.value = '—';
+        else durationField.textContent = '—';
+        return;
+    }
+
+    let startMins = s.h * 60 + s.m;
+    let endMins   = e.h * 60 + e.m;
     if (endMins < startMins) endMins += 24 * 60;
 
     const dur   = endMins - startMins;
     const hours = Math.floor(dur / 60);
     const mins  = dur % 60;
+    const text  = `${hours}h ${mins}m`;
 
-    const durationField = document.getElementById('timesheetDuration');
-    if (durationField) {
-        if (durationField.tagName === 'INPUT') {
-            durationField.value = `${hours}h ${mins}m`;
-        } else {
-            durationField.textContent = `${hours}h ${mins}m`;
-        }
-    }
+    if (durationField.tagName === 'INPUT') durationField.value = text;
+    else durationField.textContent = text;
 }
 
 function tsUpdateStartTime() {
-    const h = document.getElementById('timesheetStartHour')?.value || '08';
-    const m = document.getElementById('timesheetStartMinute')?.value || '00';
-    const hiddenInput = document.getElementById('timesheetStartTime');
-    if (hiddenInput) hiddenInput.value = `${h}:${m}`;
+    _tsValidateTimeOrder();
     tsUpdateDuration();
 }
 
 function tsUpdateEndTime() {
-    const h = document.getElementById('timesheetEndHour')?.value || '17';
-    const m = document.getElementById('timesheetEndMinute')?.value || '00';
-    const hiddenInput = document.getElementById('timesheetEndTime');
-    if (hiddenInput) hiddenInput.value = `${h}:${m}`;
+    _tsValidateTimeOrder();
     tsUpdateDuration();
 }
 
-// Initialize time picker dropdowns
-function initializeTimePickers() {
-    // Set default values (08:00 - 17:00) via the custom-dd setter
-    setCustomDropdownValue('timesheetStartHour',   '08');
-    setCustomDropdownValue('timesheetStartMinute', '00');
-    setCustomDropdownValue('timesheetEndHour',     '17');
-    setCustomDropdownValue('timesheetEndMinute',   '00');
-    tsUpdateStartTime();
-    tsUpdateEndTime();
+// Coerce loose input into "HH:MM": "8" → "08:00", "830" → "08:30", "8:5" → "08:05".
+// Leaves the field untouched when it can't make sense of it (validation flags that).
+function tsNormalizeTimeInput(el) {
+    if (!el) return;
+    const raw = String(el.value || '').trim();
+    if (!raw) return;
+
+    let h, m;
+    const colon = raw.match(/^(\d{1,2})\s*:\s*(\d{1,2})$/);
+    if (colon) {
+        h = parseInt(colon[1], 10);
+        m = parseInt(colon[2], 10);
+    } else {
+        const digits = raw.replace(/\D/g, '');
+        if (!digits) return;
+        if (digits.length <= 2)      { h = parseInt(digits, 10); m = 0; }
+        else if (digits.length === 3) { h = parseInt(digits.slice(0, 1), 10); m = parseInt(digits.slice(1), 10); }
+        else                          { h = parseInt(digits.slice(0, 2), 10); m = parseInt(digits.slice(2, 4), 10); }
+    }
+    if (isNaN(h) || isNaN(m) || h > 23 || m > 59) return;
+    el.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-// Helper to set time picker from HH:mm:ss or HH:mm string
+// Wire the custom time dropdowns: a toggle button + a panel of preset times that
+// writes the picked value into the sibling text input. Idempotent.
+function initTsTimePickers() {
+    document.querySelectorAll('[data-ts-timepicker]').forEach(wrap => {
+        if (wrap._tsTpInit) return;
+        wrap._tsTpInit = true;
+
+        const input  = wrap.querySelector('input[type="text"]');
+        const toggle = wrap.querySelector('.ts-tp-toggle');
+        const panel  = wrap.querySelector('.ts-tp-panel');
+        if (!input || !panel) return;
+
+        const openPanel = () => {
+            _tsCloseAllTimePanels();
+            panel.querySelectorAll('.ts-tp-item').forEach(it => { it.style.display = ''; });
+            panel.classList.remove('hidden');
+            const cur = panel.querySelector(`.ts-tp-item[data-value="${CSS.escape(input.value.trim())}"]`);
+            if (cur) cur.scrollIntoView({ block: 'nearest' });
+        };
+        const closePanel = () => panel.classList.add('hidden');
+
+        if (toggle) toggle.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            panel.classList.contains('hidden') ? (input.focus(), openPanel()) : closePanel();
+        });
+
+        input.addEventListener('focus', openPanel);
+
+        // Typing narrows the list to matching prefixes — a convenience, not a search box.
+        input.addEventListener('input', () => {
+            const q = input.value.trim();
+            panel.querySelectorAll('.ts-tp-item').forEach(it => {
+                it.style.display = (!q || it.dataset.value.startsWith(q)) ? '' : 'none';
+            });
+            if (panel.classList.contains('hidden')) panel.classList.remove('hidden');
+        });
+
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Escape' || e.key === 'Enter') closePanel();
+        });
+
+        panel.addEventListener('click', e => {
+            const item = e.target.closest('.ts-tp-item');
+            if (!item) return;
+            e.stopPropagation();
+            input.value = item.dataset.value;
+            closePanel();
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
+
+    if (!window._tsTpDocListener) {
+        window._tsTpDocListener = true;
+        document.addEventListener('click', e => {
+            if (!e.target.closest('[data-ts-timepicker]')) _tsCloseAllTimePanels();
+        });
+    }
+}
+
+function _tsCloseAllTimePanels() {
+    document.querySelectorAll('.ts-tp-panel:not(.hidden)').forEach(p => p.classList.add('hidden'));
+}
+
+// Initialize time inputs with the default working day (08:00 – 17:00)
+function initializeTimePickers() {
+    const startEl = document.getElementById('timesheetStartTime');
+    const endEl   = document.getElementById('timesheetEndTime');
+    if (startEl && !startEl.value) startEl.value = '08:00';
+    if (endEl && !endEl.value) endEl.value = '17:00';
+    initTsTimePickers();
+    _tsValidateTimeOrder();
+    tsUpdateDuration();
+}
+
+// Helper to set a time input from an "HH:mm:ss" / "HH:mm" string
 function setTimePicker(type, timeString) {
-    if (!timeString) return;
+    const el = document.getElementById(`timesheet${type}Time`);
+    if (!el) return;
 
-    const parts  = timeString.split(':');
-    const hour   = (parts[0] || '00').padStart(2, '0');
-    const minute = parts[1] || '00';
+    const p = _tsParseTime(timeString);
+    el.value = p
+        ? `${String(p.h).padStart(2, '0')}:${String(p.m).padStart(2, '0')}`
+        : '';
 
-    // Snap minute to nearest 5 for the display picker
-    const roundedMins = Math.round(parseInt(minute) / 5) * 5;
-    const minuteVal   = String(roundedMins % 60).padStart(2, '0');
-
-    setCustomDropdownValue(`timesheet${type}Hour`,   hour);
-    setCustomDropdownValue(`timesheet${type}Minute`, minuteVal);
-
-    // Set the combined hidden time input directly (exact minute, not rounded)
-    const hiddenInput = document.getElementById(`timesheet${type}Time`);
-    if (hiddenInput) hiddenInput.value = `${hour}:${minute}`;
-
+    _tsValidateTimeOrder();
     tsUpdateDuration();
 }
 
@@ -430,9 +678,9 @@ function initializeDateFilters() {
     }
     updateTsPeriodLabel();
 
-    const { start, end } = tsPeriodToDateRange(p.month, p.year);
-    currentFilters.start_date = start;
-    currentFilters.end_date   = end;
+    // Do NOT restrict by date — load all timesheets by default
+    currentFilters.start_date = null;
+    currentFilters.end_date   = null;
 }
 
 function formatDate(date) {
@@ -488,21 +736,9 @@ function handleTimesheetTypeChange() {
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">
                     Activity Type <span class="text-red-500">*</span>
                 </label>
-                <div class="custom-dd w-full" data-fixed="true">
-                    <button type="button" class="custom-dd-btn w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-2">
-                        <span class="custom-dd-label text-gray-700 truncate flex-1 text-left">Development</span>
-                        ${CHEVRON}
-                    </button>
-                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
-                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="development">Development</button>
-                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="meeting">Meeting</button>
-                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="documentation">Documentation</button>
-                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="testing">Testing</button>
-                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="training">Training</button>
-                        <button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="other">Other</button>
-                    </div>
-                    <input type="hidden" id="timesheetActivityType" value="development">
-                </div>
+                <input type="text" id="timesheetActivityType" required
+                       class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50"
+                       placeholder="e.g. Development, Meeting, Training…">
             </div>
 
             <div class="grid grid-cols-2 gap-3">
@@ -536,7 +772,7 @@ function handleTimesheetTypeChange() {
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">
                     Ticket <span class="text-red-500">*</span>
                 </label>
-                <div class="custom-dd w-full" data-fixed="true" data-onchange="onSupportTicketSelected">
+                <div class="custom-dd w-full" data-fixed="true" data-onchange="onSupportTicketSelected" data-searchable="true" data-search-placeholder="Search ticket number, customer, or description…">
                     <button type="button" class="custom-dd-btn w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-2">
                         <span class="custom-dd-label text-gray-500 truncate flex-1 text-left">Select a Ticket</span>
                         ${CHEVRON}
@@ -546,6 +782,15 @@ function handleTimesheetTypeChange() {
                     </div>
                     <input type="hidden" id="timesheetTicket">
                 </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">
+                    Activity Date <span class="text-red-500">*</span>
+                </label>
+                <input type="date" id="supportActivityDate" required value="${formatDate(new Date())}"
+                    class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50 hover:bg-white transition-colors">
+                <p class="mt-1 text-xs text-gray-400">When the work actually happened — any date, no period restriction.</p>
             </div>
 
             <div class="grid grid-cols-3 gap-2">
@@ -612,10 +857,9 @@ function handleTimesheetTypeChange() {
         if (billableSection) billableSection.classList.add('hidden');
     }
 
-    // Show/hide the entire time block (support type doesn't use start/end time)
+    // Start/end time is now mandatory for every timesheet type (project, support, office).
     const timeBlock = document.getElementById('timesheetTimeBlock');
-    const isSupport = selectedType === 'support';
-    if (timeBlock) timeBlock.style.display = isSupport ? 'none' : '';
+    if (timeBlock) timeBlock.style.display = '';
 
     // Inject HTML and init custom dropdowns
     dynamicFieldsContainer.innerHTML = fieldsHTML;
@@ -746,7 +990,10 @@ async function loadTicketsForDropdown() {
     const panel  = dd?.querySelector('.custom-dd-panel') || dd?._ddPanel;
 
     try {
-        const response = await fetch('/api/tickets/my', {
+        // Keep the currently-edited ticket selectable even if its remaining MD is now 0
+        // (its own consumption is part of that 0) — the endpoint always includes it.
+        const includeParam = _pendingTicketPreselect ? `?include_ticket_id=${encodeURIComponent(_pendingTicketPreselect)}` : '';
+        const response = await fetch(`/api/tickets/my-for-timesheet${includeParam}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -764,23 +1011,35 @@ async function loadTicketsForDropdown() {
                 const allTickets = data.data;
                 myTicketsCache = allTickets;
 
-                if (allTickets.length === 0) {
-                    panel.innerHTML = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No tickets assigned to you</button>';
-                    return;
-                }
-
                 // Sort by ticket_id descending (newest first)
                 allTickets.sort((a, b) => b.ticket_id - a.ticket_id);
 
-                let html = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select a Ticket</button>';
-                allTickets.forEach(ticket => {
-                    const ticketLabel  = ticket.ticket_number || `#${ticket.ticket_id}`;
-                    const customerCode = ticket.customer?.customer_code || ticket.customer?.customer_name || '';
-                    const description  = ticket.description || '';
-                    const labelText    = `${ticketLabel} - ${customerCode} - ${description}`;
-                    html += `<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="${ticket.ticket_id}">${labelText}</button>`;
-                });
-                panel.innerHTML = html;
+                let itemsHtml;
+                if (allTickets.length === 0) {
+                    itemsHtml = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 cursor-default" data-value="">No tickets with remaining MD quota</button>';
+                } else {
+                    itemsHtml = '<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50" data-value="">Select a Ticket</button>';
+                    allTickets.forEach(ticket => {
+                        const ticketLabel  = ticket.ticket_number || `#${ticket.ticket_id}`;
+                        const customerCode = ticket.customer?.customer_code || ticket.customer?.customer_name || '';
+                        const description  = ticket.description || '';
+                        const labelText    = `${ticketLabel} - ${customerCode} - ${description}`;
+                        itemsHtml += `<button type="button" class="custom-dd-item w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50" data-value="${ticket.ticket_id}">${labelText}</button>`;
+                    });
+                }
+
+                // Rebuild only the item buttons — a plain `panel.innerHTML = itemsHtml`
+                // would also wipe out the sticky search box + empty-state that
+                // _injectSearch() wired up at dropdown init, silently killing search
+                // the moment tickets finish loading. Preserve those nodes instead.
+                const searchWrap = panel.querySelector('.custom-dd-search-wrap');
+                const emptyEl    = panel.querySelector('.custom-dd-empty');
+                panel.innerHTML = '';
+                if (searchWrap) panel.appendChild(searchWrap);
+                panel.insertAdjacentHTML('beforeend', itemsHtml);
+                if (emptyEl) panel.appendChild(emptyEl);
+
+                if (allTickets.length === 0) return;
 
                 // Pre-select ticket if coming from editTimesheet()
                 if (_pendingTicketPreselect) {
@@ -817,6 +1076,7 @@ async function onSupportTicketSelected() {
     setText(jatahMdEl,   '—');
     setText(remainingEl, '—');
     if (remainingEl) remainingEl.className = 'text-xs font-bold text-gray-700';
+    _currentTicketRemainingMd = null;
 
     if (!ticketId) return;
 
@@ -836,17 +1096,18 @@ async function onSupportTicketSelected() {
         if (!data?.success) return;
         const d = data.data;
 
-        // Quota MD — per-user allocation (mandays + approved_additional for this employee)
-        setText(jatahMdEl, d.quota !== null ? Number(d.quota).toFixed(2) : '—');
+        // Quota MD — per-user allocation (approved_mandays + approved_additional for this employee)
+        setText(jatahMdEl, d.quota !== null ? formatMdTrim(d.quota) : '—');
 
         // Remaining MD
         if (!remainingEl) return;
         const rem = d.remaining;
         if (rem === null) { remainingEl.textContent = '—'; return; }
-        remainingEl.textContent = Number(rem).toFixed(2);
+        remainingEl.textContent = formatMdTrim(rem);
         remainingEl.className   = rem < 0
             ? 'text-xs font-bold text-red-600'
             : 'text-xs font-bold text-green-600';
+        _currentTicketRemainingMd = rem;
     });
 }
 
@@ -1014,11 +1275,45 @@ function updateStatCards(all) {
     if (el('statRejectedCount')) el('statRejectedCount').textContent = rejected;
 }
 
-// Apply status-based client-side filter and re-render
+// Fill the Year column dropdown with the distinct years present in the loaded
+// data (newest first). Month is a fixed 12-item list, but the available years
+// depend on the dataset — so they are built here and refreshed on each render.
+// Rebuild is skipped when the year set is unchanged to avoid churn while the
+// user interacts with other filters. Any prior selection is preserved.
+let _tsYearDdSig = '';
+function _populateTsYearDd() {
+    const panel  = document.querySelector('#ddColFilterTsYear .custom-dd-panel');
+    const hidden = document.getElementById('colFilterTsYear');
+    if (!panel || !hidden) return; // Year dropdown only exists in the support layout
+
+    const years = [...new Set((timesheets || [])
+        .map(t => t.period_year)
+        .filter(y => y != null && y !== '')
+        .map(Number))]
+        .sort((a, b) => b - a);
+
+    // Skip rebuild only when both the year set AND the rendered options are
+    // already current — a fresh thead swap leaves just the "All" item, which
+    // must still be repopulated even if the underlying year set is unchanged.
+    const sig = years.join(',');
+    if (sig === _tsYearDdSig && panel.querySelectorAll('.custom-dd-item').length === years.length + 1) return;
+    _tsYearDdSig = sig;
+
+    const prev = hidden.value;
+    let html = `<button type="button" class="${DD_ITEM}" data-value="">All</button>`;
+    years.forEach(y => { html += `<button type="button" class="${DD_ITEM}" data-value="${y}">${y}</button>`; });
+    panel.innerHTML = html;
+
+    // Restore prior selection if it still exists in the new set; otherwise reset to All.
+    setCustomDropdownValue('colFilterTsYear', (prev && years.map(String).includes(prev)) ? prev : '');
+}
+
+// Apply all client-side filters and re-render
 function applyStatusFilter() {
+    _populateTsYearDd();   // keep Year dropdown options in sync with the loaded data
     let result = timesheets;
 
-    // 1. Filter by type tab (project / support / office) — also respect window.lockedType
+    // 1. Type tab filter
     const activeType = currentFilters.type_filter || window.lockedType || '';
     if (activeType === 'project') {
         result = result.filter(t => !!t.delivery_projects_id);
@@ -1028,15 +1323,233 @@ function applyStatusFilter() {
         result = result.filter(t => !t.delivery_projects_id && !t.ticket_id);
     }
 
-    // 2. Filter by status or activity_type (from filter bar)
+    // 2. Stat card status filter (overridden by column Status filter when set)
     if (currentFilters.status) {
         result = result.filter(t => t.status === currentFilters.status);
-    } else if (currentFilters.activity_type) {
-        result = result.filter(t => t.activity_type === currentFilters.activity_type);
+    }
+
+    // 3. Column filters — read from new IDs
+    const colEmp      = (document.getElementById('colFilterTsEmployee')?.value    || '').toLowerCase().trim();
+    const colStatus   =  document.getElementById('colFilterTsStatus')?.value      || '';
+    const colActType  = (document.getElementById('colFilterTsActivityType')?.value || '').toLowerCase().trim();
+    const colTicket   = (document.getElementById('colFilterTsTicket')?.value      || '').toLowerCase().trim();
+    const colCustomer = (document.getElementById('colFilterTsCustomer')?.value    || '').toLowerCase().trim();
+    const colMonth    =  document.getElementById('colFilterTsMonth')?.value        || '';
+    const colYear     =  document.getElementById('colFilterTsYear')?.value         || '';
+    const colType     =  document.getElementById('colFilterTsType')?.value         || '';
+
+    if (colEmp)      result = result.filter(t => (t.employee_name || '').toLowerCase().includes(colEmp));
+    if (colStatus)   result = result.filter(t => t.status === colStatus);
+    if (colActType)  result = result.filter(t => (t.activity_type || '').toLowerCase().includes(colActType));
+    if (colTicket)   result = result.filter(t => (t.ticket_number || '').toLowerCase().includes(colTicket));
+    if (colCustomer) result = result.filter(t => (t.customer_name || '').toLowerCase().includes(colCustomer));
+    if (colMonth)    result = result.filter(t => String(t.period_month) === colMonth);
+    if (colYear)     result = result.filter(t => String(t.period_year) === colYear);
+    if (colType)     result = result.filter(t => t.ticket_id && (colType === 'internal' ? t.ticket_type === 'Internal' : t.ticket_type !== 'Internal'));
+
+    // Date range filter (Date column From/To — sama seperti view ticket)
+    const dateFrom = document.getElementById('tsDateFrom')?.value || '';
+    const dateTo   = document.getElementById('tsDateTo')?.value   || '';
+    if (dateFrom) result = result.filter(t => (t.date || '').slice(0, 10) >= dateFrom);
+    if (dateTo)   result = result.filter(t => (t.date || '').slice(0, 10) <= dateTo);
+
+    // 4. Sort
+    if (tsSortKey === 'date') {
+        result = [...result].sort((a, b) => {
+            const da = a.date ? new Date(a.date).getTime() : 0;
+            const db = b.date ? new Date(b.date).getTime() : 0;
+            return tsSortDir === 'asc' ? da - db : db - da;
+        });
+    } else if (tsSortKey === 'employee') {
+        result = [...result].sort((a, b) => {
+            const na = (a.employee_name || '').toLowerCase();
+            const nb = (b.employee_name || '').toLowerCase();
+            return tsSortDir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
+        });
     }
 
     filteredTimesheets = result;
+    updateSupportMdSummary(activeType);
     renderTimesheetRows();
+}
+
+// Support-only summary cards: Total Quota MD (unique per ticket+employee, so a
+// ticket with several timesheet rows doesn't get its quota counted more than once)
+// and Total MD Consumed (summed across every filtered row). Rejected rows are
+// excluded from both — always recomputed from filteredTimesheets, so it tracks
+// whatever the table's current filters (search/status/date/etc.) are showing.
+function updateSupportMdSummary(activeType) {
+    const wrap = document.getElementById('supportMdSummary');
+    if (!wrap) return;
+
+    if (activeType !== 'support') {
+        wrap.classList.add('hidden');
+        return;
+    }
+    wrap.classList.remove('hidden');
+
+    const rows = filteredTimesheets.filter(t => t.status !== 'rejected');
+
+    let consumed = 0;
+    let quota = 0;
+    const quotaSeen = new Set();
+    rows.forEach(t => {
+        consumed += Number(t.md_consumed) || 0;
+        if (t.ticket_id != null && t.jatah_md != null) {
+            const key = `${t.ticket_id}_${t.employee_id}`;
+            if (!quotaSeen.has(key)) {
+                quotaSeen.add(key);
+                quota += Number(t.jatah_md) || 0;
+            }
+        }
+    });
+
+    const quotaEl    = document.getElementById('statSupportQuotaMd');
+    const consumedEl = document.getElementById('statSupportConsumedMd');
+    if (quotaEl)    quotaEl.textContent    = formatMdTrim(quota);
+    if (consumedEl) consumedEl.textContent = formatMdTrim(consumed);
+}
+
+// 12 → "12", 12.5 → "12.5", 12.25 → "12.25" — round to 2 decimals first (avoids
+// floating-point noise like 12.299999999996) then drop trailing zeros.
+function formatMdTrim(num) {
+    return parseFloat((Number(num) || 0).toFixed(2)).toString();
+}
+
+// Called by custom-dd data-onchange and text panel oninput
+function applyColFilter() {
+    currentPage = 1;
+    // Sync stat card highlight with Status column filter
+    const colStatus = document.getElementById('colFilterTsStatus')?.value || '';
+    if (colStatus !== currentFilters.status) {
+        currentFilters.status = '';
+        const cardIds = ['cardAll', 'cardDraft', 'cardSubmitted', 'cardApproved', 'cardRejected'];
+        cardIds.forEach(id => {
+            const c = document.getElementById(id);
+            if (!c) return;
+            c.classList.remove('border-2', 'border-red-600');
+            c.classList.add('border', 'border-gray-200');
+        });
+        const mapToCard = { draft: 'cardDraft', submitted: 'cardSubmitted', approved: 'cardApproved', rejected: 'cardRejected' };
+        const activeCard = document.getElementById(colStatus ? (mapToCard[colStatus] || 'cardAll') : 'cardAll');
+        if (activeCard) {
+            activeCard.classList.remove('border', 'border-gray-200');
+            activeCard.classList.add('border-2', 'border-red-600');
+        }
+    }
+    _updateTsFilterIcons();
+    applyStatusFilter();
+}
+
+// ── Sort & panel helpers ────────────────────────────────────────────────────
+
+// Klik header → toggle langsung antara descending (default) ↔ ascending.
+function toggleTsSort(key) {
+    // Ganti kolom sort → mulai dari ascending; kolom sama → toggle arah.
+    if (tsSortKey === key) {
+        tsSortDir = tsSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        tsSortKey = key;
+        tsSortDir = 'asc';
+    }
+    _updateTsSortVisuals();
+    closeTsTextPanelAll();
+    currentPage = 1;
+    applyStatusFilter();
+}
+
+function toggleTsDateSort() { toggleTsSort('date'); }
+function toggleTsEmpSort()  { toggleTsSort('employee'); }
+
+function _updateTsSortVisuals() {
+    const dateIcon = document.getElementById('tsSortDateIcon');
+    if (dateIcon) {
+        dateIcon.textContent = tsSortKey === 'date' ? (tsSortDir === 'asc' ? '↑' : '↓') : '↓';
+        dateIcon.classList.toggle('text-red-500', tsSortKey === 'date');
+        dateIcon.classList.toggle('text-gray-300', tsSortKey !== 'date');
+    }
+    const empIcon = document.getElementById('tsSortEmpIcon');
+    if (empIcon) {
+        empIcon.textContent = tsSortKey === 'employee' ? (tsSortDir === 'asc' ? '↑' : '↓') : '⇅';
+        empIcon.classList.toggle('text-red-500', tsSortKey === 'employee');
+        empIcon.classList.toggle('text-gray-300', tsSortKey !== 'employee');
+    }
+}
+
+function _updateTsFilterIcons() {
+    [['Employee', 'colFilterTsEmployee'], ['Ticket', 'colFilterTsTicket'], ['Customer', 'colFilterTsCustomer'], ['ActivityType', 'colFilterTsActivityType']].forEach(([key, id]) => {
+        const icon  = document.getElementById('tsTextIcon_' + key);
+        const input = document.getElementById(id);
+        if (!icon) return;
+        const active = !!(input?.value);
+        icon.classList.toggle('text-red-500', active);
+        icon.classList.toggle('text-gray-300', !active);
+    });
+    // Date range indicator
+    const dateIcon = document.getElementById('tsDateFilterIcon');
+    if (dateIcon) {
+        const active = !!(document.getElementById('tsDateFrom')?.value || document.getElementById('tsDateTo')?.value);
+        dateIcon.classList.toggle('text-red-500', active);
+        dateIcon.classList.toggle('text-gray-300', !active);
+    }
+}
+
+// ── Date Range Filter (Date column) ──────────────────────────────────────────
+function toggleTsDatePanel(event) {
+    event.stopPropagation();
+    const panel = document.getElementById('tsDateFilterPanel');
+    if (!panel) return;
+    const wasHidden = panel.classList.contains('hidden');
+    closeTsTextPanelAll();
+    if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
+    if (wasHidden) panel.classList.remove('hidden');
+}
+
+function applyTsDateFilter() {
+    const from = document.getElementById('tsDateFrom')?.value || '';
+    const to   = document.getElementById('tsDateTo')?.value   || '';
+    const err  = document.getElementById('tsDateFilterError');
+    if (from && to && to < from) { if (err) err.classList.remove('hidden'); return; }
+    if (err) err.classList.add('hidden');
+    document.getElementById('tsDateFilterPanel')?.classList.add('hidden');
+    _updateTsFilterIcons();
+    currentPage = 1;
+    applyStatusFilter();
+}
+
+function clearTsDateFilter() {
+    const from = document.getElementById('tsDateFrom'); if (from) from.value = '';
+    const to   = document.getElementById('tsDateTo');   if (to)   to.value   = '';
+    const err  = document.getElementById('tsDateFilterError'); if (err) err.classList.add('hidden');
+    _updateTsFilterIcons();
+    currentPage = 1;
+    applyStatusFilter();
+}
+
+function toggleTsTextPanel(event, key) {
+    event.stopPropagation();
+    const panel = document.getElementById('tsTextPanel_' + key);
+    if (!panel) return;
+    const wasHidden = panel.classList.contains('hidden');
+    closeTsTextPanelAll();
+    if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
+    if (wasHidden) {
+        panel.classList.remove('hidden');
+        const inp = panel.querySelector('input[type="text"]');
+        if (inp) setTimeout(() => inp.focus(), 30);
+    }
+}
+
+function closeTsTextPanelAll() {
+    document.querySelectorAll('[id^="tsTextPanel_"]').forEach(p => p.classList.add('hidden'));
+    document.getElementById('tsDateFilterPanel')?.classList.add('hidden');
+}
+
+function clearTsTextPanel(key) {
+    const panel = document.getElementById('tsTextPanel_' + key);
+    if (!panel) return;
+    const inp = document.getElementById('colFilterTs' + key);
+    if (inp) { inp.value = ''; applyColFilter(); }
 }
 
 // Type tab click handler
@@ -1069,7 +1582,7 @@ function filterByType(type) {
         if (type === 'support') {
             supportLayoutActive = true;                                // ← definitive flag ON
             thead.innerHTML = SUPPORT_THEAD_HTML;
-            if (table) table.style.minWidth = '1200px';
+            if (table) table.style.minWidth = '1320px';
         } else {
             supportLayoutActive = false;                               // ← definitive flag OFF
             thead.innerHTML = defaultTheadHTML;
@@ -1084,6 +1597,10 @@ function filterByType(type) {
                 updateBulkActionButtons();
             });
         }
+        // Init custom-dd dropdowns in the new thead
+        if (typeof initCustomDropdowns === 'function') initCustomDropdowns(thead);
+        // Restore sort visuals
+        _updateTsSortVisuals();
     }
 
     applyStatusFilter();
@@ -1109,34 +1626,47 @@ function filterByStatus(status) {
         activeCard.classList.add('border-2', 'border-red-600');
     }
 
-    // Sync the filter dropdown
+    // Sync the column Status custom-dd in the thead
     if (typeof setCustomDropdownValue === 'function') {
-        setCustomDropdownValue('filterStatus', status);
-    } else {
-        const filterStatus = document.getElementById('filterStatus');
-        if (filterStatus) filterStatus.value = status;
+        setCustomDropdownValue('colFilterTsStatus', status);
     }
 
     applyStatusFilter();
 }
 
 function resetFilters() {
-    // 1. Reset period to current active period
-    initializeDateFilters();
-    if (typeof setCustomDropdownValue === 'function') {
-        setCustomDropdownValue('filterStatus', '');
-        setCustomDropdownValue('filterActivityType', '');
-    } else {
-        const filterStatus       = document.getElementById('filterStatus');
-        const filterActivityType = document.getElementById('filterActivityType');
-        if (filterStatus)       filterStatus.value       = '';
-        if (filterActivityType) filterActivityType.value = '';
-    }
-
+    // 1. Reset current filters state
     currentFilters.status        = '';
     currentFilters.activity_type = '';
     currentFilters.type_filter   = window.lockedType || '';
     currentPage = 1;
+
+    // 2. Reset custom-dd column filters
+    if (typeof setCustomDropdownValue === 'function') {
+        setCustomDropdownValue('colFilterTsStatus', '');
+        setCustomDropdownValue('colFilterTsMonth', '');
+        setCustomDropdownValue('colFilterTsYear', '');
+        setCustomDropdownValue('colFilterTsType', '');
+    }
+
+    // 3. Clear text search inputs
+    ['Employee', 'Ticket', 'Customer', 'ActivityType'].forEach(k => {
+        const inp = document.getElementById(k === 'ActivityType' ? 'colFilterTsActivityType' : 'colFilterTs' + k);
+        if (inp) inp.value = '';
+    });
+    // 3b. Clear date range filter
+    const tsdFrom = document.getElementById('tsDateFrom'); if (tsdFrom) tsdFrom.value = '';
+    const tsdTo   = document.getElementById('tsDateTo');   if (tsdTo)   tsdTo.value   = '';
+    const tsdErr  = document.getElementById('tsDateFilterError'); if (tsdErr) tsdErr.classList.add('hidden');
+
+    // 4. Reset sort to date desc
+    tsSortKey = 'date';
+    tsSortDir = 'desc';
+    _updateTsSortVisuals();
+    _updateTsFilterIcons();
+
+    // 5. Close any open panels
+    closeTsTextPanelAll();
 
     // 2. Reset thead / supportLayoutActive flag without triggering a render
     if (!window.lockedType) {
@@ -1155,6 +1685,9 @@ function resetFilters() {
                 updateBulkActionButtons();
             });
         }
+        // Re-init custom-dd in restored thead
+        if (typeof initCustomDropdowns === 'function') initCustomDropdowns(thead);
+        _updateTsSortVisuals();
 
         // Reset type tab visual to "All"
         const tabs = {
@@ -1195,20 +1728,76 @@ function resetFilters() {
     }
 }
 
+// Apakah ada filter/search kolom yang sedang aktif? Dipakai untuk memilih pesan
+// "no result" — kalau ada filter, user butuh tombol Clear Filters, bukan ajakan
+// membuat timesheet baru.
+function tsHasActiveFilters() {
+    const ids = ['colFilterTsEmployee', 'colFilterTsTicket', 'colFilterTsCustomer', 'colFilterTsActivityType',
+                 'colFilterTsStatus', 'colFilterTsMonth', 'colFilterTsYear', 'colFilterTsType', 'tsDateFrom', 'tsDateTo'];
+    if (ids.some(id => !!(document.getElementById(id)?.value))) return true;
+    return !!(currentFilters.status || currentFilters.activity_type);
+}
+
+// Baris "kosong" di dalam <tbody>, lebarnya mengikuti jumlah kolom thead yang
+// sedang aktif (thead di-swap saat mode Support / approval).
+function renderTimesheetEmptyRow() {
+    const colCount = document.querySelectorAll('#timesheetTable thead th').length || 1;
+    const filtered = tsHasActiveFilters();
+
+    let title, subtitle, action = '';
+    if (filtered) {
+        title = 'No timesheets found';
+        subtitle = 'Try adjusting your filters or search terms';
+        action = `
+            <button onclick="resetFilters()"
+                class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-xl hover:opacity-90 transition-all shadow-sm">
+                <i class="fas fa-times text-xs"></i>Clear Filters
+            </button>`;
+    } else if (window.isApprovalMode || window.isHoSMode) {
+        title = 'No Timesheets Pending Approval';
+        subtitle = 'All employee timesheets have been reviewed';
+    } else {
+        title = 'No Timesheets Found';
+        subtitle = 'Try adjusting your filters or create a new timesheet';
+        if (window.canCreateTimesheet) {
+            action = `
+                <button onclick="openTimesheetModal()"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-xl hover:opacity-90 transition-all shadow-sm">
+                    <i class="fas fa-plus text-xs"></i>Create Timesheet
+                </button>`;
+        }
+    }
+
+    return `
+        <tr>
+            <td colspan="${colCount}" class="px-4 py-16 text-center">
+                <div class="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4 mx-auto">
+                    <i class="fas fa-${filtered ? 'search' : 'clock'} text-gray-300 text-2xl"></i>
+                </div>
+                <p class="text-gray-700 font-semibold mb-1">${title}</p>
+                <p class="text-gray-400 text-xs ${action ? 'mb-5' : ''}">${subtitle}</p>
+                ${action}
+            </td>
+        </tr>`;
+}
+
 function renderTimesheetRows() {
     const tbody = document.getElementById('timesheetsTableBody');
     const emptyState = document.getElementById('emptyState');
 
     if (!tbody) return;
 
+    // Hasil kosong TIDAK menyembunyikan tabel (pola halaman Ticket): header, toolbar,
+    // dan popup search/filter tetap tampil supaya filter yang bikin kosong masih bisa
+    // dilihat & dihapus. #emptyState hanya untuk kegagalan load (lihat showEmptyState()).
+    if (emptyState) emptyState.classList.add('hidden');
+
     if (filteredTimesheets.length === 0) {
-        tbody.innerHTML = '';
-        if (emptyState) emptyState.classList.remove('hidden');
-        updatePagination(0);
+        tbody.innerHTML = renderTimesheetEmptyRow();
+        updatePagination(0, 0, 0);
+        updateBulkActionButtons();
         return;
     }
-
-    if (emptyState) emptyState.classList.add('hidden');
 
     // Pagination
     const total = filteredTimesheets.length;
@@ -1236,6 +1825,8 @@ function renderTimesheetRows() {
 
             var dObj  = ts.date ? new Date(ts.date + 'T00:00:00') : null;
             var dFmt  = dObj ? dObj.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '/') : '-';
+            var adObj = ts.activity_date ? new Date(ts.activity_date + 'T00:00:00') : null;
+            var adFmt = adObj ? adObj.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g, '/') : '-';
             // Use server-assigned period if available (handles overridden closed periods), else compute client-side
             var bln, thn;
             if (ts.period_month != null && ts.period_year != null) {
@@ -1246,13 +1837,19 @@ function renderTimesheetRows() {
                 bln = per ? per.month : '-';
                 thn = per ? per.year  : '-';
             }
+            var tim   = tsTimeRange(ts);
             var nam   = escapeHtml(ts.employee_name || '-');
             var tkt   = ts.ticket_number ? ('#' + escapeHtml(ts.ticket_number)) : (ts.ticket_id ? ('#' + ts.ticket_id) : '-');
             var tdesc = escapeHtml(ts.ticket_description || '-');
             var cust  = escapeHtml(ts.customer_name || '-');
-            var jmd   = ts.jatah_md   != null ? Number(ts.jatah_md).toFixed(1)   : '-';
+            var typeCell = '-';
+            if (ts.ticket_id) {
+                var isInternalTkt = ts.ticket_type === 'Internal';
+                typeCell = '<span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full ' + (isInternalTkt ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700') + '">' + (isInternalTkt ? 'Internal' : 'Non Internal') + '</span>';
+            }
+            var jmd   = ts.jatah_md   != null ? formatMdTrim(ts.jatah_md)   : '-';
             var akt   = escapeHtml(ts.description || '-');
-            var mdc   = ts.md_consumed != null ? Number(ts.md_consumed).toFixed(1) : '-';
+            var mdc   = ts.md_consumed != null ? formatMdTrim(ts.md_consumed) : '-';
             var ons   = ts.presence === 'onsite' ? 'X' : '';
 
             // Row click and first cell
@@ -1297,6 +1894,8 @@ function renderTimesheetRows() {
             rows += '<tr class="' + rowClass + '" ' + trClick + '>'
                 + '<td class="px-3 py-2 border-b border-gray-100">' + firstTd + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">' + dFmt + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">' + adFmt + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs text-gray-700">' + tim + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + bln + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs text-gray-700">' + thn + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-800 font-medium">' + nam + '</td>'
@@ -1304,6 +1903,7 @@ function renderTimesheetRows() {
                 + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap text-xs font-semibold text-purple-700"><i class="fas fa-ticket-alt mr-1 opacity-60"></i>' + tkt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-600 max-w-[180px]" title="' + escapeHtml(ts.ticket_description || '') + '">' + tdesc + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700">' + cust + '</td>'
+                + '<td class="px-3 py-2 border-b border-gray-100 whitespace-nowrap">' + typeCell + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">' + jmd + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-xs text-gray-700 max-w-[180px]" title="' + escapeHtml(ts.description || '') + '">' + akt + '</td>'
                 + '<td class="px-3 py-2 border-b border-gray-100 text-center text-xs font-semibold text-gray-800">' + mdc + '</td>'
@@ -1311,6 +1911,7 @@ function renderTimesheetRows() {
                 + '</tr>';
         }
         tbody.innerHTML = rows;
+        updateBulkActionButtons();
         return;
     }
 
@@ -1358,7 +1959,7 @@ function renderTimesheetRows() {
                         <span class="text-sm text-gray-700">${actType ? actType.charAt(0).toUpperCase() + actType.slice(1) : '-'}</span>
                     </div>`;
             } else if (isSupport) {
-                const mdVal = timesheet.md_consumed != null ? Number(timesheet.md_consumed).toFixed(1) : '—';
+                const mdVal = timesheet.md_consumed != null ? formatMdTrim(timesheet.md_consumed) : '—';
                 const onSiteBadge = timesheet.presence === 'onsite'
                     ? '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-semibold"><i class="fas fa-map-marker-alt"></i>On Site</span>'
                     : '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-semibold"><i class="fas fa-wifi"></i>Remote</span>';
@@ -1381,7 +1982,7 @@ function renderTimesheetRows() {
                         <div class="text-xs mt-0.5">${typeInfo}</div>
                     </td>
                     <td class="px-3 py-2.5 whitespace-nowrap">
-                        <div class="text-sm text-gray-600">${timesheet.start_time} – ${timesheet.end_time}</div>
+                        <div class="text-sm text-gray-600">${tsTimeRange(timesheet)}</div>
                     </td>
                     <td class="px-3 py-2.5 whitespace-nowrap">
                         <div class="text-sm font-semibold text-gray-900">${duration}h</div>
@@ -1403,6 +2004,7 @@ function renderTimesheetRows() {
                 </tr>
             `;
         }).join('');
+        updateBulkActionButtons();
         return;
     }
 
@@ -1462,7 +2064,7 @@ function renderTimesheetRows() {
                 </div>
                 ${timesheet.is_billable ? '<div class="text-xs text-green-600 font-semibold mt-0.5"><i class="fas fa-tag mr-1"></i>Billable</div>' : ''}`;
         } else if (isSupport) {
-            const mdVal      = timesheet.md_consumed != null ? Number(timesheet.md_consumed).toFixed(1) : '—';
+            const mdVal      = timesheet.md_consumed != null ? formatMdTrim(timesheet.md_consumed) : '—';
             const onSite     = timesheet.presence === 'onsite';
             const presenceBadge = onSite
                 ? '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-semibold"><i class="fas fa-map-marker-alt"></i>On Site</span>'
@@ -1485,7 +2087,7 @@ function renderTimesheetRows() {
                     <div class="text-xs mt-0.5">${typeInfo}</div>
                 </td>
                 <td class="px-3 py-2.5 whitespace-nowrap">
-                    <div class="text-sm text-gray-600">${timesheet.start_time} – ${timesheet.end_time}</div>
+                    <div class="text-sm text-gray-600">${tsTimeRange(timesheet)}</div>
                 </td>
                 <td class="px-3 py-2.5 whitespace-nowrap">
                     <div class="text-sm font-semibold text-gray-900">${duration}h</div>
@@ -1506,10 +2108,23 @@ function renderTimesheetRows() {
             </tr>
         `;
     }).join('');
+    updateBulkActionButtons();
 }
 
 function escapeHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Trim a stored time value ("08:00:00" | "08:00") down to "HH:MM" for display.
+function tsFmtTime(t) {
+    return t ? String(t).slice(0, 5) : '';
+}
+
+// "HH:MM – HH:MM" for a timesheet's start/end, or "-" when either side is missing.
+function tsTimeRange(ts) {
+    const s = tsFmtTime(ts && ts.start_time);
+    const e = tsFmtTime(ts && ts.end_time);
+    return (s && e) ? `${s} – ${e}` : '-';
 }
 
 /**
@@ -1659,6 +2274,8 @@ function closeTimesheetModal() {
     const modal = document.getElementById('timesheetModal');
     if (modal) modal.classList.add('hidden');
     document.body.style.overflow = 'auto';
+    const saveBtn = document.getElementById('btnSaveTimesheet');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
 }
 
 function editTimesheet(id) {
@@ -1726,10 +2343,9 @@ function editTimesheet(id) {
         }
 
         if (timesheetType === 'project') {
-            // activity_type custom-dd pre-fill
-            if (timesheet.activity_type) {
-                setCustomDropdownValue('timesheetActivityType', timesheet.activity_type);
-            }
+            // activity_type free-text pre-fill
+            const actTypeInput = document.getElementById('timesheetActivityType');
+            if (actTypeInput && timesheet.activity_type) actTypeInput.value = timesheet.activity_type;
             // project_id hidden input — set as fallback in case _pendingActivityPreselect is consumed
             const projectIdInput = document.getElementById('timesheetProjectId');
             if (projectIdInput && timesheet.delivery_projects_id) {
@@ -1745,6 +2361,8 @@ function editTimesheet(id) {
                 if (onSiteEl) onSiteEl.checked = timesheet.presence === 'onsite';
                 const mdEl = document.getElementById('supportMdConsumed');
                 if (mdEl) mdEl.value = timesheet.md_consumed != null ? timesheet.md_consumed : '';
+                const activityDateEl = document.getElementById('supportActivityDate');
+                if (activityDateEl) activityDateEl.value = timesheet.activity_date || '';
             }, 400);
         }
     }, 150);
@@ -1772,8 +2390,8 @@ async function confirmDelete() {
     if (!deleteTimesheetId) return;
     
     try {
-        const response = await fetch(`/api/timesheets/${deleteTimesheetId}`, {
-            method: 'DELETE',
+        const response = await fetch(`/api/timesheets/${deleteTimesheetId}/delete`, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
@@ -1820,7 +2438,7 @@ async function openSubmitModal(id) {
                 const rem = Number(remaining);
                 if (rem < 0) {
                     showNotification(
-                        `Cannot submit: quota exceeded (remaining MD: ${rem.toFixed(2)}). Save as draft only until quota is increased.`,
+                        `Cannot submit: quota exceeded (remaining MD: ${formatMdTrim(rem)}). Save as draft only until quota is increased.`,
                         'error'
                     );
                     return;
@@ -1925,6 +2543,11 @@ function updateBulkActionButtons() {
     } else {
         bulkActions.classList.add('hidden');
         bulkActions.classList.remove('flex');
+        // Table body is rebuilt fresh on every reload — its row checkboxes are already
+        // unchecked, but the header "select all" checkbox lives outside tbody and keeps
+        // its own state, so it can be left showing checked with nothing actually selected.
+        const selectAllCb = document.getElementById('selectAll');
+        if (selectAllCb) selectAllCb.checked = false;
     }
 
     const noBulkActions = document.getElementById('noBulkActions');
@@ -1969,8 +2592,8 @@ async function confirmBulkDelete() {
         const id = checkbox.getAttribute('data-id');
         
         try {
-            const response = await fetch(`/api/timesheets/${id}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/timesheets/${id}/delete`, {
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
@@ -2087,13 +2710,14 @@ function closeBulkSubmitModal() {
 
 async function confirmBulkSubmit() {
     const checkboxes = document.querySelectorAll('.timesheet-checkbox:checked');
-    
+
     let successCount = 0;
     let failCount = 0;
-    
+    const failReasons = new Set();
+
     for (const checkbox of checkboxes) {
         const id = checkbox.getAttribute('data-id');
-        
+
         try {
             const response = await fetch(`/api/timesheets/${id}/submit`, {
                 method: 'POST',
@@ -2102,27 +2726,34 @@ async function confirmBulkSubmit() {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                 }
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 successCount++;
             } else {
                 failCount++;
+                failReasons.add(data.message || 'Unknown reason');
             }
         } catch (error) {
             failCount++;
+            failReasons.add('A network error occurred');
         }
     }
-    
+
     closeBulkSubmitModal();
     await loadTimesheets();
     await loadStatistics();
-    
+
     if (successCount > 0) {
         showNotification(`Submitted ${successCount} timesheet(s) successfully${failCount > 0 ? `, ${failCount} failed` : ''}!`, 'success');
-    } else {
-        showNotification('Failed to submit timesheets', 'error');
+    }
+    if (failCount > 0) {
+        // Surface the actual backend reason(s) instead of a blank generic message —
+        // e.g. "Customer Mandays status is not approved yet" — so users know what to
+        // fix instead of just seeing a dead-end failure.
+        const reasonText = Array.from(failReasons).join(' — ');
+        showNotification(`Failed to submit ${failCount} timesheet(s): ${reasonText}`, 'error');
     }
 }
 
@@ -2175,24 +2806,35 @@ async function handleFormSubmit(e) {
     
     if (!employeeId) {
         showNotification('Session error: gagal mendapatkan data user. Silakan refresh halaman.', 'error');
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
         return;
     }
     
     const selectedRadio = document.querySelector('input[name="timesheetType"]:checked');
     const selectedType = selectedRadio ? selectedRadio.value : 'support';
     
-    // Construct time from dropdowns (support type uses fixed values — time is not relevant)
-    let startTime, endTime;
-    if (selectedType === 'support') {
-        startTime = '00:00';
-        endTime   = '23:59';
-    } else {
-        const startHour   = document.getElementById('timesheetStartHour')?.value   || '08';
-        const startMinute = document.getElementById('timesheetStartMinute')?.value || '00';
-        const endHour     = document.getElementById('timesheetEndHour')?.value     || '17';
-        const endMinute   = document.getElementById('timesheetEndMinute')?.value   || '00';
-        startTime = `${startHour}:${startMinute}`;
-        endTime   = `${endHour}:${endMinute}`;
+    // Start/end time is mandatory for every timesheet type.
+    const startTimeEl = document.getElementById('timesheetStartTime');
+    const endTimeEl   = document.getElementById('timesheetEndTime');
+    tsNormalizeTimeInput(startTimeEl);
+    tsNormalizeTimeInput(endTimeEl);
+    const startParsed = _tsParseTime(startTimeEl?.value);
+    const endParsed   = _tsParseTime(endTimeEl?.value);
+
+    if (!startParsed || !endParsed) {
+        showNotification('Please enter a valid start and end time (HH:MM).', 'error');
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
+        return;
+    }
+
+    const startTime = `${String(startParsed.h).padStart(2, '0')}:${String(startParsed.m).padStart(2, '0')}`;
+    const endTime   = `${String(endParsed.h).padStart(2, '0')}:${String(endParsed.m).padStart(2, '0')}`;
+
+    if ((endParsed.h * 60 + endParsed.m) <= (startParsed.h * 60 + startParsed.m)) {
+        showNotification('End time must be later than start time.', 'error');
+        _tsValidateTimeOrder();
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
+        return;
     }
 
     const timesheetData = {
@@ -2218,8 +2860,22 @@ async function handleFormSubmit(e) {
     } else if (selectedType === 'support') {
         const onSite = document.getElementById('supportOnSite')?.checked;
         const mdConsumedVal = document.getElementById('supportMdConsumed')?.value;
+
+        // Client-side fast-fail for NEW timesheets only — edit mode leaves this to the
+        // backend, since remaining shown there already includes this draft's own MD
+        // consumption and a correct client-side re-check would need to add it back.
+        if (!timesheetId?.value && _currentTicketRemainingMd !== null) {
+            const mdVal = parseFloat(mdConsumedVal || 0);
+            if (mdVal > _currentTicketRemainingMd) {
+                showNotification(`MD Consumed (${mdVal}) exceeds the remaining quota (${formatMdTrim(_currentTicketRemainingMd)}) for this ticket.`, 'error');
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Timesheet'; }
+                return;
+            }
+        }
+
         timesheetData.delivery_projects_id = null;
         timesheetData.ticket_id = document.getElementById('timesheetTicket')?.value || null;
+        timesheetData.activity_date = document.getElementById('supportActivityDate')?.value || null;
         timesheetData.activity_type = 'support';
         timesheetData.presence = onSite ? 'onsite' : 'remote';
         timesheetData.location = null;
@@ -2236,8 +2892,8 @@ async function handleFormSubmit(e) {
     }
     
     try {
-        const url = timesheetId?.value ? `/api/timesheets/${timesheetId.value}` : '/api/timesheets';
-        const method = timesheetId?.value ? 'PUT' : 'POST';
+        const url = timesheetId?.value ? `/api/timesheets/${timesheetId.value}/update` : '/api/timesheets';
+        const method = 'POST';
         
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         

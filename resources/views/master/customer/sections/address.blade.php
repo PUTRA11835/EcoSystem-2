@@ -23,7 +23,7 @@
     <div>
         <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Standard Address</h3>
         
-        <div class="grid grid-cols-6 gap-4">
+        <div class="grid grid-cols-6 gap-4 form-grid">
             <!-- Address Type -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Address Type</label>
@@ -93,10 +93,22 @@
                 <input type="text" id="houseNumber" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
+            <!-- Building Name (Nama Gedung/Tempat) -->
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Building Name</label>
+                <input type="text" id="buildingName" placeholder="Nama gedung / tempat" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+
             <!-- Postal Code -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Postal Code</label>
                 <input type="text" id="postalCode" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+
+            <!-- Full Address (Alamat Lengkap) -->
+            <div class="col-span-6">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Full Address</label>
+                <textarea id="fullAddress" rows="2" placeholder="Alamat lengkap (gabungan gedung, jalan, kecamatan, kota, kode pos)" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"></textarea>
             </div>
         </div>
     </div>
@@ -105,7 +117,7 @@
     <div>
         <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Standard Communication</h3>
         
-        <div class="grid grid-cols-6 gap-4">
+        <div class="grid grid-cols-6 gap-4 form-grid">
             <!-- Language -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Language</label>
@@ -229,12 +241,12 @@
 
     <!-- ADDRESS DETAILS SECTION (Table) -->
     <div>
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <h3 class="text-base font-semibold text-gray-900">Address Details</h3>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <!-- Search -->
                 <div class="relative">
-                    <input type="text" id="addressSearch" placeholder="Search" class="w-64 px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                    <input type="text" id="addressSearch" placeholder="Search" class="w-full sm:w-64 px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
                     <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -478,6 +490,8 @@
                 document.getElementById('village').value = address.rural_urban_village || '';
                 document.getElementById('street').value = address.street || '';
                 document.getElementById('houseNumber').value = address.house_number || '';
+                document.getElementById('buildingName').value = address.building_name || '';
+                document.getElementById('fullAddress').value = address.full_address || '';
                 document.getElementById('postalCode').value = address.postal_code || '';
                 document.getElementById('language').value = address.language || '';
                 document.getElementById('cellPhoneCountry').value = address.cell_phone_country || '';
@@ -511,6 +525,8 @@
             country: document.getElementById('country').value,
             street: document.getElementById('street').value,
             house_number: document.getElementById('houseNumber').value,
+            building_name: document.getElementById('buildingName').value,
+            full_address: document.getElementById('fullAddress').value,
             rural_urban_village: document.getElementById('village').value,
             district: document.getElementById('district').value,
             city: document.getElementById('city').value,
@@ -552,6 +568,7 @@
                 showNotification(isUpdate ? 'Address updated successfully!' : 'Address created successfully!', 'success');
                 loadAddresses();
                 if (isUpdate) { loadAddressToForm(addressId); } else { clearAddressForm(); }
+                if (typeof window.refreshHeader === 'function') window.refreshHeader({{ $customerId }});
             } else {
                 showNotification('Failed to save address: ' + (data.message || 'Unknown error'), 'error');
             }
@@ -565,7 +582,7 @@
      */
     function clearAddressForm() {
         document.getElementById('editAddressId').value = '';
-        ['addressType','region','city','district','village','street','houseNumber','postalCode',
+        ['addressType','region','city','district','village','street','houseNumber','buildingName','fullAddress','postalCode',
          'language','cellPhone','telephone','telephoneExt','fax','faxExt','email','website',
          'preferredCommunication','addrValidFrom','addrValidTo'].forEach(id => {
             const el = document.getElementById(id);
@@ -637,8 +654,8 @@
 
         try {
             
-            const response = await fetch(`/api/customers/{{ $customerId }}/addresses/${deleteAddressId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/customers/{{ $customerId }}/addresses/${deleteAddressId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -654,6 +671,7 @@
                 closeConfirmDeleteAddress();
                 selectedAddressId = null;
                 loadAddresses();
+                if (typeof window.refreshHeader === 'function') window.refreshHeader({{ $customerId }});
                 
                 // Clear form fields
                 document.getElementById('addressType').value = '';
@@ -679,13 +697,15 @@
     });
 
 
-    // Close modals on Escape key
+    // Close modals on Escape key.
+    // Catatan: form Address sudah inline (bukan modal lagi), jadi #addressModal
+    // tidak ada. Dulu baris ini mereferensikan #addressModal tanpa guard sehingga
+    // setiap tekan Escape melempar TypeError (null.classList) dan mematahkan
+    // penutupan modal hapus.
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            if (!document.getElementById('addressModal').classList.contains('hidden')) {
-                closeAddressModal();
-            }
-            if (!document.getElementById('confirmDeleteAddressModal').classList.contains('hidden')) {
+            const delModal = document.getElementById('confirmDeleteAddressModal');
+            if (delModal && !delModal.classList.contains('hidden')) {
                 closeConfirmDeleteAddress();
             }
         }

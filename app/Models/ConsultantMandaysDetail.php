@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class ConsultantMandaysDetail extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
+
+    protected static ?string $auditModule = 'Mandays';
 
     protected $table = 'consultant_mandays_detail';
 
@@ -16,16 +19,19 @@ class ConsultantMandaysDetail extends Model
         'employee_id',
         'module',
         'mandays',
+        'approved_mandays',
         'additional_mandays',
         'approved_additional',
         'notes',
         'progress_percentage',
         'progress_note',
         'progress_updated_at',
+        'progress_updated_by',
     ];
 
     protected $casts = [
         'mandays'              => 'decimal:2',
+        'approved_mandays'     => 'decimal:2',
         'additional_mandays'   => 'decimal:2',
         'approved_additional'  => 'decimal:2',
         'progress_percentage'  => 'decimal:2',

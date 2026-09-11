@@ -24,7 +24,6 @@
 
     $teamLabels = [
         'delivery_owner_id'  => '',
-        'support_manager_id' => '',
         'co_pm_id'           => '',
         'support_admin_id'   => '',
         'sales_id'           => '',
@@ -32,7 +31,6 @@
     foreach ($employees as $_e) {
         $name = $_e->basicData->full_name ?? 'N/A';
         if ($support->delivery_owner_id  == $_e->employee_id) $teamLabels['delivery_owner_id']  = $name;
-        if ($support->support_manager_id == $_e->employee_id) $teamLabels['support_manager_id'] = $name;
         if ($support->co_pm_id           == $_e->employee_id) $teamLabels['co_pm_id']           = $name;
         if ($support->support_admin_id   == $_e->employee_id) $teamLabels['support_admin_id']   = $name;
         if ($support->sales_id           == $_e->employee_id) $teamLabels['sales_id']           = $name;
@@ -43,21 +41,21 @@
 
     $teamFields = [
         ['key' => 'delivery_owner_id',  'label' => 'Delivery Owner',  'placeholder' => 'Select delivery owner',  'value' => $support->delivery_owner_id],
-        ['key' => 'support_manager_id', 'label' => 'Support Manager', 'placeholder' => 'Select support manager', 'value' => $support->support_manager_id],
         ['key' => 'co_pm_id',           'label' => 'Co PM',           'placeholder' => 'Select co pm',           'value' => $support->co_pm_id],
         ['key' => 'support_admin_id',   'label' => 'Support Admin',   'placeholder' => 'Select support admin',   'value' => $support->support_admin_id],
         ['key' => 'sales_id',           'label' => 'Sales',           'placeholder' => 'Select sales',           'value' => $support->sales_id],
     ];
+
+    $currentSupportManagerIds   = old('support_manager_ids', $support->supportManagers->pluck('employee_id')->implode(','));
+    $currentSupportManagerLabel = $support->supportManagers->pluck('basicData.full_name')->filter()->join(', ');
+
+    $currentModuleIds   = old('module_ids', $support->modules->pluck('id')->implode(','));
+    $currentModuleLabel = $support->modules->pluck('name')->filter()->join(', ');
 @endphp
 
 <div class="min-h-screen bg-gray-50">
-    {{-- Flash Notifications --}}
-    @if(session('success'))
-        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('success')),'success'));</script>
-    @endif
-    @if(session('error'))
-        <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json(session('error')),'error'));</script>
-    @endif
+    {{-- Flash success/error toast sudah ditampilkan layout dashboard.blade.php.
+         Jangan diulang di sini: toast jadi dobel. --}}
     @if($errors->any())
         <script>document.addEventListener('DOMContentLoaded',()=>showNotification(@json($errors->first()),'error'));</script>
     @endif
@@ -154,7 +152,7 @@
                                 </button>
                                 <input type="hidden" name="type" id="type" value="{{ $typeVal }}" required>
                                 <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                                    @foreach(['AMS','MO','ATS','Project','Internal'] as $t)
+                                    @foreach($supportTypes as $t)
                                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $t }}">{{ $t }}</button>
                                     @endforeach
                                 </div>
@@ -186,6 +184,70 @@
                                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $m }}">{{ $m }}</button>
                                     @endforeach
                                 </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="module_ids" class="block text-sm font-medium text-gray-700 mb-1">Modules</label>
+                            <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Select module(s)">
+                                <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                    <span class="custom-dd-label {{ $currentModuleLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentModuleLabel ?: 'Select module(s)' }}</span>
+                                    <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" name="module_ids" id="module_ids" value="{{ $currentModuleIds }}">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                    <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                        <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search module…" autocomplete="off" spellcheck="false">
+                                    </div>
+                                    @foreach($modules ?? [] as $module)
+                                        <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $module->id }}">
+                                            <span class="custom-dd-item-text">{{ $module->name }}</span>
+                                            <svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        </button>
+                                    @endforeach
+                                    <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- IO Number + Vendor (opsional) — mirror form create. --}}
+                        @php
+                            $vendorVal   = old('vendor_id', $support->vendor_id);
+                            $vendorLabel = optional(($vendors ?? collect())->firstWhere('customer_id', (int) $vendorVal))
+                                ->basicData->name_1 ?? '';
+                        @endphp
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="io_number" class="block text-sm font-medium text-gray-700 mb-1">IO Number</label>
+                                <input type="text" name="io_number" id="io_number" maxlength="255"
+                                       value="{{ old('io_number', $support->io_number) }}"
+                                       class="block w-full border {{ $errors->has('io_number') ? 'border-red-400 bg-red-50' : 'border-gray-300' }} rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5"
+                                       placeholder="e.g. IO-2026-001">
+                                @error('io_number')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+                                <p class="mt-1 text-xs text-gray-500">Optional. Must be unique across all delivery supports.</p>
+                            </div>
+
+                            <div>
+                                <label for="vendor_id" class="block text-sm font-medium text-gray-700 mb-1">Vendor</label>
+                                <div class="custom-dd relative" data-fixed="true">
+                                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                        <span class="custom-dd-label {{ $vendorLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $vendorLabel ?: 'No vendor' }}</span>
+                                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" name="vendor_id" id="vendor_id" value="{{ $vendorVal }}">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                        <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                            <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search vendor…" autocomplete="off" spellcheck="false">
+                                        </div>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">No vendor</button>
+                                        @foreach($vendors ?? [] as $vendor)
+                                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $vendor->customer_id }}">{{ $vendor->basicData->name_1 ?? $vendor->customer_code }}</button>
+                                        @endforeach
+                                        <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                                    </div>
+                                </div>
+                                @error('vendor_id')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+                                <p class="mt-1 text-xs text-gray-500">Optional. Business partners with type Vendor only.</p>
                             </div>
                         </div>
                     </div>
@@ -250,6 +312,28 @@
                     </div>
                     <div class="p-6">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="support_manager_ids" class="block text-sm font-medium text-gray-700 mb-1">Support Manager</label>
+                                <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Select support manager(s)">
+                                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                                        <span class="custom-dd-label {{ $currentSupportManagerLabel ? 'text-gray-700' : 'text-gray-500' }}">{{ $currentSupportManagerLabel ?: 'Select support manager(s)' }}</span>
+                                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" name="support_manager_ids" id="support_manager_ids" value="{{ $currentSupportManagerIds }}">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:400px;">
+                                        <div class="custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2" style="z-index:1">
+                                            <input type="text" class="custom-dd-search w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400" placeholder="Search employee…" autocomplete="off" spellcheck="false">
+                                        </div>
+                                        @foreach($employees as $employee)
+                                            <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $employee->employee_id }}">
+                                                <span class="custom-dd-item-text">{{ $employee->basicData->full_name ?? 'N/A' }}</span>
+                                                <svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                            </button>
+                                        @endforeach
+                                        <div class="custom-dd-empty hidden px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                                    </div>
+                                </div>
+                            </div>
                             @foreach($teamFields as $tf)
                             <div>
                                 <label for="{{ $tf['key'] }}" class="block text-sm font-medium text-gray-700 mb-1">{{ $tf['label'] }}</label>
@@ -347,7 +431,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (endDate.value && endDate.value < this.value) endDate.value = this.value;
     });
 
-    endDate.addEventListener('change', function() {
+    endDate.addEventListener('blur', function() {
         if (this.value && startDate.value && this.value < startDate.value) {
             showNotification('End date cannot be before start date', 'warning');
             this.value = startDate.value;

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectPaymentTerm;
+use App\Services\ProjectReminderService;
 use Illuminate\Http\Request;
 
 class DeliveryProjectPaymentTermController extends Controller
@@ -16,7 +17,13 @@ class DeliveryProjectPaymentTermController extends Controller
         $terms = DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
             ->orderBy('term_number')
             ->get()
-            ->map(fn($t) => $this->format($t));
+            ->map(function (DeliveryProjectPaymentTerm $t) use ($project) {
+                // Amount = nilai turunan (revenue × % / 100). Term yang dibuat saat
+                // revenue masih kosong tersimpan 0 dan tetap basi sampai form
+                // Financial di-save ulang → self-heal saat dibaca.
+                $this->resyncAmount($project, $t);
+                return $this->format($t);
+            });
 
         return response()->json([
             'payment_terms'  => $terms,
@@ -44,6 +51,9 @@ class DeliveryProjectPaymentTermController extends Controller
             'amount'               => $this->computeAmount($project, $validated['payment_percentage']),
         ]));
 
+        // A new term may already be due/overdue → refresh the invoice reminders now.
+        app(ProjectReminderService::class)->syncAllQuietly();
+
         return response()->json([
             'message'      => 'Payment term added successfully.',
             'payment_term' => $this->format($term),
@@ -68,6 +78,9 @@ class DeliveryProjectPaymentTermController extends Controller
         $term->update(array_merge($validated, [
             'amount' => $this->computeAmount($project, $validated['payment_percentage']),
         ]));
+
+        // estimated_date / submit_invoice_date may have changed → re-evaluate reminders.
+        app(ProjectReminderService::class)->syncAllQuietly();
 
         return response()->json([
             'message'      => 'Payment term updated successfully.',
@@ -94,6 +107,9 @@ class DeliveryProjectPaymentTermController extends Controller
                 $t->update(['term_number' => $i + 1]);
             });
 
+        // A deleted term must drop its reminder too.
+        app(ProjectReminderService::class)->syncAllQuietly();
+
         return response()->json(['message' => 'Payment term deleted successfully.']);
     }
 
@@ -110,10 +126,12 @@ class DeliveryProjectPaymentTermController extends Controller
             'submit_invoice_date' => 'nullable|date',
             // Invoice number wajib diisi ketika Submit Invoice Date terisi
             'invoice_number'      => 'nullable|required_with:submit_invoice_date|string|max:255',
-            'paid_date'           => 'nullable|date',
+            // Paid date wajib diisi ketika status = Paid
+            'paid_date'           => 'nullable|required_if:status,Paid|date',
             'status'              => 'required|string|in:Open,Paid,Delay',
         ], [
             'invoice_number.required_with' => 'Invoice Number is required when Submit Invoice Date is filled.',
+            'paid_date.required_if'        => 'Paid Date is required when Status is Paid.',
         ]);
     }
 
@@ -146,6 +164,23 @@ class DeliveryProjectPaymentTermController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Perbarui amount tersimpan bila tidak lagi sesuai revenue project saat ini.
+     * Timestamps sengaja dimatikan agar audit trail term tidak berubah hanya
+     * karena halaman dibuka.
+     */
+    private function resyncAmount(DeliveryProject $project, DeliveryProjectPaymentTerm $term): void
+    {
+        $amount = $this->computeAmount($project, $term->payment_percentage);
+
+        if (abs((float) $term->amount - $amount) > 0.001) {
+            $term->amount = $amount;
+            $term->timestamps = false;
+            $term->save();
+            $term->timestamps = true;
+        }
     }
 
     private function computeAmount(DeliveryProject $project, $percentage): float

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Notification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class NotificationController extends Controller
@@ -21,7 +22,11 @@ class NotificationController extends Controller
 
         $employeeId = $sessionUser['id'];
 
-        $notifications = Notification::where('employee_id', $employeeId)
+        $notifications = Notification::with([
+                'ticket:ticket_id,ticket_number,customer_id',
+                'ticket.customer:customer_id,customer_code',
+            ])
+            ->where('employee_id', $employeeId)
             ->orderBy('created_at', 'desc')
             ->paginate(30);
 
@@ -44,23 +49,35 @@ class NotificationController extends Controller
 
         $employeeId = $sessionUser['id'];
 
-        // The bell dropdown only surfaces UNREAD notifications. Read ones remain
-        // available on the full /notifications page (see index()).
-        $notifications = Notification::where('employee_id', $employeeId)
-            ->where('is_read', false)
-            ->orderBy('created_at', 'desc')
+        // Bell dropdown menampilkan 20 notifikasi UNREAD terbaru saja — begitu dibaca
+        // (satuan atau lewat batch per-ticket di markRead()), notifikasi itu hilang dari
+        // dropdown. Riwayat lengkap (read + unread) tetap ada di halaman /notifications.
+        $notifications = DB::table('notifications as n')
+            ->leftJoin('ticket as t', 't.ticket_id', '=', 'n.ticket_id')
+            ->leftJoin('customer as c', 'c.customer_id', '=', 't.customer_id')
+            ->where('n.employee_id', $employeeId)
+            ->where('n.is_read', false)
+            ->orderBy('n.created_at', 'desc')
             ->limit(20)
+            ->select([
+                'n.id', 'n.type', 'n.ticket_id', 'n.message_id',
+                'n.from_name', 'n.preview', 'n.link', 'n.is_read', 'n.created_at',
+                't.ticket_number',
+                'c.customer_code',
+            ])
             ->get()
             ->map(fn ($n) => [
-                'id'         => $n->id,
-                'type'       => $n->type,
-                'ticket_id'  => $n->ticket_id,
-                'message_id' => $n->message_id,
-                'from_name'  => $n->from_name,
-                'preview'    => $n->preview,
-                'link'       => $n->link,
-                'is_read'    => $n->is_read,
-                'created_at' => $n->created_at?->diffForHumans(),
+                'id'            => $n->id,
+                'type'          => $n->type,
+                'ticket_id'     => $n->ticket_id,
+                'ticket_number' => $n->ticket_number,
+                'customer_name' => $n->customer_code,
+                'message_id'    => $n->message_id,
+                'from_name'     => $n->from_name,
+                'preview'       => $n->preview,
+                'link'          => $n->link,
+                'is_read'       => (bool) $n->is_read,
+                'created_at'    => $n->created_at ? \Carbon\Carbon::parse($n->created_at)->diffForHumans() : null,
             ]);
 
         $unreadCount = Notification::where('employee_id', $employeeId)
@@ -85,16 +102,35 @@ class NotificationController extends Controller
             return response()->json(['success' => false, 'count' => 0], 401);
         }
 
-        $count = Notification::where('employee_id', $sessionUser['id'])
+        $employeeId   = $sessionUser['id'];
+        $messageTypes = ['ticket_reply', 'ticket_internal_note'];
+
+        // Unified badge count — now includes chat/message types too, so ticket
+        // replies show up in the bell like any other notification.
+        $count = Notification::where('employee_id', $employeeId)
             ->where('is_read', false)
             ->count();
 
-        return response()->json(['success' => true, 'count' => $count]);
+        // Message-type subset of the count above — the frontend uses this to
+        // decide when to play the chat sound (vs the generic ticket sound).
+        $messageCount = Notification::where('employee_id', $employeeId)
+            ->whereIn('type', $messageTypes)
+            ->where('is_read', false)
+            ->count();
+
+        return response()->json([
+            'success'             => true,
+            'count'               => $count,
+            'message_sound_count' => $messageCount,
+        ]);
     }
 
     /**
      * PUT /api/notifications/{id}/read
-     * Mark a single notification as read.
+     * Mark a notification as read. If it's tied to a ticket, every other unread
+     * notification this employee has for that same ticket is marked read too —
+     * clicking into a ticket means you've seen everything pending on it, not just
+     * the one item you happened to click.
      */
     public function markRead($id)
     {
@@ -103,11 +139,20 @@ class NotificationController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
+        $employeeId   = $sessionUser['id'];
         $notification = Notification::where('id', $id)
-            ->where('employee_id', $sessionUser['id'])
+            ->where('employee_id', $employeeId)
             ->firstOrFail();
 
-        $notification->update(['is_read' => true, 'read_at' => now()]);
+        $now = now();
+        $notification->update(['is_read' => true, 'read_at' => $now]);
+
+        if ($notification->ticket_id) {
+            Notification::where('employee_id', $employeeId)
+                ->where('ticket_id', $notification->ticket_id)
+                ->where('is_read', false)
+                ->update(['is_read' => true, 'read_at' => $now]);
+        }
 
         return response()->json(['success' => true]);
     }

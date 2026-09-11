@@ -184,6 +184,47 @@ class ActivityStage extends Model
     }
 
     /**
+     * Schedule-based planned progress (0-100) for this stage, mirroring
+     * getCalculatedProgressAttribute() but using each activity's planned date
+     * window instead of its actual progress. Accessed as $stage->planned_progress.
+     */
+    public function getPlannedProgressAttribute()
+    {
+        $activities = $this->activities;
+
+        if ($activities->isEmpty()) {
+            return DeliveryProjectPlanning::plannedFraction(
+                $this->planned_start_date,
+                $this->planned_end_date
+            );
+        }
+
+        $totalWeight = 0;
+        $weighted    = 0;
+
+        foreach ($activities as $activity) {
+            $weight = (float) ($activity->weight ?? 0);
+            $frac   = DeliveryProjectPlanning::plannedFraction(
+                $activity->start_date ?? null,
+                $activity->end_date ?? null
+            );
+
+            $totalWeight += $weight;
+            $weighted    += $frac * $weight;
+        }
+
+        if ($totalWeight == 0) {
+            $avg = $activities->avg(fn ($activity) => DeliveryProjectPlanning::plannedFraction(
+                $activity->start_date ?? null,
+                $activity->end_date ?? null
+            ));
+            return round($avg ?? 0, 2);
+        }
+
+        return round($weighted / $totalWeight, 2);
+    }
+
+    /**
      * ✅ ORIGINAL: Calculate weight dari sum children weights
      */
     public function getCalculatedWeightAttribute()

@@ -86,6 +86,17 @@
                 opacity: 1;
                 transform: translateY(0);
             }
+            /* Panel terbuka ke atas saat ruang bawah tidak cukup */
+            .se-wrap.opens-up .se-panel {
+                top: auto;
+                bottom: 100%;
+                margin-top: 0;
+                margin-bottom: 0.375rem;
+                transform: translateY(4px);
+            }
+            .se-wrap.opens-up.is-open .se-panel {
+                transform: translateY(0);
+            }
             .se-item {
                 display: block; width: 100%;
                 padding: 0.5rem 1rem;
@@ -175,7 +186,16 @@
     }
 
     function renderItems(sel, panel, label) {
+        // Pertahankan UI search yang sudah diinject (sticky input + "No results")
+        // saat re-render, supaya dropdown dinamis — yang opsinya di-repopulate via
+        // AJAX/cascade — tetap punya search box setelahnya. Untuk select tanpa
+        // search, `_seSearchWrap` undefined → perilaku identik seperti sebelumnya.
+        const searchWrap = panel._seSearchWrap || null;
+        const emptyEl    = panel._seEmpty || null;
+
         panel.innerHTML = '';
+        if (searchWrap) panel.appendChild(searchWrap);
+
         const opts = Array.from(sel.options);
         const selectedOpt = opts[sel.selectedIndex] ?? null;
 
@@ -193,6 +213,9 @@
             panel.appendChild(item);
         });
 
+        // "No results" selalu di urutan terakhir (di bawah daftar item).
+        if (emptyEl) { emptyEl.style.display = 'none'; panel.appendChild(emptyEl); }
+
         // Update label dari selected option
         if (selectedOpt) {
             label.textContent = selectedOpt.textContent.trim() || selectedOpt.value || '—';
@@ -203,6 +226,11 @@
             label.textContent = '—';
             label.classList.add('is-placeholder');
         }
+
+        // Terapkan ulang filter bila user sedang mengetik saat opsi berganti.
+        if (panel._seSearch && panel._seSearch.value.trim() !== '') {
+            panel._seSearch.dispatchEvent(new Event('input'));
+        }
     }
 
     // ── Search injection (opt-in: data-searchable="true" pada <select>) ─────────
@@ -210,6 +238,7 @@
         if (panel._seSearch) return;
 
         const searchWrap = document.createElement('div');
+        searchWrap.className = 'se-search-head';
         searchWrap.style.cssText = 'position:sticky;top:0;background:#fff;border-bottom:1px solid #f3f4f6;padding:0.375rem 0.5rem;z-index:1;';
 
         const input = document.createElement('input');
@@ -257,8 +286,9 @@
             }
         });
 
-        panel._seSearch = input;
-        panel._seEmpty  = empty;
+        panel._seSearchWrap = searchWrap;
+        panel._seSearch     = input;
+        panel._seEmpty      = empty;
     }
 
     function resetSearch(panel) {
@@ -271,7 +301,7 @@
     let openWrap = null;
     function closeOpen() {
         if (!openWrap) return;
-        openWrap.classList.remove('is-open');
+        openWrap.classList.remove('is-open', 'opens-up');
         const btn = openWrap.querySelector('.se-btn');
         if (btn) btn.setAttribute('aria-expanded', 'false');
         // Kalau panel di-detach ke body (mode fixed), kembalikan ke wrapper
@@ -305,14 +335,27 @@
 
     function positionFixedPanel(btn, panel) {
         const r = btn.getBoundingClientRect();
-        const spaceBelow = window.innerHeight - r.bottom;
-        const placeAbove = spaceBelow < (PANEL_MAX_PX + 16) && r.top > spaceBelow;
+        const margin = 4;
+        const vh = window.innerHeight;
+        const spaceBelow = vh - r.bottom - margin;
+        const spaceAbove = r.top - margin;
+        // Buka ke atas hanya bila ruang bawah sempit DAN ruang atas lebih lega.
+        const placeAbove = spaceBelow < Math.min(PANEL_MAX_PX, 160) && spaceAbove > spaceBelow;
+        // Batasi tinggi panel ke ruang yang tersedia agar tidak keluar viewport.
+        const maxH = Math.max(120, Math.min(PANEL_MAX_PX, placeAbove ? spaceAbove : spaceBelow));
         panel.classList.add('is-fixed');
+        // PENTING: set top DAN bottom dua-duanya (salah satu 'auto'). Tanpa ini,
+        // rule `.se-panel { top:100% }` (untuk mode absolute) bocor ke mode fixed
+        // → di posisi "buka ke atas" panel melar dari atas viewport (top=100%vh)
+        // sehingga tampak tidak terbuka.
         panel.style.cssText = `
             position:fixed;
             left:${r.left}px;
             width:${r.width}px;
-            ${placeAbove ? `bottom:${window.innerHeight - r.top + 4}px;` : `top:${r.bottom + 4}px;`}
+            max-height:${maxH}px;
+            ${placeAbove
+                ? `bottom:${vh - r.top + margin}px; top:auto;`
+                : `top:${r.bottom + margin}px; bottom:auto;`}
             z-index:9999;
         `;
     }
@@ -330,6 +373,13 @@
             document.body.appendChild(panel);
             panel._seDetached = true;
             positionFixedPanel(btn, panel);
+        } else {
+            // Mode absolute biasa: deteksi apakah ruang bawah cukup, jika tidak
+            // buka ke atas.
+            const btnRect = btn.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - btnRect.bottom;
+            const placeAbove = spaceBelow < (PANEL_MAX_PX + 16) && btnRect.top > spaceBelow;
+            wrap.classList.toggle('opens-up', placeAbove);
         }
 
         // Auto-focus search input bila ada

@@ -4,10 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class EmployeeIdentification extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
+
+    protected static ?string $auditModule = 'Employee';
+    protected static array $auditExcept = ['identification_number'];
 
     // Nama tabel
     protected $table = 'employee_identification';

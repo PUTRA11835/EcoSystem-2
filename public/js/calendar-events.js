@@ -5,16 +5,30 @@ let selectedEventId = null;
 let events = [];
 
 // ── Indonesian National Holidays ──────────────────────────────────────────────
-// Cache per tahun: { 2025: [{date, localName, name}, ...], 2026: [...] }
+// Sumber: tabel `holidays` (dikelola admin via Manajemen → Hari Libur) lewat
+// endpoint internal /api/holidays. Cache per tahun: { 2026: [{date, localName, name, type}, ...] }
 const holidayCache = {};
 let holidaysLoaded = false;
+
+const HOLIDAY_TYPE_LABEL = {
+    national:     'Libur Nasional',
+    cuti_bersama: 'Cuti Bersama',
+    custom:       'Libur Khusus',
+};
 
 async function loadHolidays(year) {
     if (holidayCache[year]) return;
     try {
-        const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/ID`);
+        const res = await fetch(`/api/holidays?from=${year}&to=${year}`);
         if (!res.ok) throw new Error('Holiday API error');
-        holidayCache[year] = await res.json();
+        const data = await res.json();
+        // Map ke bentuk { date, localName, name } yang dipakai renderer kalender.
+        holidayCache[year] = (data.holidays || []).map(h => ({
+            date:      h.date,
+            localName: h.name,
+            name:      HOLIDAY_TYPE_LABEL[h.type] || h.name,
+            type:      h.type,
+        }));
     } catch {
         holidayCache[year] = [];
     }

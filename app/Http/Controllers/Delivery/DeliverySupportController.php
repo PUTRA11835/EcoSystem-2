@@ -5,27 +5,53 @@ namespace App\Http\Controllers\Delivery;
 use App\Enums\RoleId;
 use App\Http\Controllers\Controller;
 use App\Models\DeliverySupport;
+use App\Models\DeliverySupportType;
 use App\Models\DeliverySupportPhase;
 use App\Models\DeliverySupportPlanning;
 use App\Models\DeliverySupportActivity;
+use App\Models\DeliverySupportPaymentTerm;
 use App\Models\DeliverySupportViewConfiguration;
 use App\Models\DeliveryList;
 use App\Models\Customer;
+use App\Models\CustomerContact;
+use App\Models\DeliverySupportCustomerPic;
 use App\Models\Employee;
+use App\Models\Module;
 use App\Models\Ticket;
+use App\Models\AuthUser;
 use App\Services\OneDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class DeliverySupportController extends Controller
 {
+    /**
+     * Parse the comma-separated employee-id string sent by the Support
+     * Manager multi-select dropdown into a clean array of ints.
+     */
+    private function parseEmployeeIdList(?string $csv): array
+    {
+        if (!$csv) {
+            return [];
+        }
+
+        return collect(explode(',', $csv))
+            ->map(fn ($v) => trim($v))
+            ->filter(fn ($v) => $v !== '' && is_numeric($v))
+            ->map(fn ($v) => (int) $v)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     /**
      * Display listing of support deliveries
      */
     public function index(Request $request)
     {
-        $query = DeliverySupport::with(['client', 'deliveryOwner', 'supportManager']);
+        $query = DeliverySupport::with(['client', 'deliveryOwner', 'supportManagers.basicData']);
 
         // Search
         if ($request->filled('search')) {
@@ -33,6 +59,7 @@ class DeliverySupportController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('type', 'like', "%{$search}%")
+                    ->orWhere('io_number', 'like', "%{$search}%")
                     ->orWhereHas('client', function ($cq) use ($search) {
                         $cq->whereHas('basicData', function ($bq) use ($search) {
                             $bq->where('name_1', 'like', "%{$search}%");
@@ -59,7 +86,7 @@ class DeliverySupportController extends Controller
         }
 
         $supports = $query->orderBy('created_at', 'desc')->get();
-        $clients = Customer::with('basicData')->get();
+        $clients = Customer::with('basicData')->customers()->get();
 
         return view('delivery.support.list.index', compact('supports', 'clients'));
     }
@@ -72,7 +99,7 @@ class DeliverySupportController extends Controller
         $query = DeliverySupport::with([
             'client.basicData',
             'deliveryOwner.basicData',
-            'supportManager.basicData',
+            'supportManagers.basicData',
             'phases' => function ($q) {
                 $q->where('is_visible', true)->orderBy('order_sequence');
             },
@@ -114,10 +141,29 @@ class DeliverySupportController extends Controller
      */
     public function create()
     {
-        $clients = Customer::with('basicData')->get();
+        $clients = Customer::with('basicData')->customers()->get();
+        $vendors = $this->vendorOptions();
         $employees = Employee::with('basicData')->where('is_active', true)->get();
+        $modules = Module::active()->orderBy('name')->get();
 
-        return view('delivery.support.list.create', compact('clients', 'employees'));
+        // Dropdown "Type" — master data (menu Management > Master Delivery
+        // Settings > Support Type), bukan hardcode lagi.
+        $supportTypes = DeliverySupportType::active()->orderBy('order_seq')->orderBy('name')->pluck('name');
+
+        return view('delivery.support.list.create', compact('clients', 'vendors', 'employees', 'modules', 'supportTypes'));
+    }
+
+    /**
+     * Business Partner bertipe Vendor untuk dropdown "Vendor" (create/edit/show).
+     * Master-nya sama dengan customer (tabel `customer`), dibedakan kolom `type`.
+     */
+    private function vendorOptions()
+    {
+        return Customer::with('basicData')
+            ->vendors()
+            ->get()
+            ->sortBy(fn($v) => strtolower($v->basicData->name_1 ?? $v->customer_code ?? 'zzz'))
+            ->values();
     }
 
     /**
@@ -127,13 +173,15 @@ class DeliverySupportController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'client_id' => 'required|exists:customer,customer_id',
-            'type' => 'required|in:AMS,MO,ATS,Project,Internal',
+            'client_id' => ['required', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
+            'vendor_id' => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_VENDOR)],
+            'io_number' => ['nullable', 'string', 'max:255', Rule::unique('delivery_support', 'io_number')],
+            'type' => ['required', Rule::in(DeliverySupportType::active()->pluck('name'))],
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'resolution_estimated' => 'nullable|date',
             'delivery_owner_id' => 'nullable|exists:employee,employee_id',
-            'support_manager_id' => 'nullable|exists:employee,employee_id',
+            'support_manager_ids' => 'nullable|string',
             'co_pm_id' => 'nullable|exists:employee,employee_id',
             'support_admin_id' => 'nullable|exists:employee,employee_id',
             'sales_id' => 'nullable|exists:employee,employee_id',
@@ -143,6 +191,9 @@ class DeliverySupportController extends Controller
             'approval_name' => 'nullable|string|max:255',
             'service_window_start' => 'nullable|date_format:H:i',
             'service_window_end' => 'nullable|date_format:H:i|after_or_equal:service_window_start',
+            'module_ids' => 'nullable|string',
+        ], [
+            'io_number.unique' => 'IO Number ini sudah digunakan oleh delivery support lain.',
         ]);
 
         DB::beginTransaction();
@@ -154,13 +205,14 @@ class DeliverySupportController extends Controller
             $support = DeliverySupport::create([
                 'id_delivery_list' => $deliveryList->id,
                 'client_id' => $validated['client_id'],
+                'vendor_id' => ($validated['vendor_id'] ?? null) ?: null,
+                'io_number' => ($validated['io_number'] ?? null) ?: null,
                 'name' => $validated['name'],
                 'type' => $validated['type'],
                 'start_date' => $validated['start_date'] ?? null,
                 'end_date' => $validated['end_date'] ?? null,
                 'resolution_estimated' => $validated['resolution_estimated'] ?? null,
                 'delivery_owner_id' => $validated['delivery_owner_id'] ?? null,
-                'support_manager_id' => $validated['support_manager_id'] ?? null,
                 'co_pm_id' => $validated['co_pm_id'] ?? null,
                 'support_admin_id' => $validated['support_admin_id'] ?? null,
                 'sales_id' => $validated['sales_id'] ?? null,
@@ -172,6 +224,9 @@ class DeliverySupportController extends Controller
                 'service_window_end' => $validated['service_window_end'] ?? null,
                 'created_by_id' => session('user.id'),
             ]);
+
+            $support->supportManagers()->sync($this->parseEmployeeIdList($validated['support_manager_ids'] ?? null));
+            $support->modules()->sync($this->parseEmployeeIdList($validated['module_ids'] ?? null));
 
             // Create default view configuration
             DeliverySupportViewConfiguration::create([
@@ -209,16 +264,28 @@ class DeliverySupportController extends Controller
         $support->load([
             'client.basicData',
             'deliveryOwner.basicData',
-            'supportManager.basicData',
+            'supportManagers.basicData',
             'coPm.basicData',
             'supportAdmin.basicData',
             'sales.basicData',
+            'modules',
         ]);
 
-        $clients   = Customer::with('basicData')->get();
+        $clients   = Customer::with('basicData')->customers()->get();
+        $vendors   = $this->vendorOptions();
         $employees = Employee::with('basicData')->where('is_active', true)->get();
+        $modules   = Module::active()->orderBy('name')->get();
 
-        return view('delivery.support.list.edit', compact('support', 'clients', 'employees'));
+        // Dropdown "Type" — master data, bukan hardcode lagi. Nilai type
+        // support ini tetap dipastikan muncul di daftar walau tipenya sudah
+        // dinonaktifkan di master data, supaya form edit tidak diam-diam
+        // "menghilangkan" pilihan yang sedang terpakai.
+        $supportTypes = DeliverySupportType::active()->orderBy('order_seq')->orderBy('name')->pluck('name');
+        if ($support->type && !$supportTypes->contains($support->type)) {
+            $supportTypes->push($support->type);
+        }
+
+        return view('delivery.support.list.edit', compact('support', 'clients', 'vendors', 'employees', 'modules', 'supportTypes'));
     }
 
     /**
@@ -228,17 +295,19 @@ class DeliverySupportController extends Controller
     public function update(Request $request, DeliverySupport $support)
     {
         $sessionUser = session('user');
-        $roleId = $sessionUser['role']['id'] ?? null;
-        $canEditType = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
+        $roleIds     = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+        $canEditType = (bool) array_intersect($roleIds, RoleId::TICKET_MANAGER_GROUP);
 
         $rules = [
             'name'                 => 'required|string|max:255',
-            'client_id'            => 'required|exists:customer,customer_id',
+            'client_id'            => ['required', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
+            'vendor_id'            => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_VENDOR)],
+            'io_number'            => ['nullable', 'string', 'max:255', Rule::unique('delivery_support', 'io_number')->ignore($support->id)],
             'start_date'           => 'nullable|date',
             'end_date'             => 'nullable|date|after_or_equal:start_date',
             'resolution_estimated' => 'nullable|date',
             'delivery_owner_id'    => 'nullable|exists:employee,employee_id',
-            'support_manager_id'   => 'nullable|exists:employee,employee_id',
+            'support_manager_ids'  => 'nullable|string',
             'co_pm_id'             => 'nullable|exists:employee,employee_id',
             'support_admin_id'     => 'nullable|exists:employee,employee_id',
             'sales_id'             => 'nullable|exists:employee,employee_id',
@@ -248,22 +317,26 @@ class DeliverySupportController extends Controller
             'approval_name'        => 'nullable|string|max:255',
             'service_window_start' => 'nullable|date_format:H:i',
             'service_window_end'   => 'nullable|date_format:H:i|after_or_equal:service_window_start',
+            'module_ids'           => 'nullable|string',
         ];
         if ($canEditType) {
-            $rules['type'] = 'required|in:AMS,MO,ATS,Project,Internal';
+            $rules['type'] = ['required', Rule::in(DeliverySupportType::active()->pluck('name'))];
         }
 
-        $validated = $request->validate($rules);
+        $validated = $request->validate($rules, [
+            'io_number.unique' => 'IO Number ini sudah digunakan oleh delivery support lain.',
+        ]);
 
         try {
             $updateData = [
                 'name'                 => $validated['name'],
                 'client_id'            => $validated['client_id'],
+                'vendor_id'            => ($validated['vendor_id'] ?? null) ?: null,
+                'io_number'            => ($validated['io_number'] ?? null) ?: null,
                 'start_date'           => $validated['start_date']           ?? null,
                 'end_date'             => $validated['end_date']             ?? null,
                 'resolution_estimated' => $validated['resolution_estimated'] ?? null,
                 'delivery_owner_id'    => $validated['delivery_owner_id']    ?: null,
-                'support_manager_id'   => $validated['support_manager_id']   ?: null,
                 'co_pm_id'             => $validated['co_pm_id']             ?: null,
                 'support_admin_id'     => $validated['support_admin_id']     ?: null,
                 'sales_id'             => $validated['sales_id']             ?: null,
@@ -279,6 +352,8 @@ class DeliverySupportController extends Controller
             }
 
             $support->update($updateData);
+            $support->supportManagers()->sync($this->parseEmployeeIdList($validated['support_manager_ids'] ?? null));
+            $support->modules()->sync($this->parseEmployeeIdList($validated['module_ids'] ?? null));
 
             return redirect()
                 ->route('delivery.support.show', $support)
@@ -304,11 +379,13 @@ class DeliverySupportController extends Controller
     {
         $support->load([
             'client.basicData',
+            'vendor.basicData',
             'deliveryOwner.basicData',
-            'supportManager.basicData',
+            'supportManagers.basicData',
             'coPm.basicData',
             'supportAdmin.basicData',
             'sales.basicData',
+            'modules',
             'phases' => function ($q) {
                 $q->orderBy('order_sequence');
             },
@@ -324,10 +401,45 @@ class DeliverySupportController extends Controller
             ->where('is_active', true)
             ->get();
 
-        // Get clients for modal form
-        $clients = Customer::with('basicData')->get();
+        // Get modules for the Support Information edit modal
+        $modules = Module::active()->orderBy('name')->get();
 
-        return view('delivery.support.list.show', compact('support', 'employees', 'clients'));
+        // Get clients for modal form (Business Partner bertipe Customer saja)
+        $clients = Customer::with('basicData')->customers()->get();
+
+        // Business Partner bertipe Vendor untuk dropdown Vendor di Financial section
+        $vendors = $this->vendorOptions();
+
+        // Diatur lewat Role Management (menu slug: sla.config), bukan role hardcode,
+        // supaya role apa pun bisa diberi/dicabut akses kelola SLA Policy dari UI Role Management.
+        $canManage = (bool) Employee::find(session('user.id'))?->hasPermission('sla.config');
+
+        // Actual Cost = total of all leaf-level Plan Cost actual amounts (derived from
+        // expense details). Seeds the "Actual Cost / GP / %" fields in the Financial
+        // section on first paint; kept in sync afterwards by the Plan Cost JS.
+        $actualCost = \App\Models\DeliverySupportCost::where('delivery_support_id', $support->id)
+            ->whereDoesntHave('children')
+            ->sum('actual_amount');
+
+        // Tombol "Remove Ticket from DS" — dulu di-hardcode ke role EC Administrator,
+        // sekarang diatur lewat Control Center → Menu Access (slug: delivery-support.remove-ticket).
+        $canRemoveTicket = (bool) Employee::find(session('user.id'))?->hasPermission('delivery-support.remove-ticket');
+
+        $linkedTickets = $canRemoveTicket
+            ? DB::table('delivery_support_activities')
+                ->join('ticket', 'delivery_support_activities.ticket_id', '=', 'ticket.ticket_id')
+                ->where('delivery_support_activities.delivery_support_id', $support->id)
+                ->whereNotNull('delivery_support_activities.ticket_id')
+                ->get([
+                    'delivery_support_activities.id as activity_id',
+                    'ticket.ticket_id',
+                    'ticket.ticket_number',
+                    'ticket.description',
+                    'ticket.status',
+                ])
+            : collect();
+
+        return view('delivery.support.list.show', compact('support', 'employees', 'modules', 'clients', 'vendors', 'canManage', 'canRemoveTicket', 'linkedTickets', 'actualCost'));
     }
 
     /**
@@ -338,16 +450,38 @@ class DeliverySupportController extends Controller
         $section = $request->input('section');
         $data = $request->input('data', []);
 
+        // Satu endpoint melayani beberapa section, jadi izinnya tidak bisa
+        // ditentukan lewat middleware `menu:` di route — dicek per section di sini.
+        // Team hanya punya aksi tambah/hapus, sehingga dipetakan ke `.manage`.
+        $requiredSlug = [
+            'support-info'  => 'delivery-support.general.edit',
+            'approval-info' => 'delivery-support.approval.edit',
+            'team-info'     => 'delivery-support.team.manage',
+        ][$section] ?? null;
+
+        if (!$requiredSlug) {
+            return response()->json(['success' => false, 'message' => 'Invalid section specified'], 400);
+        }
+
+        $userId   = session('user.id');
+        $employee = $userId ? Employee::find($userId) : null;
+        if (!$employee || !$employee->canAccessMenu($requiredSlug)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Role Anda tidak memiliki izin untuk mengubah bagian ini.',
+            ], 403);
+        }
+
         try {
             switch ($section) {
                 case 'support-info':
                     $sessionUser = session('user');
-                    $roleId = $sessionUser['role']['id'] ?? null;
-                    $canEditType = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
+                    $roleIds     = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+                    $canEditType = (bool) array_intersect($roleIds, RoleId::TICKET_MANAGER_GROUP);
 
                     $rules = [
                         'name' => 'required|string|max:255',
-                        'client_id' => 'required|exists:customer,customer_id',
+                        'client_id' => ['required', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
                         'support_method' => 'nullable|string|max:100',
                         'start_date' => 'nullable|date',
                         'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -355,9 +489,10 @@ class DeliverySupportController extends Controller
                         'total_mandays' => 'nullable|integer|min:0',
                         'service_window_start' => 'nullable|date_format:H:i',
                         'service_window_end' => 'nullable|date_format:H:i|after_or_equal:service_window_start',
+                        'module_ids' => 'nullable|string',
                     ];
                     if ($canEditType) {
-                        $rules['type'] = 'nullable|in:AMS,MO,ATS,Project,Internal';
+                        $rules['type'] = ['nullable', Rule::in(DeliverySupportType::active()->pluck('name'))];
                     }
 
                     $validated = validator($data, $rules)->validate();
@@ -378,6 +513,7 @@ class DeliverySupportController extends Controller
                     }
 
                     $support->update($updateData);
+                    $support->modules()->sync($this->parseEmployeeIdList($validated['module_ids'] ?? null));
                     break;
 
                 case 'approval-info':
@@ -394,20 +530,20 @@ class DeliverySupportController extends Controller
 
                 case 'team-info':
                     $validated = validator($data, [
-                        'delivery_owner_id'  => 'nullable|exists:employee,employee_id',
-                        'support_manager_id' => 'nullable|exists:employee,employee_id',
-                        'co_pm_id'           => 'nullable|exists:employee,employee_id',
-                        'support_admin_id'   => 'nullable|exists:employee,employee_id',
-                        'sales_id'           => 'nullable|exists:employee,employee_id',
+                        'delivery_owner_id'   => 'nullable|exists:employee,employee_id',
+                        'support_manager_ids' => 'nullable|string',
+                        'co_pm_id'            => 'nullable|exists:employee,employee_id',
+                        'support_admin_id'    => 'nullable|exists:employee,employee_id',
+                        'sales_id'            => 'nullable|exists:employee,employee_id',
                     ])->validate();
 
                     $support->update([
                         'delivery_owner_id'  => $validated['delivery_owner_id']  ?: null,
-                        'support_manager_id' => $validated['support_manager_id'] ?: null,
                         'co_pm_id'           => $validated['co_pm_id']           ?: null,
                         'support_admin_id'   => $validated['support_admin_id']   ?: null,
                         'sales_id'           => $validated['sales_id']           ?: null,
                     ]);
+                    $support->supportManagers()->sync($this->parseEmployeeIdList($validated['support_manager_ids'] ?? null));
                     break;
 
                 default:
@@ -441,6 +577,86 @@ class DeliverySupportController extends Controller
                 'message' => 'Failed to update'
             ], 500);
         }
+    }
+
+    /**
+     * Update financial / sales data (IO Number + Revenue + Plan Cost + Gross Profit).
+     * Mirror dari DeliveryProject::updateFinancialInfo. IO Number wajib unik per
+     * delivery support (satu IO Number hanya boleh dipakai oleh satu support).
+     */
+    public function updateFinancialInfo(Request $request, DeliverySupport $support)
+    {
+        $validated = $request->validate([
+            'io_number' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('delivery_support', 'io_number')->ignore($support->id),
+            ],
+            'vendor_id'               => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_VENDOR)],
+            'revenue'                 => 'nullable|numeric|min:0',
+            'plan_cost'               => 'nullable|numeric|min:0',
+            // gross_profit & gross_profit_percentage sengaja TIDAK divalidasi/dipakai
+            // dari request: keduanya nilai turunan yang dihitung ulang di server
+            // (lihat di bawah). Selain menjaga konsistensi kalau JS gagal jalan,
+            // ini juga menghilangkan 422 palsu saat Plan Cost > Revenue — dulu
+            // persentase minus besar ditolak aturan `min:-100`.
+        ], [
+            'io_number.unique' => 'IO Number ini sudah digunakan oleh delivery support lain.',
+        ]);
+
+        $revenue  = $validated['revenue']   ?? null;
+        $planCost = $validated['plan_cost'] ?? null;
+
+        // Gross Profit = Revenue − Plan Cost; % = GP / Revenue × 100.
+        // Keduanya NULL kalau dua-duanya kosong supaya field tetap tampil kosong.
+        $grossProfit    = ($revenue === null && $planCost === null)
+            ? null
+            : (float) $revenue - (float) $planCost;
+        $grossProfitPct = $grossProfit === null
+            ? null
+            : (((float) $revenue) != 0.0 ? round($grossProfit / (float) $revenue * 100, 2) : 0);
+
+        // Kolom decimal(8,2) → clamp supaya rasio ekstrem (plan cost ≫ revenue)
+        // tidak menggagalkan simpan dengan error DB.
+        if ($grossProfitPct !== null) {
+            $grossProfitPct = max(-999999.99, min(999999.99, $grossProfitPct));
+        }
+
+        $support->update([
+            'io_number'               => $validated['io_number'] ?: null,
+            'vendor_id'               => ($validated['vendor_id'] ?? null) ?: null,
+            'revenue'                 => $revenue,
+            'plan_cost'               => $planCost,
+            'gross_profit'            => $grossProfit,
+            'gross_profit_percentage' => $grossProfitPct,
+        ]);
+
+        // Payment term amounts are derived (amount = revenue × % / 100). Resync on
+        // every save so terms that went stale from an earlier revenue edit are fixed.
+        $this->syncPaymentTermAmounts($support);
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Financial information updated successfully.']);
+        }
+        return back()->with('success', 'Financial information updated successfully.');
+    }
+
+    /**
+     * Keep derived TOP amounts in sync with the current support revenue.
+     */
+    private function syncPaymentTermAmounts(DeliverySupport $support): void
+    {
+        $revenue = (float) ($support->revenue ?? 0);
+
+        DeliverySupportPaymentTerm::where('delivery_support_id', $support->id)
+            ->get()
+            ->each(function (DeliverySupportPaymentTerm $term) use ($revenue) {
+                $amount = round($revenue * ((float) $term->payment_percentage) / 100, 2);
+                if (abs((float) $term->amount - $amount) > 0.001) {
+                    $term->update(['amount' => $amount]);
+                }
+            });
     }
 
     /**
@@ -639,8 +855,8 @@ class DeliverySupportController extends Controller
         }
 
         // Assign ticket PIC to activity if exists
-        if ($ticket->employee_id) {
-            $activity->employees()->attach($ticket->employee_id, [
+        if ($ticket->ticket_lead_id) {
+            $activity->employees()->attach($ticket->ticket_lead_id, [
                 'role' => 'lead',
                 'allocation_percentage' => 100,
                 'is_active' => true,
@@ -747,7 +963,8 @@ class DeliverySupportController extends Controller
     public function search(Request $request)
     {
         try {
-            $query = DeliverySupport::with(['client.basicData']);
+            $query = DeliverySupport::with(['client.basicData'])
+                ->where('calculated_progress', '<', 100);
 
             // Filter by client if provided
             if ($request->filled('client_id')) {
@@ -853,22 +1070,25 @@ class DeliverySupportController extends Controller
 
             if ($support->onedrive_folder_id) {
                 // Folder already exists — just recreate the share link (idempotent + upgrades to edit)
-                $shareUrl = $oneDrive->createAnonymousLink($support->onedrive_folder_id);
-                $support->update(['onedrive_folder_url' => $shareUrl]);
+                $link = $oneDrive->createShareLink($support->onedrive_folder_id);
+                $support->applyOneDriveShareLink($link);
             } else {
                 // First time — create folder then share link
                 $folderId = $oneDrive->createFolder($folderName);
-                $shareUrl = $oneDrive->createAnonymousLink($folderId);
-                $support->update([
-                    'onedrive_folder_id'  => $folderId,
-                    'onedrive_folder_url' => $shareUrl,
-                ]);
+                $support->update(['onedrive_folder_id' => $folderId]);
+
+                $link = $oneDrive->createShareLink($folderId);
+                $support->applyOneDriveShareLink($link);
             }
 
             return response()->json([
-                'success'    => true,
-                'message'    => 'OneDrive folder ready.',
-                'folder_url' => $shareUrl,
+                'success'          => true,
+                'message'          => 'OneDrive folder ready.',
+                'folder_url'       => $link['url'],
+                'link_scope'       => $link['scope'],
+                'link_scope_label' => $support->refresh()->onedrive_link_scope_label,
+                'link_expires_at'  => $link['expires_at']?->toIso8601String(),
+                'link_warning'     => $support->onedrive_link_warning,
             ]);
 
         } catch (\Exception $e) {
@@ -891,7 +1111,13 @@ class DeliverySupportController extends Controller
 
         try {
             (new OneDriveService())->deleteFolder($support->onedrive_folder_id);
-            $support->update(['onedrive_folder_id' => null, 'onedrive_folder_url' => null]);
+            $support->update([
+                'onedrive_folder_id'       => null,
+                'onedrive_folder_url'      => null,
+                'onedrive_link_scope'      => null,
+                'onedrive_link_expires_at' => null,
+                'onedrive_link_checked_at' => null,
+            ]);
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
             Log::error('OneDrive deleteFolder failed (support)', [
@@ -903,15 +1129,15 @@ class DeliverySupportController extends Controller
     }
 
     /**
-     * Generate a Customer Deliverable sub-folder inside:
-     *   Delivery Support/Customer Deliverable/{padded_id} {CUSTOMER_NAME}/{subfolder_name}
+     * Generate a Customer Deliverable sub-folder inside the per-support folder:
+     *   Delivery Support/Customer Deliverable/{padded_id} {CUSTOMER}/{padded_id} {SUPPORT}/{subfolder_name}
      *
      * Logic:
      *  1. Build customer folder name from client_id + basicData.name_1
      *  2. Find or create the customer folder inside the root "Customer Deliverable" path
-     *  3. Create the sub-folder (user-supplied name) inside the customer folder
-     *  4. Generate anonymous share link for the sub-folder
-     *  5. Save IDs/URL to delivery_support
+     *  3. Find or create the per-support folder inside the customer folder (cached to delivery_support)
+     *  4. Create the sub-folder (user-supplied name) inside the support folder
+     *  5. Generate anonymous share link for the sub-folder
      */
     public function generateCustomerDeliverableFolder(Request $request, DeliverySupport $support)
     {
@@ -922,46 +1148,43 @@ class DeliverySupportController extends Controller
             'subfolder_name.not_regex' => 'Sub-folder name cannot contain: \\ / : * ? " < > |',
         ]);
 
-        $support->load('client.basicData');
-
-        $client = $support->client;
-        if (!$client || !$client->basicData) {
+        $customerFolderName = $support->customerDeliverableFolderName();
+        if ($customerFolderName === null) {
             return response()->json([
                 'success' => false,
                 'message' => 'Client data not found. Please assign a client to this support first.',
             ], 422);
         }
 
-        // "001 PERTAMINA" — padded client_id + uppercase name
-        $customerFolderName = str_pad($support->client_id, 3, '0', STR_PAD_LEFT)
-            . ' ' . strtoupper($client->basicData->name_1);
-
-        $rootPath    = config('services.microsoft_graph.customer_deliverable_path', 'Delivery Support/Customer Deliverable');
-        $subfolderName = trim($request->input('subfolder_name'));
+        $supportFolderName = $support->supportDeliverableFolderName();
+        $rootPath          = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
+        $subfolderName     = trim($request->input('subfolder_name'));
 
         try {
             $oneDrive = new OneDriveService();
 
-            // Step 1: find or create the customer folder
+            // Step 1+2: find or create the customer folder
             $customerFolderId = $oneDrive->findOrCreateFolderInPath($rootPath, $customerFolderName);
 
-            // Step 2: create the sub-folder inside the customer folder
-            $subFolderId = $oneDrive->createSubFolder($customerFolderId, $subfolderName);
-
-            // Step 3: generate anonymous share link for the sub-folder
-            $shareUrl = $oneDrive->createAnonymousLink($subFolderId);
-
-            // Step 4: persist
+            // Step 3: find or create the per-support folder; cache it on the support
+            $supportFolderId = $oneDrive->findOrCreateSubFolderById($customerFolderId, $supportFolderName);
             $support->update([
-                'onedrive_deliverable_folder_id'  => $subFolderId,
-                'onedrive_deliverable_folder_url' => $shareUrl,
+                'onedrive_deliverable_folder_id'  => $supportFolderId,
+                'onedrive_deliverable_folder_url' => $oneDrive->createAnonymousLink($supportFolderId),
             ]);
+
+            // Step 4: create the user sub-folder inside the support folder
+            $subFolderId = $oneDrive->createSubFolder($supportFolderId, $subfolderName);
+
+            // Step 5: anonymous share link for the new sub-folder
+            $shareUrl = $oneDrive->createAnonymousLink($subFolderId);
 
             return response()->json([
                 'success'         => true,
                 'message'         => 'Customer deliverable folder created successfully.',
                 'folder_url'      => $shareUrl,
                 'customer_folder' => $customerFolderName,
+                'support_folder'  => $supportFolderName,
                 'subfolder'       => $subfolderName,
             ]);
 
@@ -969,6 +1192,7 @@ class DeliverySupportController extends Controller
             Log::error('OneDrive generateCustomerDeliverableFolder failed', [
                 'support_id'      => $support->id,
                 'customer_folder' => $customerFolderName ?? null,
+                'support_folder'  => $supportFolderName ?? null,
                 'subfolder'       => $subfolderName,
                 'error'           => $e->getMessage(),
             ]);
@@ -980,28 +1204,39 @@ class DeliverySupportController extends Controller
     }
 
     /**
-     * Return list of sub-folders inside the customer's deliverable folder from OneDrive.
+     * Return list of sub-folders inside this support's deliverable folder from OneDrive.
+     * Path: {root}/{customer}/{support}
      */
     public function getDeliverableSubfolders(DeliverySupport $support)
     {
-        $support->load('client.basicData');
-        $client = $support->client;
-
-        if (!$client || !$client->basicData) {
+        $customerFolderName = $support->customerDeliverableFolderName();
+        if ($customerFolderName === null) {
             return response()->json(['subfolders' => []]);
         }
 
-        $customerFolderName = str_pad($support->client_id, 3, '0', STR_PAD_LEFT)
-            . ' ' . strtoupper($client->basicData->name_1);
+        $supportFolderName  = $support->supportDeliverableFolderName();
         $rootPath           = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
-        $customerFolderPath = $rootPath . '/' . $customerFolderName;
+        $supportFolderPath  = $rootPath . '/' . $customerFolderName . '/' . $supportFolderName;
 
         try {
             $oneDrive   = new OneDriveService();
-            $subfolders = $oneDrive->listFolderChildrenByPath($customerFolderPath);
-            return response()->json(['subfolders' => $subfolders, 'customer_folder' => $customerFolderName]);
+            $subfolders = $oneDrive->listFolderChildrenByPath($supportFolderPath);
+            return response()->json([
+                'subfolders'      => $subfolders,
+                'customer_folder' => $customerFolderName . ' / ' . $supportFolderName,
+            ]);
         } catch (\Throwable $e) {
-            return response()->json(['subfolders' => [], 'error' => $e->getMessage()]);
+            $message = $e->getMessage();
+            // Berikan pesan error yang lebih jelas jika akun OneDrive service tidak ditemukan
+            if (str_contains($message, 'User not found') || str_contains($message, 'ResourceNotFound')) {
+                $message = 'OneDrive service account tidak ditemukan. Hubungi administrator untuk memeriksa konfigurasi MS_SENDER_EMAIL di Azure AD.';
+            }
+            Log::warning('getDeliverableSubfolders: OneDrive error', [
+                'support_id' => $support->id,
+                'path'       => $supportFolderPath,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json(['subfolders' => [], 'error' => $message]);
         }
     }
 
@@ -1015,8 +1250,16 @@ class DeliverySupportController extends Controller
 
         try {
             $oneDrive = new OneDriveService();
-            $url      = $oneDrive->createAnonymousLink($request->input('folder_id'), 'edit');
-            return response()->json(['success' => true, 'url' => $url]);
+            $link     = $oneDrive->createShareLink($request->input('folder_id'), 'edit');
+
+            return response()->json([
+                'success'      => true,
+                'url'          => $link['url'],
+                'link_scope'   => $link['scope'],
+                'link_warning' => $link['scope'] === 'anonymous'
+                    ? null
+                    : 'This link only works for people inside Eclectic Consulting (scope: ' . $link['scope'] . '). Customers cannot open it.',
+            ]);
         } catch (\Throwable $e) {
             Log::error('getDeliverableShareLink failed', [
                 'support_id' => $support->id,
@@ -1037,5 +1280,129 @@ class DeliverySupportController extends Controller
             'onedrive_deliverable_folder_url' => null,
         ]);
         return response()->json(['success' => true]);
+    }
+
+    // =========================================================================
+    // CUSTOMER PIC
+    // =========================================================================
+
+    /**
+     * GET /delivery/support/{support}/customer-contacts
+     * Kembalikan customer contact milik client dari DS ini untuk pilihan dropdown PIC,
+     * kecuali contact yang sudah berstatus admin (can_view_all_tickets) — admin selalu
+     * bisa lihat semua ticket company, jadi tidak relevan dijadikan PIC yang scope-nya dibatasi.
+     */
+    public function getClientContacts(DeliverySupport $support)
+    {
+        if (!$support->client_id) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $adminContactIds = AuthUser::where('customer_id', $support->client_id)
+            ->where('can_view_all_tickets', true)
+            ->whereNotNull('contact_id')
+            ->pluck('contact_id');
+
+        $contacts = CustomerContact::where('customer_id', $support->client_id)
+            ->whereNotNull('email_work')
+            ->whereNotIn('contact_id', $adminContactIds)
+            ->orderBy('full_name')
+            ->get(['contact_id', 'full_name', 'position', 'department', 'email_work']);
+
+        return response()->json(['success' => true, 'data' => $contacts]);
+    }
+
+    /**
+     * GET /delivery/support/{support}/customer-pics
+     * Kembalikan daftar contact yang saat ini menjadi PIC Customer untuk DS ini.
+     */
+    public function getCustomerPics(DeliverySupport $support)
+    {
+        $pics = DeliverySupportCustomerPic::where('delivery_support_id', $support->id)
+            ->with(['contact:contact_id,full_name,position,department,email_work'])
+            ->get()
+            ->map(fn($p) => [
+                'id'         => $p->id,
+                'contact_id' => $p->contact_id,
+                'full_name'  => $p->contact->full_name ?? '—',
+                'position'   => $p->contact->position ?? null,
+                'department' => $p->contact->department ?? null,
+                'email_work' => $p->contact->email_work ?? null,
+            ]);
+
+        return response()->json(['success' => true, 'data' => $pics]);
+    }
+
+    /**
+     * POST /delivery/support/{support}/customer-pics
+     * Simpan/replace daftar PIC Customer (sync: hapus yang tidak ada, tambah yang baru).
+     * Body: { contact_ids: [1, 2, 3] }
+     */
+    public function syncCustomerPics(Request $request, DeliverySupport $support)
+    {
+        // Izin utamanya ditegakkan oleh middleware `menu:` pada route; cek di sini
+        // dipertahankan sebagai lapis kedua (endpoint ini dipanggil dari beberapa tempat).
+        $userId   = session('user.id');
+        $employee = $userId ? Employee::find($userId) : null;
+        if (!$employee || !$employee->canAccessMenu('delivery-support.customer-pic.edit')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $request->validate([
+            'contact_ids'   => 'present|array',
+            'contact_ids.*' => 'integer|exists:customer_contact,contact_id',
+        ]);
+
+        $contactIds = collect($request->contact_ids)->filter()->unique()->values();
+
+        // Validasi semua contact milik client yang sama
+        if ($contactIds->isNotEmpty()) {
+            $valid = CustomerContact::whereIn('contact_id', $contactIds)
+                ->where('customer_id', $support->client_id)
+                ->pluck('contact_id');
+
+            if ($valid->count() !== $contactIds->count()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Beberapa contact tidak termasuk dalam customer yang dipilih.',
+                ], 422);
+            }
+
+            // Contact yang berstatus admin (can_view_all_tickets) tidak boleh jadi PIC —
+            // scope PIC membatasi visibility ticket, sedangkan admin selalu lihat semua.
+            $adminCount = AuthUser::whereIn('contact_id', $contactIds)
+                ->where('can_view_all_tickets', true)
+                ->count();
+
+            if ($adminCount > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Contact yang berstatus admin (can_view_all_tickets) tidak dapat dijadikan PIC Customer.',
+                ], 422);
+            }
+        }
+
+        DB::transaction(function () use ($support, $contactIds) {
+            $existing = DeliverySupportCustomerPic::where('delivery_support_id', $support->id)
+                ->pluck('contact_id');
+
+            $toDelete = $existing->diff($contactIds);
+            $toAdd    = $contactIds->diff($existing);
+
+            if ($toDelete->isNotEmpty()) {
+                DeliverySupportCustomerPic::where('delivery_support_id', $support->id)
+                    ->whereIn('contact_id', $toDelete)
+                    ->delete();
+            }
+
+            foreach ($toAdd as $contactId) {
+                DeliverySupportCustomerPic::create([
+                    'delivery_support_id' => $support->id,
+                    'contact_id'          => $contactId,
+                ]);
+            }
+        });
+
+        return $this->getCustomerPics($support);
     }
 }

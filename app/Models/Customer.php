@@ -11,10 +11,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\CustomerCredential;
 use Illuminate\Support\Facades\DB;
+use App\Traits\Auditable;
 
 class Customer extends Authenticatable
 {
-    use HasApiTokens, Notifiable;
+    use HasApiTokens, Notifiable, Auditable;
+
+    protected static ?string $auditModule = 'Customer';
+
+    /**
+     * Business Partner type. Satu master (`customer`) dipakai untuk dua jenis
+     * mitra; data lama semuanya TYPE_CUSTOMER (lihat migration add_type_to_customer).
+     */
+    public const TYPE_CUSTOMER = 'Customer';
+    public const TYPE_VENDOR   = 'Vendor';
+    public const TYPES = [self::TYPE_CUSTOMER, self::TYPE_VENDOR];
 
     protected $table = 'customer';
     protected $primaryKey = 'customer_id';
@@ -25,10 +36,12 @@ class Customer extends Authenticatable
      */
     protected $fillable = [
         'customer_code',
+        'type',
         'email',
         'domain',
         'is_active',
         'parent_customer_id',
+        'customer_group_id',
     ];
 
     /**
@@ -191,6 +204,32 @@ class Customer extends Authenticatable
     }
 
     /**
+     * Customer Group struktural (grouping datar, anggota tetap mandiri).
+     */
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(CustomerGroup::class, 'customer_group_id', 'id');
+    }
+
+    /**
+     * Mirror nama grup ke kolom teks lama `customer_basic_data.customer_group`
+     * agar filter list, header card, dan API Jarvies yang membaca kolom teks
+     * tetap berfungsi setelah grouping di-upgrade menjadi berbasis FK.
+     *
+     * Dipanggil dari controller setiap kali `customer_group_id` berubah.
+     */
+    public function syncGroupNameToBasicData(): void
+    {
+        $groupName = $this->customer_group_id
+            ? optional(CustomerGroup::find($this->customer_group_id))->name
+            : null;
+
+        if ($this->basicData) {
+            $this->basicData->update(['customer_group' => $groupName]);
+        }
+    }
+
+    /**
      * Get all history records for the customer (one-to-many)
      * 
      * @return HasMany
@@ -254,6 +293,30 @@ class Customer extends Authenticatable
     public function scopeTopLevel($query)
     {
         return $query->whereNull('parent_customer_id');
+    }
+
+    /**
+     * Scope: Business Partner bertipe tertentu ('Customer' / 'Vendor').
+     */
+    public function scopeOfType($query, string $type)
+    {
+        return $query->where('type', $type);
+    }
+
+    /**
+     * Scope: hanya business partner bertipe Customer (klien).
+     */
+    public function scopeCustomers($query)
+    {
+        return $query->where('type', self::TYPE_CUSTOMER);
+    }
+
+    /**
+     * Scope: hanya business partner bertipe Vendor.
+     */
+    public function scopeVendors($query)
+    {
+        return $query->where('type', self::TYPE_VENDOR);
     }
 
     /**
@@ -702,10 +765,12 @@ class Customer extends Authenticatable
             // Create customer
             $customer = self::create([
                 'customer_code' => $customerCode,
+                'type' => $customerData['type'] ?? self::TYPE_CUSTOMER,
                 'email' => $customerData['email'],
                 'domain' => self::normalizeDomain($customerData['domain'] ?? null),
                 'is_active' => $customerData['is_active'] ?? true,
                 'parent_customer_id' => $customerData['parent_customer_id'] ?? null,
+                'customer_group_id' => $customerData['customer_group_id'] ?? null,
             ]);
 
             // Create basic data (tanpa customer_code karena sudah pindah ke tabel customer)
@@ -836,6 +901,11 @@ class Customer extends Authenticatable
 
         if (isset($filters['is_active'])) {
             $query->where('is_active', $filters['is_active']);
+        }
+
+        // Business Partner type ('Customer' / 'Vendor'). Kosong = tampilkan semua.
+        if (!empty($filters['type']) && in_array($filters['type'], self::TYPES, true)) {
+            $query->ofType($filters['type']);
         }
 
         // Filter status — derive dari kolom `block` & `deletion_flag` di

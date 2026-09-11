@@ -5,6 +5,8 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\CheckAuthToken;
 use App\Http\Middleware\CheckJarviesApiKey;
+use App\Http\Middleware\CompressJsonResponse;
+use App\Http\Middleware\ShareMenuPermissions;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -12,6 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        then: function () {
+            \Illuminate\Support\Facades\Route::prefix('api')
+                ->group(base_path('routes/lite.php'));
+        },
     )
     ->withMiddleware(function (Middleware $middleware) {
         // Trust load balancer / reverse proxy (AWS ALB, Nginx, CloudFront).
@@ -36,13 +42,44 @@ return Application::configure(basePath: dirname(__DIR__))
             'ecosystem-session',
         ]);
         
+        $middleware->web(append: [
+            ShareMenuPermissions::class,
+        ]);
+
+        $middleware->api(append: [
+            CompressJsonResponse::class,
+        ]);
+
         $middleware->alias([
             'auth.session'      => CheckAuthToken::class,
             'jarvies.api_key'   => CheckJarviesApiKey::class,
-            'mobile.employee'   => \App\Http\Middleware\EnsureMobileEmployee::class,
             'external.api_key'  => \App\Http\Middleware\CheckExternalApiKey::class,
+            'menu'              => \App\Http\Middleware\CheckMenuAccess::class,
+            'menu.owner'        => \App\Http\Middleware\CheckMenuOrProjectOwner::class,
+            'employee.section'  => \App\Http\Middleware\CheckEmployeeSectionAccess::class,
+            'customer.section'  => \App\Http\Middleware\CheckCustomerSectionAccess::class,
+            'lite.auth'         => \App\Http\Middleware\LiteApiAuth::class,
+            'project.editable'  => \App\Http\Middleware\EnsureProjectNotClosed::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // CSRF token expired/invalid (session timeout, stale form tab, dsb).
+        // Tanpa ini, Laravel merender halaman 419 langsung sebagai response
+        // dari POST tsb (bukan redirect) -> browser mengira halaman itu "hasil
+        // POST" -> reload/back kemudian memicu "Confirm Form Resubmission"
+        // dan bisa berujung ERR_CACHE_MISS. Redirect back mengembalikan alur
+        // ke pola redirect-setelah-POST yang aman untuk reload/back.
+        $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Session expired. Please refresh the page and try again.',
+                ], 419);
+            }
+
+            return redirect()
+                ->back()
+                ->withInput($request->except('_token', 'password', 'password_confirmation'))
+                ->with('error', 'Your session expired. Please try again.');
+        });
     })->create();

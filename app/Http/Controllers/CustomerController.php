@@ -8,8 +8,26 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 class CustomerController extends Controller
 {
+    /**
+     * Section pada halaman detail Business Partner.
+     * key => label tab. Key-nya sama dengan slug izin
+     * customer.section.{key}.view / .update.
+     */
+    const SECTIONS = [
+        'basic_data'       => 'Basic Data',
+        'address'          => 'Address',
+        'contact'          => 'Contact',
+        'identification'   => 'Identification',
+        'bank'             => 'Bank Account',
+        'credential'       => 'Credential',
+        'history'          => 'History',
+        'attachment'       => 'Attachment',
+        'report_templates' => 'Report Templates',
+    ];
+
     /**
      * Get current user's identifier
      */
@@ -83,9 +101,56 @@ class CustomerController extends Controller
                 'user_passed_to_view' => $user,
                 'user_name_passed' => $user['name'] ?? 'NO NAME'
             ]);
-            
-            // Pass both customer and user to view
-            return view('master.customer.show', compact('customer', 'user'));
+
+            // Active employees for the EC Account Executive dropdown (value = ECI)
+            $employees = \App\Models\Employee::with('basicData')
+                ->where('is_active', true)
+                ->get()
+                ->map(fn($e) => [
+                    'eci'  => $e->eci,
+                    'name' => $e->basicData->full_name ?? $e->eci,
+                ])
+                ->filter(fn($e) => !empty($e['eci']))
+                ->sortBy('name')
+                ->values();
+
+            // Customer Groups untuk dropdown (struktural grouping)
+            $customerGroups = \App\Models\CustomerGroup::orderBy('name')
+                ->get(['id', 'name']);
+
+            // Kandidat parent: top-level business partner (tanpa parent) selain diri
+            // sendiri, DAN bertipe sama — hierarki parent–child tidak boleh
+            // menyilang antara Customer dan Vendor.
+            $parentOptions = Customer::topLevel()
+                ->with('basicData')
+                ->ofType($customer->type ?? Customer::TYPE_CUSTOMER)
+                ->where('customer_id', '!=', $id)
+                ->where('is_active', true)
+                ->get()
+                ->map(fn($c) => [
+                    'id'   => $c->customer_id,
+                    'name' => $c->basicData->name_1 ?? $c->customer_code,
+                ])
+                ->sortBy('name')
+                ->values();
+
+            // Section mana yang boleh dilihat / diubah oleh pembuka halaman.
+            // Padanan sisi employee ada di EmployeeController::show().
+            $viewer          = \App\Models\Employee::find($user['id'] ?? null);
+            $sectionHidden   = [];
+            $sectionReadonly = [];
+            foreach (array_keys(self::SECTIONS) as $key) {
+                $canView   = (bool) $viewer?->canAccessMenu("customer.section.{$key}.view");
+                $canUpdate = (bool) $viewer?->canAccessMenu("customer.section.{$key}.update");
+                $sectionHidden[$key]   = !$canView;
+                $sectionReadonly[$key] = $canView && !$canUpdate;
+            }
+
+            // Pass customer, user and employees to view
+            return view('master.customer.show', compact(
+                'customer', 'user', 'employees', 'customerGroups', 'parentOptions',
+                'sectionHidden', 'sectionReadonly'
+            ));
             
         } catch (\Exception $e) {
             Log::error('=== WEB: ERROR SHOWING CUSTOMER DETAIL ===', [
@@ -114,7 +179,7 @@ class CustomerController extends Controller
                 'filters' => $request->all()
             ]);
 
-            $perPage = max(1, min((int) $request->get('per_page', 15), 100));
+            $perPage = max(1, min((int) $request->get('per_page', 200), 500));
             
             $filters = [
                 'search' => $request->get('search'),
@@ -123,6 +188,7 @@ class CustomerController extends Controller
                 'status' => $request->get('status'), // Untuk compatibility dengan code lama
                 'customer_group' => $request->get('customer_group'),
                 'customer_category' => $request->get('customer_category'),
+                'type' => $request->get('type'), // Business Partner type: Customer / Vendor
                 'active_only' => $request->get('active_only', false),
                 'sort_field' => $request->get('sort_field', 'created_at'),
                 'sort_order' => $request->get('sort_order', 'desc'),
@@ -145,9 +211,11 @@ class CustomerController extends Controller
                 return [
                     'id' => $customer->customer_id,
                     'email' => $customer->email,
+                    'type' => $customer->type ?? Customer::TYPE_CUSTOMER,
                     'is_active' => $customer->is_active,
                     'name_1' => $customer->basicData->name_1 ?? null,
                     'customer_group' => $customer->basicData->customer_group ?? null,
+                    'customer_group_id' => $customer->customer_group_id,
                     'customer_category' => $customer->basicData->customer_category ?? null,
                     'industry_sector' => $customer->basicData->industry_sector ?? null,
                     'block' => $customer->basicData->block ?? false,
@@ -195,6 +263,62 @@ class CustomerController extends Controller
     }
 
     /**
+     * GET /api/customers/{id}/header
+     * Returns only the fields shown in the profile header card for AJAX refresh.
+     */
+    public function headerData($id)
+    {
+        try {
+            $customer = Customer::with('basicData')->find($id);
+            if (!$customer) {
+                return response()->json(['success' => false, 'message' => 'Customer not found'], 404);
+            }
+
+            $name1 = $customer->basicData->name_1 ?? '';
+            $initials = $name1 ? strtoupper(substr($name1, 0, 1)) : 'N';
+            if (strlen($name1) > 1 && strpos($name1, ' ') !== false) {
+                $parts = explode(' ', $name1);
+                $initials = strtoupper(substr($parts[0], 0, 1) . substr(end($parts), 0, 1));
+            }
+
+            if (!empty($customer->basicData->deletion_flag)) {
+                $statusClass = 'bg-red-100 text-red-800';
+                $statusLabel = 'Flagged for Deletion';
+            } elseif (!empty($customer->basicData->block)) {
+                $statusClass = 'bg-yellow-100 text-yellow-800';
+                $statusLabel = 'Blocked';
+            } elseif ($customer->is_active) {
+                $statusClass = 'bg-green-100 text-green-800';
+                $statusLabel = 'Active';
+            } else {
+                $statusClass = 'bg-gray-100 text-gray-800';
+                $statusLabel = 'Inactive';
+            }
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'name_1'            => $customer->basicData->name_1 ?? '',
+                    'name_2'            => $customer->basicData->name_2 ?? '',
+                    'customer_code'     => $customer->customer_code ?? '',
+                    'type'              => $customer->type ?? Customer::TYPE_CUSTOMER,
+                    'email'             => $customer->email ?? '',
+                    'phone'             => $customer->basicData->telephone ?? $customer->basicData->cell_phone ?? '',
+                    'customer_group'    => $customer->basicData->customer_group ?? '',
+                    'customer_category' => $customer->basicData->customer_category ?? '',
+                    'industry_sector'   => $customer->basicData->industry_sector ?? '',
+                    'initials'          => $initials,
+                    'status_label'      => $statusLabel,
+                    'status_class'      => $statusClass,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('headerData error', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to load header data'], 500);
+        }
+    }
+
+    /**
      * Customer grouping page (WEB)
      */
     public function grouping()
@@ -209,6 +333,7 @@ class CustomerController extends Controller
     {
         try {
             $parents = Customer::topLevel()
+                ->customers()
                 ->with(['basicData', 'endCustomers.basicData'])
                 ->withCount('endCustomers')
                 ->having('end_customers_count', '>', 0)
@@ -238,13 +363,19 @@ class CustomerController extends Controller
     }
 
     /**
-     * Get top-level customers (no parent) for dropdown selection (API)
+     * Get top-level business partners (no parent) for dropdown selection (API).
+     * Difilter per `type` (default 'Customer') karena hierarki parent–child tidak
+     * boleh menyilang antara Customer dan Vendor.
      */
     public function topLevel(Request $request)
     {
         try {
+            $type = $request->get('type');
+            $type = in_array($type, Customer::TYPES, true) ? $type : Customer::TYPE_CUSTOMER;
+
             $customers = Customer::topLevel()
                 ->with('basicData')
+                ->ofType($type)
                 ->where('is_active', true)
                 ->get()
                 ->map(fn($c) => [
@@ -256,6 +387,60 @@ class CustomerController extends Controller
         } catch (\Exception $e) {
             Log::error('topLevel customers error', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Failed to fetch top-level customers'], 500);
+        }
+    }
+
+    /**
+     * Get active employees holding a Sales role (API).
+     * Dipakai dropdown "AE (Account Executive)" di modal Create Customer.
+     * Nilai yang dikirim = ECI, sama dengan kolom `ec_account_executive`
+     * di customer_basic_data supaya tab Basic Data menampilkan pilihan
+     * yang sama. Role di-resolve via NAMA ("Sales ...") — ID role diverge
+     * antar environment.
+     */
+    public function salesEmployees()
+    {
+        try {
+            $employees = \App\Models\Employee::with('basicData')
+                ->where('is_active', true)
+                ->whereHas('roles', fn($q) => $q->where('employee_role.name', 'like', 'Sales%'))
+                ->get()
+                ->map(fn($e) => [
+                    'eci'  => $e->eci,
+                    'name' => $e->basicData->full_name ?? $e->eci,
+                ])
+                ->filter(fn($e) => !empty($e['eci']))
+                ->sortBy('name')
+                ->values();
+
+            return response()->json(['success' => true, 'data' => $employees]);
+        } catch (\Exception $e) {
+            Log::error('salesEmployees error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to fetch sales employees'], 500);
+        }
+    }
+
+    /**
+     * Get end customers (children) of a given parent customer (API).
+     * Dipakai dropdown "For customer" saat validate staging ticket dari email.
+     */
+    public function endCustomers($id)
+    {
+        try {
+            $children = Customer::where('parent_customer_id', $id)
+                ->with('basicData')
+                ->orderBy('customer_id')
+                ->get()
+                ->map(fn ($c) => [
+                    'id'   => $c->customer_id,
+                    'code' => $c->customer_code,
+                    'name' => $c->basicData->name_1 ?? $c->customer_code,
+                ]);
+
+            return response()->json(['success' => true, 'data' => $children]);
+        } catch (\Exception $e) {
+            Log::error('endCustomers error', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to fetch end customers'], 500);
         }
     }
 
@@ -272,16 +457,21 @@ class CustomerController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'customer_code' => ['required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code'],
+            'customer_code' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/', 'unique:customer,customer_code'],
+            'type'          => ['required', Rule::in(Customer::TYPES)],
             'email'         => 'nullable|email|unique:customer,email|max:255',
             'domain'        => 'nullable|string|max:255',
             'name_1'        => 'required|string|max:255',
             'contact_phone' => 'nullable|string|max:50',
+            'customer_group_id'  => 'nullable|integer|exists:customer_groups,id',
+            'parent_customer_id' => 'nullable|integer|exists:customer,customer_id',
+            'ec_account_executive' => 'nullable|string|max:100',
         ], [
             'customer_code.required' => 'Customer code is required.',
-            'customer_code.max'      => 'Customer code must be at most 4 characters.',
             'customer_code.regex'    => 'Customer code may only contain letters and numbers.',
             'customer_code.unique'   => 'This customer code is already in use.',
+            'type.required'          => 'Type is required (Customer or Vendor).',
+            'type.in'                => 'Type must be either Customer or Vendor.',
         ]);
 
         if ($validator->fails()) {
@@ -295,13 +485,21 @@ class CustomerController extends Controller
         DB::beginTransaction();
 
         try {
+            // Customer Group struktural — kolom teks lama di-mirror dari nama grup
+            $groupId   = $request->customer_group_id ?: null;
+            $groupName = $groupId
+                ? optional(\App\Models\CustomerGroup::find($groupId))->name
+                : ($request->customer_group ?: null);
+
             // Prepare customer data (company record only — no login here)
             $customerData = [
                 'customer_code'      => strtoupper($request->customer_code),
+                'type'               => $request->type,
                 'email'              => $request->email ?: null,
                 'domain'             => $request->domain ?: null,
                 'is_active'          => 1,
                 'parent_customer_id' => $request->parent_customer_id ?: null,
+                'customer_group_id'  => $groupId,
             ];
 
             // Prepare basic data
@@ -312,7 +510,7 @@ class CustomerController extends Controller
                 'search_term_1' => strtoupper($request->name_1),
                 'search_term_2' => $request->search_term_2,
                 'external_number' => $request->external_number,
-                'customer_group' => $request->customer_group,
+                'customer_group' => $groupName,
                 'customer_category' => $request->customer_category,
                 'credit_limit_type' => $request->credit_limit_type,
                 'industry_sector' => $request->industry_sector,
@@ -337,6 +535,8 @@ class CustomerController extends Controller
                     'district' => $request->district,
                     'rural_urban_village' => $request->rural_urban_village,
                     'street' => $request->street,
+                    'building_name' => $request->building_name,
+                    'full_address' => $request->full_address,
                     'postal_code' => $request->postal_code,
                     'language' => $request->language,
                 ]);
@@ -399,12 +599,14 @@ class CustomerController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'customer_code' => ['sometimes', 'required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code,' . $id . ',customer_id'],
+            'customer_code' => ['sometimes', 'required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/', 'unique:customer,customer_code,' . $id . ',customer_id'],
+            'type'          => ['sometimes', 'required', Rule::in(Customer::TYPES)],
             'email'         => 'nullable|email|max:255|unique:customer,email,' . $id . ',customer_id',
             'domain'        => 'nullable|string|max:255',
             'name_1'        => 'required|string|max:255',
+            'customer_group_id'  => 'nullable|integer|exists:customer_groups,id',
+            'parent_customer_id' => 'nullable|integer|exists:customer,customer_id',
         ], [
-            'customer_code.max'   => 'Customer code must be at most 4 characters.',
             'customer_code.regex' => 'Customer code may only contain letters and numbers.',
             'customer_code.unique'=> 'This customer code is already in use.',
         ]);
@@ -429,6 +631,13 @@ class CustomerController extends Controller
                 ], 404);
             }
 
+            // Customer Group struktural — resolve nama untuk mirror ke kolom teks.
+            $hasGroupField = $request->has('customer_group_id');
+            $groupId   = $hasGroupField ? ($request->customer_group_id ?: null) : $customer->customer_group_id;
+            $groupName = $groupId
+                ? optional(\App\Models\CustomerGroup::find($groupId))->name
+                : ($hasGroupField ? null : $request->customer_group);
+
             // Update customer (email is optional company contact email)
             $updateData = ['email' => $request->email ?: null];
             if ($request->has('domain')) {
@@ -436,6 +645,16 @@ class CustomerController extends Controller
             }
             if ($request->filled('customer_code')) {
                 $updateData['customer_code'] = strtoupper($request->customer_code);
+            }
+            if ($request->filled('type')) {
+                $updateData['type'] = $request->type;
+            }
+            // Parent & group dapat ditambah/dihapus saat edit (kirim string kosong = hapus)
+            if ($request->has('parent_customer_id')) {
+                $updateData['parent_customer_id'] = $request->parent_customer_id ?: null;
+            }
+            if ($hasGroupField) {
+                $updateData['customer_group_id'] = $groupId;
             }
             $customer->update($updateData);
 
@@ -449,7 +668,7 @@ class CustomerController extends Controller
                     'search_term_1' => strtoupper($request->name_1),
                     'search_term_2' => $request->search_term_2,
                     'external_number' => $request->external_number,
-                    'customer_group' => $request->customer_group,
+                    'customer_group' => $groupName,
                     'customer_category' => $request->customer_category,
                     'credit_limit_type' => $request->credit_limit_type,
                     'industry_sector' => $request->industry_sector,
@@ -473,6 +692,8 @@ class CustomerController extends Controller
                         'district' => $request->district,
                         'rural_urban_village' => $request->rural_urban_village,
                         'street' => $request->street,
+                        'building_name' => $request->building_name,
+                        'full_address' => $request->full_address,
                         'postal_code' => $request->postal_code,
                         'language' => $request->language,
                     ]);
@@ -484,6 +705,8 @@ class CustomerController extends Controller
                         'district' => $request->district,
                         'rural_urban_village' => $request->rural_urban_village,
                         'street' => $request->street,
+                        'building_name' => $request->building_name,
+                        'full_address' => $request->full_address,
                         'postal_code' => $request->postal_code,
                         'language' => $request->language,
                     ]);
@@ -638,7 +861,10 @@ class CustomerController extends Controller
                 'search' => $search
             ]);
 
+            // Konsumen endpoint ini (mis. picker customer di Jarvies) hanya butuh
+            // business partner bertipe Customer.
             $customers = Customer::with('basicData')
+                ->customers()
                 ->search($search)
                 ->limit(20)
                 ->get();

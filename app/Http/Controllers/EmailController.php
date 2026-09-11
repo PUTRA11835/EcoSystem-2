@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Exceptions\EmailSendException;
 use App\Models\Customer;
+use App\Models\Notification;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
@@ -126,6 +128,235 @@ class EmailController extends Controller
     }
 
     /**
+     * Terjemahkan pesan error mentah Graph (dari POST /send) menjadi alasan
+     * berbahasa Indonesia yang bisa ditampilkan langsung ke helpdesk di bubble chat.
+     *
+     * Error mentah biasanya berupa string berisi JSON:
+     *   {"error":{"code":"ErrorInvalidRecipients","message":"..."}}
+     */
+    private function humanizeGraphSendError(string $raw): string
+    {
+        // Ekstrak error.code dari body JSON (bila ada).
+        $code = '';
+        if (preg_match('/"code"\s*:\s*"([^"]+)"/i', $raw, $m)) {
+            $code = strtolower($m[1]);
+        }
+
+        // Cocokkan berdasarkan kode; fallback ke pencocokan kata kunci pada pesan.
+        $rawLower = strtolower($raw);
+
+        if (str_contains($code, 'invalidrecipient') || str_contains($rawLower, 'recipient is not valid') || str_contains($rawLower, 'invalid recipients')) {
+            return 'The destination email address is invalid — a recipient (To/CC) is malformed or was rejected by the server. Check the recipient list and resend.';
+        }
+        if (str_contains($code, 'recipientnotfound') || str_contains($code, 'nonexistentmailbox') || str_contains($rawLower, 'not found') && str_contains($rawLower, 'recipient')) {
+            return 'One of the destination email addresses was not found (mailbox does not exist). Check the recipient list and resend.';
+        }
+        if (str_contains($code, 'toomanyrecipient') || str_contains($rawLower, 'too many recipients')) {
+            return 'The number of recipients exceeds the limit allowed by the email server. Reduce the number of To/CC recipients.';
+        }
+        if (str_contains($code, 'messagesizeexceeded') || str_contains($rawLower, 'message size') || str_contains($rawLower, 'size exceeded')) {
+            return 'The email size (including attachments) exceeds the server limit. Reduce it or share the attachment via a link.';
+        }
+        if (str_contains($code, 'submissionblocked') || str_contains($code, 'sendasdenied') || str_contains($code, 'accessdenied') || str_contains($rawLower, 'submission') && str_contains($rawLower, 'blocked')) {
+            return 'Sending was blocked by the email server (possibly a policy or send permission). Please contact the email administrator.';
+        }
+        if (str_contains($code, 'mailboxnotenabledforrestapi') || str_contains($code, 'inactivemailbox')) {
+            return 'The sender mailbox has a problem / is not active for sending. Please contact the email administrator.';
+        }
+
+        // Default: pesan generik agar tetap informatif tanpa membocorkan detail teknis.
+        return 'The email could not be delivered to the customer due to an email server issue. Please try resending.';
+    }
+
+    // =========================================================================
+    // NON-DELIVERY REPORT (NDR / BOUNCE) HANDLING
+    // =========================================================================
+
+    /**
+     * Deteksi apakah sebuah email masuk merupakan Non-Delivery Report (NDR / bounce)
+     * — laporan "Undeliverable" yang dikirim balik oleh server mail (Exchange/Outlook
+     * postmaster) ketika alamat tujuan salah ketik / tidak ada.
+     *
+     * NDR TIDAK boleh disimpan sebagai pesan chat: body-nya berupa laporan HTML/tabel
+     * yang merusak tampilan bubble. Pemanggil memakai hasil `true` untuk men-skip email
+     * ini lalu menandai pesan keluar terkait sebagai "Tidak terkirim".
+     */
+    private function isNonDeliveryReport(?string $fromEmail, ?string $fromName, array $headers, string $subject): bool
+    {
+        $fromEmail = strtolower(trim((string) $fromEmail));
+        $fromName  = strtolower(trim((string) $fromName));
+
+        // 1) Header teknis — sinyal paling kuat & tidak bergantung bahasa.
+        foreach ($headers as $h) {
+            $name = strtolower($h['name'] ?? '');
+            $val  = strtolower($h['value'] ?? '');
+            if ($name === 'x-ms-exchange-message-is-ndr') return true;
+            if ($name === 'x-failed-recipients')          return true;
+            if ($name === 'content-type'
+                && str_contains($val, 'multipart/report')
+                && str_contains($val, 'delivery-status')) {
+                return true;
+            }
+        }
+
+        // 2) Pengirim adalah sistem mail (postmaster / mailer-daemon / mailbox NDR Exchange).
+        $localPart = strtok($fromEmail, '@') ?: '';
+        if (in_array($localPart, ['postmaster', 'mailer-daemon', 'mailerdaemon'], true)) return true;
+        if (str_starts_with($fromEmail, 'microsoftexchange')) return true;
+        if (in_array($fromName, ['microsoft outlook', 'mail delivery subsystem', 'postmaster'], true)) return true;
+
+        // 3) Subject khas NDR (fallback; ID + EN).
+        if (preg_match('/^\s*(undeliverable|undelivered mail|delivery status notification|mail delivery (failed|subsystem)|returned mail|delivery has failed|failure notice|tidak terkirim|tidak dapat dikirim|pesan tidak terkirim)\b/iu', $subject)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Ambil alamat email tujuan yang GAGAL dari sebuah NDR — untuk ditampilkan pada
+     * pesan error di ticket ("Email tidak terkirim ke <alamat>").
+     *
+     * Sumber (urut prioritas):
+     *   1. Header `X-Failed-Recipients` (paling bersih; diisi Exchange).
+     *   2. Scan body laporan: ambil alamat email pertama yang BUKAN milik akun sendiri /
+     *      postmaster / domain sendiri (alamat gagal biasanya disebut paling awal).
+     */
+    private function extractFailedRecipient(array $headers, string $rawBody): ?string
+    {
+        foreach ($headers as $h) {
+            if (strtolower($h['name'] ?? '') === 'x-failed-recipients') {
+                $first = trim(explode(',', $h['value'] ?? '')[0]);
+                if (filter_var($first, FILTER_VALIDATE_EMAIL)) return $first;
+            }
+        }
+
+        $ownSender = strtolower((string) config('services.microsoft_graph.sender_email'));
+        $ownDomain = str_contains($ownSender, '@') ? substr(strrchr($ownSender, '@'), 1) : '';
+
+        if ($rawBody !== '') {
+            $text = html_entity_decode(strip_tags($rawBody), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if (preg_match_all('/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i', $text, $m)) {
+                foreach ($m[0] as $addr) {
+                    $addrL = strtolower($addr);
+                    if ($addrL === $ownSender)                                 continue;
+                    if (str_starts_with($addrL, 'postmaster@'))                continue;
+                    if (str_contains($addrL, 'microsoftexchange'))             continue;
+                    if ($ownDomain && str_ends_with($addrL, '@' . $ownDomain)) continue;
+                    return $addr;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Tandai pesan keluar (reply helpdesk) yang gagal terkirim akibat sebuah NDR.
+     *
+     * Pesan keluar dicari dengan urutan:
+     *   a. Presisi — References / In-Reply-To NDR menunjuk Message-ID email yang bounce
+     *      → cocokkan ke `ticket_message.email_message_id`.
+     *   b. Fallback — pesan email keluar terakhir pada thread (via conversationId).
+     *
+     * Tidak membuat pesan chat baru. Status ditentukan bertingkat:
+     *   - 'partial' : sebagian penerima gagal, sebagian lain TETAP menerima (warna amber).
+     *   - 'failed'  : SEMUA penerima gagal (warna merah).
+     * Alamat gagal diakumulasi (beberapa NDR untuk satu pesan) di email_failed_recipients.
+     */
+    private function markBounceOnOutgoingMessage(array $headers, ?string $inReplyToId, array $referencesIds, ?string $conversationId, string $rawBody): void
+    {
+        // a) Cocokkan by Message-ID (paling presisi; ID terbaru dulu).
+        $candidateIds    = array_values(array_filter(array_merge($referencesIds, [$inReplyToId])));
+        $originalMessage = null;
+        foreach (array_reverse($candidateIds) as $mid) {
+            $originalMessage = TicketMessage::where('email_message_id', $mid)->first();
+            if ($originalMessage) break;
+        }
+
+        // b) Fallback: pesan email keluar terakhir pada thread.
+        $ticket = $originalMessage?->ticket;
+        if (!$ticket && $conversationId) {
+            $ticket = Ticket::where('email_thread_id', $conversationId)->first();
+        }
+        if (!$originalMessage && $ticket) {
+            $originalMessage = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                ->where('channel', 'email')
+                ->where('sender_type', 'employee')
+                ->where('is_internal_note', false)
+                ->orderBy('created_at', 'desc')
+                ->first();
+        }
+
+        if (!$originalMessage) {
+            Log::info('EmailController: NDR diterima tapi pesan keluar tidak ditemukan', [
+                'conversation_id' => $conversationId,
+                'in_reply_to'     => $inReplyToId,
+                'ticket_id'       => $ticket?->ticket_id,
+            ]);
+            return;
+        }
+
+        $failedRecipient = $this->extractFailedRecipient($headers, $rawBody);
+
+        // Akumulasi alamat gagal (beberapa NDR bisa datang untuk satu pesan yang sama).
+        $failed = collect($originalMessage->email_failed_recipients ?? [])
+            ->map(fn ($a) => strtolower(trim((string) $a)))->filter()->all();
+        if ($failedRecipient) {
+            $failed[] = strtolower($failedRecipient);
+        }
+        $failed = array_values(array_unique($failed));
+
+        // Tentukan total vs partial.
+        $recipients = collect($originalMessage->email_recipients ?? [])
+            ->map(fn ($a) => strtolower(trim((string) $a)))->filter()->all();
+        if (!empty($recipients)) {
+            // Total bila TIDAK ada penerima tersisa yang belum gagal.
+            $total = count(array_diff($recipients, $failed)) === 0;
+        } else {
+            // Pesan lama tanpa email_recipients: perkiraan dari 1 To customer + jumlah CC.
+            $ccCount    = collect($originalMessage->cc_emails ?? [])->filter()->count();
+            $approxTotal = 1 + $ccCount;
+            $total = count($failed) >= $approxTotal;
+        }
+
+        $status = $total ? 'failed' : 'partial';
+        $reason = self::deliveryFailureReason($failed ?: array_filter([$failedRecipient]), $total);
+
+        $originalMessage->update([
+            'email_status'            => $status,
+            'email_error'             => $reason,
+            'email_failed_recipients' => $failed,
+        ]);
+
+        Log::info('EmailController: NDR ditandai pada pesan keluar', [
+            'ticket_id'  => $originalMessage->ticket_id,
+            'message_id' => $originalMessage->id,
+            'recipient'  => $failedRecipient,
+            'status'     => $status,
+        ]);
+    }
+
+    /**
+     * Bangun teks alasan gagal-kirim yang ramah pengguna (English) untuk ditampilkan
+     * di bubble chat. `$total` menentukan nuansa: total (tidak sampai ke siapapun) vs
+     * partial (sampai ke penerima lain, kecuali alamat berikut).
+     */
+    public static function deliveryFailureReason(array $failedRecipients, bool $total): string
+    {
+        $failedRecipients = array_values(array_unique(array_filter(array_map('trim', $failedRecipients))));
+        $list = implode(', ', array_slice($failedRecipients, 0, 5));
+        $more = count($failedRecipients) > 5 ? ' and ' . (count($failedRecipients) - 5) . ' more' : '';
+
+        if ($total) {
+            return $list !== ''
+                ? "Email could not be delivered — the destination address(es) were not found or rejected: {$list}{$more}. Check the spelling and resend."
+                : 'Email could not be delivered — the destination address was not found or rejected by the server. Check the recipient list and resend.';
+        }
+
+        return "Email was delivered, but not to: {$list}{$more} — the address(es) were not found or rejected by the destination server. The other recipients received it.";
+    }
+
+    /**
      * Ekstrak hanya bagian reply baru dari body email HTML.
      * Membuang quoted text (<blockquote>, gmail_quote, Outlook divider, dll).
      *
@@ -147,13 +378,26 @@ class EmailController extends Controller
 
         $xpath = new \DOMXPath($dom);
 
+        // ── Potong di BATAS quote (penting untuk Outlook/Exchange) ────────────
+        // Outlook (OWA & "new Outlook") menaruh balasan baru DI ATAS marker
+        // <div id="appendonsend"></div> lalu <hr> + header "From:/Sent:/To:"
+        // (<div id="divRplyFwdMsg">) dan body quoted di bawahnya — sering TANPA
+        // <blockquote>. Pendekatan hapus-selector saja tidak cukup → quote bocor
+        // ke gelembung chat ("kotak biru"). Maka kita potong marker batas + SEMUA
+        // node setelahnya. Gmail tetap aman karena marker ini tidak ada di sana
+        // (ditangani oleh selector di bawah).
+        $bodyNode = $dom->getElementsByTagName('body')->item(0);
+        if ($bodyNode) {
+            $this->cutAtQuoteBoundary($xpath, $bodyNode);
+        }
+
         // Elemen yang mengandung quoted/previous messages — hapus semua
         $removeSelectors = [
             '//blockquote',                                   // RFC standard, semua klien
             '//*[contains(@class,"gmail_quote")]',            // Gmail
             '//*[contains(@class,"yahoo_quoted")]',           // Yahoo Mail
             '//*[contains(@class,"moz-cite-prefix")]',        // Thunderbird
-            '//*[@id="divRplyFwdMsg"]',                       // Outlook Web
+            '//*[@id="divRplyFwdMsg" or @id="appendonsend"]', // Outlook Web (header/marker batas)
             '//*[contains(@class,"OutlookMessageHeader")]',   // Outlook Desktop
             '//*[contains(@class,"x_gmail_quote")]',          // Gmail via Outlook
         ];
@@ -166,7 +410,6 @@ class EmailController extends Controller
 
         // Serialisasi ulang isi <body> sebagai HTML (bukan textContent)
         // agar img, formatting, dll tetap terjaga
-        $bodyNode = $dom->getElementsByTagName('body')->item(0);
 
         if (!$bodyNode) {
             return strip_tags($html);
@@ -181,6 +424,61 @@ class EmailController extends Controller
         $innerHTML = html_entity_decode($innerHTML, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
         return trim($innerHTML);
+    }
+
+    /**
+     * Cari marker batas quote (gaya Outlook/Exchange) lalu hapus marker + SEMUA node
+     * setelahnya (dalam urutan dokumen), naik dari posisi marker sampai level <body>.
+     * Konten balasan BARU (yang selalu berada di atas marker) tetap utuh.
+     *
+     * Marker yang dideteksi:
+     *  - <div id="appendonsend"> — titik sisip quote di Outlook/OWA
+     *  - <div id="divRplyFwdMsg"> — blok header "From:/Sent:/To:/Subject:"
+     * Sekaligus membuang <hr> pemisah yang biasanya tepat sebelum marker.
+     */
+    private function cutAtQuoteBoundary(\DOMXPath $xpath, \DOMNode $bodyNode): void
+    {
+        $boundary = null;
+        foreach (['//*[@id="appendonsend"]', '//*[@id="divRplyFwdMsg"]'] as $q) {
+            $nodes = $xpath->query($q);
+            if ($nodes && $nodes->length > 0) {
+                $boundary = $nodes->item(0);
+                break;
+            }
+        }
+        if (!$boundary) return;
+
+        // Buang <hr> pemisah (dan whitespace) tepat sebelum marker di level yang sama.
+        $prev = $boundary->previousSibling;
+        while ($prev) {
+            $before = $prev->previousSibling;
+            $isHr        = ($prev->nodeType === XML_ELEMENT_NODE && strtolower($prev->nodeName) === 'hr');
+            $isWhitespace= ($prev->nodeType === XML_TEXT_NODE && trim($prev->textContent) === '');
+            if ($isHr || $isWhitespace) {
+                $prev->parentNode->removeChild($prev);
+                if ($isHr) break;       // cukup satu hr pemisah
+            } else {
+                break;
+            }
+            $prev = $before;
+        }
+
+        // Hapus marker + semua node setelahnya. Di tiap level ancestor (sampai body),
+        // hapus sibling yang mengikuti — TANPA menghapus ancestor itu sendiri (ancestor
+        // masih memuat balasan baru yang ada sebelum marker).
+        $current = $boundary;
+        $removeSelf = true;
+        while ($current && $current !== $bodyNode) {
+            while ($current->nextSibling) {
+                $current->parentNode->removeChild($current->nextSibling);
+            }
+            $parent = $current->parentNode;
+            if ($removeSelf) {
+                $parent->removeChild($current);
+                $removeSelf = false;
+            }
+            $current = $parent;
+        }
     }
 
     // =========================================================================
@@ -305,8 +603,10 @@ class EmailController extends Controller
 
             // internetMessageHeaders dibutuhkan untuk mengekstrak In-Reply-To + References
             // agar reply customer dari Gmail/ext. client bisa di-thread ke tiket yang ada
-            // (Exchange conversationId tidak reliable lintas email system)
-            $select      = 'id,subject,from,ccRecipients,receivedDateTime,body,internetMessageId,conversationId,hasAttachments,internetMessageHeaders';
+            // (Exchange conversationId tidak reliable lintas email system).
+            // sentDateTime = header Date: dari email (waktu customer kirim) — dipakai sebagai
+            // acuan SLA agar timezone customer apapun tetap dikonversi ke WIB.
+            $select      = 'id,subject,from,ccRecipients,sentDateTime,receivedDateTime,body,internetMessageId,conversationId,hasAttachments,internetMessageHeaders';
             // Minta body dalam format HTML agar inline image (cid:) tetap terjaga
             $preferHtml  = ['Prefer' => 'outlook.body-content-type="html"'];
 
@@ -349,6 +649,8 @@ class EmailController extends Controller
             }
 
             $processed = 0;
+            $staged    = 0; // email baru → staging ticket
+            $linked    = 0; // email reply → ticket yang sudah ada
             $skipped   = 0;
             $errors    = [];
 
@@ -364,11 +666,17 @@ class EmailController extends Controller
                     $internetMsgId  = $msg['internetMessageId'] ?? null;
                     $conversationId = $msg['conversationId'] ?? null;
                     $hasAttachments = $msg['hasAttachments'] ?? false;
-                    // receivedDateTime dari Graph API selalu UTC — parse ke UTC Carbon agar
-                    // created_at mencerminkan waktu email diterima, bukan waktu scheduler jalan
+                    // sentDateTime = header Date: dari email (waktu customer kirim, UTC).
+                    // Dipakai sebagai acuan SLA — timezone customer apapun akan dikonversi ke WIB.
+                    // receivedDateTime dipakai sebagai fallback jika sentDateTime tidak tersedia.
+                    $sentAt = isset($msg['sentDateTime'])
+                        ? \Carbon\Carbon::parse($msg['sentDateTime'])->utc()
+                        : null;
                     $receivedAt = isset($msg['receivedDateTime'])
                         ? \Carbon\Carbon::parse($msg['receivedDateTime'])->utc()
                         : null;
+                    // emailAt = waktu acuan email (sentDateTime jika ada, fallback ke receivedDateTime)
+                    $emailAt = $sentAt ?? $receivedAt;
 
                     // Ekstrak CC recipients: [{name, address}, ...]
                     $ccEmails = collect($msg['ccRecipients'] ?? [])
@@ -399,6 +707,28 @@ class EmailController extends Controller
                             preg_match_all('/<([^>]+)>/', $headerVal, $refMatches);
                             $referencesIds = array_map(fn($id) => '<' . $id . '>', $refMatches[1] ?? []);
                         }
+                    }
+
+                    // ── NDR / bounce (Undeliverable) intercept ──────────────────────────────
+                    // Laporan "Undeliverable" dari postmaster/Exchange (mis. alamat customer
+                    // salah ketik) TIDAK boleh masuk sebagai bubble chat — HTML laporannya
+                    // merusak tampilan. Alih-alih, tandai pesan keluar yang gagal terkirim
+                    // sebagai "Tidak terkirim" + alasan, lalu skip email NDR-nya.
+                    if ($this->isNonDeliveryReport($fromEmail, $fromName, $msg['internetMessageHeaders'] ?? [], $subject)) {
+                        $this->markBounceOnOutgoingMessage(
+                            $msg['internetMessageHeaders'] ?? [],
+                            $inReplyToId,
+                            $referencesIds,
+                            $conversationId,
+                            $msg['body']['content'] ?? ''
+                        );
+                        $this->graphPatch("/users/{$sender}/messages/{$graphMsgId}", ['isRead' => true]);
+                        Log::info('EmailController@processInbox: NDR/bounce di-skip (tidak masuk chat)', [
+                            'from'    => $fromEmail,
+                            'subject' => $subject,
+                        ]);
+                        $skipped++;
+                        continue;
                     }
 
                     // ── Cari tiket terkait — 5 strategi, prioritas dari paling tepat ─────────
@@ -468,7 +798,10 @@ class EmailController extends Controller
                     // field `domain` di master customer (mis. "@apta.co.id") agar SEMUA email dari
                     // domain tsb (charli@apta.co.id, akbar@apta.co.id, dll) otomatis dikenali
                     // sebagai milik customer ybs dan masuk ke staging ticket validation.
-                    $customer = Customer::where('email', $fromEmail)->first();
+                    // Semua pencocokan dibatasi business partner bertipe Customer —
+                    // kalau email/domain juga terdaftar sebagai Vendor, rantai lanjut
+                    // ke strategi berikutnya alih-alih berhenti di vendor.
+                    $customer = Customer::customers()->where('email', $fromEmail)->first();
                     if (!$customer && $fromEmail) {
                         $authCustomerId = \DB::table('auth_users')
                             ->whereRaw('LOWER(email) = LOWER(?)', [$fromEmail])
@@ -478,12 +811,35 @@ class EmailController extends Controller
                             $customer = Customer::find($authCustomerId);
                         }
                     }
+                    // 3b. customer_contact.email_work / email_personal — contact person terdaftar.
+                    //     Menangani contact person yang TIDAK punya akun login (auth_users) DAN
+                    //     memakai email di luar domain customer (mis. konsultan ber-Gmail).
+                    //     Dicek sebelum domain karena exact email lebih spesifik daripada domain.
+                    if (!$customer && $fromEmail) {
+                        $contactCustomerId = \DB::table('customer_contact')
+                            ->where(function ($q) use ($fromEmail) {
+                                $q->whereRaw('LOWER(email_work) = LOWER(?)', [$fromEmail])
+                                  ->orWhereRaw('LOWER(email_personal) = LOWER(?)', [$fromEmail]);
+                            })
+                            ->whereNotNull('customer_id')
+                            ->value('customer_id');
+                        if ($contactCustomerId) {
+                            $customer = Customer::find($contactCustomerId);
+                            if ($customer) {
+                                Log::info('EmailController@processInbox: customer matched by contact person', [
+                                    'from'        => $fromEmail,
+                                    'customer_id' => $customer->customer_id,
+                                ]);
+                            }
+                        }
+                    }
                     if (!$customer && $fromEmail) {
                         $emailDomain = Customer::extractEmailDomain($fromEmail); // mis. "@apta.co.id"
                         if ($emailDomain) {
                             // Prefer top-level customer (parent_customer_id null) jika ada
                             // subsidiary yang share domain yang sama (parent + child).
-                            $customer = Customer::whereRaw('LOWER(domain) = ?', [$emailDomain])
+                            $customer = Customer::customers()
+                                ->whereRaw('LOWER(domain) = ?', [$emailDomain])
                                 ->where('is_active', true)
                                 ->orderByRaw('parent_customer_id IS NULL DESC')
                                 ->orderBy('customer_id', 'asc')
@@ -496,6 +852,19 @@ class EmailController extends Controller
                                 ]);
                             }
                         }
+                    }
+
+                    // Master `customer` kini menampung dua tipe business partner.
+                    // Tiket/staging hanya berlaku untuk tipe Customer — kalau rantai
+                    // pencocokan di atas mendarat di Vendor, perlakukan sebagai
+                    // pengirim tak dikenal (email tetap diproses tanpa customer).
+                    if ($customer && ($customer->type ?? Customer::TYPE_CUSTOMER) !== Customer::TYPE_CUSTOMER) {
+                        Log::info('EmailController@processInbox: matched business partner is not a Customer, ignoring match', [
+                            'from'        => $fromEmail,
+                            'customer_id' => $customer->customer_id,
+                            'type'        => $customer->type,
+                        ]);
+                        $customer = null;
                     }
 
                     if ($ticket) {
@@ -513,10 +882,12 @@ class EmailController extends Controller
                         // attachment download (~1-3 detik) akan render gambar dengan src="cid:xxx"
                         // yang broken di browser, dan karena polling bersifat incremental append-only,
                         // tampilan rusak itu menetap sampai user manual refresh halaman.
+                        $savedMessage = null;
                         \DB::transaction(function () use (
                             $ticket, $customer, $fromEmail, $fromName,
                             $bodyPlain, $bodyHtml, $internetMsgId, $ccEmails,
-                            $receivedAt, $hasAttachments, $sender, $graphMsgId, $conversationId
+                            $receivedAt, $hasAttachments, $sender, $graphMsgId, $conversationId,
+                            &$savedMessage
                         ) {
                             // Tambah pesan ke tiket yang sudah ada
                             // cc_emails: kirim PHP array (bukan JSON string) karena TicketMessage
@@ -538,9 +909,12 @@ class EmailController extends Controller
                                 'is_read_by_agent'    => false,
                             ]);
 
-                            // Gunakan waktu asli email (bukan waktu scheduler) untuk created_at.
-                            // PENTING: $receivedAt adalah Carbon UTC. Harus di-convert ke app timezone
-                            // (Asia/Jakarta) sebelum disimpan sebagai string via raw DB::table(),
+                            // Gunakan receivedDateTime (waktu Exchange menerima email) untuk created_at pesan.
+                            // BUKAN sentDateTime — customer di timezone lain bisa punya sentDateTime
+                            // lebih awal dari pesan-pesan yang sudah ada, sehingga pesannya muncul
+                            // di atas (urutan salah) di room chat.
+                            // receivedDateTime selalu kronologis sesuai urutan Exchange menerima email.
+                            // PENTING: Carbon UTC → konversi ke WIB sebelum disimpan via raw DB::table()
                             // karena Eloquent membaca string DB tanpa konversi UTC→WIB.
                             if ($receivedAt) {
                                 $appTz     = config('app.timezone', 'Asia/Jakarta');
@@ -600,8 +974,66 @@ class EmailController extends Controller
                                     ->all();
                                 $ticketCcUpdate['cc_emails'] = $merged;
                             }
+                            // Customer balas → kembalikan ticket ke inprocess jika sedang pause
+                            $stopStatuses = ['waiting_on_customer', 'waiting_to_confirmation', 'waiting_on_3rd_party', 'hold'];
+                            if ($customer && in_array($ticket->status, $stopStatuses)) {
+                                $ticketCcUpdate['status'] = 'inprocess';
+                            }
                             $ticket->update($ticketCcUpdate);
+                            $savedMessage = $message;
                         });
+                        $linked++;
+
+                        // Trigger SLA event setelah transaction commit (non-fatal)
+                        if ($savedMessage && $customer) {
+                            try {
+                                $ticket->refresh();
+                                app(\App\Services\SlaService::class)->recordMessageEvent(
+                                    $ticket,
+                                    $savedMessage,
+                                    'customer',
+                                    null
+                                );
+                            } catch (\Throwable $e) {
+                                Log::warning('EmailController@processInbox: SLA record gagal (non-fatal)', [
+                                    'ticket_id'  => $ticket->ticket_id,
+                                    'message_id' => $savedMessage->id,
+                                    'error'      => $e->getMessage(),
+                                ]);
+                            }
+
+                            // Bell notification ke PIC dan member ticket (non-fatal)
+                            try {
+                                $senderLabel = $fromName ?: $fromEmail;
+                                $ticketNum   = $ticket->ticket_number ?? $ticket->ticket_id;
+                                $preview     = "Ticket #{$ticketNum} — {$senderLabel} replied via email";
+                                $link        = "/ticket/{$ticket->ticket_id}";
+
+                                $recipients = collect();
+                                if ($ticket->ticket_lead_id) {
+                                    $recipients->push($ticket->ticket_lead_id);
+                                }
+                                $ticket->members()->pluck('ticket_member.employee_id')
+                                    ->each(fn ($id) => $recipients->push($id));
+
+                                $recipients->unique()->each(function ($empId) use ($preview, $link, $senderLabel) {
+                                    Notification::create([
+                                        'employee_id'      => $empId,
+                                        'type'             => 'customer_email_reply',
+                                        'from_employee_id' => null,
+                                        'from_name'        => $senderLabel,
+                                        'preview'          => $preview,
+                                        'link'             => $link,
+                                        'is_read'          => false,
+                                    ]);
+                                });
+                            } catch (\Throwable $e) {
+                                Log::warning('EmailController@processInbox: bell notification gagal (non-fatal)', [
+                                    'ticket_id' => $ticket->ticket_id,
+                                    'error'     => $e->getMessage(),
+                                ]);
+                            }
+                        }
 
                     } else {
                         // Dedup staging: skip jika sudah pernah masuk staging dengan internet_message_id ini
@@ -634,13 +1066,14 @@ class EmailController extends Controller
                             'graph_message_id'    => $graphMsgId,
                             'has_attachments'     => $hasAttachments,
                             'cc_emails'           => !empty($ccEmails) ? $ccEmails : null, // PHP array, bukan JSON string
-                            'received_at'         => $receivedAt, // Carbon UTC — used for created_at
+                            'received_at'         => $emailAt, // sentDateTime (Date: header) → WIB untuk SLA start
                         ]);
 
                         Log::info('EmailController@processInbox: email baru masuk ke staging', [
                             'from'    => $fromEmail,
                             'subject' => $subject,
                         ]);
+                        $staged++;
                     }
 
                     // Tandai sebagai sudah dibaca di Graph
@@ -662,6 +1095,8 @@ class EmailController extends Controller
             return response()->json([
                 'status'    => 'done',
                 'processed' => $processed,
+                'staged'    => $staged,
+                'linked'    => $linked,
                 'skipped'   => $skipped,
                 'errors'    => $errors,
             ]);
@@ -970,9 +1405,22 @@ class EmailController extends Controller
             $result = $this->graphGet("/users/{$senderEmail}/messages/{$graphMsgId}/attachments");
 
             foreach ($result['value'] ?? [] as $att) {
-                // Lewati non-fileAttachment (referenceAttachment, itemAttachment, dll)
-                $odataType = $att['@odata.type'] ?? '';
-                if ($odataType && !str_contains($odataType, 'fileAttachment')) {
+                // Tipe attachment Graph:
+                //  - fileAttachment       → file biasa (punya contentBytes)
+                //  - itemAttachment       → email/kalender yang dilampirkan (mis. .eml). TIDAK
+                //    menyediakan contentBytes; konten mentah (RFC822) diambil via endpoint
+                //    /$value saat diakses (lihat AttachmentController@show).
+                //  - referenceAttachment  → link cloud (OneDrive/SharePoint). Tidak ada byte
+                //    yang bisa kita ambil (file di drive pengirim, di luar izin app) → simpan
+                //    sebagai link agar tetap terlihat & bisa dibuka agent.
+                //  - tipe lain → dilewati.
+                $odataType             = $att['@odata.type'] ?? '';
+                $isItemAttachment      = str_contains($odataType, 'itemAttachment');
+                $isReferenceAttachment = str_contains($odataType, 'referenceAttachment');
+                if ($odataType
+                    && !str_contains($odataType, 'fileAttachment')
+                    && !$isItemAttachment
+                    && !$isReferenceAttachment) {
                     continue;
                 }
 
@@ -986,6 +1434,47 @@ class EmailController extends Controller
                 $isInline     = $att['isInline'] ?? false;
                 $fileSize     = $att['size'] ?? 0;
                 $contentId    = $att['contentId'] ?? null;
+
+                // referenceAttachment: simpan link cloud sebagai record 'link'.
+                // graph_message_id sengaja NULL → public_url memakai link_url (buka langsung),
+                // graph_attachment_id tetap disimpan agar dedup bekerja.
+                if ($isReferenceAttachment) {
+                    if (TicketAttachment::where('graph_attachment_id', $graphAttId)->exists()) {
+                        continue;
+                    }
+                    $sourceUrl = $att['sourceUrl'] ?? null;
+                    if (!$sourceUrl) {
+                        // Tanpa link tak ada yang bisa ditampilkan — lewati (perilaku lama).
+                        continue;
+                    }
+                    TicketAttachment::create([
+                        'ticket_id'           => $ticketId,
+                        'message_id'          => $message->id,
+                        'uploaded_by_type'    => 'system',
+                        'uploaded_by_id'      => null,
+                        'attachment_type'     => 'link',
+                        'link_url'            => $sourceUrl,
+                        'link_title'          => $originalName,
+                        'file_name'           => $originalName,
+                        'file_size'           => $fileSize,
+                        'mime_type'           => $mimeType !== 'application/octet-stream' ? $mimeType : null,
+                        'is_inline'           => false,
+                        'graph_attachment_id' => $graphAttId,
+                        'content_id'          => null,
+                    ]);
+                    continue;
+                }
+
+                // Email yang dilampirkan: paksa mime message/rfc822 + ekstensi .eml agar
+                // bisa diunduh dan dibuka sebagai file email. Selalu non-inline.
+                if ($isItemAttachment) {
+                    $mimeType = 'message/rfc822';
+                    if (!preg_match('/\.eml$/i', $originalName)) {
+                        $originalName .= '.eml';
+                    }
+                    $isInline  = false;
+                    $contentId = null;
+                }
 
                 // Lewati jika sudah pernah disimpan berdasarkan graph_attachment_id
                 $existing = TicketAttachment::where('graph_attachment_id', $graphAttId)->first();
@@ -1123,8 +1612,14 @@ class EmailController extends Controller
     /**
      * Tentukan attachment_type berdasarkan MIME type.
      */
+    public function resolveAttachmentTypePublic(string $mimeType): string
+    {
+        return $this->resolveAttachmentType($mimeType);
+    }
+
     private function resolveAttachmentType(string $mimeType): string
     {
+        if ($mimeType === 'message/rfc822') return 'email';
         if (str_starts_with($mimeType, 'image/')) return 'image';
         if ($mimeType === 'application/pdf') return 'pdf';
         if (str_contains($mimeType, 'word') || str_contains($mimeType, 'document')) return 'document';
@@ -1141,7 +1636,7 @@ class EmailController extends Controller
     public function reprocessAttachments(Request $request, int $messageId)
     {
         $sessionUser = session('user');
-        if (!$sessionUser || !in_array($sessionUser['role']['id'], array_merge([RoleId::ADMIN->value, RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+        if (!$sessionUser || !in_array($sessionUser['role']['id'], array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::HELPDESK_GROUP), true)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -1195,6 +1690,34 @@ class EmailController extends Controller
     }
 
     /**
+     * Bandingkan "topic" dua subject email — abaikan prefix balas/teruskan (Re:, Fw:, Fwd:,
+     * Bls:, dll), spasi berlebih, dan perbedaan huruf besar/kecil.
+     *
+     * Dipakai untuk memutuskan apakah subject draft reply perlu di-PATCH. Meng-PATCH subject
+     * draft createReply memicu Exchange me-reset Thread-Index/conversationId sehingga thread
+     * pecah di klien Outlook/Exchange. Jika topic-nya sudah sama (mis. Exchange sudah set
+     * "Re: Ticket #XXXX: ..." dan kita ingin "Ticket #XXXX: ..."), subject TIDAK perlu diubah.
+     */
+    private function subjectTopicMatches(?string $a, ?string $b): bool
+    {
+        if ($a === null || $b === null) return false;
+        $na = $this->normalizeSubjectTopic($a);
+        $nb = $this->normalizeSubjectTopic($b);
+        return $na !== '' && $na === $nb;
+    }
+
+    /**
+     * Normalisasi subject ke "topic": buang prefix balas/teruskan berulang di awal,
+     * rapikan whitespace, dan lower-case.
+     */
+    private function normalizeSubjectTopic(string $subject): string
+    {
+        $s = preg_replace('/^(?:\s*(?:re|fw|fwd|bls|aw|sv|antw)\s*:\s*)+/i', '', trim($subject));
+        $s = preg_replace('/\s+/u', ' ', trim((string) $s));
+        return mb_strtolower((string) $s, 'UTF-8');
+    }
+
+    /**
      * Kirim email balasan untuk sebuah tiket (digunakan oleh TicketMessageController).
      *
      * Alur:
@@ -1235,31 +1758,81 @@ class EmailController extends Controller
         // Primary $toEmail SELALU di posisi pertama agar Reply/Reply-All di mail client
         // memprioritaskan customer. Additional address ditambah jika valid & belum ada.
         $senderLower    = strtolower((string) $sender);
-        $toRecipients   = [['emailAddress' => ['address' => $toEmail]]];
-        $seenToLower    = [strtolower(trim($toEmail))];
+        // $toEmail boleh kosong (mis. tiket EWA yang sengaja tanpa "To", hanya CC).
+        // Jangan tambahkan recipient dengan address kosong — Graph akan menolaknya.
+        $toRecipients      = [];
+        $seenToLower       = [];
+        $invalidRecipients = []; // alamat To/CC yang tak valid sintaksis → DROP + tandai gagal
+        $primaryTo         = trim((string) $toEmail);
+        if ($primaryTo !== '') {
+            if (filter_var($primaryTo, FILTER_VALIDATE_EMAIL)) {
+                $toRecipients[] = ['emailAddress' => ['address' => $primaryTo]];
+                $seenToLower[]  = strtolower($primaryTo);
+            } else {
+                // To utama salah tulis → jangan sertakan; catat sebagai gagal.
+                $invalidRecipients[] = $primaryTo;
+            }
+        }
         foreach ($additionalToEmails as $addr) {
             $cleaned = is_string($addr) ? trim($addr) : '';
             if ($cleaned === '') continue;
             $cleanedLower = strtolower($cleaned);
             if (in_array($cleanedLower, $seenToLower, true)) continue;
             if ($cleanedLower === $senderLower) continue;  // jangan kirim ke helpdesk sendiri
-            if (!filter_var($cleaned, FILTER_VALIDATE_EMAIL)) continue;
+            if (!filter_var($cleaned, FILTER_VALIDATE_EMAIL)) {
+                $invalidRecipients[] = $cleaned;           // salah tulis → drop + tandai gagal
+                continue;
+            }
             $toRecipients[] = ['emailAddress' => ['address' => $cleaned]];
             $seenToLower[]  = $cleanedLower;
         }
 
         // Normalisasi ccList → format Graph API: [{emailAddress: {address, name}}]
-        $ccRecipients = [];
+        // Sekaligus kumpulkan alamat CC yang TIDAK valid secara sintaksis.
+        // Ini sumber utama bug "email tersimpan sebagai draft tapi tidak terkirim":
+        // ticket.cc_emails bisa menampung alamat rusak dari thread email panjang.
+        // Graph menerima alamat rusak saat MENYIMPAN draft, tapi menolak saat /send —
+        // sehingga draft tertinggal. Kita validasi lebih dulu agar bisa memberi alasan jelas.
+        $ccRecipients   = [];
         foreach ($ccList as $cc) {
-            if (is_string($cc)) {
-                $ccRecipients[] = ['emailAddress' => ['address' => $cc]];
-            } elseif (is_array($cc) && !empty($cc['address'])) {
-                $ccRecipients[] = ['emailAddress' => array_filter([
-                    'address' => $cc['address'],
-                    'name'    => $cc['name'] ?? null,
-                ])];
+            $addr = is_string($cc)
+                ? trim($cc)
+                : (is_array($cc) && !empty($cc['address']) ? trim((string) $cc['address']) : '');
+            if ($addr === '') continue;
+            if (!filter_var($addr, FILTER_VALIDATE_EMAIL)) {
+                $invalidRecipients[] = $addr;              // salah tulis → drop + tandai gagal
+                continue;
             }
+            $ccRecipients[] = ['emailAddress' => array_filter([
+                'address' => $addr,
+                'name'    => is_array($cc) ? ($cc['name'] ?? null) : null,
+            ])];
         }
+
+        $invalidRecipients = array_values(array_unique($invalidRecipients));
+
+        // Kebijakan (diubah Jul 2026): JANGAN batalkan seluruh pengiriman hanya karena
+        // ada satu alamat salah tulis. Alamat invalid sudah DI-DROP dari To/CC di atas —
+        // kirim ke penerima yang valid, lalu tandai pesan 'partial' (sebagian) dengan
+        // menyebut alamat gagal. HANYA bila TIDAK ADA penerima valid tersisa barulah
+        // pengiriman dibatalkan (total gagal) — mencegah draft orphan tanpa penerima.
+        if (empty($toRecipients) && empty($ccRecipients)) {
+            $list = implode(', ', array_slice($invalidRecipients, 0, 5));
+            throw new EmailSendException(
+                'The email was not sent — all destination addresses are invalid: ' . $list
+                . '. Fix the recipient list (To/CC) and resend.',
+                'no valid recipients; invalid: ' . implode(', ', $invalidRecipients),
+                null,
+                $invalidRecipients
+            );
+        }
+
+        // Daftar SEMUA alamat valid yang benar-benar dikirimi (To+CC) — disimpan di pesan
+        // sebagai email_recipients agar penentuan partial vs total saat NDR datang akurat.
+        $sentRecipients = array_values(array_unique(array_map(
+            fn ($r) => strtolower($r['emailAddress']['address']),
+            array_merge($toRecipients, $ccRecipients)
+        )));
 
         // ── Ekstrak inline images (base64) dari body HTML ──────────────────────
         // Email clients block data URI images; replace with cid: references.
@@ -1350,17 +1923,29 @@ class EmailController extends Controller
                     // Exchange conversationId akan berubah (Outlook mungkin tampilkan sebagai
                     // thread terpisah) tapi ini trade-off yang diterima untuk subject yang benar.
 
-                    // PATCH: subject, body, toRecipients, ccRecipients.
+                    // PATCH: body, toRecipients, ccRecipients SELALU. Subject KONDISIONAL.
                     // internetMessageHeaders TIDAK di-patch — field ini read-only pada createReply draft.
                     // Exchange sudah otomatis set In-Reply-To + References yang benar dari originalId.
+                    //
+                    // FIX THREADING OUTLOOK/EXCHANGE:
+                    // Meng-PATCH subject draft createReply memicu Exchange me-RESET Thread-Index +
+                    // conversationId. Akibatnya klien Outlook/Exchange (mis. customer dengan domain
+                    // sendiri seperti @apta.id, termasuk grouping & parent-child) menampilkan SETIAP
+                    // balasan sebagai percakapan TERPISAH. Gmail tetap menyatukan thread lewat header
+                    // References (yang ikut tertanam saat createReply & bertahan setelah patch),
+                    // sehingga bug ini "tersembunyi" ketika diuji pakai Gmail.
+                    //
+                    // Solusi: subject HANYA di-patch jika thread belum membawa identitas tiket yang
+                    // diinginkan ("Ticket #XXXX: ..."). Saat Exchange sudah meng-set subject reply
+                    // menjadi "Re: Ticket #XXXX: ..." (topic-nya sama dengan yang diminta), JANGAN
+                    // patch subject → Thread-Index terjaga → semua klien (Outlook, Gmail, dll) tetap
+                    // satu thread. Injeksi identitas tiket cukup terjadi sekali (email pertama thread).
                     $patchData = [
-                        'subject'      => $replySubject,
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
                         'toRecipients' => $toRecipients,
                         'ccRecipients' => $ccRecipients,
                     ];
-                    if ($noRePrefix) {
-                        // Override subject ke nilai yang diminta caller (misal "Ticket #XXXX: desc")
+                    if (!$this->subjectTopicMatches($draft->json('subject'), $replySubject)) {
                         $patchData['subject'] = $replySubject;
                     }
                     $this->graphPatch("/users/{$sender}/messages/{$draftId}", $patchData);
@@ -1397,13 +1982,15 @@ class EmailController extends Controller
                     if (!$conversationId) {
                         $conversationId = $draft->json('conversationId') ?? $threadId;
                     }
+                    // Subject KONDISIONAL — lihat penjelasan di blok createReply di atas.
+                    // Hindari patch subject agar Thread-Index Exchange tidak ter-reset (Outlook
+                    // tetap satu thread).
                     $patchData = [
-                        'subject'      => $replySubject,
                         'body'         => ['contentType' => 'HTML', 'content' => $cleanBody],
                         'toRecipients' => $toRecipients,
                         'ccRecipients' => $ccRecipients,
                     ];
-                    if ($noRePrefix) {
+                    if (!$this->subjectTopicMatches($draft->json('subject'), $replySubject)) {
                         $patchData['subject'] = $replySubject;
                     }
                     $this->graphPatch("/users/{$sender}/messages/{$draftId}", $patchData);
@@ -1552,7 +2139,18 @@ class EmailController extends Controller
         }
 
         // ── Kirim draft ───────────────────────────────────────────────────────
-        $this->graphPost("/users/{$sender}/messages/{$draftId}/send", []);
+        // Kegagalan di sinilah yang menyisakan draft di M365 (mis. penerima ditolak
+        // Exchange saat submit). Terjemahkan error Graph mentah → alasan ramah pengguna
+        // supaya caller bisa menandai bubble "Tidak terkirim" + alasannya.
+        try {
+            $this->graphPost("/users/{$sender}/messages/{$draftId}/send", []);
+        } catch (\Throwable $e) {
+            throw new EmailSendException(
+                $this->humanizeGraphSendError($e->getMessage()),
+                $e->getMessage(),
+                $e
+            );
+        }
 
         // ── Cari ID pesan di Sent Items setelah terkirim ──────────────────────
         // Setelah /send, draft berpindah dari Drafts → Sent Items dengan ID baru.
@@ -1633,6 +2231,8 @@ class EmailController extends Controller
             'conversation_id'     => $conversationId,
             'internet_message_id' => $internetMessageId,
             'attachments'         => $attachmentRecords,
+            'recipients'          => $sentRecipients,     // semua alamat valid yang dikirimi
+            'invalid_recipients'  => $invalidRecipients,  // alamat di-drop (salah tulis) → partial
         ];
     }
 

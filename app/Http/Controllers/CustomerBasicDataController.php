@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -35,7 +36,7 @@ class CustomerBasicDataController extends Controller
             // save tanpa harus full reload.
             $customerCols = DB::table('customer')
                 ->where('customer_id', $customerId)
-                ->select('customer_code', 'domain', 'email')
+                ->select('customer_code', 'type', 'domain', 'email', 'customer_group_id', 'parent_customer_id')
                 ->first();
 
             if (!$basicData) {
@@ -44,9 +45,12 @@ class CustomerBasicDataController extends Controller
                     'success' => true,
                     'message' => 'No basic data found',
                     'data'    => $customerCols ? (object) [
-                        'customer_code' => $customerCols->customer_code,
-                        'domain'        => $customerCols->domain,
-                        'email'         => $customerCols->email,
+                        'customer_code'      => $customerCols->customer_code,
+                        'type'               => $customerCols->type,
+                        'domain'             => $customerCols->domain,
+                        'email'              => $customerCols->email,
+                        'customer_group_id'  => $customerCols->customer_group_id,
+                        'parent_customer_id' => $customerCols->parent_customer_id,
                     ] : null,
                 ]);
             }
@@ -54,9 +58,12 @@ class CustomerBasicDataController extends Controller
             // Merge kolom dari `customer` ke response basicData agar JS bisa
             // setValue('customerDomain', basicData.domain) tanpa join terpisah.
             if ($customerCols) {
-                $basicData->customer_code = $customerCols->customer_code;
-                $basicData->domain        = $customerCols->domain;
-                $basicData->email         = $customerCols->email;
+                $basicData->customer_code      = $customerCols->customer_code;
+                $basicData->type               = $customerCols->type;
+                $basicData->domain             = $customerCols->domain;
+                $basicData->email              = $customerCols->email;
+                $basicData->customer_group_id  = $customerCols->customer_group_id;
+                $basicData->parent_customer_id = $customerCols->parent_customer_id;
             }
 
             Log::info('=== API: CUSTOMER BASIC DATA FETCHED SUCCESSFULLY ===');
@@ -94,7 +101,9 @@ class CustomerBasicDataController extends Controller
         ]);
 
         $validator = Validator::make($request->all(), [
-            'customer_code'        => ['sometimes', 'required', 'string', 'max:4', 'regex:/^[A-Za-z0-9]{1,4}$/', 'unique:customer,customer_code,' . $customerId . ',customer_id'],
+            'customer_code'        => ['sometimes', 'required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/', 'unique:customer,customer_code,' . $customerId . ',customer_id'],
+            'type'                 => ['sometimes', 'required', \Illuminate\Validation\Rule::in(\App\Models\Customer::TYPES)],
+            'email'                => 'nullable|email|max:255|unique:customer,email,' . $customerId . ',customer_id',
             'domain'               => 'nullable|string|max:255',
             'name_1'               => 'required|string|max:255',
             'name_2'               => 'nullable|string|max:255',
@@ -103,6 +112,8 @@ class CustomerBasicDataController extends Controller
             'search_term_2'        => 'nullable|string|max:255',
             'external_number'      => 'nullable|string|max:50',
             'customer_group'       => 'nullable|string|max:100',
+            'customer_group_id'    => 'nullable|integer|exists:customer_groups,id',
+            'parent_customer_id'   => 'nullable|integer|exists:customer,customer_id',
             'customer_category'    => 'nullable|string|max:100',
             'credit_limit_type'    => 'nullable|string|max:100',
             'industry_sector'      => 'nullable|string|max:100',
@@ -112,9 +123,9 @@ class CustomerBasicDataController extends Controller
             'block'                => 'nullable|boolean',
             'deletion_flag'        => 'nullable|boolean',
         ], [
-            'customer_code.max'   => 'Customer code must be at most 4 characters.',
             'customer_code.regex' => 'Customer code may only contain letters and numbers.',
             'customer_code.unique'=> 'This customer code is already in use.',
+            'type.in'             => 'Type must be either Customer or Vendor.',
         ]);
 
         if ($validator->fails()) {
@@ -128,9 +139,10 @@ class CustomerBasicDataController extends Controller
         DB::beginTransaction();
 
         try {
-            // Check if customer exists
-            $customerExists = DB::table('customer')->where('customer_id', $customerId)->exists();
-            if (!$customerExists) {
+            // Check if customer exists — kept as the full row (not just exists()) since
+            // it also doubles as the "before" snapshot for the audit log entry below.
+            $oldCustomer = DB::table('customer')->where('customer_id', $customerId)->first();
+            if (!$oldCustomer) {
                 DB::rollBack();
                 return response()->json([
                     'success' => false,
@@ -145,12 +157,51 @@ class CustomerBasicDataController extends Controller
                     ->update(['customer_code' => strtoupper($request->customer_code)]);
             }
 
+            // Business Partner type (Customer / Vendor) — kolom di tabel `customer`.
+            if ($request->filled('type')) {
+                DB::table('customer')
+                    ->where('customer_id', $customerId)
+                    ->update(['type' => $request->type]);
+            }
+
             // Update domain on the customer table if the field was sent
             // (use has() not filled() so user can also CLEAR domain by sending empty string)
             if ($request->has('domain')) {
                 DB::table('customer')
                     ->where('customer_id', $customerId)
                     ->update(['domain' => \App\Models\Customer::normalizeDomain($request->domain)]);
+            }
+
+            // Company Email (customer.email) — pakai has() agar bisa dikosongkan juga.
+            // Inilah satu-satunya tempat edit email perusahaan yang dibuat saat
+            // create/import customer.
+            if ($request->has('email')) {
+                DB::table('customer')
+                    ->where('customer_id', $customerId)
+                    ->update(['email' => $request->email ?: null]);
+            }
+
+            // Parent Customer — dapat ditambah/dihapus saat edit (string kosong = hapus)
+            if ($request->has('parent_customer_id')) {
+                DB::table('customer')
+                    ->where('customer_id', $customerId)
+                    ->update(['parent_customer_id' => $request->parent_customer_id ?: null]);
+            }
+
+            // Customer Group struktural — resolve nama untuk di-mirror ke kolom teks lama.
+            // Jika field group_id dikirim, ia jadi sumber kebenaran; kalau tidak, biarkan
+            // nilai teks yang dikirim (backward compat).
+            $hasGroupField = $request->has('customer_group_id');
+            if ($hasGroupField) {
+                $groupId = $request->customer_group_id ?: null;
+                DB::table('customer')
+                    ->where('customer_id', $customerId)
+                    ->update(['customer_group_id' => $groupId]);
+                $groupName = $groupId
+                    ? optional(\App\Models\CustomerGroup::find($groupId))->name
+                    : null;
+            } else {
+                $groupName = $request->customer_group;
             }
 
             // Check if basic data already exists
@@ -166,7 +217,7 @@ class CustomerBasicDataController extends Controller
                 'search_term_1' => $request->search_term_1 ?? strtoupper($request->name_1),
                 'search_term_2' => $request->search_term_2,
                 'external_number' => $request->external_number,
-                'customer_group' => $request->customer_group,
+                'customer_group' => $groupName,
                 'customer_category' => $request->customer_category,
                 'credit_limit_type' => $request->credit_limit_type,
                 'industry_sector' => $request->industry_sector,
@@ -240,6 +291,27 @@ class CustomerBasicDataController extends Controller
 
             DB::commit();
 
+            $newCustomerFields = [
+                'customer_code'      => $request->filled('customer_code') ? strtoupper($request->customer_code) : ($oldCustomer->customer_code ?? null),
+                'type'               => $request->filled('type') ? $request->type : ($oldCustomer->type ?? null),
+                'domain'             => $request->has('domain') ? \App\Models\Customer::normalizeDomain($request->domain) : ($oldCustomer->domain ?? null),
+                'email'              => $request->has('email') ? ($request->email ?: null) : ($oldCustomer->email ?? null),
+                'parent_customer_id' => $request->has('parent_customer_id') ? ($request->parent_customer_id ?: null) : ($oldCustomer->parent_customer_id ?? null),
+                'customer_group_id'  => $hasGroupField ? $groupId : ($oldCustomer->customer_group_id ?? null),
+            ];
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches Customer/CustomerBasicData's own $auditModule so these rows group together
+                auditableType: 'Customer',
+                auditableId: $customerId,
+                event: $action === 'create' ? 'created' : 'updated',
+                recordLabel: $data['name_1'] ?? ($oldCustomer->customer_code ?? "Customer #{$customerId}"),
+                description: ($action === 'create' ? 'added Business Partner: ' : 'updated Business Partner: ')
+                    . ($data['name_1'] ?? '') . ' (' . ($newCustomerFields['customer_code'] ?? '-') . ')',
+                old: $action === 'create' ? null : array_merge((array) $oldCustomer, (array) ($existingData ?: [])),
+                new: array_merge($newCustomerFields, $data),
+            );
+
             Log::info('=== API: CUSTOMER BASIC DATA STORED SUCCESSFULLY ===', [
                 'customer_id' => $customerId,
                 'action' => $action,
@@ -283,6 +355,9 @@ class CustomerBasicDataController extends Controller
         DB::beginTransaction();
 
         try {
+            // Snapshot before delete — needed for the audit log entry below.
+            $existingData = DB::table('customer_basic_data')->where('customer_id', $customerId)->first();
+
             $deleted = DB::table('customer_basic_data')
                 ->where('customer_id', $customerId)
                 ->delete();
@@ -305,6 +380,17 @@ class CustomerBasicDataController extends Controller
             ]);
 
             DB::commit();
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches Customer/CustomerBasicData's own $auditModule so these rows group together
+                auditableType: 'CustomerBasicData',
+                auditableId: $customerId,
+                event: 'deleted',
+                recordLabel: $existingData->name_1 ?? "Customer #{$customerId}",
+                description: 'deleted Business Partner Basic Data: ' . ($existingData->name_1 ?? "Customer #{$customerId}"),
+                old: (array) $existingData,
+                new: null,
+            );
 
             Log::info('=== API: CUSTOMER BASIC DATA DELETED SUCCESSFULLY ===');
 

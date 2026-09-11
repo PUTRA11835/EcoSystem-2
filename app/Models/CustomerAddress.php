@@ -3,9 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class CustomerAddress extends Model
 {
+    use Auditable;
+
+    protected static ?string $auditModule = 'Customer';
+
     protected $table = 'customer_address';
     protected $primaryKey = 'address_id';
     public $timestamps = true;
@@ -20,6 +25,8 @@ class CustomerAddress extends Model
         'rural_urban_village',
         'street',
         'house_number',
+        'building_name',
+        'full_address',
         'postal_code',
         'language',
         'cell_phone_country',

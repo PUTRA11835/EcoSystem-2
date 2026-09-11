@@ -1,9 +1,14 @@
-<div class="space-y-6">
+<div class="space-y-6 {{ (isset($isReadonly) && $isReadonly) ? 'profile-readonly' : '' }}">
     <!-- QUALIFICATION INFORMATION SECTION (Form untuk Create & Update) -->
     <div>
         <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
-            <h3 class="text-base font-semibold text-gray-900">Qualification Information</h3>
-            <div class="flex gap-2">
+            <div class="flex items-center gap-2">
+                <h3 class="text-base font-semibold text-gray-900">Qualification Information</h3>
+                @if(isset($isReadonly) && $isReadonly)
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium"><i class="fas fa-lock text-[10px]"></i> View Only</span>
+                @endif
+            </div>
+            <div class="flex gap-2 js-section-action">
                 <button type="button" onclick="clearQualificationForm()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-gray-500 text-white text-xs font-semibold rounded-lg hover:bg-gray-600 transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -24,7 +29,7 @@
         <!-- Qualification Details Section -->
         <div class="mb-6">
             <h5 class="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200"> Qualification Details</h5>
-            <div class="grid grid-cols-6 gap-4">
+            <div class="grid grid-cols-6 gap-4 form-grid">
                 <!-- Qualification Type -->
                 <div class="col-span-1">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-600">*</span></label>
@@ -48,7 +53,16 @@
                 <!-- Module/Course (for Education, Certification, Training) -->
                 <div class="col-span-2" id="moduleField">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module/Course</label>
-                    <input type="text" id="qualificationModule" placeholder="e.g., Computer Science" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                    <div class="custom-dd relative" data-searchable="true" data-search-placeholder="Search module...">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Module</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="qualificationModuleId" value="">
+                        <div id="moduleDropdownPanel" class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50 transition-colors" data-value="">Select Module</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Language (for Language type) -->
@@ -76,10 +90,28 @@
                     </div>
                 </div>
 
-                <!-- Qualification Level -->
-                <div class="col-span-1">
+                <!-- Qualification Level (text bebas, semua tipe kecuali Certification) -->
+                <div class="col-span-1" id="levelTextField">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Level</label>
-                    <input type="text" id="qualificationLevel" placeholder="Advanced" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                    <input type="text" id="qualificationLevelText" placeholder="Advanced" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                </div>
+
+                <!-- Qualification Level (dropdown, khusus tipe Certification) -->
+                <div class="col-span-1 hidden" id="levelDropdownField">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Level</label>
+                    <div class="custom-dd relative">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select Level</span>
+                            <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="qualificationLevelDropdown" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Level</button>
+                            @foreach(($qualificationLevelOptions ?? []) as $lvl)
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $lvl }}">{{ $lvl }}</button>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
 
                 <!-- First Year -->
@@ -97,9 +129,9 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-6 gap-4 mt-4">
+            <div class="grid grid-cols-6 gap-4 form-grid mt-4">
                 <!-- DPM -->
-                <div class="col-span-1 flex items-center gap-3">
+                <div class="col-span-1 flex flex-wrap items-center gap-3">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" id="qualificationDpm" class="w-4 h-4 text-red-800 border-gray-300 rounded focus:ring-red-800">
                         <span class="text-xs font-semibold text-gray-700">DPM</span>
@@ -107,7 +139,7 @@
                 </div>
 
                 <!-- DSM -->
-                <div class="col-span-1 flex items-center gap-3">
+                <div class="col-span-1 flex flex-wrap items-center gap-3">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" id="qualificationDsm" class="w-4 h-4 text-red-800 border-gray-300 rounded focus:ring-red-800">
                         <span class="text-xs font-semibold text-gray-700">DSM</span>
@@ -119,7 +151,7 @@
         <!-- Attachments & Validity Section -->
         <div class="bg-gray-50 rounded-lg p-4">
             <h5 class="text-sm font-bold text-gray-900 mb-3"> Attachments & Validity</h5>
-            <div class="grid grid-cols-6 gap-4">
+            <div class="grid grid-cols-6 gap-4 form-grid">
                 <!-- Verify Link -->
                 <div class="col-span-2">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Verify Link</label>
@@ -149,12 +181,12 @@
 
     <!-- QUALIFICATION DETAILS SECTION (Table) -->
     <div>
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <h3 class="text-base font-semibold text-gray-900">Qualification Details</h3>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <!-- Search -->
                 <div class="relative">
-                    <input type="text" id="qualificationSearch" placeholder="Search" class="w-64 px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                    <input type="text" id="qualificationSearch" placeholder="Search" class="w-full sm:w-64 px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
                     <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -257,6 +289,51 @@
     let selectedQualificationId = null;
     let deleteQualificationId = null;
 
+    async function loadModuleDropdown() {
+        try {
+            const res = await fetch('/api/modules?is_active=true', { credentials: 'same-origin' });
+            const data = await res.json();
+            const panel = document.getElementById('moduleDropdownPanel');
+            if (!data.success) return;
+
+            // Jangan pakai panel.innerHTML = ... — itu akan menghapus search box
+            // (+empty-state) yang sudah di-inject custom-dropdown.js saat init.
+            // Cukup buang item lama, lalu append item baru; wrap search tetap
+            // di posisi awal (sticky) dan empty-state tetap di akhir.
+            panel.querySelectorAll('.custom-dd-item').forEach(el => el.remove());
+
+            const placeholder = document.createElement('button');
+            placeholder.type = 'button';
+            placeholder.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50 transition-colors';
+            placeholder.dataset.value = '';
+            placeholder.textContent = 'Select Module';
+            panel.appendChild(placeholder);
+
+            data.data.forEach(m => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors';
+                btn.dataset.value = m.id;
+                btn.textContent = m.name;
+                panel.appendChild(btn);
+            });
+
+            // Empty-state harus tetap di akhir supaya tidak menyisip di antara item.
+            const empty = panel.querySelector('.custom-dd-empty');
+            if (empty) panel.appendChild(empty);
+        } catch (e) {
+            console.error('Failed to load modules', e);
+        }
+    }
+
+    function setModuleDropdownValue(moduleId, moduleName) {
+        document.getElementById('qualificationModuleId').value = moduleId || '';
+        const btn = document.querySelector('#moduleField .custom-dd-btn .custom-dd-label');
+        if (btn) btn.textContent = moduleName || 'Select Module';
+        if (!moduleName) btn.classList.add('text-gray-500');
+        else btn.classList.remove('text-gray-500');
+    }
+
     /**
      * Toggle fields based on qualification type
      */
@@ -264,16 +341,27 @@
         const type = document.getElementById('qualificationType').value;
         const moduleField = document.getElementById('moduleField');
         const languageField = document.getElementById('languageField');
-        
+        const levelTextField = document.getElementById('levelTextField');
+        const levelDropdownField = document.getElementById('levelDropdownField');
+
         // Hide all conditional fields
         moduleField.classList.add('hidden');
         languageField.classList.add('hidden');
-        
+
         // Show relevant fields
         if (type === 'Education' || type === 'Certification' || type === 'Training') {
             moduleField.classList.remove('hidden');
         } else if (type === 'Language') {
             languageField.classList.remove('hidden');
+        }
+
+        // Level: dropdown (Trainee/Junior/.../Expert) khusus Certification, tipe lain tetap text bebas.
+        if (type === 'Certification') {
+            levelTextField.classList.add('hidden');
+            levelDropdownField.classList.remove('hidden');
+        } else {
+            levelTextField.classList.remove('hidden');
+            levelDropdownField.classList.add('hidden');
         }
     }
 
@@ -316,6 +404,7 @@
         
         tbody.innerHTML = qualifications.map(qual => {
             const moduleOrLanguage = qual.module || qual.language || '-';
+            // qual.module sudah berupa nama (dari relasi via getFullInformation)
             const validity = formatValidity(qual.valid_from, qual.valid_to);
             const statusBadge = getStatusBadge(qual);
 
@@ -446,9 +535,12 @@
                 setCustomDropdownValue('qualificationType', qual.qualification_type || '');
                 toggleQualificationFields(); // Toggle fields based on type
 
-                document.getElementById('qualificationModule').value = qual.module || '';
+                setModuleDropdownValue(qual.module_id || '', qual.module || '');
                 setCustomDropdownValue('qualificationLanguage', qual.language || '');
-                document.getElementById('qualificationLevel').value = qual.qualification_level || '';
+                // Isi kedua varian Level (text & dropdown) — cuma yang relevan dgn
+                // type saat ini yang tervisibel & terpakai saat save.
+                document.getElementById('qualificationLevelText').value = qual.qualification_level || '';
+                setCustomDropdownValue('qualificationLevelDropdown', qual.qualification_level || '');
                 document.getElementById('qualificationFirstYear').value = qual.first_year || '';
                 document.getElementById('qualificationCertified').checked = qual.certified || false;
                 document.getElementById('qualificationDpm').checked = qual.dpm || false;
@@ -473,9 +565,10 @@
     function clearQualificationForm() {
         document.getElementById('editQualificationId').value = '';
         setCustomDropdownValue('qualificationType', '');
-        document.getElementById('qualificationModule').value = '';
+        setModuleDropdownValue('', '');
         setCustomDropdownValue('qualificationLanguage', '');
-        document.getElementById('qualificationLevel').value = '';
+        document.getElementById('qualificationLevelText').value = '';
+        setCustomDropdownValue('qualificationLevelDropdown', '');
         document.getElementById('qualificationFirstYear').value = '';
         document.getElementById('qualificationCertified').checked = false;
         document.getElementById('qualificationDpm').checked = false;
@@ -514,11 +607,16 @@
         const qualificationId = document.getElementById('editQualificationId').value;
         const isUpdate = qualificationId !== '';
 
+        // Level: dropdown kalau Certification, text bebas untuk tipe lain.
+        const qualificationLevel = qualificationType === 'Certification'
+            ? document.getElementById('qualificationLevelDropdown').value
+            : document.getElementById('qualificationLevelText').value;
+
         const qualificationData = {
             qualification_type: qualificationType,
-            module: document.getElementById('qualificationModule').value || null,
+            module_id: document.getElementById('qualificationModuleId').value ? parseInt(document.getElementById('qualificationModuleId').value) : null,
             language: document.getElementById('qualificationLanguage').value || null,
-            qualification_level: document.getElementById('qualificationLevel').value || null,
+            qualification_level: qualificationLevel || null,
             first_year: document.getElementById('qualificationFirstYear').value || null,
             certified: document.getElementById('qualificationCertified').checked,
             dpm: document.getElementById('qualificationDpm').checked,
@@ -625,8 +723,8 @@
 
         try {
             
-            const response = await fetch(`/api/employees/${employeeId}/qualification/${deleteQualificationId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/employees/${employeeId}/qualification/${deleteQualificationId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -659,7 +757,8 @@
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
         loadQualifications();
-        toggleQualificationFields(); // Initialize field visibility
+        loadModuleDropdown();
+        toggleQualificationFields();
     });
 
 

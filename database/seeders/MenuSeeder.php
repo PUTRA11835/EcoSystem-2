@@ -1,0 +1,526 @@
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+class MenuSeeder extends Seeder
+{
+    // Role IDs sesuai tabel employee_role
+    const ADMIN    = 1; // EC Administrator
+    const EMPLOYEE = 2; // Delivery Support User
+    const INTERN   = 3; // EC User
+    const HOP      = 4; // Delivery Project Head
+    const HOS      = 5; // Delivery Support Head
+    const HELPDESK = 6; // Delivery Support Service Helpdesk
+    const RPMO     = 7; // Delivery RPMO Head
+    const MANAGER  = 14; // Delivery Support Manager
+
+    /**
+     * Section halaman detail Delivery Project / Delivery Support beserta aksi
+     * yang tersedia. Slug final = "<base>.<aksi>":
+     *
+     *   .view    → section tampil (tanpa ini section disembunyikan)
+     *   .edit    → boleh mengubah data yang sudah ada
+     *   .manage  → boleh menambah & menghapus data
+     *
+     * Section yang hanya punya form edit sengaja TIDAK diberi `.manage`.
+     * HARUS sinkron dengan migration 2026_07_29_000001.
+     */
+    const PROJECT_SECTIONS = [
+        ['base' => 'delivery-project.general',       'name' => 'General Information',        'actions' => ['view', 'edit']],
+        ['base' => 'delivery-project.delivery-data', 'name' => 'Delivery Data',              'actions' => ['view', 'edit']],
+        ['base' => 'delivery-project.delivery-info', 'name' => 'Delivery Information & TOP', 'actions' => ['view', 'edit', 'manage']],
+        // Team Members: hapus anggota dipisah dari tambah, karena ada role yang
+        // boleh menghapus tapi tidak boleh menambah (dan sebaliknya).
+        ['base' => 'delivery-project.team',          'name' => 'Team Members',               'actions' => ['view', 'edit', 'manage', 'delete'], 'labels' => ['manage' => 'Create']],
+        ['base' => 'delivery-project.documents',     'name' => 'Documents',                  'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-project.issue-log',     'name' => 'Issue Log',                  'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-project.risk',          'name' => 'Risk Register',              'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-project.location',      'name' => 'Location Information',       'actions' => ['view', 'edit']],
+        ['base' => 'delivery-project.planning',      'name' => 'Planning',                   'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-project.plan-cost',     'name' => 'Plan Cost',                  'actions' => ['view', 'edit', 'manage']],
+    ];
+
+    const SUPPORT_SECTIONS = [
+        ['base' => 'delivery-support.general',      'name' => 'Support Information',         'actions' => ['view', 'edit']],
+        ['base' => 'delivery-support.approval',     'name' => 'Approval Information',        'actions' => ['view', 'edit']],
+        ['base' => 'delivery-support.financial',    'name' => 'Financial Information & TOP', 'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-support.team',         'name' => 'Team',                        'actions' => ['view', 'manage']],
+        ['base' => 'delivery-support.customer-pic', 'name' => 'Customer PIC',                'actions' => ['view', 'edit']],
+        ['base' => 'delivery-support.activities',   'name' => 'Activities & Planning',       'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-support.sla',          'name' => 'SLA Configuration',           'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-support.plan-cost',    'name' => 'Plan Cost',                   'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-support.documents',    'name' => 'Documents & Folder',          'actions' => ['view', 'edit', 'manage']],
+        ['base' => 'delivery-support.recons',       'name' => 'Recons',                      'actions' => ['view', 'edit', 'manage']],
+    ];
+
+    const ACTION_LABEL = ['view' => 'View', 'edit' => 'Edit', 'manage' => 'Create / Delete', 'delete' => 'Delete'];
+
+    /** Baris $menus untuk seluruh slug section granular. */
+    private static function sectionMenus(): array
+    {
+        $rows = [];
+
+        foreach ([['delivery.project', self::PROJECT_SECTIONS], ['delivery.support', self::SUPPORT_SECTIONS]] as [$parent, $sections]) {
+            $seq = 20;
+            foreach ($sections as $section) {
+                foreach ($section['actions'] as $action) {
+                    $rows[] = [
+                        'slug'        => $section['base'] . '.' . $action,
+                        // Label boleh dioverride per section (mis. Team Members
+                        // memakai "Create" karena "Delete"-nya slug terpisah).
+                        'name'        => $section['name'] . ' — ' . ($section['labels'][$action] ?? self::ACTION_LABEL[$action]),
+                        'type'        => 'function',
+                        'parent_slug' => $parent,
+                        'route_name'  => null,
+                        'icon'        => null,
+                        'order_seq'   => $seq++,
+                    ];
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /** Semua slug section granular sebuah modul, opsional difilter per aksi. */
+    private static function sectionSlugs(array $sections, ?array $only = null): array
+    {
+        $slugs = [];
+        foreach ($sections as $section) {
+            foreach ($section['actions'] as $action) {
+                if ($only === null || in_array($action, $only, true)) {
+                    $slugs[] = $section['base'] . '.' . $action;
+                }
+            }
+        }
+        return $slugs;
+    }
+
+    public function run(): void
+    {
+        $now = Carbon::now();
+
+        // ── Struktur menu (urutan: parent harus sebelum child) ───────────────────
+        // parent_slug null = root. function type = tombol/aksi dalam halaman.
+        $menus = [
+            // ── Home ────────────────────────────────────────────────────────────
+            ['slug' => 'dashboard',                    'name' => 'Home',                    'type' => 'page',     'parent_slug' => null,          'route_name' => 'dashboard',                    'icon' => 'fa-home',              'order_seq' => 1],
+
+            // ── AI Assistant ─────────────────────────────────────────────────────
+            ['slug' => 'ai-assistant',                 'name' => 'AI Assistant',            'type' => 'page',     'parent_slug' => null,          'route_name' => 'ai-assistant',                 'icon' => 'fa-robot',             'order_seq' => 2],
+            ['slug' => 'ai-research',                  'name' => 'AI Research',             'type' => 'page',     'parent_slug' => null,          'route_name' => 'ai-research',                  'icon' => 'fa-magnifying-glass-chart', 'order_seq' => 3],
+            ['slug' => 'word-report-generator',        'name' => 'Word Report Generator',   'type' => 'page',     'parent_slug' => null,          'route_name' => 'reports.generate.page',        'icon' => 'fa-file-word',         'order_seq' => 4],
+
+            // ── Calendar ─────────────────────────────────────────────────────────
+            ['slug' => 'calendar',                  'name' => 'Calendar',                'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-calendar-alt',      'order_seq' => 2],
+            ['slug' => 'calendar.events',              'name' => 'Events',                  'type' => 'page',     'parent_slug' => 'calendar',    'route_name' => 'calendar.events',              'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'calendar.events.create',       'name' => 'Create Event',            'type' => 'function', 'parent_slug' => 'calendar.events', 'route_name' => null,                      'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'calendar.timesheets',          'name' => 'Timesheets',              'type' => 'page',     'parent_slug' => 'calendar',    'route_name' => 'calendar.timesheets',          'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'timesheet.create',             'name' => 'Create Timesheet',        'type' => 'function', 'parent_slug' => 'calendar.timesheets', 'route_name' => null,                  'icon' => null,                   'order_seq' => 1],
+
+            // ── Reporting ─────────────────────────────────────────────────────────
+            ['slug' => 'reporting',                    'name' => 'Reporting',               'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-chart-bar',         'order_seq' => 3],
+            ['slug' => 'reporting.validation',         'name' => 'MD Validation',           'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting',                    'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'reporting.export-excel',       'name' => 'Export Excel',            'type' => 'function', 'parent_slug' => 'reporting.validation', 'route_name' => null,                 'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'reporting.close-period',       'name' => 'Close Period',            'type' => 'function', 'parent_slug' => 'reporting.validation', 'route_name' => null,                 'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'reporting.md-recap',           'name' => 'MD Recap',                'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.md-recap',           'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'reporting.collection-outlook', 'name' => 'Collection Outlook',      'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.collection-outlook', 'icon' => null,                   'order_seq' => 3],
+            ['slug' => 'reporting.collection-outlook.edit', 'name' => 'Edit Payment Status', 'type' => 'function', 'parent_slug' => 'reporting.collection-outlook', 'route_name' => null,           'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'reporting.collection-outlook-support', 'name' => 'Collection Outlook (Support)', 'type' => 'page', 'parent_slug' => 'reporting', 'route_name' => 'reporting.collection-outlook-support', 'icon' => null, 'order_seq' => 4],
+            ['slug' => 'reporting.collection-outlook-support.edit', 'name' => 'Edit Payment Status', 'type' => 'function', 'parent_slug' => 'reporting.collection-outlook-support', 'route_name' => null, 'icon' => null, 'order_seq' => 1],
+            ['slug' => 'reporting.ticketing-overview', 'name' => 'Ticketing Overview',      'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.ticketing-overview', 'icon' => null,                   'order_seq' => 5],
+            ['slug' => 'reporting.ticket-by-module',   'name' => 'Ticket by Modul',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.ticket-by-module',   'icon' => null,                   'order_seq' => 5],
+            ['slug' => 'reporting.log-shifting',       'name' => 'Log Shifting',            'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.log-shifting',       'icon' => null,                   'order_seq' => 6],
+            ['slug' => 'reporting.resolution-days',    'name' => 'Resolution Days',         'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.resolution-days',    'icon' => null,                   'order_seq' => 7],
+            ['slug' => 'reporting.consultant-assignment', 'name' => 'Consultant Assignment', 'type' => 'page',   'parent_slug' => 'reporting',   'route_name' => 'reporting.consultant-assignment', 'icon' => null,                'order_seq' => 8],
+            ['slug' => 'reporting.diagram-report',     'name' => 'Diagram Report',          'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.diagram-report',     'icon' => null,                   'order_seq' => 8],
+            ['slug' => 'reporting.resource-timeline',  'name' => 'Resource Timeline',       'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.resource-timeline',  'icon' => null,                   'order_seq' => 9],
+
+            // ── Master ────────────────────────────────────────────────────────────
+            ['slug' => 'master',                       'name' => 'Master',                  'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-database',          'order_seq' => 4],
+            ['slug' => 'master.employee',              'name' => 'Employee',                'type' => 'page',     'parent_slug' => 'master',      'route_name' => 'master.employee.index',        'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'master.employee.create',       'name' => 'Create Employee',         'type' => 'function', 'parent_slug' => 'master.employee', 'route_name' => null,                      'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'master.employee.action',       'name' => 'Actions (Edit/Delete)',   'type' => 'function', 'parent_slug' => 'master.employee', 'route_name' => null,                      'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'master.customer',              'name' => 'Business Partner',        'type' => 'page',     'parent_slug' => 'master',      'route_name' => 'master.customer.index',        'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'master.customer.create',       'name' => 'Create Business Partner', 'type' => 'function', 'parent_slug' => 'master.customer', 'route_name' => null,                      'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'master.customer.action',       'name' => 'Actions (Edit/Delete)',   'type' => 'function', 'parent_slug' => 'master.customer', 'route_name' => null,                      'icon' => null,                   'order_seq' => 2],
+
+            // ── Finance ───────────────────────────────────────────────────────────
+            ['slug' => 'financial',                    'name' => 'Finance',                 'type' => 'page',     'parent_slug' => null,          'route_name' => 'financial',                    'icon' => 'fa-dollar-sign',       'order_seq' => 5],
+
+            // ── HR & General ──────────────────────────────────────────────────────
+            ['slug' => 'general',                      'name' => 'HR & General',            'type' => 'page',     'parent_slug' => null,          'route_name' => 'general',                      'icon' => 'fa-users',             'order_seq' => 6],
+
+            // ── Business Dev ──────────────────────────────────────────────────────
+            ['slug' => 'business',                     'name' => 'Business Dev',            'type' => 'page',     'parent_slug' => null,          'route_name' => 'business',                     'icon' => 'fa-trending-up',       'order_seq' => 7],
+
+            // ── Ticket ────────────────────────────────────────────────────────────
+            ['slug' => 'tickets.inbox',                'name' => 'Ticket',                  'type' => 'page',     'parent_slug' => null,          'route_name' => 'ticket.index',                 'icon' => 'fa-ticket-alt',        'order_seq' => 8],
+            ['slug' => 'ui.ticket.btn-create',         'name' => 'Create Ticket',           'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'ticket.my-tickets.ds-user',    'name' => 'My Ticket (DS User)',     'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'ticket.my-tickets.ds-manager', 'name' => 'My Ticket (DS Manager)',  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 3],
+            ['slug' => 'ticket.all-tickets',            'name' => 'All Tickets',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 4],
+            ['slug' => 'ticket.unassigned',             'name' => 'Unassigned Ticket',       'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 5],
+            ['slug' => 'ticket.assign-pic',            'name' => 'Assign PIC',              'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 6],
+            ['slug' => 'ticket.take',                  'name' => 'Take Ticket',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 8],
+            ['slug' => 'ui.ticket.edit-fields',        'name' => 'Edit Status/Priority/Type','type' => 'function','parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 9],
+            ['slug' => 'ui.ticket.edit-additional-info','name' => 'Edit Additional Info',    'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 19],
+            ['slug' => 'ui.ticket.manage-members',     'name' => 'Manage Members',          'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                        'icon' => null,                   'order_seq' => 10],
+            ['slug' => 'ticket.assign-delivery-support', 'name' => 'Assign to Delivery Support', 'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null,                    'icon' => null,                   'order_seq' => 12],
+            ['slug' => 'ticket.review-mandays',   'name' => 'Review Mandays Proposal',   'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 14],
+            ['slug' => 'ticket.head-mandays',     'name' => 'Head Mandays & Resolution', 'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 15],
+            ['slug' => 'ticket.view-credential',  'name' => 'View Customer Credential',  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 16],
+            ['slug' => 'ticket.meeting',          'name' => 'Meeting',                   'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 17],
+            ['slug' => 'ticket.delete',           'name' => 'Delete Ticket',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 18],
+            ['slug' => 'ticket.hide',             'name' => 'Hide Ticket',               'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 19],
+            ['slug' => 'ticket.propose-mandays-customer',   'name' => 'Propose Mandays Customer', 'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 20],
+            ['slug' => 'ticket.propose-mandays-resolution', 'name' => 'Propose Resolution Days',  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 21],
+            ['slug' => 'ticket.approve-resolution-days',    'name' => 'Approve Resolution Days',  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 22],
+            ['slug' => 'ticket.eligible-ticket-lead',       'name' => 'Eligible as Ticket Lead',  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 23],
+            ['slug' => 'ticket.eligible-ticket-member',     'name' => 'Eligible as Ticket Member','type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 24],
+            ['slug' => 'ticket.sla-log',                    'name' => 'Log SLA',                  'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 25],
+            ['slug' => 'ticket.shifting-log',                'name' => 'Log Shifting',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 26],
+            ['slug' => 'ticket.export',                      'name' => 'Export Ticket',             'type' => 'function', 'parent_slug' => 'tickets.inbox', 'route_name' => null, 'icon' => null, 'order_seq' => 27],
+
+            // ── Room Chat (ticket detail sidebar toggles) ───────────────────────────
+            ['slug' => 'room-chat',                    'name' => 'Room Chat',               'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-comments',          'order_seq' => 8],
+            ['slug' => 'room-chat.tab-all-ticket',     'name' => 'All Ticket Button',       'type' => 'function', 'parent_slug' => 'room-chat',   'route_name' => null,                           'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'room-chat.tab-my-ticket',      'name' => 'My Ticket Button',        'type' => 'function', 'parent_slug' => 'room-chat',   'route_name' => null,                           'icon' => null,                   'order_seq' => 2],
+
+            // ── My Tasks ─────────────────────────────────────────────────────────
+            ['slug' => 'ticket.my-tasks',              'name' => 'My Tasks',                'type' => 'page',     'parent_slug' => null,          'route_name' => 'ticket.task',                  'icon' => 'fa-tasks',             'order_seq' => 9],
+
+            // ── Consultant Workload ───────────────────────────────────────────────
+            ['slug' => 'ticket.consultant-workload',   'name' => 'Consultant Workload',     'type' => 'page',     'parent_slug' => null,          'route_name' => 'ticket.consultant-workload',   'icon' => 'fa-chart-line',        'order_seq' => 10],
+
+            // ── Ticket Validation ─────────────────────────────────────────────────
+            ['slug' => 'tickets.staging',              'name' => 'Ticket Validation',       'type' => 'page',     'parent_slug' => null,          'route_name' => 'staging.index',                'icon' => 'fa-clipboard-check',   'order_seq' => 11],
+            ['slug' => 'staging.approve',              'name' => 'Action Validate',         'type' => 'function', 'parent_slug' => 'tickets.staging', 'route_name' => null,                      'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'staging.reject',               'name' => 'Action Reject',           'type' => 'function', 'parent_slug' => 'tickets.staging', 'route_name' => null,                      'icon' => null,                   'order_seq' => 2],
+
+            // ── Delivery ──────────────────────────────────────────────────────────
+            ['slug' => 'delivery',                     'name' => 'Delivery',                'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-briefcase',         'order_seq' => 11],
+            ['slug' => 'delivery.project',             'name' => 'Project',                 'type' => 'page',     'parent_slug' => 'delivery',    'route_name' => 'projects.index',               'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'delivery-project.add-new',     'name' => 'Add New Project',         'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,                     'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'delivery-project.delete-project',     'name' => 'Delete Project',            'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 11],
+            ['slug' => 'delivery-project.close-project',      'name' => 'Close / Reopen Project',    'type' => 'function', 'parent_slug' => 'delivery.project', 'route_name' => null,             'icon' => null,                   'order_seq' => 12],
+            ['slug' => 'delivery.support',             'name' => 'Support',                 'type' => 'page',     'parent_slug' => 'delivery',    'route_name' => 'delivery.support.index',       'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'delivery-support.add-new',     'name' => 'Add Delivery Support',    'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                     'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'delivery-support.delete-support', 'name' => 'Delete Delivery Support', 'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                  'icon' => null,                   'order_seq' => 10],
+            ['slug' => 'delivery-support.remove-ticket',  'name' => 'Remove Ticket from DS',   'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                  'icon' => null,                   'order_seq' => 11],
+
+            // ── Control Center (Admin) ────────────────────────────────────────────
+            ['slug' => 'control-center',               'name' => 'Control Center',          'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-server',            'order_seq' => 12],
+            ['slug' => 'control-center.overview',      'name' => 'Overview',                'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.index',              'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'control-center.activity-log',  'name' => 'Activity Log',            'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.activity-log',       'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'control-center.audit-log',     'name' => 'Audit Log',               'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.audit-log',          'icon' => null,                   'order_seq' => 8],
+            ['slug' => 'control-center.login-log',     'name' => 'Login Log',               'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.login-log',          'icon' => null,                   'order_seq' => 7],
+            ['slug' => 'control-center.sessions',      'name' => 'Active Sessions',         'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.sessions',           'icon' => null,                   'order_seq' => 3],
+            ['slug' => 'control-center.failed-jobs',   'name' => 'Failed Jobs',             'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.failed-jobs',        'icon' => null,                   'order_seq' => 4],
+            ['slug' => 'control-center.backup',        'name' => 'Backup & Export',         'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.backup',             'icon' => null,                   'order_seq' => 5],
+            ['slug' => 'control-center.sounds',        'name' => 'Notif Sounds',            'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.sounds',             'icon' => null,                   'order_seq' => 6],
+            ['slug' => 'control-center.ai-settings',   'name' => 'AI Settings',             'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.ai-settings',        'icon' => null,                   'order_seq' => 8],
+
+            // ── SLA ───────────────────────────────────────────────────────────────
+            ['slug' => 'sla',                          'name' => 'SLA',                     'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-stopwatch',         'order_seq' => 13],
+            ['slug' => 'sla.report',                   'name' => 'SLA Report',              'type' => 'page',     'parent_slug' => 'sla',         'route_name' => 'sla.report',                   'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'sla.config',                   'name' => 'SLA Config',              'type' => 'function', 'parent_slug' => 'sla',         'route_name' => null,                           'icon' => null,                   'order_seq' => 2],
+
+            // ── RPMO ──────────────────────────────────────────────────────────────
+            ['slug' => 'rpmo',                         'name' => 'RPMO',                    'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-building',          'order_seq' => 14],
+            ['slug' => 'rpmo.overview',                'name' => 'Overview',                'type' => 'page',     'parent_slug' => 'rpmo',        'route_name' => 'rpmo',                         'icon' => null,                   'order_seq' => 1],
+            ['slug' => 'rpmo.periods',                 'name' => 'Period Management',       'type' => 'page',     'parent_slug' => 'rpmo',        'route_name' => 'rpmo.periods.index',           'icon' => null,                   'order_seq' => 2],
+
+            // ── Legal ─────────────────────────────────────────────────────────────
+            ['slug' => 'legal',                        'name' => 'Legal',                   'type' => 'page',     'parent_slug' => null,          'route_name' => 'legal',                        'icon' => 'fa-balance-scale',     'order_seq' => 15],
+
+            // ── Manajemen (Admin only) ────────────────────────────────────────────
+            ['slug' => 'management',                            'name' => 'Management',              'type' => 'group',    'parent_slug' => null,                   'route_name' => null,                                    'icon' => 'fa-shield-alt',  'order_seq' => 16],
+            ['slug' => 'management.roles',                      'name' => 'Role',                    'type' => 'page',     'parent_slug' => 'management',           'route_name' => 'management.roles.index',                'icon' => null,             'order_seq' => 1],
+            ['slug' => 'management.permissions',                'name' => 'Menu Access',             'type' => 'page',     'parent_slug' => 'management',           'route_name' => 'management.permissions.index',          'icon' => null,             'order_seq' => 2],
+            ['slug' => 'management.holidays',                   'name' => 'Holidays',                'type' => 'page',     'parent_slug' => 'management',           'route_name' => 'management.holidays.index',             'icon' => null,             'order_seq' => 3],
+            ['slug' => 'management.hidden-tickets',             'name' => 'Hidden Tickets',          'type' => 'page',     'parent_slug' => 'management',           'route_name' => 'management.hidden-tickets.index',       'icon' => null,             'order_seq' => 5],
+            ['slug' => 'management.employee',                   'name' => 'Master Employee Settings', 'type' => 'group',   'parent_slug' => 'management',           'route_name' => null,                                    'icon' => null,             'order_seq' => 4],
+            ['slug' => 'management.employee.basic-data',        'name' => 'Basic Data',              'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.basic-data.index',  'icon' => null,             'order_seq' => 1],
+            ['slug' => 'management.employee.address',           'name' => 'Address',                 'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.address.index',     'icon' => null,             'order_seq' => 2],
+            ['slug' => 'management.employee.identification',    'name' => 'Identification',          'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.identification.index','icon' => null,            'order_seq' => 3],
+            ['slug' => 'management.employee.family',            'name' => 'Family',                  'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.family.index',      'icon' => null,             'order_seq' => 4],
+            ['slug' => 'management.employee.education',         'name' => 'Education',               'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.education.index',   'icon' => null,             'order_seq' => 5],
+            ['slug' => 'management.employee.qualification',     'name' => 'Qualification',           'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.qualification.index','icon' => null,            'order_seq' => 6],
+            ['slug' => 'management.employee.contract',          'name' => 'Contract',                'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.contract.index',    'icon' => null,             'order_seq' => 7],
+            ['slug' => 'management.employee.bank',              'name' => 'Bank',                    'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.bank.index',        'icon' => null,             'order_seq' => 8],
+            ['slug' => 'management.employee.payment',           'name' => 'Payment',                 'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.payment.index',     'icon' => null,             'order_seq' => 9],
+            ['slug' => 'management.employee.attachment',        'name' => 'Attachment',              'type' => 'page',     'parent_slug' => 'management.employee',  'route_name' => 'management.employee.attachment.index',  'icon' => null,             'order_seq' => 10],
+        ];
+
+        // Function menu granular per section Delivery Project / Delivery Support.
+        // Di-generate agar tidak ada ~60 baris manual yang gampang melenceng dari
+        // migration-nya. Aman ditaruh di akhir: menu induknya sudah ada di atas.
+        $menus = array_merge($menus, self::sectionMenus());
+
+        // ── Upsert menus (idempotent) ────────────────────────────────────────────
+        $inserted = [];
+        $newSlugs = []; // slug yang baru lahir di run ini — cuma ini yang boleh dapat default matrix di bawah
+        foreach ($menus as $menu) {
+            $parentId = isset($menu['parent_slug']) && $menu['parent_slug']
+                ? ($inserted[$menu['parent_slug']] ?? null)
+                : null;
+
+            $existing = DB::table('menu')->where('slug', $menu['slug'])->first();
+
+            if ($existing) {
+                DB::table('menu')->where('slug', $menu['slug'])->update([
+                    'parent_id'  => $parentId,
+                    'name'       => $menu['name'],
+                    'type'       => $menu['type'],
+                    'route_name' => $menu['route_name'] ?? null,
+                    'icon'       => $menu['icon'] ?? null,
+                    'order_seq'  => $menu['order_seq'],
+                    'is_active'  => true,
+                    'updated_at' => $now,
+                ]);
+                $id = $existing->id;
+            } else {
+                $newSlugs[$menu['slug']] = true;
+                $id = DB::table('menu')->insertGetId([
+                    'parent_id'  => $parentId,
+                    'name'       => $menu['name'],
+                    'slug'       => $menu['slug'],
+                    'type'       => $menu['type'],
+                    'route_name' => $menu['route_name'] ?? null,
+                    'icon'       => $menu['icon'] ?? null,
+                    'order_seq'  => $menu['order_seq'],
+                    'is_active'  => true,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+
+            $inserted[$menu['slug']] = $id;
+        }
+
+        // ── Permission matrix ────────────────────────────────────────────────────
+        // Format: [can_view, can_create, can_edit, can_delete]
+        $v    = [true,  false, false, false];
+        $vc   = [true,  true,  false, false];
+        $ve   = [true,  false, true,  false];
+        $vce  = [true,  true,  true,  false];
+        $vced = [true,  true,  true,  true];
+
+        // slug => [roleId => permissions]  (null = tidak punya akses)
+        $matrix = [
+            // Home
+            'dashboard'                   => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
+            // AI Assistant — menu baru: admin saja, role lain lewat Menu Access.
+            'ai-assistant'                => [self::ADMIN=>$v],
+            // AI Research — menu baru: admin saja, role lain lewat Menu Access.
+            'ai-research'                 => [self::ADMIN=>$v],
+            // Word Report Generator — menu baru: admin saja, role lain lewat Menu Access.
+            'word-report-generator'       => [self::ADMIN=>$v],
+            // Calendar
+            'calendar'              => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
+            'calendar.events'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::INTERN=>$v,   self::HOP=>$v,    self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
+            'calendar.events.create'      => [self::ADMIN=>$v],
+            'calendar.timesheets'         => [self::ADMIN=>$vced, self::EMPLOYEE=>$vce, self::INTERN=>$vc,  self::HOP=>$vce,  self::HOS=>$vce],
+            'timesheet.create'            => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$v],
+            // Reporting
+            'reporting'                   => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$v,    self::HELPDESK=>$v,   self::RPMO=>$v],
+            'reporting.validation'        => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$vce,  self::HELPDESK=>$v,   self::RPMO=>$v],
+            'reporting.export-excel'      => [self::ADMIN=>$v,    self::HOS=>$v],
+            'reporting.close-period'      => [self::ADMIN=>$v,    self::HOS=>$v],
+            'reporting.md-recap'          => [self::ADMIN=>$vced, self::HOS=>$vce],
+            'reporting.collection-outlook' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
+            'reporting.collection-outlook.edit' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
+            'reporting.collection-outlook-support' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
+            'reporting.collection-outlook-support.edit' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
+            'reporting.ticketing-overview' => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'reporting.ticket-by-module'   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'reporting.log-shifting'       => [self::ADMIN=>$vced, self::HOS=>$vce, self::HELPDESK=>$vce, self::RPMO=>$vce],
+            'reporting.resolution-days'    => [self::ADMIN=>$vced, self::HOS=>$vce],
+            // Master
+            'master'                      => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$v],
+            'master.employee'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$ve,  self::HOP=>$v,      self::HOS=>$v],
+            'master.employee.create'      => [self::ADMIN=>$v],
+            'master.employee.action'      => [self::ADMIN=>$v],
+            'master.customer'             => [self::ADMIN=>$vced, self::HOP=>$v,        self::HOS=>$v],
+            'master.customer.create'      => [self::ADMIN=>$v],
+            'master.customer.action'      => [self::ADMIN=>$v],
+            // Finance, HR, Business
+            'financial'                   => [self::ADMIN=>$v],
+            'general'                     => [self::ADMIN=>$v],
+            'business'                    => [self::ADMIN=>$v],
+            // Ticket
+            'tickets.inbox'               => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$ve,   self::HELPDESK=>$vce, self::RPMO=>$v],
+            'ui.ticket.btn-create'        => [self::ADMIN=>$v],
+            'ticket.my-tickets.ds-user'    => [self::EMPLOYEE=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'ticket.my-tickets.ds-manager' => [self::MANAGER=>$v],
+            'ticket.all-tickets'           => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v, self::MANAGER=>$v],
+            'ticket.unassigned'            => [self::HELPDESK=>$v],
+            'ticket.assign-pic'           => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v, self::MANAGER=>$v],
+            'ticket.take'                 => [self::EMPLOYEE=>$v],
+            'ui.ticket.edit-fields'       => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
+            'ui.ticket.manage-members'    => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HOS=>$v,    self::HELPDESK=>$v, self::RPMO=>$v],
+            'ticket.assign-delivery-support' => [self::ADMIN=>$v, self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
+            'ticket.review-mandays'   => [self::HELPDESK=>$v, self::RPMO=>$v],
+            'ticket.head-mandays'     => [self::HOS=>$v],
+            'ticket.view-credential'  => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'ticket.meeting'          => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'ticket.delete'           => [self::ADMIN=>$v],
+            'ticket.hide'             => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'ticket.propose-mandays-customer'   => [self::EMPLOYEE=>$v],
+            'ticket.propose-mandays-resolution' => [self::EMPLOYEE=>$v],
+            'ticket.approve-resolution-days'    => [self::ADMIN=>$v, self::HOS=>$v],
+            'ticket.eligible-ticket-lead'       => [self::EMPLOYEE=>$v],
+            'ticket.eligible-ticket-member'     => [self::EMPLOYEE=>$v],
+            // Tombol shortcut di headbar room chat — Helpdesk saja (+ Admin).
+            'ticket.sla-log'                    => [self::ADMIN=>$v, self::HELPDESK=>$v],
+            'ticket.shifting-log'               => [self::ADMIN=>$v, self::HELPDESK=>$v],
+            // Room Chat
+            'room-chat'                   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'room-chat.tab-all-ticket'    => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'room-chat.tab-my-ticket'     => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            // My Tasks (Delivery Support User=2, Delivery Project User=15)
+            'ticket.my-tasks'             => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   15=>$v],
+            // Consultant Workload
+            'ticket.consultant-workload'  => [self::ADMIN=>$v,    self::HOP=>$v,        self::HOS=>$v,      self::HELPDESK=>$v, self::RPMO=>$v],
+            // Ticket Validation
+            'tickets.staging'             => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HELPDESK=>$vced, self::RPMO=>$vce,  self::MANAGER=>$vce],
+            'staging.approve'             => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HELPDESK=>$v,    self::RPMO=>$v,    self::MANAGER=>$v],
+            'staging.reject'              => [self::ADMIN=>$v,    self::EMPLOYEE=>$v,   self::HELPDESK=>$v,    self::RPMO=>$v,    self::MANAGER=>$v],
+            // Delivery
+            'delivery'                    => [self::ADMIN=>$vced, self::HOP=>$vce,      self::HOS=>$vce,    self::HELPDESK=>$v,   self::RPMO=>$vced],
+            'delivery.project'            => [self::ADMIN=>$vced, self::HOP=>$vce,      self::RPMO=>$vced],
+            'delivery-project.add-new'    => [self::ADMIN=>$v,    self::HOP=>$v,        self::RPMO=>$v],
+            'delivery-project.delete-project'     => [self::ADMIN=>$v, self::RPMO=>$v],
+            'delivery-project.close-project'      => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
+            'delivery.support'            => [self::ADMIN=>$vced, self::HOS=>$vce,      self::HELPDESK=>$v, self::RPMO=>$vced],
+            'delivery-support.add-new'    => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
+            'delivery-support.delete-support' => [self::ADMIN=>$v, self::HOS=>$v,       self::RPMO=>$v],
+            'delivery-support.remove-ticket'  => [self::ADMIN=>$v],
+            // Control Center
+            'control-center'              => [self::ADMIN=>$v],
+            'control-center.overview'     => [self::ADMIN=>$v],
+            'control-center.activity-log' => [self::ADMIN=>$v],
+            'control-center.audit-log'    => [self::ADMIN=>$v],
+            'control-center.login-log'    => [self::ADMIN=>$v],
+            'control-center.sessions'     => [self::ADMIN=>$v],
+            'control-center.failed-jobs'  => [self::ADMIN=>$v],
+            'control-center.backup'       => [self::ADMIN=>$v],
+            'control-center.sounds'       => [self::ADMIN=>$v],
+            'control-center.ai-settings'  => [self::ADMIN=>$v],
+            // SLA
+            'sla'                         => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
+            'sla.report'                  => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
+            'sla.config'                  => [self::ADMIN=>$vced, self::HOS=>$vced],
+            // RPMO
+            'rpmo'                        => [self::ADMIN=>$v,    self::HOP=>$v,        self::HOS=>$v,      self::RPMO=>$v],
+            'rpmo.overview'               => [self::ADMIN=>$v,    self::RPMO=>$v],
+            'rpmo.periods'                => [self::ADMIN=>$v,    self::HOP=>$v,        self::HOS=>$v,      self::RPMO=>$v],
+            // Legal
+            'legal'                       => [self::ADMIN=>$v],
+            // Manajemen
+            'management'                            => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'management.roles'                      => [self::ADMIN=>$vced],
+            'management.permissions'                => [self::ADMIN=>$vced],
+            'management.holidays'                   => [self::ADMIN=>$vced],
+            'management.hidden-tickets'             => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
+            'management.employee'                   => [self::ADMIN=>$v],
+            'management.employee.basic-data'        => [self::ADMIN=>$vced],
+            'management.employee.address'           => [self::ADMIN=>$vced],
+            'management.employee.identification'    => [self::ADMIN=>$vced],
+            'management.employee.family'            => [self::ADMIN=>$vced],
+            'management.employee.education'         => [self::ADMIN=>$vced],
+            'management.employee.qualification'     => [self::ADMIN=>$vced],
+            'management.employee.contract'          => [self::ADMIN=>$vced],
+            'management.employee.bank'              => [self::ADMIN=>$vced],
+            'management.employee.payment'           => [self::ADMIN=>$vced],
+            'management.employee.attachment'        => [self::ADMIN=>$vced],
+        ];
+
+        // Grant default slug section granular. Sengaja disamakan dengan role yang
+        // boleh membuka halaman induknya, supaya seed baru berperilaku sama seperti
+        // sebelum gating per-section ada; penyempitan dilakukan lewat Menu Access.
+        $projectSectionRoles = [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v];
+        $supportSectionRoles = [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v];
+
+        foreach (self::sectionSlugs(self::PROJECT_SECTIONS) as $slug) {
+            $matrix[$slug] = $projectSectionRoles;
+        }
+        foreach (self::sectionSlugs(self::SUPPORT_SECTIONS) as $slug) {
+            $matrix[$slug] = $supportSectionRoles;
+        }
+
+        // Hapus anggota tim adalah aksi baru dan destruktif: lahir HANYA untuk
+        // EC Administrator (lihat App\Support\MenuRegistrar). Pemberian ke role
+        // lain diputuskan lewat Control Center -> Menu Access.
+        $matrix['delivery-project.team.delete'] = [self::ADMIN => $v];
+
+        // Section Recons juga slug baru: lahir HANYA untuk EC Administrator,
+        // sama persis dengan migrasi 2026_09_03_000002 supaya install baru dan
+        // database produksi berperilaku identik. Role lain diberikan lewat
+        // Control Center -> Menu Access.
+        foreach (['view', 'edit', 'manage'] as $action) {
+            $matrix['delivery-support.recons.' . $action] = [self::ADMIN => $v];
+        }
+
+        // Seeder ini rutin dijalankan ulang di production tiap kali ada slug baru
+        // (lihat MULTI_ROLE_SYSTEM.md). Matrix di atas cuma boleh diterapkan untuk
+        // slug yang BARU LAHIR di run ini ($newSlugs). Slug yang sudah ada sebelum
+        // run ini SAMA SEKALI tidak disentuh lagi — bukan cuma soal tidak menimpa
+        // baris yang ada, tapi juga tidak mengisi baris yang HILANG karena role
+        // tersebut sengaja "Revoke Access" via Control Center → Menu Access.
+        // Revoke di UI itu men-detach() baris role_menu (dihapus, bukan
+        // can_view=false), jadi kalau matrix tetap diterapkan ke slug lama,
+        // baris yang hilang itu akan dianggap "belum ada" dan diisi ulang dengan
+        // nilai baku — persis gejala "slug balik ke default padahal sudah
+        // dicabut" yang dilaporkan. Aturannya sama seperti App\Support\
+        // MenuRegistrar: sekali sebuah slug lahir, Control Center adalah satu-
+        // satunya sumber kebenaran untuk role_menu-nya.
+        $existingPairs = DB::table('role_menu')
+            ->get(['role_id', 'menu_id'])
+            ->map(fn ($row) => "{$row->role_id}-{$row->menu_id}")
+            ->flip();
+
+        $newlyGrantedRoleIds = [];
+
+        foreach ($matrix as $slug => $rolePerms) {
+            $menuId = $inserted[$slug] ?? null;
+            if (!$menuId || !isset($newSlugs[$slug])) continue;
+
+            foreach ($rolePerms as $roleId => $perms) {
+                $key = "{$roleId}-{$menuId}";
+                if (isset($existingPairs[$key])) {
+                    continue;
+                }
+
+                DB::table('role_menu')->insert([
+                    'role_id'    => $roleId,
+                    'menu_id'    => $menuId,
+                    'can_view'   => $perms[0],
+                    'can_create' => $perms[1],
+                    'can_edit'   => $perms[2],
+                    'can_delete' => $perms[3],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                $newlyGrantedRoleIds[] = $roleId;
+            }
+        }
+
+        // Buang cache perm_slugs milik employee yang baru dapat grant, supaya slug
+        // baru langsung muncul tanpa nunggu TTL 60 menit (lihat ShareMenuPermissions).
+        if (!empty($newlyGrantedRoleIds)) {
+            DB::table('employee_role_assignment')
+                ->whereIn('role_id', array_unique($newlyGrantedRoleIds))
+                ->pluck('employee_id')
+                ->unique()
+                ->each(fn ($empId) => Cache::forget("perm_slugs_{$empId}"));
+        }
+    }
+}

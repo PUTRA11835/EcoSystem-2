@@ -4,16 +4,21 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class DeliverySupport extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
+    use \App\Models\Concerns\HasOneDriveShareLink;
+
+    protected static ?string $auditModule = 'Delivery Support';
 
     protected $table = 'delivery_support';
 
     protected $fillable = [
         'id_delivery_list',
         'client_id',
+        'vendor_id',
         'start_date',
         'end_date',
         'resolution_estimated',
@@ -21,12 +26,16 @@ class DeliverySupport extends Model
         'name',
         'type',
         'delivery_owner_id',
-        'support_manager_id',
         'co_pm_id',
         'support_admin_id',
         'sales_id',
         'support_method',
         'total_mandays',
+        'io_number',
+        'revenue',
+        'plan_cost',
+        'gross_profit',
+        'gross_profit_percentage',
         'created_by_id',
         'approval_date',
         'approval_name',
@@ -34,16 +43,25 @@ class DeliverySupport extends Model
         'onedrive_folder_url',
         'onedrive_deliverable_folder_id',
         'onedrive_deliverable_folder_url',
+        'onedrive_link_scope',
+        'onedrive_link_expires_at',
+        'onedrive_link_checked_at',
         'service_window_start',
         'service_window_end',
     ];
 
     protected $casts = [
+        'onedrive_link_expires_at' => 'datetime',
+        'onedrive_link_checked_at' => 'datetime',
         'start_date' => 'date',
         'end_date' => 'date',
         'resolution_estimated' => 'date',
         'approval_date' => 'date',
         'calculated_progress' => 'decimal:2',
+        'revenue' => 'decimal:2',
+        'plan_cost' => 'decimal:2',
+        'gross_profit' => 'decimal:2',
+        'gross_profit_percentage' => 'decimal:2',
     ];
 
     // ========================================
@@ -61,6 +79,14 @@ class DeliverySupport extends Model
     }
 
     /**
+     * Vendor (opsional) — Business Partner bertipe Vendor di master `customer`.
+     */
+    public function vendor()
+    {
+        return $this->belongsTo(Customer::class, 'vendor_id', 'customer_id');
+    }
+
+    /**
      * Get tickets assigned to this delivery support through activities
      */
     public function tickets()
@@ -75,9 +101,16 @@ class DeliverySupport extends Model
         return $this->belongsTo(Employee::class, 'delivery_owner_id', 'employee_id');
     }
 
-    public function supportManager()
+    public function supportManagers()
     {
-        return $this->belongsTo(Employee::class, 'support_manager_id', 'employee_id');
+        return $this->belongsToMany(Employee::class, 'delivery_support_managers', 'delivery_support_id', 'employee_id', 'id', 'employee_id')
+            ->withTimestamps();
+    }
+
+    public function modules()
+    {
+        return $this->belongsToMany(Module::class, 'delivery_support_modules', 'delivery_support_id', 'module_id')
+            ->withTimestamps();
     }
 
     public function coPm()
@@ -116,6 +149,25 @@ class DeliverySupport extends Model
         return $this->hasOne(DeliverySupportViewConfiguration::class, 'delivery_support_id');
     }
 
+    /**
+     * Term Of Payment (TOP) plan entries — mirror of DeliveryProject::paymentTerms.
+     */
+    public function paymentTerms()
+    {
+        return $this->hasMany(DeliverySupportPaymentTerm::class, 'delivery_support_id')
+            ->orderBy('term_number');
+    }
+
+    /**
+     * Plan Cost tree (top-level rows only) — mirror of DeliveryProject::costs.
+     */
+    public function costs()
+    {
+        return $this->hasMany(DeliverySupportCost::class, 'delivery_support_id')
+            ->whereNull('parent_id')
+            ->orderBy('order_sequence');
+    }
+
     public function planning()
     {
         return $this->hasMany(DeliverySupportPlanning::class, 'delivery_support_id');
@@ -131,9 +183,21 @@ class DeliverySupport extends Model
         return $this->hasMany(DeliverySupportDocument::class, 'delivery_support_id');
     }
 
+    /** Batch rekonsiliasi tiket (section Recons). */
+    public function recons()
+    {
+        return $this->hasMany(DeliverySupportRecons::class, 'delivery_support_id');
+    }
+
     public function updates()
     {
         return $this->hasMany(DeliverySupportUpdate::class, 'delivery_support_id');
+    }
+
+    public function customerPics()
+    {
+        return $this->hasMany(DeliverySupportCustomerPic::class, 'delivery_support_id')
+                    ->with('contact');
     }
 
     /**
@@ -152,6 +216,36 @@ class DeliverySupport extends Model
     // ========================================
     // HELPER METHODS
     // ========================================
+
+    /**
+     * Customer deliverable folder name (per client), e.g. "125 DEMOGRP2".
+     * Returns null when client / basic data is missing.
+     * NOTE: kept identical to the historical format so existing folders still match.
+     */
+    public function customerDeliverableFolderName(): ?string
+    {
+        $this->loadMissing('client.basicData');
+
+        if (!$this->client || !$this->client->basicData) {
+            return null;
+        }
+
+        return str_pad((string) $this->client_id, 3, '0', STR_PAD_LEFT)
+            . ' ' . strtoupper($this->client->basicData->name_1);
+    }
+
+    /**
+     * Per-support folder name inside the customer folder, e.g. "ATS DEMOGRP2".
+     * Uses the support name as-is (sanitized). Support names are kept unique per
+     * client by convention, so no ID prefix is added.
+     */
+    public function supportDeliverableFolderName(): string
+    {
+        return \App\Services\OneDriveService::sanitizeSegment(
+            $this->name ?? '',
+            'Support-' . $this->id
+        );
+    }
 
     public function calculateProgress()
     {
@@ -199,6 +293,12 @@ class DeliverySupport extends Model
 
     public function updateCalculatedProgress()
     {
+        // Relasi phase bisa sudah ter-load sebelum phase-nya diubah pada request
+        // yang sama (mis. batch update phase). Buang cache relasinya dulu supaya
+        // perhitungan memakai data terbaru, bukan snapshot lama.
+        $this->unsetRelation('visiblePhases');
+        $this->unsetRelation('phases');
+
         $this->calculated_progress = $this->calculateProgress();
         $this->save();
     }

@@ -3,11 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Exports\TimesheetApprovalExport;
+use App\Exports\TimesheetSupportExport;
+use App\Exports\TimesheetProjectExport;
+use App\Exports\TimesheetOfficeExport;
 use App\Models\Timesheet;
+use App\Support\SessionUser;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
+use App\Models\CustomerMandays;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectActivity;
+use App\Models\DeliverySupportActivity;
+use App\Enums\PersonnelSubarea;
 use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\ReportingPeriod;
@@ -17,6 +25,7 @@ use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 
 class TimesheetController extends Controller
 {
@@ -26,13 +35,11 @@ class TimesheetController extends Controller
     public function submittedForApproval(Request $request)
     {
         try {
-            $user = session('user');
-            // Role is stored as nested array: $user['role']['id']
-            $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+            $user = SessionUser::fromSession(session('user'));
 
             // Admin, Head of Project, Head of Support, and RPMO can access this
-            $approvalRoles = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
-            if (!in_array($roleId, $approvalRoles, true)) {
+            $approvalRoles = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
+            if (!$user->hasAnyRole($approvalRoles)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized access'
@@ -87,7 +94,7 @@ class TimesheetController extends Controller
                         $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
                         if ($ticketId) {
                             $key = $ticketId . '_' . $detail->employee_id;
-                            $jatahMap[$key] = round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                            $jatahMap[$key] = round((float)($detail->approved_mandays ?? 0) + (float)($detail->approved_additional ?? 0), 2);
                         }
                     });
             }
@@ -98,6 +105,7 @@ class TimesheetController extends Controller
                                         'employee_id' => $timesheet->employee_id,
                                         'employee_name' => trim($timesheet->employee?->basicData?->first_name . ' ' . $timesheet->employee?->basicData?->last_name),
                                         'date' => $timesheet->date?->format('Y-m-d'),
+                                        'activity_date' => $timesheet->activity_date?->format('Y-m-d'),
                                         'start_time' => $timesheet->start_time,
                                         'end_time' => $timesheet->end_time,
                                         'duration_minutes' => $timesheet->duration_minutes,
@@ -108,6 +116,7 @@ class TimesheetController extends Controller
                                         'ticket_number' => $timesheet->ticket?->ticket_number,
                                         'ticket_description' => $timesheet->ticket?->description,
                                         'customer_name' => $timesheet->ticket?->customer?->basicData?->name_1,
+                                        'ticket_type' => $timesheet->ticket?->ticket_type,
                                         'jatah_md' => $timesheet->ticket_id ? ($jatahMap[$timesheet->ticket_id . '_' . $timesheet->employee_id] ?? null) : null,
                                         'md_consumed' => $timesheet->md_consumed,
                                         'presence' => $timesheet->presence,
@@ -144,6 +153,100 @@ class TimesheetController extends Controller
     }
 
     /**
+     * Export timesheets to Excel (Head & above).
+     *
+     * Exports exactly the rows the caller currently has on screen — the frontend
+     * sends the ids of its already-filtered/sorted table (`filteredTimesheets`),
+     * so there is no separate filtering logic to keep in sync with the table's
+     * column filters, stat-card status, date range, sort, etc. `type_filter`
+     * only decides which column layout to use (it mirrors whichever type tab is
+     * active), not which rows to include — that's already been decided by `ids`.
+     *
+     * POST /api/timesheets/export  { ids: number[], type_filter: '' | 'support' | 'project' | 'office' }
+     */
+    public function exportToExcel(Request $request)
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        // Checked against ALL assigned roles, not just whichever role is "primary"
+        $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
+        if (!$sessionUser || !$sessionUser->hasAnyRole($allowed)) {
+            abort(403);
+        }
+
+        $ids = array_map('intval', (array) $request->input('ids', []));
+        if (empty($ids)) {
+            abort(422, 'No timesheets to export.');
+        }
+
+        $type = $request->input('type_filter', '');
+
+        $rows = Timesheet::with(['employee.basicData', 'ticket.customer.basicData', 'activity.delivery_project', 'delivery_project', 'approver.basicData'])
+            ->whereIn('id', $ids)
+            ->whereNull('deleted_at')
+            ->get();
+
+        // whereIn() doesn't preserve order — reorder to match the on-screen
+        // sort/order the frontend sent.
+        $order = array_flip($ids);
+        $rows  = $rows->sortBy(fn ($r) => $order[$r->id] ?? PHP_INT_MAX)->values();
+
+        $filename = 'TIMESHEET_' . now()->timezone('Asia/Jakarta')->format('dmY') . '.xlsx';
+
+        if ($type === 'support') {
+            $ticketIds = $rows->pluck('ticket_id')->filter()->unique()->values();
+
+            // Per-employee quota MD — same batch lookup used by index()/submittedForApproval().
+            $jatahMap = [];
+            if ($ticketIds->isNotEmpty()) {
+                $latestCMs = ConsultantMandays::whereIn('ticket_id', $ticketIds)
+                    ->where('status', 'approved')
+                    ->orderBy('approved_at', 'desc')
+                    ->get()
+                    ->groupBy('ticket_id')
+                    ->map(fn ($g) => $g->first());
+
+                $cmIdToTicketId = $latestCMs->mapWithKeys(fn ($cm) => [$cm->id => $cm->ticket_id]);
+
+                ConsultantMandaysDetail::whereIn('consultant_mandays_id', $cmIdToTicketId->keys())
+                    ->get()
+                    ->each(function ($detail) use (&$jatahMap, $cmIdToTicketId) {
+                        $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
+                        if ($ticketId) {
+                            $key = $ticketId . '_' . $detail->employee_id;
+                            $jatahMap[$key] = round((float) ($detail->approved_mandays ?? 0) + (float) ($detail->approved_additional ?? 0), 2);
+                        }
+                    });
+            }
+
+            $deliveryMap = DeliverySupportActivity::with(['deliverySupport.client.basicData'])
+                ->whereIn('ticket_id', $ticketIds)
+                ->whereNotNull('ticket_id')
+                ->get()
+                ->keyBy('ticket_id')
+                ->map(function ($activity) {
+                    $ds = $activity->deliverySupport;
+                    if (!$ds) {
+                        return null;
+                    }
+                    $clientName = $ds->client?->basicData?->name_1;
+                    return trim($ds->name . ($clientName ? " ({$clientName})" : '') . ($ds->type ? ", {$ds->type}" : ''));
+                });
+
+            return Excel::download(new TimesheetSupportExport($rows, $jatahMap, $deliveryMap), $filename);
+        }
+
+        if ($type === 'project') {
+            return Excel::download(new TimesheetProjectExport($rows), $filename);
+        }
+
+        if ($type === 'office') {
+            return Excel::download(new TimesheetOfficeExport($rows), $filename);
+        }
+
+        return Excel::download(new TimesheetApprovalExport($rows), $filename);
+    }
+
+    /**
      * Get remaining MD quota for a ticket for the current user.
      * GET /api/timesheets/remaining-md?ticket_id=X
      */
@@ -171,9 +274,9 @@ class TimesheetController extends Controller
                 ->first()
             : null;
 
-        // Quota = employee's base mandays + any approved additional granted by Head.
+        // Quota = employee's Head-approved days + any approved additional granted by Head.
         $quota = $quotaDetail
-            ? round((float) $quotaDetail->mandays + (float) ($quotaDetail->approved_additional ?? 0), 2)
+            ? round((float) ($quotaDetail->approved_mandays ?? 0) + (float) ($quotaDetail->approved_additional ?? 0), 2)
             : null;
 
         // Total MD consumed by this employee for this ticket.
@@ -322,28 +425,30 @@ class TimesheetController extends Controller
     public function index(Request $request)
     {
         try {
-            $sessionUser = session('user');
-            $currentEmployeeId = $sessionUser['id'] ?? null;
-            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
+            $sessionUser       = SessionUser::fromSession(session('user'));
+            $currentEmployeeId = $sessionUser->id;
+            $roleIds           = $sessionUser->role_ids;
 
             // Load employee, activity, and ticket (with customer) relationships
             $query = Timesheet::with(['employee.basicData', 'activity', 'ticket.customer.basicData']);
 
             // ── Visibility filter ─────────────────────────────────────────────
-            // Admin sees everything. Others see own timesheets + type-specific ones:
+            // Admin sees everything. Others see own timesheets + additional scope per role:
             //   Head of Support  → also sees all support timesheets (ticket_id IS NOT NULL)
             //   Head of Project  → also sees all project timesheets (delivery_projects_id IS NOT NULL)
             //   RPMO             → also sees all office timesheets (both NULL)
-            if ($currentRoleId !== RoleId::ADMIN->value) {
-                $query->where(function ($q) use ($currentEmployeeId, $currentRoleId) {
-                    // Always own timesheets
+            // Multi-role: scopes are additive (union of all roles' access).
+            if (!$sessionUser->hasRole(RoleId::EC_ADMINISTRATOR->value)) {
+                $query->where(function ($q) use ($currentEmployeeId, $roleIds) {
                     $q->where('employee_id', $currentEmployeeId);
 
-                    if ($currentRoleId === RoleId::HEAD_OF_SUPPORT->value) {
+                    if (in_array(RoleId::DELIVERY_SUPPORT_HEAD->value, $roleIds, true)) {
                         $q->orWhereNotNull('ticket_id');
-                    } elseif ($currentRoleId === RoleId::HEAD_OF_PROJECT->value) {
+                    }
+                    if (in_array(RoleId::DELIVERY_PROJECT_HEAD->value, $roleIds, true)) {
                         $q->orWhereNotNull('delivery_projects_id');
-                    } elseif ($currentRoleId === RoleId::RPMO->value) {
+                    }
+                    if (in_array(RoleId::DELIVERY_RPMO_HEAD->value, $roleIds, true)) {
                         $q->orWhere(function ($inner) {
                             $inner->whereNull('ticket_id')->whereNull('delivery_projects_id');
                         });
@@ -394,7 +499,7 @@ class TimesheetController extends Controller
                         $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
                         if ($ticketId) {
                             $key = $ticketId . '_' . $detail->employee_id;
-                            $approvedMandaysMap[$key] = round((float)$detail->mandays + (float)($detail->approved_additional ?? 0), 2);
+                            $approvedMandaysMap[$key] = round((float)($detail->approved_mandays ?? 0) + (float)($detail->approved_additional ?? 0), 2);
                         }
                     });
             }
@@ -409,10 +514,12 @@ class TimesheetController extends Controller
                     'ticket_number'        => $t->ticket?->ticket_number,
                     'ticket_description'   => $t->ticket?->description,
                     'customer_name'        => $t->ticket?->customer?->basicData?->name_1,
+                    'ticket_type'          => $t->ticket?->ticket_type,
                     'jatah_md'             => $t->ticket_id ? ($approvedMandaysMap[$t->ticket_id . '_' . $t->employee_id] ?? null) : null,
                     'activity_id'          => $t->activity_id,
                     'activity'             => $t->activity ? ['id' => $t->activity->id, 'name' => $t->activity->name] : null,
                     'date'                 => $t->date?->format('Y-m-d'),
+                    'activity_date'        => $t->activity_date?->format('Y-m-d'),
                     'start_time'           => $t->start_time,
                     'end_time'             => $t->end_time,
                     'duration_minutes'     => $t->duration_minutes,
@@ -462,10 +569,10 @@ class TimesheetController extends Controller
             // Admins, Head of Support, Head of Project, and Helpdesk can view any timesheet.
             // All other roles may only view their own.
             $privileged = in_array($roleId, [
-                RoleId::ADMIN->value,
-                RoleId::HEAD_OF_SUPPORT->value,
-                RoleId::HEAD_OF_PROJECT->value,
-                RoleId::HELPDESK->value,
+                RoleId::EC_ADMINISTRATOR->value,
+                RoleId::DELIVERY_SUPPORT_HEAD->value,
+                RoleId::DELIVERY_PROJECT_HEAD->value,
+                RoleId::DELIVERY_HELPDESK->value,
             ], true);
 
             if (!$privileged && (int) $timesheet->employee_id !== (int) $sessionEmpId) {
@@ -502,6 +609,7 @@ class TimesheetController extends Controller
             $rules = [
                 'employee_id' => 'required|exists:employee,employee_id',
                 'date' => 'required|date|before_or_equal:today',
+                'activity_date' => 'nullable|date',
                 'start_time' => 'required',
                 'end_time' => 'required|after:start_time',
                 'description' => 'required|string',
@@ -521,6 +629,9 @@ class TimesheetController extends Controller
             } elseif ($request->filled('ticket_id')) {
                 $rules['ticket_id'] = 'nullable|integer';
                 $rules['delivery_projects_id'] = 'nullable';
+                // Activity date has no window restriction (unlike `date`, the submit date) —
+                // it just needs to be a real date, tracking when the work actually happened.
+                $rules['activity_date'] = 'required|date';
             }
 
             $validated = $request->validate($rules);
@@ -551,10 +662,31 @@ class TimesheetController extends Controller
                 $validated['activity_id'] = null;
             }
 
+            // ── Resolution Days quota guard ───────────────────────────────────
+            if (!empty($validated['ticket_id'])) {
+                $quotaError = $this->checkResolutionQuota(
+                    (int) $validated['ticket_id'],
+                    (int) $validated['employee_id'],
+                    (float) ($validated['md_consumed'] ?? 0)
+                );
+                if ($quotaError) {
+                    return response()->json(['success' => false, 'message' => $quotaError], 422);
+                }
+
+                $subareaError = $this->checkPersonnelSubareaDayLimit(
+                    (int) $validated['employee_id'],
+                    (float) ($validated['md_consumed'] ?? 0)
+                );
+                if ($subareaError) {
+                    return response()->json(['success' => false, 'message' => $subareaError], 422);
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
+
             // ── Period access gate ────────────────────────────────────────────
             // Bypass for Admin and RPMO (they can always submit)
             $sessionRoleId = (int) (session('user')['role']['id'] ?? 0);
-            $bypass = in_array($sessionRoleId, [RoleId::ADMIN->value, RoleId::RPMO->value]);
+            $bypass = in_array($sessionRoleId, [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value]);
 
             if (!$bypass) {
                 /** @var PeriodService $periodSvc */
@@ -616,12 +748,11 @@ class TimesheetController extends Controller
             $timesheet = Timesheet::findOrFail($id);
 
             // Ownership check: only the owner can update (heads/admin can approve/reject via dedicated endpoints)
-            $sessionUser       = session('user');
-            $currentEmployeeId = $sessionUser['id'] ?? null;
-            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
-            $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            $sessionUser       = SessionUser::fromSession(session('user'));
+            $currentEmployeeId = $sessionUser->id;
+            $privilegedRoles   = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
 
-            if (!in_array($currentRoleId, $privilegedRoles, true) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
+            if (!$sessionUser->hasAnyRole($privilegedRoles) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Forbidden: you can only edit your own timesheets'
@@ -637,6 +768,7 @@ class TimesheetController extends Controller
 
             $rules = [
                 'date' => 'required|date|before_or_equal:today',
+                'activity_date' => 'nullable|date',
                 'start_time' => 'required',
                 'end_time' => 'required|after:start_time',
                 'description' => 'required|string',
@@ -655,6 +787,7 @@ class TimesheetController extends Controller
             } elseif ($request->filled('ticket_id')) {
                 $rules['ticket_id'] = 'nullable|integer';
                 $rules['delivery_projects_id'] = 'nullable';
+                $rules['activity_date'] = 'required|date';
             }
 
             $validated = $request->validate($rules);
@@ -675,6 +808,28 @@ class TimesheetController extends Controller
                 $validated['ticket_id'] = null;
                 $validated['activity_id'] = null;
             }
+
+            // ── Resolution Days quota guard ───────────────────────────────────
+            if (!empty($validated['ticket_id'])) {
+                $quotaError = $this->checkResolutionQuota(
+                    (int) $validated['ticket_id'],
+                    (int) $timesheet->employee_id,
+                    (float) ($validated['md_consumed'] ?? 0),
+                    (int) $timesheet->id
+                );
+                if ($quotaError) {
+                    return response()->json(['success' => false, 'message' => $quotaError], 422);
+                }
+
+                $subareaError = $this->checkPersonnelSubareaDayLimit(
+                    (int) $timesheet->employee_id,
+                    (float) ($validated['md_consumed'] ?? 0)
+                );
+                if ($subareaError) {
+                    return response()->json(['success' => false, 'message' => $subareaError], 422);
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
 
             // Auto-assign period if date changed or period not yet set
             $this->assignPeriod($validated);
@@ -715,12 +870,11 @@ class TimesheetController extends Controller
             $timesheet = Timesheet::findOrFail($id);
 
             // Ownership check: only the owner can delete
-            $sessionUser       = session('user');
-            $currentEmployeeId = $sessionUser['id'] ?? null;
-            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
-            $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            $sessionUser       = SessionUser::fromSession(session('user'));
+            $currentEmployeeId = $sessionUser->id;
+            $privilegedRoles   = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
 
-            if (!in_array($currentRoleId, $privilegedRoles, true) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
+            if (!$sessionUser->hasAnyRole($privilegedRoles) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Forbidden: you can only delete your own timesheets'
@@ -759,12 +913,11 @@ class TimesheetController extends Controller
             $timesheet = Timesheet::findOrFail($id);
 
             // Ownership check: only the owner can submit their own timesheet
-            $sessionUser       = session('user');
-            $currentEmployeeId = $sessionUser['id'] ?? null;
-            $currentRoleId     = isset($sessionUser['role']['id']) ? (int) $sessionUser['role']['id'] : null;
-            $privilegedRoles   = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
+            $sessionUser       = SessionUser::fromSession(session('user'));
+            $currentEmployeeId = $sessionUser->id;
+            $privilegedRoles   = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
 
-            if (!in_array($currentRoleId, $privilegedRoles, true) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
+            if (!$sessionUser->hasAnyRole($privilegedRoles) && (int) $timesheet->employee_id !== (int) $currentEmployeeId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Forbidden: you can only submit your own timesheets'
@@ -782,6 +935,26 @@ class TimesheetController extends Controller
             if ($timesheet->ticket_id) {
                 $empId    = $timesheet->employee_id;
                 $ticketId = $timesheet->ticket_id;
+
+                // Customer Mandays approval is only required for Change Request tickets
+                // (same ticket_type check used by MandaysController's CR gates on Resolution
+                // Days). Other ticket types never require a Customer Mandays proposal, so
+                // gating their timesheets on it would block submission forever.
+                if ($timesheet->ticket?->ticket_type === 'Change Request') {
+                    // Latest Customer Mandays version for this ticket must be approved before
+                    // any timesheet can be submitted — an older approved version doesn't count
+                    // if a newer draft/revision superseded it.
+                    $latestCustomerMandays = CustomerMandays::where('ticket_id', $ticketId)
+                        ->orderBy('version', 'desc')
+                        ->first();
+
+                    if (!$latestCustomerMandays || $latestCustomerMandays->status !== 'approved') {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Customer Mandays status is not approved yet, cannot submit timesheet.',
+                        ], 422);
+                    }
+                }
 
                 $latestApproved = ConsultantMandays::where('ticket_id', $ticketId)
                     ->where('status', 'approved')
@@ -806,7 +979,7 @@ class TimesheetController extends Controller
                     ], 422);
                 }
 
-                $quota    = round((float) $quotaDetail->mandays + (float) ($quotaDetail->approved_additional ?? 0), 2);
+                $quota    = round((float) ($quotaDetail->approved_mandays ?? 0) + (float) ($quotaDetail->approved_additional ?? 0), 2);
                 $consumed = (float) Timesheet::where('ticket_id', $ticketId)
                     ->where('employee_id', $empId)
                     ->whereIn('status', ['draft', 'submitted', 'approved'])
@@ -853,11 +1026,11 @@ class TimesheetController extends Controller
             $isProject = (bool) $timesheet->delivery_projects_id;
 
             if ($isSupport) {
-                $targetRole = RoleId::HEAD_OF_SUPPORT->value;
+                $targetRole = RoleId::DELIVERY_SUPPORT_HEAD->value;
             } elseif ($isProject) {
-                $targetRole = RoleId::HEAD_OF_PROJECT->value;
+                $targetRole = RoleId::DELIVERY_PROJECT_HEAD->value;
             } else {
-                $targetRole = RoleId::RPMO->value;
+                $targetRole = RoleId::DELIVERY_RPMO_HEAD->value;
             }
 
             // Submitter name — use session if available, else query
@@ -881,7 +1054,7 @@ class TimesheetController extends Controller
             }
 
             // Create notification for every active Head with the target role
-            $heads = Employee::where('role_id', $targetRole)->where('is_active', true)->get();
+            $heads = Employee::withRole($targetRole)->where('is_active', true)->get();
 
             foreach ($heads as $head) {
                 Notification::create([
@@ -906,12 +1079,12 @@ class TimesheetController extends Controller
     {
         try {
             $user = session('user');
-            // Role is stored as nested array: $user['role']['id']
-            $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+            $sessionUser = SessionUser::fromSession($user);
 
-            // Admin, Head of Project, Head of Support, and RPMO can approve
-            $approvalRoles = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
-            if (!in_array($roleId, $approvalRoles, true)) {
+            // Admin, Head of Project, Head of Support, and RPMO can approve (checked
+            // against ALL assigned roles, not just whichever role is "primary")
+            $approvalRoles = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
+            if (!$sessionUser || !$sessionUser->hasAnyRole($approvalRoles)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized: Only managers can approve timesheets'
@@ -955,12 +1128,12 @@ class TimesheetController extends Controller
     {
         try {
             $user = session('user');
-            // Role is stored as nested array: $user['role']['id']
-            $roleId = isset($user['role']['id']) ? (int) $user['role']['id'] : null;
+            $sessionUser = SessionUser::fromSession($user);
 
-            // Admin, Head of Project, Head of Support, and RPMO can reject
-            $approvalRoles = array_merge([RoleId::ADMIN->value, RoleId::RPMO->value], RoleId::HEAD_GROUP);
-            if (!in_array($roleId, $approvalRoles, true)) {
+            // Admin, Head of Project, Head of Support, and RPMO can reject (checked
+            // against ALL assigned roles, not just whichever role is "primary")
+            $approvalRoles = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value], RoleId::HEAD_GROUP);
+            if (!$sessionUser || !$sessionUser->hasAnyRole($approvalRoles)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized: Only managers can reject timesheets'
@@ -1232,6 +1405,74 @@ class TimesheetController extends Controller
                 'message' => 'Failed to retrieve activities'
             ], 500);
         }
+    }
+
+    // ── Resolution Days quota guard ─────────────────────────────────────────
+
+    /**
+     * For support timesheets: verify this MD Consumed value won't push the employee's
+     * remaining quota for this ticket negative. Mirrors the "remaining < 0" hard-stop
+     * already enforced at submit() (see submit() above) — applied earlier, at
+     * create/update, so a timesheet can't end up stuck as an unsubmittable draft.
+     * Returns an error message if blocked, or null if OK (including when no approved
+     * proposal exists yet — that case is caught later by submit(), not here).
+     */
+    private function checkResolutionQuota(int $ticketId, int $employeeId, float $newMdConsumed, ?int $excludeTimesheetId = null): ?string
+    {
+        $latestApproved = ConsultantMandays::where('ticket_id', $ticketId)
+            ->where('status', 'approved')
+            ->orderBy('approved_at', 'desc')
+            ->first();
+
+        if (!$latestApproved) {
+            return null;
+        }
+
+        $quotaDetail = ConsultantMandaysDetail::where('consultant_mandays_id', $latestApproved->id)
+            ->where('employee_id', $employeeId)
+            ->first();
+
+        if (!$quotaDetail) {
+            return null;
+        }
+
+        $quota = round((float) ($quotaDetail->approved_mandays ?? 0) + (float) ($quotaDetail->approved_additional ?? 0), 2);
+
+        $consumed = (float) Timesheet::where('ticket_id', $ticketId)
+            ->where('employee_id', $employeeId)
+            ->whereIn('status', ['draft', 'submitted', 'approved'])
+            ->when($excludeTimesheetId, fn ($q) => $q->where('id', '!=', $excludeTimesheetId))
+            ->sum('md_consumed');
+
+        $remaining = round($quota - $consumed - $newMdConsumed, 2);
+
+        if ($remaining < 0) {
+            return "MD Consumed exceeds the remaining quota for this ticket. Remaining would be {$remaining}. Contact your Head to increase the quota.";
+        }
+
+        return null;
+    }
+
+    /**
+     * Personnel whose subarea (Employee > Basic Data > Personnel Subarea) is
+     * "Project" may consume at most 1 MD per single support timesheet entry —
+     * they're expected to be doing support work only occasionally, so it should
+     * be logged in smaller increments rather than one lump entry. No such cap
+     * for Support/Administrasi/Other subareas.
+     * Returns an error message if blocked, or null if OK.
+     */
+    private function checkPersonnelSubareaDayLimit(int $employeeId, float $mdConsumed): ?string
+    {
+        if ($mdConsumed <= 1) {
+            return null;
+        }
+
+        $subarea = Employee::find($employeeId)?->basicData?->personnel_subarea;
+        if ($subarea !== PersonnelSubarea::PROJECT->value) {
+            return null;
+        }
+
+        return 'Personnel under the Project subarea can consume a maximum of 1 MD per timesheet entry. Please split this into multiple entries.';
     }
 
     // ── Period helper ─────────────────────────────────────────────────────

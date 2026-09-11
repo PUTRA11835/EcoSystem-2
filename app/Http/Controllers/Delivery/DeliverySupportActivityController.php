@@ -590,15 +590,65 @@ class DeliverySupportActivityController extends Controller
     }
 
     /**
+     * Remove ticket link from an activity (set ticket_id = null).
+     * Gated by menu permission: delivery-support.remove-ticket.
+     */
+    public function removeTicketLink(DeliverySupport $support, DeliverySupportActivity $activity)
+    {
+        $sessionUser = session('user');
+
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        // Akses diatur lewat Control Center → Menu Access (slug: delivery-support.remove-ticket),
+        // bukan role hardcode — samakan dengan gating tombolnya di Blade.
+        $canRemoveTicket = (bool) Employee::find($sessionUser['id'] ?? null)?->hasPermission('delivery-support.remove-ticket');
+        if (!$canRemoveTicket) {
+            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki izin untuk melepas tautan tiket.'], 403);
+        }
+
+        if ($activity->delivery_support_id !== $support->id) {
+            return response()->json(['success' => false, 'message' => 'Activity does not belong to this support.'], 422);
+        }
+
+        if (!$activity->ticket_id) {
+            return response()->json(['success' => false, 'message' => 'This activity has no linked ticket.'], 422);
+        }
+
+        $ticketNumber = DB::table('ticket')->where('ticket_id', $activity->ticket_id)->value('ticket_number');
+
+        $activity->delete();
+
+        Log::info('Activity removed from DS (ticket unlinked)', [
+            'activity_id'   => $activity->id,
+            'ticket_number' => $ticketNumber,
+            'support_id'    => $support->id,
+            'removed_by'    => $sessionUser['id'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Ticket {$ticketNumber} removed from this delivery support.",
+        ]);
+    }
+
+    /**
      * Format activity for response
      */
     protected function formatActivity(DeliverySupportActivity $activity, $includeDetails = false): array
     {
+        $ticketNumber = $activity->ticket_id
+            ? DB::table('ticket')->where('ticket_id', $activity->ticket_id)->value('ticket_number')
+            : null;
+
         $formatted = [
             'id' => $activity->id,
             'delivery_support_id' => $activity->delivery_support_id,
             'delivery_support_phase_id' => $activity->delivery_support_phase_id,
             'stage_id' => $activity->stage_id,
+            'ticket_id' => $activity->ticket_id,
+            'ticket_number' => $ticketNumber,
             'name' => $activity->name,
             'order_sequence' => $activity->order_sequence,
             'module' => $activity->module,

@@ -9,7 +9,9 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 
 @section('content')
-<div class="min-h-screen bg-gray-50 pb-20 sm:pb-6" data-project-id="{{ $project->id }}">
+{{-- data-closed-lock-root: seluruh halaman ini dikunci read-only saat project
+     sudah di-close (lihat delivery/partials/project-closed-lock). --}}
+<div class="phase-mgmt-page min-h-screen bg-gray-50 pb-20 sm:pb-6" data-closed-lock-root data-project-id="{{ $project->id }}">
     <script>
         window.currentProjectId = {{ $project->id }};
         // Contract window — used to constrain planning (activity) date pickers.
@@ -25,7 +27,7 @@
         <div class="px-4 py-3">
             {{-- Back Button & Title --}}
             <div class="flex items-center justify-between mb-3">
-                <a href="{{ route('planning.index') }}" 
+                <a href="{{ route('projects.show', $project) }}"
                    class="flex items-center text-gray-600 hover:text-gray-900">
                     <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
@@ -79,13 +81,29 @@
                     </svg>
                     Configure Phases
                 </button>
-                
-                <button onclick="toggleMobileExportMenu()" 
-                        class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-lg border border-gray-300 hover:bg-gray-50">
-                    <div class="flex items-center">
-                        <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                        </svg>
+
+                <button onclick="openPlanningImportModal(); toggleMobileMenu();"
+                        class="w-full flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white rounded-lg border border-gray-300 hover:bg-gray-50">
+                    <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14v-6m0 0l-3 3m3-3l3 3m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Import CSV
+                </button>
+
+                @if($can('delivery-project.planning.manage'))
+                <button onclick="openPlanningResetModal(); toggleMobileMenu();"
+                        class="w-full flex items-center px-3 py-2 text-sm font-medium text-red-700 bg-white rounded-lg border border-red-200 hover:bg-red-50">
+                    <svg class="w-4 h-4 mr-2 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                    Delete All
+                </button>
+                @endif
+
+                <button onclick="toggleMobileExportMenu()"
+                        class="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-gray-700 bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                    <div class="flex items-center gap-1.5">
+                        <i class="fas fa-file-excel text-green-600 text-sm"></i>
                         Export
                     </div>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,6 +153,13 @@
         <div class="px-6 py-4">
             <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
                 <div class="flex-1 min-w-0 pr-4">
+                    <a href="{{ route('projects.show', $project) }}"
+                       class="inline-flex items-center mb-3 text-sm font-medium text-gray-600 hover:text-gray-900">
+                        <svg class="-ml-1 mr-1 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                        Back
+                    </a>
                     <div class="flex items-center space-x-3">
                         <h2 class="text-2xl font-bold text-gray-900">Phase Management</h2>
                         <span class="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-full flex-shrink-0">
@@ -186,7 +211,26 @@
                         </svg>
                         Configure Phases
                     </button>
-                    
+
+                    <button onclick="openPlanningImportModal()"
+                            class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        <svg class="mr-2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14v-6m0 0l-3 3m3-3l3 3m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Import CSV
+                    </button>
+
+                    @if($can('delivery-project.planning.manage'))
+                    <button onclick="openPlanningResetModal()"
+                            title="Hapus seluruh struktur planning project ini"
+                            class="inline-flex items-center px-3 py-2 border border-red-200 shadow-sm text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50">
+                        <svg class="mr-2 h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                        Delete All
+                    </button>
+                    @endif
+
                     <div class="inline-flex rounded-md shadow-sm" role="group">
                         <button type="button" 
                                 data-view="table"
@@ -217,91 +261,85 @@
                             S-Curve
                         </button>
 
-                        <button type="button" 
+                        <button type="button"
                                 id="exportMenuButton"
                                 onclick="toggleExportMenu()"
-                                class="inline-flex items-center ml-1 px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                            <svg class="mr-2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                            </svg>
+                                class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+                            <i class="fas fa-file-excel text-green-600 text-sm"></i>
                             Export
-                            <svg class="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                             </svg>
                         </button>
                     </div>
 
-                    {{-- Export Menu Dropdown --}}
+                    {{-- Export Menu Dropdown — sections are filtered to the active view --}}
                     <div id="exportMenu" class="hidden absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                         <div class="py-1" role="menu">
-                            <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Table View</div>
-                            <a href="{{ route('planning.export.table-pdf', $project) }}" 
-                               class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
-                               role="menuitem">
-                                <svg class="mr-3 h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"></path>
-                                </svg>
-                                Export as PDF
-                            </a>
-                            <a href="{{ route('planning.export.table-excel', $project) }}" 
-                               class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
-                               role="menuitem">
-                                <svg class="mr-3 h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"></path>
-                                </svg>
-                                Export as Excel
-                            </a>
-                            
-                            <div class="border-t border-gray-100"></div>
-                            
-                            <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Gantt Chart</div>
-                            <a href="{{ route('planning.export.gantt-pdf', $project) }}" 
-                               class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
-                               role="menuitem">
-                                <svg class="mr-3 h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"></path>
-                                </svg>
-                                Export as PDF
-                            </a>
-                            <a href="{{ route('planning.export.gantt-excel', $project) }}" 
-                               class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
-                               role="menuitem">
-                                <svg class="mr-3 h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"></path>
-                                </svg>
-                                Export as Excel
-                            </a>
+                            {{-- Table View --}}
+                            <div data-export-section="table">
+                                <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Table View</div>
+                                <a href="{{ route('planning.export.table-pdf', $project) }}"
+                                   class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                   role="menuitem">
+                                    <svg class="mr-3 h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"></path>
+                                    </svg>
+                                    Export as PDF
+                                </a>
+                                <a href="{{ route('planning.export.table-excel', $project) }}"
+                                   class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                   role="menuitem">
+                                    <svg class="mr-3 h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"></path>
+                                    </svg>
+                                    Export as Excel
+                                </a>
+                            </div>
 
-                            <div class="border-t border-gray-100"></div>
-        
-                            {{-- ✅ NEW: S-Curve Export --}}
-                            <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">S-Curve</div>
-                            <a href="{{ route('planning.export.scurve-pdf', $project) }}" 
-                            class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
-                            role="menuitem">
-                                <svg class="mr-3 h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"></path>
-                                </svg>
-                                Export as PDF
-                            </a>
-                            <a href="{{ route('planning.export.scurve-excel', $project) }}" 
-                            class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
-                            role="menuitem">
-                                <svg class="mr-3 h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"></path>
-                                </svg>
-                                Export as Excel
-                            </a>
+                            {{-- Gantt Chart --}}
+                            <div data-export-section="gantt" class="hidden">
+                                <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Gantt Chart</div>
+                                <a href="{{ route('planning.export.gantt-pdf', $project) }}"
+                                   class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                   role="menuitem">
+                                    <svg class="mr-3 h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"></path>
+                                    </svg>
+                                    Export as PDF
+                                </a>
+                                <a href="{{ route('planning.export.gantt-excel', $project) }}"
+                                   class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                   role="menuitem">
+                                    <svg class="mr-3 h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"></path>
+                                    </svg>
+                                    Export as Excel
+                                </a>
+                            </div>
+
+                            {{-- S-Curve --}}
+                            <div data-export-section="scurve" class="hidden">
+                                <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">S-Curve</div>
+                                <a href="{{ route('planning.export.scurve-pdf', $project) }}"
+                                   class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                   role="menuitem">
+                                    <svg class="mr-3 h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"></path>
+                                    </svg>
+                                    Export as PDF
+                                </a>
+                                <a href="{{ route('planning.export.scurve-excel', $project) }}"
+                                   class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                   role="menuitem">
+                                    <svg class="mr-3 h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"></path>
+                                    </svg>
+                                    Export as Excel
+                                </a>
+                            </div>
                         </div>
                     </div>
-                    
-                    <a href="{{ route('planning.index') }}" 
-                       class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                        <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                        </svg>
-                        Back
-                    </a>
                 </div>
             </div>
         </div>
@@ -317,6 +355,12 @@
     @include('delivery.project.project-planning.phase.partials.activity-modal')
     @include('delivery.project.project-planning.phase.partials.phase-modal', ['project' => $project])
     @include('delivery.project.project-planning.phase.partials.quick-modal', ['project' => $project])
+    @include('delivery.project.project-planning.phase.partials.import-modal', ['project' => $project])
+    {{-- Guarded here as well as on the button: the modal sits outside the page
+         section, so an unpermitted user would otherwise still receive its markup. --}}
+    @if($can('delivery-project.planning.manage'))
+        @include('delivery.project.project-planning.phase.partials.reset-modal', ['project' => $project])
+    @endif
 
     {{-- Activity Detail Drawer (Table View only) --}}
     @include('delivery.project.project-planning.phase.partials.activity-drawer')
@@ -438,6 +482,12 @@ window.HolidayCalendar = (function() {
             console.warn('Flatpickr not loaded');
             return null;
         }
+
+        // Matikan autocomplete/autofill bawaan browser. Karena flatpickr
+        // memakai allowInput:true, input tetap <input type="text"> biasa,
+        // sehingga browser menampilkan dropdown riwayat ketikan (dd/mm/yyyy)
+        // yang menutupi kalender. attribute ini mencegah dropdown tersebut.
+        input.setAttribute('autocomplete', 'off');
 
         const cfg = Object.assign({
             dateFormat: 'd/m/Y',
@@ -664,11 +714,21 @@ window.editItem = function(itemId) {
     };
 
     // ==========================================
+    // EXPORT MENU — show only the active view's options
+    // ==========================================
+    window.updateExportMenu = function(view) {
+        document.querySelectorAll('#exportMenu [data-export-section]').forEach(function(section) {
+            section.classList.toggle('hidden', section.dataset.exportSection !== view);
+        });
+    };
+
+    // ==========================================
     // SWITCH VIEW (Table / Gantt)
     // ==========================================
     window.switchView = function(view) {
         window.currentView = view;
-        
+        window.updateExportMenu(view);
+
         // Update button states
         document.querySelectorAll('.view-toggle').forEach(function(btn) {
             if (btn.dataset.view === view) {
@@ -761,7 +821,7 @@ window.editItem = function(itemId) {
         
         const data = {
             default_view: view,
-            _token: document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}'
+            _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
         };
         
         
@@ -1059,3 +1119,5 @@ button, a {
 </style>
 
 @endsection
+
+@include('delivery.partials.project-closed-lock', ['project' => $project])

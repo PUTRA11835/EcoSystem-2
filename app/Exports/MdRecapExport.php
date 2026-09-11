@@ -17,7 +17,7 @@ class MdRecapExport implements FromCollection, WithHeadings, WithStyles, ShouldA
     protected int $month;
     protected int $year;
 
-    public function __construct(Collection $rows, int $month, int $year)
+    public function __construct(Collection $rows, int $month = 0, int $year = 0)
     {
         $this->rows  = $rows;
         $this->month = $month;

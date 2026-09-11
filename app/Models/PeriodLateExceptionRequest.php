@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 /**
  * 2-level late exception approval flow (request-based only).
@@ -15,6 +16,10 @@ use Illuminate\Database\Eloquent\Model;
  */
 class PeriodLateExceptionRequest extends Model
 {
+    use Auditable;
+
+    protected static ?string $auditModule = 'Reporting Period';
+
     protected $fillable = [
         'period_id', 'employee_id', 'domain', 'notes', 'status',
         'head_id', 'head_approved_at', 'head_notes',

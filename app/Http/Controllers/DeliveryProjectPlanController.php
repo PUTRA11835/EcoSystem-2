@@ -16,7 +16,7 @@ class DeliveryProjectPlanController extends Controller
      */
     public function index()
     {
-        $projects = DeliveryProject::latest()->paginate(10);
+        $projects = DeliveryProject::latest()->paginate(200);
         return view('project-planning.index', compact('projects'));
     }
 

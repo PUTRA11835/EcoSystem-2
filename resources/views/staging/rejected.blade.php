@@ -1,4 +1,4 @@
-@extends('dashboard')
+﻿@extends('dashboard')
 @section('title', 'Rejected Tickets')
 @section('page-title', 'Rejected Tickets')
 @section('page-subtitle', 'Tickets that were rejected during validation')
@@ -130,7 +130,7 @@
 
 @push('scripts')
 <script>
-const CSRF = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 let currentPage = 1;
 let meta = {};
 let searchTimer = null;
@@ -149,7 +149,7 @@ function debounceSearch() {
 // ─── Load Table ───────────────────────────────────────────────────────────────
 async function loadRejectedTickets(page = 1) {
     currentPage = page;
-    const params = new URLSearchParams({ status: 'rejected', per_page: 15, page });
+    const params = new URLSearchParams({ status: 'rejected', per_page: 200, page });
     const search = document.getElementById('searchInput').value.trim();
 
     const tbody = document.getElementById('rejectedTableBody');
@@ -287,7 +287,7 @@ function renderModalContent(s) {
         </div>`;
 
     document.getElementById('modalContent').innerHTML = `
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="bg-gray-50 rounded-xl p-4">
                 <p class="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">Customer</p>
                 <p class="text-sm font-bold text-gray-800">${escHtml(s.customer_name ?? s.submitted_by_email ?? 'Unknown')}</p>

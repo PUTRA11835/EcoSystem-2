@@ -5,11 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;  
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\Auditable;
 
 class DeliveryProjectPhase extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
+
+    protected static ?string $auditModule = 'Delivery Project';
 
     protected $table = 'delivery_project_phases';
 
@@ -20,7 +23,6 @@ class DeliveryProjectPhase extends Model
         'order_sequence',
         'color',
         'weight',
-        'is_golive_phase',
         'is_visible',
         'custom_settings',
         'is_system_default',
@@ -36,7 +38,6 @@ class DeliveryProjectPhase extends Model
         'is_system_default' => 'boolean',
         'is_optional' => 'boolean',
         'is_active' => 'boolean',
-        'is_golive_phase' => 'boolean',
         'is_visible' => 'boolean',
         'settings' => 'array',
         'custom_settings' => 'array',

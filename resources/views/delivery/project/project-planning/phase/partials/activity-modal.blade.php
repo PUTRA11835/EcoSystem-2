@@ -86,7 +86,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Weight (%)</label>
                                 <input type="number" id="activityWeight" required
-                                    min="0" max="100" step="0.1" value="10"
+                                    min="0" max="100" step="0.001" value="10"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                                     oninput="updatePhaseWeightDisplay()">
                             </div>
@@ -106,6 +106,13 @@
                                     oninput="updateAutoStatus()">
                             </div>
                         </div>
+
+                        <!-- Go-Live Activity marker -->
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="activityIsGolive"
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                            <span class="text-sm text-gray-700">Mark as Go-Live activity</span>
+                        </label>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div>
@@ -462,6 +469,12 @@ async function loadPhaseWeightInfo(phaseId, excludeActivityId = null) {
     }
 }
 
+// Weight bisa 3 desimal — tampilkan hingga 3 angka di belakang koma tanpa
+// nol berlebih (mis. 10.125, 10.5, 10).
+function fmtWeight(v) {
+    return parseFloat((Number(v) || 0).toFixed(3)).toString();
+}
+
 function updatePhaseWeightDisplay() {
     if (phaseWeightLimit <= 0) return;
 
@@ -469,9 +482,9 @@ function updatePhaseWeightDisplay() {
     const totalAfter = phaseWeightUsed + thisWeight;
     const pct        = v => (v / phaseWeightLimit * 100).toFixed(1);
 
-    document.getElementById('phaseUsedDisplay').textContent    = phaseWeightUsed.toFixed(1) + '%';
-    document.getElementById('phaseThisDisplay').textContent    = thisWeight.toFixed(1) + '%';
-    document.getElementById('phaseLimitDisplay').textContent   = phaseWeightLimit.toFixed(1) + '%';
+    document.getElementById('phaseUsedDisplay').textContent    = fmtWeight(phaseWeightUsed) + '%';
+    document.getElementById('phaseThisDisplay').textContent    = fmtWeight(thisWeight) + '%';
+    document.getElementById('phaseLimitDisplay').textContent   = fmtWeight(phaseWeightLimit) + '%';
 
     const usedPct = Math.min(100, pct(phaseWeightUsed));
     const newPct  = Math.min(100 - usedPct, pct(thisWeight));
@@ -491,7 +504,7 @@ function updatePhaseWeightDisplay() {
         barNew.className   = 'absolute top-0 h-2.5 bg-red-500 transition-all duration-300';
         warnEl.classList.remove('hidden');
     } else {
-        remEl.textContent = remaining.toFixed(1) + '%';
+        remEl.textContent = fmtWeight(remaining) + '%';
         remEl.className   = remaining < 5 ? 'text-amber-600 font-semibold' : 'text-green-700 font-semibold';
         barNew.className  = 'absolute top-0 h-2.5 bg-blue-600 transition-all duration-300';
         warnEl.classList.add('hidden');
@@ -520,10 +533,14 @@ async function initActivityModalPickers() {
     destroyActivityPickers();
 
     // Contract window bounds — planning dates may not fall outside the contract period.
+    // PENTING: contract dates datang sebagai string ISO ('Y-m-d'), tapi dateFormat
+    // picker ini 'd/m/Y'. Flatpickr mem-parse minDate/maxDate STRING memakai dateFormat,
+    // sehingga '2026-06-04' salah di-parse → bounds ngawur → SEMUA tanggal ke-disable.
+    // Solusi: kirim sebagai objek Date (Flatpickr menerima Date langsung tanpa parsing).
     var _contract = window.projectContractDates || {};
     var _planBounds = {};
-    if (_contract.start) _planBounds.minDate = _contract.start;
-    if (_contract.end)   _planBounds.maxDate = _contract.end;
+    if (_contract.start) _planBounds.minDate = new Date(_contract.start + 'T00:00:00');
+    if (_contract.end)   _planBounds.maxDate = new Date(_contract.end + 'T00:00:00');
 
     window._fpStartDate = HolidayCalendar.initPicker(
         document.getElementById('activityStartDate'),
@@ -890,13 +907,13 @@ function updateWeightInfo(stage) {
     const remainingWeight = 100 - totalWeight;
     
     if (remainingWeight > 0) {
-        weightInfoEl.innerHTML = `✅ Available weight: <strong>${remainingWeight.toFixed(1)}%</strong> of 100%`;
+        weightInfoEl.innerHTML = `✅ Available weight: <strong>${fmtWeight(remainingWeight)}%</strong> of 100%`;
         weightInfoEl.className = 'text-xs text-green-600 mt-1';
     } else if (remainingWeight === 0) {
         weightInfoEl.innerHTML = `✅ Stage weight is complete: <strong>100%</strong>`;
         weightInfoEl.className = 'text-xs text-green-600 mt-1';
     } else {
-        weightInfoEl.innerHTML = `⚠️ Weight exceeded by: <strong>${Math.abs(remainingWeight).toFixed(1)}%</strong>`;
+        weightInfoEl.innerHTML = `⚠️ Weight exceeded by: <strong>${fmtWeight(Math.abs(remainingWeight))}%</strong>`;
         weightInfoEl.className = 'text-xs text-red-600 mt-1 font-semibold';
     }
 }
@@ -942,6 +959,7 @@ function loadActivityData(activityId) {
             document.getElementById('activityReceiveType').value = activity.receive_type || '';
             document.getElementById('activityNewRequirement').checked = activity.new_requirement || false;
             document.getElementById('activityDeliverable').value = activity.deliverable || '';
+            document.getElementById('activityIsGolive').checked = activity.is_golive || false;
             
             form.classList.remove('opacity-50', 'pointer-events-none');
             document.getElementById('activityName').focus();
@@ -991,6 +1009,7 @@ window.saveActivity = function(event) {
         receive_type: document.getElementById('activityReceiveType')?.value || null,
         new_requirement: document.getElementById('activityNewRequirement')?.checked || false,
         deliverable: document.getElementById('activityDeliverable')?.value || null,
+        is_golive: document.getElementById('activityIsGolive')?.checked || false,
     };
 
     // ✅ For group-direct activities, include phase_id since stage_id is null
@@ -1356,7 +1375,7 @@ async function confirmRemoveActivityMember() {
     if (btn) { btn.disabled = true; btn.innerHTML = 'Removing…'; }
 
     try {
-        await axios.delete(`/planning/${window.projectId}/activities/${currentActivityId}/members/${employeeId}`);
+        await axios.post(`/planning/${window.projectId}/activities/${currentActivityId}/members/${employeeId}/delete`, {});
 
         showNotification('Team member removed', 'success');
         await loadAssignedMembers(currentActivityId);

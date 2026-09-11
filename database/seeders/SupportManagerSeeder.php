@@ -52,7 +52,7 @@ class SupportManagerSeeder extends Seeder
             DB::beginTransaction();
             try {
                 $employeeId = DB::table('employee')->insertGetId([
-                    'role_id'             => RoleId::SUPPORT_MANAGER->value,
+                    'role_id'             => RoleId::DELIVERY_SUPPORT_MANAGER->value,
                     'eci'                 => $sm['eci'],
                     'modules'             => null,
                     'monthly_capacity_md' => 20.00,
@@ -104,7 +104,7 @@ class SupportManagerSeeder extends Seeder
                         'employee_id'   => $employeeId,
                         'username'      => $sm['eci'],
                         'email'         => $sm['email'],
-                        'password'      => Hash::make('password123'),
+                        'password'      => Hash::make('initial'),
                         'is_active'     => true,
                         'is_already_cp' => true,
                         'created_at'    => Carbon::now(),
@@ -141,7 +141,7 @@ class SupportManagerSeeder extends Seeder
             ->value('id');
 
         $required = array_filter([
-            RoleId::SUPPORT_MANAGER->value,
+            RoleId::DELIVERY_SUPPORT_MANAGER->value,
             $userSystemRoleId ?: null,
         ]);
 

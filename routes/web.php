@@ -8,6 +8,8 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\DeliveryProjectIssueController;
+use App\Http\Controllers\DeliveryProjectWricefController;
+use App\Http\Controllers\DeliveryProjectStakeholderController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\DeliveryProjectController;
@@ -23,6 +25,8 @@ use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\DeliveryProjectDataController;
 use App\Http\Controllers\DeliveryProjectStageManagementController;
 use App\Http\Controllers\DeliveryProjectPlanningExportController;
+use App\Http\Controllers\DeliveryProjectPlanningImportController;
+use App\Http\Controllers\DeliveryProjectPlanningResetController;
 use App\Http\Controllers\DeliveryProjectRiskController;
 use App\Http\Controllers\DeliveryProjectPaymentTermController;
 use App\Http\Controllers\AttachmentController;
@@ -33,10 +37,24 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\LoginLogController;
 use App\Http\Controllers\AdminSessionController;
 use App\Http\Controllers\AdminJobController;
 use App\Http\Controllers\AdminBackupController;
+use App\Http\Controllers\AdminNotificationSoundController;
+use App\Http\Controllers\TicketMigrationController;
+use App\Http\Controllers\SlaController;
 use App\Http\Middleware\CheckAuthToken;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\MenuController;
+
+// ==================== ROOT REDIRECT ====================
+Route::get('/', function () {
+    return session('auth_token')
+        ? redirect()->route('dashboard')
+        : redirect()->route('login');
+});
 
 // ==================== PUBLIC ROUTES ====================
 
@@ -79,51 +97,97 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // ==================== DASHBOARD ROUTES ====================
     
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('menu:dashboard');
+
+    // ==================== AI ASSISTANT ====================
+    Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
+    Route::post('/ai-assistant/chat', [\App\Http\Controllers\AiAssistantController::class, 'chat'])->name('ai-assistant.chat')->middleware('menu:ai-assistant');
+    Route::get('/ai-assistant/conversations/{conversation}', [\App\Http\Controllers\AiAssistantController::class, 'conversation'])->name('ai-assistant.conversation')->middleware('menu:ai-assistant');
+
+    // ==================== WORD REPORT GENERATOR ====================
+    // Menu slug 'word-report-generator' didaftarkan lewat migration
+    // add_word_report_generator_menu -- otomatis ikut `php artisan migrate`,
+    // tidak perlu command seeder terpisah.
+    // Halaman uji coba sementara — bukan UI final, cuma form upload + poll status.
+    Route::get('/reports/generate', [\App\Http\Controllers\ReportGeneratorController::class, 'index'])->name('reports.generate.page')->middleware('menu:word-report-generator');
+    Route::get('/reports/templates', [\App\Http\Controllers\ReportGeneratorController::class, 'templates'])->name('reports.templates')->middleware('menu:word-report-generator');
+    Route::get('/reports/history', [\App\Http\Controllers\ReportGeneratorController::class, 'history'])->name('reports.history')->middleware('menu:word-report-generator');
+    Route::post('/reports/generate', [\App\Http\Controllers\ReportGeneratorController::class, 'generate'])->name('reports.generate')->middleware('menu:word-report-generator');
+    Route::get('/reports/{report}/status', [\App\Http\Controllers\ReportGeneratorController::class, 'status'])->name('reports.status')->middleware('menu:word-report-generator');
+    Route::post('/reports/{report}/answer', [\App\Http\Controllers\ReportGeneratorController::class, 'answer'])->name('reports.answer')->middleware('menu:word-report-generator');
+    Route::post('/reports/{report}/retry', [\App\Http\Controllers\ReportGeneratorController::class, 'retry'])->name('reports.retry')->middleware('menu:word-report-generator');
+    Route::get('/reports/{report}/download/{type}', [\App\Http\Controllers\ReportGeneratorController::class, 'download'])->name('reports.download')->middleware('menu:word-report-generator');
+    Route::get('/reports/{report}/preview/{type}', [\App\Http\Controllers\ReportGeneratorController::class, 'preview'])->name('reports.preview')->middleware('menu:word-report-generator');
+
+    // ==================== AI RESEARCH (pencarian eksternal) ====================
+    Route::get('/ai-research', [\App\Http\Controllers\AiResearchController::class, 'index'])->name('ai-research')->middleware('menu:ai-research');
+    Route::post('/ai-research/chat', [\App\Http\Controllers\AiResearchController::class, 'chat'])->name('ai-research.chat')->middleware('menu:ai-research');
+    // Riwayat percakapan (arsip DB). Hapus memakai POST, bukan DELETE:
+    // verb DELETE diblokir edge/WAF di production.
+    Route::get('/ai-research/conversations', [\App\Http\Controllers\AiResearchController::class, 'conversations'])->name('ai-research.conversations')->middleware('menu:ai-research');
+    Route::get('/ai-research/conversations/{conversation}', [\App\Http\Controllers\AiResearchController::class, 'conversation'])->name('ai-research.conversation')->middleware('menu:ai-research');
+    Route::post('/ai-research/conversations/{conversation}/delete', [\App\Http\Controllers\AiResearchController::class, 'destroyConversation'])->name('ai-research.conversation.delete')->middleware('menu:ai-research');
 
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
         Route::get('/', [CalendarController::class, 'index'])->name('index');
-        Route::get('/events', [CalendarController::class, 'events'])->name('events');
-        Route::get('/timesheets', [CalendarController::class, 'timesheets'])->name('timesheets');
+        Route::get('/events', [CalendarController::class, 'events'])->name('events')->middleware('menu:calendar.events');
+        Route::get('/timesheets', [CalendarController::class, 'timesheets'])->name('timesheets')->middleware('menu:calendar.timesheets');
     });
 
     // ==================== REPORTING ====================
-    Route::get('/reporting',                  [\App\Http\Controllers\ReportingController::class, 'index'])->name('reporting');
+    Route::get('/reporting',                  [\App\Http\Controllers\ReportingController::class, 'index'])->name('reporting')->middleware('menu:reporting.validation');
     Route::get('/reporting/export-excel',     [\App\Http\Controllers\ReportingController::class, 'exportExcel'])->name('reporting.export');
-    Route::get('/reporting/md-recap',         [\App\Http\Controllers\ReportingController::class, 'mdRecapIndex'])->name('reporting.md-recap');
-    Route::get('/reporting/md-recap/export',  [\App\Http\Controllers\ReportingController::class, 'exportMdRecap'])->name('reporting.md-recap.export');
+    Route::get('/reporting/md-recap',         [\App\Http\Controllers\ReportingController::class, 'mdRecapIndex'])->name('reporting.md-recap')->middleware('menu:reporting.md-recap');
+    Route::get('/reporting/md-recap/export',           [\App\Http\Controllers\ReportingController::class, 'exportMdRecap'])->name('reporting.md-recap.export');
+    Route::get('/reporting/resolution-days/export',    [\App\Http\Controllers\ReportingController::class, 'exportResolutionDays'])->name('reporting.resolution-days.export');
+    Route::get('/reporting/collection-outlook',        [\App\Http\Controllers\ReportingController::class, 'collectionOutlookIndex'])->name('reporting.collection-outlook')->middleware('menu:reporting.collection-outlook');
+    Route::get('/reporting/collection-outlook/export', [\App\Http\Controllers\ReportingController::class, 'exportCollectionOutlook'])->name('reporting.collection-outlook.export')->middleware('menu:reporting.collection-outlook');
+    Route::get('/reporting/collection-outlook-support',        [\App\Http\Controllers\ReportingController::class, 'collectionOutlookSupportIndex'])->name('reporting.collection-outlook-support')->middleware('menu:reporting.collection-outlook-support');
+    Route::get('/reporting/collection-outlook-support/export', [\App\Http\Controllers\ReportingController::class, 'exportCollectionOutlookSupport'])->name('reporting.collection-outlook-support.export')->middleware('menu:reporting.collection-outlook-support');
+    Route::get('/reporting/ticketing-overview',        [\App\Http\Controllers\ReportingController::class, 'ticketingOverviewIndex'])->name('reporting.ticketing-overview')->middleware('menu:reporting.ticketing-overview');
+    Route::get('/reporting/ticket-by-module',           [\App\Http\Controllers\ReportingController::class, 'ticketByModuleIndex'])->name('reporting.ticket-by-module')->middleware('menu:reporting.ticket-by-module');
+    Route::get('/reporting/log-shifting',               [\App\Http\Controllers\ReportingController::class, 'logShiftingIndex'])->name('reporting.log-shifting')->middleware('menu:reporting.log-shifting');
+    Route::get('/reporting/ticket-by-module/export',    [\App\Http\Controllers\ReportingController::class, 'exportTicketByModule'])->name('reporting.ticket-by-module.export')->middleware('menu:reporting.ticket-by-module');
+    Route::get('/reporting/resolution-days',             [\App\Http\Controllers\ReportingController::class, 'resolutionDaysIndex'])->name('reporting.resolution-days')->middleware('menu:reporting.resolution-days');
+    Route::get('/reporting/consultant-assignment',        [\App\Http\Controllers\ReportingController::class, 'consultantAssignmentIndex'])->name('reporting.consultant-assignment')->middleware('menu:reporting.consultant-assignment');
+    Route::get('/reporting/consultant-assignment/export', [\App\Http\Controllers\ReportingController::class, 'exportConsultantAssignment'])->name('reporting.consultant-assignment.export')->middleware('menu:reporting.consultant-assignment');
+    Route::get('/reporting/diagram-report',              [\App\Http\Controllers\ReportingController::class, 'diagramReportIndex'])->name('reporting.diagram-report')->middleware('menu:reporting.diagram-report');
+    Route::get('/reporting/resource-timeline',            [\App\Http\Controllers\ResourceTimelineController::class, 'index'])->name('reporting.resource-timeline')->middleware('menu:reporting.resource-timeline');
+    Route::get('/reporting/customer-md',                  [\App\Http\Controllers\ReportingController::class, 'customerMdIndex'])->name('reporting.customer-md')->middleware('menu:reporting.customer-md');
+    Route::get('/reporting/customer-md/export',           [\App\Http\Controllers\ReportingController::class, 'exportCustomerMd'])->name('reporting.customer-md.export')->middleware('menu:reporting.customer-md');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
         // Employee routes
         Route::prefix('employee')->name('employee.')->group(function () {
-            Route::get('/', [EmployeeController::class, 'index'])->name('index');
-            Route::get('/{id}', [EmployeeController::class, 'show'])->name('detail');
+            Route::get('/', [EmployeeController::class, 'index'])->name('index')->middleware('menu:master.employee');
+            Route::get('/export', [EmployeeController::class, 'exportToExcel'])->name('export')->middleware('menu:master.employee');
+            Route::get('/{id}', [EmployeeController::class, 'show'])->name('detail')->middleware('menu:master.employee');
         });
         
         // Customer routes
         Route::prefix('customer')->name('customer.')->group(function () {
-            Route::get('/', [CustomerController::class, 'index'])->name('index');
-            Route::get('/grouping', [CustomerController::class, 'grouping'])->name('grouping');
-            Route::get('/{id}', [CustomerController::class, 'show'])->name('detail');
+            Route::get('/', [CustomerController::class, 'index'])->name('index')->middleware('menu:master.customer');
+            Route::get('/grouping', [CustomerController::class, 'grouping'])->name('grouping')->middleware('menu:master.customer');
+            Route::get('/{id}', [CustomerController::class, 'show'])->name('detail')->middleware('menu:master.customer');
         });
     });
 
     // ==================== FINANCIAL ====================
     Route::get('/financial', function () {
         return view('financial.financial', ['user' => session('user')]);
-    })->name('financial');
+    })->name('financial')->middleware('menu:financial');
 
     // ==================== HR & GENERAL ====================
     Route::get('/general', function () {
         return view('general.general', ['user' => session('user')]);
-    })->name('general');
+    })->name('general')->middleware('menu:general');
 
     // ==================== BUSINESS ====================
     Route::get('/business', function () {
         return view('business.business', ['user' => session('user')]);
-    })->name('business');
+    })->name('business')->middleware('menu:business');
 
     // ==================== DELIVERY SUPPORT ====================
     Route::prefix('delivery')->name('delivery.')->group(function () {
@@ -131,40 +195,67 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/support', function () {
             $user = session('user');
             return view('delivery.support.index', ['user' => $user]);
-        })->name('support.index');
+        })->name('support.index')->middleware('menu:delivery.support');
     });
 
     // ==================== RPMO ====================
     Route::get('/rpmo', function () {
         return view('rpmo.rpmo', ['user' => session('user')]);
-    })->name('rpmo');
+    })->name('rpmo')->middleware('menu:rpmo.overview');
 
     // Period Management (RPMO + Heads + Admin)
     Route::get('/rpmo/periods', [\App\Http\Controllers\PeriodManagementController::class, 'index'])
-         ->name('rpmo.periods.index');
+         ->name('rpmo.periods.index')->middleware('menu:rpmo.periods');
 
     // ==================== LEGAL ====================
     Route::get('/legal', function () {
         return view('legal.legal', ['user' => session('user')]);
-    })->name('legal');
+    })->name('legal')->middleware('menu:legal');
 
     // ==================== ADMIN ====================
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/', function () {
             if ((int) session('user.role.id') !== 1) abort(403);
             return view('admin.index');
-        })->name('index');
-        Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log');
-        Route::get('/sessions', [AdminSessionController::class, 'page'])->name('sessions');
-        Route::get('/failed-jobs', [AdminJobController::class, 'page'])->name('failed-jobs');
-        Route::get('/backup', [AdminBackupController::class, 'page'])->name('backup');
+        })->name('index')->middleware('menu:control-center.overview');
+        Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log')->middleware('menu:control-center.activity-log');
+        Route::get('/audit-log', [AuditLogController::class, 'index'])->name('audit-log')->middleware('menu:control-center.audit-log');
+        Route::get('/login-log', [LoginLogController::class, 'index'])->name('login-log')->middleware('menu:control-center.login-log');
+        Route::get('/sessions', [AdminSessionController::class, 'page'])->name('sessions')->middleware('menu:control-center.sessions');
+        Route::get('/failed-jobs', [AdminJobController::class, 'page'])->name('failed-jobs')->middleware('menu:control-center.failed-jobs');
+        Route::get('/backup', [AdminBackupController::class, 'page'])->name('backup')->middleware('menu:control-center.backup');
         Route::get('/backup/download/{filename}', [AdminBackupController::class, 'downloadBackup'])->name('backup.download');
         Route::get('/export/employees', [AdminBackupController::class, 'exportEmployees'])->name('export.employees');
         Route::get('/export/customers', [AdminBackupController::class, 'exportCustomers'])->name('export.customers');
         Route::get('/export/tickets',   [AdminBackupController::class, 'exportTickets'])->name('export.tickets');
         Route::get('/import/template/employees', [AdminBackupController::class, 'templateEmployees'])->name('import.template.employees');
         Route::get('/import/template/customers', [AdminBackupController::class, 'templateCustomers'])->name('import.template.customers');
+        Route::get('/import/template/tickets',   [AdminBackupController::class, 'templateTickets'])->name('import.template.tickets');
+        Route::get('/import/template/resolution-days',    [AdminBackupController::class, 'templateResolutionDays'])->name('import.template.resolution-days');
+        Route::get('/import/template/timesheet',           [AdminBackupController::class, 'templateTimesheet'])->name('import.template.timesheet');
+        Route::get('/import/template/customer-contacts',   [AdminBackupController::class, 'templateCustomerContacts'])->name('import.template.customer-contacts');
+        Route::get('/import/template/delivery-support',       [AdminBackupController::class, 'templateDeliverySupport'])->name('import.template.delivery-support');
+        Route::get('/import/template/employee-qualification', [AdminBackupController::class, 'templateEmployeeQualification'])->name('import.template.employee-qualification');
+        Route::post('/import/employees', [AdminBackupController::class, 'importEmployees'])->name('import.employees');
+        Route::post('/import/customers', [AdminBackupController::class, 'importCustomers'])->name('import.customers');
+        Route::post('/import/tickets',   [AdminBackupController::class, 'importTickets'])->name('import.tickets');
+        Route::post('/import/resolution-days', [AdminBackupController::class, 'importResolutionDays'])->name('import.resolution-days');
+        Route::post('/import/timesheet',       [AdminBackupController::class, 'importTimesheet'])->name('import.timesheet');
+        Route::get('/export/tickets/zip', [TicketMigrationController::class, 'exportZip'])->name('export.tickets.zip');
+        Route::get('/sounds', [AdminNotificationSoundController::class, 'index'])->name('sounds')->middleware('menu:control-center.sounds');
+        Route::post('/sounds', [AdminNotificationSoundController::class, 'store'])->name('sounds.store');
+        Route::delete('/sounds/{id}', [AdminNotificationSoundController::class, 'destroy'])->name('sounds.destroy');
+
+        // Model AI yang dipakai kedua asisten — dipegang super admin.
+        Route::get('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'index'])->name('ai-settings')->middleware('menu:control-center.ai-settings');
+        Route::post('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'update'])->name('ai-settings.update')->middleware('menu:control-center.ai-settings');
     });
+
+    // ==================== SLA ====================
+    Route::get('/sla/config', [SlaController::class, 'configPage'])->name('sla.config')->middleware('menu:sla.config');
+    Route::get('/sla/report', [SlaController::class, 'reportPage'])->name('sla.report')->middleware('menu:sla.report');
+    Route::get('/admin/sla/tickets/{id}/pdf',     [SlaController::class, 'downloadTicketPdf'])->name('sla.ticket.pdf');
+    Route::get('/admin/sla/tickets/{id}/log-pdf', [SlaController::class, 'downloadLogPdf'])->name('sla.ticket.log-pdf');
 
     // ==================== SETTINGS ====================
     Route::prefix('settings')->name('settings.')->group(function () {
@@ -182,57 +273,157 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== PROJECT DELIVERY ROUTES ====================
 
     // Project routes (CRUD)
-    Route::resource('projects', DeliveryProjectController::class)->except(['edit', 'update']);
-    Route::patch('/projects/{project}/general-info', [DeliveryProjectController::class, 'updateGeneralInfo'])->name('projects.updateGeneralInfo');
-    Route::patch('/projects/{project}/update-field', [DeliveryProjectController::class, 'updateField'])->name('projects.updateField');
-    Route::patch('/projects/{project}/delivery-info', [DeliveryProjectController::class, 'updateDeliveryInfo'])->name('projects.updateDeliveryInfo');
-    Route::patch('/projects/{project}/location-info', [DeliveryProjectController::class, 'updateLocationInfo'])->name('projects.updateLocationInfo');
-    Route::patch('/projects/{project}/financial-info', [DeliveryProjectController::class, 'updateFinancialInfo'])->name('projects.updateFinancialInfo');
-    Route::post('/projects/{project}/generate-folder', [DeliveryProjectController::class, 'generateFolder'])->name('projects.generateFolder');
-    Route::delete('/projects/{project}/folder', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder');
+    // CATATAN: keyed-array middleware pada Route::resource() TIDAK per-method —
+    // Laravel menerapkan semua nilainya ke setiap route resource. Jadi begitu
+    // tiap aksi butuh izin berbeda, route-nya harus didaftarkan eksplisit.
+    // `projects/create` wajib didaftarkan sebelum `projects/{project}` agar
+    // "create" tidak tertangkap sebagai parameter {project}.
+    Route::get('/projects/create', [DeliveryProjectController::class, 'create'])->name('projects.create')->middleware('menu:delivery-project.add-new');
+    Route::post('/projects', [DeliveryProjectController::class, 'store'])->name('projects.store')->middleware('menu:delivery-project.add-new');
+    Route::delete('/projects/{project}', [DeliveryProjectController::class, 'destroy'])->name('projects.destroy')->middleware('menu:delivery-project.delete-project');
+    Route::post('/projects/{project}/delete', [DeliveryProjectController::class, 'destroy'])->name('projects.destroy.post')->middleware('menu:delivery-project.delete-project');
 
-    // Term of Payment (TOP) Plan routes
-    Route::get('/projects/{project}/payment-terms',         [DeliveryProjectPaymentTermController::class, 'index'])->name('projects.paymentTerms.index');
-    Route::post('/projects/{project}/payment-terms',        [DeliveryProjectPaymentTermController::class, 'store'])->name('projects.paymentTerms.store');
-    Route::put('/projects/{project}/payment-terms/{term}',  [DeliveryProjectPaymentTermController::class, 'update'])->name('projects.paymentTerms.update');
-    Route::delete('/projects/{project}/payment-terms/{term}',[DeliveryProjectPaymentTermController::class, 'destroy'])->name('projects.paymentTerms.destroy');
+    // Close / Reopen project (manual). Close mengunci project jadi read-only;
+    // Reopen membukanya lagi. Keduanya butuh izin delivery-project.close-project.
+    Route::post('/projects/{project}/close',  [DeliveryProjectController::class, 'close'])->name('projects.close')->middleware('menu:delivery-project.close-project');
+    Route::post('/projects/{project}/reopen', [DeliveryProjectController::class, 'reopen'])->name('projects.reopen')->middleware('menu:delivery-project.close-project');
+
+    // Export daftar project ke Excel. Wajib didaftarkan sebelum
+    // `projects/{project}` agar "export" tidak tertangkap sebagai {project}.
+    // Izinnya sama dengan halaman list — isinya memang data list yang sama.
+    Route::get('/projects/export', [DeliveryProjectController::class, 'export'])->name('projects.export')->middleware('menu:delivery.project');
+
+    Route::get('/projects', [DeliveryProjectController::class, 'index'])->name('projects.index')->middleware('menu:delivery.project');
+    Route::get('/projects/{project}', [DeliveryProjectController::class, 'show'])->name('projects.show')->middleware('menu:delivery.project');
+
+    // Write endpoints per section — dipetakan ke function menu section-nya masing-masing
+    // supaya sebuah role bisa dibatasi hanya boleh mengedit section tertentu.
+    //
+    // Konvensi slug: <modul>.<section>.<aksi>
+    //   .view   → endpoint baca section (GET)
+    //   .edit   → mengubah record yang sudah ada (PATCH/PUT)
+    //   .manage → menambah & menghapus record (POST/DELETE)
+    // Section yang hanya punya form (General/Delivery Data/Location) tidak punya
+    // `.manage` karena memang tidak ada aksi tambah/hapus di dalamnya.
+    Route::middleware(['menu:delivery-project.general.edit', 'project.editable'])->group(function () {
+        Route::patch('/projects/{project}/general-info', [DeliveryProjectController::class, 'updateGeneralInfo'])->name('projects.updateGeneralInfo');
+        Route::patch('/projects/{project}/update-field', [DeliveryProjectController::class, 'updateField'])->name('projects.updateField');
+    });
+
+    Route::middleware(['menu:delivery-project.location.edit', 'project.editable'])->group(function () {
+        Route::patch('/projects/{project}/location-info', [DeliveryProjectController::class, 'updateLocationInfo'])->name('projects.updateLocationInfo');
+    });
+
+    // Folder OneDrive project dianggap bagian dari section Documents.
+    Route::middleware(['menu:delivery-project.documents.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/generate-folder', [DeliveryProjectController::class, 'generateFolder'])->name('projects.generateFolder');
+        Route::delete('/projects/{project}/folder', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder');
+        Route::post('/projects/{project}/folder/delete', [DeliveryProjectController::class, 'deleteFolder'])->name('projects.deleteFolder.post');
+    });
+
+    // Delivery Information & Delivery Data — dua section terpisah sekarang.
+    Route::middleware(['menu:delivery-project.delivery-info.edit', 'project.editable'])->group(function () {
+        Route::patch('/projects/{project}/delivery-info', [DeliveryProjectController::class, 'updateDeliveryInfo'])->name('projects.updateDeliveryInfo');
+        Route::patch('/projects/{project}/financial-info', [DeliveryProjectController::class, 'updateFinancialInfo'])->name('projects.updateFinancialInfo');
+        // Ubah termin TOP yang sudah ada
+        Route::put('/projects/{project}/payment-terms/{term}', [DeliveryProjectPaymentTermController::class, 'update'])->name('projects.paymentTerms.update');
+    });
+
+    Route::middleware(['menu:delivery-project.delivery-data.edit', 'project.editable'])->group(function () {
+        Route::patch('/projects/{project}/delivery-data', [DeliveryProjectController::class, 'updateDeliveryData'])->name('projects.updateDeliveryData');
+    });
+
+    // Tambah/hapus termin TOP (Term Of Payment) — tampil di dalam section Delivery Information.
+    Route::middleware(['menu:delivery-project.delivery-info.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/payment-terms',        [DeliveryProjectPaymentTermController::class, 'store'])->name('projects.paymentTerms.store');
+        Route::delete('/projects/{project}/payment-terms/{term}',[DeliveryProjectPaymentTermController::class, 'destroy'])->name('projects.paymentTerms.destroy');
+        Route::post('/projects/{project}/payment-terms/{term}/delete',[DeliveryProjectPaymentTermController::class, 'destroy'])->name('projects.paymentTerms.destroy.post');
+    });
+
+    // Term of Payment (TOP) Plan — read-only
+    Route::get('/projects/{project}/payment-terms',         [DeliveryProjectPaymentTermController::class, 'index'])->name('projects.paymentTerms.index')->middleware('menu:delivery-project.delivery-info.view');
 
     // Risk Register routes
-    Route::get('/projects/{project}/risks',          [DeliveryProjectRiskController::class, 'index'])->name('projects.risks.index');
-    Route::post('/projects/{project}/risks',         [DeliveryProjectRiskController::class, 'store'])->name('projects.risks.store');
-    Route::put('/projects/{project}/risks/{risk}',   [DeliveryProjectRiskController::class, 'update'])->name('projects.risks.update');
-    Route::delete('/projects/{project}/risks/{risk}',[DeliveryProjectRiskController::class, 'destroy'])->name('projects.risks.destroy');
+    //
+    // Pakai `menu.owner:` (bukan `menu:`) — Project Owner dari project ybs boleh
+    // isi/edit/hapus risk meski role-nya tidak punya slug risk.*. Grant ini
+    // TIDAK lintas project: hanya berlaku di project tempat ia jadi owner.
+    // Lock project closed (`project.editable`) tetap berlaku untuk semua.
+    Route::get('/projects/{project}/risks',          [DeliveryProjectRiskController::class, 'index'])->name('projects.risks.index')->middleware('menu.owner:delivery-project.risk.view');
+    Route::middleware(['menu.owner:delivery-project.risk.edit', 'project.editable'])->group(function () {
+        Route::put('/projects/{project}/risks/{risk}',   [DeliveryProjectRiskController::class, 'update'])->name('projects.risks.update');
+    });
+    Route::middleware(['menu.owner:delivery-project.risk.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/risks',         [DeliveryProjectRiskController::class, 'store'])->name('projects.risks.store');
+        Route::delete('/projects/{project}/risks/{risk}',[DeliveryProjectRiskController::class, 'destroy'])->name('projects.risks.destroy');
+        Route::post('/projects/{project}/risks/{risk}/delete',[DeliveryProjectRiskController::class, 'destroy'])->name('projects.risks.destroy.post');
+    });
 
     // Plan Cost routes
-    Route::get('/projects/{project}/costs',                                      [DeliveryProjectCostController::class, 'index'])->name('projects.costs.index');
-    Route::post('/projects/{project}/costs',                                     [DeliveryProjectCostController::class, 'store'])->name('projects.costs.store');
-    Route::post('/projects/{project}/costs/init',                                [DeliveryProjectCostController::class, 'init'])->name('projects.costs.init');
-    Route::put('/projects/{project}/costs/{cost}',                               [DeliveryProjectCostController::class, 'update'])->name('projects.costs.update');
-    Route::delete('/projects/{project}/costs/{cost}',                            [DeliveryProjectCostController::class, 'destroy'])->name('projects.costs.destroy');
-    // Cost item (expense line-items) routes
-    Route::get('/projects/{project}/costs/{cost}/items',                         [DeliveryProjectCostController::class, 'indexItems'])->name('projects.costs.items.index');
-    Route::post('/projects/{project}/costs/{cost}/items',                        [DeliveryProjectCostController::class, 'storeItem'])->name('projects.costs.items.store');
-    Route::delete('/projects/{project}/costs/{cost}/items/{item}',               [DeliveryProjectCostController::class, 'destroyItem'])->name('projects.costs.items.destroy');
+    Route::middleware('menu:delivery-project.plan-cost.view')->group(function () {
+        Route::get('/projects/{project}/costs',                                  [DeliveryProjectCostController::class, 'index'])->name('projects.costs.index');
+        Route::get('/projects/{project}/costs/{cost}/items',                     [DeliveryProjectCostController::class, 'indexItems'])->name('projects.costs.items.index');
+    });
+    Route::middleware(['menu:delivery-project.plan-cost.edit', 'project.editable'])->group(function () {
+        Route::put('/projects/{project}/costs/{cost}',                           [DeliveryProjectCostController::class, 'update'])->name('projects.costs.update');
+        Route::put('/projects/{project}/costs/{cost}/items/{item}',              [DeliveryProjectCostController::class, 'updateItem'])->name('projects.costs.items.update');
+    });
+    Route::middleware(['menu:delivery-project.plan-cost.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/costs',                                 [DeliveryProjectCostController::class, 'store'])->name('projects.costs.store');
+        Route::post('/projects/{project}/costs/init',                            [DeliveryProjectCostController::class, 'init'])->name('projects.costs.init');
+        Route::delete('/projects/{project}/costs/{cost}',                        [DeliveryProjectCostController::class, 'destroy'])->name('projects.costs.destroy');
+        Route::post('/projects/{project}/costs/{cost}/delete',                    [DeliveryProjectCostController::class, 'destroy'])->name('projects.costs.destroy.post');
+        // Cost item (expense line-items) routes
+        Route::post('/projects/{project}/costs/{cost}/items',                    [DeliveryProjectCostController::class, 'storeItem'])->name('projects.costs.items.store');
+        Route::delete('/projects/{project}/costs/{cost}/items/{item}',           [DeliveryProjectCostController::class, 'destroyItem'])->name('projects.costs.items.destroy');
+        Route::post('/projects/{project}/costs/{cost}/items/{item}/delete',       [DeliveryProjectCostController::class, 'destroyItem'])->name('projects.costs.items.destroy.post');
+    });
 
     // Document management routes
-    Route::post('/projects/{project}/documents', [DeliveryProjectController::class, 'storeDocument'])->name('project.documents.store');
-    Route::post('/projects/{project}/documents/upload', [DeliveryProjectController::class, 'uploadDocument'])->name('project.documents.upload');
-    Route::post('/projects/{project}/documents/create-upload-session', [DeliveryProjectController::class, 'createDocumentUploadSession'])->name('project.documents.create-upload-session');
-    Route::post('/projects/{project}/documents/finalize-upload', [DeliveryProjectController::class, 'finalizeDocumentUpload'])->name('project.documents.finalize-upload');
-    Route::patch('/project/documents/{document}', [DeliveryProjectController::class, 'updateDocument'])->name('project.documents.update');
-    Route::delete('/project/documents/{document}', [DeliveryProjectController::class, 'destroyDocument'])->name('project.documents.destroy');
+    Route::middleware(['menu:delivery-project.documents.edit', 'project.editable'])->group(function () {
+        Route::patch('/project/documents/{document}', [DeliveryProjectController::class, 'updateDocument'])->name('project.documents.update');
+    });
+    Route::middleware(['menu:delivery-project.documents.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/documents', [DeliveryProjectController::class, 'storeDocument'])->name('project.documents.store');
+        Route::post('/projects/{project}/documents/upload', [DeliveryProjectController::class, 'uploadDocument'])->name('project.documents.upload');
+        Route::post('/projects/{project}/documents/create-upload-session', [DeliveryProjectController::class, 'createDocumentUploadSession'])->name('project.documents.create-upload-session');
+        Route::post('/projects/{project}/documents/finalize-upload', [DeliveryProjectController::class, 'finalizeDocumentUpload'])->name('project.documents.finalize-upload');
+        Route::delete('/project/documents/{document}', [DeliveryProjectController::class, 'destroyDocument'])->name('project.documents.destroy');
+        Route::post('/project/documents/{document}/delete', [DeliveryProjectController::class, 'destroyDocument'])->name('project.documents.destroy.post');
+    });
 
     // Team member management routes
-    Route::get('/projects/{project}/team-members', [DeliveryProjectController::class, 'getTeamMembers'])->name('projects.team.index');
-    Route::post('/projects/{project}/team-members', [DeliveryProjectController::class, 'storeTeamMember'])->name('projects.team.store');
-    Route::put('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'updateTeamMember'])->name('projects.team.update');
-    Route::delete('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy');
+    Route::get('/projects/{project}/team-members', [DeliveryProjectController::class, 'getTeamMembers'])->name('projects.team.index')->middleware('menu:delivery-project.team.view');
+    Route::middleware(['menu:delivery-project.team.edit', 'project.editable'])->group(function () {
+        // Baris pivot diidentifikasi lewat ID-nya (bukan employee_id) karena
+        // anggota vendor tidak punya entri di master employee.
+        Route::put('/projects/{project}/team-rows/{row}', [DeliveryProjectController::class, 'updateTeamRow'])->name('projects.team.update');
+    });
+    Route::middleware(['menu:delivery-project.team.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/team-members', [DeliveryProjectController::class, 'storeTeamMember'])->name('projects.team.store');
+    });
+    // Hapus anggota tim punya slug sendiri (`...team.delete`), terpisah dari
+    // `...team.manage` yang kini hanya berarti "boleh menambah".
+    Route::middleware(['menu:delivery-project.team.delete', 'project.editable'])->group(function () {
+        // Per baris pivot — satu-satunya cara menghapus anggota vendor, yang
+        // tidak punya employee_id.
+        Route::delete('/projects/{project}/team-rows/{row}', [DeliveryProjectController::class, 'destroyTeamRow'])->name('projects.team.rows.destroy');
+        Route::post('/projects/{project}/team-rows/{row}/delete', [DeliveryProjectController::class, 'destroyTeamRow'])->name('projects.team.rows.destroy.post');
+
+        Route::delete('/projects/{project}/team-members/{employee}', [DeliveryProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy');
+        Route::post('/projects/{project}/team-members/{employee}/delete', [DeliveryProjectController::class, 'destroyTeamMember'])->name('projects.team.destroy.post');
+    });
 
     // Project updates/issues routes
-    Route::post('/projects/{project}/updates', [DeliveryProjectUpdateController::class, 'store'])->name('project.updates.store');
-    Route::patch('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'update'])->name('project.updates.update');
-    Route::delete('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'destroy'])->name('project.updates.destroy');
-    Route::get('/project-updates/{project_update}/edit', [DeliveryProjectUpdateController::class, 'edit'])->name('project.updates.edit');
+    Route::get('/project-updates/{project_update}/edit', [DeliveryProjectUpdateController::class, 'edit'])->name('project.updates.edit')->middleware('menu:delivery-project.issue-log.view');
+    Route::middleware(['menu:delivery-project.issue-log.edit', 'project.editable'])->group(function () {
+        Route::patch('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'update'])->name('project.updates.update');
+    });
+    Route::middleware(['menu:delivery-project.issue-log.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/updates', [DeliveryProjectUpdateController::class, 'store'])->name('project.updates.store');
+        Route::delete('/project-updates/{project_update}', [DeliveryProjectUpdateController::class, 'destroy'])->name('project.updates.destroy');
+        Route::post('/project-updates/{project_update}/delete', [DeliveryProjectUpdateController::class, 'destroy'])->name('project.updates.destroy.post');
+    });
 
     // API routes for regions/cities
     Route::get('/api/regions', [DeliveryProjectController::class, 'getRegions'])->name('api.regions');
@@ -243,13 +434,42 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/issues/{project}', [DeliveryProjectIssueController::class, 'show'])->name('issues.show');
 
     // Project Issue Log routes (AJAX CRUD on the project detail page)
-    Route::get('/projects/{project}/issues',           [DeliveryProjectIssueController::class, 'apiIndex'])->name('projects.issues.index');
-    Route::post('/projects/{project}/issues',          [DeliveryProjectIssueController::class, 'store'])->name('projects.issues.store');
-    Route::put('/projects/{project}/issues/{issue}',   [DeliveryProjectIssueController::class, 'update'])->name('projects.issues.update');
-    Route::delete('/projects/{project}/issues/{issue}',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy');
+    Route::get('/projects/{project}/issues',           [DeliveryProjectIssueController::class, 'apiIndex'])->name('projects.issues.index')->middleware('menu:delivery-project.issue-log.view');
+    Route::middleware(['menu:delivery-project.issue-log.edit', 'project.editable'])->group(function () {
+        Route::put('/projects/{project}/issues/{issue}',   [DeliveryProjectIssueController::class, 'update'])->name('projects.issues.update');
+    });
+    Route::middleware(['menu:delivery-project.issue-log.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/issues',          [DeliveryProjectIssueController::class, 'store'])->name('projects.issues.store');
+        Route::delete('/projects/{project}/issues/{issue}',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy');
+        Route::post('/projects/{project}/issues/{issue}/delete',[DeliveryProjectIssueController::class, 'destroy'])->name('projects.issues.destroy.post');
+    });
+
+    // WRICEF Log routes (AJAX CRUD on the project detail page)
+    Route::get('/projects/{project}/wricefs',            [DeliveryProjectWricefController::class, 'apiIndex'])->name('projects.wricefs.index')->middleware('menu:delivery-project.wricef.view');
+    Route::middleware(['menu:delivery-project.wricef.edit', 'project.editable'])->group(function () {
+        Route::put('/projects/{project}/wricefs/{wricef}', [DeliveryProjectWricefController::class, 'update'])->name('projects.wricefs.update');
+    });
+    Route::middleware(['menu:delivery-project.wricef.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/wricefs',                  [DeliveryProjectWricefController::class, 'store'])->name('projects.wricefs.store');
+        Route::delete('/projects/{project}/wricefs/{wricef}',       [DeliveryProjectWricefController::class, 'destroy'])->name('projects.wricefs.destroy');
+        // Verb DELETE diblokir edge/WAF di production — sediakan jalur POST.
+        Route::post('/projects/{project}/wricefs/{wricef}/delete',  [DeliveryProjectWricefController::class, 'destroy'])->name('projects.wricefs.destroy.post');
+    });
+
+    // Stakeholder Register routes (AJAX CRUD on the project detail page)
+    Route::get('/projects/{project}/stakeholders',            [DeliveryProjectStakeholderController::class, 'apiIndex'])->name('projects.stakeholders.index')->middleware('menu:delivery-project.stakeholder.view');
+    Route::middleware(['menu:delivery-project.stakeholder.edit', 'project.editable'])->group(function () {
+        Route::put('/projects/{project}/stakeholders/{stakeholder}', [DeliveryProjectStakeholderController::class, 'update'])->name('projects.stakeholders.update');
+    });
+    Route::middleware(['menu:delivery-project.stakeholder.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/stakeholders',                       [DeliveryProjectStakeholderController::class, 'store'])->name('projects.stakeholders.store');
+        Route::delete('/projects/{project}/stakeholders/{stakeholder}',       [DeliveryProjectStakeholderController::class, 'destroy'])->name('projects.stakeholders.destroy');
+        // Verb DELETE diblokir edge/WAF di production — sediakan jalur POST.
+        Route::post('/projects/{project}/stakeholders/{stakeholder}/delete',  [DeliveryProjectStakeholderController::class, 'destroy'])->name('projects.stakeholders.destroy.post');
+    });
 
     // Profile routes
-    Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index');
+    Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index')->middleware('menu:tickets.staging');
     Route::get('/staging-tickets/rejected', [StagingTicketController::class, 'viewRejected'])->name('staging.rejected');
     Route::get('/staging-email-attachments/{stagingId}', [StagingTicketController::class, 'proxyEmailAttachment'])
         ->name('staging.email-attachment.proxy');
@@ -268,7 +488,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // Indonesian holidays for date pickers (national + cuti bersama)
     Route::get('/api/holidays', [HolidayController::class, 'index'])->name('holidays.index');
 
-    Route::prefix('planning/{project}')->name('planning.')->group(function () {
+    Route::prefix('planning/{project}')->middleware('project.editable')->name('planning.')->group(function () {
 
         // Main planning page
         Route::get('/', [DeliveryProjectPlanningController::class, 'show'])->name('show');
@@ -276,44 +496,66 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/scurve', [DeliveryProjectPlanningController::class, 'scurve'])->name('scurve');
         Route::get('/phases-list', [DeliveryProjectPlanningController::class, 'getPhases'])->name('phases-list');
 
-        // Phase Management
+        // Phase Management — baca butuh Planning View, tulis dipecah edit vs manage
         Route::prefix('phases')->name('phases.')->group(function () {
-            Route::get('/', [DeliveryDynamicPhaseController::class, 'index'])->name('index');
-            Route::post('/create-custom', [DeliveryDynamicPhaseController::class, 'createCustomPhase'])->name('create');
-            Route::post('/add', [DeliveryDynamicPhaseController::class, 'addPhase'])->name('add');
-            Route::put('/{phase}', [DeliveryDynamicPhaseController::class, 'updatePhase'])->name('update');
-            Route::delete('/{phase}', [DeliveryDynamicPhaseController::class, 'removePhase'])->name('remove');
-            Route::post('/reorder', [DeliveryDynamicPhaseController::class, 'reorderPhases'])->name('reorder');
-            Route::post('/{phase}/toggle', [DeliveryDynamicPhaseController::class, 'togglePhaseVisibility'])->name('toggle');
+            Route::get('/', [DeliveryDynamicPhaseController::class, 'index'])->name('index')->middleware('menu:delivery-project.planning.view');
+
+            Route::middleware('menu:delivery-project.planning.edit')->group(function () {
+                Route::put('/{phase}', [DeliveryDynamicPhaseController::class, 'updatePhase'])->name('update');
+                Route::post('/reorder', [DeliveryDynamicPhaseController::class, 'reorderPhases'])->name('reorder');
+                Route::post('/{phase}/toggle', [DeliveryDynamicPhaseController::class, 'togglePhaseVisibility'])->name('toggle');
+            });
+
+            Route::middleware('menu:delivery-project.planning.manage')->group(function () {
+                Route::post('/create-custom', [DeliveryDynamicPhaseController::class, 'createCustomPhase'])->name('create');
+                Route::post('/add', [DeliveryDynamicPhaseController::class, 'addPhase'])->name('add');
+                Route::delete('/{phase}', [DeliveryDynamicPhaseController::class, 'removePhase'])->name('remove');
+                Route::post('/{phase}/delete', [DeliveryDynamicPhaseController::class, 'removePhase'])->name('remove.post');
+            });
         });
 
         // View configuration
-        Route::post('/view-config', [DeliveryDynamicPhaseController::class, 'updateViewConfig'])->name('view-config');
+        Route::post('/view-config', [DeliveryDynamicPhaseController::class, 'updateViewConfig'])->name('view-config')->middleware('menu:delivery-project.planning.edit');
 
         // Phase weight info
         Route::get('/phases/{phaseId}/weight-info', [ActivityManagementController::class, 'getPhaseWeightInfo'])->name('phases.weight-info');
 
         // Activity Management
         Route::prefix('activities')->name('activities.')->group(function () {
-            Route::post('/', [ActivityManagementController::class, 'store'])->name('store');
             Route::get('/{activity}', [ActivityManagementController::class, 'show'])->name('show');
-            Route::put('/{activity}', [ActivityManagementController::class, 'update'])->name('update');
-            Route::delete('/{activity}', [ActivityManagementController::class, 'destroy'])->name('destroy');
-
-            // Activity Member Assignment
             Route::get('/{activity}/members', [ActivityManagementController::class, 'getAssignedMembers'])->name('members.index');
-            Route::post('/{activity}/members', [ActivityManagementController::class, 'assignMember'])->name('members.store');
-            Route::put('/{activity}/members/{employee}', [ActivityManagementController::class, 'updateAssignedMember'])->name('members.update');
-            Route::delete('/{activity}/members/{employee}', [ActivityManagementController::class, 'unassignMember'])->name('members.destroy');
+
+            Route::middleware('menu:delivery-project.planning.edit')->group(function () {
+                Route::put('/{activity}', [ActivityManagementController::class, 'update'])->name('update');
+                Route::put('/{activity}/members/{employee}', [ActivityManagementController::class, 'updateAssignedMember'])->name('members.update');
+            });
+
+            Route::middleware('menu:delivery-project.planning.manage')->group(function () {
+                Route::post('/', [ActivityManagementController::class, 'store'])->name('store');
+                Route::delete('/{activity}', [ActivityManagementController::class, 'destroy'])->name('destroy');
+                Route::post('/{activity}/delete', [ActivityManagementController::class, 'destroy'])->name('destroy.post');
+
+                // Activity Member Assignment
+                Route::post('/{activity}/members', [ActivityManagementController::class, 'assignMember'])->name('members.store');
+                Route::delete('/{activity}/members/{employee}', [ActivityManagementController::class, 'unassignMember'])->name('members.destroy');
+                Route::post('/{activity}/members/{employee}/delete', [ActivityManagementController::class, 'unassignMember'])->name('members.destroy.post');
+            });
         });
 
         // Stage Management
         Route::prefix('stages')->name('stages.')->group(function () {
-            Route::post('/', [DeliveryProjectStageManagementController::class, 'store'])->name('store');
             Route::get('/{stage}', [DeliveryProjectStageManagementController::class, 'show'])->name('show');
-            Route::put('/{stage}', [DeliveryProjectStageManagementController::class, 'update'])->name('update');
-            Route::delete('/{stage}', [DeliveryProjectStageManagementController::class, 'destroy'])->name('destroy');
-            Route::post('/{stage}/reorder', [DeliveryProjectStageManagementController::class, 'reorder'])->name('reorder');
+
+            Route::middleware('menu:delivery-project.planning.edit')->group(function () {
+                Route::put('/{stage}', [DeliveryProjectStageManagementController::class, 'update'])->name('update');
+                Route::post('/{stage}/reorder', [DeliveryProjectStageManagementController::class, 'reorder'])->name('reorder');
+            });
+
+            Route::middleware('menu:delivery-project.planning.manage')->group(function () {
+                Route::post('/', [DeliveryProjectStageManagementController::class, 'store'])->name('store');
+                Route::delete('/{stage}', [DeliveryProjectStageManagementController::class, 'destroy'])->name('destroy');
+                Route::post('/{stage}/delete', [DeliveryProjectStageManagementController::class, 'destroy'])->name('destroy.post');
+            });
         });
 
         // Data endpoints
@@ -335,6 +577,19 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             Route::get('/gantt-excel', [DeliveryProjectPlanningExportController::class, 'exportGanttExcel'])->name('gantt-excel');
             Route::get('/scurve-excel', [DeliveryProjectPlanningExportController::class, 'exportSCurveExcel'])->name('scurve-excel');
         });
+
+        // Import routes (bulk migration of the planning structure from CSV)
+        Route::prefix('import')->name('import.')->group(function () {
+            Route::get('/template', [DeliveryProjectPlanningImportController::class, 'template'])->name('template');
+            Route::post('/', [DeliveryProjectPlanningImportController::class, 'import'])->name('store')->middleware('menu:delivery-project.planning.manage');
+        });
+
+        // Reset — wipe the whole planning structure (bad import / major restructure).
+        // POST rather than DELETE: the production edge blocks the DELETE verb.
+        Route::prefix('reset')->name('reset.')->middleware('menu:delivery-project.planning.manage')->group(function () {
+            Route::get('/preview', [DeliveryProjectPlanningResetController::class, 'preview'])->name('preview');
+            Route::post('/', [DeliveryProjectPlanningResetController::class, 'destroyAll'])->name('destroy-all');
+        });
     });
 
     // BACKWARD COMPATIBILITY
@@ -342,19 +597,82 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // ==================== TICKET ====================
     Route::prefix('ticket')->name('ticket.')->group(function () {
-        Route::get('/', [TicketViewController::class, 'index'])->name('index');
+        Route::get('/', [TicketViewController::class, 'index'])->name('index')->middleware('menu:tickets.inbox');
         Route::get('/create', [TicketViewController::class, 'create'])->name('create');
-        Route::get('/export', [TicketController::class, 'exportToExcel'])->name('export');
-        Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload');
-        Route::get('/task', [TaskController::class, 'index'])->name('task');
+        Route::get('/export', [TicketController::class, 'exportToExcel'])->name('export')->middleware('menu:ticket.export');
+        Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload')->middleware('menu:ticket.consultant-workload');
+        Route::get('/consultant-workload/{id}/export', [ConsultantWorkloadController::class, 'exportTickets'])->name('consultant-workload.export')->middleware('menu:ticket.consultant-workload');
+        Route::get('/task', [TaskController::class, 'index'])->name('task')->middleware('menu:ticket.my-tasks');
         Route::get('/latest-update', [TicketController::class, 'latestUpdate'])->name('latest-update');
-        Route::post('/{id}/generate-folder', [TicketController::class, 'generateFolder'])->name('generate-folder');
-        Route::delete('/{id}/folder', [TicketController::class, 'deleteFolder'])->name('delete-folder');
+        // Ringkasan AI per tiket (SSE). POST karena memicu generate, bukan sekadar baca.
+        Route::post('/{id}/ai-summary', [\App\Http\Controllers\AiTicketSummaryController::class, 'stream'])
+            ->name('ai-summary')
+            ->middleware('menu:tickets.inbox');
+        // Tombol "Ask AI" — siapkan/temukan lagi conversation AI Research milik
+        // employee ini tentang tiket ini, lalu redirect ke sana. Lihat
+        // AiResearchController::openForTicket().
+        Route::get('/{id}/ai-research', [\App\Http\Controllers\AiResearchController::class, 'openForTicket'])
+            ->name('ai-research')
+            ->middleware('menu:tickets.inbox');
+        // Buka tiket berdasarkan NOMOR tiket (bukan id). Dipakai hyperlink "#NNNNNNNN"
+        // di internal note — di-resolve ke id lalu redirect ke halaman tiket.
+        Route::get('/ref/{number}', [TicketViewController::class, 'showByNumber'])->name('ref');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 
     // ==================== NOTIFICATIONS ====================
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+
+    // ==================== MANAGEMENT ====================
+    Route::prefix('management')->name('management.')->group(function () {
+        Route::get('/roles', [RoleController::class, 'page'])
+            ->middleware('menu:management.roles')
+            ->name('roles.index');
+
+        Route::get('/permissions', [MenuController::class, 'page'])
+            ->middleware('menu:management.permissions')
+            ->name('permissions.index');
+
+        Route::get('/holidays', [\App\Http\Controllers\HolidayManagementController::class, 'page'])
+            ->middleware('menu:management.holidays')
+            ->name('holidays.index');
+
+        Route::get('/hidden-tickets', [\App\Http\Controllers\HiddenTicketController::class, 'page'])
+            ->middleware('menu:management.hidden-tickets')
+            ->name('hidden-tickets.index');
+
+        Route::get('/module-groups', [\App\Http\Controllers\ModuleGroupController::class, 'page'])
+            ->middleware('menu:management.module-groups')
+            ->name('module-groups.index');
+
+        Route::prefix('ticket')->name('ticket.')->group(function () {
+            Route::get('/document-type', [\App\Http\Controllers\DeliverableDocumentTypeController::class, 'page'])
+                ->middleware('menu:management.ticket.document-type')
+                ->name('document-type.index');
+        });
+
+        Route::prefix('delivery')->name('delivery.')->group(function () {
+            Route::get('/project', [\App\Http\Controllers\DeliveryProjectTypeController::class, 'page'])
+                ->middleware('menu:management.delivery.project')
+                ->name('project.index');
+            Route::get('/support', [\App\Http\Controllers\DeliverySupportTypeController::class, 'page'])
+                ->middleware('menu:management.delivery.support')
+                ->name('support.index');
+        });
+
+        Route::prefix('employee')->name('employee.')->group(function () {
+            Route::get('/basic-data',     [\App\Http\Controllers\ManagementEmployeeController::class, 'basicData'])    ->middleware('menu:management.employee.basic-data')    ->name('basic-data.index');
+            Route::get('/address',        [\App\Http\Controllers\ManagementEmployeeController::class, 'address'])      ->middleware('menu:management.employee.address')        ->name('address.index');
+            Route::get('/identification', [\App\Http\Controllers\ManagementEmployeeController::class, 'identification'])->middleware('menu:management.employee.identification') ->name('identification.index');
+            Route::get('/family',         [\App\Http\Controllers\ManagementEmployeeController::class, 'family'])       ->middleware('menu:management.employee.family')         ->name('family.index');
+            Route::get('/education',      [\App\Http\Controllers\ManagementEmployeeController::class, 'education'])    ->middleware('menu:management.employee.education')      ->name('education.index');
+            Route::get('/qualification',  [\App\Http\Controllers\ManagementEmployeeController::class, 'qualification']) ->middleware('menu:management.employee.qualification')  ->name('qualification.index');
+            Route::get('/contract',       [\App\Http\Controllers\ManagementEmployeeController::class, 'contract'])     ->middleware('menu:management.employee.contract')       ->name('contract.index');
+            Route::get('/bank',           [\App\Http\Controllers\ManagementEmployeeController::class, 'bank'])         ->middleware('menu:management.employee.bank')           ->name('bank.index');
+            Route::get('/payment',        [\App\Http\Controllers\ManagementEmployeeController::class, 'payment'])      ->middleware('menu:management.employee.payment')        ->name('payment.index');
+            Route::get('/attachment',     [\App\Http\Controllers\ManagementEmployeeController::class, 'attachment'])   ->middleware('menu:management.employee.attachment')     ->name('attachment.index');
+        });
+    });
 
     // ==================== ATTACHMENT PROXY ====================
     // Fetch file dari Microsoft Graph on-demand — tidak disimpan lokal

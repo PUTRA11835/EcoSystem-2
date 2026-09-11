@@ -36,13 +36,13 @@
         </div>
     </div>
 
-    <!-- Table - Responsive with Horizontal Scroll -->
-    <div class="overflow-x-auto touch-pan-x">
-        <div class="min-w-[800px] lg:min-w-0">
+    <!-- Table - Responsive with Horizontal + Vertical Scroll -->
+    <div class="overflow-auto touch-pan-x touch-pan-y max-h-[70vh]">
+        <div class="min-w-[1100px]">
             <table class="w-full divide-y divide-gray-200" id="activitiesTable">
-                <thead class="bg-gray-50 sticky top-0 z-10">
+                <thead class="bg-gray-50 sticky top-0 z-20">
                     <tr>
-                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-20 min-w-[250px] sm:min-w-[400px]">
+                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-30 min-w-[250px] sm:min-w-[400px]">
                             Phase / Group / Stage / Activity
                         </th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-20 sm:w-28">
@@ -50,8 +50,10 @@
                         </th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 sm:w-32">Description</th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-20 sm:w-28">Object</th>
-                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 w-24 sm:w-32">Start</th>
-                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 w-24 sm:w-32">End</th>
+                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 w-24 sm:w-32">Plan Start</th>
+                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 w-24 sm:w-32">Plan End</th>
+                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-teal-50 w-24 sm:w-32">Actual Start</th>
+                        <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-teal-50 w-24 sm:w-32">Actual End</th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 w-16 sm:w-24">Days</th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24 sm:w-32">Status</th>
                         <th class="px-2 sm:px-3 py-2 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-32 sm:w-40">Progress</th>
@@ -59,7 +61,7 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200" id="activitiesTableBody">
                     <tr>
-                        <td colspan="9" class="text-center p-4 sm:p-8">
+                        <td colspan="11" class="text-center p-4 sm:p-8">
                             <div class="flex flex-col items-center justify-center">
                                 <svg class="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -118,7 +120,7 @@
         if (tbody) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="text-center p-4 sm:p-8">
+                    <td colspan="11" class="text-center p-4 sm:p-8">
                         <div class="flex flex-col items-center justify-center">
                             <svg class="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -140,7 +142,7 @@
                 if (tbody) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="9" class="text-center py-8 sm:py-12 text-red-600">
+                            <td colspan="11" class="text-center py-8 sm:py-12 text-red-600">
                                 <div class="flex flex-col items-center">
                                     <svg class="w-8 h-8 sm:w-12 sm:h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -262,7 +264,7 @@
         if (phasesData.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="text-center py-8 sm:py-12">
+                    <td colspan="11" class="text-center py-8 sm:py-12">
                         <div class="text-gray-500">
                             <svg class="mx-auto h-8 w-8 sm:h-12 sm:w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
@@ -309,6 +311,7 @@
         row.style.borderLeftColor = phase.color;
         row.dataset.phaseId = phase.id;
         row.dataset.level = 0;
+        row.dataset.nodeKey = 'phase-' + phase.id;
         
         const progress = parseFloat(phase.progress) || 0;
         
@@ -316,7 +319,7 @@
             <td class="px-2 sm:px-3 py-3 sm:py-4 sticky left-0 bg-gradient-to-r from-indigo-100 to-purple-100 z-10 min-w-[250px] sm:min-w-[400px]">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center min-w-0 flex-1">
-                        <button onclick="togglePhase(${phase.id}, this)" class="phase-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-indigo-200 transition flex-shrink-0">
+                        <button onclick="togglePhase(${phase.id}, this)" data-toggle-key="phase-${phase.id}" class="phase-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-indigo-200 transition flex-shrink-0">
                             <svg class="w-4 h-4 sm:w-5 sm:h-5 transition-transform transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                             </svg>
@@ -344,6 +347,8 @@
             <td colspan="2" class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-gray-600 italic">Phase Level</td>
             <td class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-center bg-blue-50 font-medium">${phase.start_date || '-'}</td>
             <td class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-center bg-blue-50 font-medium">${phase.end_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-center bg-teal-50 font-medium">${phase.actual_start_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-center bg-teal-50 font-medium">${phase.actual_end_date || '-'}</td>
             <td class="px-2 sm:px-3 py-3 sm:py-4 text-xs text-center bg-blue-50 font-bold">${phase.duration_in_days || '-'}</td>
             <td class="px-2 sm:px-3 py-3 sm:py-4 text-center">
                 <span class="px-2 py-1 text-xs font-bold rounded-full ${phase.status_badge || 'bg-gray-100 text-gray-800'}">
@@ -366,10 +371,11 @@
     function createEmptyPhaseRow(phase) {
         const row = document.createElement('tr');
         row.className = 'phase-child-' + phase.id;
+        row.dataset.parentKey = 'phase-' + phase.id;
         row.style.display = 'table-row';
         
         row.innerHTML = `
-            <td colspan="9" class="px-2 sm:px-3 py-2 sm:py-3 pl-8 sm:pl-16 text-xs sm:text-sm text-gray-400 italic">
+            <td colspan="11" class="px-2 sm:px-3 py-2 sm:py-3 pl-8 sm:pl-16 text-xs sm:text-sm text-gray-400 italic">
                 No groups in this phase yet.
             </td>
         `;
@@ -388,10 +394,13 @@
         row.dataset.groupId = group.id;
         row.dataset.phaseId = phaseId;
         row.dataset.level = level + 1;
+        row.dataset.nodeKey = `group-${group.id}`;
+        row.dataset.parentKey = `phase-${phaseId}`;
         row.style.display = 'table-row';
         
         if (group.parent_id) {
             row.classList.add(`group-child-${group.parent_id}`);
+            row.dataset.parentKey = `group-${group.parent_id}`;
             row.style.display = 'none';
         }
         
@@ -405,7 +414,7 @@
                 <div class="flex items-center justify-between group">
                     <div class="flex items-center flex-1 min-w-0">
                         ${hasChildren ? `
-                        <button onclick="toggleGroup(${group.id}, this)" class="group-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-purple-200 transition flex-shrink-0">
+                        <button onclick="toggleGroup(${group.id}, this)" data-toggle-key="group-${group.id}" class="group-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-purple-200 transition flex-shrink-0">
                             <svg class="w-3 h-3 sm:w-4 sm:h-4 transition-transform transform rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                             </svg>
@@ -467,6 +476,8 @@
             <td colspan="2" class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-gray-500 truncate">${group.notes || 'Group'}</td>
             <td class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-center bg-blue-50 font-medium">${group.start_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-center bg-blue-50 font-medium">${group.end_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-center bg-teal-50 font-medium">${group.actual_start_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-center bg-teal-50 font-medium">${group.actual_end_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 sm:py-3 text-xs text-center bg-blue-50 font-semibold">${group.duration_in_days || '-'}</td>
             <td class="px-2 sm:px-3 py-2 sm:py-3 text-center">
                 <span class="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-semibold rounded-full ${group.status_badge || 'bg-gray-100 text-gray-800'}">
@@ -524,6 +535,8 @@
         row.style.display = 'none';
         row.dataset.stageId = stage.id;
         row.dataset.groupId = groupId;
+        row.dataset.nodeKey = `stage-${stage.id}`;
+        row.dataset.parentKey = `group-${groupId}`;
         
         const weight = parseFloat(stage.weight) || 0;
         const progress = parseFloat(stage.progress) || 0;
@@ -537,7 +550,7 @@
                 <div class="flex items-center justify-between group">
                     <div class="flex items-center flex-1 min-w-0">
                         ${hasActivities ? `
-                        <button onclick="toggleStage(${stage.id}, this)" class="stage-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-yellow-200 transition flex-shrink-0">
+                        <button onclick="toggleStage(${stage.id}, this)" data-toggle-key="stage-${stage.id}" class="stage-toggle mr-1 sm:mr-2 p-1 rounded hover:bg-yellow-200 transition flex-shrink-0">
                             <svg class="w-3 h-3 transition-transform transform rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                             </svg>
@@ -583,6 +596,8 @@
             <td class="px-2 sm:px-3 py-2 text-xs text-gray-500 truncate" colspan="2">${stage.description || 'Stage'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-yellow-50 font-medium">${stage.start_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-yellow-50 font-medium">${stage.end_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 font-medium">${stage.actual_start_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 font-medium">${stage.actual_end_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-yellow-50 font-semibold">${stage.duration_in_days || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-center">
                 <span class="px-1.5 sm:px-2 py-0.5 text-xs font-medium rounded-full ${stage.status_badge || 'bg-gray-100 text-gray-800'}">${stage.status_text || 'Not Started'}</span>
@@ -612,6 +627,7 @@
         row.style.display = 'none';
         row.dataset.activityId = activity.id;
         row.dataset.stageId = stageId;
+        row.dataset.parentKey = `stage-${stageId}`;
 
         if (activity.parent_id) {
             row.classList.add(`activity-child-${activity.parent_id}`);
@@ -687,6 +703,8 @@
             <td class="px-2 sm:px-3 py-2 text-xs text-center">${activity.object || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.start_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.end_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 ${activity.actual_start_date ? 'text-teal-700 font-medium' : ''}">${activity.actual_start_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 ${activity.actual_end_date ? 'text-teal-700 font-medium' : ''}">${activity.actual_end_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50 font-medium">${activity.duration_in_days || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-center">
                 <span class="px-1.5 sm:px-2 py-0.5 text-xs font-semibold rounded-full ${activity.status_badge || 'bg-gray-100 text-gray-800'}">${activity.status_text || 'Not Started'}</span>
@@ -722,6 +740,7 @@
         row.style.display = 'none';
         row.dataset.activityId = activity.id;
         row.dataset.groupId = groupId;
+        row.dataset.parentKey = `group-${groupId}`;
 
         const weight = parseFloat(activity.weight) || 0;
         const progress = parseFloat(activity.progress_percentage) || 0;
@@ -756,7 +775,6 @@
                                 title="View details">
                             ${escapedName}
                         </button>
-                        <span class="ml-1.5 text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded hidden sm:inline flex-shrink-0">Direct</span>
                         ${complexityBadge}${newReqBadge}${actualDot}
                     </div>
                     <div class="hidden group-hover:flex items-center space-x-1 ml-2 flex-shrink-0">
@@ -794,6 +812,8 @@
             <td class="px-2 sm:px-3 py-2 text-xs text-center">${activity.object || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.start_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50">${activity.end_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 ${activity.actual_start_date ? 'text-teal-700 font-medium' : ''}">${activity.actual_start_date || '-'}</td>
+            <td class="px-2 sm:px-3 py-2 text-xs text-center bg-teal-50 ${activity.actual_end_date ? 'text-teal-700 font-medium' : ''}">${activity.actual_end_date || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-xs text-center bg-blue-50 font-medium">${activity.duration_in_days || '-'}</td>
             <td class="px-2 sm:px-3 py-2 text-center">
                 <span class="px-1.5 sm:px-2 py-0.5 text-xs font-semibold rounded-full ${activity.status_badge || 'bg-gray-100 text-gray-800'}">${activity.status_text || 'Not Started'}</span>
@@ -830,60 +850,84 @@
     // TOGGLE FUNCTIONS
     // =========================================================================
     
-    window.togglePhase = function(phaseId, buttonElement) {
-        const childRows = document.querySelectorAll(`.phase-child-${phaseId}`);
-        const icon = buttonElement.querySelector('svg');
-        const isCollapsed = icon.classList.contains('rotate-0');
+    /**
+     * Hierarki baris di-track lewat data-parent-key / data-node-key.
+     * Menutup satu node ikut menutup SELURUH turunannya (group, stage, activity),
+     * dan membuka node hanya menampilkan anak LANGSUNG-nya (turunan tetap tertutup).
+     */
+    function getToggleButton(nodeKey) {
+        return document.querySelector(`[data-toggle-key="${nodeKey}"]`);
+    }
 
-        childRows.forEach(function(row) {
-            row.style.display = isCollapsed ? 'table-row' : 'none';
+    function getDirectChildRows(nodeKey) {
+        const tbody = document.getElementById('activitiesTableBody');
+        if (!tbody) return [];
+        return Array.from(tbody.querySelectorAll(`tr[data-parent-key="${nodeKey}"]`));
+    }
+
+    function setToggleIconState(nodeKey, expanded) {
+        const button = getToggleButton(nodeKey);
+        if (!button) return;
+        const icon = button.querySelector('svg');
+        if (!icon) return;
+        icon.classList.toggle('rotate-90', expanded);
+        icon.classList.toggle('rotate-0', !expanded);
+    }
+
+    function isNodeExpanded(nodeKey) {
+        const button = getToggleButton(nodeKey);
+        if (!button) return false;
+        const icon = button.querySelector('svg');
+        return !!icon && icon.classList.contains('rotate-90');
+    }
+
+    function collapseNode(nodeKey) {
+        getDirectChildRows(nodeKey).forEach(function(row) {
+            row.style.display = 'none';
+            if (row.dataset.nodeKey) {
+                collapseNode(row.dataset.nodeKey);
+            }
         });
+        setToggleIconState(nodeKey, false);
+    }
 
-        icon.classList.toggle('rotate-0');
-        icon.classList.toggle('rotate-90');
-    };
-    
-    window.toggleGroup = function(groupId, buttonElement) {
-        const childRows = document.querySelectorAll(`.group-child-${groupId}`);
-        const icon = buttonElement.querySelector('svg');
-        const isCollapsed = icon.classList.contains('rotate-0');
-
-        childRows.forEach(function(row) {
-            row.style.display = isCollapsed ? 'table-row' : 'none';
+    function expandNode(nodeKey) {
+        getDirectChildRows(nodeKey).forEach(function(row) {
+            row.style.display = 'table-row';
         });
+        setToggleIconState(nodeKey, true);
+    }
 
-        icon.classList.toggle('rotate-0');
-        icon.classList.toggle('rotate-90');
+    function toggleNode(nodeKey) {
+        if (isNodeExpanded(nodeKey)) {
+            collapseNode(nodeKey);
+        } else {
+            expandNode(nodeKey);
+        }
+    }
+
+    window.togglePhase = function(phaseId) {
+        toggleNode(`phase-${phaseId}`);
     };
-    
-    window.toggleStage = function(stageId, buttonElement) {
-        const childRows = document.querySelectorAll(`.stage-child-${stageId}`);
-        const icon = buttonElement.querySelector('svg');
-        const isCollapsed = icon.classList.contains('rotate-0');
 
-        childRows.forEach(function(row) {
-            row.style.display = isCollapsed ? 'table-row' : 'none';
-        });
-
-        icon.classList.toggle('rotate-0');
-        icon.classList.toggle('rotate-90');
+    window.toggleGroup = function(groupId) {
+        toggleNode(`group-${groupId}`);
     };
-    
+
+    window.toggleStage = function(stageId) {
+        toggleNode(`stage-${stageId}`);
+    };
+
     window.expandAll = function() {
-        document.querySelectorAll('.phase-toggle, .group-toggle, .stage-toggle').forEach(function(button) {
-            const icon = button.querySelector('svg');
-            if (icon && icon.classList.contains('rotate-0')) {
-                button.click();
-            }
+        // Urutan DOM = urutan hierarki (parent selalu sebelum anak), jadi aman top-down.
+        document.querySelectorAll('[data-toggle-key]').forEach(function(button) {
+            expandNode(button.dataset.toggleKey);
         });
     };
-    
+
     window.collapseAll = function() {
-        document.querySelectorAll('.phase-toggle, .group-toggle, .stage-toggle').forEach(function(button) {
-            const icon = button.querySelector('svg');
-            if (icon && icon.classList.contains('rotate-90')) {
-                button.click();
-            }
+        document.querySelectorAll('[data-toggle-key]').forEach(function(button) {
+            collapseNode(button.dataset.toggleKey);
         });
     };
     
@@ -1035,7 +1079,8 @@
     }
     
     /* Smoother scrolling on mobile */
-    .overflow-x-auto {
+    .overflow-x-auto,
+    .overflow-auto {
         -webkit-overflow-scrolling: touch;
         scroll-behavior: smooth;
     }

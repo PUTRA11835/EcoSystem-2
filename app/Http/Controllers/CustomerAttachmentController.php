@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -132,7 +133,7 @@ class CustomerAttachmentController extends Controller
             $fileName  = Str::uuid() . ($extension ? '.' . $extension : '');
             $filePath  = $file->storeAs('customer_attachments/' . $customerId, $fileName, 'public');
             
-            $attachmentId = DB::table('customer_attachment')->insertGetId([
+            $attachmentData = [
                 'customer_id' => $customerId,
                 'document_type' => $request->document_type,
                 'document_title' => $request->document_title,
@@ -144,7 +145,20 @@ class CustomerAttachmentController extends Controller
                 'uploaded_by' => session('user.eci') ?? session('user.name') ?? 'system',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
+
+            $attachmentId = DB::table('customer_attachment')->insertGetId($attachmentData);
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerAttachment's own $auditModule so these rows group together
+                auditableType: 'CustomerAttachment',
+                auditableId: $attachmentId,
+                event: 'created',
+                recordLabel: $request->document_title,
+                description: "added Customer Attachment: {$request->document_title} — Customer #{$customerId}",
+                old: null,
+                new: $attachmentData,
+            );
 
             Log::info('=== API: CUSTOMER ATTACHMENT CREATED SUCCESSFULLY ===', [
                 'attachment_id' => $attachmentId
@@ -195,15 +209,23 @@ class CustomerAttachmentController extends Controller
         }
 
         try {
+            // Snapshot before update — needed for the audit log entry below.
+            $existingAttachment = DB::table('customer_attachment')
+                ->where('customer_id', $customerId)
+                ->where('attachment_id', $attachmentId)
+                ->first();
+
+            $updateData = [
+                'document_type' => $request->document_type,
+                'document_title' => $request->document_title,
+                'description' => $request->description,
+                'updated_at' => now(),
+            ];
+
             $updated = DB::table('customer_attachment')
                 ->where('customer_id', $customerId)
                 ->where('attachment_id', $attachmentId)
-                ->update([
-                    'document_type' => $request->document_type,
-                    'document_title' => $request->document_title,
-                    'description' => $request->description,
-                    'updated_at' => now(),
-                ]);
+                ->update($updateData);
 
             if ($updated === 0) {
                 return response()->json([
@@ -211,6 +233,19 @@ class CustomerAttachmentController extends Controller
                     'message' => 'Attachment not found'
                 ], 404);
             }
+
+            $label = $request->document_title ?: ($existingAttachment->document_title ?? "Attachment #{$attachmentId}");
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerAttachment's own $auditModule so these rows group together
+                auditableType: 'CustomerAttachment',
+                auditableId: $attachmentId,
+                event: 'updated',
+                recordLabel: $label,
+                description: "updated Customer Attachment: {$label} — Customer #{$customerId}",
+                old: (array) $existingAttachment,
+                new: $updateData,
+            );
 
             Log::info('=== API: CUSTOMER ATTACHMENT UPDATED SUCCESSFULLY ===');
 
@@ -266,6 +301,19 @@ class CustomerAttachmentController extends Controller
                 ->where('customer_id', $customerId)
                 ->where('attachment_id', $attachmentId)
                 ->delete();
+
+            $label = $attachment->document_title ?? "Attachment #{$attachmentId}";
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerAttachment's own $auditModule so these rows group together
+                auditableType: 'CustomerAttachment',
+                auditableId: $attachmentId,
+                event: 'deleted',
+                recordLabel: $label,
+                description: "deleted Customer Attachment: {$label} — Customer #{$customerId}",
+                old: (array) $attachment,
+                new: null,
+            );
 
             Log::info('=== API: CUSTOMER ATTACHMENT DELETED SUCCESSFULLY ===');
 

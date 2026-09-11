@@ -11,14 +11,14 @@
     For non-async callers, fallback works as a Promise:
         showConfirm('...').then(ok => { if (ok) doIt(); });
 --}}
-<div id="globalConfirmModal" class="hidden fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+<div id="globalConfirmModal" class="hidden fixed inset-0 bg-black/50 z-[9990] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4">
         <div class="px-6 pt-6 pb-3">
             <div class="flex items-start gap-3">
                 <div id="globalConfirmIconWrap" class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5"></div>
                 <div class="min-w-0">
                     <h3 id="globalConfirmTitle" class="text-sm font-bold text-gray-900 mb-1">Confirm</h3>
-                    <p id="globalConfirmMessage" class="text-sm text-gray-600 leading-relaxed break-words"></p>
+                    <p id="globalConfirmMessage" class="text-sm text-gray-600 leading-relaxed break-words whitespace-pre-line"></p>
                 </div>
             </div>
         </div>
@@ -113,6 +113,20 @@
             modal.addEventListener('click',  onBackdrop);
             document.addEventListener('keydown', onKey);
         });
+    };
+
+    /**
+     * Confirm helper untuk form yang pakai inline `onsubmit`.
+     * Pemakaian: <form onsubmit="return confirmSubmit(this, 'Delete X?', 'Delete', 'danger')">
+     * Selalu mengembalikan false (submit asli dibatalkan); form baru di-submit
+     * ulang lewat HTMLFormElement.prototype.submit setelah user menekan OK,
+     * sehingga handler ini tidak terpanggil dua kali.
+     */
+    window.confirmSubmit = function (form, message, title, variant) {
+        showConfirm(message, title || 'Confirm', variant || 'danger').then(function (ok) {
+            if (ok) HTMLFormElement.prototype.submit.call(form);
+        });
+        return false;
     };
 })();
 </script>

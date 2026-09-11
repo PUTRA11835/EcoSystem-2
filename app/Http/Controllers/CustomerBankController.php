@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -9,6 +10,25 @@ use Illuminate\Support\Facades\Validator;
 
 class CustomerBankController extends Controller
 {
+    /**
+     * Redact the account number before it goes into an audit log snapshot.
+     * Mirrors CustomerBank's own $auditExcept = ['account_number'] so a raw
+     * DB::table() write logs identically to what AuditObserver would have
+     * written had this gone through Eloquent.
+     */
+    private function redactBankRow(?array $row): ?array
+    {
+        if ($row === null) {
+            return null;
+        }
+
+        if (array_key_exists('account_number', $row)) {
+            $row['account_number'] = '***redacted***';
+        }
+
+        return $row;
+    }
+
     /**
      * Get all bank accounts for a customer
      */
@@ -128,7 +148,7 @@ class CustomerBankController extends Controller
                 ], 404);
             }
 
-            $bankId = DB::table('customer_bank')->insertGetId([
+            $bankData = [
                 'customer_id' => $customerId,
                 'bank_name' => $request->bank_name,
                 'bank_key' => $request->bank_key,
@@ -140,7 +160,22 @@ class CustomerBankController extends Controller
                 'verify_link' => $request->verify_link,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
+
+            $bankId = DB::table('customer_bank')->insertGetId($bankData);
+
+            $label = $request->bank_name ?: "Bank Account #{$bankId}";
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerBank's own $auditModule so these rows group together
+                auditableType: 'CustomerBank',
+                auditableId: $bankId,
+                event: 'created',
+                recordLabel: $label,
+                description: "added Customer Bank: {$label} — Customer #{$customerId}",
+                old: null,
+                new: $this->redactBankRow($bankData),
+            );
 
             Log::info('=== API: CUSTOMER BANK ACCOUNT CREATED SUCCESSFULLY ===', [
                 'bank_id' => $bankId
@@ -196,9 +231,15 @@ class CustomerBankController extends Controller
         }
 
         try {
+            // Snapshot before update — needed for the audit log entry below.
+            $existingBank = DB::table('customer_bank')
+                ->where('customer_id', $customerId)
+                ->where('bank_id', $bankId)
+                ->first();
+
             // Build update data - only update fields that are provided
             $updateData = [];
-            
+
             if ($request->has('bank_name')) $updateData['bank_name'] = $request->bank_name;
             if ($request->has('bank_key')) $updateData['bank_key'] = $request->bank_key;
             if ($request->has('account_number')) $updateData['account_number'] = $request->account_number;
@@ -207,7 +248,7 @@ class CustomerBankController extends Controller
             if ($request->has('valid_from')) $updateData['valid_from'] = $request->valid_from;
             if ($request->has('valid_to')) $updateData['valid_to'] = $request->valid_to;
             if ($request->has('verify_link')) $updateData['verify_link'] = $request->verify_link;
-            
+
             $updateData['updated_at'] = now();
 
             $updated = DB::table('customer_bank')
@@ -221,7 +262,7 @@ class CustomerBankController extends Controller
                     ->where('customer_id', $customerId)
                     ->where('bank_id', $bankId)
                     ->exists();
-                
+
                 if (!$exists) {
                     return response()->json([
                         'success' => false,
@@ -229,6 +270,19 @@ class CustomerBankController extends Controller
                     ], 404);
                 }
             }
+
+            $label = $updateData['bank_name'] ?? ($existingBank->bank_name ?? "Bank Account #{$bankId}");
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerBank's own $auditModule so these rows group together
+                auditableType: 'CustomerBank',
+                auditableId: $bankId,
+                event: 'updated',
+                recordLabel: $label,
+                description: "updated Customer Bank: {$label} — Customer #{$customerId}",
+                old: $this->redactBankRow((array) $existingBank),
+                new: $this->redactBankRow($updateData),
+            );
 
             Log::info('=== API: CUSTOMER BANK ACCOUNT UPDATED SUCCESSFULLY ===');
 
@@ -261,6 +315,12 @@ class CustomerBankController extends Controller
         ]);
 
         try {
+            // Snapshot before delete — needed for the audit log entry below.
+            $existingBank = DB::table('customer_bank')
+                ->where('customer_id', $customerId)
+                ->where('bank_id', $bankId)
+                ->first();
+
             $deleted = DB::table('customer_bank')
                 ->where('customer_id', $customerId)
                 ->where('bank_id', $bankId)
@@ -272,6 +332,19 @@ class CustomerBankController extends Controller
                     'message' => 'Bank account not found'
                 ], 404);
             }
+
+            $label = $existingBank->bank_name ?? "Bank Account #{$bankId}";
+
+            AuditLog::recordAction(
+                module: 'Customer', // matches CustomerBank's own $auditModule so these rows group together
+                auditableType: 'CustomerBank',
+                auditableId: $bankId,
+                event: 'deleted',
+                recordLabel: $label,
+                description: "deleted Customer Bank: {$label} — Customer #{$customerId}",
+                old: $this->redactBankRow((array) $existingBank),
+                new: null,
+            );
 
             Log::info('=== API: CUSTOMER BANK ACCOUNT DELETED SUCCESSFULLY ===');
 

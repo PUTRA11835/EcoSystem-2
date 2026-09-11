@@ -90,8 +90,7 @@ class PasswordSetupController extends Controller
         // Customers are redirected to Jarvies login, employees to EcoSystem login
         $isCustomer = ($authUser->user_type ?? '') === 'customer' || !empty($authUser->customer_id);
         if ($isCustomer) {
-            // Gunakan config() bukan env() agar berfungsi saat config:cache
-            $jarviesBase  = rtrim(config('services.jarvies.url', config('app.url')), '/');
+            $jarviesBase  = rtrim(config('services.jarvies.public_url') ?: config('app.url'), '/');
             $jarviesLogin = $jarviesBase . '/login';
             return redirect($jarviesLogin)
                 ->with('success', 'Password set successfully. You can now log in to Jarvies with your new password.');
@@ -186,8 +185,14 @@ class PasswordSetupController extends Controller
             // Token is always validated by EcoSystem (where it is stored).
             // After successful setup, customers are redirected to Jarvies automatically.
             $isCustomer = !empty($authUser->customer_id);
-            $baseUrl = rtrim(config('app.url'), '/');
+            // PENTING: link email HARUS dibangun dari base URL publik yang tetap
+            // (APP_URL), BUKAN dari host/scheme request. Penerima email adalah
+            // pihak eksternal, sedangkan request admin bisa datang dari host/port
+            // internal (mis. dev-me.eclectic.co.id:80) yang tidak reachable oleh
+            // mereka -> ERR_CONNECTION_TIMED_OUT. Set APP_URL di .env server ke
+            // base URL yang pasti bisa diakses publik (scheme + host + port benar).
             // URL memakai plaintext token; DB menyimpan hash-nya
+            $baseUrl = rtrim(config('app.url'), '/');
             $link    = $baseUrl . '/change-password?token=' . $token;
             $appName = $isCustomer ? 'Jarvies' : config('app.name', 'ECoSystem');
 
@@ -269,26 +274,34 @@ HTML;
     }
 
     /**
-     * Ambil OAuth2 access token dari Microsoft.
+     * Ambil OAuth2 access token dari Microsoft, di-cache selama token masih valid
+     * (client_credentials token Graph biasanya berlaku 3600s) supaya tiap kirim
+     * email set-password/reset tidak selalu round-trip OAuth baru.
      */
     private static function getGraphToken(): string
     {
-        // Gunakan config() agar berfungsi saat config:cache di production
-        $tenantId = config('services.microsoft_graph.tenant_id');
-        $response = Http::asForm()->post(
-            "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
-            [
-                'grant_type'    => 'client_credentials',
-                'client_id'     => config('services.microsoft_graph.client_id'),
-                'client_secret' => config('services.microsoft_graph.client_secret'),
-                'scope'         => 'https://graph.microsoft.com/.default',
-            ]
+        return \Illuminate\Support\Facades\Cache::remember(
+            'password_setup.ms_graph_token',
+            3300, // 55 menit — buffer di bawah masa berlaku token (~60 menit)
+            function () {
+                // Gunakan config() agar berfungsi saat config:cache di production
+                $tenantId = config('services.microsoft_graph.tenant_id');
+                $response = Http::asForm()->post(
+                    "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
+                    [
+                        'grant_type'    => 'client_credentials',
+                        'client_id'     => config('services.microsoft_graph.client_id'),
+                        'client_secret' => config('services.microsoft_graph.client_secret'),
+                        'scope'         => 'https://graph.microsoft.com/.default',
+                    ]
+                );
+
+                if (!$response->successful()) {
+                    throw new \RuntimeException('Failed to obtain access token' . $response->body());
+                }
+
+                return $response->json('access_token');
+            }
         );
-
-        if (!$response->successful()) {
-            throw new \RuntimeException('Failed to obtain access token' . $response->body());
-        }
-
-        return $response->json('access_token');
     }
 }

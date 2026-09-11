@@ -151,8 +151,6 @@ class DeliveryProjectSeeder extends Seeder
                 // ✅ CREATE PROJECT-SPECIFIC PHASES (copy from system default)
                 $projectPhases = [];
                 foreach ($systemDefaultPhases as $phase) {
-                    $isGoLive = $phase->name === 'Go-Live & Support';
-                    
                     $phaseId = DB::table('delivery_project_phases')->insertGetId([
                         'delivery_projects_id' => $projectId, // Assign ke project ini
                         'name' => $phase->name,
@@ -166,7 +164,6 @@ class DeliveryProjectSeeder extends Seeder
                         'is_active' => true,
                         'parent_phase_id' => null, // Reset parent untuk project-specific
                         'settings' => $phase->settings,
-                        'is_golive_phase' => $isGoLive, // ✅ Kolom baru di tabel phases
                         'is_visible' => !$phase->is_optional, // ✅ Kolom baru di tabel phases
                         'custom_settings' => null, // ✅ Kolom baru di tabel phases
                         'created_at' => Carbon::now(),

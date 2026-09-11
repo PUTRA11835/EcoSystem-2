@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class EmployeeBasicData extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
+
+    protected static ?string $auditModule = 'Employee';
 
     protected $table = 'employee_basic_data';
     protected $primaryKey = 'basic_data_id';
@@ -41,13 +44,14 @@ class EmployeeBasicData extends Model
         'employee_group',
         'employee_subgroup',
         'position',
+        'current_assignment',
         'division',
         'department',
         'direct_supervision',
         'manager',
         'authorization_group',
         'home_base',
-        'grade',
+        'employee_type', // Internal / External (turunan dari home_base; lihat deriveEmployeeType)
 
         // Status Administrasi
         'block',
@@ -68,6 +72,16 @@ class EmployeeBasicData extends Model
      * This ensures full_name is included in JSON responses.
      */
     protected $appends = ['full_name'];
+
+    /**
+     * Aturan tunggal penentu jenis employee.
+     * Home Base "Others" = External (penanda dari file import HR), selain itu Internal.
+     * Dipakai importer & controller agar employee_type selalu konsisten dgn home_base.
+     */
+    public static function deriveEmployeeType(?string $homeBase): string
+    {
+        return mb_strtolower(trim((string) $homeBase)) === 'others' ? 'External' : 'Internal';
+    }
 
     /**
      * Relationship with Employee

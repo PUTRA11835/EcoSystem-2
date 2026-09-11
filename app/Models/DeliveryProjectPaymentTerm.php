@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class DeliveryProjectPaymentTerm extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
+
+    protected static ?string $auditModule = 'Delivery Project';
 
     protected $table = 'delivery_project_payment_terms';
 

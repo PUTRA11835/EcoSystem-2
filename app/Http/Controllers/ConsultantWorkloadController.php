@@ -2,15 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
+use App\Exports\ConsultantWorkloadTicketsExport;
+use App\Models\AuditLog;
+use App\Models\ConsultantMandays;
+use App\Models\ConsultantMandaysDetail;
 use App\Models\Employee;
 use App\Models\Ticket;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ConsultantWorkloadController extends Controller
 {
-    private const ACTIVE_STATUSES = ['open', 'in_progress', 'hold', 'reply', 'wait_to_close'];
+    public const ACTIVE_STATUSES = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'];
 
     public function index()
     {
@@ -28,13 +34,15 @@ class ConsultantWorkloadController extends Controller
 
             $consultants = Employee::with(['basicData', 'roles'])
                 ->where('is_active', true)
-                ->where('role_id', 2) // Delivery Support User only
+                ->withAnyRole([RoleId::DELIVERY_SUPPORT_USER->value])
+                ->whereHas('basicData', fn ($q) => $q->byPosition('SAP CONSULTANT'))
                 ->get();
 
             // Pre-load weighted progress per ticket dari consultant_mandays_detail
             $allTicketIds = DB::table('ticket')
                 ->whereIn('status', self::ACTIVE_STATUSES)
                 ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
                 ->pluck('ticket_id')
                 ->toArray();
             $progressMap = self::progressMapForTickets($allTicketIds);
@@ -76,6 +84,8 @@ class ConsultantWorkloadController extends Controller
                     'eci'          => $emp->eci,
                     'name'         => $name,
                     'roles'        => $roles,
+                    'personnel_subarea'   => $emp->basicData?->personnel_subarea,
+                    'current_assignment'  => $emp->basicData?->current_assignment,
                     'modules'      => $modulesMap[$emp->employee_id] ?? '-',
                     'ticket_count' => $ticketCount,
                     'total_days'   => round($totalAllocMd, 2),
@@ -121,11 +131,12 @@ class ConsultantWorkloadController extends Controller
             $ticketIds   = DB::table('ticket')
                 ->whereIn('status', self::ACTIVE_STATUSES)
                 ->whereNull('deleted_at')
+                ->whereNull('is_hidden')
                 ->pluck('ticket_id')
                 ->toArray();
             $progressMap = self::progressMapForTickets($ticketIds);
 
-            $statusOrder = ['in_progress' => 0, 'reply' => 1, 'open' => 2, 'hold' => 3, 'wait_to_close' => 4];
+            $statusOrder = ['inprocess' => 0, 'waiting_on_customer' => 1, 'waiting_on_3rd_party' => 2, 'waiting_to_confirmation' => 3, 'open' => 4, 'hold' => 5];
             $tickets = $this->ticketsByEmployee($id, $progressMap)
                 ->sortBy(fn($t) => $statusOrder[$t->status] ?? 99)
                 ->values();
@@ -169,6 +180,72 @@ class ConsultantWorkloadController extends Controller
     }
 
     /**
+     * Export Excel: daftar tiket aktif milik satu konsultan — isinya sama persis
+     * dengan sub-tabel yang muncul saat baris konsultan di-expand di halaman.
+     */
+    public function exportTickets(int $id)
+    {
+        $emp = Employee::with(['basicData'])->findOrFail($id);
+
+        $name = $emp->basicData
+            ? trim($emp->basicData->first_name . ' ' . ($emp->basicData->last_name ?? ''))
+            : $emp->eci;
+
+        $ticketIds = DB::table('ticket')
+            ->whereIn('status', self::ACTIVE_STATUSES)
+            ->whereNull('deleted_at')
+            ->whereNull('is_hidden')
+            ->pluck('ticket_id')
+            ->toArray();
+        $progressMap = self::progressMapForTickets($ticketIds);
+
+        $statusOrder = ['inprocess' => 0, 'waiting_on_customer' => 1, 'waiting_on_3rd_party' => 2, 'waiting_to_confirmation' => 3, 'open' => 4, 'hold' => 5];
+        $tickets = $this->ticketsByEmployee($id, $progressMap)
+            ->sortBy(fn ($t) => $statusOrder[$t->status] ?? 99)
+            ->values();
+
+        // Ringkasan baris utama — mirror calcActive() di view supaya angka di Excel
+        // cocok dengan yang dilihat user. Akumulasi hanya dari sub-row
+        // consultant_details milik konsultan ini.
+        $allocMd = 0.0;   // Σ mandays (kolom "Alloc Days")
+        $addMd   = 0.0;   // Σ approved_additional
+        $remainMd = 0.0;  // Σ remain_md
+        foreach ($tickets as $t) {
+            $myDetail = collect($t->consultant_details)->firstWhere('employee_id', $id);
+            if ($myDetail) {
+                $allocMd  += (float) $myDetail['mandays'];
+                $addMd    += (float) $myDetail['approved_additional'];
+                $remainMd += (float) $myDetail['remain_md'];
+            }
+        }
+        $effectiveMd = $allocMd + $addMd;
+        $ticketCount = $tickets->count();
+        $workloadPct = $effectiveMd > 0 ? round($remainMd / $effectiveMd * 100, 1) : 0;
+        $loadScore   = round($remainMd * (1 + 0.1 * $ticketCount), 2);
+
+        $consultant = [
+            'employee_id'        => $emp->employee_id,
+            'name'               => $name,
+            'eci'                => $emp->eci,
+            'modules'            => self::modulesMapForEmployees([$id])[$id] ?? '-',
+            'personnel_subarea'  => $emp->basicData?->personnel_subarea,
+            'current_assignment' => $emp->basicData?->current_assignment,
+            'ticket_count'       => $ticketCount,
+            'alloc_days'         => round($allocMd, 2),
+            'add_days'           => round($addMd, 2),
+            'effective_md'       => round($effectiveMd, 2),
+            'remain_days'        => round($remainMd, 2),
+            'workload_pct'       => $workloadPct,
+            'load_score'         => $loadScore,
+        ];
+
+        $slug = preg_replace('/[^A-Za-z0-9]+/', '_', trim($name)) ?: 'consultant';
+        $filename = "consultant_workload_{$slug}_" . now()->format('Ymd_His') . '.xlsx';
+
+        return Excel::download(new ConsultantWorkloadTicketsExport($consultant, $tickets), $filename);
+    }
+
+    /**
      * Query tiket aktif untuk satu employee (PIC + member), dilengkapi:
      *  - consultant_progress  : weighted average progress dari consultant_mandays_detail
      *  - consultant_details   : per-konsultan progress rows (untuk sub-tabel di view)
@@ -177,31 +254,17 @@ class ConsultantWorkloadController extends Controller
      */
     private function ticketsByEmployee(int $empId, array $progressMap = [])
     {
-        $picIds    = DB::table('ticket')
-            ->where('employee_id', $empId)
-            ->whereIn('status', self::ACTIVE_STATUSES)
-            ->whereNull('deleted_at')
-            ->pluck('ticket_id');
-
-        $memberIds = DB::table('ticket_member')
-            ->where('employee_id', $empId)
-            ->pluck('ticket_id');
-
-        // Tiket di mana employee punya alokasi di consultant_mandays_detail
-        $mandaysIds = DB::table('consultant_mandays_detail as cmd')
-            ->join('consultant_mandays as cm', 'cm.id', '=', 'cmd.consultant_mandays_id')
-            ->where('cmd.employee_id', $empId)
-            ->pluck('cm.ticket_id');
-
-        $ticketIds = $picIds->merge($memberIds)->merge($mandaysIds)->unique()->values();
+        $ticketIds = Ticket::assignedTicketIds($empId);
 
         $baseSelect = [
-            'ticket.ticket_id', 'ticket.ticket_number', 'ticket.subject',
+            'ticket.ticket_id', 'ticket.ticket_number',
+            DB::raw("COALESCE(NULLIF(ticket.subject, ''), ticket.description) as subject"),
             'ticket.status', 'ticket.ticket_priority', 'ticket.ticket_type',
             'ticket.man_days', 'ticket.progress_percentage', 'ticket.progress_note',
             'ticket.last_progress_at', 'ticket.module', 'ticket.start_date',
-            'ticket.end_date', 'ticket.employee_id',
+            'ticket.end_date', 'ticket.ticket_lead_id',
             'customer_basic_data.name_1 as customer_name',
+            DB::raw("NULLIF(TRIM(CONCAT(COALESCE(ticket_updater_ebd.first_name,''), ' ', COALESCE(ticket_updater_ebd.last_name,''))), '') as last_progress_by_name"),
         ];
 
         if ($ticketIds->isEmpty()) {
@@ -210,17 +273,19 @@ class ConsultantWorkloadController extends Controller
 
         $tickets = DB::table('ticket')
             ->leftJoin('customer_basic_data', 'ticket.customer_id', '=', 'customer_basic_data.customer_id')
+            ->leftJoin('employee_basic_data as ticket_updater_ebd', 'ticket_updater_ebd.employee_id', '=', 'ticket.progress_updated_by')
             ->whereIn('ticket.ticket_id', $ticketIds)
             ->whereIn('ticket.status', self::ACTIVE_STATUSES)
             ->whereNull('ticket.deleted_at')
+            ->whereNull('ticket.is_hidden')
             ->select($baseSelect)
             ->get();
 
         // Load per-consultant progress detail untuk semua tiket sekaligus
-        $consultantDetails = $this->consultantDetailsForTickets($ticketIds->toArray());
+        $consultantDetails = self::consultantDetailsForTickets($ticketIds->toArray());
 
         return $tickets->map(function ($ticket) use ($progressMap, $consultantDetails, $empId) {
-            $ticket->role_in_ticket = ((int) $ticket->employee_id === $empId) ? 'pic' : 'member';
+            $ticket->role_in_ticket = ((int) $ticket->ticket_lead_id === $empId) ? 'pic' : 'member';
             $tid = $ticket->ticket_id;
 
             // Weighted average dari consultant_mandays_detail, fallback ke ticket.progress_percentage
@@ -239,62 +304,85 @@ class ConsultantWorkloadController extends Controller
      * Return: [ticket_id => [ [...], ... ]]
      * remain_md = effective_md × (1 − progress/100)
      */
-    private function consultantDetailsForTickets(array $ticketIds): array
+    public static function consultantDetailsForTickets(array $ticketIds): array
     {
         if (empty($ticketIds)) return [];
 
-        // Ambil ticket.progress_percentage untuk dipakai hitung remain per consultant
-        $ticketProgress = DB::table('ticket')
+        // Hanya proposal terbaru per ticket (hindari baris historis kalau ada >1 per ticket_id)
+        $latestIds = DB::table('consultant_mandays')
             ->whereIn('ticket_id', $ticketIds)
-            ->pluck('progress_percentage', 'ticket_id');
+            ->selectRaw('MAX(id) as id')
+            ->groupBy('ticket_id')
+            ->pluck('id');
 
         $rows = DB::table('consultant_mandays as cm')
             ->join('consultant_mandays_detail as cmd', 'cmd.consultant_mandays_id', '=', 'cm.id')
             ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
             ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'e.employee_id')
+            ->leftJoin('employee_basic_data as updater_ebd', 'updater_ebd.employee_id', '=', 'cmd.progress_updated_by')
             ->leftJoinSub(
                 DB::table('employee_qualification')
-                    ->whereNotNull('module')
-                    ->where('module', '!=', '')
-                    ->select('employee_id', DB::raw("GROUP_CONCAT(DISTINCT module ORDER BY module SEPARATOR ', ') as qualification_modules"))
-                    ->groupBy('employee_id'),
+                    ->join('modules', 'modules.id', '=', 'employee_qualification.module_id')
+                    ->where('modules.is_active', true)
+                    ->select('employee_qualification.employee_id', DB::raw("GROUP_CONCAT(DISTINCT modules.name ORDER BY modules.name SEPARATOR ', ') as qualification_modules"))
+                    ->groupBy('employee_qualification.employee_id'),
                 'eq',
                 'eq.employee_id',
                 '=',
                 'cmd.employee_id'
             )
-            ->whereIn('cm.ticket_id', $ticketIds)
+            ->whereIn('cm.id', $latestIds)
             ->select(
                 'cm.ticket_id',
+                'cm.status as proposal_status',
                 'cmd.id as detail_id',
                 'cmd.employee_id',
                 DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''), ' ', COALESCE(ebd.last_name,''))) as emp_name"),
                 'e.eci',
                 'eq.qualification_modules',
                 'cmd.mandays',
-                'cmd.approved_additional'
+                'cmd.approved_mandays',
+                'cmd.additional_mandays',
+                'cmd.approved_additional',
+                'cmd.progress_percentage as consultant_progress',
+                'cmd.progress_note as consultant_progress_note',
+                'cmd.progress_updated_at as consultant_progress_updated_at',
+                DB::raw("NULLIF(TRIM(CONCAT(COALESCE(updater_ebd.first_name,''), ' ', COALESCE(updater_ebd.last_name,''))), '') as consultant_progress_updated_by_name")
             )
             ->get();
 
         $map = [];
         foreach ($rows as $row) {
-            $tid         = (int) $row->ticket_id;
-            $mandays     = (float) $row->mandays;
-            $additional  = (float) $row->approved_additional;
+            $tid        = (int) $row->ticket_id;
+            $isApproved = $row->proposal_status === 'approved';
+
+            // Sebelum Head approve, tampilkan MD yang diajukan PIC (cmd.mandays) —
+            // sengaja ikut berubah live seiring draft proposal di-edit, supaya Alloc Days
+            // dan turunannya (remain, workload %, load score) mencerminkan proposal terkini.
+            $mandays     = $isApproved ? (float) ($row->approved_mandays ?? 0) : (float) ($row->mandays ?? 0);
+            // Sama untuk additional: sebelum approve pakai angka yang diajukan (additional_mandays),
+            // bukan 0 — beberapa proposal murni pengajuan top-up (mandays=0, additional_mandays>0),
+            // jadi kalau di-nol-kan Alloc Days tampak 0.00 padahal ada draft yang menunggu approval.
+            $additional  = $isApproved ? (float) $row->approved_additional : (float) ($row->additional_mandays ?? 0);
             $effectiveMd = $mandays + $additional;
-            $progress    = (float) ($ticketProgress[$tid] ?? 0);
-            $remainShare = round($effectiveMd * (1 - $progress / 100), 2);
+            $consultantPct = (float) ($row->consultant_progress ?? 0);
+            $remainShare = round($effectiveMd * (1 - $consultantPct / 100), 2);
 
             $map[$tid][] = [
-                'detail_id'           => $row->detail_id,
-                'employee_id'         => $row->employee_id,
-                'emp_name'            => trim($row->emp_name) ?: ($row->eci ?? '—'),
-                'eci'                 => $row->eci ?? '—',
-                'module'              => $row->qualification_modules ?? '—',
-                'mandays'             => $mandays,
-                'approved_additional' => $additional,
-                'effective_md'        => $effectiveMd,
-                'remain_md'           => $remainShare,
+                'detail_id'                    => $row->detail_id,
+                'employee_id'                  => $row->employee_id,
+                'emp_name'                     => trim($row->emp_name) ?: ($row->eci ?? '—'),
+                'eci'                          => $row->eci ?? '—',
+                'module'                       => $row->qualification_modules ?? '—',
+                'mandays'                      => $mandays,
+                'approved_additional'          => $additional,
+                'effective_md'                 => $effectiveMd,
+                'remain_md'                    => $remainShare,
+                'is_approved'                  => $isApproved,
+                'progress_percentage'          => $consultantPct,
+                'progress_note'                => $row->consultant_progress_note,
+                'progress_updated_at'          => $row->consultant_progress_updated_at,
+                'progress_updated_by_name'     => $row->consultant_progress_updated_by_name,
             ];
         }
 
@@ -302,29 +390,206 @@ class ConsultantWorkloadController extends Controller
     }
 
     /**
-     * API: Update progress tiket oleh PIC.
+     * API: Ambil progress per consultant untuk sebuah tiket.
      */
-    public function updateProgress(Request $request, int $ticketId)
+    public function getConsultantProgress(int $ticketId)
+    {
+        try {
+            $cm = ConsultantMandays::where('ticket_id', $ticketId)->latest()->first();
+
+            if (!$cm) {
+                // Belum ada proposal Resolution Days — tawarkan progress level-tiket
+                // (satu angka, ditulis langsung ke ticket.progress_percentage).
+                $ticket = Ticket::where('ticket_id', $ticketId)->first();
+                if (!$ticket) {
+                    return response()->json(['success' => false, 'message' => 'Ticket not found'], 404);
+                }
+
+                return response()->json(['success' => true, 'data' => [[
+                    'detail_id'           => null,
+                    'employee_id'         => null,
+                    'emp_name'            => 'Progress Tiket (belum ada proposal Resolution Days)',
+                    'eci'                 => '—',
+                    'module'              => '—',
+                    'mandays'             => null,
+                    'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
+                    'progress_note'       => $ticket->progress_note,
+                    'progress_updated_at' => $ticket->last_progress_at,
+                ]]]);
+            }
+
+            $details = DB::table('consultant_mandays_detail as cmd')
+                ->leftJoin('employee as e', 'e.employee_id', '=', 'cmd.employee_id')
+                ->leftJoin('employee_basic_data as ebd', 'ebd.employee_id', '=', 'e.employee_id')
+                ->where('cmd.consultant_mandays_id', $cm->id)
+                ->select(
+                    'cmd.id as detail_id',
+                    'cmd.employee_id',
+                    DB::raw("TRIM(CONCAT(COALESCE(ebd.first_name,''), ' ', COALESCE(ebd.last_name,''))) as emp_name"),
+                    'e.eci',
+                    'cmd.module',
+                    'cmd.mandays',
+                    'cmd.approved_mandays',
+                    'cmd.approved_additional',
+                    'cmd.progress_percentage',
+                    'cmd.progress_note',
+                    'cmd.progress_updated_at'
+                )
+                ->get()
+                ->map(fn($d) => [
+                    'detail_id'          => $d->detail_id,
+                    'employee_id'        => $d->employee_id,
+                    'emp_name'           => trim($d->emp_name) ?: ($d->eci ?? '—'),
+                    'eci'                => $d->eci ?? '—',
+                    'module'             => $d->module ?? '—',
+                    // Sebelum Head approve, tampilkan placeholder 1 MD — bukan angka draft
+                    // yang mungkin sedang diedit PIC — supaya konsisten dengan sub-tabel.
+                    'mandays'            => $cm->status === 'approved' ? (float) ($d->approved_mandays ?? 0) : 1.0,
+                    'progress_percentage' => (float) ($d->progress_percentage ?? 0),
+                    'progress_note'      => $d->progress_note,
+                    'progress_updated_at' => $d->progress_updated_at,
+                ]);
+
+            return response()->json(['success' => true, 'data' => $details]);
+        } catch (\Exception $e) {
+            Log::error('ConsultantWorkload@getConsultantProgress error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * API: Update progress per consultant, lalu recalculate ticket.progress_percentage
+     * sebagai weighted average berdasarkan mandays.
+     */
+    public function updateConsultantProgress(Request $request, int $ticketId)
     {
         try {
             $validated = $request->validate([
-                'progress_percentage' => 'required|numeric|min:0|max:100',
-                'progress_note'       => 'nullable|string|max:500',
+                'progresses'                           => 'required|array|min:1',
+                'progresses.*.detail_id'               => 'nullable|integer|exists:consultant_mandays_detail,id',
+                'progresses.*.progress_percentage'     => 'required|numeric|min:0|max:100',
+                'progresses.*.progress_note'           => 'nullable|string|max:500',
             ]);
 
-            $user  = session('user');
-            $empId = $user['id'] ?? null;
+            $now   = now();
+            $empId = session('user.id');
+
+            // Mode ticket-level: belum ada proposal Resolution Days, jadi progress
+            // ditulis langsung ke ticket.progress_percentage, bukan ke consultant_mandays_detail.
+            if (count($validated['progresses']) === 1 && empty($validated['progresses'][0]['detail_id'])) {
+                $item = $validated['progresses'][0];
+
+                // Belum ada breakdown per-consultant, jadi hanya Lead yang boleh mengubah.
+                $leadId = Ticket::where('ticket_id', $ticketId)->value('ticket_lead_id');
+                if ((int) $leadId !== (int) $empId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Hanya Lead yang dapat mengubah progress level-tiket.',
+                    ], 403);
+                }
+
+                Ticket::where('ticket_id', $ticketId)->update([
+                    'progress_percentage' => $item['progress_percentage'],
+                    'progress_note'       => $item['progress_note'] ?? null,
+                    'last_progress_at'    => $now,
+                    'progress_updated_by' => $empId,
+                ]);
+
+                return response()->json([
+                    'success'         => true,
+                    'message'         => 'Progress updated',
+                    'ticket_progress' => $item['progress_percentage'],
+                ]);
+            }
+
+            // Setiap orang hanya boleh mengubah progress miliknya sendiri.
+            $ownDetailIds = collect($validated['progresses'])->pluck('detail_id');
+            $ownedCount   = ConsultantMandaysDetail::whereIn('id', $ownDetailIds)
+                ->where('employee_id', $empId)
+                ->count();
+            if ($ownedCount !== $ownDetailIds->count()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda hanya dapat mengubah progress milik sendiri.',
+                ], 403);
+            }
+
+            // Snapshot "before" progress fields for every detail about to be touched. The
+            // update below is an Eloquent mass update via query builder
+            // (ConsultantMandaysDetail::where(...)->update(...)) — Laravel never fires model
+            // events for that (only single-instance $model->save() does), so AuditObserver
+            // (wired via ConsultantMandaysDetail's Auditable trait) never sees it.
+            $detailsBeforeUpdate = ConsultantMandaysDetail::whereIn('id', $ownDetailIds)->get()->keyBy('id');
+            $actorName = session('user.name');
+
+            foreach ($validated['progresses'] as $item) {
+                ConsultantMandaysDetail::where('id', $item['detail_id'])->update([
+                    'progress_percentage' => $item['progress_percentage'],
+                    'progress_note'       => $item['progress_note'] ?? null,
+                    'progress_updated_at' => $now,
+                    'progress_updated_by' => $empId,
+                ]);
+
+                $beforeDetail = $detailsBeforeUpdate->get($item['detail_id']);
+                if ($beforeDetail) {
+                    $employeeLabel = $actorName ?: "Employee #{$empId}";
+
+                    AuditLog::recordAction(
+                        module: 'Mandays', // matches ConsultantMandaysDetail::$auditModule so these rows group together
+                        auditableType: 'ConsultantMandaysDetail',
+                        auditableId: $beforeDetail->id,
+                        event: 'updated',
+                        recordLabel: $employeeLabel,
+                        description: "updated Consultant Mandays Detail progress: {$item['progress_percentage']}% for {$employeeLabel}",
+                        old: [
+                            'progress_percentage' => $beforeDetail->progress_percentage,
+                            'progress_note'       => $beforeDetail->progress_note,
+                        ],
+                        new: [
+                            'progress_percentage' => $item['progress_percentage'],
+                            'progress_note'       => $item['progress_note'] ?? null,
+                        ],
+                    );
+                }
+            }
+
+            // Recalculate ticket.progress_percentage sebagai rata-rata sederhana progress
+            // semua konsultan di tiket (bukan dibobot MD, supaya konsultan dengan alokasi
+            // kecil tidak "tenggelam" oleh konsultan dengan alokasi besar).
+            $cm = ConsultantMandays::where('ticket_id', $ticketId)->latest()->first();
+            $ticketProgress = 0.0;
+            $latestNote     = null;
+
+            if ($cm) {
+                $allDetails = ConsultantMandaysDetail::where('consultant_mandays_id', $cm->id)->get();
+
+                if ($allDetails->count() > 0) {
+                    $ticketProgress = round($allDetails->avg('progress_percentage'), 2);
+                }
+
+                // Ambil catatan terbaru dari consultant yang baru diupdate
+                $updatedIds = collect($validated['progresses'])->pluck('detail_id');
+                $latestNote = $allDetails
+                    ->whereIn('id', $updatedIds->toArray())
+                    ->whereNotNull('progress_note')
+                    ->sortByDesc('progress_updated_at')
+                    ->first()?->progress_note;
+            }
 
             Ticket::where('ticket_id', $ticketId)->update([
-                'progress_percentage' => $validated['progress_percentage'],
-                'progress_note'       => $validated['progress_note'] ?? null,
-                'last_progress_at'    => now(),
+                'progress_percentage' => $ticketProgress,
+                'progress_note'       => $latestNote,
+                'last_progress_at'    => $now,
                 'progress_updated_by' => $empId,
             ]);
 
-            return response()->json(['success' => true, 'message' => 'Progress updated']);
+            return response()->json([
+                'success'          => true,
+                'message'          => 'Progress updated',
+                'ticket_progress'  => $ticketProgress,
+            ]);
         } catch (\Exception $e) {
-            Log::error('ConsultantWorkload@updateProgress error: ' . $e->getMessage());
+            Log::error('ConsultantWorkload@updateConsultantProgress error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -344,23 +609,46 @@ class ConsultantWorkloadController extends Controller
     }
 
     /**
-     * Load modules dari employee_qualification per employee.
+     * Load modules per employee dari consultant_mandays_detail (modul tiket aktif),
+     * dengan fallback ke employee_qualification jika tidak ada data mandays.
      * Return: [employee_id => "Module1, Module2"]
      */
     public static function modulesMapForEmployees(array $empIds): array
     {
         if (empty($empIds)) return [];
 
-        $rows = DB::table('employee_qualification')
-            ->whereIn('employee_id', $empIds)
-            ->whereNotNull('module')
-            ->where('module', '!=', '')
-            ->select('employee_id', 'module')
+        // Ambil modul dari consultant_mandays_detail (tiket aktif)
+        $mandaysRows = DB::table('consultant_mandays_detail as cmd')
+            ->join('consultant_mandays as cm', 'cm.id', '=', 'cmd.consultant_mandays_id')
+            ->join('ticket as t', 't.ticket_id', '=', 'cm.ticket_id')
+            ->whereIn('cmd.employee_id', $empIds)
+            ->whereIn('t.status', ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold'])
+            ->whereNull('t.deleted_at')
+            ->whereNull('t.is_hidden')
+            ->whereNotNull('cmd.module')
+            ->where('cmd.module', '!=', '')
+            ->select('cmd.employee_id', 'cmd.module')
+            ->distinct()
             ->get();
 
         $map = [];
-        foreach ($rows as $row) {
+        foreach ($mandaysRows as $row) {
             $map[$row->employee_id][] = $row->module;
+        }
+
+        // Fallback ke employee_qualification untuk employee yang belum punya data mandays
+        $missingIds = array_diff($empIds, array_keys($map));
+        if (!empty($missingIds)) {
+            $qualRows = DB::table('employee_qualification')
+                ->join('modules', 'modules.id', '=', 'employee_qualification.module_id')
+                ->whereIn('employee_qualification.employee_id', $missingIds)
+                ->where('modules.is_active', true)
+                ->select('employee_qualification.employee_id', 'modules.name as module')
+                ->get();
+
+            foreach ($qualRows as $row) {
+                $map[$row->employee_id][] = $row->module;
+            }
         }
 
         return array_map(
@@ -385,6 +673,7 @@ class ConsultantWorkloadController extends Controller
             ->whereIn('cmd.employee_id', $empIds)
             ->whereIn('t.status', $activeStatuses)
             ->whereNull('t.deleted_at')
+            ->whereNull('t.is_hidden')
             ->select(
                 'cmd.employee_id',
                 DB::raw('SUM(cmd.mandays) as total_allocated_md'),

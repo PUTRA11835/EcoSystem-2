@@ -7,30 +7,39 @@
 @php
     $isApprovalMode = isset($isHead) && $isHead;
     $isAdminMode    = isset($isAdmin) && $isAdmin;
-    // $isHoSMode is true ONLY for Delivery Support Head (role_id=5).
+    // $isHoSMode is true when the employee holds the Delivery Support Head role
+    // (checked against ALL assigned roles in the controller, not just whichever
+    // role happens to be "primary" in session — see CalendarController::timesheets()).
     // Delivery Support Users (role_id=2) also have lockedType='support' but do NOT get isHoSMode,
     // so they see support spreadsheet WITHOUT approve/reject buttons.
-    $isHoSMode      = isset($roleId) && $roleId === 5;
+    $isHoSMode      = isset($isHoS) && $isHoS;
 @endphp
 
 <div class="space-y-6">
     <!-- Header Section -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
         <div>
-            <h2 class="text-2xl font-bold text-gray-900">
-                @if($isApprovalMode || $isHoSMode)
-                    Timesheet Approval
-                @else
-                    Timesheets
-                @endif
-            </h2>
-            <p class="text-gray-600 mt-1">
-                @if($isApprovalMode || $isHoSMode)
-                    Review and approve/reject employee timesheet submissions
-                @else
-                    Log and manage your working hours
-                @endif
-            </p>
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl primary-gradient flex items-center justify-center shadow-sm">
+                    <i class="fas fa-clock text-white text-sm"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900 leading-tight">
+                        @if($isApprovalMode || $isHoSMode)
+                            Timesheet Approval
+                        @else
+                            Timesheets
+                        @endif
+                    </h1>
+                    <p class="text-xs text-gray-400 mt-0.5">
+                        @if($isApprovalMode || $isHoSMode)
+                            Review and approve/reject employee timesheet submissions
+                        @else
+                            Log and manage your working hours
+                        @endif
+                    </p>
+                </div>
+            </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <div id="tsPeriodBadge" class="hidden items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600">
@@ -40,7 +49,7 @@
                 <span id="tsBadgeLabel">—</span>
                 <span id="tsBadgeStatus" class="font-semibold"></span>
             </div>
-            @if(!$isApprovalMode && !$isHoSMode)
+            @if(!$isApprovalMode && !$isHoSMode && $can('timesheet.create'))
             <button onclick="openTimesheetModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Create Timesheet
             </button>
@@ -49,53 +58,94 @@
                 Request Late Access
             </button>
             @endif
+            @if($isHead || $isAdminMode)
+            <button id="btnTsExportNow" onclick="runTsExportNow()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+                <i class="fas fa-file-excel text-green-600 text-xs"></i>
+                Export Timesheet
+            </button>
+            @endif
         </div>
     </div>
 
     <!-- Stats Cards -->
     @if($isApprovalMode || $isHoSMode)
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
-        <div id="cardAll" class="bg-white rounded-lg border-2 border-red-600 p-3 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterByStatus('')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Total</p>
-            <p class="text-2xl font-bold text-gray-900" id="statTotal">0</p>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+        <div id="cardAll" class="bg-white rounded-xl border-2 border-red-600 px-4 py-3.5 hover:shadow-md transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('')">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Total</p>
+            <p class="text-2xl font-bold text-gray-700 leading-none" id="statTotal">0</p>
         </div>
-        <div id="cardSubmitted" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('submitted')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Pending Review</p>
-            <p class="text-2xl font-bold text-gray-900" id="statSubmittedCount">0</p>
+        <div id="cardSubmitted" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-yellow-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('submitted')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Pending Review</p>
+            </div>
+            <p class="text-2xl font-bold text-yellow-600 leading-none" id="statSubmittedCount">0</p>
         </div>
-        <div id="cardApproved" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('approved')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Approved</p>
-            <p class="text-2xl font-bold text-gray-900" id="statApprovedCount">0</p>
+        <div id="cardApproved" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-green-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('approved')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Approved</p>
+            </div>
+            <p class="text-2xl font-bold text-green-600 leading-none" id="statApprovedCount">0</p>
         </div>
-        <div id="cardRejected" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('rejected')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Rejected</p>
-            <p class="text-2xl font-bold text-gray-900" id="statRejectedCount">0</p>
+        <div id="cardRejected" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-red-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('rejected')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Rejected</p>
+            </div>
+            <p class="text-2xl font-bold text-red-600 leading-none" id="statRejectedCount">0</p>
         </div>
     </div>
     @else
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-2">
-        <div id="cardAll" class="bg-white rounded-lg border-2 border-red-600 p-3 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterByStatus('')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Total</p>
-            <p class="text-2xl font-bold text-gray-900" id="statTotal">0</p>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
+        <div id="cardAll" class="bg-white rounded-xl border-2 border-red-600 px-4 py-3.5 hover:shadow-md transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('')">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Total</p>
+            <p class="text-2xl font-bold text-gray-700 leading-none" id="statTotal">0</p>
         </div>
-        <div id="cardDraft" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('draft')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Draft</p>
-            <p class="text-2xl font-bold text-gray-900" id="statDraftCount">0</p>
+        <div id="cardDraft" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-gray-300 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('draft')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Draft</p>
+            </div>
+            <p class="text-2xl font-bold text-gray-600 leading-none" id="statDraftCount">0</p>
         </div>
-        <div id="cardSubmitted" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('submitted')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Submitted</p>
-            <p class="text-2xl font-bold text-gray-900" id="statSubmittedCount">0</p>
+        <div id="cardSubmitted" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-yellow-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('submitted')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Submitted</p>
+            </div>
+            <p class="text-2xl font-bold text-yellow-600 leading-none" id="statSubmittedCount">0</p>
         </div>
-        <div id="cardApproved" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('approved')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Approved</p>
-            <p class="text-2xl font-bold text-gray-900" id="statApprovedCount">0</p>
+        <div id="cardApproved" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-green-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('approved')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Approved</p>
+            </div>
+            <p class="text-2xl font-bold text-green-600 leading-none" id="statApprovedCount">0</p>
         </div>
-        <div id="cardRejected" class="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md hover:border-red-400 transition-all duration-200 cursor-pointer" onclick="filterByStatus('rejected')">
-            <p class="text-xs font-medium text-gray-500 mb-1">Rejected</p>
-            <p class="text-2xl font-bold text-gray-900" id="statRejectedCount">0</p>
+        <div id="cardRejected" class="bg-white rounded-xl border border-gray-200 px-4 py-3.5 hover:shadow-md hover:border-red-200 transition-all duration-200 cursor-pointer select-none" onclick="filterByStatus('rejected')">
+            <div class="flex items-center gap-1.5 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Rejected</p>
+            </div>
+            <p class="text-2xl font-bold text-red-600 leading-none" id="statRejectedCount">0</p>
         </div>
     </div>
     @endif
+
+    <!-- Support MD Summary — shown only while the Support type filter is active.
+         Totals follow whatever is currently filtered in the table (search, status,
+         date range, etc.), recomputed in updateSupportMdSummary(). -->
+    <div id="supportMdSummary" class="hidden grid grid-cols-2 gap-3 mb-4">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Total Quota MD</p>
+            <p class="text-2xl font-bold text-gray-700 leading-none" id="statSupportQuotaMd">0.00</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Total MD Consumed</p>
+            <p class="text-2xl font-bold text-purple-700 leading-none" id="statSupportConsumedMd">0.00</p>
+        </div>
+    </div>
 
     <!-- Type Tabs — hidden when locked to a single type, otherwise show only allowed types -->
     @php
@@ -107,7 +157,7 @@
         $showTabs     = !$lockedType && ($tabProject + $tabSupport + $tabOffice) > 1;
     @endphp
     @if($showTabs)
-    <div class="flex items-center gap-2 mb-4">
+    <div class="flex flex-wrap items-center gap-2 mb-4">
         <button id="typeTabAll"
             onclick="filterByType('')"
             class="type-tab-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border-2 border-red-600 bg-red-600 text-white transition-all duration-150">
@@ -137,17 +187,9 @@
     </div>
     @endif
 
-    <!-- Filters & Search -->
-    <div class="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-5">
-        <div class="flex items-center gap-2 mb-3">
-            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
-            </svg>
-            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filters</span>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <!-- Period -->
+    <!-- Filters removed — column filters are now embedded in table headers -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" style="display:none">
+            <!-- Period (hidden — replaced by column filters) -->
             <div class="flex flex-col">
                 <label class="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Period</label>
                 <div class="flex items-center gap-2">
@@ -217,106 +259,426 @@
                 </div>
             </div>
         </div>
-        <div class="flex gap-2 justify-end mt-3 pt-3 border-t border-gray-100">
-            <button onclick="resetFilters()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-600 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                Reset
-            </button>
-            <button onclick="applyFilters()" class="inline-flex items-center gap-1.5 px-5 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Apply
-            </button>
-        </div>
-    </div>
-
-    <!-- Pagination -->
-    <div class="flex items-center justify-between mb-4">
-        <!-- Bulk Actions Bar (Hidden by default) -->
-        <div id="bulkActions" class="hidden items-center gap-2">
-            <span class="text-sm font-medium text-gray-700">
-                <span id="selectedCount">0</span> selected
-            </span>
-            @if($isApprovalMode || $isHoSMode)
-            <button id="btnBulkApprove" onclick="openBulkApproveModal()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-all duration-200">
-                <i class="fas fa-check text-xs"></i> Approve
-            </button>
-            <button id="btnBulkReject" onclick="openBulkRejectModal()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-all duration-200">
-                <i class="fas fa-times text-xs"></i> Reject
-            </button>
-            @else
-            <button id="btnBulkEdit" onclick="editSelectedTimesheet()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Edit
-            </button>
-            <button id="btnBulkSubmit" onclick="openBulkSubmitModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Submit
-            </button>
-            <button id="btnBulkDelete" onclick="openBulkDeleteModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Delete
-            </button>
-            @endif
-        </div>
-        <span id="noBulkActions" class="text-sm text-gray-500">
-            <span id="currentRangeStart">1</span>–<span id="currentRangeEnd">20</span> of <span id="totalItems">0</span> timesheets
-        </span>
-        <div class="flex items-center gap-1">
-            <button onclick="previousPage()" id="btnPrevPage" disabled class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                </svg>
-            </button>
-            <button onclick="nextPage()" id="btnNextPage" class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-600">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                </svg>
-            </button>
-        </div>
-    </div>
+    <!-- hidden filter box end -->
 
     <!-- Timesheets Table -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div class="overflow-auto" style="max-height: calc(100vh - 380px); min-height: 200px;">
-            <table id="timesheetTable" class="w-full text-sm border-collapse" style="min-width: {{ $lockedType === 'support' ? '1200px' : '900px' }};">
+    <div class="ts-card bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        {{-- Table Toolbar --}}
+        <div class="ts-toolbar flex flex-wrap items-center justify-between gap-y-2 px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
+            <!-- Bulk Actions Bar (Hidden by default) -->
+            <div id="bulkActions" class="hidden items-center gap-2">
+                <span class="text-xs font-medium text-gray-700">
+                    <span id="selectedCount">0</span> selected
+                </span>
+                @if($isApprovalMode || $isHoSMode)
+                <button id="btnBulkApprove" onclick="openBulkApproveModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-all duration-200">
+                    <i class="fas fa-check text-[10px]"></i> Approve
+                </button>
+                <button id="btnBulkReject" onclick="openBulkRejectModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-all duration-200">
+                    <i class="fas fa-times text-[10px]"></i> Reject
+                </button>
+                @else
+                <button id="btnBulkEdit" onclick="editSelectedTimesheet()" class="inline-flex items-center px-3 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Edit
+                </button>
+                <button id="btnBulkSubmit" onclick="openBulkSubmitModal()" class="inline-flex items-center px-3 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    Submit
+                </button>
+                <button id="btnBulkDelete" onclick="openBulkDeleteModal()" class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-all duration-200">
+                    Delete
+                </button>
+                @endif
+            </div>
+            <div id="noBulkActions" class="flex items-center gap-3">
+                <span class="text-xs text-gray-400">
+                    Showing <span class="font-semibold text-gray-600" id="currentRangeStart">1</span>&ndash;<span class="font-semibold text-gray-600" id="currentRangeEnd">20</span>
+                    <span class="text-gray-300 mx-1">of</span>
+                    <span class="font-semibold text-gray-700" id="totalItems">0</span> timesheets
+                </span>
+                <button onclick="resetFilters()" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all">
+                    <i class="fas fa-times text-[10px]"></i> Reset Filter
+                </button>
+            </div>
+            <div class="flex items-center gap-1">
+                <button onclick="previousPage()" id="btnPrevPage" disabled
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                    </svg>
+                    Prev
+                </button>
+                <button onclick="nextPage()" id="btnNextPage"
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                    Next
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="ts-table-wrap overflow-auto" style="max-height: calc(100vh - 380px); min-height: 200px;">
+            <table id="timesheetTable" class="w-full text-sm border-collapse" style="min-width: {{ $lockedType === 'support' ? '1320px' : '900px' }};">
                 <thead id="timesheetTableHead" class="sticky top-0 z-10 bg-gray-50">
                     @if($isApprovalMode && $lockedType !== 'support')
+                    {{-- ── Approval mode: Employee | Date(sort) | Time | Duration | Project/Ticket | Activity | Description | Status ──────── --}}
                     <tr>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:36px;">
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:36px;">
                             <input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300">
                         </th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Employee</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Date</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Time</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Duration</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Project/Ticket</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Activity</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Description</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Status</th>
+                        {{-- Employee: text search + sort panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:150px; position:relative;">
+                            <button type="button" onclick="toggleTsTextPanel(event,'Employee')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Employee</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsTextIcon_Employee" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <span id="tsSortEmpIcon" onclick="event.stopPropagation(); toggleTsEmpSort()" title="Click to toggle sort (A–Z ↔ Z–A)" class="cursor-pointer text-[10px] text-gray-300 font-bold shrink-0 ml-auto hover:text-red-500 transition-colors">⇅</span>
+                            </button>
+                            <div id="tsTextPanel_Employee" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search employee</label>
+                                <input type="text" id="colFilterTsEmployee" placeholder="Type name…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                <p class="text-[10px] text-gray-400 mt-1.5">Use the ⇅ icon in the header to sort by name.</p>
+                                <div class="flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="clearTsTextPanel('Employee')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Date: sort panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px; position:relative;">
+                            <button type="button" onclick="toggleTsDatePanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Submit Date</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsDateFilterIcon" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <span id="tsSortDateIcon" onclick="event.stopPropagation(); toggleTsDateSort()" title="Click to toggle sort (descending ↔ ascending)" class="cursor-pointer text-[10px] text-red-500 font-bold shrink-0 ml-auto hover:text-red-700 transition-colors">↓</span>
+                            </button>
+                            <div id="tsDateFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:240px;">
+                                <div class="space-y-2">
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+                                        <input type="date" id="tsDateFrom" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
+                                        <input type="date" id="tsDateTo" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <p id="tsDateFilterError" class="hidden text-xs text-red-500">"To" must be on/after "From".</p>
+                                </div>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearTsDateFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="applyTsDateFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Time</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Duration</th>
+                        {{-- Project/Ticket: text search panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:160px; position:relative;">
+                            <button type="button" onclick="toggleTsTextPanel(event,'Ticket')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Project/Ticket</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsTextIcon_Ticket" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="tsTextPanel_Ticket" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket number</label>
+                                <input type="text" id="colFilterTsTicket" placeholder="e.g. TKT-001…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                <div class="flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="clearTsTextPanel('Ticket')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Activity Type: text search panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:130px; position:relative;">
+                            <button type="button" onclick="toggleTsTextPanel(event,'ActivityType')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Activity</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsTextIcon_ActivityType" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="tsTextPanel_ActivityType" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search activity type</label>
+                                <input type="text" id="colFilterTsActivityType" placeholder="e.g. Development…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                <div class="flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="clearTsTextPanel('ActivityType')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Description</th>
+                        {{-- Status: custom-dd --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
+                            <div class="custom-dd relative w-full" id="ddColFilterTsStatus" data-fixed="true" data-onchange="applyColFilter">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Status</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="colFilterTsStatus" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:150px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="draft">Draft</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="submitted">Submitted</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="approved">Approved</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="rejected">Rejected</button>
+                                </div>
+                            </div>
+                        </th>
                     </tr>
                     @elseif($lockedType === 'support')
+                    {{-- ── Support/HoS mode: Date(sort) | Month | Year | Name | Status | Ticket | Description | Customer | Quota MD | Activity | MD | On Site ── --}}
                     <tr>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Date</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Month</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:55px;">Year</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Name</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Status</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Ticket</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Description</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Customer</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Quota MD</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Activity</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:90px;">MD Consumed</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:70px;">On Site</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:36px;"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300"></th>
+                        {{-- Date: sort panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px; position:relative;">
+                            <button type="button" onclick="toggleTsDatePanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Submit Date</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsDateFilterIcon" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <span id="tsSortDateIcon" onclick="event.stopPropagation(); toggleTsDateSort()" title="Click to toggle sort (descending ↔ ascending)" class="cursor-pointer text-[10px] text-red-500 font-bold shrink-0 ml-auto hover:text-red-700 transition-colors">↓</span>
+                            </button>
+                            <div id="tsDateFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:240px;">
+                                <div class="space-y-2">
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+                                        <input type="date" id="tsDateFrom" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
+                                        <input type="date" id="tsDateTo" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <p id="tsDateFilterError" class="hidden text-xs text-red-500">"To" must be on/after "From".</p>
+                                </div>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearTsDateFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="applyTsDateFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Activity Date</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Time</th>
+                        {{-- Month: custom-dd --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:85px;">
+                            <div class="custom-dd relative w-full" id="ddColFilterTsMonth" data-fixed="true" data-onchange="applyColFilter">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Month</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="colFilterTsMonth" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:120px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="1">January</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="2">February</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="3">March</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="4">April</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="5">May</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="6">June</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="7">July</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="8">August</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="9">September</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="10">October</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="11">November</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="12">December</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Year: custom-dd (options populated dynamically from data — see _populateTsYearDd in calendar-timesheets.js) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:70px;">
+                            <div class="custom-dd relative w-full" id="ddColFilterTsYear" data-fixed="true" data-onchange="applyColFilter">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Year</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="colFilterTsYear" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;min-width:100px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Name: text search + sort panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:150px; position:relative;">
+                            <button type="button" onclick="toggleTsTextPanel(event,'Employee')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Name</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsTextIcon_Employee" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <span id="tsSortEmpIcon" onclick="event.stopPropagation(); toggleTsEmpSort()" title="Click to toggle sort (A–Z ↔ Z–A)" class="cursor-pointer text-[10px] text-gray-300 font-bold shrink-0 ml-auto hover:text-red-500 transition-colors">⇅</span>
+                            </button>
+                            <div id="tsTextPanel_Employee" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search name</label>
+                                <input type="text" id="colFilterTsEmployee" placeholder="Type name…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                <p class="text-[10px] text-gray-400 mt-1.5">Use the ⇅ icon in the header to sort by name.</p>
+                                <div class="flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="clearTsTextPanel('Employee')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Status: custom-dd --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
+                            <div class="custom-dd relative w-full" id="ddColFilterTsStatus" data-fixed="true" data-onchange="applyColFilter">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Status</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="colFilterTsStatus" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:150px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="draft">Draft</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="submitted">Submitted</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="approved">Approved</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="rejected">Rejected</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Ticket: text search panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:150px; position:relative;">
+                            <button type="button" onclick="toggleTsTextPanel(event,'Ticket')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Ticket</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsTextIcon_Ticket" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="tsTextPanel_Ticket" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket</label>
+                                <input type="text" id="colFilterTsTicket" placeholder="e.g. TKT-001…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                <div class="flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="clearTsTextPanel('Ticket')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:180px;">Description</th>
+                        {{-- Customer: text search panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:130px; position:relative;">
+                            <button type="button" onclick="toggleTsTextPanel(event,'Customer')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Customer</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsTextIcon_Customer" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="tsTextPanel_Customer" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search customer</label>
+                                <input type="text" id="colFilterTsCustomer" placeholder="Type customer…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                <div class="flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="clearTsTextPanel('Customer')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Type: custom-dd --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px;">
+                            <div class="custom-dd relative w-full" id="ddColFilterTsType" data-fixed="true" data-onchange="applyColFilter">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Type</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="colFilterTsType" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:150px;min-width:140px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="internal">Internal</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="non_internal">Non Internal</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Quota MD</th>
+                        {{-- Activity Type: text search panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:130px; position:relative;">
+                            <button type="button" onclick="toggleTsTextPanel(event,'ActivityType')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Activity</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsTextIcon_ActivityType" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="tsTextPanel_ActivityType" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search activity type</label>
+                                <input type="text" id="colFilterTsActivityType" placeholder="e.g. Development…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                <div class="flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="clearTsTextPanel('ActivityType')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:90px;">MD Consumed</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:70px;">On Site</th>
                     </tr>
                     @else
+                    {{-- ── Employee mode: Date(sort) | Time | Duration | Project/Ticket | Activity | Description | Status ──────────────────────── --}}
                     <tr>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:36px;">
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:36px;">
                             <input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-gray-300">
                         </th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Date</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Time</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Duration</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Project/Ticket</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Activity</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Description</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:110px;">Status</th>
+                        {{-- Date: sort panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px; position:relative;">
+                            <button type="button" onclick="toggleTsDatePanel(event)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Submit Date</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsDateFilterIcon" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <span id="tsSortDateIcon" onclick="event.stopPropagation(); toggleTsDateSort()" title="Click to toggle sort (descending ↔ ascending)" class="cursor-pointer text-[10px] text-red-500 font-bold shrink-0 ml-auto hover:text-red-700 transition-colors">↓</span>
+                            </button>
+                            <div id="tsDateFilterPanel" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:240px;">
+                                <div class="space-y-2">
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+                                        <input type="date" id="tsDateFrom" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
+                                        <input type="date" id="tsDateTo" onclick="event.stopPropagation()" class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                    </div>
+                                    <p id="tsDateFilterError" class="hidden text-xs text-red-500">"To" must be on/after "From".</p>
+                                </div>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearTsDateFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="applyTsDateFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Time</th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:80px;">Duration</th>
+                        {{-- Project/Ticket: text search panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:160px; position:relative;">
+                            <button type="button" onclick="toggleTsTextPanel(event,'Ticket')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Project/Ticket</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsTextIcon_Ticket" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="tsTextPanel_Ticket" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket number</label>
+                                <input type="text" id="colFilterTsTicket" placeholder="e.g. TKT-001…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                <div class="flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="clearTsTextPanel('Ticket')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- Activity Type: text search panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:130px; position:relative;">
+                            <button type="button" onclick="toggleTsTextPanel(event,'ActivityType')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Activity</span>
+                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="tsTextIcon_ActivityType" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="tsTextPanel_ActivityType" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search activity type</label>
+                                <input type="text" id="colFilterTsActivityType" placeholder="e.g. Development…" oninput="applyColFilter()" onclick="event.stopPropagation()"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                <div class="flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="clearTsTextPanel('ActivityType')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap border-b border-gray-200" style="min-width:200px;">Description</th>
+                        {{-- Status: custom-dd --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
+                            <div class="custom-dd relative w-full" id="ddColFilterTsStatus" data-fixed="true" data-onchange="applyColFilter">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Status</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <input type="hidden" id="colFilterTsStatus" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:150px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="draft">Draft</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="submitted">Submitted</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="approved">Approved</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="rejected">Rejected</button>
+                                </div>
+                            </div>
+                        </th>
                     </tr>
                     @endif
                 </thead>
@@ -326,16 +688,22 @@
             </table>
         </div>
 
-        <div id="emptyState" class="hidden text-center py-16">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 text-gray-300 mx-auto mb-3">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            </svg>
+        <div id="emptyState" class="hidden flex flex-col items-center justify-center py-20 text-center">
+            <div class="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+                <i class="fas fa-clock text-gray-300 text-2xl"></i>
+            </div>
             @if($isApprovalMode || $isHoSMode)
-            <p class="text-gray-600 font-semibold mb-1">No Timesheets Pending Approval</p>
+            <p class="text-gray-700 font-semibold mb-1">No Timesheets Pending Approval</p>
             <p class="text-gray-400 text-xs">All employee timesheets have been reviewed</p>
             @else
-            <p class="text-gray-600 font-semibold mb-1">No Timesheets Found</p>
-            <p class="text-gray-400 text-xs mb-4">Click "Create Timesheet" button</p>
+            <p class="text-gray-700 font-semibold mb-1">No Timesheets Found</p>
+            <p class="text-gray-400 text-xs mb-5">Try adjusting your filters or create a new timesheet</p>
+            @if($can('timesheet.create'))
+            <button onclick="openTimesheetModal()"
+                class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-xl hover:opacity-90 transition-all shadow-sm">
+                <i class="fas fa-plus text-xs"></i>Create Timesheet
+            </button>
+            @endif
             @endif
         </div>
     </div>
@@ -537,10 +905,10 @@
                         </div>
                     </div>
 
-                    {{-- Date --}}
+                    {{-- Submit Date --}}
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1.5">
-                            Date <span class="text-red-500">*</span>
+                            Submit Date <span class="text-red-500">*</span>
                         </label>
                         <input type="date" id="timesheetDate" required
                             class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50 hover:bg-white transition-colors">
@@ -549,80 +917,52 @@
                     {{-- Period Selector (populated by JS — shown only when late exception exists) --}}
                     <div id="periodFieldRow" class="hidden"></div>
 
-                    {{-- Start + End Time + Duration (hidden for support) --}}
+                    {{-- Start + End Time + Duration --}}
+                    {{-- Custom time picker (NOT the native <input type="time">): a text field
+                         the user can type an HH:MM value into, plus an app-styled dropdown
+                         of preset times. Wired by initTsTimePickers() in calendar-timesheets.js;
+                         order is enforced by tsUpdateStartTime / tsUpdateEndTime → _tsValidateTimeOrder. --}}
+                    @php
+                        $tsTimeOptions = [];
+                        for ($h = 0; $h < 24; $h++) {
+                            $tsTimeOptions[] = str_pad($h, 2, '0', STR_PAD_LEFT) . ':00';
+                            $tsTimeOptions[] = str_pad($h, 2, '0', STR_PAD_LEFT) . ':30';
+                        }
+                    @endphp
                     <div id="timesheetTimeBlock">
                         <label class="block text-xs font-semibold text-gray-600 mb-1.5">
                             Time <span class="text-red-500">*</span>
                         </label>
                         <div class="flex items-center gap-2">
-                            {{-- Start time --}}
-                            <div id="timesheetStartTimeField" class="flex items-center gap-1 flex-1">
-                                {{-- Start Hour --}}
-                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
-                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
-                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">08</span>
-                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            @foreach (['Start' => '08:00', 'End' => '17:00'] as $side => $default)
+                                @if ($side === 'End')
+                                    <i class="fas fa-arrow-right text-xs text-gray-300 flex-shrink-0"></i>
+                                @endif
+                                <div class="relative flex-1 min-w-0" data-ts-timepicker>
+                                    <input type="text" id="timesheet{{ $side }}Time" value="{{ $default }}" required
+                                        inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="5" placeholder="{{ $default }}"
+                                        oninput="tsUpdate{{ $side }}Time()"
+                                        onchange="tsNormalizeTimeInput(this); tsUpdate{{ $side }}Time()"
+                                        onblur="tsNormalizeTimeInput(this); tsUpdate{{ $side }}Time()"
+                                        class="w-full pl-3 pr-8 py-2 border border-gray-200 rounded-md text-sm font-mono bg-gray-50 hover:bg-white focus:ring-2 focus:ring-red-700 focus:border-transparent transition-colors">
+                                    <button type="button" tabindex="-1" aria-label="Choose time"
+                                        class="ts-tp-toggle absolute inset-y-0 right-0 flex items-center px-2 text-gray-400 hover:text-gray-600">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                     </button>
-                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
-                                        @for($h = 0; $h < 24; $h++)
-                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</button>
-                                        @endfor
+                                    <div class="ts-tp-panel hidden absolute left-0 right-0 mt-1 z-[9999] bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto py-1" style="max-height:13rem;">
+                                        @foreach ($tsTimeOptions as $opt)
+                                            <button type="button" data-value="{{ $opt }}"
+                                                class="ts-tp-item w-full text-left px-3 py-1.5 text-sm font-mono text-gray-700 hover:bg-gray-50">{{ $opt }}</button>
+                                        @endforeach
                                     </div>
-                                    <input type="hidden" id="timesheetStartHour" value="08">
                                 </div>
-                                <span class="text-sm font-bold text-gray-400 flex-shrink-0">:</span>
-                                {{-- Start Minute --}}
-                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateStartTime">
-                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
-                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">00</span>
-                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                    </button>
-                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
-                                        @for($m = 0; $m < 60; $m += 5)
-                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</button>
-                                        @endfor
-                                    </div>
-                                    <input type="hidden" id="timesheetStartMinute" value="00">
-                                </div>
-                            </div>
-                            <i class="fas fa-arrow-right text-xs text-gray-300 flex-shrink-0"></i>
-                            {{-- End time --}}
-                            <div id="timesheetEndTimeField" class="flex items-center gap-1 flex-1">
-                                {{-- End Hour --}}
-                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
-                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
-                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">17</span>
-                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                    </button>
-                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
-                                        @for($h = 0; $h < 24; $h++)
-                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}</button>
-                                        @endfor
-                                    </div>
-                                    <input type="hidden" id="timesheetEndHour" value="17">
-                                </div>
-                                <span class="text-sm font-bold text-gray-400 flex-shrink-0">:</span>
-                                {{-- End Minute --}}
-                                <div class="custom-dd relative flex-1" data-fixed="true" data-onchange="tsUpdateEndTime">
-                                    <button type="button" class="custom-dd-btn w-full px-2 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 hover:bg-white transition-colors flex items-center justify-between gap-1">
-                                        <span class="custom-dd-label text-gray-700 flex-1 text-center font-mono">00</span>
-                                        <svg class="custom-dd-arrow w-3 h-3 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                    </button>
-                                    <div class="custom-dd-panel hidden bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto max-h-48">
-                                        @for($m = 0; $m < 60; $m += 5)
-                                            <button type="button" class="custom-dd-item w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 text-center font-mono" data-value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}">{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}</button>
-                                        @endfor
-                                    </div>
-                                    <input type="hidden" id="timesheetEndMinute" value="00">
-                                </div>
-                            </div>
+                            @endforeach
                         </div>
                         {{-- Duration badge --}}
                         <p class="mt-1.5 text-xs text-gray-400">
                             Duration: <span id="timesheetDuration" class="font-semibold text-gray-600">—</span>
                         </p>
-                        <input type="hidden" id="timesheetStartTime">
-                        <input type="hidden" id="timesheetEndTime">
+                        <p id="timesheetTimeError" class="hidden mt-1 text-xs text-red-500">End time must be later than start time.</p>
                     </div>
 
                     {{-- Billable (project only) --}}
@@ -789,6 +1129,21 @@
 
 
 
+<style>
+/* ── Stat card active state ── */
+[id^="card"].border-2.border-red-600 {
+    background: #fff8f8 !important;
+    box-shadow: 0 2px 8px rgba(220,38,38,0.08) !important;
+}
+/* ── Table rows ── */
+#timesheetsTableBody tr { cursor: default; transition: background 0.1s; }
+#timesheetsTableBody tr:hover { background: #f8fafc; }
+/* ── #emptyState hanya dipakai saat load gagal (showEmptyState()); hasil filter
+      kosong dirender sebagai baris di dalam tabel supaya header/filter tetap ada ── */
+.ts-card:has(#emptyState:not(.hidden)) .ts-toolbar,
+.ts-card:has(#emptyState:not(.hidden)) .ts-table-wrap { display: none !important; }
+</style>
+
 <script>
     // Pass PHP variables to JavaScript
     // Placed inline (not via push directive) to guarantee execution before DOMContentLoaded
@@ -798,6 +1153,7 @@
     window.lockedType      = {!! $lockedType ? "'{$lockedType}'" : 'null' !!};
     window.allowedTypes    = {!! json_encode($allowedTypes ?? ['project','support','office']) !!};
     window.isHoSMode       = {{ $isHoSMode ? 'true' : 'false' }};
+    window.canCreateTimesheet = {{ $can('timesheet.create') ? 'true' : 'false' }};
 </script>
 <script src="/js/custom-dropdown.js?v={{ filemtime(public_path('js/custom-dropdown.js')) }}"></script>
 <script src="/js/calendar-timesheets.js?v={{ filemtime(public_path('js/calendar-timesheets.js')) }}"></script>
@@ -1024,6 +1380,61 @@ async function submitLateAccessRequest() {
         }
     } catch (e) {
         if (window.showNotification) showNotification('Network error.', 'error');
+    }
+}
+</script>
+@endpush
+@endif
+
+{{-- ── Timesheet Export (Head & above) ──────────────────────────────────── --}}
+{{-- No modal/filter form — exports exactly what's currently on screen: whichever
+     type tab (All/Project/Support/Office) is active decides the column layout,
+     and every active filter (search, status, date range, sort) is already baked
+     into `filteredTimesheets`, so the export can't drift out of sync with the table. --}}
+@if($isHead || $isAdminMode)
+@push('scripts')
+<script>
+async function runTsExportNow() {
+    if (!filteredTimesheets || filteredTimesheets.length === 0) {
+        if (window.showNotification) showNotification('No timesheets to export for the current filters.', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('btnTsExportNow');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Menyiapkan...';
+    }
+
+    const typeFilter = currentFilters.type_filter || window.lockedType || '';
+    const ids = filteredTimesheets.map(t => t.id);
+
+    try {
+        const res = await fetch('/api/timesheets/export', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ ids, type_filter: typeFilter }),
+        });
+        if (!res.ok) throw new Error('Export gagal');
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'TIMESHEET_' + new Date().toLocaleDateString('id-ID').replace(/\//g, '') + '.xlsx';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        if (window.showNotification) showNotification('Export berhasil diunduh.', 'success');
+    } catch (e) {
+        if (window.showNotification) showNotification('Export gagal.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
     }
 }
 </script>

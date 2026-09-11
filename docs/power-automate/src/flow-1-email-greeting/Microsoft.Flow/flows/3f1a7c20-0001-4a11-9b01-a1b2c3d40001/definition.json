@@ -1,0 +1,176 @@
+{
+    "name": "3f1a7c20-0001-4a11-9b01-a1b2c3d40001",
+    "id": "/providers/Microsoft.Flow/flows/3f1a7c20-0001-4a11-9b01-a1b2c3d40001",
+    "type": "Microsoft.Flow/flows",
+    "properties": {
+        "apiId": "/providers/Microsoft.PowerApps/apis/shared_logicflows",
+        "displayName": "EcoSystem - Email Greeting",
+        "definition": {
+            "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+            "contentVersion": "1.0.0.0",
+            "parameters": {
+                "$connections": {
+                    "defaultValue": {},
+                    "type": "Object"
+                },
+                "$authentication": {
+                    "defaultValue": {},
+                    "type": "SecureObject"
+                }
+            },
+            "triggers": {
+                "manual": {
+                    "type": "Request",
+                    "kind": "Http",
+                    "inputs": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "event": {
+                                    "type": "string"
+                                },
+                                "sent_at": {
+                                    "type": "string"
+                                },
+                                "source": {
+                                    "type": "string"
+                                },
+                                "staging": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "subject": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "channel": {
+                                            "type": "string"
+                                        },
+                                        "customer": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "customer_id": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "sender_name": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "sender_email": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "cc_emails": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "graph_message_id": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "internet_message_id": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "conversation_id": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "has_attachments": {
+                                            "type": "boolean"
+                                        },
+                                        "received_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "method": "POST"
+                    }
+                }
+            },
+            "actions": {
+                "Cek_secret_EcoSystem": {
+                    "type": "If",
+                    "expression": {
+                        "equals": [
+                            "@triggerOutputs()?['headers']?['X-EcoSystem-Secret']",
+                            "GANTI_DENGAN_POWER_AUTOMATE_SECRET"
+                        ]
+                    },
+                    "actions": {
+                        "Balas_greeting_ke_pengirim": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connectionName": "shared_office365",
+                                    "operationId": "ReplyToV3",
+                                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+                                },
+                                "parameters": {
+                                    "id": "@triggerBody()?['staging']?['graph_message_id']",
+                                    "body/Body": "<p>Halo @{coalesce(triggerBody()?['staging']?['sender_name'], 'Bapak/Ibu')},</p>\n\n<p>Terima kasih telah menghubungi Helpdesk PT Eclectic Consulting. Email Anda dengan subjek\n\"<b>@{triggerBody()?['staging']?['subject']}</b>\" sudah kami terima dan sedang diverifikasi oleh tim kami.</p>\n\n<p>Anda akan menerima nomor tiket resmi begitu laporan ini selesai divalidasi. Untuk mempercepat\npenanganan, mohon balas email ini bila ada informasi tambahan seperti tangkapan layar atau nomor\ndokumen terkait.</p>\n\n<p>Salam,<br>Helpdesk PT Eclectic Consulting</p>",
+                                    "body/ReplyAll": false
+                                },
+                                "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {}
+                        }
+                    },
+                    "else": {
+                        "actions": {
+                            "Hentikan_secret_tidak_cocok": {
+                                "type": "Terminate",
+                                "inputs": {
+                                    "runStatus": "Cancelled"
+                                },
+                                "runAfter": {}
+                            }
+                        }
+                    },
+                    "runAfter": {}
+                }
+            },
+            "outputs": {}
+        },
+        "connectionReferences": {
+            "shared_office365": {
+                "connectionName": "shared_office365",
+                "source": "Embedded",
+                "id": "/providers/Microsoft.PowerApps/apis/shared_office365",
+                "tier": "NotSpecified"
+            }
+        },
+        "flowFailureAlertSubscribed": false
+    },
+    "schemaVersion": "1.0.0.0"
+}

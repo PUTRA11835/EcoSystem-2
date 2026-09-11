@@ -359,8 +359,8 @@ window.confirmDelete = function() {
         showNotification('Deleting...', 'info');
     }
 
-    axios.delete(`/planning/${window.projectId}/activities/${idToDelete}`, {
-        data: { _token: '{{ csrf_token() }}', is_group: isGroupToDelete ? 1 : 0 }
+    axios.post(`/planning/${window.projectId}/activities/${idToDelete}/delete`, {
+        _token: '{{ csrf_token() }}', is_group: isGroupToDelete ? 1 : 0
     })
     .then(response => {
 

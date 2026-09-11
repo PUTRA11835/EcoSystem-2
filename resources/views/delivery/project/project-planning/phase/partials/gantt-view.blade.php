@@ -36,7 +36,7 @@
             <div class="bg-white rounded-lg p-2 sm:p-3 text-center shadow-sm">
                 <div class="text-lg sm:text-2xl font-bold text-gray-900" id="ganttTotalActivities">0</div>
                 <div class="text-xs text-gray-600 mt-1">Total Tasks</div>
-                <div class="text-xs text-gray-400 mt-0.5">(Stages)</div>
+                <div class="text-xs text-gray-400 mt-0.5">(Stages &amp; Activities)</div>
             </div>
             
             <div class="bg-white rounded-lg p-2 sm:p-3 text-center shadow-sm border-l-4 border-gray-400">
@@ -362,46 +362,52 @@
     overflow: hidden;
 }
 
-.gantt-week-row {
+/* Baris atas: BULAN */
+.gantt-month-row {
     display: flex;
     height: 24px;
     border-bottom: 1px solid #e5e7eb;
 }
 
-.gantt-week-cell {
-    border-right: 1px solid #e5e7eb;
+.gantt-month-cell {
+    border-right: 1px solid #d1d5db;
     background-color: #f3f4f6;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 0.65rem;
-    font-weight: 600;
-    color: #6b7280;
+    font-weight: 700;
+    color: #4b5563;
     text-transform: uppercase;
-    letter-spacing: 0.025em;
+    letter-spacing: 0.03em;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
-.gantt-day-row {
+/* Baris bawah: WEEK */
+.gantt-week-row {
     display: flex;
     height: 24px;
 }
 
-.gantt-day-cell {
+.gantt-week-cell {
     border-right: 1px solid #e5e7eb;
     background-color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: #4b5563;
-    font-weight: 500;
+    font-weight: 600;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
-.gantt-day-cell.weekend {
-    background-color: #fef3c7;
+.gantt-week-cell.alt-month {
+    background-color: #f9fafb;
 }
 
-.gantt-day-cell.today {
+.gantt-week-cell.current {
     background-color: #dbeafe;
     color: #1e40af;
     font-weight: 700;
@@ -419,17 +425,34 @@
     height: 35px; /* Fixed height */
     min-height: 35px;
     max-height: 35px;
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 0.8fr;
+    gap: 4px;
     align-items: center;
     border-left: 4px solid;
     font-size: 0.7rem;
+    overflow: hidden;
 }
 
 @media (min-width: 640px) {
     .gantt-phase-row {
         padding: 8px 12px;
+        grid-template-columns: 1.5fr 1fr 1fr 1fr;
+        gap: 8px;
         font-size: 0.75rem;
     }
+}
+
+@media (min-width: 1024px) {
+    .gantt-phase-row {
+        grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+    }
+}
+
+/* Bar ringkasan (rollup) pada baris phase */
+.gantt-bar.gantt-bar-phase {
+    border-radius: 3px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 /* ✅ FIXED: Activity Row with Exact Height */
@@ -540,8 +563,13 @@
     flex-shrink: 0;
 }
 
-.gantt-grid-cell.weekend {
-    background-color: #fef3c7;
+/* Selang-seling bulan menggantikan arsiran akhir pekan (kolom kini per minggu) */
+.gantt-grid-cell.alt-month {
+    background-color: #fafafa;
+}
+
+.gantt-grid-cell.current-week {
+    background-color: #eff6ff;
 }
 
 /* Bar Styles */
@@ -586,6 +614,36 @@
     font-weight: 600;
     color: white;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    white-space: nowrap;
+    line-height: 1;
+    padding: 0 3px;
+}
+
+/* Bar terlalu sempit untuk memuat teks -> label dipindah ke luar bar */
+.gantt-bar-text.outside {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #4b5563;
+    text-shadow: none;
+    padding: 0;
+    pointer-events: none;
+}
+
+.gantt-bar-text.outside.right {
+    left: 100%;
+    margin-left: 5px;
+}
+
+.gantt-bar-text.outside.left {
+    right: 100%;
+    margin-right: 5px;
+}
+
+/* Bar pendek: tetap terlihat sebagai penanda, bukan garis rambut */
+.gantt-bar.is-narrow {
+    border-radius: 3px;
+    min-width: 8px;
 }
 
 /* Today Line */
@@ -637,7 +695,11 @@
     // ==========================================
     var ganttData = null;
     var ganttInitialized = false;
+    // Satu kolom timeline = satu MINGGU (bukan satu hari), supaya chart ringkas
+    // dan enak di-screenshot untuk materi presentasi ke customer.
     var cellWidth = 40;
+    var timelineStartDate = null;
+    var timelineWeekCount = 0;
     var sidebar, resizeHandle;
     var isResizing = false;
     var startX, startWidth;
@@ -860,28 +922,39 @@
         var totalPhaseWeight = 0;
         var weightedPhaseProgress = 0;
         
+        function countByStatus(status) {
+            switch ((status || 'not_started').toLowerCase()) {
+                case 'completed':
+                    completedStages++;
+                    break;
+                case 'in_progress':
+                    inProgressStages++;
+                    break;
+                case 'delayed':
+                    delayedStages++;
+                    break;
+                default:
+                    notStartedStages++;
+            }
+        }
+
         function countStagesInGroup(group) {
             if (group.stages && group.stages.length > 0) {
                 group.stages.forEach(function(stage) {
                     totalStages++;
-                    var status = (stage.status || 'not_started').toLowerCase();
-                    
-                    switch(status) {
-                        case 'completed':
-                            completedStages++;
-                            break;
-                        case 'in_progress':
-                            inProgressStages++;
-                            break;
-                        case 'delayed':
-                            delayedStages++;
-                            break;
-                        default:
-                            notStartedStages++;
-                    }
+                    countByStatus(stage.status);
                 });
             }
-            
+
+            // Aktivitas tanpa stage juga dihitung, kalau tidak kartu statistik
+            // selalu 0 untuk project yang planning-nya tidak memakai stage.
+            if (group.activities && group.activities.length > 0) {
+                group.activities.forEach(function(activity) {
+                    totalStages++;
+                    countByStatus(activity.status);
+                });
+            }
+
             if (group.sub_groups && group.sub_groups.length > 0) {
                 group.sub_groups.forEach(function(subGroup) {
                     countStagesInGroup(subGroup);
@@ -891,7 +964,9 @@
         
         verticalGroups.forEach(function(phase) {
             var phaseWeight = parseFloat(phase.weight) || 0;
-            var phaseProgress = parseFloat(phase.progress) || 0;
+            // progress_raw = nilai presisi; phase.progress sudah dibulatkan untuk
+            // tampilan dan tidak boleh dipakai sebagai basis agregasi.
+            var phaseProgress = parseFloat(phase.progress_raw !== undefined ? phase.progress_raw : phase.progress) || 0;
             
             totalPhaseWeight += phaseWeight;
             weightedPhaseProgress += (phaseProgress * phaseWeight);
@@ -1015,9 +1090,12 @@
         
         var startDate = new Date(ganttData.start_date);
         var endDate = new Date(ganttData.end_date);
-        var allDates = getDatesInRange(startDate, endDate);
-        var totalDays = allDates.length;
-        var timelineWidth = totalDays * cellWidth;
+        var allWeeks = getWeeksInRange(startDate, endDate);
+
+        timelineStartDate = allWeeks.length ? allWeeks[0].start : startOfWeek(startDate);
+        timelineWeekCount = allWeeks.length;
+
+        var timelineWidth = timelineWeekCount * cellWidth;
         
         var timelineHeader = document.getElementById('ganttTimelineHeader');
         var timelineBody = document.getElementById('ganttTimelineBody');
@@ -1037,54 +1115,58 @@
             timeline.style.overflowX = 'auto';
         }
         
-        renderTimelineHeader(allDates);
-        renderTasks(ganttData.vertical_groups, allDates, startDate);
-        addGlobalTodayLine(allDates);
+        renderTimelineHeader(allWeeks);
+        renderTasks(ganttData.vertical_groups, allWeeks, startDate);
+        addGlobalTodayLine(allWeeks);
         renderLegends();
         syncScroll();
-        scrollToToday(allDates);
+        scrollToToday(allWeeks);
         
     }
     
     // ==========================================
     // RENDER TIMELINE HEADER
     // ==========================================
-    function renderTimelineHeader(allDates) {
+    function renderTimelineHeader(allWeeks) {
         var header = document.getElementById('ganttTimelineHeader');
         header.innerHTML = '';
-        
+
+        // Baris 1: BULAN (menaungi minggu-minggu di bawahnya)
+        var monthRow = document.createElement('div');
+        monthRow.className = 'gantt-month-row';
+
+        groupByMonth(allWeeks).forEach(function(month) {
+            var monthCell = document.createElement('div');
+            monthCell.className = 'gantt-month-cell';
+            monthCell.style.width = (month.weeks * cellWidth) + 'px';
+            // Bulan yang cuma dinaungi 1-2 minggu tak muat nama panjang
+            monthCell.textContent = (month.weeks * cellWidth) >= 90 ? month.label : month.shortLabel;
+            monthCell.title = month.label;
+            monthRow.appendChild(monthCell);
+        });
+        header.appendChild(monthRow);
+
+        // Baris 2: WEEK
         var weekRow = document.createElement('div');
         weekRow.className = 'gantt-week-row';
-        
-        var weeks = groupByWeek(allDates);
-        weeks.forEach(function(week) {
+
+        allWeeks.forEach(function(week) {
             var weekCell = document.createElement('div');
             weekCell.className = 'gantt-week-cell';
-            weekCell.style.width = (week.days * cellWidth) + 'px';
-            weekCell.textContent = 'WEEK ' + week.weekNumber;
+            weekCell.style.width = cellWidth + 'px';
+            if (week.altMonth) weekCell.classList.add('alt-month');
+            if (week.isCurrent) weekCell.classList.add('current');
+            weekCell.textContent = 'W' + week.weekNumber;
+            weekCell.title = 'Week ' + week.weekNumber + ': ' + formatDate(week.start) + ' - ' + formatDate(week.end);
             weekRow.appendChild(weekCell);
         });
         header.appendChild(weekRow);
-        
-        var dayRow = document.createElement('div');
-        dayRow.className = 'gantt-day-row';
-        
-        allDates.forEach(function(date) {
-            var dayCell = document.createElement('div');
-            dayCell.className = 'gantt-day-cell';
-            dayCell.style.width = cellWidth + 'px';
-            if (isWeekend(date)) dayCell.classList.add('weekend');
-            if (isToday(date)) dayCell.classList.add('today');
-            dayCell.textContent = formatDay(date);
-            dayRow.appendChild(dayCell);
-        });
-        header.appendChild(dayRow);
     }
     
     // ==========================================
     // RENDER TASKS (VERTICAL GROUPS)
     // ==========================================
-    function renderTasks(verticalGroups, allDates, startDate) {
+    function renderTasks(verticalGroups, allWeeks, startDate) {
         var sidebarBody = document.getElementById('ganttSidebarBody');
         var timelineBody = document.getElementById('ganttTimelineBody');
         
@@ -1095,11 +1177,11 @@
             var phaseRow = createPhaseRow(phase);
             sidebarBody.appendChild(phaseRow);
             
-            var phaseTimelineRow = createPhaseTimelineRow(allDates);
+            var phaseTimelineRow = createPhaseTimelineRow(phase, allWeeks);
             timelineBody.appendChild(phaseTimelineRow);
             
             phase.tasks.forEach(function(group) {
-                renderGroupRecursive(group, sidebarBody, timelineBody, allDates, startDate, phase.id, 0, null);
+                renderGroupRecursive(group, sidebarBody, timelineBody, allWeeks, startDate, phase.id, 0, null);
             });
         });
     }
@@ -1107,28 +1189,39 @@
     // ==========================================
     // RENDER GROUP RECURSIVE
     // ==========================================
-    function renderGroupRecursive(group, sidebarBody, timelineBody, allDates, startDate, phaseId, level, actualParentId) {
+    function renderGroupRecursive(group, sidebarBody, timelineBody, allWeeks, startDate, phaseId, level, actualParentId) {
         var groupId = 'group-' + group.id;
         var parentId = actualParentId || ('phase-' + phaseId);
         
         var groupRow = createGroupRow(group, level, phaseId, parentId);
         sidebarBody.appendChild(groupRow);
         
-        var groupTimelineRow = createGroupTimelineRow(group, allDates, startDate, level, parentId);
+        var groupTimelineRow = createGroupTimelineRow(group, allWeeks, startDate, level, parentId);
         timelineBody.appendChild(groupTimelineRow);
         
         if (group.sub_groups && group.sub_groups.length > 0) {
             group.sub_groups.forEach(function(subGroup) {
-                renderGroupRecursive(subGroup, sidebarBody, timelineBody, allDates, startDate, phaseId, level + 1, groupId);
+                renderGroupRecursive(subGroup, sidebarBody, timelineBody, allWeeks, startDate, phaseId, level + 1, groupId);
             });
         }
         
+        // Aktivitas yang menggantung langsung di group (tanpa stage)
+        if (group.activities && group.activities.length > 0) {
+            group.activities.forEach(function(activity) {
+                var activityRow = createActivityRow(activity, groupId, level + 1);
+                sidebarBody.appendChild(activityRow);
+
+                var activityTimelineRow = createActivityTimelineRow(activity, allWeeks, startDate, groupId, level + 1);
+                timelineBody.appendChild(activityTimelineRow);
+            });
+        }
+
         if (group.stages && group.stages.length > 0) {
             group.stages.forEach(function(stage) {
                 var stageRow = createStageRow(stage, groupId, level + 1);
                 sidebarBody.appendChild(stageRow);
                 
-                var stageTimelineRow = createStageTimelineRow(stage, allDates, startDate, groupId, level + 1);
+                var stageTimelineRow = createStageTimelineRow(stage, allWeeks, startDate, groupId, level + 1);
                 timelineBody.appendChild(stageTimelineRow);
                 
                 // ✅ NEW: Support for activity_id structure
@@ -1138,7 +1231,7 @@
                         var activityRow = createActivityRow(activity, stageId, level + 2);
                         sidebarBody.appendChild(activityRow);
                         
-                        var activityTimelineRow = createActivityTimelineRow(activity, allDates, startDate, stageId, level + 2);
+                        var activityTimelineRow = createActivityTimelineRow(activity, allWeeks, startDate, stageId, level + 2);
                         timelineBody.appendChild(activityTimelineRow);
                         
                         // ✅ NEW: Support for children (both ProjectPlanning and ProjectActivity)
@@ -1148,7 +1241,7 @@
                                 var childRow = createChildActivityRow(child, activityId, level + 3);
                                 sidebarBody.appendChild(childRow);
                                 
-                                var childTimelineRow = createChildActivityTimelineRow(child, allDates, startDate, activityId, level + 3);
+                                var childTimelineRow = createChildActivityTimelineRow(child, allWeeks, startDate, activityId, level + 3);
                                 timelineBody.appendChild(childTimelineRow);
                             });
                         }
@@ -1167,6 +1260,10 @@
         row.style.borderLeftColor = phase.color;
         row.setAttribute('data-id', 'phase-' + phase.id);
         row.setAttribute('data-type', 'phase');
+
+        var range = getPhaseRange(phase);
+        var nameCell = document.createElement('div');
+        nameCell.className = 'flex items-center min-w-0';
         
         var toggleBtn = document.createElement('button');
         toggleBtn.className = 'gantt-toggle-button collapsed'; // ✅ Start collapsed
@@ -1175,13 +1272,51 @@
         toggleBtn.innerHTML = '<svg class="w-4 h-4 gantt-toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>';
         
         var nameSpan = document.createElement('span');
-        nameSpan.className = 'font-bold text-xs';
+        nameSpan.className = 'font-bold text-xs truncate';
         nameSpan.textContent = phase.name.toUpperCase();
-        
-        row.appendChild(toggleBtn);
-        row.appendChild(nameSpan);
-        
+        nameSpan.title = phase.name;
+
+        nameCell.appendChild(toggleBtn);
+        nameCell.appendChild(nameSpan);
+
+        var startCell = document.createElement('div');
+        startCell.className = 'text-gray-600 font-semibold';
+        startCell.textContent = range ? formatDate(range.start) : '-';
+
+        var endCell = document.createElement('div');
+        endCell.className = 'text-gray-600 font-semibold';
+        endCell.textContent = range ? formatDate(range.end) : '-';
+
+        var durationCell = document.createElement('div');
+        durationCell.className = 'text-gray-600 font-semibold';
+        durationCell.textContent = range ? calculateDuration(range.start, range.end) + 'd' : '-';
+
+        var progressCell = document.createElement('div');
+        progressCell.className = 'font-bold ' + getProgressColor(phase.progress || 0);
+        progressCell.textContent = (phase.progress || 0) + '%';
+
+        row.appendChild(nameCell);
+        row.appendChild(startCell);
+        row.appendChild(endCell);
+        row.appendChild(durationCell);
+        row.appendChild(progressCell);
+
         return row;
+    }
+
+    /**
+     * Rentang tanggal rollup satu phase (dikirim server sebagai phase.start/phase.end).
+     * Null kalau phase belum punya activity bertanggal.
+     */
+    function getPhaseRange(phase) {
+        if (!phase.start || !phase.end) return null;
+
+        var start = new Date(phase.start);
+        var end = new Date(phase.end);
+
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+
+        return { start: start, end: end };
     }
     
     function createGroupRow(group, level, phaseId, parentId) {
@@ -1358,25 +1493,122 @@
     // ==========================================
     // CREATE TIMELINE ROWS
     // ==========================================
-    function createPhaseTimelineRow(allDates) {
+    function createPhaseTimelineRow(phase, allWeeks) {
         var row = document.createElement('div');
         row.className = 'gantt-timeline-row gantt-phase-bg';
+        row.setAttribute('data-id', 'phase-' + phase.id);
         row.setAttribute('data-type', 'phase');
-        
+
+        row.appendChild(buildGridContainer(allWeeks));
+
+        // Bar ringkasan phase: rentang gabungan seluruh group/stage/activity di dalamnya.
+        // Selalu tampil, termasuk saat phase ditutup, supaya timeline tidak kosong.
+        var range = getPhaseRange(phase);
+        if (!range) return row;
+
+        var geometry = calculateBarGeometry(range.start, range.end);
+        if (!geometry) return row;
+
+        var barContainer = document.createElement('div');
+        barContainer.className = 'gantt-bar-container';
+        barContainer.style.left = geometry.left + 'px';
+        barContainer.style.width = geometry.width + 'px';
+        barContainer.style.height = '14px';
+
+        var bar = document.createElement('div');
+        bar.className = 'gantt-bar gantt-bar-phase';
+        bar.style.backgroundColor = phase.color || '#6366f1';
+        bar.title = phase.name + '\n' + formatDate(range.start) + ' - ' + formatDate(range.end)
+            + '\n' + (phase.progress || 0) + '% Complete';
+
+        if (phase.progress > 0) {
+            var progressBar = document.createElement('div');
+            progressBar.className = 'gantt-bar-progress';
+            progressBar.style.width = phase.progress + '%';
+            bar.appendChild(progressBar);
+        }
+
+        appendBarLabel(bar, (phase.progress || 0) + '%', geometry);
+
+        barContainer.appendChild(bar);
+        row.appendChild(barContainer);
+
+        return row;
+    }
+
+    /**
+     * Kolom latar timeline — satu kolom per minggu.
+     */
+    function buildGridContainer(allWeeks) {
         var gridContainer = document.createElement('div');
         gridContainer.className = 'gantt-grid-container';
-        allDates.forEach(function(date) {
+
+        allWeeks.forEach(function(week) {
             var cell = document.createElement('div');
             cell.className = 'gantt-grid-cell';
             cell.style.width = cellWidth + 'px';
-            if (isWeekend(date)) cell.classList.add('weekend');
+            if (week.altMonth) cell.classList.add('alt-month');
+            if (week.isCurrent) cell.classList.add('current-week');
             gridContainer.appendChild(cell);
         });
-        row.appendChild(gridContainer);
-        return row;
+
+        return gridContainer;
+    }
+
+    /**
+     * Posisi bar dihitung dalam pecahan minggu supaya tetap presisi
+     * meski kolomnya mingguan (tugas 2 hari tetap tampak sebagai bar pendek).
+     */
+    function calculateBarGeometry(start, end) {
+        if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || !timelineStartDate) {
+            return null;
+        }
+
+        var msPerWeek = 7 * 24 * 60 * 60 * 1000;
+        var origin = stripTime(timelineStartDate).getTime();
+
+        var from = (stripTime(start).getTime() - origin) / msPerWeek;
+        // +1 hari supaya tanggal selesai ikut tercakup
+        var to = (stripTime(end).getTime() + 24 * 60 * 60 * 1000 - origin) / msPerWeek;
+
+        from = Math.max(0, Math.min(from, timelineWeekCount));
+        to = Math.max(0, Math.min(to, timelineWeekCount));
+
+        if (to <= from) return null;
+
+        var left = from * cellWidth;
+        var width = Math.max((to - from) * cellWidth, 8);
+
+        return { left: left, width: width };
+    }
+
+    /**
+     * Tempelkan label progres pada bar. Bar yang terlalu sempit tidak muat
+     * memuat teks di dalamnya (teksnya jadi menumpuk ke bawah), jadi labelnya
+     * dipindah ke samping bar — ke kiri kalau bar berada di ujung kanan
+     * timeline supaya tidak terpotong.
+     */
+    function appendBarLabel(bar, text, geometry) {
+        var label = document.createElement('span');
+        label.className = 'gantt-bar-text';
+        label.textContent = text;
+
+        // ~8px per karakter pada 0.65rem + padding
+        var neededWidth = (String(text).length * 8) + 6;
+
+        if (geometry.width < neededWidth) {
+            bar.classList.add('is-narrow');
+            label.classList.add('outside');
+
+            var timelineWidth = timelineWeekCount * cellWidth;
+            var spaceOnRight = timelineWidth - (geometry.left + geometry.width);
+            label.classList.add(spaceOnRight < neededWidth ? 'left' : 'right');
+        }
+
+        bar.appendChild(label);
     }
     
-    function createGroupTimelineRow(group, allDates, startDate, level, parentId) {
+    function createGroupTimelineRow(group, allWeeks, startDate, level, parentId) {
         var row = document.createElement('div');
         row.className = 'gantt-timeline-row';
         row.setAttribute('data-id', 'group-' + group.id);
@@ -1388,10 +1620,10 @@
             row.classList.add('gantt-row-hidden');
         }
         
-        return addBarToTimelineRow(row, group, allDates, group.status_color);
+        return addBarToTimelineRow(row, group, allWeeks, group.status_color);
     }
     
-    function createStageTimelineRow(stage, allDates, startDate, parentId, level) {
+    function createStageTimelineRow(stage, allWeeks, startDate, parentId, level) {
         var row = document.createElement('div');
         row.className = 'gantt-timeline-row';
         row.style.backgroundColor = '#ecfeff';
@@ -1401,32 +1633,17 @@
         row.setAttribute('data-level', level);
         row.classList.add('gantt-row-hidden');
         
-        var gridContainer = document.createElement('div');
-        gridContainer.className = 'gantt-grid-container';
-        allDates.forEach(function(date) {
-            var cell = document.createElement('div');
-            cell.className = 'gantt-grid-cell';
-            cell.style.width = cellWidth + 'px';
-            if (isWeekend(date)) cell.classList.add('weekend');
-            gridContainer.appendChild(cell);
-        });
-        row.appendChild(gridContainer);
-        
+        row.appendChild(buildGridContainer(allWeeks));
+
         var stageStart = new Date(stage.planned_start_date);
         var stageEnd = new Date(stage.planned_end_date);
-        var startOffset = 0;
-        var duration = 0;
-        
-        allDates.forEach(function(date, index) {
-            if (isSameDay(date, stageStart)) startOffset = index;
-            if (date >= stageStart && date <= stageEnd) duration++;
-        });
-        
-        if (duration > 0) {
+        var geometry = calculateBarGeometry(stageStart, stageEnd);
+
+        if (geometry) {
             var barContainer = document.createElement('div');
             barContainer.className = 'gantt-bar-container';
-            barContainer.style.left = (startOffset * cellWidth) + 'px';
-            barContainer.style.width = (duration * cellWidth) + 'px';
+            barContainer.style.left = geometry.left + 'px';
+            barContainer.style.width = geometry.width + 'px';
             barContainer.style.height = '20px';
             
             var bar = document.createElement('div');
@@ -1442,19 +1659,16 @@
                 bar.appendChild(progressBar);
             }
             
-            var barText = document.createElement('span');
-            barText.className = 'gantt-bar-text';
-            barText.textContent = stage.progress + '%';
-            bar.appendChild(barText);
-            
+            appendBarLabel(bar, stage.progress + '%', geometry);
+
             barContainer.appendChild(bar);
             row.appendChild(barContainer);
         }
-        
+
         return row;
     }
-    
-    function createActivityTimelineRow(activity, allDates, startDate, parentId, level) {
+
+    function createActivityTimelineRow(activity, allWeeks, startDate, parentId, level) {
         var row = document.createElement('div');
         row.className = 'gantt-timeline-row';
         row.style.backgroundColor = '#f0fdf4';
@@ -1464,10 +1678,10 @@
         row.setAttribute('data-level', level);
         row.classList.add('gantt-row-hidden');
         
-        return addBarToTimelineRow(row, activity, allDates, activity.status_color || '#10b981');
+        return addBarToTimelineRow(row, activity, allWeeks, activity.status_color || '#10b981');
     }
     
-    function createChildActivityTimelineRow(child, allDates, startDate, parentId, level) {
+    function createChildActivityTimelineRow(child, allWeeks, startDate, parentId, level) {
         var row = document.createElement('div');
         row.className = 'gantt-timeline-row';
         row.style.backgroundColor = '#fffbeb';
@@ -1477,36 +1691,21 @@
         row.setAttribute('data-level', level);
         row.classList.add('gantt-row-hidden');
         
-        return addBarToTimelineRow(row, child, allDates, child.status_color || '#f59e0b');
+        return addBarToTimelineRow(row, child, allWeeks, child.status_color || '#f59e0b');
     }
     
-    function addBarToTimelineRow(row, item, allDates, color) {
-        var gridContainer = document.createElement('div');
-        gridContainer.className = 'gantt-grid-container';
-        allDates.forEach(function(date) {
-            var cell = document.createElement('div');
-            cell.className = 'gantt-grid-cell';
-            cell.style.width = cellWidth + 'px';
-            if (isWeekend(date)) cell.classList.add('weekend');
-            gridContainer.appendChild(cell);
-        });
-        row.appendChild(gridContainer);
-        
+    function addBarToTimelineRow(row, item, allWeeks, color) {
+        row.appendChild(buildGridContainer(allWeeks));
+
         var itemStart = new Date(item.start);
         var itemEnd = new Date(item.end);
-        var startOffset = 0;
-        var duration = 0;
-        
-        allDates.forEach(function(date, index) {
-            if (isSameDay(date, itemStart)) startOffset = index;
-            if (date >= itemStart && date <= itemEnd) duration++;
-        });
-        
-        if (duration > 0) {
+        var geometry = calculateBarGeometry(itemStart, itemEnd);
+
+        if (geometry) {
             var barContainer = document.createElement('div');
             barContainer.className = 'gantt-bar-container';
-            barContainer.style.left = (startOffset * cellWidth) + 'px';
-            barContainer.style.width = (duration * cellWidth) + 'px';
+            barContainer.style.left = geometry.left + 'px';
+            barContainer.style.width = geometry.width + 'px';
             barContainer.style.height = '18px';
             
             var bar = document.createElement('div');
@@ -1521,29 +1720,26 @@
                 bar.appendChild(progressBar);
             }
             
-            var barText = document.createElement('span');
-            barText.className = 'gantt-bar-text';
-            barText.textContent = item.progress + '%';
-            bar.appendChild(barText);
-            
+            appendBarLabel(bar, item.progress + '%', geometry);
+
             barContainer.appendChild(bar);
             row.appendChild(barContainer);
         }
-        
+
         return row;
     }
     
     // ==========================================
     // ADD GLOBAL TODAY LINE
     // ==========================================
-    function addGlobalTodayLine(allDates) {
-        var todayIndex = findTodayIndex(allDates);
-        if (todayIndex === -1) return;
-        
+    function addGlobalTodayLine(allWeeks) {
+        var todayOffset = getTodayOffset();
+        if (todayOffset === null) return;
+
         var timelineBody = document.getElementById('ganttTimelineBody');
         var todayLine = document.createElement('div');
         todayLine.className = 'gantt-today-line';
-        todayLine.style.left = (todayIndex * cellWidth + cellWidth / 2) + 'px';
+        todayLine.style.left = todayOffset + 'px';
         
         var marker = document.createElement('div');
         marker.className = 'gantt-today-marker';
@@ -1601,13 +1797,13 @@
     // ==========================================
     // SCROLL TO TODAY
     // ==========================================
-    function scrollToToday(allDates) {
+    function scrollToToday(allWeeks) {
         var timeline = document.querySelector('.gantt-timeline');
         if (!timeline) return;
-        
-        var todayIndex = findTodayIndex(allDates);
-        if (todayIndex !== -1) {
-            var scrollPosition = (todayIndex * cellWidth) - (timeline.clientWidth / 2);
+
+        var todayOffset = getTodayOffset();
+        if (todayOffset !== null) {
+            var scrollPosition = todayOffset - (timeline.clientWidth / 2);
             setTimeout(function() {
                 timeline.scrollTo({
                     left: Math.max(0, scrollPosition),
@@ -1620,36 +1816,100 @@
     // ==========================================
     // HELPER FUNCTIONS
     // ==========================================
-    function getDatesInRange(start, end) {
-        var dates = [];
-        var current = new Date(start);
-        while (current <= end) {
-            dates.push(new Date(current));
-            current.setDate(current.getDate() + 1);
-        }
-        return dates;
+    function stripTime(date) {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate());
     }
-    
-    function groupByWeek(dates) {
+
+    /**
+     * Awal minggu (Senin) dari sebuah tanggal.
+     */
+    function startOfWeek(date) {
+        var d = stripTime(date);
+        var day = d.getDay();
+        var diff = (day === 0 ? -6 : 1 - day); // Minggu dihitung sebagai akhir pekan
+        d.setDate(d.getDate() + diff);
+        return d;
+    }
+
+    /**
+     * Pecah rentang proyek menjadi kolom mingguan (Senin - Minggu).
+     */
+    function getWeeksInRange(start, end) {
         var weeks = [];
-        var currentWeek = null;
-        var weekDays = 0;
-        dates.forEach(function(date) {
-            var weekNum = getWeekNumber(date);
-            if (currentWeek !== weekNum) {
-                if (currentWeek !== null) {
-                    weeks.push({ weekNumber: currentWeek, days: weekDays });
-                }
-                currentWeek = weekNum;
-                weekDays = 1;
+        var current = startOfWeek(start);
+        var last = stripTime(end);
+        var today = stripTime(new Date());
+        var previousMonth = null;
+        var altMonth = false;
+
+        while (current <= last) {
+            var weekStart = new Date(current);
+            var weekEnd = new Date(current);
+            weekEnd.setDate(weekEnd.getDate() + 6);
+
+            // Bulan ditentukan dari tengah minggu (Kamis), sesuai kaidah ISO,
+            // supaya minggu yang menyeberang bulan tidak salah kelompok.
+            var midWeek = new Date(current);
+            midWeek.setDate(midWeek.getDate() + 3);
+            var monthKey = midWeek.getFullYear() + '-' + midWeek.getMonth();
+
+            if (previousMonth !== null && monthKey !== previousMonth) {
+                altMonth = !altMonth;
+            }
+            previousMonth = monthKey;
+
+            weeks.push({
+                start: weekStart,
+                end: weekEnd,
+                weekNumber: getWeekNumber(weekStart),
+                monthKey: monthKey,
+                monthLabel: formatMonth(midWeek),
+                monthLabelShort: formatMonthShort(midWeek),
+                altMonth: altMonth,
+                isCurrent: today >= weekStart && today <= weekEnd
+            });
+
+            current.setDate(current.getDate() + 7);
+        }
+
+        return weeks;
+    }
+
+    /**
+     * Gabungkan minggu menjadi kolom bulan untuk baris header teratas.
+     */
+    function groupByMonth(weeks) {
+        var months = [];
+
+        weeks.forEach(function(week) {
+            var last = months[months.length - 1];
+            if (last && last.key === week.monthKey) {
+                last.weeks++;
             } else {
-                weekDays++;
+                months.push({
+                    key: week.monthKey,
+                    label: week.monthLabel,
+                    shortLabel: week.monthLabelShort,
+                    weeks: 1
+                });
             }
         });
-        if (currentWeek !== null) {
-            weeks.push({ weekNumber: currentWeek, days: weekDays });
-        }
-        return weeks;
+
+        return months;
+    }
+
+    /**
+     * Posisi horizontal (px) hari ini pada timeline mingguan.
+     */
+    function getTodayOffset() {
+        if (!timelineStartDate || !timelineWeekCount) return null;
+
+        var msPerWeek = 7 * 24 * 60 * 60 * 1000;
+        var offset = (stripTime(new Date()).getTime() - stripTime(timelineStartDate).getTime()) / msPerWeek;
+
+        if (offset < 0 || offset > timelineWeekCount) return null;
+
+        return offset * cellWidth;
     }
     
     function getWeekNumber(date) {
@@ -1660,32 +1920,16 @@
         return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
     }
     
-    function isWeekend(date) {
-        var day = date.getDay();
-        return day === 0 || day === 6;
+    function formatMonth(date) {
+        var months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        return months[date.getMonth()] + ' ' + date.getFullYear();
     }
-    
-    function isToday(date) {
-        var today = new Date();
-        return isSameDay(date, today);
-    }
-    
-    function isSameDay(date1, date2) {
-        return date1.getFullYear() === date2.getFullYear() &&
-               date1.getMonth() === date2.getMonth() &&
-               date1.getDate() === date2.getDate();
-    }
-    
-    function findTodayIndex(dates) {
-        var today = new Date();
-        for (var i = 0; i < dates.length; i++) {
-            if (isSameDay(dates[i], today)) return i;
-        }
-        return -1;
-    }
-    
-    function formatDay(date) {
-        return date.getDate();
+
+    function formatMonthShort(date) {
+        var months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+                      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        return months[date.getMonth()];
     }
     
     function formatDate(date) {

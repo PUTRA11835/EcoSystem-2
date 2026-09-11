@@ -4,9 +4,14 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class ReportingPeriod extends Model
 {
+    use Auditable;
+
+    protected static ?string $auditModule = 'Reporting Period';
+
     protected $fillable = [
         'year', 'month', 'start_date', 'end_date',
         // Legacy

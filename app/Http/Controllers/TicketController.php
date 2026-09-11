@@ -4,13 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
 use App\Exports\TicketExport;
+use App\Http\Controllers\EmailController;
+use App\Models\AuditLog;
+use App\Models\ConsultantMandays;
+use App\Models\ConsultantMandaysDetail;
 use App\Models\Customer;
+use App\Models\Employee;
+use App\Models\ModuleLead;
+use App\Models\Notification;
 use App\Models\Ticket;
+use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
-use App\Services\OneDriveService;
+use App\Models\Timesheet;
+use App\Services\SlaService;
 use App\Services\StagingTicketService;
 use App\Services\TicketNumberService;
+use App\Support\TicketTeamAccess;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -26,9 +37,9 @@ class TicketController extends Controller
     private function getUserInfo($sessionUser)
     {
         $roleName = match($sessionUser['role']['id']) {
-            RoleId::ADMIN->value    => 'Admin',
-            RoleId::EMPLOYEE->value => 'Employee',
-            RoleId::INTERNSHIP->value => 'Customer',
+            RoleId::EC_ADMINISTRATOR->value    => 'Admin',
+            RoleId::DELIVERY_SUPPORT_USER->value => 'Employee',
+            RoleId::EC_USER->value => 'Customer',
             default                 => 'Unknown'
         };
         
@@ -54,68 +65,342 @@ class TicketController extends Controller
     }
 
     /**
-     * Lightweight endpoint untuk polling — kembalikan timestamp update terakhir dari DB lokal.
-     * Tidak menyentuh Graph API, aman dipanggil dari browser setiap 30 detik.
+     * Bump this when SlaService::calcHours() (or anything else liveSlaSummary() depends
+     * on) changes, so every cached summary below is invalidated immediately instead of
+     * waiting out its TTL.
      */
-    public function generateFolder(Request $request, $id)
+    private const SLA_CALC_VERSION = 1;
+
+    /**
+     * Live SLA summary for ticket-list endpoints (index/myTickets/unassignedTickets) — uses
+     * the same live-recompute methods as the admin SLA report (SlaService::responseDurationHours()
+     * etc.) instead of reading the stored validation_duration_hours/net_resolution_hours/
+     * response_status/resolution_status columns, which are frozen at the time they were
+     * written and won't reflect a later calcHours() formula change for historical tickets.
+     * Pass $pauses (batch-fetched per ticket_id) to avoid an N+1 query per ticket. Pass
+     * $ticket too (it's already loaded by the caller) and it gets wired onto $sla's
+     * `ticket` relation manually — Eloquent doesn't auto-populate the inverse belongsTo
+     * when eager-loading Ticket::with('sla'), so without this, liveResolutionMetrics()'s
+     * `$sla->ticket?->status` check would lazy-load a query per row (N+1 on an unbounded list).
+     *
+     * calcHours() walks day-by-day for business-hours policies, which measured out as the
+     * single biggest cost on /api/tickets (~700ms-2s across ~1300 tickets) — bigger than the
+     * SQL query itself — because it's recomputed from scratch on every request, including the
+     * 20s poll every open tab fires. Its inputs (sla_start_at/first_responded_at/resolved_at,
+     * each pause's started_at/ended_at) are immutable once written, so the result is cached
+     * keyed on $sla->updated_at + a pause fingerprint — any edit to either naturally busts the
+     * key. TTL is bounded (not forever) so a formula change still self-heals even without
+     * remembering to bump SLA_CALC_VERSION.
+     */
+    private function liveSlaSummary($sla, ?Ticket $ticket = null, ?\Illuminate\Support\Collection $pauses = null): ?array
     {
-        $ticket = Ticket::where('ticket_id', $id)->firstOrFail();
+        if (!$sla) {
+            return null;
+        }
 
-        $request->validate([
-            'folder_name' => ['nullable', 'string', 'max:255', 'not_regex:~[\\\\/:*?"<>|]~'],
-        ]);
+        if ($ticket && !$sla->relationLoaded('ticket')) {
+            $sla->setRelation('ticket', $ticket);
+        }
 
-        $folderName   = trim($request->input('folder_name') ?: ($ticket->ticket_number . ' - ' . $ticket->description));
-        $parentFolder = config('services.microsoft_graph.ticket_parent_folder', 'TICKETING');
-        $oneDrive     = new OneDriveService();
+        $pausesFingerprint = $pauses && $pauses->isNotEmpty()
+            ? $pauses->count() . ':' . optional($pauses->max('ended_at'))->format('YmdHisu')
+            : '0:';
 
-        try {
-            if ($ticket->onedrive_folder_id) {
-                $shareUrl = $oneDrive->createAnonymousLink($ticket->onedrive_folder_id);
-                $ticket->update(['onedrive_folder_url' => $shareUrl]);
+        $cacheKey = sprintf(
+            'ticket_sla_summary:v%d:%d:%d:%s',
+            self::SLA_CALC_VERSION,
+            $sla->id,
+            $sla->updated_at?->timestamp ?? 0,
+            $pausesFingerprint
+        );
+
+        return Cache::remember($cacheKey, now()->addHours(6), function () use ($sla, $pauses) {
+            $slaService        = app(SlaService::class);
+            $resolutionMetrics = $slaService->liveResolutionMetrics($sla, $pauses);
+
+            return [
+                'target_response_hours'   => $sla->policy?->response_hours,
+                'response_time_hours'     => $slaService->responseDurationHours($sla),
+                'response_status'         => $slaService->responseStatusLive($sla),
+                'target_resolution_hours' => $sla->policy?->resolution_hours,
+                'resolution_due_at'       => $sla->resolution_due_at,
+                'resolution_time_hours'   => $resolutionMetrics['net_hours'],
+                'resolution_status'       => $resolutionMetrics['status'],
+                'resolved_at'             => $sla->resolved_at,
+            ];
+        });
+    }
+
+    /**
+     * Rank maps mirroring PRIORITY_RANK/SCALE_RANK in ticket/index.blade.php — kept in one
+     * place so the SQL CASE expressions in applyTicketListSort() stay in sync with the
+     * client's old in-memory sort order.
+     */
+    private const PRIORITY_RANK = ['Very High' => 4, 'High' => 3, 'Medium' => 2, 'Low' => 1];
+    private const SCALE_RANK    = ['Complex' => 3, 'Medium' => 2, 'Simple' => 1];
+
+    /**
+     * Server-side equivalent of the column filters + keyword search that ticket/index.blade.php
+     * used to apply in-memory over the full unpaginated list (getColumnFilteredBase()). Has to
+     * live here now that /api/tickets is paginated — filtering after paginate() would only
+     * search within whatever page happened to be loaded instead of the whole table.
+     */
+    private function applyTicketListFilters($query, Request $request)
+    {
+        // Columns are qualified with "ticket." throughout — applyTicketListSort() may add a
+        // leftJoin to customer/ticket_sla (both of which also have customer_id/created_at/etc.),
+        // so an unqualified column here would become ambiguous once that join is present.
+        if ($request->filled('customer_id')) {
+            $query->where('ticket.customer_id', (int) $request->input('customer_id'));
+        }
+
+        if ($request->filled('pic_id')) {
+            $pic = $request->input('pic_id');
+            if ($pic === 'unassigned') {
+                $query->whereNull('ticket.ticket_lead_id');
             } else {
-                $folderId            = $oneDrive->createFolderInPath($folderName, $parentFolder);
-                $deliverableFolderId = $oneDrive->createSubFolder($folderId, 'Deliverable');
-                $shareUrl            = $oneDrive->createAnonymousLink($folderId);
-                $ticket->update([
-                    'onedrive_folder_id'              => $folderId,
-                    'onedrive_folder_url'             => $shareUrl,
-                    'onedrive_deliverable_folder_id'  => $deliverableFolderId,
-                ]);
+                $query->where('ticket.ticket_lead_id', (int) $pic);
             }
-
-            return response()->json(['success' => true, 'folder_url' => $shareUrl]);
-        } catch (\Throwable $e) {
-            Log::error('Ticket generateFolder failed', ['ticket_id' => $id, 'error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+
+        $csvFilter = function ($query, string $column, ?string $raw) {
+            $values = array_filter(explode(',', (string) $raw), fn ($v) => $v !== '');
+            if (!empty($values)) {
+                $query->whereIn($column, $values);
+            }
+        };
+        $csvFilter($query, 'ticket.ticket_priority', $request->input('priority'));
+        $csvFilter($query, 'ticket.scale', $request->input('scale'));
+        $csvFilter($query, 'ticket.status', $request->input('status'));
+        $csvFilter($query, 'ticket.ticket_type', $request->input('type'));
+
+        // Module (comma-separated, multi-select). Lewat relasi modules() (bukan
+        // whereIn('module_id', ...) langsung) supaya tiket yang punya modul ini
+        // sebagai salah satu dari beberapa modulnya tetap ketemu, bukan cuma
+        // yang modul UTAMA-nya persis cocok — sama seperti filter di exportToExcel().
+        if ($request->filled('module')) {
+            $moduleIds = array_filter(explode(',', $request->input('module')), fn ($v) => $v !== '');
+            if (!empty($moduleIds)) {
+                $query->whereHas('modules', fn ($q) => $q->whereIn('module_id', $moduleIds));
+            }
+        }
+
+        // Kolom "Assign Delivery" — tiket terhubung ke Delivery Support lewat
+        // delivery_support_activities. Dipakai whereExists (bukan join) supaya
+        // satu tiket yang punya beberapa activity pada support yang sama tidak
+        // menghasilkan baris ganda pada listing.
+        if ($request->filled('delivery_support_id')) {
+            $values = array_filter(explode(',', (string) $request->input('delivery_support_id')), fn ($v) => $v !== '');
+
+            if (!empty($values)) {
+                // '__unassigned__' = tiket tanpa Delivery Support sama sekali,
+                // mengikuti konvensi filter PIC di atas.
+                $includeUnassigned = in_array('__unassigned__', $values, true);
+                $ids = array_values(array_filter($values, fn ($v) => $v !== '__unassigned__'));
+
+                $query->where(function ($q) use ($ids, $includeUnassigned) {
+                    if (!empty($ids)) {
+                        $q->whereExists(function ($sub) use ($ids) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa')
+                                ->whereColumn('dsa.ticket_id', 'ticket.ticket_id')
+                                ->whereIn('dsa.delivery_support_id', $ids);
+                        });
+                    }
+
+                    if ($includeUnassigned) {
+                        $method = empty($ids) ? 'whereNotExists' : 'orWhereNotExists';
+                        $q->{$method}(function ($sub) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa2')
+                                ->whereColumn('dsa2.ticket_id', 'ticket.ticket_id')
+                                ->whereNotNull('dsa2.delivery_support_id');
+                        });
+                    }
+                });
+            }
+        }
+
+        // Tanggal dibaca sebagai kalender Asia/Jakarta (WIB) — sama seperti versi lama di
+        // browser (`new Date(dateFrom + 'T00:00:00+07:00')`).
+        if ($request->filled('date_from')) {
+            $query->where('ticket.created_at', '>=', \Carbon\Carbon::parse($request->input('date_from') . ' 00:00:00', 'Asia/Jakarta'));
+        }
+        if ($request->filled('date_to')) {
+            $query->where('ticket.created_at', '<=', \Carbon\Carbon::parse($request->input('date_to') . ' 23:59:59', 'Asia/Jakarta'));
+        }
+
+        if ($request->filled('description')) {
+            $query->where('ticket.description', 'like', '%' . $request->input('description') . '%');
+        }
+        if ($request->filled('ticket_number')) {
+            $query->where('ticket.ticket_number', 'like', '%' . $request->input('ticket_number') . '%');
+        }
+
+        return $query;
     }
 
-    public function deleteFolder(Request $request, $id)
+    /**
+     * "Card status" filter — separate from the `status` column filter above because
+     * updateStats() intentionally excludes this one when counting badge totals (clicking
+     * the "Closed" card shouldn't make every other card's count collapse to 0). Kept as its
+     * own step so callers can capture stats between the two.
+     */
+    private function applyCardStatusFilter($query, Request $request)
     {
-        $ticket = Ticket::where('ticket_id', $id)->firstOrFail();
-
-        if (!$ticket->onedrive_folder_id) {
-            return response()->json(['success' => false, 'message' => 'No folder to delete.'], 400);
+        $cardStatus = $request->input('card_status');
+        if ($cardStatus && $cardStatus !== 'all') {
+            $query->where('ticket.status', $cardStatus);
         }
 
-        try {
-            (new OneDriveService())->deleteFolder($ticket->onedrive_folder_id);
-            $ticket->update(['onedrive_folder_id' => null, 'onedrive_folder_url' => null]);
-            return response()->json(['success' => true]);
-        } catch (\Throwable $e) {
-            Log::error('Ticket deleteFolder failed', ['ticket_id' => $id, 'error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        return $query;
+    }
+
+    /**
+     * Aggregate counts per status for the status-card badges (Open/In Process/.../Closed),
+     * scoped to whatever column filters + search are active but NOT the card_status filter
+     * itself — mirrors the old client-side updateStats(base) semantics where `base` was the
+     * column-filtered set before the currentFilter card was applied. Pattern follows
+     * ActivityLogController::getData()'s separate $statsQuery.
+     */
+    private function buildTicketListStats($filteredQuery): array
+    {
+        $rows = (clone $filteredQuery)
+            ->reorder()
+            ->select('ticket.status', DB::raw('count(*) as total'))
+            ->groupBy('ticket.status')
+            ->pluck('total', 'status');
+
+        $statuses = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold', 'cancelled', 'closed'];
+        $stats = ['total' => (int) $rows->sum()];
+        foreach ($statuses as $status) {
+            $stats[$status] = (int) ($rows[$status] ?? 0);
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Server-side equivalent of applyTicketSort(list) in ticket/index.blade.php. Has to run
+     * in SQL (not PHP after fetch) so sorting applies across the whole filtered set, not just
+     * whatever page is loaded. Rank maps and the day_on_close formula are kept in exact sync
+     * with their JS counterparts (PRIORITY_RANK/SCALE_RANK/dayOnCloseValue()) so switching a
+     * request from unpaginated to paginated doesn't change perceived ordering.
+     */
+    private function applyTicketListSort($query, Request $request)
+    {
+        $key = $request->input('sort_key', 'last_update');
+        $dir = strtolower($request->input('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        switch ($key) {
+            case 'ticket_number':
+                return $query->orderByRaw(
+                    "CASE WHEN ticket_number REGEXP '^[0-9]+$' THEN CAST(ticket_number AS UNSIGNED) ELSE ticket_id END $dir"
+                );
+            case 'date':
+                return $query->orderBy('created_at', $dir);
+            case 'day_on_close':
+                // Mirrors dayOnCloseValue() in ticket/index.blade.php exactly: ceil(elapsed
+                // seconds / 86400), not a calendar-date DATEDIFF() (which would round
+                // differently for same-day spans and near midnight boundaries).
+                return $query
+                    ->leftJoin('ticket_sla', 'ticket_sla.ticket_id', '=', 'ticket.ticket_id')
+                    ->select('ticket.*')
+                    ->orderByRaw(
+                        "GREATEST(0, CEIL(TIMESTAMPDIFF(SECOND, ticket.created_at,
+                            CASE WHEN ticket.status = 'closed'
+                                THEN COALESCE(ticket_sla.resolved_at, ticket.updated_at)
+                                ELSE NOW()
+                            END
+                        ) / 86400)) $dir"
+                    );
+            case 'description':
+                return $query->orderBy('description', $dir);
+            case 'customer':
+                return $query
+                    ->leftJoin('customer', 'customer.customer_id', '=', 'ticket.customer_id')
+                    ->leftJoin('customer_basic_data', 'customer_basic_data.customer_id', '=', 'customer.customer_id')
+                    ->select('ticket.*')
+                    ->orderByRaw('COALESCE(customer_basic_data.name_1, customer.email) ' . $dir);
+            case 'priority':
+                $cases = collect(self::PRIORITY_RANK)->map(fn ($rank, $val) => "WHEN '$val' THEN $rank")->implode(' ');
+                return $query->orderByRaw("CASE ticket_priority $cases ELSE 0 END $dir");
+            case 'scale':
+                $cases = collect(self::SCALE_RANK)->map(fn ($rank, $val) => "WHEN '$val' THEN $rank")->implode(' ');
+                return $query->orderByRaw("CASE scale $cases ELSE 0 END $dir");
+            case 'status':
+                // status is a MySQL ENUM — plain ORDER BY sorts by declaration ordinal, not
+                // alphabetically. Cast to CHAR to match the old JS localeCompare() ordering.
+                return $query->orderByRaw("CAST(ticket.status AS CHAR) $dir");
+            case 'type':
+                return $query->orderBy('ticket_type', $dir);
+            case 'last_update':
+            default:
+                return $query->orderBy('last_message_at', $dir);
         }
     }
 
+    /**
+     * Lightweight endpoint untuk polling — kembalikan timestamp update terakhir dari DB lokal.
+     * Tidak menyentuh Graph API, aman dipanggil dari browser setiap 10 detik.
+     */
     public function latestUpdate()
     {
-        $latest = DB::table('ticket')
+        $row = DB::table('ticket')
             ->whereNull('deleted_at')
-            ->max('last_message_at');
+            ->selectRaw('MAX(GREATEST(COALESCE(last_message_at, created_at), updated_at)) AS latest')
+            ->first();
 
-        return response()->json(['latest_update' => $latest]);
+        return response()->json(['latest_update' => $row->latest ?? null]);
+    }
+
+    /**
+     * Distinct customers/PICs/Delivery Supports that actually have a (visible) ticket, for
+     * the Customer/PIC/Assign Delivery filter dropdowns in ticket/index.blade.php. Needed once the ticket list is paginated —
+     * the dropdowns used to be populated by scanning every ticket already loaded client-side,
+     * which only ever contained the current page after pagination. Cheap DISTINCT query,
+     * much lighter than fetching full ticket rows just to read two columns off them.
+     */
+    public function filterOptions()
+    {
+        $customers = DB::table('ticket')
+            ->join('customer', 'customer.customer_id', '=', 'ticket.customer_id')
+            ->leftJoin('customer_basic_data', 'customer_basic_data.customer_id', '=', 'customer.customer_id')
+            ->whereNull('ticket.is_hidden')
+            ->select('customer.customer_id as id', DB::raw('COALESCE(customer_basic_data.name_1, customer.email) as name'))
+            ->distinct()
+            ->orderBy('name')
+            ->get();
+
+        $pics = DB::table('ticket')
+            ->join('employee', 'employee.employee_id', '=', 'ticket.ticket_lead_id')
+            ->leftJoin('employee_basic_data', 'employee_basic_data.employee_id', '=', 'employee.employee_id')
+            ->whereNull('ticket.is_hidden')
+            ->select('employee.employee_id as id', DB::raw('COALESCE(employee_basic_data.nick_name, employee_basic_data.first_name) as name'))
+            ->distinct()
+            ->orderBy('name')
+            ->get();
+
+        // Opsi kolom "Assign Delivery" — hanya Delivery Support yang benar-benar
+        // punya tiket, supaya daftarnya tidak dipenuhi pilihan yang pasti kosong.
+        // Label disamakan dengan yang tampil di kolomnya: "<nama> (<customer>)".
+        $deliveries = DB::table('delivery_support_activities as dsa')
+            ->join('ticket', 'ticket.ticket_id', '=', 'dsa.ticket_id')
+            ->join('delivery_support as ds', 'ds.id', '=', 'dsa.delivery_support_id')
+            ->leftJoin('customer_basic_data as cbd', 'cbd.customer_id', '=', 'ds.client_id')
+            ->whereNull('ticket.is_hidden')
+            ->whereNotNull('dsa.ticket_id')
+            ->select('ds.id as id', DB::raw("TRIM(CONCAT(COALESCE(ds.name, CONCAT('Support #', ds.id)), COALESCE(CONCAT(' (', cbd.name_1, ')'), ''))) as name"))
+            ->distinct()
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'customers' => $customers,
+            'pics' => $pics,
+            'deliveries' => $deliveries,
+        ]);
     }
 
     /**
@@ -125,7 +410,7 @@ class TicketController extends Controller
     {
         try {
             $sessionUser = session('user');
-        
+
             if (!$sessionUser) {
                 Log::error('No user in session');
                 return response()->json([
@@ -140,49 +425,153 @@ class TicketController extends Controller
                 'role_id' => $sessionUser['role']['id']
             ]);
 
-            $filterUnassigned = $request->boolean('unassigned');
+            $filterUnassigned  = $request->boolean('unassigned');
+            $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+            $isRestrictedExternal = $isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value;
+
+            // "All Tickets" tab is gated by the 'ticket.all-tickets' menu permission in Role & Menu
+            // Access for every internal role (including Admin/Head/Helpdesk) — restricted external
+            // employees don't use this tab at all, they only ever see their own PIC/member tickets.
+            $employee = null;
+            if (!$isRestrictedExternal) {
+                $employee = Employee::find($sessionUser['id']);
+                if (!$employee || !$employee->hasMenuPermission('ticket.all-tickets')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Access denied'
+                    ], 403);
+                }
+            }
+
+            // External employee: hanya bisa lihat ticket yang dia handle (sebagai lead atau member)
+            if ($isRestrictedExternal) {
+                Log::info('External employee viewing own tickets only', ['employee_id' => $sessionUser['id']]);
+                $employeeId = $sessionUser['id'];
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
+                    ->whereNull('ticket.is_hidden')
+                    ->where(function ($q) use ($employeeId) {
+                        $q->where('ticket.ticket_lead_id', $employeeId)
+                          ->orWhereHas('members', fn ($i) => $i->where('ticket_member.employee_id', $employeeId));
+                    });
 
             // Admin: bisa lihat semua ticket, atau filter unassigned jika ?unassigned=1
-            if ($sessionUser['role']['id'] === RoleId::ADMIN->value) {
+            } elseif ($sessionUser['role']['id'] === RoleId::EC_ADMINISTRATOR->value) {
                 Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
+                    ->whereNull('ticket.is_hidden');
                 if ($filterUnassigned) {
-                    $query->whereNull('employee_id');
+                    $query->whereNull('ticket.ticket_lead_id');
                 }
-                $tickets = $query->get();
 
-            // Employee: tampilkan ticket unassigned (belum ada PIC) — frontend /api/tickets maps to "Unassign" tab
-            } elseif ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value) {
-                Log::info('Employee viewing unassigned tickets');
+            // Employee (DS User): "All Tickets" = semua tiket organisasi (sama seperti role lain),
+            // atau filter unassigned jika ?unassigned=1. Tab "Unassigned Ticket" terpisah (permission
+            // 'ticket.unassigned') menangani kasus khusus lihat tiket belum ada PIC.
+            } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value) {
+                Log::info('Employee viewing all tickets', ['unassigned' => $filterUnassigned]);
 
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->whereNull('employee_id')
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                    ->get();
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'modules'])
+                    ->whereNull('ticket.is_hidden');
+                if ($filterUnassigned) {
+                    $query->whereNull('ticket.ticket_lead_id');
+                }
 
-            // Helpdesk, RPMO, Head of Project, Head of Support, Support Manager:
+            // Helpdesk, RPMO, Head of Project, Head of Support:
             // lihat semua ticket organisasi, atau filter unassigned jika ?unassigned=1
             } elseif (in_array(
                 $sessionUser['role']['id'],
-                array_merge(RoleId::HEAD_GROUP, RoleId::HELPDESK_GROUP, [RoleId::SUPPORT_MANAGER->value]),
+                array_merge(RoleId::HEAD_GROUP, RoleId::HELPDESK_GROUP),
                 true
             )) {
                 Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
+                    ->whereNull('ticket.is_hidden');
                 if ($filterUnassigned) {
-                    $query->whereNull('employee_id');
+                    $query->whereNull('ticket.ticket_lead_id');
                 }
-                $tickets = $query->get();
+
+            // Support Manager: "All Tickets" = semua tiket organisasi (sama seperti Head)
+            // "My Tickets" = hanya tiket dari delivery yang dia kelola (/api/tickets/my)
+            } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_MANAGER->value) {
+                Log::info('Support Manager viewing all tickets', ['employee_id' => $sessionUser['id']]);
+
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
+                    ->whereNull('ticket.is_hidden');
+
+                if ($filterUnassigned) {
+                    $query->whereNull('ticket.ticket_lead_id');
+                }
 
             } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Access denied'
-                ], 403);
+                // Fallback: cek apakah role punya izin `tickets.inbox` di tabel role_menu
+                // (di atas sudah dicek 'ticket.all-tickets'). Ini memungkinkan custom role yang
+                // diberi akses lewat UI bisa melihat semua tiket.
+                if (!$employee || !$employee->hasPermission('tickets.inbox')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Access denied'
+                    ], 403);
+                }
+
+                Log::info('Custom role viewing tickets via role_menu permission', [
+                    'role_id' => $sessionUser['role']['id'],
+                    'employee_id' => $sessionUser['id'],
+                ]);
+
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
+                    ->whereNull('ticket.is_hidden');
+                if ($filterUnassigned) {
+                    $query->whereNull('ticket.ticket_lead_id');
+                }
+            }
+
+            // "Ticket Modul" tab — dibatasi ke tiket yang lead/member-nya adalah
+            // konsultan dari module yang dipimpin employee ini (module_leads).
+            // Diterapkan di atas query yang sudah dibangun per-role di atas, supaya
+            // tidak perlu duplikasi logic di tiap cabang role.
+            if ($request->boolean('module_team')) {
+                $employeeId = $sessionUser['id'];
+                $ledModuleIds = ModuleLead::where('employee_id', $employeeId)->pluck('module_id');
+
+                if ($ledModuleIds->isEmpty()) {
+                    // Bukan lead module manapun — tab ini seharusnya tidak tampil
+                    // di UI untuk employee ini, tapi kalau tetap diakses langsung
+                    // lewat API, jangan bocorkan tiket siapa pun.
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $memberIds = DB::table('employee_qualification')
+                        ->whereIn('module_id', $ledModuleIds)
+                        ->pluck('employee_id')
+                        ->push($employeeId)
+                        ->unique()
+                        ->values();
+
+                    $query->where(function ($q) use ($memberIds) {
+                        $q->whereIn('ticket.ticket_lead_id', $memberIds)
+                          ->orWhereHas('members', fn ($i) => $i->whereIn('ticket_member.employee_id', $memberIds));
+                    });
+                }
+            }
+
+            $this->applyTicketListFilters($query, $request);
+            $stats = $this->buildTicketListStats($query);
+            $this->applyCardStatusFilter($query, $request);
+            $this->applyTicketListSort($query, $request);
+
+            $meta = null;
+            if ($request->filled('page')) {
+                $perPage   = max(1, min((int) $request->input('per_page', 200), 500));
+                $paginator = $query->paginate($perPage, ['*'], 'page', (int) $request->input('page'));
+                $tickets   = $paginator->getCollection();
+                $meta = [
+                    'current_page' => $paginator->currentPage(),
+                    'per_page'     => $paginator->perPage(),
+                    'total'        => $paginator->total(),
+                    'last_page'    => $paginator->lastPage(),
+                ];
+            } else {
+                $tickets = $query->get();
             }
 
             Log::info('Tickets fetched', ['count' => $tickets->count()]);
@@ -191,41 +580,94 @@ class TicketController extends Controller
             $ticketIds   = $tickets->pluck('ticket_id')->toArray();
             $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
-            // Batch load approved customer mandays (latest approved version per ticket)
+            // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
+            $canReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            $readAtMap = $canReadFeature
+                ? DB::table('ticket_reads')
+                    ->where('employee_id', $sessionUser['id'])
+                    ->whereIn('ticket_id', $ticketIds)
+                    ->pluck('read_at', 'ticket_id')
+                : collect();
+
+            // Batch load support manager & admin per ticket via delivery_support_activities
+            $deliverySupportMap = \App\Models\DeliverySupportActivity::with([
+                'deliverySupport.supportManagers.basicData',
+                'deliverySupport.supportAdmin.basicData',
+                'deliverySupport.client.basicData',
+            ])
+            ->whereIn('ticket_id', $ticketIds)
+            ->whereNotNull('ticket_id')
+            ->get()
+            ->keyBy('ticket_id')
+            ->map(function ($activity) {
+                $ds = $activity->deliverySupport;
+                $clientName = $ds?->client?->basicData?->name_1;
+                return [
+                    'support_manager_name' => $ds?->supportManagers->pluck('basicData.first_name')->filter()->implode(', '),
+                    'support_admin_name'   => $ds?->supportAdmin?->basicData?->first_name,
+                    'delivery_id'          => $ds?->id,
+                    'delivery_name'        => $ds?->name,
+                    'delivery_type'        => $ds?->type,
+                    'delivery_client_name' => $clientName,
+                    'delivery_label'       => $ds ? trim($ds->name
+                        . ($clientName ? " ({$clientName})" : '')
+                        . ($ds->type ? ", {$ds->type}" : '')) : null,
+                ];
+            });
+
+            // Batch load approved customer mandays (sum of every approved version per
+            // ticket — a ticket can have several independently-approved versions,
+            // e.g. an addendum proposed after the first one was already approved).
             $customerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $ticketIds)
                 ->where('status', 'approved')
-                ->orderBy('version', 'desc')
                 ->get()
                 ->groupBy('ticket_id')
-                ->map(fn($group) => $group->first()->total_mandays);
+                ->map(fn($group) => $group->sum('total_mandays'));
+
+            // Latest activity date logged against each ticket's support timesheets
+            // (user-entered "when did the work happen", separate from the timesheet's
+            // submit date). Excludes rejected entries — those aren't verified work.
+            $activityDateMap = \App\Models\Timesheet::whereIn('ticket_id', $ticketIds)
+                ->whereNotNull('activity_date')
+                ->whereIn('status', ['draft', 'submitted', 'approved'])
+                ->get()
+                ->groupBy('ticket_id')
+                ->map(fn($group) => $group->max('activity_date')?->format('Y-m-d'));
+
+            // Batch-load semua pending confirmations sekaligus (hindari N+1)
+            $confirmationMap = DB::table('ticket_confirmation')
+                ->whereIn('ticket_id', $ticketIds)
+                ->where('status', 'pending')
+                ->get()
+                ->groupBy('ticket_id');
+
+            // Batch-load SLA pause history (untuk liveSlaSummary() — hindari N+1)
+            $pausesByTicket = \App\Models\TicketSlaPause::whereIn('ticket_id', $ticketIds)
+                ->get()
+                ->groupBy('ticket_id');
 
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $activityDateMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap, $pausesByTicket) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
-                // ✅ Hitung pending confirmations untuk admin
-                $pendingCount = DB::table('ticket_confirmation')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->where('status', 'pending')
-                    ->count();
-                
-                // ✅ Get pending confirmation detail (untuk status waiting employee)
-                $pendingConfirmation = DB::table('ticket_confirmation')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->where('status', 'pending')
-                    ->first();
+                $pendingConfirmations = $confirmationMap->get($ticket->ticket_id, collect());
+                $pendingCount         = $pendingConfirmations->count();
+                $pendingConfirmation  = $pendingConfirmations->first();
 
                 return [
                     'ticket_id' => $ticket->ticket_id,
                     'ticket_number' => $ticket->ticket_number,
                     'customer_id' => $ticket->customer_id,
-                    'employee_id' => $ticket->employee_id,
+                    'ticket_lead_id' => $ticket->ticket_lead_id,
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    // module_names = semua modul tiket digabung koma (bukan cuma modul
+                    // utama) — tiket boleh menyentuh lebih dari satu modul sekarang.
+                    'module' => $ticket->module_names,
+                    'module_id' => $ticket->module_id,
                     'scale' => $ticket->scale,
-                    'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
                     'email_thread_id' => $ticket->email_thread_id,
@@ -235,6 +677,7 @@ class TicketController extends Controller
                     'end_date' => $ticket->end_date,
                     'man_days' => $ticket->man_days,
                     'customer_mandays' => $customerMandaysMap[$ticket->ticket_id] ?? null,
+                    'activity_date' => $activityDateMap[$ticket->ticket_id] ?? null,
                     'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
                     'all_consultant_progress' => $allProgress,
                     'wait_close' => $ticket->wait_close,
@@ -243,6 +686,10 @@ class TicketController extends Controller
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'last_internal_note_at'        => $ticket->last_internal_note_at,
                     'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
+                    'is_read' => !$canReadFeature || (
+                        $readAtMap->has($ticket->ticket_id)
+                        && (!$ticket->last_message_at || \Carbon\Carbon::parse($readAtMap->get($ticket->ticket_id))->gte($ticket->last_message_at))
+                    ),
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -250,14 +697,14 @@ class TicketController extends Controller
                     ] : null,
                     'end_customer_id'   => $ticket->end_customer_id,
                     'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
-                    'employee' => $ticket->employee ? [
-                        'employee_id' => $ticket->employee->employee_id,
-                        'employee_name' => $ticket->employee->basicData->first_name ?? 'Unknown',
+                    'employee' => $ticket->ticketLead ? [
+                        'employee_id' => $ticket->ticketLead->employee_id,
+                        'employee_name' => $ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown',
                     ] : null,
                     'members' => $ticket->members->map(function($member) {
                         return [
                             'employee_id' => $member->employee_id,
-                            'employee_name' => $member->basicData->first_name ?? 'Unknown',
+                            'employee_name' => $member->basicData->nick_name ?? $member->basicData->first_name ?? 'Unknown',
                         ];
                     }),
                     'member_ids' => $ticket->members->pluck('employee_id')->toArray(),
@@ -267,6 +714,16 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
+                    'sla' => $this->liveSlaSummary($ticket->sla, $ticket, $pausesByTicket->get($ticket->ticket_id)),
+                    'support_manager' => $deliverySupportMap[$ticket->ticket_id]['support_manager_name'] ?? null,
+                    'support_admin'   => $deliverySupportMap[$ticket->ticket_id]['support_admin_name'] ?? null,
+                    'delivery' => isset($deliverySupportMap[$ticket->ticket_id]) ? [
+                        'delivery_id'    => $deliverySupportMap[$ticket->ticket_id]['delivery_id'],
+                        'delivery_name'  => $deliverySupportMap[$ticket->ticket_id]['delivery_name'],
+                        'delivery_type'  => $deliverySupportMap[$ticket->ticket_id]['delivery_type'],
+                        'client_name'    => $deliverySupportMap[$ticket->ticket_id]['delivery_client_name'],
+                        'delivery_label' => $deliverySupportMap[$ticket->ticket_id]['delivery_label'],
+                    ] : null,
                     'created_at' => $ticket->created_at,
                     'updated_at' => $ticket->updated_at,
                 ];
@@ -275,6 +732,8 @@ class TicketController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $ticketsData,
+                'meta' => $meta,
+                'stats' => $stats,
                 'message' => 'Tickets retrieved successfully'
             ]);
         } catch (\Exception $e) {
@@ -298,42 +757,177 @@ class TicketController extends Controller
             abort(401);
         }
 
-        $roleId = $sessionUser['role']['id'];
-        $allowed = [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value, RoleId::HELPDESK->value];
-        if (!in_array($roleId, $allowed, true)) {
+        if (!\App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.export')) {
             abort(403);
         }
 
-        $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData'])
-            ->orderBy('ticket_id', 'asc')
-            ->get();
+        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'moduleMaster', 'modules'])
+            ->whereNull('is_hidden')
+            ->orderBy('ticket_id', 'asc');
+
+        // Status — dari card filter
+        if ($request->filled('card_status')) {
+            $query->where('status', $request->card_status);
+        }
+        // Status — dari column filter (bisa bersamaan dengan card_status; comma-separated untuk multi-select)
+        if ($request->filled('status')) {
+            $query->whereIn('status', explode(',', $request->status));
+        }
+        // Priority (comma-separated untuk multi-select)
+        if ($request->filled('priority')) {
+            $query->whereIn('ticket_priority', explode(',', $request->priority));
+        }
+        // Scale (comma-separated untuk multi-select)
+        if ($request->filled('scale')) {
+            $query->whereIn('scale', explode(',', $request->scale));
+        }
+        // Ticket type (comma-separated untuk multi-select)
+        if ($request->filled('type')) {
+            $query->whereIn('ticket_type', explode(',', $request->type));
+        }
+        // Module (comma-separated untuk multi-select). Lewat relasi modules()
+        // (bukan whereIn('module_id', ...) langsung), supaya tiket yang punya
+        // modul ini sebagai salah satu dari beberapa modulnya tetap ketemu,
+        // tidak cuma yang modul UTAMA-nya persis cocok.
+        if ($request->filled('module')) {
+            $moduleIds = explode(',', $request->module);
+            $query->whereHas('modules', fn ($q) => $q->whereIn('module_id', $moduleIds));
+        }
+        // Assign Delivery (comma-separated, multi-select + '__unassigned__') — sama
+        // seperti filter di applyTicketListFilters(), lewat whereExists supaya tiket
+        // dengan beberapa activity pada support yang sama tidak menghasilkan baris ganda.
+        if ($request->filled('delivery_support_id')) {
+            $values = array_filter(explode(',', $request->delivery_support_id), fn ($v) => $v !== '');
+            if (!empty($values)) {
+                $includeUnassigned = in_array('__unassigned__', $values, true);
+                $ids = array_values(array_filter($values, fn ($v) => $v !== '__unassigned__'));
+
+                $query->where(function ($q) use ($ids, $includeUnassigned) {
+                    if (!empty($ids)) {
+                        $q->whereExists(function ($sub) use ($ids) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa')
+                                ->whereColumn('dsa.ticket_id', 'ticket.ticket_id')
+                                ->whereIn('dsa.delivery_support_id', $ids);
+                        });
+                    }
+
+                    if ($includeUnassigned) {
+                        $method = empty($ids) ? 'whereNotExists' : 'orWhereNotExists';
+                        $q->{$method}(function ($sub) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa2')
+                                ->whereColumn('dsa2.ticket_id', 'ticket.ticket_id')
+                                ->whereNotNull('dsa2.delivery_support_id');
+                        });
+                    }
+                });
+            }
+        }
+        // Ticket number keyword
+        if ($request->filled('ticket_number')) {
+            $query->where('ticket_number', 'like', '%' . $request->ticket_number . '%');
+        }
+        // Description keyword
+        if ($request->filled('description')) {
+            $query->where('description', 'like', '%' . $request->description . '%');
+        }
+        // Date range — cocokkan start_date, fallback ke created_at
+        if ($request->filled('date_from')) {
+            $dateFrom = $request->date_from;
+            $query->where(function ($q) use ($dateFrom) {
+                $q->whereDate('start_date', '>=', $dateFrom)
+                  ->orWhere(function ($q2) use ($dateFrom) {
+                      $q2->whereNull('start_date')->whereDate('created_at', '>=', $dateFrom);
+                  });
+            });
+        }
+        if ($request->filled('date_to')) {
+            $dateTo = $request->date_to;
+            $query->where(function ($q) use ($dateTo) {
+                $q->whereDate('start_date', '<=', $dateTo)
+                  ->orWhere(function ($q2) use ($dateTo) {
+                      $q2->whereNull('start_date')->whereDate('created_at', '<=', $dateTo);
+                  });
+            });
+        }
+        // Customer — filter kolom di ticket/index.blade.php sekarang mengirim customer_id
+        // (bukan nama) sejak dropdown-nya diisi dari /api/tickets/filter-options.
+        if ($request->filled('customer_id')) {
+            $query->where('customer_id', (int) $request->input('customer_id'));
+        } elseif ($request->filled('customer')) {
+            // Kompatibilitas untuk link lama yang masih mengirim nama.
+            $customerName = $request->customer;
+            $query->whereHas('customer.basicData', function ($q) use ($customerName) {
+                $q->whereRaw('LOWER(name_1) = LOWER(?)', [$customerName]);
+            });
+        }
+        // Ticket Lead / PIC — sama, sekarang berbasis employee_id.
+        if ($request->filled('pic_id')) {
+            $pic = $request->input('pic_id');
+            if ($pic === 'unassigned') {
+                $query->whereNull('ticket_lead_id');
+            } else {
+                $query->where('ticket_lead_id', (int) $pic);
+            }
+        } elseif ($request->filled('pic')) {
+            $picName = $request->pic;
+            if ($picName === '__unassigned__') {
+                $query->whereNull('ticket_lead_id');
+            } else {
+                $query->whereHas('ticketLead.basicData', function ($q) use ($picName) {
+                    $q->whereRaw('LOWER(first_name) = LOWER(?)', [$picName]);
+                });
+            }
+        }
+
+        $tickets = $query->get();
 
         $ticketIds   = $tickets->pluck('ticket_id')->toArray();
         $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
         $customerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $ticketIds)
             ->where('status', 'approved')
-            ->orderBy('version', 'desc')
             ->get()
             ->groupBy('ticket_id')
-            ->map(fn($g) => $g->first()->total_mandays);
+            ->map(fn($g) => $g->sum('total_mandays'));
 
-        $rows = $tickets->map(function ($ticket) use ($progressMap, $customerMandaysMap) {
+        // Same lookup used by myTickets() — a ticket's assigned Delivery Support
+        // (name + client), via delivery_support_activities.
+        $deliverySupportMap = \App\Models\DeliverySupportActivity::with(['deliverySupport.client.basicData'])
+            ->whereIn('ticket_id', $ticketIds)
+            ->whereNotNull('ticket_id')
+            ->get()
+            ->keyBy('ticket_id')
+            ->map(function ($activity) {
+                $ds = $activity->deliverySupport;
+                if (!$ds) {
+                    return null;
+                }
+                $clientName = $ds->client?->basicData?->name_1;
+                return trim($ds->name
+                    . ($clientName ? " ({$clientName})" : '')
+                    . ($ds->type ? ", {$ds->type}" : ''));
+            });
+
+        $rows = $tickets->map(function ($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap) {
             return [
                 'ticket_number'          => $ticket->ticket_number,
                 'description'            => $ticket->description,
                 'created_at'             => $ticket->created_at,
+                'start_date'             => $ticket->start_date,
                 'customer'               => ['customer_name' => $ticket->customer?->basicData?->name_1 ?? $ticket->customer?->email],
                 'end_customer_name'      => $ticket->endCustomer?->basicData?->name_1,
-                'employee'               => $ticket->employee ? ['employee_name' => $ticket->employee->basicData?->first_name ?? 'Unknown'] : null,
+                'employee'               => $ticket->ticketLead ? ['employee_name' => $ticket->ticketLead->basicData?->nick_name ?? $ticket->ticketLead->basicData?->first_name ?? 'Unknown'] : null,
                 'ticket_priority'        => $ticket->ticket_priority,
                 'scale'                  => $ticket->scale,
                 'status'                 => $ticket->status,
-                'jarvies_status'         => $ticket->jarvies_status,
                 'ticket_type'            => $ticket->ticket_type,
+                'module'                 => $ticket->module_names,
                 'customer_mandays'       => $customerMandaysMap[$ticket->ticket_id] ?? null,
                 'all_consultant_progress'=> $progressMap[$ticket->ticket_id] ?? (float)($ticket->progress_percentage ?? 0),
                 'end_date'               => $ticket->end_date,
+                'assign_delivery'        => $deliverySupportMap[$ticket->ticket_id] ?? null,
             ];
         });
 
@@ -348,27 +942,183 @@ class TicketController extends Controller
         $roleId = $user['role']['id'];
 
         // ── Admin (role 1) → langsung buat ticket (bypass staging) ────────────
-        if ($roleId === RoleId::ADMIN->value) {
+        if ($roleId === RoleId::EC_ADMINISTRATOR->value) {
             $validated = $request->validate([
                 'description'     => 'required|string',
                 'ticket_priority' => 'required|in:Very High,High,Medium,Low',
-                'ticket_type'     => 'nullable|string|in:Incident,Service Request,Change Request,Consult',
-                'customer_id'     => 'required|exists:customer,customer_id',
+                'ticket_type'     => 'required|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult,Internal',
+                'customer_id'     => ['required', \Illuminate\Validation\Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
+                'scale'           => 'nullable|string|in:Simple,Medium,Complex',
+                'name'            => 'nullable|string|max:255',
+                'no_hp'           => 'nullable|string|max:255',
+                'module'          => 'nullable|string|max:255',
+                'module_id'       => 'nullable|exists:modules,id',
+                'module_ids'      => 'nullable|array',
+                'module_ids.*'    => 'integer|exists:modules,id',
+                'client'          => 'nullable|string|max:255',
+                'to_email'        => 'nullable|string|max:2000',
+                'cc_emails'       => 'nullable|string|max:2000',
+                'body'            => 'nullable|string',
+                'attachments'     => 'nullable|array',
+                'attachments.*'   => 'file|max:20480',
             ]);
 
-            $validated['status']         = 'open';
-            $validated['jarvies_status'] = 'in process';
+            $body  = $validated['body'] ?? null;
+            $files = $request->file('attachments', []);
+
+            // "To" HANYA dari input manual — TIDAK auto-baca company email.
+            // Default kosong (mis. EWA): email dikirim hanya ke CC contact.
+            // Bisa lebih dari satu penerima, pisah koma (mirror perilaku CC).
+            // Primary = elemen pertama; sisanya jadi additional toRecipients.
+            $toList = [];
+            if (!empty($validated['to_email'])) {
+                foreach (array_filter(array_map('trim', explode(',', $validated['to_email']))) as $to) {
+                    if (filter_var($to, FILTER_VALIDATE_EMAIL)
+                        && !in_array(strtolower($to), array_map('strtolower', $toList), true)) {
+                        $toList[] = $to;
+                    }
+                }
+            }
+            $toEmail      = $toList[0] ?? '';
+            $additionalTo = array_slice($toList, 1);
+
+            // Parse CC emails menjadi array format [{address,name}] untuk disimpan di ticket.
+            $ccList = [];
+            if (!empty($validated['cc_emails'])) {
+                foreach (array_filter(array_map('trim', explode(',', $validated['cc_emails']))) as $cc) {
+                    if (filter_var($cc, FILTER_VALIDATE_EMAIL)) {
+                        $ccList[] = ['address' => $cc, 'name' => null];
+                    }
+                }
+            }
+
+            // ── Kirim email via Graph bila ada minimal satu penerima (To/CC) ──────
+            set_time_limit(120);
+            $emailResult    = null;
+            $conversationId = null;
+            $internetMsgId  = null;
+            if ($toEmail !== '' || !empty($ccList)) {
+                try {
+                    $emailResult = (new EmailController())->sendTicketReply(
+                        toEmail:            $toEmail,
+                        subject:            '[JARVIES] ' . $validated['description'],
+                        body:               $body ?? '',
+                        inReplyTo:          null,
+                        files:              $files,
+                        ccList:             array_column($ccList, 'address'),
+                        noRePrefix:         true,
+                        additionalToEmails: $additionalTo,
+                    );
+                    $conversationId = $emailResult['conversation_id'] ?? null;
+                    $internetMsgId  = $emailResult['internet_message_id'] ?? null;
+                } catch (\Exception $e) {
+                    Log::warning('TicketController@store (admin): email gagal (non-fatal)', [
+                        'to_email' => $toEmail,
+                        'error'    => $e->getMessage(),
+                    ]);
+                }
+            }
 
             try {
-                $ticket = DB::transaction(function () use ($validated) {
-                    $validated['ticket_number'] = $this->ticketNumbers->generate();
-                    return Ticket::create($validated);
+                $ticket = DB::transaction(function () use ($validated, $toEmail, $toList, $ccList, $conversationId, $user) {
+                    $ticket = Ticket::create([
+                        'ticket_number'      => $this->ticketNumbers->generate(),
+                        'customer_id'        => $validated['customer_id'],
+                        'description'        => $validated['description'],
+                        'ticket_priority'    => $validated['ticket_priority'],
+                        'ticket_type'        => $validated['ticket_type'] ?: null,
+                        'scale'              => $validated['scale'] ?? null,
+                        'name'               => $validated['name'] ?? null,
+                        'no_hp'              => $validated['no_hp'] ?? null,
+                        'module'             => $validated['module'] ?? null,
+                        'client'             => $validated['client'] ?? null,
+                        'status'             => 'inprocess',
+                        // channel 'email' agar composer To/CC selalu tersedia di halaman tiket,
+                        // walau To dikosongkan saat create (bisa diisi manual saat balas).
+                        'channel'            => 'email',
+                        'email_thread_id'    => $conversationId,
+                        // Simpan HANYA "To" manual (nullable) — bukan company email.
+                        // submitted_by_email = primary; to_emails = seluruh daftar To
+                        // (primary + tambahan) agar reply berikutnya tetap ke semua penerima.
+                        'submitted_by_email' => $toEmail !== '' ? $toEmail : null,
+                        'to_emails'          => !empty($toList) ? $toList : null,
+                        'cc_emails'          => !empty($ccList) ? $ccList : null,
+                    ]);
+
+                    // module_id ditulis lewat syncModules(), bukan langsung di atas —
+                    // terima module_ids[] (baru) atau module_id tunggal (lama) supaya
+                    // caller yang belum diupdate ke array tidak ikut rusak.
+                    $ticket->syncModules($validated['module_ids'] ?? array_filter([$validated['module_id'] ?? null]));
+
+                    return $ticket;
                 });
 
+                $message = null;
+                if (!empty($body)) {
+                    $message = TicketMessage::create([
+                        'ticket_id'           => $ticket->ticket_id,
+                        'sender_type'         => 'employee',
+                        'sender_id'           => $user['employee_id'] ?? null,
+                        'sender_email'        => null,
+                        'sender_name'         => $user['name'] ?? null,
+                        'message'             => strip_tags($body),
+                        'message_html'        => $body,
+                        'is_internal_note'    => false,
+                        'channel'             => $emailResult ? 'email' : 'web',
+                        'email_message_id'    => $internetMsgId,
+                        'is_read_by_customer' => false,
+                        'is_read_by_agent'    => true,
+                    ]);
+                }
+
+                // Attachment: jika email terkirim, simpan metadata Graph; jika tidak,
+                // simpan file lokal seperti sebelumnya.
+                if ($emailResult && !empty($emailResult['attachments']) && $message) {
+                    foreach ($emailResult['attachments'] as $att) {
+                        \App\Models\TicketAttachment::create([
+                            'ticket_id'           => $ticket->ticket_id,
+                            'message_id'          => $message->id,
+                            'uploaded_by_type'    => 'employee',
+                            'uploaded_by_id'      => $user['employee_id'] ?? null,
+                            'attachment_type'     => app(EmailController::class)->resolveAttachmentTypePublic($att['mime'] ?? ''),
+                            'file_name'           => $att['name'],
+                            'link_title'          => $att['name'],
+                            'file_size'           => $att['size'] ?? 0,
+                            'mime_type'           => $att['mime'] ?? 'application/octet-stream',
+                            'is_inline'           => false,
+                            'graph_attachment_id' => $att['graph_att_id'] ?? null,
+                            'graph_message_id'    => $emailResult['graph_message_id'] ?? null,
+                        ]);
+                    }
+                } elseif (!$emailResult && $files && $message) {
+                    foreach ($files as $file) {
+                        try {
+                            $path = $file->store("ticket-attachments/{$ticket->ticket_id}", 'public');
+                            \App\Models\TicketAttachment::create([
+                                'ticket_id'        => $ticket->ticket_id,
+                                'message_id'       => $message->id,
+                                'uploaded_by_type' => 'employee',
+                                'uploaded_by_id'   => $user['employee_id'] ?? null,
+                                'attachment_type'  => 'file',
+                                'file_name'        => $file->getClientOriginalName(),
+                                'file_size'        => $file->getSize(),
+                                'mime_type'        => $file->getMimeType(),
+                                'is_inline'        => false,
+                                'file_path'        => $path,
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::warning('TicketController@store (admin): gagal simpan attachment', [
+                                'file' => $file->getClientOriginalName(), 'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                }
+
                 return response()->json([
-                    'success' => true,
-                    'message' => 'Ticket created successfully',
-                    'data'    => $ticket,
+                    'success'    => true,
+                    'message'    => 'Ticket created successfully',
+                    'data'       => $ticket,
+                    'email_sent' => $emailResult !== null,
                 ], 201);
             } catch (\Exception $e) {
                 Log::error('TicketController@store (admin): gagal', [
@@ -389,6 +1139,212 @@ class TicketController extends Controller
     }
 
     /**
+     * POST /api/tickets/helpdesk-create
+     * Helpdesk membuat tiket langsung (bypass staging) + kirim email ke customer via Graph.
+     */
+    public function storeFromHelpdesk(Request $request)
+    {
+        $user     = session('user');
+        $roleId   = $user['role']['id'];
+        $employee = \App\Models\Employee::find($user['id'] ?? null);
+        $canCreate = $employee && in_array('ui.ticket.btn-create', $employee->allPermissionSlugs());
+
+        if (!$canCreate || $roleId === RoleId::EC_ADMINISTRATOR->value) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            // Tiket hanya boleh milik business partner bertipe Customer (bukan Vendor)
+            'customer_id'     => ['required', \Illuminate\Validation\Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
+            'to_email'        => 'nullable|string|max:2000',
+            'cc_emails'       => 'nullable|string|max:2000',
+            'description'     => 'required|string|max:1000',
+            'ticket_priority' => 'required|in:Very High,High,Medium,Low',
+            'ticket_type'     => 'required|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult,Internal',
+            'scale'           => 'nullable|string|in:Simple,Medium,Complex',
+            'name'            => 'nullable|string|max:255',
+            'no_hp'           => 'nullable|string|max:255',
+            'module'          => 'nullable|string|max:255',
+            'module_id'       => 'nullable|exists:modules,id',
+            'module_ids'      => 'nullable|array',
+            'module_ids.*'    => 'integer|exists:modules,id',
+            'client'          => 'nullable|string|max:255',
+            'body'            => 'nullable|string',
+            'attachments'     => 'nullable|array',
+            'attachments.*'   => 'file|max:20480',
+        ]);
+
+        $customer = Customer::find($validated['customer_id']);
+        if (!$customer) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Customer tidak ditemukan.',
+            ], 422);
+        }
+
+        // "To" HANYA dari input manual — TIDAK auto-baca company email ($customer->email).
+        // Default kosong (mis. EWA): email hanya dikirim ke CC contact terdaftar.
+        // Bisa lebih dari satu penerima, pisah koma (mirror perilaku CC).
+        // Primary = elemen pertama; sisanya jadi additional toRecipients.
+        $toList = [];
+        if (!empty($validated['to_email'])) {
+            foreach (array_filter(array_map('trim', explode(',', $validated['to_email']))) as $to) {
+                if (filter_var($to, FILTER_VALIDATE_EMAIL)
+                    && !in_array(strtolower($to), array_map('strtolower', $toList), true)) {
+                    $toList[] = $to;
+                }
+            }
+        }
+        $toEmail      = $toList[0] ?? '';
+        $additionalTo = array_slice($toList, 1);
+
+        $ccList = [];
+        if (!empty($validated['cc_emails'])) {
+            foreach (array_filter(array_map('trim', explode(',', $validated['cc_emails']))) as $cc) {
+                if (filter_var($cc, FILTER_VALIDATE_EMAIL)) {
+                    $ccList[] = ['address' => $cc, 'name' => null];
+                }
+            }
+        }
+        $files = $request->file('attachments', []);
+
+        // ── Kirim email via Graph ─────────────────────────────────────────────
+        // Hanya kirim jika ada minimal satu penerima (To manual ATAU CC contact).
+        // Untuk EWA umumnya To kosong → email tetap terkirim ke CC saja.
+        set_time_limit(120);
+        $emailResult    = null;
+        $conversationId = null;
+        $internetMsgId  = null;
+
+        if ($toEmail !== '' || !empty($ccList)) {
+            try {
+                $emailCtrl   = new EmailController();
+                $emailResult = $emailCtrl->sendTicketReply(
+                    toEmail:            $toEmail,
+                    subject:            '[JARVIES] ' . $validated['description'],
+                    body:               $validated['body'] ?? '',
+                    inReplyTo:          null,
+                    files:              $files,
+                    ccList:             array_column($ccList, 'address'),
+                    noRePrefix:         true,
+                    additionalToEmails: $additionalTo,
+                );
+                $conversationId = $emailResult['conversation_id'] ?? null;
+                $internetMsgId  = $emailResult['internet_message_id'] ?? null;
+            } catch (\Exception $e) {
+                Log::warning('TicketController@storeFromHelpdesk: email gagal (non-fatal)', [
+                    'to_email' => $toEmail,
+                    'error'    => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // ── Buat ticket langsung (bypass staging) ────────────────────────────
+        try {
+            $ticket = DB::transaction(function () use ($validated, $customer, $toEmail, $toList, $ccList, $conversationId, $internetMsgId, $emailResult, $user) {
+                $ticket = Ticket::create([
+                    'ticket_number'      => $this->ticketNumbers->generate(),
+                    'customer_id'        => $customer->customer_id,
+                    'description'        => $validated['description'],
+                    'ticket_priority'    => $validated['ticket_priority'],
+                    'ticket_type'        => $validated['ticket_type'] ?: null,
+                    'scale'              => $validated['scale'] ?: null,
+                    'name'               => $validated['name'] ?? null,
+                    'no_hp'              => $validated['no_hp'] ?? null,
+                    'module'             => $validated['module'] ?? null,
+                    'client'             => $validated['client'] ?? null,
+                    'status'             => 'open',
+                    // channel 'email' agar composer To/CC selalu tersedia di halaman tiket,
+                    // walau To dikosongkan saat create (bisa diisi manual saat balas).
+                    'channel'            => 'email',
+                    'email_thread_id'    => $conversationId,
+                    // Simpan HANYA "To" manual (nullable) — bukan company email — supaya
+                    // balasan berikutnya juga tidak otomatis tertuju ke company email.
+                    // submitted_by_email = primary; to_emails = seluruh daftar To
+                    // (primary + tambahan) agar reply berikutnya tetap ke semua penerima.
+                    'submitted_by_email' => $toEmail !== '' ? $toEmail : null,
+                    'to_emails'          => !empty($toList) ? $toList : null,
+                    'cc_emails'          => !empty($ccList) ? $ccList : null,
+                    'last_message_at'    => now(),
+                    'last_agent_reply_at'=> now(),
+                ]);
+
+                // module_id ditulis lewat syncModules(), bukan langsung di atas —
+                // terima module_ids[] (baru) atau module_id tunggal (lama).
+                $ticket->syncModules($validated['module_ids'] ?? array_filter([$validated['module_id'] ?? null]));
+
+                if (!empty($validated['body'])) {
+                    TicketMessage::create([
+                        'ticket_id'           => $ticket->ticket_id,
+                        'sender_type'         => 'employee',
+                        'sender_id'           => $user['employee_id'] ?? null,
+                        'sender_email'        => null,
+                        'sender_name'         => $user['name'] ?? null,
+                        'message'             => strip_tags($validated['body']),
+                        'message_html'        => $validated['body'],
+                        'is_internal_note'    => false,
+                        'channel'             => $emailResult ? 'email' : 'web',
+                        'email_message_id'    => $internetMsgId,
+                        'is_read_by_customer' => false,
+                        'is_read_by_agent'    => true,
+                    ]);
+                }
+
+                return $ticket;
+            });
+
+            // Attach SLA jika ticket_type eligible (Incident / Service Request)
+            try {
+                app(\App\Services\SlaService::class)->attachToTicket($ticket);
+            } catch (\Throwable $e) {
+                Log::warning('TicketController@storeFromHelpdesk: SLA attach gagal (non-fatal)', [
+                    'ticket_id' => $ticket->ticket_id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+
+            // Simpan metadata attachment di DB
+            if ($emailResult && !empty($emailResult['attachments'])) {
+                $msgId = $ticket->messages()->latest()->value('id');
+                foreach ($emailResult['attachments'] as $att) {
+                    TicketAttachment::create([
+                        'ticket_id'           => $ticket->ticket_id,
+                        'message_id'          => $msgId,
+                        'uploaded_by_type'    => 'employee',
+                        'uploaded_by_id'      => $user['employee_id'] ?? null,
+                        'attachment_type'     => app(EmailController::class)->resolveAttachmentTypePublic($att['mime'] ?? ''),
+                        'file_name'           => $att['name'],
+                        'link_title'          => $att['name'],
+                        'file_size'           => $att['size'] ?? 0,
+                        'mime_type'           => $att['mime'] ?? 'application/octet-stream',
+                        'is_inline'           => false,
+                        'graph_attachment_id' => $att['graph_att_id'] ?? null,
+                        'graph_message_id'    => $emailResult['graph_message_id'] ?? null,
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success'        => true,
+                'message'        => 'Ticket created successfully.',
+                'ticket_id'      => $ticket->ticket_id,
+                'ticket_number'  => $ticket->ticket_number,
+                'email_sent'     => $emailResult !== null,
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error('TicketController@storeFromHelpdesk: gagal buat ticket', [
+                'error'    => $e->getMessage(),
+                'error_at' => $e->getFile() . ':' . $e->getLine(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat tiket: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * External API: create ticket via query string
      * URL: /api/external/tickets/create?description=...&ticket_priority=...&customer_code=...&type=...
      */
@@ -399,8 +1355,8 @@ class TicketController extends Controller
         $validator = Validator::make($payload, [
             'description' => 'required|string',
             'ticket_priority' => 'nullable|in:Very High,High,Medium,Low',
-            'customer_id' => 'required_without_all:customer_code,external_number|exists:customer,customer_id',
-            'customer_code' => 'required_without_all:customer_id,external_number|exists:customer,customer_code',
+            'customer_id' => ['required_without_all:customer_code,external_number', \Illuminate\Validation\Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
+            'customer_code' => ['required_without_all:customer_id,external_number', \Illuminate\Validation\Rule::exists('customer', 'customer_code')->where('type', Customer::TYPE_CUSTOMER)],
             'external_number' => 'nullable|customer_id,customer_code|exists:customer_basic_data,external_number',
         ]);
 
@@ -418,6 +1374,7 @@ class TicketController extends Controller
             if (!$customerId && !empty($payload['customer_code'])) {
                 $customerId = DB::table('customer')
                     ->where('customer_code', $payload['customer_code'])
+                    ->where('type', Customer::TYPE_CUSTOMER)
                     ->value('customer_id');
             }
 
@@ -439,8 +1396,7 @@ class TicketController extends Controller
                     'customer_id'     => $customerId,
                     'description'     => $payload['description'] ?? null,
                     'ticket_priority' => null,
-                    'status'          => 'open',
-                    'jarvies_status'  => 'in process',
+                    'status'          => 'inprocess',
                     'ticket_number'   => $this->ticketNumbers->generate(),
                 ]);
             });
@@ -475,10 +1431,9 @@ class TicketController extends Controller
                     'ticket_id',
                     'ticket_number',
                     'customer_id',
-                    'employee_id',
+                    'ticket_lead_id',
                     'description',
                     'ticket_priority',
-                    'jarvies_status',
                     'status',
                     'start_date',
                     'end_date',
@@ -511,7 +1466,7 @@ class TicketController extends Controller
     /**
      * Get my tickets (for customer and employee)
      */
-    public function myTickets()
+    public function myTickets(Request $request)
     {
         try {
             $sessionUser = session('user');
@@ -525,28 +1480,79 @@ class TicketController extends Controller
 
             Log::info('My Tickets - Session User:', $sessionUser);
 
-            // Employee / Helpdesk: tampilkan tiket dimana mereka PIC atau member
-            if (in_array($sessionUser['role']['id'], array_merge([RoleId::EMPLOYEE->value], RoleId::HELPDESK_GROUP), true)) {
+            $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+
+            // External employee (non-admin): hanya ticket yang mereka handle
+            if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
                 $employeeId = $sessionUser['id'];
+                Log::info('My Tickets - External employee', ['employee_id' => $employeeId]);
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
+                    ->whereNull('ticket.is_hidden')
+                    ->where(function ($q) use ($employeeId) {
+                        $q->where('ticket.ticket_lead_id', $employeeId)
+                            ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId));
+                    });
 
-                Log::info('My Tickets - Filtering for employee/helpdesk', ['employee_id' => $employeeId]);
-
-                // Ticket yang employee handle sebagai PIC atau member
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->where(function($query) use ($employeeId) {
-                        $query->where('ticket.employee_id', $employeeId)
-                            ->orWhereHas('members', function($inner) use ($employeeId) {
-                                $inner->where('ticket_member.employee_id', $employeeId);
-                            });
-                    })
-                    ->orderByRaw('COALESCE(ticket.last_message_at, ticket.created_at) DESC')
-                    ->get();
-
+            // Internal roles: query variant ditentukan oleh permission menu 'ticket.my-tickets.*'
+            // di Role & Menu Access (bukan lagi hardcode RoleId), supaya admin bisa pilih per role
+            // apakah "My Ticket" mereka bergaya DS Manager (delivery yang dikelola) atau DS User (PIC/member).
             } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid role'
-                ], 403);
+                $employeeId = $sessionUser['id'];
+                $employee   = Employee::find($employeeId);
+                $isDsManagerScope = $employee && $employee->hasMenuPermission('ticket.my-tickets.ds-manager');
+                $isDsUserScope    = $employee && $employee->hasMenuPermission('ticket.my-tickets.ds-user');
+
+                if ($isDsManagerScope) {
+                    Log::info('My Tickets - DS Manager scope', ['employee_id' => $employeeId]);
+
+                    $managedDeliveryIds = DB::table('delivery_support_managers')
+                        ->where('employee_id', $employeeId)
+                        ->pluck('delivery_support_id');
+
+                    $managedTicketIds = DB::table('delivery_support_activities')
+                        ->whereIn('delivery_support_id', $managedDeliveryIds)
+                        ->whereNotNull('ticket_id')
+                        ->pluck('ticket_id')
+                        ->unique()
+                        ->values();
+
+                    $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'modules'])
+                        ->whereNull('ticket.is_hidden')
+                        ->whereIn('ticket.ticket_id', $managedTicketIds);
+                } else {
+                    // DS User scope (default fallback juga, untuk role custom tanpa permission eksplisit):
+                    // tiket dimana employee jadi PIC atau member.
+                    Log::info('My Tickets - DS User scope', ['employee_id' => $employeeId, 'explicit_permission' => $isDsUserScope]);
+
+                    $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'modules'])
+                        ->whereNull('ticket.is_hidden')
+                        ->where(function ($q) use ($employeeId) {
+                            $q->where('ticket.ticket_lead_id', $employeeId)
+                                ->orWhereHas('members', function ($inner) use ($employeeId) {
+                                    $inner->where('ticket_member.employee_id', $employeeId);
+                                });
+                        });
+                }
+            }
+
+            $this->applyTicketListFilters($query, $request);
+            $myStats = $this->buildTicketListStats($query);
+            $this->applyCardStatusFilter($query, $request);
+            $this->applyTicketListSort($query, $request);
+
+            $myMeta = null;
+            if ($request->filled('page')) {
+                $perPage    = max(1, min((int) $request->input('per_page', 200), 500));
+                $myPaginator = $query->paginate($perPage, ['*'], 'page', (int) $request->input('page'));
+                $tickets    = $myPaginator->getCollection();
+                $myMeta = [
+                    'current_page' => $myPaginator->currentPage(),
+                    'per_page'     => $myPaginator->perPage(),
+                    'total'        => $myPaginator->total(),
+                    'last_page'    => $myPaginator->lastPage(),
+                ];
+            } else {
+                $tickets = $query->get();
             }
 
             Log::info('My Tickets fetched', ['count' => $tickets->count()]);
@@ -555,41 +1561,82 @@ class TicketController extends Controller
             $myTicketIds   = $tickets->pluck('ticket_id')->toArray();
             $myProgressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($myTicketIds);
 
-            // Batch load approved customer mandays (latest approved version per ticket)
+            // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
+            $myCanReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            $myReadAtMap = $myCanReadFeature
+                ? DB::table('ticket_reads')
+                    ->where('employee_id', $sessionUser['id'])
+                    ->whereIn('ticket_id', $myTicketIds)
+                    ->pluck('read_at', 'ticket_id')
+                : collect();
+
+            // Batch load approved customer mandays (sum of every approved version per ticket)
             $myCustomerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $myTicketIds)
                 ->where('status', 'approved')
-                ->orderBy('version', 'desc')
                 ->get()
                 ->groupBy('ticket_id')
-                ->map(fn($group) => $group->first()->total_mandays);
+                ->map(fn($group) => $group->sum('total_mandays'));
+
+            // Batch load delivery support per ticket via delivery_support_activities
+            $myDeliverySupportMap = \App\Models\DeliverySupportActivity::with(['deliverySupport.client.basicData'])
+                ->whereIn('ticket_id', $myTicketIds)
+                ->whereNotNull('ticket_id')
+                ->get()
+                ->keyBy('ticket_id')
+                ->map(function ($activity) {
+                    $ds = $activity->deliverySupport;
+                    if (!$ds) {
+                        return null;
+                    }
+                    $clientName = $ds->client?->basicData?->name_1;
+                    return [
+                        'delivery_id'    => $ds->id,
+                        'delivery_name'  => $ds->name,
+                        'delivery_type'  => $ds->type,
+                        'client_name'    => $clientName,
+                        'delivery_label' => trim($ds->name
+                            . ($clientName ? " ({$clientName})" : '')
+                            . ($ds->type ? ", {$ds->type}" : '')),
+                    ];
+                });
+
+            // Batch-load SLA pause history (untuk liveSlaSummary() — hindari N+1)
+            $myPausesByTicket = \App\Models\TicketSlaPause::whereIn('ticket_id', $myTicketIds)
+                ->get()
+                ->groupBy('ticket_id');
+
+            // Batch-load semua pending confirmations sekaligus (hindari N+1)
+            $myConfirmationMap = DB::table('ticket_confirmation')
+                ->whereIn('ticket_id', $myTicketIds)
+                ->where('status', 'pending')
+                ->get()
+                ->groupBy('ticket_id');
 
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap) {
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature, $myDeliverySupportMap, $myPausesByTicket, $myConfirmationMap) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
                 // ✅ Hitung pending confirmations
-                $pendingCount = DB::table('ticket_confirmation')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->where('status', 'pending')
-                    ->count();
+                $myPendingConfirmations = $myConfirmationMap->get($ticket->ticket_id, collect());
+                $pendingCount           = $myPendingConfirmations->count();
 
                 // ✅ Get pending confirmation detail
-                $pendingConfirmation = DB::table('ticket_confirmation')
-                    ->where('ticket_id', $ticket->ticket_id)
-                    ->where('status', 'pending')
-                    ->first();
+                $pendingConfirmation = $myPendingConfirmations->first();
 
                 return [
                     'ticket_id' => $ticket->ticket_id,
                     'ticket_number' => $ticket->ticket_number,
                     'customer_id' => $ticket->customer_id,
-                    'employee_id' => $ticket->employee_id,
+                    'ticket_lead_id' => $ticket->ticket_lead_id,
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    // module_names = semua modul tiket digabung koma (bukan cuma modul
+                    // utama) — tiket boleh menyentuh lebih dari satu modul sekarang.
+                    'module' => $ticket->module_names,
+                    'module_id' => $ticket->module_id,
                     'scale' => $ticket->scale,
-                    'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,
                     'email_thread_id' => $ticket->email_thread_id,
@@ -607,6 +1654,10 @@ class TicketController extends Controller
                     'last_agent_reply_at' => $ticket->last_agent_reply_at,
                     'last_internal_note_at'        => $ticket->last_internal_note_at,
                     'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
+                    'is_read' => !$myCanReadFeature || (
+                        $myReadAtMap->has($ticket->ticket_id)
+                        && (!$ticket->last_message_at || \Carbon\Carbon::parse($myReadAtMap->get($ticket->ticket_id))->gte($ticket->last_message_at))
+                    ),
                     'customer' => $ticket->customer ? [
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
@@ -614,14 +1665,14 @@ class TicketController extends Controller
                     ] : null,
                     'end_customer_id'   => $ticket->end_customer_id,
                     'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
-                    'employee' => $ticket->employee ? [
-                        'employee_id' => $ticket->employee->employee_id,
-                        'employee_name' => $ticket->employee->basicData->first_name ?? 'Unknown',
+                    'employee' => $ticket->ticketLead ? [
+                        'employee_id' => $ticket->ticketLead->employee_id,
+                        'employee_name' => $ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown',
                     ] : null,
                     'members' => $ticket->members->map(function($member) {
                         return [
                             'employee_id' => $member->employee_id,
-                            'employee_name' => $member->basicData->first_name ?? 'Unknown',
+                            'employee_name' => $member->basicData->nick_name ?? $member->basicData->first_name ?? 'Unknown',
                         ];
                     }),
                     'member_ids' => $ticket->members->pluck('employee_id')->toArray(),
@@ -631,6 +1682,8 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
+                    'sla' => $this->liveSlaSummary($ticket->sla, $ticket, $myPausesByTicket->get($ticket->ticket_id)),
+                    'delivery' => $myDeliverySupportMap[$ticket->ticket_id] ?? null,
                     'created_at' => $ticket->created_at,
                     'updated_at' => $ticket->updated_at,
                 ];
@@ -639,6 +1692,8 @@ class TicketController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $ticketsData,
+                'meta' => $myMeta,
+                'stats' => $myStats,
                 'message' => 'My tickets retrieved successfully'
             ]);
             
@@ -651,6 +1706,344 @@ class TicketController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve my tickets',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Tickets for the Create Timesheet dropdown: same access scope as myTickets()
+     * (lead/member, or a DS Manager's managed delivery tickets), but restricted to
+     * tickets where the employee still has remaining mandays quota (approved quota
+     * minus consumed > 0). A ticket the employee has no approved mandays proposal
+     * for is excluded — there's no quota to log time against. If a Head later
+     * approves additional mandays, remaining goes back above 0 and the ticket
+     * reappears on its own (this is computed live, not cached).
+     */
+    public function myTicketsForTimesheet(Request $request)
+    {
+        try {
+            $sessionUser = session('user');
+
+            if (!$sessionUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 401);
+            }
+
+            // When editing an existing draft timesheet, its ticket must stay selectable
+            // even if remaining is now 0 — this timesheet's own md_consumed is part of
+            // that 0, so hiding it would make an already-valid selection un-editable.
+            $includeTicketId = $request->filled('include_ticket_id') ? (int) $request->input('include_ticket_id') : null;
+
+            $employeeId = $sessionUser['id'];
+            $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+
+            if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
+                $scopedQuery = Ticket::whereNull('is_hidden')
+                    ->where(function ($query) use ($employeeId) {
+                        $query->where('ticket.ticket_lead_id', $employeeId)
+                            ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId));
+                    });
+            } else {
+                $employee = Employee::find($employeeId);
+                $isDsManagerScope = $employee && $employee->hasMenuPermission('ticket.my-tickets.ds-manager');
+
+                if ($isDsManagerScope) {
+                    $managedDeliveryIds = DB::table('delivery_support_managers')
+                        ->where('employee_id', $employeeId)
+                        ->pluck('delivery_support_id');
+
+                    $managedTicketIds = DB::table('delivery_support_activities')
+                        ->whereIn('delivery_support_id', $managedDeliveryIds)
+                        ->whereNotNull('ticket_id')
+                        ->pluck('ticket_id')
+                        ->unique()
+                        ->values();
+
+                    $scopedQuery = Ticket::whereNull('is_hidden')->whereIn('ticket_id', $managedTicketIds);
+                } else {
+                    $scopedQuery = Ticket::whereNull('is_hidden')
+                        ->where(function ($query) use ($employeeId) {
+                            $query->where('ticket.ticket_lead_id', $employeeId)
+                                ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId));
+                        });
+                }
+            }
+
+            $tickets = $scopedQuery
+                ->with(['customer.basicData'])
+                ->orderBy('ticket.last_message_at', 'desc')
+                ->get(['ticket_id', 'ticket_number', 'customer_id', 'description']);
+
+            $ticketIds = $tickets->pluck('ticket_id');
+
+            // Latest approved mandays proposal per ticket
+            $latestApprovedByTicket = ConsultantMandays::whereIn('ticket_id', $ticketIds)
+                ->where('status', 'approved')
+                ->orderBy('approved_at', 'desc')
+                ->get()
+                ->groupBy('ticket_id')
+                ->map(fn ($g) => $g->first());
+
+            $cmIdToTicketId = $latestApprovedByTicket->mapWithKeys(fn ($cm) => [$cm->id => $cm->ticket_id]);
+
+            // This employee's quota (approved_mandays + approved_additional) per ticket
+            $quotaByTicket = ConsultantMandaysDetail::whereIn('consultant_mandays_id', $cmIdToTicketId->keys())
+                ->where('employee_id', $employeeId)
+                ->get()
+                ->reduce(function ($carry, $detail) use ($cmIdToTicketId) {
+                    $ticketId = $cmIdToTicketId[$detail->consultant_mandays_id] ?? null;
+                    if ($ticketId) {
+                        $carry[$ticketId] = round((float) ($detail->approved_mandays ?? 0) + (float) ($detail->approved_additional ?? 0), 2);
+                    }
+                    return $carry;
+                }, []);
+
+            // MD already consumed by this employee per ticket (draft/submitted/approved count against quota)
+            $consumedByTicket = Timesheet::whereIn('ticket_id', $ticketIds)
+                ->where('employee_id', $employeeId)
+                ->whereIn('status', ['draft', 'submitted', 'approved'])
+                ->selectRaw('ticket_id, SUM(md_consumed) as total')
+                ->groupBy('ticket_id')
+                ->pluck('total', 'ticket_id');
+
+            $ticketsData = $tickets
+                ->filter(function ($ticket) use ($quotaByTicket, $consumedByTicket, $includeTicketId) {
+                    if ($includeTicketId !== null && $ticket->ticket_id === $includeTicketId) {
+                        return true;
+                    }
+                    // No approved proposal for this employee on this ticket → no quota to fill, exclude.
+                    if (!array_key_exists($ticket->ticket_id, $quotaByTicket)) {
+                        return false;
+                    }
+                    $consumed = (float) ($consumedByTicket[$ticket->ticket_id] ?? 0);
+                    return round($quotaByTicket[$ticket->ticket_id] - $consumed, 2) > 0;
+                })
+                ->values()
+                ->map(function ($ticket) use ($quotaByTicket, $consumedByTicket) {
+                    $consumed = (float) ($consumedByTicket[$ticket->ticket_id] ?? 0);
+                    $quota    = $quotaByTicket[$ticket->ticket_id] ?? null;
+                    return [
+                        'ticket_id' => $ticket->ticket_id,
+                        'ticket_number' => $ticket->ticket_number,
+                        'description' => $ticket->description,
+                        'customer' => $ticket->customer ? [
+                            'customer_id' => $ticket->customer->customer_id,
+                            'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
+                            'customer_code' => $ticket->customer->customer_code,
+                        ] : null,
+                        'remaining_md' => $quota !== null ? round($quota - $consumed, 2) : null,
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $ticketsData,
+                'message' => 'My tickets with remaining mandays retrieved successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching my tickets for timesheet:', [
+                'error' => $e->getMessage(),
+                'error_at' => $e->getFile() . ':' . $e->getLine()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve tickets'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get unassigned tickets (no ticket lead yet) — its own tab/filter,
+     * separate from "My Ticket" and "All Ticket". Gated by the
+     * 'ticket.unassigned' menu permission in Role & Menu Access.
+     */
+    public function unassignedTickets(Request $request)
+    {
+        try {
+            $sessionUser = session('user');
+
+            if (!$sessionUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 401);
+            }
+
+            $employee = Employee::find($sessionUser['id']);
+            if (!$employee || !$employee->hasMenuPermission('ticket.unassigned')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Access denied'
+                ], 403);
+            }
+
+            $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'modules'])
+                ->whereNull('ticket.is_hidden')
+                ->whereNull('ticket.ticket_lead_id');
+
+            $this->applyTicketListFilters($query, $request);
+            $unassignedStats = $this->buildTicketListStats($query);
+            $this->applyCardStatusFilter($query, $request);
+            $this->applyTicketListSort($query, $request);
+
+            $unassignedMeta = null;
+            if ($request->filled('page')) {
+                $perPage           = max(1, min((int) $request->input('per_page', 200), 500));
+                $unassignedPaginator = $query->paginate($perPage, ['*'], 'page', (int) $request->input('page'));
+                $tickets           = $unassignedPaginator->getCollection();
+                $unassignedMeta = [
+                    'current_page' => $unassignedPaginator->currentPage(),
+                    'per_page'     => $unassignedPaginator->perPage(),
+                    'total'        => $unassignedPaginator->total(),
+                    'last_page'    => $unassignedPaginator->lastPage(),
+                ];
+            } else {
+                $tickets = $query->get();
+            }
+
+            Log::info('Unassigned Tickets fetched', ['count' => $tickets->count(), 'employee_id' => $sessionUser['id']]);
+
+            $ticketIds   = $tickets->pluck('ticket_id')->toArray();
+            $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
+
+            $canReadFeature = (bool) $employee->hasPermission('ticket.read');
+            $readAtMap = $canReadFeature
+                ? DB::table('ticket_reads')
+                    ->where('employee_id', $sessionUser['id'])
+                    ->whereIn('ticket_id', $ticketIds)
+                    ->pluck('read_at', 'ticket_id')
+                : collect();
+
+            $customerMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $ticketIds)
+                ->where('status', 'approved')
+                ->get()
+                ->groupBy('ticket_id')
+                ->map(fn($group) => $group->sum('total_mandays'));
+
+            $deliverySupportMap = \App\Models\DeliverySupportActivity::with(['deliverySupport.client.basicData'])
+                ->whereIn('ticket_id', $ticketIds)
+                ->whereNotNull('ticket_id')
+                ->get()
+                ->keyBy('ticket_id')
+                ->map(function ($activity) {
+                    $ds = $activity->deliverySupport;
+                    if (!$ds) {
+                        return null;
+                    }
+                    $clientName = $ds->client?->basicData?->name_1;
+                    return [
+                        'delivery_id'    => $ds->id,
+                        'delivery_name'  => $ds->name,
+                        'delivery_type'  => $ds->type,
+                        'client_name'    => $clientName,
+                        'delivery_label' => trim($ds->name
+                            . ($clientName ? " ({$clientName})" : '')
+                            . ($ds->type ? ", {$ds->type}" : '')),
+                    ];
+                });
+
+            // Batch-load SLA pause history (untuk liveSlaSummary() — hindari N+1)
+            $pausesByTicket = \App\Models\TicketSlaPause::whereIn('ticket_id', $ticketIds)
+                ->get()
+                ->groupBy('ticket_id');
+
+            // Batch-load semua pending confirmations sekaligus (hindari N+1)
+            $confirmationMap = DB::table('ticket_confirmation')
+                ->whereIn('ticket_id', $ticketIds)
+                ->where('status', 'pending')
+                ->get()
+                ->groupBy('ticket_id');
+
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $readAtMap, $canReadFeature, $deliverySupportMap, $pausesByTicket, $confirmationMap) {
+                $allProgress = $progressMap[$ticket->ticket_id]
+                    ?? (float) ($ticket->progress_percentage ?? 0);
+
+                $pendingConfirmations = $confirmationMap->get($ticket->ticket_id, collect());
+                $pendingCount         = $pendingConfirmations->count();
+                $pendingConfirmation  = $pendingConfirmations->first();
+
+                return [
+                    'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'customer_id' => $ticket->customer_id,
+                    'ticket_lead_id' => $ticket->ticket_lead_id,
+                    'description' => $ticket->description,
+                    'ticket_priority' => $ticket->ticket_priority,
+                    'ticket_type' => $ticket->ticket_type,
+                    'scale' => $ticket->scale,
+                    'status' => $ticket->status,
+                    'channel' => $ticket->channel,
+                    'email_thread_id' => $ticket->email_thread_id,
+                    'folder' => $ticket->folder,
+                    'file_log' => $ticket->file_log,
+                    'start_date' => $ticket->start_date,
+                    'end_date' => $ticket->end_date,
+                    'man_days' => $ticket->man_days,
+                    'customer_mandays' => $customerMandaysMap[$ticket->ticket_id] ?? null,
+                    'progress_percentage' => (float) ($ticket->progress_percentage ?? 0),
+                    'all_consultant_progress' => $allProgress,
+                    'wait_close' => $ticket->wait_close,
+                    'last_message_at' => $ticket->last_message_at,
+                    'last_customer_reply_at' => $ticket->last_customer_reply_at,
+                    'last_agent_reply_at' => $ticket->last_agent_reply_at,
+                    'last_internal_note_at'        => $ticket->last_internal_note_at,
+                    'last_internal_note_sender_id' => $ticket->last_internal_note_sender_id,
+                    'is_read' => !$canReadFeature || (
+                        $readAtMap->has($ticket->ticket_id)
+                        && (!$ticket->last_message_at || \Carbon\Carbon::parse($readAtMap->get($ticket->ticket_id))->gte($ticket->last_message_at))
+                    ),
+                    'customer' => $ticket->customer ? [
+                        'customer_id' => $ticket->customer->customer_id,
+                        'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
+                        'customer_code' => $ticket->customer->customer_code,
+                    ] : null,
+                    'end_customer_id'   => $ticket->end_customer_id,
+                    'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
+                    'employee' => $ticket->ticketLead ? [
+                        'employee_id' => $ticket->ticketLead->employee_id,
+                        'employee_name' => $ticket->ticketLead->basicData->nick_name ?? $ticket->ticketLead->basicData->first_name ?? 'Unknown',
+                    ] : null,
+                    'members' => $ticket->members->map(function($member) {
+                        return [
+                            'employee_id' => $member->employee_id,
+                            'employee_name' => $member->basicData->nick_name ?? $member->basicData->first_name ?? 'Unknown',
+                        ];
+                    }),
+                    'member_ids' => $ticket->members->pluck('employee_id')->toArray(),
+                    'pending_confirmations_count' => $pendingCount,
+                    'confirmation' => $pendingConfirmation ? [
+                        'confirmation_id' => $pendingConfirmation->confirmation_id,
+                        'employee_id' => $pendingConfirmation->employee_id,
+                        'status' => $pendingConfirmation->status,
+                    ] : null,
+                    'sla' => $this->liveSlaSummary($ticket->sla, $ticket, $pausesByTicket->get($ticket->ticket_id)),
+                    'delivery' => $deliverySupportMap[$ticket->ticket_id] ?? null,
+                    'created_at' => $ticket->created_at,
+                    'updated_at' => $ticket->updated_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $ticketsData,
+                'meta' => $unassignedMeta,
+                'stats' => $unassignedStats,
+                'message' => 'Unassigned tickets retrieved successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching unassigned tickets:', [
+                'error' => $e->getMessage(),
+                'error_at' => $e->getFile() . ':' . $e->getLine()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve unassigned tickets',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -686,7 +2079,7 @@ class TicketController extends Controller
             }
             
             // Pastikan user adalah employee
-            if ($sessionUser['role']['id'] !== RoleId::EMPLOYEE->value) {
+            if ($sessionUser['role']['id'] !== RoleId::DELIVERY_SUPPORT_USER->value) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Only employees can take tickets'
@@ -706,7 +2099,7 @@ class TicketController extends Controller
             $ticket = Ticket::findOrFail($id);
             
             // Cek apakah ticket sudah diambil atau ada pending confirmation
-            if ($ticket->employee_id !== null) {
+            if ($ticket->ticket_lead_id !== null) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Ticket has already been taken'
@@ -726,7 +2119,7 @@ class TicketController extends Controller
             }
 
             // Buat confirmation request
-            DB::table('ticket_confirmation')->insert([
+            $confirmationId = DB::table('ticket_confirmation')->insertGetId([
                 'ticket_id' => $id,
                 'employee_id' => $employeeId,
                 'member_ids' => json_encode($request->member_ids ?? []),
@@ -735,6 +2128,23 @@ class TicketController extends Controller
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
+
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketConfirmation',
+                auditableId: $confirmationId,
+                event: 'created',
+                recordLabel: "Confirmation for Ticket #{$ticket->ticket_number}",
+                description: "requested to take Ticket — Ticket #{$ticket->ticket_number}",
+                old: null,
+                new: [
+                    'ticket_id' => $id,
+                    'employee_id' => $employeeId,
+                    'member_ids' => $request->member_ids ?? [],
+                    'man_days' => $request->man_days,
+                    'status' => 'pending',
+                ],
+            );
 
             return response()->json([
                 'success' => true,
@@ -762,7 +2172,7 @@ class TicketController extends Controller
         try {
             $sessionUser = session('user');
             
-            if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
+            if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Admin only'
@@ -780,7 +2190,7 @@ class TicketController extends Controller
                     'ticket_confirmation.*',
                     'ticket.description',
                     'ticket.ticket_priority',
-                    'employee_basic_data.first_name as employee_name',
+                    DB::raw("COALESCE(NULLIF(employee_basic_data.nick_name, ''), employee_basic_data.first_name) as employee_name"),
                     DB::raw('COALESCE(customer_basic_data.name_1, customer.email) as customer_name')
                 )
                 ->orderBy('ticket_confirmation.created_at', 'desc')
@@ -829,7 +2239,7 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
         
-        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
+        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
             return response()->json([
                 'success' => false,
                 'message' => 'Admin only'
@@ -866,19 +2276,20 @@ class TicketController extends Controller
                 // Update ticket
                 $ticket = Ticket::findOrFail($confirmation->ticket_id);
                 $ticket->update([
-                    'employee_id' => $confirmation->employee_id,
-                    'man_days' => $confirmation->man_days,
-                    'jarvies_status' => 'sent it to support',
-                    'start_date' => now()
+                    'ticket_lead_id' => $confirmation->employee_id,
+                    'man_days'       => $confirmation->man_days,
+                    'start_date'     => now(),
                 ]);
 
-                // Attach members
+                // Attach members — sync() is a pivot-table operation, it never instantiates
+                // TicketMember or fires its model events, so it needs an explicit audit call below.
                 $memberIds = json_decode($confirmation->member_ids, true);
+                $oldMemberIds = $ticket->members()->pluck('employee.employee_id')->all();
                 if ($memberIds) {
                     $ticket->members()->sync($memberIds);
                 }
 
-                // Update confirmation - GANTI 'jarvies_status' jadi 'status'
+                // Update confirmation
                 DB::table('ticket_confirmation')
                     ->where('confirmation_id', $confirmationId)
                     ->update([
@@ -887,8 +2298,32 @@ class TicketController extends Controller
                         'confirmed_at' => now(),
                         'updated_at' => now()
                     ]);
+
+                if ($memberIds) {
+                    AuditLog::recordAction(
+                        module: 'Ticket',
+                        auditableType: 'TicketMember',
+                        auditableId: $ticket->ticket_id,
+                        event: 'updated',
+                        recordLabel: "Ticket #{$ticket->ticket_number} members",
+                        description: "confirmed assignment and synced members on Ticket — Ticket #{$ticket->ticket_number}",
+                        old: ['member_ids' => $oldMemberIds],
+                        new: ['member_ids' => $memberIds],
+                    );
+                }
+
+                AuditLog::recordAction(
+                    module: 'Ticket',
+                    auditableType: 'TicketConfirmation',
+                    auditableId: $confirmationId,
+                    event: 'updated',
+                    recordLabel: "Confirmation for Ticket #{$ticket->ticket_number}",
+                    description: "confirmed take-ticket request on Ticket — Ticket #{$ticket->ticket_number}",
+                    old: ['status' => 'pending'],
+                    new: ['status' => 'confirmed', 'confirmed_by' => $sessionUser['id']],
+                );
             } else {
-                // Reject - GANTI 'jarvies_status' jadi 'status'
+                // Reject
                 DB::table('ticket_confirmation')
                     ->where('confirmation_id', $confirmationId)
                     ->update([
@@ -897,6 +2332,18 @@ class TicketController extends Controller
                         'confirmed_at' => now(),
                         'updated_at' => now()
                     ]);
+
+                $rejectedTicket = Ticket::find($confirmation->ticket_id);
+                AuditLog::recordAction(
+                    module: 'Ticket',
+                    auditableType: 'TicketConfirmation',
+                    auditableId: $confirmationId,
+                    event: 'updated',
+                    recordLabel: $rejectedTicket ? "Confirmation for Ticket #{$rejectedTicket->ticket_number}" : "Confirmation #{$confirmationId}",
+                    description: 'rejected take-ticket request' . ($rejectedTicket ? " on Ticket — Ticket #{$rejectedTicket->ticket_number}" : ''),
+                    old: ['status' => 'pending'],
+                    new: ['status' => 'rejected', 'confirmed_by' => $sessionUser['id']],
+                );
             }
 
             DB::commit();
@@ -923,81 +2370,179 @@ class TicketController extends Controller
     }   
 
     /**
-     * Get available PICs (employees with DSM qualification) — for admin/helpdesk/head assign
+     * Cek permission slug user saat ini (role-agnostic — sumbernya sama dengan $can() di Blade,
+     * lihat ShareMenuPermissions middleware). Dipakai controller API yang tidak punya akses ke $can().
      */
-    public function getAvailablePics()
+    private function sessionUserCan(array $sessionUser, string $slug): bool
+    {
+        $employee  = Employee::find($sessionUser['id']);
+        $permSlugs = $employee ? Cache::get("perm_slugs_{$sessionUser['id']}", fn() => $employee->allPermissionSlugs()) : [];
+        return in_array($slug, $permSlugs, true);
+    }
+
+    /**
+     * Get available Ticket Leads (employees with DSM qualification) — for admin/helpdesk/head assign
+     */
+    public function getAvailableTicketLeads(Request $request)
     {
         $sessionUser = session('user');
         if (!$sessionUser) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $roleId = $sessionUser['role']['id'] ?? 0;
-        $allowed = array_merge(
-            [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value],
-            RoleId::HELPDESK_GROUP
-        );
-        if (!in_array($roleId, $allowed, true)) {
+        $canAssignPic = $this->sessionUserCan($sessionUser, 'ticket.assign-pic');
+
+        // Jalur "team lead": ?ticket_id= diberikan dan user adalah Ticket Lead
+        // tiket tsb / Module Lead di module mana pun (tapi bukan role manajemen).
+        // Kandidat = anggota module tiket (kalau ada module_id), else daftar penuh.
+        if (!$canAssignPic && $request->filled('ticket_id')) {
+            $ticket = Ticket::find($request->input('ticket_id'));
+
+            if ($ticket && TicketTeamAccess::canManageAsLead((int) $sessionUser['id'], $ticket)) {
+                return response()->json([
+                    'success' => true,
+                    'data'    => TicketTeamAccess::candidatesForTicket($ticket, 'ticket.eligible-ticket-lead'),
+                ]);
+            }
+        }
+
+        if (!$canAssignPic) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
-        $pics = DB::table('employee')
-            ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-            ->where('employee.role_id', RoleId::EMPLOYEE->value)
-            ->select(
-                'employee.employee_id',
-                DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as name")
-            )
-            ->orderBy('employee_basic_data.first_name')
-            ->get();
+        $pics = Employee::withMenuPermission('ticket.eligible-ticket-lead')
+            ->eligibleForTicketTeam()
+            ->with('basicData:employee_id,first_name,last_name')
+            ->get()
+            ->map(fn($e) => [
+                'employee_id' => $e->employee_id,
+                'name'        => $e->basicData
+                                    ? trim(($e->basicData->first_name ?? '') . ' ' . ($e->basicData->last_name ?? ''))
+                                    : $e->eci,
+            ])
+            ->filter(fn($e) => $e['name'] !== '')
+            ->sortBy('name')
+            ->values();
 
         return response()->json(['success' => true, 'data' => $pics]);
     }
 
     /**
-     * Assign PIC directly (Admin / Helpdesk / Head of Support only) — no confirmation needed
+     * Assign Ticket Lead directly — gated by the ticket.assign-pic permission (same as the
+     * "Assign Ticket Lead" button in the ticket detail sidebar).
      */
-    public function assignPic(Request $request, $id)
+    public function assignTicketLead(Request $request, $id)
     {
         $sessionUser = session('user');
         if (!$sessionUser) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $roleId = $sessionUser['role']['id'] ?? 0;
-        $allowed = array_merge(
-            [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value],
-            RoleId::HELPDESK_GROUP
-        );
-        if (!in_array($roleId, $allowed, true)) {
-            return response()->json(['success' => false, 'message' => 'Only Admin, Helpdesk, or Head of Support can assign a PIC'], 403);
+        $ticket = Ticket::findOrFail($id);
+
+        $canAssignPic = $this->sessionUserCan($sessionUser, 'ticket.assign-pic');
+        $isLeadPath   = !$canAssignPic
+            && TicketTeamAccess::canManageAsLead((int) $sessionUser['id'], $ticket);
+
+        if (!$canAssignPic && !$isLeadPath) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to assign a Ticket Lead'], 403);
         }
 
         $validator = Validator::make($request->all(), [
-            'employee_id' => 'required|exists:employee,employee_id',
+            'ticket_lead_id' => 'required|exists:employee,employee_id',
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        try {
-            $ticket = Ticket::findOrFail($id);
+        // Employee nonaktif / diblokir / ditandai untuk dihapus tidak boleh jadi
+        // Ticket Lead — dicek di sini juga (bukan cuma filter dropdown) supaya
+        // request langsung ke API tidak bisa membypass.
+        if (!TicketTeamAccess::isEligibleEmployee((int) $request->ticket_lead_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee ini nonaktif, diblokir, atau ditandai untuk dihapus dan tidak bisa dijadikan Ticket Lead.',
+            ], 422);
+        }
 
-            if ($ticket->employee_id !== null) {
-                return response()->json(['success' => false, 'message' => 'Ticket already has a PIC assigned'], 400);
+        // Ticket Lead / Module Lead hanya boleh menunjuk lead dari anggota module tiket ini.
+        // (Hanya berlaku untuk tiket yang sudah punya modul — bisa lebih dari satu.)
+        if ($isLeadPath && $ticket->module_id
+            && !in_array((int) $request->ticket_lead_id, TicketTeamAccess::moduleCandidateIds($ticket->modules->pluck('id')->all()), true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ticket Lead harus dipilih dari anggota module tiket ini.',
+            ], 422);
+        }
+
+        try {
+            $isFirstAssign = $ticket->ticket_lead_id === null;
+
+            $leadName = DB::table('employee')
+                ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+                ->where('employee.employee_id', $request->ticket_lead_id)
+                ->selectRaw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as full_name")
+                ->value('full_name');
+
+            $updateData = array_filter([
+                'ticket_lead_id' => $request->ticket_lead_id,
+                'status'         => 'inprocess',
+                'start_date'     => $isFirstAssign ? now() : null,
+            ], fn ($v) => $v !== null);
+
+            if ($leadName) {
+                $updateData['pic'] = trim($leadName);
             }
 
-            $ticket->update([
-                'employee_id'    => $request->employee_id,
-                'jarvies_status' => 'in process',
-                'start_date'     => now(),
-            ]);
+            $ticket->update($updateData);
+            $ticket->refreshPlaceholderManDays();
+            $ticket->syncDraftResolutionMembers();
 
-            return response()->json(['success' => true, 'message' => 'PIC assigned successfully']);
+            return response()->json(['success' => true, 'message' => $isFirstAssign ? 'Ticket Lead assigned successfully' : 'Ticket Lead updated successfully']);
         } catch (\Exception $e) {
-            Log::error('Error assigning PIC:', ['error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'Failed to assign PIC'], 500);
+            Log::error('Error assigning Ticket Lead:', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to assign Ticket Lead'], 500);
         }
+    }
+
+    /**
+     * Update the PIC (in charge) field for a ticket.
+     * Accessible by team members: admin, helpdesk, head, ticket lead, active members.
+     */
+    public function updatePic(Request $request, $id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'pic' => 'required|string|max:255',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $ticket = Ticket::with('members')->findOrFail($id);
+
+        $userId = $sessionUser['id'];
+        $roleId = $sessionUser['role']['id'] ?? 0;
+
+        $isTeamMember = in_array($roleId, array_merge(
+            RoleId::TICKET_MANAGER_GROUP,
+            [RoleId::DELIVERY_SUPPORT_HEAD->value]
+        ), true)
+            || $ticket->ticket_lead_id == $userId
+            || $ticket->members->contains('employee_id', $userId)
+            || TicketTeamAccess::canManageAsLead((int) $userId, $ticket); // Ticket Lead tiket ini / Module Lead
+
+        if (!$isTeamMember) {
+            return response()->json(['success' => false, 'message' => 'Only team members can update PIC'], 403);
+        }
+
+        $ticket->update(['pic' => $request->pic]);
+
+        return response()->json(['success' => true, 'message' => 'PIC updated successfully']);
     }
 
     /**
@@ -1008,7 +2553,7 @@ class TicketController extends Controller
         $sessionUser = session('user');
         
         // Only admin can update man days
-        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
+        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Only admin can update man days.'
@@ -1030,8 +2575,8 @@ class TicketController extends Controller
         try {
             $ticket = Ticket::findOrFail($id);
             
-            // Check if ticket is confirmed (has employee_id)
-            if (!$ticket->employee_id) {
+            // Check if ticket is confirmed (has ticket_lead_id)
+            if (!$ticket->ticket_lead_id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Ticket must be assigned and confirmed first'
@@ -1134,11 +2679,11 @@ class TicketController extends Controller
                 ], 401);
             }
 
-            $ticket = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
+            $ticket = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData'])
                 ->findOrFail($id);
 
             // Customer can only see their own tickets
-            if ($sessionUser['role']['id'] === RoleId::INTERNSHIP->value) {
+            if ($sessionUser['role']['id'] === RoleId::EC_USER->value) {
                 if ((int) $ticket->customer_id !== (int) $sessionUser['id']) {
                     return response()->json([
                         'success' => false,
@@ -1147,8 +2692,22 @@ class TicketController extends Controller
                 }
             }
 
+            // External employee: hanya bisa lihat ticket yang dia handle
+            $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+            if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
+                $employeeId = $sessionUser['id'];
+                $isLead     = (int) $ticket->ticket_lead_id === $employeeId;
+                $isMember   = $ticket->members->contains('employee_id', $employeeId);
+                if (!$isLead && !$isMember) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Access denied'
+                    ], 403);
+                }
+            }
+
             // Employee harus punya DSM qualification (kecuali Admin)
-            if ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value && !$this->isEmployeeQualified($sessionUser['id'])) {
+            if ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value && !$this->isEmployeeQualified($sessionUser['id'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You are not qualified for this section. DSM qualification required.'
@@ -1160,16 +2719,23 @@ class TicketController extends Controller
                 'ticket_id' => $ticket->ticket_id,
                 'ticket_number' => $ticket->ticket_number,
                 'customer_id' => $ticket->customer_id,
-                'employee_id' => $ticket->employee_id,
+                'ticket_lead_id' => $ticket->ticket_lead_id,
                 'description' => $ticket->description,
                 'ticket_priority' => $ticket->ticket_priority,
                 'ticket_type' => $ticket->ticket_type,
                 'scale' => $ticket->scale,
-                'jarvies_status' => $ticket->jarvies_status,
                 'status' => $ticket->status,
                 'channel' => $ticket->channel,
                 'folder' => $ticket->folder,
                 'file_log' => $ticket->file_log,
+                // Link folder deliverable OneDrive (scoped ke folder ticket saja).
+                // Ini anonymous edit-link yang dibuat pada folder ticket di
+                // TicketDeliverableController::store — customer yang membuka link
+                // hanya melihat isi folder ticket ini (tidak bisa naik ke folder
+                // customer/CUSTOMER DELIVERABLE, sehingga tidak melihat customer lain).
+                // Null selama belum ada file deliverable yang diupload (folder lazy-create).
+                'deliverable_folder_url' => $ticket->onedrive_folder_url,
+                'has_deliverable_folder' => !empty($ticket->onedrive_folder_url),
                 'start_date' => $ticket->start_date,
                 'end_date' => $ticket->end_date,
                 'man_days' => $ticket->man_days,
@@ -1185,9 +2751,9 @@ class TicketController extends Controller
                 ] : null,
                 'end_customer_id'   => $ticket->end_customer_id,
                 'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
-                'employee' => $ticket->employee ? [
-                    'employee_id' => $ticket->employee->employee_id,
-                    'employee_name' => $ticket->employee->basicData->first_name ?? 'Unknown',
+                'employee' => $ticket->ticketLead ? [
+                    'employee_id' => $ticket->ticketLead->employee_id,
+                    'employee_name' => $ticket->ticketLead->basicData->first_name ?? 'Unknown',
                 ] : null,
                 'members' => $ticket->members->map(function($member) {
                     return [
@@ -1221,38 +2787,66 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
 
-        $roleId     = $sessionUser['role']['id'] ?? 0;
-        $isAdmin    = $roleId === RoleId::ADMIN->value;
-        $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
-        $isEmployee = $roleId !== RoleId::INTERNSHIP->value && $roleId > 0;
-
         if (!$sessionUser) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        // Employees other than admin/helpdesk may ONLY self-assign PIC on unassigned tickets.
-        // All other fields require admin or helpdesk.
-        $ticketForCheck = Ticket::find($id);
-        $requestKeys    = array_keys($request->except(['_token', '_method']));
-        $isSelfAssignOnly = !$isAdmin && !$isHelpdesk
-            && $requestKeys === ['employee_id']
-            && $ticketForCheck
-            && $ticketForCheck->employee_id === null;
+        // Otorisasi edit field murni dari Manajemen → Roles/Permissions, tidak ada lagi
+        // grup role hardcode (dulu RoleId::EC_ADMINISTRATOR / TICKET_MANAGER_GROUP) sebagai
+        // fallback — role manapun harus di-assign permission ini agar bisa edit.
+        $canEditFields  = $this->sessionUserCan($sessionUser, 'ui.ticket.edit-fields');
+        $canEditAddInfo = $this->sessionUserCan($sessionUser, 'ui.ticket.edit-additional-info');
 
-        if (!$isAdmin && !$isHelpdesk && !$isSelfAssignOnly) {
+        // Pengecualian employee_type (external/internal) tetap hardcode karena bukan bagian
+        // dari menu Roles/Permissions — EC Administrator dikecualikan dari batasan ini.
+        $isAdmin = ($sessionUser['role']['id'] ?? 0) === RoleId::EC_ADMINISTRATOR->value;
+        $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+        if ($isExternalEmployee && !$isAdmin) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only admin or helpdesk can update ticket'
+                'message' => 'External employees cannot update tickets'
             ], 403);
         }
 
+        // Tanpa ui.ticket.edit-fields, employee hanya boleh self-assign PIC pada ticket yang
+        // masih unassigned, ATAU mengedit Additional Info saja bila punya ui.ticket.edit-additional-info.
+        $ticketForCheck = Ticket::find($id);
+        $requestKeys    = array_keys($request->except(['_token', '_method']));
+        $isSelfAssignOnly = $requestKeys === ['ticket_lead_id']
+            && $ticketForCheck
+            && $ticketForCheck->ticket_lead_id === null;
+
+        $addInfoKeys   = ['name', 'no_hp', 'module', 'module_id', 'module_ids', 'client'];
+        $isAddInfoOnly = $canEditAddInfo
+            && $requestKeys !== []
+            && count(array_diff($requestKeys, $addInfoKeys)) === 0;
+
+        if (!$canEditFields && !$isSelfAssignOnly && !$isAddInfoOnly) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to update this ticket'
+            ], 403);
+        }
+
+        // Select kosong ("-- none --") dikirim sebagai string kosong; treat sebagai null
+        // supaya lolos rule nullable|exists dan bisa dipakai untuk clear module_id.
+        if ($request->has('module_id') && $request->input('module_id') === '') {
+            $request->merge(['module_id' => null]);
+        }
+
         $validator = Validator::make($request->all(), [
-            'jarvies_status' => 'sometimes|string|in:in process,author action,proposed solution,closed,sent in to SAP,sent it to support',
             'ticket_priority' => 'sometimes|string|in:Very High,High,Medium,Low',
-            'ticket_type'    => 'sometimes|nullable|string|in:Incident,Service Request,Change Request,Consult',
+            'ticket_type'    => 'sometimes|nullable|string|in:Incident,Change Request,Service Request,EWA,RISE,Consult,Internal',
             'scale'          => 'sometimes|nullable|string|in:Simple,Medium,Complex',
-            'employee_id'    => 'sometimes|nullable|exists:employee,employee_id',
+            'ticket_lead_id' => 'sometimes|nullable|exists:employee,employee_id',
             'man_days'       => 'sometimes|nullable|numeric|min:0|max:9999.99',
+            'name'           => 'sometimes|nullable|string|max:255',
+            'no_hp'          => 'sometimes|nullable|string|max:255',
+            'module'         => 'sometimes|nullable|string|max:255',
+            'module_id'      => 'sometimes|nullable|exists:modules,id',
+            'module_ids'     => 'sometimes|nullable|array',
+            'module_ids.*'   => 'integer|exists:modules,id',
+            'client'         => 'sometimes|nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -1263,40 +2857,76 @@ class TicketController extends Controller
             ], 422);
         }
 
+        // Employee nonaktif / diblokir / ditandai untuk dihapus tidak boleh
+        // di-assign sebagai Ticket Lead lewat endpoint update ini juga.
+        if (!empty($request->ticket_lead_id) && !TicketTeamAccess::isEligibleEmployee((int) $request->ticket_lead_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee ini nonaktif, diblokir, atau ditandai untuk dihapus dan tidak bisa dijadikan Ticket Lead.',
+            ], 422);
+        }
+
         try {
             $ticket = Ticket::findOrFail($id);
 
             // Build update data from validated fields
             $updateData = [];
 
-            if ($request->has('jarvies_status') && ($isAdmin || $isHelpdesk)) {
-                $updateData['jarvies_status'] = $request->jarvies_status;
-            }
-            if ($request->has('ticket_priority') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('ticket_priority') && $canEditFields) {
                 $updateData['ticket_priority'] = $request->ticket_priority;
             }
-            if ($request->has('ticket_type') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('ticket_type') && $canEditFields) {
                 $updateData['ticket_type'] = $request->ticket_type;
             }
-            if ($request->has('scale') && ($isAdmin || $isHelpdesk)) {
+            if ($request->has('scale') && $canEditFields) {
                 $updateData['scale'] = $request->scale;
             }
-            if ($request->has('employee_id')) {
-                $updateData['employee_id'] = $request->employee_id;
-                // Jika sebelumnya unassigned dan sekarang di-assign PIC → otomatis in process
-                if ($ticket->employee_id === null && !empty($request->employee_id)) {
-                    $updateData['jarvies_status'] = 'in process';
+            if ($request->has('ticket_lead_id')) {
+                $updateData['ticket_lead_id'] = $request->ticket_lead_id;
+                // Jika sebelumnya unassigned dan sekarang di-assign Ticket Lead → otomatis inprocess
+                if ($ticket->ticket_lead_id === null && !empty($request->ticket_lead_id)) {
+                    $updateData['status'] = 'inprocess';
                 }
             }
-            if ($request->has('man_days') && $isAdmin) {
+            if ($request->has('man_days') && $canEditFields) {
                 $updateData['man_days'] = $request->man_days;
+            }
+            // Additional Info fields: khusus pemegang permission ui.ticket.edit-additional-info
+            if ($request->has('name') && $canEditAddInfo) {
+                $updateData['name'] = $request->name ?: null;
+            }
+            if ($request->has('no_hp') && $canEditAddInfo) {
+                $updateData['no_hp'] = $request->no_hp ?: null;
+            }
+            if ($request->has('module') && $canEditAddInfo) {
+                $updateData['module'] = $request->module ?: null;
+            }
+            if ($request->has('client') && $canEditAddInfo) {
+                $updateData['client'] = $request->client ?: null;
             }
 
             if (!empty($updateData)) {
                 $ticket->update($updateData);
+
+                if (array_key_exists('ticket_lead_id', $updateData) && !array_key_exists('man_days', $updateData)) {
+                    $ticket->refreshPlaceholderManDays();
+                    $ticket->syncDraftResolutionMembers();
+                }
             }
 
-            $ticket->load(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData']);
+            // module_id/modules ditulis lewat syncModules(), terpisah dari $updateData
+            // di atas — module_ids bisa jadi SATU-SATUNYA field yang berubah (mis. cuma
+            // ganti modul tanpa menyentuh field lain), jadi tidak boleh terikat pada
+            // !empty($updateData). Terima module_ids[] (baru) atau module_id tunggal
+            // (lama, termasuk string kosong "-- none --" → clear semua modul).
+            if ($canEditAddInfo && ($request->has('module_ids') || $request->has('module_id'))) {
+                $moduleIds = $request->has('module_ids')
+                    ? (array) $request->input('module_ids', [])
+                    : array_filter([$request->input('module_id') ?: null]);
+                $ticket->syncModules($moduleIds);
+            }
+
+            $ticket->load(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData']);
 
             return response()->json([
                 'success' => true,
@@ -1333,15 +2963,16 @@ class TicketController extends Controller
             }
 
             // Employee harus punya DSM qualification (kecuali Admin)
-            if ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value && !$this->isEmployeeQualified($sessionUser['id'])) {
+            if ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value && !$this->isEmployeeQualified($sessionUser['id'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You are not qualified for this section. DSM qualification required.'
                 ], 403);
             }
 
-            $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
-                ->where('jarvies_status', $status)
+            $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData'])
+                ->whereNull('is_hidden')
+                ->where('status', $status)
                 ->orderBy('created_at', 'desc');
 
             // Admin (role_id = 1) bisa lihat semua
@@ -1379,25 +3010,27 @@ class TicketController extends Controller
             }
 
             // Employee harus punya DSM qualification (kecuali Admin)
-            if ($sessionUser['role']['id'] === RoleId::EMPLOYEE->value && !$this->isEmployeeQualified($sessionUser['id'])) {
+            if ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value && !$this->isEmployeeQualified($sessionUser['id'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You are not qualified for this section. DSM qualification required.'
                 ], 403);
             }
 
-            $query = Ticket::query();
+            $query = Ticket::whereNull('is_hidden');
 
             // Admin (role_id = 1) dan Employee dengan DSM bisa lihat semua statistik
 
             $stats = [
-                'total' => (clone $query)->count(),
-                'in_process' => (clone $query)->where('jarvies_status', 'in process')->count(),
-                'author_action' => (clone $query)->where('jarvies_status', 'author action')->count(),
-                'proposed_solution' => (clone $query)->where('jarvies_status', 'proposed solution')->count(),
-                'closed' => (clone $query)->where('jarvies_status', 'closed')->count(),
-                'sent_to_sap' => (clone $query)->where('jarvies_status', 'sent in to SAP')->count(),
-                'sent_to_support' => (clone $query)->where('jarvies_status', 'sent it to support')->count(),
+                'total'                   => (clone $query)->count(),
+                'open'                    => (clone $query)->where('status', 'open')->count(),
+                'inprocess'               => (clone $query)->where('status', 'inprocess')->count(),
+                'waiting_on_customer'     => (clone $query)->where('status', 'waiting_on_customer')->count(),
+                'waiting_on_3rd_party'    => (clone $query)->where('status', 'waiting_on_3rd_party')->count(),
+                'waiting_to_confirmation' => (clone $query)->where('status', 'waiting_to_confirmation')->count(),
+                'hold'                    => (clone $query)->where('status', 'hold')->count(),
+                'cancelled'               => (clone $query)->where('status', 'cancelled')->count(),
+                'closed'                  => (clone $query)->where('status', 'closed')->count(),
                 'by_priority' => [
                     'high' => (clone $query)->where('ticket_priority', 'High')->count(),
                     'medium' => (clone $query)->where('ticket_priority', 'Medium')->count(),
@@ -1420,42 +3053,127 @@ class TicketController extends Controller
     }
 
     /**
-     * Update ticket status (status field, not jarvies_status)
-     * Admin only
+     * Resolve email PELAPOR tiket dari berbagai sumber (urutan prioritas):
+     * 1. ticket.submitted_by_email          — diisi saat tiket dibuat via email (initiateEmail) / import CSV
+     * 2. staging_tickets.submitted_by_email — dari Jarvies / email masuk yang sudah diapprove
+     * 3. ticket_message.sender_email        — pesan pertama customer (fallback tiket email)
+     * 4. customer.email                     — Company Email (fallback terakhir)
+     *
+     * Sinkron dengan TicketMessageController::resolveCustomerEmail().
+     */
+    private function resolveCustomerEmail(Ticket $ticket): ?string
+    {
+        if (!empty($ticket->submitted_by_email)) {
+            return $ticket->submitted_by_email;
+        }
+
+        $submittedEmail = DB::table('staging_tickets')
+            ->where('ticket_id', $ticket->ticket_id)
+            ->whereNotNull('submitted_by_email')
+            ->value('submitted_by_email');
+        if ($submittedEmail) {
+            return $submittedEmail;
+        }
+
+        $firstMsg = TicketMessage::where('ticket_id', $ticket->ticket_id)
+            ->where('sender_type', 'customer')
+            ->whereNotNull('sender_email')
+            ->orderBy('created_at', 'asc')
+            ->first();
+        if ($firstMsg?->sender_email) {
+            return $firstMsg->sender_email;
+        }
+
+        if ($ticket->customer_id) {
+            return Customer::find($ticket->customer_id)?->email;
+        }
+
+        return null;
+    }
+
+    /**
+     * Update ticket status — unified single field
+     * Admin / Helpdesk only
      */
     public function updateTicketStatus(Request $request, $id)
     {
         $sessionUser = session('user');
-        
-        $roleId = $sessionUser['role']['id'] ?? 0;
-        if (!$sessionUser || !in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true)) {
+
+        if (!$sessionUser) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only admin or helpdesk can update ticket status'
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+
+        // Otorisasi murni dari Manajemen → Roles/Permissions (slug ui.ticket.edit-fields),
+        // tidak ada lagi grup role hardcode (dulu RoleId::TICKET_MANAGER_GROUP) sebagai fallback.
+        if (!$this->sessionUserCan($sessionUser, 'ui.ticket.edit-fields')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to update this ticket status'
             ], 403);
         }
 
+        $allowed = 'open,inprocess,waiting_on_customer,waiting_on_3rd_party,waiting_to_confirmation,hold,cancelled,closed';
+
         $validator = Validator::make($request->all(), [
-            'status' => 'required|string|in:open,in_progress,hold,cancel,closed,reply,wait_to_close',
+            'status' => "required|string|in:{$allowed}",
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ticket status is invalid. Allowed values: open, in_progress, hold, cancel, closed, reply, wait_to_close.',
-                'errors' => $validator->errors()
+                'message' => "Ticket status is invalid. Allowed values: {$allowed}.",
+                'errors'  => $validator->errors()
             ], 422);
         }
 
         try {
             $ticket = Ticket::findOrFail($id);
 
+            // Track when the ticket actually closed — needed for the "Close Date" column
+            // (independent of updated_at, which changes on any later edit, not just closing).
+            // Cleared on reopen so a stale close date doesn't linger.
             $ticket->update([
-                'status' => $request->status
+                'status'   => $request->status,
+                'end_date' => $request->status === 'closed' ? now() : ($ticket->status === 'closed' ? null : $ticket->end_date),
             ]);
 
+            // Notifikasi bell Jarvies — status berubah
+            if ($ticket->customer_id) {
+                $statusLabel = match ($request->status) {
+                    'closed'      => 'Closed',
+                    'cancelled'   => 'Cancelled',
+                    'open'        => 'Open',
+                    'in_progress' => 'In Progress',
+                    'resolved'    => 'Resolved',
+                    default       => ucfirst(str_replace('_', ' ', $request->status)),
+                };
+                \App\Services\CustomerNotificationService::notify(
+                    customerId: (int) $ticket->customer_id,
+                    type:       in_array($request->status, ['closed', 'cancelled']) ? 'ticket_closed' : 'ticket_status_changed',
+                    ticketId:   (int) $ticket->ticket_id,
+                    fromName:   'Helpdesk Support',
+                    preview:    'Your ticket #' . ($ticket->ticket_number ?? $ticket->ticket_id) . ' status has been updated to ' . $statusLabel . '.',
+                    link:       '/tickets/' . $ticket->ticket_id,
+                );
+            }
+
+            // Trigger SLA state transition (non-fatal)
+            try {
+                $ticket->load('sla');
+                app(SlaService::class)->handleStatusChange($ticket, $request->status);
+            } catch (\Throwable $e) {
+                Log::warning('TicketController@updateTicketStatus: SLA handleStatusChange gagal (non-fatal)', [
+                    'ticket_id' => $id,
+                    'status'    => $request->status,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+
             // Add system log and send email when ticket is closed or cancelled
-            if (in_array($request->status, ['closed', 'cancel'])) {
+            if (in_array($request->status, ['closed', 'cancelled'])) {
                 $userName  = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Unknown User';
                 $label     = $request->status === 'closed' ? 'Closed' : 'Cancelled';
                 $timestamp = now()->format('d/m/Y H:i');
@@ -1469,12 +3187,16 @@ class TicketController extends Controller
                     'updated_at'  => now(),
                 ]);
 
-                $customerEmail = $ticket->customer?->email
-                    ?? Customer::find($ticket->customer_id)?->email;
+                // Kirim ke PELAPOR (submitted_by_email dari Jarvies / email masuk),
+                // bukan ke Company Email. Company email hanya fallback terakhir.
+                $customerEmail = $this->resolveCustomerEmail($ticket);
 
                 if ($customerEmail) {
                     $ticketNum    = $ticket->ticket_number ?? $ticket->ticket_id;
-                    $subject      = 'Ticket #' . $ticketNum . ' - ' . $label;
+                    // Subject HARUS sama dengan subject thread ("[JARVIES] #XXXX : desc") agar
+                    // notifikasi status tetap satu thread di Outlook/Exchange (status sudah
+                    // dijelaskan di body). Subject berbeda → Exchange reset Thread-Index → pecah.
+                    $subject      = '[JARVIES] #' . $ticketNum . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
                     $htmlBody     = '<p>Your ticket <strong>#' . htmlspecialchars((string) $ticketNum) . '</strong> has been <strong>' . $label . '</strong>.</p>'
                                   . '<p>' . htmlspecialchars($logMessage) . '</p>';
                     $inReplyTo    = TicketMessage::where('ticket_id', $ticket->ticket_id)
@@ -1526,7 +3248,7 @@ class TicketController extends Controller
         try {
             $sessionUser = session('user');
             
-            if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
+            if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Admin only'
@@ -1592,12 +3314,15 @@ class TicketController extends Controller
         }
 
         $ticket  = Ticket::with('members.basicData')->findOrFail($id);
-        $roleId     = $sessionUser['role']['id'];
-        $isAdmin    = $roleId === RoleId::ADMIN->value;
-        $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
-        $isPic      = $roleId === RoleId::EMPLOYEE->value && $ticket->employee_id == $sessionUser['id'];
+        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id']]);
+        $isAdmin    = (bool) array_intersect($roleIds, [RoleId::EC_ADMINISTRATOR->value]);
+        $isHelpdesk = (bool) array_intersect($roleIds, RoleId::TICKET_MANAGER_GROUP);
+        $isPic      = in_array(RoleId::DELIVERY_SUPPORT_USER->value, $roleIds, true) && $ticket->ticket_lead_id == $sessionUser['id'];
+        // Jalur "team lead": Ticket Lead tiket ini (role apa pun) atau Module Lead module tiket.
+        $isLeadPath = !$isAdmin && !$isHelpdesk
+            && TicketTeamAccess::canManageAsLead((int) $sessionUser['id'], $ticket);
 
-        if (!$isAdmin && !$isHelpdesk && !$isPic) {
+        if (!$isAdmin && !$isHelpdesk && !$isPic && !$isLeadPath) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only Admin, Helpdesk, or the assigned PIC can add members.',
@@ -1611,25 +3336,83 @@ class TicketController extends Controller
         try {
             $empId = (int) $request->employee_id;
 
+            // Employee nonaktif / diblokir / ditandai untuk dihapus tidak boleh
+            // ditambahkan sebagai member.
+            if (!TicketTeamAccess::isEligibleEmployee($empId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee ini nonaktif, diblokir, atau ditandai untuk dihapus dan tidak bisa ditambahkan sebagai member.',
+                ], 422);
+            }
+
+            // Ticket Lead / Module Lead hanya boleh menambah member dari anggota module tiket ini.
+            // (Hanya berlaku untuk tiket yang sudah punya modul — bisa lebih dari satu.)
+            if ($isLeadPath && $ticket->module_id
+                && !in_array($empId, TicketTeamAccess::moduleCandidateIds($ticket->modules->pluck('id')->all()), true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Member harus dipilih dari anggota module tiket ini.',
+                ], 422);
+            }
+
             // Prevent adding PIC as member
-            if ($ticket->employee_id == $empId) {
+            if ($ticket->ticket_lead_id == $empId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'The assigned PIC cannot also be added as a member.',
                 ], 422);
             }
 
-            // Avoid duplicate — use wherePivot to avoid ambiguous column with BelongsToMany join
-            if (!$ticket->members()->wherePivot('employee_id', $empId)->exists()) {
-                $ticket->members()->attach($empId);
+            // Cek apakah sudah ada record (aktif atau nonaktif)
+            $existing = DB::table('ticket_member')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->where('employee_id', $empId)
+                ->first();
+
+            $isReactivation = false;
+            if ($existing) {
+                if ($existing->is_active) {
+                    return response()->json(['success' => false, 'message' => 'Employee is already a member.'], 422);
+                }
+                // Reaktivasi member yang sebelumnya dinonaktifkan
+                DB::table('ticket_member')
+                    ->where('ticket_id', $ticket->ticket_id)
+                    ->where('employee_id', $empId)
+                    ->update(['is_active' => true, 'updated_at' => now()]);
+                $isReactivation = true;
+            } else {
+                $ticket->members()->attach($empId, ['is_active' => true]);
             }
 
-            // Return updated members list
-            $ticket->load('members.basicData');
-            $members = $ticket->members->map(fn ($m) => [
-                'employee_id' => $m->employee_id,
-                'name'        => trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? '')),
-            ]);
+            $ticket->refreshPlaceholderManDays();
+            $ticket->syncDraftResolutionMembers();
+
+            // Return semua members (aktif + nonaktif) untuk UI
+            $ticket->load('allMembers.basicData');
+            $members = $this->formatAllMembers($ticket);
+
+            // Notifikasi
+            $actorId   = (int) $sessionUser['id'];
+            $actorName = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Someone';
+            $added     = $ticket->allMembers->firstWhere('employee_id', $empId);
+            $addedName = $added
+                ? trim(($added->basicData->first_name ?? '') . ' ' . ($added->basicData->last_name ?? ''))
+                : "Employee #{$empId}";
+
+            // is_active raw update / pivot attach() above never fires TicketMember's model
+            // events, so AuditObserver never runs for it — log it explicitly here instead.
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketMember',
+                auditableId: $ticket->ticket_id,
+                event: $isReactivation ? 'updated' : 'created',
+                recordLabel: "{$addedName} on Ticket #{$ticket->ticket_number}",
+                description: ($isReactivation ? 'reactivated member ' : 'added member ') . "{$addedName} on Ticket — Ticket #{$ticket->ticket_number}",
+                old: $isReactivation ? ['employee_id' => $empId, 'is_active' => false] : null,
+                new: ['employee_id' => $empId, 'is_active' => true],
+            );
+
+            $this->sendMemberNotifications($ticket, $actorId, $actorName, $empId, $addedName, $isReactivation ? 'reactivated' : 'added');
 
             return response()->json([
                 'success' => true,
@@ -1640,6 +3423,92 @@ class TicketController extends Controller
             Log::error('Error adding member:', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Failed to add member'], 500);
         }
+    }
+
+    /**
+     * Format allMembers collection untuk response JSON.
+     * Ticket lead ditampilkan terpisah sebagai PIC — row ticket_member miliknya
+     * (kalau ada, aktif/nonaktif) tidak diikutkan agar UI tidak menampilkan tombol
+     * "aktifkan kembali" yang pasti gagal karena PIC tidak boleh jadi member.
+     */
+    private function formatAllMembers(Ticket $ticket): array
+    {
+        return $ticket->allMembers
+            ->filter(fn ($m) => $m->employee_id != $ticket->ticket_lead_id)
+            ->map(fn ($m) => [
+                'employee_id' => $m->employee_id,
+                'name'        => trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? '')),
+                'is_active'   => (bool) $m->pivot->is_active,
+            ])->values()->toArray();
+    }
+
+    /**
+     * Kirim notifikasi ke member yang terdampak dan ke semua member aktif lain.
+     *
+     * @param Ticket $ticket         Ticket yang sudah di-load allMembers.basicData
+     * @param int    $actorId        employee_id pelaku aksi
+     * @param string $actorName      nama pelaku
+     * @param int    $targetId       employee_id member yang ditambah/dinonaktifkan/diaktifkan
+     * @param string $targetName     nama member yang ditambak/dinonaktifkan/diaktifkan
+     * @param string $action         'added' | 'removed' | 'reactivated'
+     */
+    private function sendMemberNotifications(
+        Ticket $ticket,
+        int    $actorId,
+        string $actorName,
+        int    $targetId,
+        string $targetName,
+        string $action
+    ): void {
+        $ticketNumber = $ticket->ticket_number ?? "#{$ticket->ticket_id}";
+        $link         = "/ticket/{$ticket->ticket_id}";
+        $type         = "ticket_member_{$action}";
+
+        $msgToTarget = match ($action) {
+            'added'       => "You have been added to ticket {$ticketNumber} by {$actorName}.",
+            'removed'     => "You have been removed from ticket {$ticketNumber} by {$actorName}.",
+            'reactivated' => "You have been re-added to ticket {$ticketNumber} by {$actorName}.",
+            default       => "Your membership on ticket {$ticketNumber} was updated by {$actorName}.",
+        };
+
+        $msgToOthers = match ($action) {
+            'added'       => "{$targetName} has been added to ticket {$ticketNumber} by {$actorName}.",
+            'removed'     => "{$targetName} has been removed from ticket {$ticketNumber} by {$actorName}.",
+            'reactivated' => "{$targetName} has been re-added to ticket {$ticketNumber} by {$actorName}.",
+            default       => "{$targetName}'s membership on ticket {$ticketNumber} was updated by {$actorName}.",
+        };
+
+        // Notif ke member yang terdampak (bukan aktor)
+        if ($targetId !== $actorId) {
+            Notification::create([
+                'employee_id'      => $targetId,
+                'type'             => $type,
+                'ticket_id'        => $ticket->ticket_id,
+                'from_employee_id' => $actorId,
+                'from_name'        => $actorName,
+                'preview'          => $msgToTarget,
+                'link'             => $link,
+                'is_read'          => false,
+            ]);
+        }
+
+        // Notif ke semua member aktif lain (kecuali target dan aktor)
+        $ticket->allMembers
+            ->filter(fn ($m) => (bool) $m->pivot->is_active
+                             && $m->employee_id !== $targetId
+                             && $m->employee_id !== $actorId)
+            ->each(function ($m) use ($actorId, $actorName, $type, $ticket, $link, $msgToOthers) {
+                Notification::create([
+                    'employee_id'      => $m->employee_id,
+                    'type'             => $type,
+                    'ticket_id'        => $ticket->ticket_id,
+                    'from_employee_id' => $actorId,
+                    'from_name'        => $actorName,
+                    'preview'          => $msgToOthers,
+                    'link'             => $link,
+                    'is_read'          => false,
+                ]);
+            });
     }
 
     /**
@@ -1654,11 +3523,14 @@ class TicketController extends Controller
 
         $ticket  = Ticket::findOrFail($id);
         $roleId     = $sessionUser['role']['id'];
-        $isAdmin    = $roleId === RoleId::ADMIN->value;
+        $isAdmin    = $roleId === RoleId::EC_ADMINISTRATOR->value;
         $isHelpdesk = in_array($roleId, RoleId::TICKET_MANAGER_GROUP, true);
-        $isPic      = $roleId === RoleId::EMPLOYEE->value && $ticket->employee_id == $sessionUser['id'];
+        $isPic      = $roleId === RoleId::DELIVERY_SUPPORT_USER->value && $ticket->ticket_lead_id == $sessionUser['id'];
+        // Jalur "team lead": Ticket Lead tiket ini (role apa pun) atau Module Lead module tiket.
+        $isLeadPath = !$isAdmin && !$isHelpdesk
+            && TicketTeamAccess::canManageAsLead((int) $sessionUser['id'], $ticket);
 
-        if (!$isAdmin && !$isHelpdesk && !$isPic) {
+        if (!$isAdmin && !$isHelpdesk && !$isPic && !$isLeadPath) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only Admin, Helpdesk, or the assigned PIC can manage members.'
@@ -1677,9 +3549,49 @@ class TicketController extends Controller
             ], 422);
         }
 
+        // Employee nonaktif / diblokir / ditandai untuk dihapus tidak boleh ada
+        // di daftar member.
+        $ineligible = array_values(array_filter(
+            array_map('intval', $request->member_ids),
+            fn ($empId) => !TicketTeamAccess::isEligibleEmployee($empId)
+        ));
+        if (!empty($ineligible)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Salah satu employee nonaktif, diblokir, atau ditandai untuk dihapus dan tidak bisa jadi member.',
+            ], 422);
+        }
+
+        // Jalur lead: semua member_ids harus anggota module tiket ini.
+        if ($isLeadPath && $ticket->module_id) {
+            $allowed = TicketTeamAccess::moduleCandidateIds($ticket->modules->pluck('id')->all());
+            $invalid = array_diff(array_map('intval', $request->member_ids), $allowed);
+            if (!empty($invalid)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Member harus dipilih dari anggota module tiket ini.',
+                ], 422);
+            }
+        }
+
         try {
-            // Sync members (akan replace existing)
+            // Sync members (akan replace existing) — sync() is a pivot-table operation,
+            // it never fires TicketMember's model events, so it needs an explicit audit call.
+            $oldMemberIds = $ticket->members()->pluck('employee.employee_id')->all();
             $ticket->members()->sync($request->member_ids);
+            $ticket->refreshPlaceholderManDays();
+            $ticket->syncDraftResolutionMembers();
+
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketMember',
+                auditableId: $ticket->ticket_id,
+                event: 'updated',
+                recordLabel: "Ticket #{$ticket->ticket_number} members",
+                description: "updated members on Ticket — Ticket #{$ticket->ticket_number}",
+                old: ['member_ids' => $oldMemberIds],
+                new: ['member_ids' => $request->member_ids],
+            );
 
             return response()->json([
                 'success' => true,
@@ -1706,7 +3618,7 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
         
-        $allowedRoles = [RoleId::EMPLOYEE->value, RoleId::HELPDESK->value, RoleId::RPMO->value];
+        $allowedRoles = [RoleId::DELIVERY_SUPPORT_USER->value, RoleId::DELIVERY_HELPDESK->value, RoleId::DELIVERY_RPMO_HEAD->value];
         if (!$sessionUser || !in_array($sessionUser['role']['id'], $allowedRoles, true)) {
             return response()->json([
                 'success' => false,
@@ -1730,7 +3642,7 @@ class TicketController extends Controller
             $ticket = Ticket::findOrFail($id);
             
             // Check if employee is the PIC
-            if ($ticket->employee_id != $sessionUser['id']) {
+            if ($ticket->ticket_lead_id != $sessionUser['id']) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Only the assigned PIC can request member changes'
@@ -1776,14 +3688,21 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $ticket     = Ticket::with('members.basicData')->findOrFail($ticketId);
-        $roleId     = $sessionUser['role']['id'];
-        $isAdmin    = $roleId === RoleId::ADMIN->value;
-        $isHoS      = $roleId === RoleId::HEAD_OF_SUPPORT->value;
-        $isHelpdesk = in_array($roleId, RoleId::HELPDESK_GROUP, true);
-        $isPic      = $roleId === RoleId::EMPLOYEE->value && $ticket->employee_id == $sessionUser['id'];
+        $ticket  = Ticket::with('members.basicData')->findOrFail($ticketId);
+        $roleIds = !empty($sessionUser['role_ids'])
+            ? array_map('intval', $sessionUser['role_ids'])
+            : DB::table('employee_role_assignment')
+                ->where('employee_id', (int) ($sessionUser['id'] ?? 0))
+                ->pluck('role_id')->map(fn($id) => (int) $id)->toArray();
+        $isAdmin    = in_array(RoleId::EC_ADMINISTRATOR->value, $roleIds, true);
+        $isHoS      = in_array(RoleId::DELIVERY_SUPPORT_HEAD->value, $roleIds, true);
+        $isManager  = in_array(RoleId::DELIVERY_SUPPORT_MANAGER->value, $roleIds, true);
+        $isHelpdesk = (bool) array_intersect($roleIds, RoleId::HELPDESK_GROUP);
+        $isPic      = in_array(RoleId::DELIVERY_SUPPORT_USER->value, $roleIds, true) && $ticket->ticket_lead_id == $sessionUser['id'];
+        // Jalur "team lead": Ticket Lead tiket ini (role apa pun) atau Module Lead module tiket.
+        $isLeadPath = TicketTeamAccess::canManageAsLead((int) $sessionUser['id'], $ticket);
 
-        if (!$isAdmin && !$isHoS && !$isHelpdesk && !$isPic) {
+        if (!$isAdmin && !$isHoS && !$isManager && !$isHelpdesk && !$isPic && !$isLeadPath) {
             return response()->json([
                 'success' => false,
                 'message' => 'Tidak memiliki akses untuk menghapus member.'
@@ -1791,33 +3710,53 @@ class TicketController extends Controller
         }
 
         try {
-            $member     = $ticket->members->firstWhere('employee_id', $employeeId);
+            $ticket->load('allMembers.basicData');
+            $member     = $ticket->allMembers->firstWhere('employee_id', $employeeId);
             $memberName = $member
                 ? trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? ''))
                 : null;
 
-            $ticket->members()->detach($employeeId);
-            $ticket->load('members.basicData');
+            // Nonaktifkan — tidak dihapus agar bisa direaktivasi
+            DB::table('ticket_member')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->where('employee_id', $employeeId)
+                ->update(['is_active' => false, 'updated_at' => now()]);
+
+            AuditLog::recordAction(
+                module: 'Ticket',
+                auditableType: 'TicketMember',
+                auditableId: $ticket->ticket_id,
+                event: 'updated',
+                recordLabel: ($memberName ?? "Employee #{$employeeId}") . " on Ticket #{$ticket->ticket_number}",
+                description: 'deactivated member ' . ($memberName ?? "#{$employeeId}") . " on Ticket — Ticket #{$ticket->ticket_number}",
+                old: ['employee_id' => (int) $employeeId, 'is_active' => true],
+                new: ['employee_id' => (int) $employeeId, 'is_active' => false],
+            );
+
+            $ticket->refreshPlaceholderManDays();
+            $ticket->syncDraftResolutionMembers();
+            $ticket->load('allMembers.basicData');
+
+            // Notifikasi
+            $actorId   = (int) $sessionUser['id'];
+            $actorName = $sessionUser['name'] ?? $sessionUser['email'] ?? 'Someone';
+            $this->sendMemberNotifications($ticket, $actorId, $actorName, (int) $employeeId, $memberName ?? "Employee #{$employeeId}", 'removed');
 
             return response()->json([
                 'success'       => true,
-                'message'       => 'Member removed successfully',
+                'message'       => 'Member deactivated successfully',
                 'employee_name' => $memberName,
-                'data'          => $ticket->members->map(fn ($m) => [
-                    'employee_id' => $m->employee_id,
-                    'name'        => trim(($m->basicData->first_name ?? '') . ' ' . ($m->basicData->last_name ?? '')),
-                ]),
+                'data'          => $this->formatAllMembers($ticket),
             ]);
         } catch (\Exception $e) {
-            Log::error('Error removing member:', [
-                'error' => $e->getMessage(),
+            Log::error('Error deactivating member:', [
+                'error'    => $e->getMessage(),
                 'error_at' => $e->getFile() . ':' . $e->getLine()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to remove member',
-                'error'   => $e->getMessage()
+                'message' => 'Failed to deactivate member',
             ], 500);
         }
     }
@@ -1829,7 +3768,7 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
         
-        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::EMPLOYEE->value) {
+        if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::DELIVERY_SUPPORT_USER->value) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only employees can request member removal'
@@ -1840,7 +3779,7 @@ class TicketController extends Controller
             $ticket = Ticket::findOrFail($ticketId);
             
             // Check if employee is the PIC
-            if ($ticket->employee_id != $sessionUser['id']) {
+            if ($ticket->ticket_lead_id != $sessionUser['id']) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Only the assigned PIC can request member removal'
@@ -1883,7 +3822,7 @@ class TicketController extends Controller
     {
         $sessionUser = session('user');
         
-        $allowedRoles = [RoleId::ADMIN->value, RoleId::HEAD_OF_SUPPORT->value];
+        $allowedRoles = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
         if (!$sessionUser || !in_array($sessionUser['role']['id'], $allowedRoles, true)) {
             return response()->json([
                 'success' => false,
@@ -1916,15 +3855,69 @@ class TicketController extends Controller
             if ($action === 'approve') {
                 $ticket = Ticket::findOrFail($changeRequest->ticket_id);
                 $memberIds = json_decode($changeRequest->member_ids, true);
-                
+
+                // Employee yang di-request bisa saja sudah di-block / ditandai untuk
+                // dihapus / dinonaktifkan SETELAH request diajukan — cek ulang di sini
+                // supaya approval tidak menghidupkan kembali membership employee semacam itu.
                 if ($changeRequest->change_type === 'update') {
-                    // Update members
-                    $ticket->members()->sync($memberIds);
-                } else if ($changeRequest->change_type === 'remove') {
-                    // Remove members
-                    $ticket->members()->detach($memberIds);
+                    $ineligible = array_values(array_filter(
+                        array_map('intval', $memberIds),
+                        fn ($empId) => !TicketTeamAccess::isEligibleEmployee($empId)
+                    ));
+                    if (!empty($ineligible)) {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Salah satu employee pada permintaan ini nonaktif, diblokir, atau ditandai untuk dihapus. Tolak permintaan ini dan minta pengajuan ulang.',
+                        ], 422);
+                    }
                 }
-                
+
+                $oldActiveMemberIds = DB::table('ticket_member')
+                    ->where('ticket_id', $ticket->ticket_id)
+                    ->where('is_active', true)
+                    ->pluck('employee_id')
+                    ->all();
+
+                if ($changeRequest->change_type === 'update') {
+                    // Nonaktifkan semua yang tidak ada di list baru, aktifkan yang ada
+                    $now = now();
+                    DB::table('ticket_member')
+                        ->where('ticket_id', $ticket->ticket_id)
+                        ->whereNotIn('employee_id', $memberIds)
+                        ->update(['is_active' => false, 'updated_at' => $now]);
+
+                    foreach ($memberIds as $empId) {
+                        DB::table('ticket_member')->updateOrInsert(
+                            ['ticket_id' => $ticket->ticket_id, 'employee_id' => $empId],
+                            ['is_active' => true, 'updated_at' => $now]
+                        );
+                    }
+                } else if ($changeRequest->change_type === 'remove') {
+                    // Nonaktifkan member yang diminta dihapus
+                    DB::table('ticket_member')
+                        ->where('ticket_id', $ticket->ticket_id)
+                        ->whereIn('employee_id', $memberIds)
+                        ->update(['is_active' => false, 'updated_at' => now()]);
+                }
+
+                AuditLog::recordAction(
+                    module: 'Ticket',
+                    auditableType: 'TicketMember',
+                    auditableId: $ticket->ticket_id,
+                    event: 'updated',
+                    recordLabel: "Ticket #{$ticket->ticket_number} members",
+                    description: "approved member change request ({$changeRequest->change_type}) on Ticket — Ticket #{$ticket->ticket_number}",
+                    old: ['active_employee_ids' => $oldActiveMemberIds],
+                    new: [
+                        'change_type' => $changeRequest->change_type,
+                        'requested_employee_ids' => $memberIds,
+                    ],
+                );
+
+                $ticket->refreshPlaceholderManDays();
+                $ticket->syncDraftResolutionMembers();
+
                 // Update request status
                 DB::table('member_change_requests')
                     ->where('change_request_id', $changeRequestId)
@@ -1977,7 +3970,7 @@ class TicketController extends Controller
         try {
             $sessionUser = session('user');
             
-            if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::ADMIN->value) {
+            if (!$sessionUser || $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Admin only'
@@ -1995,7 +3988,7 @@ class TicketController extends Controller
                     'ticket_confirmation.*',
                     'ticket.description',
                     'ticket.ticket_priority',
-                    'employee_basic_data.first_name as employee_name',
+                    DB::raw("COALESCE(NULLIF(employee_basic_data.nick_name, ''), employee_basic_data.first_name) as employee_name"),
                     DB::raw('COALESCE(customer_basic_data.name_1, customer.email) as customer_name')
                 )
                 ->first();
@@ -2058,7 +4051,7 @@ class TicketController extends Controller
             }
 
             // Admin, Helpdesk, and Head of Support can assign tickets to support
-            if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value, RoleId::HEAD_OF_SUPPORT->value], true)) {
+            if (!in_array($sessionUser['role']['id'], [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value, RoleId::DELIVERY_SUPPORT_HEAD->value], true)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Only Admin, Helpdesk, and Delivery Support Head can assign tickets to delivery support'
@@ -2136,7 +4129,7 @@ class TicketController extends Controller
         }
 
         // Admin, Helpdesk, and Head of Support can assign tickets
-        if (!in_array($sessionUser['role']['id'], [RoleId::ADMIN->value, RoleId::HELPDESK->value, RoleId::HEAD_OF_SUPPORT->value], true)) {
+        if (!in_array($sessionUser['role']['id'], [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_HELPDESK->value, RoleId::DELIVERY_SUPPORT_HEAD->value], true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only Admin, Helpdesk, and Delivery Support Head can assign tickets to delivery support'
@@ -2172,22 +4165,25 @@ class TicketController extends Controller
                 ], 404);
             }
 
-            // Check if ticket is already assigned to this support (check both ticket_id and notes for backward compatibility)
-            $existingActivity = DB::table('delivery_support_activities')
+            // Check if ticket is already assigned to this exact support
+            $sameSupport = DB::table('delivery_support_activities')
                 ->where('delivery_support_id', $supportId)
-                ->where(function ($query) use ($ticket) {
-                    $query->where('ticket_id', $ticket->ticket_id)
-                        ->orWhere('notes', 'like', '%Ticket #' . $ticket->ticket_id . '%');
-                })
-                ->first();
+                ->where('ticket_id', $ticket->ticket_id)
+                ->exists();
 
-            if ($existingActivity) {
+            if ($sameSupport) {
                 DB::rollBack();
                 return response()->json([
                     'success' => false,
-                    'message' => 'This ticket is already assigned to this delivery support'
+                    'message' => 'This ticket is already assigned to this delivery support.',
                 ], 400);
             }
+
+            // If ticket is in a different DS, remove the link there first (one DS per ticket rule)
+            DB::table('delivery_support_activities')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->whereNot('delivery_support_id', $supportId)
+                ->update(['ticket_id' => null, 'updated_at' => now()]);
 
             // Find the default "Support" phase
             $phase = DB::table('delivery_support_phases')
@@ -2232,14 +4228,12 @@ class TicketController extends Controller
                 default => 'medium'
             };
 
-            // Map status
-            $status = match (strtolower($ticket->status ?? '')) {
-                'open' => 'not_started',
-                'in_progress' => 'in_progress',
-                'hold' => 'on_hold',
-                'closed' => 'completed',
-                'cancel' => 'completed',
-                default => 'not_started'
+            // Map unified ticket status to activity status
+            $status = match ($ticket->status ?? '') {
+                'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation' => 'in_progress',
+                'hold'      => 'on_hold',
+                'closed', 'cancelled' => 'completed',
+                default     => 'not_started',
             };
 
             // Create activity from ticket
@@ -2268,8 +4262,9 @@ class TicketController extends Controller
             ]);
 
             // Create planning entry if group exists
+            $planningId = null;
             if ($group) {
-                DB::table('delivery_support_planning')->insert([
+                $planningId = DB::table('delivery_support_planning')->insertGetId([
                     'delivery_support_id' => $supportId,
                     'phase_id' => $phase->id,
                     'parent_id' => $group->id,
@@ -2288,11 +4283,11 @@ class TicketController extends Controller
                 ]);
             }
 
-            // Assign ticket PIC to activity if exists
-            if ($ticket->employee_id) {
+            // Assign ticket lead to activity if exists
+            if ($ticket->ticket_lead_id) {
                 DB::table('delivery_support_activity_employee')->insert([
                     'delivery_support_activity_id' => $activityId,
-                    'employee_id' => $ticket->employee_id,
+                    'employee_id' => $ticket->ticket_lead_id,
                     'role' => 'lead',
                     'allocation_percentage' => 100,
                     'is_active' => true,
@@ -2306,6 +4301,27 @@ class TicketController extends Controller
             // Note: The ticket table has a delivery_support relationship via DeliverySupport model
 
             DB::commit();
+
+            AuditLog::recordAction(
+                module: 'Delivery Support',
+                auditableType: 'DeliverySupport',
+                auditableId: $supportId,
+                event: 'updated',
+                recordLabel: $support->name ?? "Delivery Support #{$supportId}",
+                description: "assigned Ticket #{$ticket->ticket_number} to Delivery Support: " . ($support->name ?? "#{$supportId}"),
+                old: null,
+                new: [
+                    'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'activity_id' => $activityId,
+                    'planning_id' => $planningId,
+                    'phase_id' => $phase->id,
+                ],
+            );
+
+            // Now that the ticket is linked to a delivery support, apply the SLA policy
+            // (policy could not be matched at validation time because DS was not yet assigned)
+            app(\App\Services\SlaService::class)->syncPolicy($ticket);
 
             Log::info('Ticket assigned to delivery support', [
                 'ticket_id' => $ticket->ticket_id,
@@ -2358,7 +4374,8 @@ class TicketController extends Controller
         }
 
         // Only Admin, Helpdesk, and RPMO can create delivery supports
-        if (!in_array($sessionUser['role']['id'], RoleId::TICKET_MANAGER_GROUP, true)) {
+        $roleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id']]);
+        if (!array_intersect($roleIds, RoleId::TICKET_MANAGER_GROUP)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only Admin, Helpdesk, and RPMO can create delivery supports'
@@ -2367,7 +4384,7 @@ class TicketController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name'           => 'required|string|max:255',
-            'type'           => 'required|in:AMS,MO,ATS,Project,Internal',
+            'type'           => 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal',
             'support_method' => 'nullable|string|max:100',
         ]);
 
@@ -2448,12 +4465,15 @@ class TicketController extends Controller
 
             // Map ticket status to activity status
             $status = match (strtolower($ticket->status ?? '')) {
-                'open' => 'not_started',
-                'in_progress' => 'in_progress',
-                'hold' => 'on_hold',
-                'closed' => 'completed',
-                'cancel' => 'completed',
-                default => 'not_started'
+                'open'                    => 'not_started',
+                'inprocess'               => 'in_progress',
+                'waiting_on_customer',
+                'waiting_on_3rd_party',
+                'waiting_to_confirmation' => 'in_progress',
+                'hold'                    => 'on_hold',
+                'closed',
+                'cancelled'               => 'completed',
+                default                   => 'not_started',
             };
 
             // Map priority to complexity
@@ -2508,11 +4528,11 @@ class TicketController extends Controller
                 'updated_at' => now(),
             ]);
 
-            // Assign ticket PIC to activity if exists
-            if ($ticket->employee_id) {
+            // Assign ticket lead to activity if exists
+            if ($ticket->ticket_lead_id) {
                 DB::table('delivery_support_activity_employee')->insert([
                     'delivery_support_activity_id' => $activityId,
-                    'employee_id' => $ticket->employee_id,
+                    'employee_id' => $ticket->ticket_lead_id,
                     'role' => 'lead',
                     'allocation_percentage' => 100,
                     'is_active' => true,
@@ -2523,6 +4543,30 @@ class TicketController extends Controller
             }
 
             DB::commit();
+
+            AuditLog::recordAction(
+                module: 'Delivery Support',
+                auditableType: 'DeliverySupport',
+                auditableId: $supportId,
+                event: 'created',
+                recordLabel: $request->name,
+                description: "added Delivery Support: {$request->name} (from Ticket #{$ticket->ticket_number})",
+                old: null,
+                new: [
+                    'name' => $request->name,
+                    'type' => $request->type,
+                    'support_method' => $request->support_method,
+                    'client_id' => $ticket->customer_id,
+                    'ticket_id' => $ticket->ticket_id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'phase_id' => $phaseId,
+                    'group_id' => $groupId,
+                    'activity_id' => $activityId,
+                ],
+            );
+
+            // Apply SLA policy now that ticket is linked to a delivery support
+            app(\App\Services\SlaService::class)->syncPolicy($ticket);
 
             Log::info('Created delivery support from ticket', [
                 'ticket_id' => $ticket->ticket_id,
@@ -2556,6 +4600,145 @@ class TicketController extends Controller
                 'message' => 'Failed to create delivery support',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Hide a ticket (set is_hidden = 1).
+     * Requires permission: ticket.hide
+     */
+    public function hide($id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $employee = Employee::find($sessionUser['id'] ?? null);
+        if (!$employee || !$employee->hasPermission('ticket.hide')) {
+            return response()->json(['success' => false, 'message' => 'Access denied'], 403);
+        }
+
+        try {
+            $ticket = Ticket::findOrFail($id);
+
+            if ($ticket->is_hidden) {
+                return response()->json(['success' => false, 'message' => 'Ticket is already hidden'], 422);
+            }
+
+            $ticket->update(['is_hidden' => 1]);
+
+            Log::info('Ticket hidden', [
+                'ticket_id'   => $id,
+                'hidden_by'   => $sessionUser['id'],
+                'hidden_by_name' => $sessionUser['name'] ?? null,
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Ticket has been hidden']);
+        } catch (\Exception $e) {
+            Log::error('TicketController@hide: error', ['ticket_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to hide ticket'], 500);
+        }
+    }
+
+    /**
+     * Unhide a ticket (set is_hidden = null).
+     * Requires permission: ticket.hide
+     */
+    public function unhide($id)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $employee = Employee::find($sessionUser['id'] ?? null);
+        if (!$employee || !$employee->hasPermission('ticket.hide')) {
+            return response()->json(['success' => false, 'message' => 'Access denied'], 403);
+        }
+
+        try {
+            $ticket = Ticket::findOrFail($id);
+
+            if (!$ticket->is_hidden) {
+                return response()->json(['success' => false, 'message' => 'Ticket is not hidden'], 422);
+            }
+
+            $ticket->update(['is_hidden' => null]);
+
+            Log::info('Ticket unhidden', [
+                'ticket_id'     => $id,
+                'unhidden_by'   => $sessionUser['id'],
+                'unhidden_by_name' => $sessionUser['name'] ?? null,
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Ticket is now visible again']);
+        } catch (\Exception $e) {
+            Log::error('TicketController@unhide: error', ['ticket_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to unhide ticket'], 500);
+        }
+    }
+
+    /**
+     * List all hidden tickets.
+     * Requires permission: management.hidden-tickets
+     */
+    public function hiddenIndex()
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $employee = Employee::find($sessionUser['id'] ?? null);
+        if (!$employee || !$employee->hasPermission('management.hidden-tickets')) {
+            return response()->json(['success' => false, 'message' => 'Access denied'], 403);
+        }
+
+        try {
+            $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData'])
+                ->where('is_hidden', 1)
+                ->orderBy('last_message_at', 'desc')
+                ->get();
+
+            $data = $tickets->map(function ($ticket) {
+                return [
+                    'ticket_id'      => $ticket->ticket_id,
+                    'ticket_number'  => $ticket->ticket_number,
+                    'description'    => $ticket->description,
+                    'ticket_priority'=> $ticket->ticket_priority,
+                    'ticket_type'    => $ticket->ticket_type,
+                    'status'         => $ticket->status,
+                    'is_hidden'      => $ticket->is_hidden,
+                    'customer'       => $ticket->customer ? [
+                        'customer_id'   => $ticket->customer->customer_id,
+                        'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
+                        'customer_code' => $ticket->customer->customer_code,
+                    ] : null,
+                    'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
+                    'employee'       => $ticket->ticketLead ? [
+                        'employee_id'   => $ticket->ticketLead->employee_id,
+                        'employee_name' => $ticket->ticketLead->basicData->first_name ?? 'Unknown',
+                    ] : null,
+                    'members'        => $ticket->members->map(fn($m) => [
+                        'employee_id'   => $m->employee_id,
+                        'employee_name' => $m->basicData->first_name ?? 'Unknown',
+                    ]),
+                    'start_date'     => $ticket->start_date,
+                    'end_date'       => $ticket->end_date,
+                    'created_at'     => $ticket->created_at,
+                    'updated_at'     => $ticket->updated_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data'    => $data,
+                'message' => 'Hidden tickets retrieved successfully',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('TicketController@hiddenIndex: error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to retrieve hidden tickets'], 500);
         }
     }
 }

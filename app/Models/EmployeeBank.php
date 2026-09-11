@@ -4,14 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class EmployeeBank extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
+
+    protected static ?string $auditModule = 'Employee';
+    protected static array $auditExcept = ['account_number'];
 
     protected $table = 'employee_bank';
     protected $primaryKey = 'bank_id';
-    
+
     protected $fillable = [
         'employee_id',
         'bank_name',

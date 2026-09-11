@@ -14,37 +14,58 @@ class AttachmentController extends Controller
      * Proxy: ambil file attachment dari Microsoft Graph dan stream ke browser.
      *
      * Route: GET /attachments/{id}  (CheckAuthToken middleware)
+     *       atau GET /api/lite/attachments/{id}  (lite.auth middleware — Bearer token)
      *
      * File TIDAK disimpan di server — setiap request diambil langsung dari Graph.
      * Ini menghemat storage server sambil tetap menjaga keamanan akses (user harus login).
      */
     public function show(int $id)
     {
-        // Wajib login
-        $sessionUser = session('user');
+        // Wajib login — via session web biasa ATAU Bearer token Lite API
+        $sessionUser = session('user') ?? request()->attributes->get('lite_user');
         if (!$sessionUser) {
             abort(401, 'Authentication required. Please log in to access this resource.');
         }
 
         $attachment = TicketAttachment::findOrFail($id);
 
-        // Record lama: file disimpan lokal → redirect ke storage path
+        // File lokal (internal note / ticket non-email / record lama) → stream dari disk
+        // dengan Content-Disposition berisi file_name asli. Tanpa ini browser memakai
+        // nama hash acak dari path di disk.
         if (!$attachment->graph_message_id && $attachment->file_path) {
             $filePath = $attachment->file_path;
-            // Cegah path traversal: tolak path yang mengandung '..' atau dimulai dengan '/'
             abort_if(
                 str_contains($filePath, '..') || str_starts_with($filePath, '/') || str_starts_with($filePath, '\\'),
                 404,
                 'File tidak ditemukan.'
             );
             abort_if(!Storage::disk('public')->exists($filePath), 404, 'File tidak ditemukan.');
-            Log::info('AttachmentController: legacy file accessed', [
+
+            $filename  = $attachment->file_name ?? basename($filePath);
+            $mime      = $attachment->mime_type ?? Storage::disk('public')->mimeType($filePath) ?? 'application/octet-stream';
+            $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $filename));
+            // Sama seperti cabang Graph: inline (gambar) boleh dirender di tab,
+            // sisanya dipaksa download. Atribut download="" di <a> tetap memaksa
+            // unduh untuk yang inline, dengan nama dari filename header ini.
+            $disposition = $attachment->is_inline ? 'inline' : 'attachment';
+
+            Log::info('AttachmentController: local file accessed', [
                 'attachment_id' => $id,
-                'file_name'     => $attachment->file_name ?? $filePath,
+                'file_name'     => $filename,
                 'ticket_id'     => $attachment->ticket_id ?? null,
                 'accessed_by'   => $sessionUser['eci'] ?? $sessionUser['name'] ?? $sessionUser['id'] ?? 'unknown',
             ]);
-            return redirect(Storage::disk('public')->url($filePath));
+
+            return response()->stream(function () use ($filePath) {
+                $stream = Storage::disk('public')->readStream($filePath);
+                fpassthru($stream);
+                fclose($stream);
+            }, 200, [
+                'Content-Type'        => $mime,
+                'Content-Disposition' => $disposition . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($filename),
+                'Content-Length'      => Storage::disk('public')->size($filePath),
+                'Cache-Control'       => 'private, max-age=3600',
+            ]);
         }
 
         // Validasi: harus punya graph_message_id + graph_attachment_id
@@ -156,12 +177,45 @@ class AttachmentController extends Controller
             $data    = $response->json();
             $content = base64_decode($data['contentBytes'] ?? '');
 
+            // itemAttachment (email yang dilampirkan, mis. .eml) tidak menyediakan
+            // contentBytes. Ambil konten MIME mentah (RFC822) via endpoint /$value.
+            if (empty($content)) {
+                $odataType = $data['@odata.type'] ?? '';
+                $isItem    = str_contains($odataType, 'itemAttachment')
+                          || $attachment->mime_type === 'message/rfc822';
+                if ($isItem) {
+                    $valueResp = Http::withToken($token)->get(
+                        "{$baseUrl}/users/{$sender}/messages/{$attachment->graph_message_id}/attachments/{$attachment->graph_attachment_id}/\$value"
+                    );
+                    if ($valueResp->successful()) {
+                        $content = $valueResp->body();
+                    } else {
+                        Log::warning('AttachmentController@show: gagal fetch /$value untuk itemAttachment', [
+                            'attachment_id' => $id,
+                            'status'        => $valueResp->status(),
+                        ]);
+                    }
+                }
+            }
+
             if (empty($content)) {
                 abort(404, 'The file content is empty. The attachment may be corrupted or unavailable.');
             }
 
             $mime     = $data['contentType'] ?? $attachment->mime_type ?? 'application/octet-stream';
             $filename = $data['name'] ?? $attachment->file_name ?? 'attachment';
+
+            // Email yang dilampirkan: pastikan mime message/rfc822 + ekstensi .eml
+            // agar terunduh dan terbuka sebagai file email yang benar.
+            if ($attachment->mime_type === 'message/rfc822' || str_contains($mime, 'rfc822')) {
+                $mime = 'message/rfc822';
+                if ($attachment->file_name) {
+                    $filename = $attachment->file_name;
+                }
+                if (!preg_match('/\.eml$/i', $filename)) {
+                    $filename .= '.eml';
+                }
+            }
 
             Log::info('AttachmentController: file downloaded via Graph', [
                 'attachment_id' => $id,
@@ -174,9 +228,11 @@ class AttachmentController extends Controller
             // Inline: tampilkan di browser (gambar, PDF). Attachment: paksa download.
             $disposition = $attachment->is_inline ? 'inline' : 'attachment';
 
+            $asciiName = str_replace(['"', '\\', "\r", "\n"], '', preg_replace('/[^\x20-\x7E]/', '_', $filename));
+
             return response($content, 200)
                 ->header('Content-Type', $mime)
-                ->header('Content-Disposition', $disposition . '; filename="' . rawurlencode($filename) . '"')
+                ->header('Content-Disposition', $disposition . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($filename))
                 ->header('Content-Length', strlen($content))
                 ->header('Cache-Control', 'private, max-age=3600');
 

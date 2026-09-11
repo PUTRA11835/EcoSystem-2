@@ -47,6 +47,13 @@ function initCustomDropdowns(root) {
         // Store panel ref so _selectItem can find it even when detached (fixed mode)
         dd._ddPanel = panel;
 
+        // Multi-select mode (data-multi="true"): pre-fill checked state + label
+        // from the hidden input's comma-separated value (set server-side for
+        // edit/show pages where some items are already selected).
+        if (dd.dataset.multi === 'true') {
+            _syncMultiVisualState(dd);
+        }
+
         // Wire up search input. Tiga kondisi yang trigger:
         // 1. Hardcoded di HTML (`<input class="custom-dd-search">` sudah ada di markup)
         //    — selalu wire up, tidak peduli threshold. Ini pattern yang dipakai untuk
@@ -141,7 +148,11 @@ function initCustomDropdowns(root) {
             const text       = item.textContent.trim();
             const owner      = panel._ddOwner || dd;
             const onchangeFn = owner.dataset.onchange;
-            _selectItem(owner, val, text);
+            if (owner.dataset.multi === 'true') {
+                _toggleMultiItem(owner, item, val);
+            } else {
+                _selectItem(owner, val, text);
+            }
             if (onchangeFn && typeof window[onchangeFn] === 'function') {
                 window[onchangeFn]();
             }
@@ -157,43 +168,25 @@ function initCustomDropdowns(root) {
 }
 
 function _onScrollMaybeClose(e) {
-    // Scroll di dalam panel itu sendiri (user sedang scroll opsi) → biarkan.
+    // Scroll di dalam panel itu sendiri (user sedang scroll daftar opsi) → biarkan.
     const t = e.target;
     if (t && t.nodeType === 1 && t.closest && t.closest('.custom-dd-panel')) return;
 
-    // Untuk panel mode fixed, REPOSISI mengikuti tombol bukan tutup — UX lebih
-    // baik & tidak frustrating saat user scroll halaman dengan dropdown terbuka.
-    // Kalau tombol sudah keluar viewport, baru tutup karena panel jadi
-    // "ngambang" lepas dari konteksnya.
-    let repositioned = false;
-    document.querySelectorAll('.custom-dd-panel:not(.hidden)').forEach(p => {
-        const owner = p._ddOwner;
-        // Hanya panel mode fixed yang punya _ddOwner & sudah pindah ke <body>
-        if (!owner || p.parentElement !== document.body) return;
-        const btn = owner.querySelector('.custom-dd-btn');
-        if (!btn) return;
-        const r = btn.getBoundingClientRect();
-        // Tombol keluar viewport → tutup
-        if (r.bottom < 0 || r.top > window.innerHeight) {
-            _closeAllDropdowns();
-            return;
-        }
-        // Update posisi panel mengikuti tombol
-        p.style.top   = `${r.bottom + 4}px`;
-        p.style.left  = `${r.left}px`;
-        p.style.width = `${r.width}px`;
-        repositioned = true;
-    });
-    // Untuk panel mode non-fixed (panel masih di dalam .custom-dd) → tetap tutup
-    // karena `position:absolute` relatif ke wrapper sehingga tidak ada masalah
-    // posisi, tapi page scroll biasanya berarti user pindah konteks.
-    if (!repositioned) {
-        document.querySelectorAll('.custom-dd-panel:not(.hidden)').forEach(p => {
-            // Skip yang sudah di-detach (sudah di-handle di atas)
-            if (p.parentElement === document.body) return;
-            _closeDropdown(p);
-        });
-    }
+    // Tutup semua panel yang sedang terbuka begitu ada scroll di luar panel —
+    // baik mode fixed (di-detach ke <body>) maupun non-fixed.
+    //
+    // Sebelumnya panel mode fixed di-REPOSISI mengikuti tombol trigger lewat
+    // getBoundingClientRect() setiap event scroll. Itu pecah pada halaman
+    // dengan wrapper yang scroll horizontal terpisah (mis. tabel lebar dengan
+    // header freeze): getBoundingClientRect() tetap melaporkan posisi
+    // geometris tombol walau tombolnya sudah tersembunyi di balik tepi
+    // wrapper — jadi panel dipindah ke koordinat yang sudah tidak valid
+    // secara visual (bisa nongol jauh di luar tabel, menimpa elemen lain
+    // seperti sidebar). Tutup-saat-scroll menghindari kelas bug ini sama
+    // sekali karena tidak pernah menghitung ulang posisi — sama seperti
+    // perilaku panel non-fixed (mis. ECI di Master Employee) yang dari awal
+    // memang menutup, bukan mengikuti, saat discroll.
+    _closeAllDropdowns();
 }
 
 function _positionFixed(btn, panel) {
@@ -278,6 +271,12 @@ function _injectSearch(dd, panel) {
         const wrap = document.createElement('div');
         wrap.className = 'custom-dd-search-wrap sticky top-0 bg-white border-b border-gray-100 px-2 py-2';
         wrap.style.zIndex = '1';
+        // Cancel the panel's own top padding (e.g. Tailwind `pt-*`/`py-*`) so this
+        // sticky bar sits flush against the scrollport's top edge. Without this,
+        // that padding is a gap the sticky bar doesn't cover — scrolled list items
+        // peek through above it instead of staying hidden behind an opaque bar.
+        const panelPaddingTop = parseFloat(getComputedStyle(panel).paddingTop) || 0;
+        if (panelPaddingTop > 0) wrap.style.marginTop = `-${panelPaddingTop}px`;
 
         input = document.createElement('input');
         input.type = 'text';
@@ -405,7 +404,11 @@ function _selectHighlightedOrFirst(panel, dd) {
         const text       = hi.textContent.trim();
         const owner      = panel._ddOwner || dd;
         const onchangeFn = owner.dataset.onchange;
-        _selectItem(owner, val, text);
+        if (owner.dataset.multi === 'true') {
+            _toggleMultiItem(owner, hi, val);
+        } else {
+            _selectItem(owner, val, text);
+        }
         if (onchangeFn && typeof window[onchangeFn] === 'function') {
             window[onchangeFn]();
         }
@@ -518,6 +521,92 @@ function _closeAllDropdowns() {
     });
 }
 
+// ──────────────────────────────────────────────
+// MULTI-SELECT MODE (opt-in via data-multi="true" on the .custom-dd wrapper)
+// ──────────────────────────────────────────────
+// Unlike _selectItem (single value, closes panel), this toggles one item
+// on/off and keeps the panel open so several items can be picked in one
+// interaction. Selection is stored as a comma-separated string of values
+// in the same hidden input that single-select uses for one value.
+
+// Toggle one item; update hidden input + label. Panel stays open.
+function _toggleMultiItem(dd, item, val) {
+    const hidden = dd.querySelector('input[type="hidden"]');
+    if (!hidden) return;
+
+    // The "All" option (data-value="") clears every selection instead of
+    // toggling itself — there's nothing meaningful to "check" for it.
+    if (val === '') {
+        _clearMultiSelection(dd);
+        return;
+    }
+
+    let ids = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
+    if (ids.includes(val)) {
+        ids = ids.filter(id => id !== val);
+        item.classList.remove('bg-gray-50', 'font-medium', 'text-gray-900');
+        item.querySelector('.custom-dd-check')?.classList.add('opacity-0');
+    } else {
+        ids.push(val);
+        item.classList.add('bg-gray-50', 'font-medium', 'text-gray-900');
+        item.querySelector('.custom-dd-check')?.classList.remove('opacity-0');
+    }
+    hidden.value = ids.join(',');
+
+    _updateMultiLabel(dd, ids);
+}
+
+// Uncheck every item and clear the hidden input for a multi-select dropdown.
+function _clearMultiSelection(dd) {
+    const hidden = dd.querySelector('input[type="hidden"]');
+    if (!hidden) return;
+    hidden.value = '';
+    const panel = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
+    panel?.querySelectorAll('.custom-dd-item').forEach(i => {
+        i.classList.remove('bg-gray-50', 'font-medium', 'text-gray-900');
+        i.querySelector('.custom-dd-check')?.classList.add('opacity-0');
+    });
+    _updateMultiLabel(dd, []);
+}
+
+// Rebuild the button label from the currently selected ids.
+function _updateMultiLabel(dd, ids) {
+    const label = dd.querySelector('.custom-dd-label');
+    if (!label) return;
+
+    const panel = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
+    const names = ids
+        .map(id => panel?.querySelector(`.custom-dd-item[data-value="${CSS.escape(id)}"] .custom-dd-item-text`)?.textContent.trim())
+        .filter(Boolean);
+
+    if (names.length) {
+        label.textContent = names.join(', ');
+        label.className   = 'custom-dd-label text-gray-700';
+    } else {
+        label.textContent = dd.dataset.placeholder || 'Select…';
+        label.className   = 'custom-dd-label text-gray-500';
+    }
+}
+
+// Called once during init for data-multi dropdowns — marks items as checked
+// and sets the initial label from the hidden input's pre-filled CSV value
+// (used by edit/show pages where some items are already selected).
+function _syncMultiVisualState(dd) {
+    const hidden = dd.querySelector('input[type="hidden"]');
+    const panel  = dd.querySelector('.custom-dd-panel');
+    if (!hidden || !panel) return;
+
+    const ids = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
+    ids.forEach(id => {
+        const item = panel.querySelector(`.custom-dd-item[data-value="${CSS.escape(id)}"]`);
+        if (item) {
+            item.classList.add('bg-gray-50', 'font-medium', 'text-gray-900');
+            item.querySelector('.custom-dd-check')?.classList.remove('opacity-0');
+        }
+    });
+    _updateMultiLabel(dd, ids);
+}
+
 /**
  * Programmatically set a custom dropdown's value and update its label.
  * @param {string} hiddenId  — the id of the hidden input inside the dropdown
@@ -530,7 +619,65 @@ function setCustomDropdownValue(hiddenId, value) {
     if (!dd)     return;
     const panel = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
     const item  = panel?.querySelector(`.custom-dd-item[data-value="${CSS.escape(value)}"]`);
-    const text  = item ? item.textContent.trim()
-                       : (panel?.querySelector('.custom-dd-item[data-value=""]')?.textContent.trim() || '');
+    // Nilai cocok dengan opsi → pakai label opsi. Nilai TIDAK cocok (mis. hasil
+    // import dengan istilah di luar daftar dropdown) → tampilkan nilai mentahnya
+    // apa adanya, jangan jatuh ke placeholder (data sudah benar di hidden input).
+    // Nilai kosong → pakai teks placeholder ("Select …").
+    let text;
+    if (item) {
+        text = item.textContent.trim();
+    } else if (value !== '' && value != null) {
+        text = String(value);
+    } else {
+        text = panel?.querySelector('.custom-dd-item[data-value=""]')?.textContent.trim() || '';
+    }
     _selectItem(dd, value, text);
+}
+
+/**
+ * Programmatically clear all selections for a multi-select custom dropdown
+ * (data-multi="true"). Counterpart to setCustomDropdownValue() for single-select.
+ * @param {string} hiddenId — the id of the hidden input inside the dropdown
+ */
+function clearCustomDropdownMulti(hiddenId) {
+    const hidden = document.getElementById(hiddenId);
+    if (!hidden) return;
+    const dd = hidden.closest('.custom-dd');
+    if (!dd) return;
+    _clearMultiSelection(dd);
+}
+
+/**
+ * Programmatically select a set of values in a multi-select dropdown
+ * (data-multi="true"), replacing whatever was selected before. Lets a page
+ * drive a column filter from somewhere else in the UI (e.g. a summary card)
+ * while keeping the dropdown itself as the single source of truth.
+ * @param {string} hiddenId — the id of the hidden input inside the dropdown
+ * @param {string[]|string} values — values to select; empty clears everything
+ */
+function setCustomDropdownMulti(hiddenId, values) {
+    const hidden = document.getElementById(hiddenId);
+    if (!hidden) return;
+    const dd = hidden.closest('.custom-dd');
+    if (!dd) return;
+
+    // Selalu mulai dari kondisi bersih supaya centang sisa pilihan sebelumnya
+    // tidak tertinggal di panel.
+    _clearMultiSelection(dd);
+
+    const list = (Array.isArray(values) ? values : String(values || '').split(','))
+        .map(v => String(v).trim())
+        .filter(Boolean);
+    if (!list.length) return;
+
+    const panel = dd.querySelector('.custom-dd-panel') || dd._ddPanel;
+    list.forEach(val => {
+        const item = panel?.querySelector(`.custom-dd-item[data-value="${CSS.escape(val)}"]`);
+        if (!item) return;
+        item.classList.add('bg-gray-50', 'font-medium', 'text-gray-900');
+        item.querySelector('.custom-dd-check')?.classList.remove('opacity-0');
+    });
+
+    hidden.value = list.join(',');
+    _updateMultiLabel(dd, list);
 }

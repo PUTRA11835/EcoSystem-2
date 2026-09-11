@@ -1,7 +1,7 @@
 <div class="space-y-6">
     <!-- General Information -->
     <div>
-        <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 pb-2 border-b border-gray-200">
             <h3 class="text-base font-semibold text-gray-900">General Information</h3>
             <button onclick="saveCustomerBasicData(customerId)" class="inline-flex items-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -10,14 +10,36 @@
                 Save Changes
             </button>
         </div>
-        <div class="grid grid-cols-6 gap-4">
+        <div class="grid grid-cols-6 gap-4 form-grid">
             <!-- Customer Code (Editable, max 4 alphanumeric) -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Customer Code <span class="text-red-600">*</span></label>
                 <input type="text" id="customerCode" value="{{ $customer->customer_code ?? '' }}"
-                    maxlength="4" required
+                    maxlength="50" required
                     oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent uppercase">
+            </div>
+
+            <!-- Type Business Partner (customer.type) — Customer / Vendor.
+                 Menentukan data ini muncul sebagai klien atau sebagai vendor
+                 di modul lain (mis. dropdown Vendor di Delivery Support). -->
+            <div class="col-span-1">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Type <span class="text-red-600">*</span></label>
+                <select id="partnerType"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                    <option value="Customer" {{ ($customer->type ?? 'Customer') === 'Customer' ? 'selected' : '' }}>Customer</option>
+                    <option value="Vendor" {{ ($customer->type ?? '') === 'Vendor' ? 'selected' : '' }}>Vendor</option>
+                </select>
+            </div>
+
+            <!-- Company Email (customer.email — kontak perusahaan; tampil di list & header).
+                 id sengaja 'companyEmail' (BUKAN 'email') agar tidak bentrok dengan
+                 field Email di section Address yang berbagi halaman. -->
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Company Email</label>
+                <input type="email" id="companyEmail" value="{{ $customer->email ?? '' }}"
+                    placeholder="info@company.com (optional)"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
             <!-- Email Domain (filter inbox emails for ticket validation by sender domain) -->
@@ -64,15 +86,15 @@
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
-            <!-- Name 2 (di bawah Name 1) -->
-            <div class="col-span-2 row-start-2 col-start-3">
+            <!-- Name 2 -->
+            <div class="col-span-2">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Name 2</label>
                 <input type="text" id="name2" value="{{ $customer->basicData->name_2 ?? '' }}" 
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
-            <!-- Search Term 2 (di bawah Search Term 1) -->
-            <div class="col-span-1 row-start-2 col-start-5">
+            <!-- Search Term 2 -->
+            <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Search Term 2</label>
                 <input type="text" id="searchTerm2" value="{{ $customer->basicData->search_term_2 ?? '' }}" 
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
@@ -127,19 +149,32 @@
     <div>
         <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Customer Information</h3>
 
-        <div class="grid grid-cols-6 gap-4">
-            <!-- Customer Group -->
-            <div class="col-span-1">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Customer Group</label>
-                <div class="relative">
-                    <input type="text" id="customerGroup" value="{{ $customer->basicData->customer_group ?? '' }}" 
-                        class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
+        <div class="grid grid-cols-6 gap-4 form-grid">
+            <!-- Customer Group (struktural — anggota mandiri, ditampilkan bersama di Grouping) -->
+            <div class="col-span-2">
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="block text-xs font-semibold text-gray-600">Customer Group</label>
+                    <button type="button" onclick="createCustomerGroupInline()" class="text-xs font-semibold text-red-700 hover:text-red-900">+ New group</button>
                 </div>
+                <select id="customerGroupId" data-searchable="true"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                    <option value="">— No group —</option>
+                    @foreach(($customerGroups ?? []) as $grp)
+                        <option value="{{ $grp->id }}" {{ (int)($customer->customer_group_id ?? 0) === (int)$grp->id ? 'selected' : '' }}>{{ $grp->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <!-- Parent Customer (hierarki parent–child) -->
+            <div class="col-span-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Parent Customer</label>
+                <select id="customerParentId" data-searchable="true"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                    <option value="">— None (Top-level customer) —</option>
+                    @foreach(($parentOptions ?? []) as $po)
+                        <option value="{{ $po['id'] }}" {{ (int)($customer->parent_customer_id ?? 0) === (int)$po['id'] ? 'selected' : '' }}>{{ $po['name'] }}</option>
+                    @endforeach
+                </select>
             </div>
 
             <!-- Credit Limit Type -->
@@ -173,15 +208,23 @@
             <!-- EC Account Executive -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">EC Account Executive</label>
-                <div class="relative">
-                    <input type="text" id="ecAccountExecutive" value="{{ $customer->basicData->ec_account_executive ?? '' }}" 
-                        class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
-                </div>
+                @php
+                    $ecCurrent = $customer->basicData->ec_account_executive ?? '';
+                    $ecMatched = collect($employees ?? [])->contains(fn($e) => $e['eci'] === $ecCurrent);
+                @endphp
+                <select id="ecAccountExecutive" data-searchable="true"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                    <option value="">— Select Employee —</option>
+                    @foreach(($employees ?? []) as $emp)
+                        <option value="{{ $emp['eci'] }}" {{ $ecCurrent === $emp['eci'] ? 'selected' : '' }}>
+                            {{ $emp['name'] }} ({{ $emp['eci'] }})
+                        </option>
+                    @endforeach
+                    @if($ecCurrent !== '' && !$ecMatched)
+                        {{-- Legacy value not matching any employee ECI — keep it so it isn't lost --}}
+                        <option value="{{ $ecCurrent }}" selected>{{ $ecCurrent }}</option>
+                    @endif
+                </select>
             </div>
 
             <!-- Authorization Group -->

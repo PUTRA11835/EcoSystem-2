@@ -3,12 +3,17 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Enums\RoleId;
+use App\Exports\EmployeeExport;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeBasicData;
+use Maatwebsite\Excel\Facades\Excel;
 
 class EmployeeController extends Controller
 {
@@ -98,7 +103,7 @@ class EmployeeController extends Controller
                     'eb.manager',
                     'eb.authorization_group',
                     'eb.home_base',
-                    'eb.grade',
+                    'eb.employee_type',
                     'eb.block',
                     'eb.deletion_flag',
                     'eb.created_by',
@@ -128,6 +133,10 @@ class EmployeeController extends Controller
                     'ea.valid_from',
                     'ea.valid_to'
                 )
+                // Utamakan alamat primary (tujuan import cell_phone) bila employee
+                // punya >1 alamat; deterministik via address_id.
+                ->orderByDesc('ea.is_primary')
+                ->orderBy('ea.address_id')
                 ->first();
 
             if (!$employee) {
@@ -145,9 +154,26 @@ class EmployeeController extends Controller
                 'eci' => $employee->eci ?? null
             ]);
 
+            // Section mana yang boleh dilihat / diubah oleh pembuka halaman.
+            // Slug employee.section.* ini dulu hanya berupa baris menu tanpa
+            // pemakai — akibatnya halaman detail selalu bisa diedit penuh
+            // walaupun checkbox-nya dimatikan di Control Center.
+            // Padanan untuk halaman /profile ada di ProfileController.
+            $viewer   = Employee::find($user['id'] ?? null);
+            $hidden   = [];
+            $readonly = [];
+            foreach (array_keys(SettingsController::PROFILE_SECTIONS) as $key) {
+                $canView   = (bool) $viewer?->canAccessMenu("employee.section.{$key}.view");
+                $canUpdate = (bool) $viewer?->canAccessMenu("employee.section.{$key}.update");
+                $hidden[$key]   = !$canView;
+                $readonly[$key] = $canView && !$canUpdate;
+            }
+
             return view('master.employee.show', [
-                'employee' => $employee,
-                'user' => $user
+                'employee'               => $employee,
+                'user'                   => $user,
+                'profileSectionHidden'   => $hidden,
+                'profileSectionReadonly' => $readonly,
             ]);
 
         } catch (\Exception $e) {
@@ -187,66 +213,36 @@ class EmployeeController extends Controller
                     'eb.gender',
                     'eb.birth_date',
                     'eb.position',
+                    'eb.personnel_area',
+                    'eb.personnel_subarea',
+                    'eb.employee_group',
                     'eb.employee_subgroup',
                     'eb.division',
                     'eb.department',
+                    'eb.authorization_group',
+                    'eb.current_assignment',
+                    'eb.direct_supervision',
+                    'eb.manager',
+                    'eb.home_base',
                     'eb.since_date',
+                    'eb.employee_type',
                     'eb.block',
                     'eb.deletion_flag'
                 );
 
-            // Apply filters berdasarkan status
-            if ($request->has('status') && $request->status !== '') {
-                switch ($request->status) {
-                    case 'active':
-                        $query->where('eb.block', false)
-                              ->where('eb.deletion_flag', false);
-                        break;
-                    case 'blocked':
-                        $query->where('eb.block', true);
-                        break;
-                    case 'deleted':
-                        $query->where('eb.deletion_flag', true);
-                        break;
-                }
-                Log::info('Filter applied: status', ['status' => $request->status]);
-            }
+            $this->applyEmployeeListFilters($query, $request);
 
-            // Filter by employee (ECI or name)
-            if ($request->has('employee') && $request->employee !== '') {
-                $search = $request->employee;
-                $query->where(function($q) use ($search) {
-                    $q->where('e.eci', 'like', "%{$search}%")
-                      ->orWhere('eb.first_name', 'like', "%{$search}%")
-                      ->orWhere('eb.last_name', 'like', "%{$search}%")
-                      ->orWhere('eb.search_term_1', 'like', "%{$search}%")
-                      ->orWhere('eb.search_term_2', 'like', "%{$search}%");
-                });
-                Log::info('Filter applied: employee', ['search' => $search]);
-            }
-
-            // Filter by department
-            if ($request->has('department') && $request->department !== '') {
-                $query->where('eb.department', 'like', "%{$request->department}%");
-                Log::info('Filter applied: department', ['department' => $request->department]);
-            }
-
-            // Global search
-            if ($request->has('search') && $request->search !== '') {
-                $search = $request->search;
-                $query->where(function($q) use ($search) {
-                    $q->where('e.eci', 'like', "%{$search}%")
-                      ->orWhere('eb.first_name', 'like', "%{$search}%")
-                      ->orWhere('eb.last_name', 'like', "%{$search}%")
-                      ->orWhere('eb.position', 'like', "%{$search}%")
-                      ->orWhere('eb.division', 'like', "%{$search}%")
-                      ->orWhere('eb.department', 'like', "%{$search}%")
-                      ->orWhere('eb.employee_subgroup', 'like', "%{$search}%");
-                });
-                Log::info('Global search applied', ['search' => $search]);
-            }
-
-            $employees = $query->orderBy('e.employee_id', 'desc')->get();
+            // Server-side pagination (mengikuti pola Master Customer)
+            $perPage = max(1, min((int) $request->get('per_page', 200), 500));
+            // Urutkan berdasarkan nama (A-Z); pakai full name gabungan agar konsisten
+            // dengan kolom "Full Name" di tabel, fallback ke ECI bila nama kosong.
+            $page = max(1, (int) $request->get('page', 1));
+            $paginator = $query
+                ->orderByRaw("TRIM(CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,''))) = '' asc")
+                ->orderByRaw("TRIM(CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,''))) asc")
+                ->orderBy('e.eci', 'asc')
+                ->paginate($perPage, ['*'], 'page', $page);
+            $employees = collect($paginator->items());
 
             // Fetch roles for all employees via pivot table (isolated so missing table won't break employee list)
             $roleAssignments = collect();
@@ -266,8 +262,29 @@ class EmployeeController extends Controller
                 ]);
             }
 
-            // Transform status & attach roles
-            $employees = $employees->map(function($emp) use ($roleAssignments) {
+            // Fetch qualified modules for all employees via employee_qualification -> modules
+            // (isolated so missing table won't break employee list). Sama pattern dengan roles
+            // di atas, dan sama query-nya dengan MandaysController::getModules() — semua module
+            // dari kualifikasi employee, tanpa filter qualification_type.
+            $moduleAssignments = collect();
+            try {
+                if (!empty($employeeIds)) {
+                    $moduleAssignments = DB::table('employee_qualification as eq')
+                        ->join('modules as m', 'eq.module_id', '=', 'm.id')
+                        ->whereIn('eq.employee_id', $employeeIds)
+                        ->select('eq.employee_id', 'm.id as module_id', 'm.name as module_name')
+                        ->distinct()
+                        ->get()
+                        ->groupBy('employee_id');
+                }
+            } catch (\Exception $moduleEx) {
+                Log::warning('getData: gagal fetch module qualifications, lanjut tanpa modules', [
+                    'error' => $moduleEx->getMessage(),
+                ]);
+            }
+
+            // Transform status & attach roles + modules
+            $employees = $employees->map(function($emp) use ($roleAssignments, $moduleAssignments) {
                 if ($emp->deletion_flag) {
                     $emp->status = 'deleted';
                 } elseif ($emp->block) {
@@ -280,18 +297,31 @@ class EmployeeController extends Controller
                     ? $roleAssignments[$emp->id]->map(fn($r) => ['id' => $r->role_id, 'name' => $r->role_name])->values()
                     : collect();
 
+                $emp->modules = isset($moduleAssignments[$emp->id])
+                    ? $moduleAssignments[$emp->id]->pluck('module_name')->unique()->sort()->values()
+                    : collect();
+
                 return $emp;
             });
 
             Log::info('=== API: EMPLOYEES FETCHED SUCCESSFULLY ===', [
                 'count' => $employees->count(),
+                'total' => $paginator->total(),
                 'filters_applied' => $request->all()
             ]);
 
             return response()->json([
                 'success' => true,
                 'data' => $employees,
-                'count' => $employees->count()
+                'count' => $employees->count(),
+                'pagination' => [
+                    'total' => $paginator->total(),
+                    'per_page' => $paginator->perPage(),
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'from' => $paginator->firstItem(),
+                    'to' => $paginator->lastItem(),
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -306,6 +336,336 @@ class EmployeeController extends Controller
                 'message' => 'Failed to fetch employees'
             ], 500);
         }
+    }
+
+    /**
+     * Export Master Employee list ke Excel — pakai filter yang sama persis dengan
+     * getData() (lewat applyEmployeeListFilters) supaya hasil export selalu match
+     * dengan apa yang sedang ditampilkan/difilter di layar, tanpa pagination.
+     */
+    public function exportToExcel(Request $request)
+    {
+        Log::info('=== API: EXPORTING EMPLOYEES ===', [
+            'filters' => $request->all(),
+            'user_ip' => $request->ip()
+        ]);
+
+        $query = DB::table('employee as e')
+            ->leftJoin('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
+            ->select(
+                'e.employee_id as id',
+                'e.eci',
+                'eb.title',
+                'eb.first_name',
+                'eb.last_name',
+                'eb.nick_name',
+                'eb.gender',
+                'eb.religion',
+                'eb.marital_status',
+                'eb.birth_date',
+                'eb.birth_place',
+                'eb.personnel_area',
+                'eb.personnel_subarea',
+                'eb.employee_group',
+                'eb.employee_subgroup',
+                'eb.position',
+                'eb.division',
+                'eb.department',
+                'eb.authorization_group',
+                'eb.current_assignment',
+                'eb.direct_supervision',
+                'eb.manager',
+                'eb.home_base',
+                'eb.since_date',
+                'eb.employee_type',
+                'eb.block',
+                'eb.deletion_flag'
+            );
+
+        $this->applyEmployeeListFilters($query, $request);
+
+        $employees = $query
+            ->orderByRaw("TRIM(CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,''))) = '' asc")
+            ->orderByRaw("TRIM(CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,''))) asc")
+            ->orderBy('e.eci', 'asc')
+            ->get();
+
+        // Module qualifications per employee (sama pattern dengan getData())
+        $moduleAssignments = collect();
+        $employeeIds = $employees->pluck('id')->all();
+        if (!empty($employeeIds)) {
+            $moduleAssignments = DB::table('employee_qualification as eq')
+                ->join('modules as m', 'eq.module_id', '=', 'm.id')
+                ->whereIn('eq.employee_id', $employeeIds)
+                ->select('eq.employee_id', 'm.name as module_name')
+                ->distinct()
+                ->get()
+                ->groupBy('employee_id');
+        }
+
+        $rows = $employees->map(function ($emp) use ($moduleAssignments) {
+            $status = $emp->deletion_flag ? 'Flagged for Deletion' : ($emp->block ? 'Inactive' : 'Active');
+            $modules = isset($moduleAssignments[$emp->id])
+                ? $moduleAssignments[$emp->id]->pluck('module_name')->unique()->sort()->values()->implode(', ')
+                : '';
+
+            return [
+                'eci'                  => $emp->eci,
+                'full_name'            => trim(($emp->first_name ?? '') . ' ' . ($emp->last_name ?? '')) ?: '-',
+                'nick_name'            => $emp->nick_name ?? '-',
+                'title'                => $emp->title ?? '-',
+                'gender'               => $emp->gender ?? '-',
+                'religion'             => $emp->religion ?? '-',
+                'marital_status'       => $emp->marital_status ?? '-',
+                'birth_date'           => $emp->birth_date ?? '-',
+                'birth_place'          => $emp->birth_place ?? '-',
+                'personnel_area'       => $emp->personnel_area ?? '-',
+                'personnel_subarea'    => $emp->personnel_subarea ?? '-',
+                'employee_group'       => $emp->employee_group ?? '-',
+                'employee_subgroup'    => $emp->employee_subgroup ?? '-',
+                'position'             => $emp->position ?? '-',
+                'division'             => $emp->division ?? '-',
+                'department'           => $emp->department ?? '-',
+                'authorization_group'  => $emp->authorization_group ?? '-',
+                'current_assignment'   => $emp->current_assignment ?? '-',
+                'direct_supervision'   => $emp->direct_supervision ?? '-',
+                'manager'              => $emp->manager ?? '-',
+                'home_base'            => $emp->home_base ?? '-',
+                'module'               => $modules ?: '-',
+                'since_date'           => $emp->since_date ?? '-',
+                'status'               => $status,
+            ];
+        });
+
+        $filename = 'EMPLOYEE MANAGEMENT ' . now()->timezone('Asia/Jakarta')->format('dmY') . '.xlsx';
+
+        return Excel::download(new EmployeeExport($rows), $filename);
+    }
+
+    /**
+     * Terapkan pencarian nama ke query employee.
+     *
+     * Setiap kata pada $search harus cocok (AND antar-kata) di salah satu kolom
+     * nama (OR antar-kolom). Mencakup nick_name + full name gabungan sehingga
+     * pencarian seperti "wida" cocok dengan "Widagdo" di kolom mana pun, dan
+     * "Dado Widagdo" cocok walau tersimpan di first_name & nick_name terpisah.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  string  $search
+     * @param  bool  $includeOrg  Sertakan kolom organisasi (position/division/dll) untuk global search
+     */
+    /**
+     * Terapkan semua filter list Master Employee (status, employee, department,
+     * home_base, modules) ke query builder. Dipakai bersama oleh getData() (list)
+     * dan exportToExcel() supaya hasil export SELALU konsisten dengan filter yang
+     * sedang aktif di layar — satu-satunya tempat logic filter didefinisikan.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     */
+    private function applyEmployeeListFilters($query, Request $request): void
+    {
+        // Pakai filled() (bukan has() + !== ''): middleware ConvertEmptyStringsToNull
+        // mengubah input kosong jadi null, sehingga "null !== ''" lolos dan filter
+        // telanjur jalan dengan nilai kosong. filled() false untuk null & ''.
+        if ($request->filled('status')) {
+            switch ($request->status) {
+                case 'active':
+                    $query->where('eb.block', false)
+                          ->where('eb.deletion_flag', false);
+                    break;
+                case 'blocked':
+                    $query->where('eb.block', true);
+                    break;
+                case 'deleted':
+                    $query->where('eb.deletion_flag', true);
+                    break;
+            }
+            Log::info('Filter applied: status', ['status' => $request->status]);
+        }
+
+        // Filter by ECI — separate column filter from Name below (each has its
+        // own header search box on the list page).
+        if ($request->filled('eci')) {
+            $query->where('e.eci', 'like', "%{$request->eci}%");
+            Log::info('Filter applied: eci', ['eci' => $request->eci]);
+        }
+
+        // Filter by name only (first/last/nick/search terms) — independent from
+        // the ECI filter above.
+        // Pisahkan jadi per-kata supaya pencarian "Dado Widagdo" cocok walau
+        // first_name & nick_name terpisah, dan setiap kata dicari di SEMUA
+        // kolom nama (termasuk nick_name + full name gabungan).
+        if ($request->filled('name')) {
+            $this->applyNameSearch($query, $request->name, false, false);
+            Log::info('Filter applied: name', ['search' => $request->name]);
+        }
+
+        // Filter by ECI OR name — the ECI column header on the list page has a
+        // single combined "Search by ECI or name" box that sends `employee`.
+        // (The `eci` / `name` params above are the split-column variant kept for
+        // other callers; the list/export UI only ever sends `employee`.)
+        if ($request->filled('employee')) {
+            $this->applyNameSearch($query, $request->employee, false, true);
+            Log::info('Filter applied: employee', ['search' => $request->employee]);
+        }
+
+        // Filter by full name — kolom terpisah dari ECI di atas (dedicated Full
+        // Name column filter), jadi HANYA cocokkan nama, bukan ECI/nick name,
+        // supaya perilakunya jelas per-kolom bagi user.
+        if ($request->filled('full_name')) {
+            $this->applyFullNameSearch($query, $request->full_name);
+            Log::info('Filter applied: full_name', ['search' => $request->full_name]);
+        }
+
+        // Filter by employee group (multi-select, comma-separated).
+        if ($request->filled('employee_group')) {
+            $groups = array_values(array_filter(array_map('trim', explode(',', $request->employee_group)), fn ($g) => $g !== ''));
+            if (!empty($groups)) {
+                $query->whereIn('eb.employee_group', $groups);
+                Log::info('Filter applied: employee_group', ['employee_group' => $groups]);
+            }
+        }
+
+        // Filter by department (multi-select, comma-separated) — sama semantik dengan
+        // home_base/position: dropdown pilihan dari daftar department yang ada, bukan
+        // lagi free-text partial match.
+        if ($request->filled('department')) {
+            $departments = array_values(array_filter(array_map('trim', explode(',', $request->department)), fn ($d) => $d !== ''));
+            if (!empty($departments)) {
+                $query->whereIn('eb.department', $departments);
+                Log::info('Filter applied: department', ['department' => $departments]);
+            }
+        }
+
+        // Filter by division (multi-select, comma-separated) — sama semantik dengan home_base/position.
+        if ($request->filled('division')) {
+            $divisions = array_values(array_filter(array_map('trim', explode(',', $request->division)), fn ($d) => $d !== ''));
+            if (!empty($divisions)) {
+                $query->whereIn('eb.division', $divisions);
+                Log::info('Filter applied: division', ['division' => $divisions]);
+            }
+        }
+
+        // Filter by personnel area (multi-select, comma-separated).
+        if ($request->filled('personnel_area')) {
+            $areas = array_values(array_filter(array_map('trim', explode(',', $request->personnel_area)), fn ($a) => $a !== ''));
+            if (!empty($areas)) {
+                $query->whereIn('eb.personnel_area', $areas);
+                Log::info('Filter applied: personnel_area', ['personnel_area' => $areas]);
+            }
+        }
+
+        // Filter by personnel subarea (multi-select, comma-separated).
+        if ($request->filled('personnel_subarea')) {
+            $subareas = array_values(array_filter(array_map('trim', explode(',', $request->personnel_subarea)), fn ($s) => $s !== ''));
+            if (!empty($subareas)) {
+                $query->whereIn('eb.personnel_subarea', $subareas);
+                Log::info('Filter applied: personnel_subarea', ['personnel_subarea' => $subareas]);
+            }
+        }
+
+        // Filter by employee type (multi-select, comma-separated) — fixed set: Internal / External.
+        if ($request->filled('employee_type')) {
+            $types = array_values(array_filter(array_map('trim', explode(',', $request->employee_type)), fn ($t) => $t !== ''));
+            if (!empty($types)) {
+                $query->whereIn('eb.employee_type', $types);
+                Log::info('Filter applied: employee_type', ['employee_type' => $types]);
+            }
+        }
+
+        // Global search
+        if ($request->filled('search')) {
+            $this->applyNameSearch($query, $request->search, true);
+            Log::info('Global search applied', ['search' => $request->search]);
+        }
+
+        // Filter by home base (multi-select, comma-separated).
+        if ($request->filled('home_base')) {
+            $homeBases = array_filter(explode(',', $request->home_base));
+            if (!empty($homeBases)) {
+                $query->whereIn('eb.home_base', $homeBases);
+                Log::info('Filter applied: home_base', ['home_base' => $homeBases]);
+            }
+        }
+
+        // Filter by position (multi-select, comma-separated) — sama semantik dengan
+        // home_base: cocok kalau position employee ada di salah satu nilai terpilih.
+        if ($request->filled('position')) {
+            $positions = array_values(array_filter(array_map('trim', explode(',', $request->position)), fn ($p) => $p !== ''));
+            if (!empty($positions)) {
+                $query->whereIn('eb.position', $positions);
+                Log::info('Filter applied: position', ['position' => $positions]);
+            }
+        }
+
+        // Filter by module qualification (multi-select, comma-separated).
+        // Employee cocok kalau punya minimal satu qualification dengan module
+        // yang dipilih (match ANY, bukan harus semua) — sama semantik dengan
+        // filter multi-select lain yang sudah ada di ticket list.
+        if ($request->filled('modules')) {
+            $moduleNames = array_filter(explode(',', $request->modules));
+            if (!empty($moduleNames)) {
+                $query->whereIn('e.employee_id', function ($sub) use ($moduleNames) {
+                    $sub->select('eq.employee_id')
+                        ->from('employee_qualification as eq')
+                        ->join('modules as m', 'eq.module_id', '=', 'm.id')
+                        ->whereIn('m.name', $moduleNames);
+                });
+                Log::info('Filter applied: modules', ['modules' => $moduleNames]);
+            }
+        }
+    }
+
+    private function applyNameSearch($query, string $search, bool $includeOrg = false, bool $includeEci = true): void
+    {
+        $terms = preg_split('/\s+/', trim($search), -1, PREG_SPLIT_NO_EMPTY);
+
+        $query->where(function ($outer) use ($terms, $includeOrg, $includeEci) {
+            foreach ($terms as $term) {
+                $like = '%' . $term . '%';
+                $outer->where(function ($q) use ($like, $includeOrg, $includeEci) {
+                    $q->where('eb.first_name', 'like', $like)
+                      ->orWhere('eb.last_name', 'like', $like)
+                      ->orWhere('eb.nick_name', 'like', $like)
+                      ->orWhere('eb.search_term_1', 'like', $like)
+                      ->orWhere('eb.search_term_2', 'like', $like)
+                      ->orWhereRaw("CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,'')) LIKE ?", [$like]);
+
+                    if ($includeEci) {
+                        $q->orWhere('e.eci', 'like', $like);
+                    }
+
+                    if ($includeOrg) {
+                        $q->orWhere('eb.position', 'like', $like)
+                          ->orWhere('eb.division', 'like', $like)
+                          ->orWhere('eb.department', 'like', $like)
+                          ->orWhere('eb.employee_subgroup', 'like', $like);
+                    }
+                });
+            }
+        });
+    }
+
+    /**
+     * Filter dedicated untuk kolom Full Name di tabel — sama pola per-kata
+     * (AND antar-kata, OR antar-kolom) dengan applyNameSearch(), tapi HANYA
+     * mencocokkan kolom nama (bukan ECI/nick name/org fields) supaya
+     * perilakunya jelas terpisah dari filter ECI di kolom sebelahnya.
+     */
+    private function applyFullNameSearch($query, string $search): void
+    {
+        $terms = preg_split('/\s+/', trim($search), -1, PREG_SPLIT_NO_EMPTY);
+
+        $query->where(function ($outer) use ($terms) {
+            foreach ($terms as $term) {
+                $like = '%' . $term . '%';
+                $outer->where(function ($q) use ($like) {
+                    $q->where('eb.first_name', 'like', $like)
+                      ->orWhere('eb.last_name', 'like', $like)
+                      ->orWhereRaw("CONCAT(COALESCE(eb.first_name,''), ' ', COALESCE(eb.last_name,'')) LIKE ?", [$like]);
+                });
+            }
+        });
     }
 
     /**
@@ -342,13 +702,14 @@ class EmployeeController extends Controller
                     'eb.employee_group',
                     'eb.employee_subgroup',
                     'eb.position',
+                    'eb.current_assignment',
                     'eb.division',
                     'eb.department',
                     'eb.direct_supervision',
                     'eb.manager',
                     'eb.authorization_group',
                     'eb.home_base',
-                    'eb.grade',
+                    'eb.employee_type',
                     // Address
                     'ea.address_type',
                     'ea.country',
@@ -365,6 +726,10 @@ class EmployeeController extends Controller
                     'ea.email_personal',
                     'ea.email_work'
                 )
+                // Utamakan alamat primary (tujuan import cell_phone) bila employee
+                // punya >1 alamat; deterministik via address_id.
+                ->orderByDesc('ea.is_primary')
+                ->orderBy('ea.address_id')
                 ->first();
 
             if (!$employee) {
@@ -421,6 +786,7 @@ class EmployeeController extends Controller
             'password' => 'required|string|min:6|confirmed',
             'first_name' => 'required|string|max:255',
             'last_name' => 'nullable|string|max:255',
+            'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name',
             'role' => 'nullable|integer',
             'gender' => 'nullable|in:Male,Female',
             'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
@@ -431,6 +797,8 @@ class EmployeeController extends Controller
             'eci.required' => 'Employee ID is required',
             'eci.unique' => 'Employee ID already exists',
             'first_name.required' => 'First name is required',
+            'nick_name.required' => 'Nick Name is required.',
+            'nick_name.unique' => 'Nick Name is already taken. Please choose a different nick name.',
             'password.required' => 'Password is required',
             'password.min' => 'Password must be at least 6 characters',
             'password.confirmed' => 'Password confirmation does not match',
@@ -454,26 +822,28 @@ class EmployeeController extends Controller
         DB::beginTransaction();
 
         try {
-            // Create employee (password disimpan di auth_users, bukan di tabel employee)
-            $defaultRoleId = $request->role ?? 2;
+            // Create employee — default primary role: EC User (3)
             $employeeId = DB::table('employee')->insertGetId([
                 'eci'       => $request->eci,
-                'role_id'   => $defaultRoleId,
                 'is_active' => 1,
             ]);
 
-            // Insert default role into pivot table
-            DB::table('employee_role_assignment')->insertOrIgnore([
-                'employee_id' => $employeeId,
-                'role_id'     => $defaultRoleId,
-                'created_at'  => now(),
-                'updated_at'  => now(),
-            ]);
+            // Assign: User System Registered + EC User (keduanya wajib untuk bisa login)
+            $userSystemRegisteredId = DB::table('employee_role')->where('name', 'User System Registered')->value('id');
+            $now = now();
+            foreach (array_filter([$userSystemRegisteredId, RoleId::EC_USER->value]) as $roleId) {
+                DB::table('employee_role_assignment')->insertOrIgnore([
+                    'employee_id' => $employeeId,
+                    'role_id'     => $roleId,
+                    'created_at'  => $now,
+                    'updated_at'  => $now,
+                ]);
+            }
 
             Log::info('Employee record created', [
                 'employee_id' => $employeeId,
                 'eci' => $request->eci,
-                'role_id' => $request->role ?? 2
+                'role_id' => RoleId::EC_USER->value
             ]);
 
             // Create basic data
@@ -496,13 +866,15 @@ class EmployeeController extends Controller
                 'employee_group' => $request->employee_group,
                 'employee_subgroup' => $request->employee_subgroup,
                 'position' => $request->position,
+                'current_assignment' => $request->current_assignment,
                 'division' => $request->division,
                 'department' => $request->department,
                 'direct_supervision' => $request->direct_supervision,
                 'manager' => $request->manager,
                 'authorization_group' => $request->authorization_group,
                 'home_base' => $request->home_base,
-                'grade' => $request->grade,
+                // Internal/External diturunkan dari home_base ("Others" → External).
+                'employee_type' => \App\Models\EmployeeBasicData::deriveEmployeeType($request->home_base),
                 'created_by' => $currentUserECI,  // ✅ Gunakan ECI
                 'created_on' => now(),
                 'block' => false,
@@ -554,6 +926,29 @@ class EmployeeController extends Controller
 
             DB::commit();
 
+            $employeeFullName = trim($request->first_name . ' ' . $request->last_name);
+            AuditLog::recordAction(
+                module: 'Employee',
+                auditableType: 'Employee',
+                auditableId: $employeeId,
+                event: 'created',
+                recordLabel: $employeeFullName ?: $request->eci,
+                description: "added Employee: {$employeeFullName} (ECI: {$request->eci})",
+                old: null,
+                new: [
+                    'eci' => $request->eci,
+                    'first_name' => $request->first_name,
+                    'last_name' => $request->last_name,
+                    'nick_name' => $request->nick_name,
+                    'email_work' => $request->email_work,
+                    'gender' => $request->gender,
+                    'position' => $request->position,
+                    'department' => $request->department,
+                    'division' => $request->division,
+                    'home_base' => $request->home_base,
+                ],
+            );
+
             Log::info('=== API: EMPLOYEE CREATED SUCCESSFULLY ===', [
                 'employee_id' => $employeeId,
                 'eci' => $request->eci,
@@ -585,6 +980,79 @@ class EmployeeController extends Controller
     }
 
     /**
+     * GET /api/employees/{id}/header
+     * Returns fields shown in the profile header card for AJAX refresh.
+     */
+    public function headerData($id)
+    {
+        try {
+            $row = DB::table('employee as e')
+                ->leftJoin('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
+                ->leftJoin('employee_address as ea', function ($j) {
+                    $j->on('e.employee_id', '=', 'ea.employee_id')
+                      ->where('ea.is_primary', 1);
+                })
+                ->where('e.employee_id', $id)
+                ->select(
+                    'e.eci', 'e.is_active',
+                    'eb.first_name', 'eb.last_name', 'eb.position',
+                    'eb.department', 'eb.division', 'eb.since_date',
+                    'eb.block', 'eb.deletion_flag', 'eb.employee_type',
+                    'ea.email_personal', 'ea.email_work', 'ea.cell_phone', 'ea.telephone'
+                )
+                ->first();
+
+            if (!$row) {
+                return response()->json(['success' => false, 'message' => 'Employee not found'], 404);
+            }
+
+            $firstName = $row->first_name ?? '';
+            $lastName  = $row->last_name  ?? '';
+            $initials  = strtoupper(substr($firstName, 0, 1) . substr($lastName, 0, 1)) ?: 'NA';
+
+            if (!empty($row->deletion_flag)) {
+                $statusClass = 'bg-red-100 text-red-800';
+                $statusLabel = 'Flagged for Deletion';
+            } elseif (!empty($row->block)) {
+                $statusClass = 'bg-yellow-100 text-yellow-800';
+                $statusLabel = 'Blocked';
+            } elseif ($row->is_active) {
+                $statusClass = 'bg-green-100 text-green-800';
+                $statusLabel = 'Active';
+            } else {
+                $statusClass = 'bg-gray-100 text-gray-800';
+                $statusLabel = 'Inactive';
+            }
+
+            $sinceDate = $row->since_date
+                ? \Carbon\Carbon::parse($row->since_date)->format('d M Y')
+                : '';
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'initials'       => $initials,
+                    'full_name'      => trim("$firstName $lastName") ?: 'N/A',
+                    'position'       => $row->position        ?? '',
+                    'eci'            => $row->eci             ?? '',
+                    'email_personal' => $row->email_personal  ?? '',
+                    'email_work'     => $row->email_work      ?? '',
+                    'phone'          => $row->cell_phone ?? $row->telephone ?? '',
+                    'department'     => $row->department      ?? '',
+                    'division'       => $row->division        ?? '',
+                    'since_date'     => $sinceDate,
+                    'status_label'   => $statusLabel,
+                    'status_class'   => $statusClass,
+                    'employee_type'  => $row->employee_type ?? 'Internal',
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Employee headerData error', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to load header data'], 500);
+        }
+    }
+
+    /**
      * Update employee (API)
      */
     public function update(Request $request, $id)
@@ -599,12 +1067,19 @@ class EmployeeController extends Controller
             'updated_by_eci' => $currentUserECI
         ]);
 
+        $existingBasicData = DB::table('employee_basic_data')->where('employee_id', $id)->first();
+        $basicDataId = $existingBasicData?->basic_data_id;
+
         $validator = Validator::make($request->all(), [
             'eci' => 'required|max:50|unique:employee,eci,' . $id . ',employee_id',
             'first_name' => 'required|string|max:255',
+            'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name,' . $basicDataId . ',basic_data_id',
             'gender' => 'nullable|in:Male,Female',
             'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
             'marital_status' => 'nullable|in:Single,Married,Divorced,Widow/Widower',
+        ], [
+            'nick_name.required' => 'Nick Name is required.',
+            'nick_name.unique' => 'Nick Name is already taken. Please choose a different nick name.',
         ]);
 
         if ($validator->fails()) {
@@ -624,9 +1099,9 @@ class EmployeeController extends Controller
 
         try {
             // Check if employee exists
-            $employeeExists = DB::table('employee')->where('employee_id', $id)->exists();
-            
-            if (!$employeeExists) {
+            $oldEmployee = DB::table('employee')->where('employee_id', $id)->first();
+
+            if (!$oldEmployee) {
                 Log::warning('=== API: EMPLOYEE NOT FOUND FOR UPDATE ===', [
                     'employee_id' => $id
                 ]);
@@ -668,13 +1143,15 @@ class EmployeeController extends Controller
                         'employee_group' => $request->employee_group,
                         'employee_subgroup' => $request->employee_subgroup,
                         'position' => $request->position,
+                        'current_assignment' => $request->current_assignment,
                         'division' => $request->division,
                         'department' => $request->department,
                         'direct_supervision' => $request->direct_supervision,
                         'manager' => $request->manager,
                         'authorization_group' => $request->authorization_group,
                         'home_base' => $request->home_base,
-                        'grade' => $request->grade,
+                        // Internal/External diturunkan dari home_base ("Others" → External).
+                        'employee_type' => \App\Models\EmployeeBasicData::deriveEmployeeType($request->home_base),
                         'last_changed_by' => $currentUserECI,  // ✅ Gunakan ECI
                         'last_changed_on' => now(),
                     ]
@@ -711,6 +1188,37 @@ class EmployeeController extends Controller
             }
 
             DB::commit();
+
+            AuditLog::recordAction(
+                module: 'Employee',
+                auditableType: 'Employee',
+                auditableId: $id,
+                event: 'updated',
+                recordLabel: trim($request->first_name . ' ' . ($request->last_name ?? $existingBasicData?->last_name ?? '')) ?: $request->eci,
+                description: "updated Employee: {$request->first_name} (ECI: {$request->eci})",
+                old: [
+                    'eci' => $oldEmployee->eci,
+                    'first_name' => $existingBasicData?->first_name,
+                    'last_name' => $existingBasicData?->last_name,
+                    'nick_name' => $existingBasicData?->nick_name,
+                    'gender' => $existingBasicData?->gender,
+                    'position' => $existingBasicData?->position,
+                    'department' => $existingBasicData?->department,
+                    'division' => $existingBasicData?->division,
+                    'home_base' => $existingBasicData?->home_base,
+                ],
+                new: [
+                    'eci' => $request->eci,
+                    'first_name' => $request->first_name,
+                    'last_name' => $request->last_name,
+                    'nick_name' => $request->nick_name,
+                    'gender' => $request->gender,
+                    'position' => $request->position,
+                    'department' => $request->department,
+                    'division' => $request->division,
+                    'home_base' => $request->home_base,
+                ],
+            );
 
             Log::info('=== API: EMPLOYEE UPDATED SUCCESSFULLY ===', [
                 'employee_id' => $id,
@@ -756,8 +1264,9 @@ class EmployeeController extends Controller
             $q = $request->input('q', '');
 
             $employees = DB::table('employee as e')
-                ->join('employee_role as r', 'e.role_id', '=', 'r.id')
                 ->leftJoin('employee_basic_data as bd', 'e.employee_id', '=', 'bd.employee_id')
+                ->leftJoin('employee_role_assignment as era', 'e.employee_id', '=', 'era.employee_id')
+                ->leftJoin('employee_role as r', 'era.role_id', '=', 'r.id')
                 ->where('e.employee_id', '!=', $currentId)
                 ->where('e.is_active', true)
                 ->where(function ($q2) {
@@ -775,9 +1284,10 @@ class EmployeeController extends Controller
                 ->select(
                     'e.employee_id as id',
                     DB::raw("CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,'')) as full_name"),
-                    DB::raw("COALESCE(NULLIF(bd.nick_name,''), CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,''))) as display_name"),
-                    'r.name as role_name'
+                    DB::raw("TRIM(CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,''))) as display_name"),
+                    DB::raw("GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR ', ') as role_name")
                 )
+                ->groupBy('e.employee_id', 'bd.first_name', 'bd.last_name', 'bd.nick_name', 'bd.block', 'bd.deletion_flag')
                 ->orderBy('bd.first_name')
                 ->limit(20)
                 ->get();
@@ -943,10 +1453,7 @@ public function getRoles()
 
             DB::table('employee_role_assignment')->insert($pivotRows);
 
-            // Keep legacy role_id in sync with the first role
-            DB::table('employee')
-                ->where('employee_id', $id)
-                ->update(['role_id' => $roleIds[0]]);
+            Cache::forget("perm_slugs_{$id}");
 
             $roles = DB::table('employee_role')->whereIn('id', $roleIds)->select('id', 'name')->get();
 
@@ -1005,8 +1512,11 @@ public function getRoles()
             $eci = $employee->eci;
             Log::info('Employee found, proceeding with permanent deletion', ['eci' => $eci]);
 
+            // Snapshot before the cascade delete below removes it — needed for the audit log entry.
+            $basicDataSnapshot = DB::table('employee_basic_data')->where('employee_id', $id)->first();
+
             // Delete related records first (foreign key constraints)
-            
+
             // 1. Delete employee addresses
             $addressesDeleted = DB::table('employee_address')->where('employee_id', $id)->delete();
             Log::info('Employee addresses deleted', ['count' => $addressesDeleted]);
@@ -1028,6 +1538,25 @@ public function getRoles()
             Log::info('Employee record deleted', ['count' => $employeeDeleted]);
 
             DB::commit();
+
+            $deletedFullName = trim(($basicDataSnapshot?->first_name ?? '') . ' ' . ($basicDataSnapshot?->last_name ?? ''));
+            AuditLog::recordAction(
+                module: 'Employee',
+                auditableType: 'Employee',
+                auditableId: $id,
+                event: 'deleted',
+                recordLabel: $deletedFullName ?: $eci,
+                description: "deleted Employee: {$deletedFullName} (ECI: {$eci})",
+                old: [
+                    'eci' => $eci,
+                    'first_name' => $basicDataSnapshot?->first_name,
+                    'last_name' => $basicDataSnapshot?->last_name,
+                    'nick_name' => $basicDataSnapshot?->nick_name,
+                    'position' => $basicDataSnapshot?->position,
+                    'department' => $basicDataSnapshot?->department,
+                ],
+                new: null,
+            );
 
             Log::info('=== API: EMPLOYEE PERMANENTLY DELETED SUCCESSFULLY ===', [
                 'employee_id' => $id,

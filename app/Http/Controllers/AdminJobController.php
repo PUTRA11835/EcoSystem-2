@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -11,7 +12,7 @@ class AdminJobController extends Controller
 {
     private function assertAdmin(): bool
     {
-        return (int) session('user.role.id') === 1;
+        return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
     }
 
     public function index(Request $request)
@@ -21,7 +22,7 @@ class AdminJobController extends Controller
         }
 
         try {
-            $perPage = max(1, min((int) $request->get('per_page', 20), 100));
+            $perPage = max(1, min((int) $request->get('per_page', 200), 500));
             $page    = max(1, (int) $request->get('page', 1));
             $offset  = ($page - 1) * $perPage;
 

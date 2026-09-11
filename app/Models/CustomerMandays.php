@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class CustomerMandays extends Model
 {
-    use HasFactory;
+    use HasFactory, Auditable;
+
+    protected static ?string $auditModule = 'Mandays';
 
     protected $table = 'customer_mandays';
 
@@ -25,6 +28,7 @@ class CustomerMandays extends Model
         'rejection_reason',
         'notes',
         'canceled_by_id',
+        'canceled_at',
         'total_mandays',
         'customer_response_at',
     ];
@@ -34,6 +38,7 @@ class CustomerMandays extends Model
         'submitted_to_customer_at' => 'datetime',
         'sent_to_chat_at'          => 'datetime',
         'customer_response_at'     => 'datetime',
+        'canceled_at'              => 'datetime',
         'total_mandays'            => 'decimal:2',
     ];
 

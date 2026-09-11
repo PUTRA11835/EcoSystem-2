@@ -15,6 +15,7 @@ class StagingTicket extends Model
         'description',
         'body',
         'ticket_priority',
+        'ticket_type',
         'scale',
         'status',
         'rejection_reason',
@@ -35,13 +36,22 @@ class StagingTicket extends Model
         'name',
         'no_hp',
         'module',
+        'module_id',
         'client',
+        'created_at',
+        'updated_at',
+        'ai_analysis',
+        'ai_analysis_generated_at',
+        'ai_analysis_generated_by',
+        'ai_analysis_status',
     ];
 
     protected $casts = [
-        'validated_at'    => 'datetime',
-        'has_attachments' => 'boolean',
-        'cc_emails'       => 'array',
+        'validated_at'             => 'datetime',
+        'has_attachments'          => 'boolean',
+        'cc_emails'                => 'array',
+        'ai_analysis'              => 'array',
+        'ai_analysis_generated_at' => 'datetime',
     ];
 
     // ─── Scopes ──────────────────────────────────────────────────────────────
@@ -103,6 +113,16 @@ class StagingTicket extends Model
     public function ticket(): BelongsTo
     {
         return $this->belongsTo(Ticket::class, 'ticket_id', 'ticket_id');
+    }
+
+    public function moduleMaster(): BelongsTo
+    {
+        return $this->belongsTo(Module::class, 'module_id', 'id');
+    }
+
+    public function getModuleNameAttribute(): ?string
+    {
+        return $this->moduleMaster?->name ?? $this->module;
     }
 
     public function attachments()
