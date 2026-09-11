@@ -86,7 +86,7 @@ class TicketDeliverableController extends Controller
         $request->validate([
             'doc_type'  => ['required', 'string', 'in:' . $validDocTypes->implode(',')],
             'body_text' => ['nullable', 'string', 'max:1000'],
-            'file'      => ['nullable', 'file', 'max:20480'], // 20 MB max
+            'file'      => ['nullable', 'file', 'max:102400'], // 100 MB max
         ]);
 
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
