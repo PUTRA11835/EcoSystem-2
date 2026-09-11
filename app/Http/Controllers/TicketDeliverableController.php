@@ -69,8 +69,109 @@ class TicketDeliverableController extends Controller
     }
 
     /**
+     * POST /api/tickets/{id}/deliverables/upload-session
+     * Buat OneDrive upload session lebih dulu supaya file diupload LANGSUNG dari
+     * browser ke Graph (chunked), tidak lewat body request Laravel. Ini menghindari
+     * batas post_max_size/upload_max_filesize PHP dan batas 4 MB simple-PUT Graph —
+     * lihat submitNewDoc() di ticket/show.blade.php untuk alur lengkapnya.
+     */
+    public function createUploadSession(Request $request, $ticketId)
+    {
+        $user = session('user');
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'file_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+
+        [$state, $message] = $this->resolveFolderState($ticket);
+        if ($state !== 'ready') {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
+        try {
+            $oneDrive             = new OneDriveService();
+            $deliverableFolderId  = $this->resolveDeliverableFolderId($oneDrive, $ticket);
+            $uploadUrl            = $oneDrive->createUploadSession($deliverableFolderId, $request->input('file_name'));
+
+            return response()->json(['success' => true, 'upload_url' => $uploadUrl]);
+        } catch (\Throwable $e) {
+            Log::error('Deliverable createUploadSession failed', [
+                'ticket_id' => $ticketId,
+                'error'     => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create upload session: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Folder ticket berada di level customer:
+     *   {root}/{customer_id} {NAMA}/TICKETING/{ticket_number}/Deliverable
+     * Find-or-create rantai folder tsb (idempotent) dan cache folder id + share
+     * link "edit" pada ticket (dipakai tombol "Open folder").
+     */
+    private function resolveDeliverableFolderId(OneDriveService $oneDrive, Ticket $ticket): string
+    {
+        // Folder customer (di-find-or-create, diturunkan langsung dari customer ticket).
+        $rootPath         = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
+        $customerFolderId = $oneDrive->findOrCreateFolderInPath($rootPath, $ticket->customerDeliverableFolderName());
+
+        // Rantai folder (idempotent, case-insensitive): TICKETING -> {ticket_number} -> Deliverable
+        $ticketingId    = $oneDrive->findOrCreateSubFolderById($customerFolderId, 'TICKETING');
+        $ticketFolderId = $oneDrive->findOrCreateSubFolderById(
+            $ticketingId,
+            $ticket->ticket_number ?: ('Ticket-' . $ticket->ticket_id)
+        );
+        // File deliverable ditempatkan di subfolder "Deliverable" agar tidak tercampur
+        // dengan file lain yang mungkin diupload manual ke folder ticket.
+        $deliverableFolderId = $oneDrive->findOrCreateSubFolderById($ticketFolderId, 'Deliverable');
+
+        // Cache folder id + share link (untuk tombol "Open folder").
+        // PENTING: link "edit" anonymous dibuat pada folder TICKET (induk),
+        // BUKAN subfolder Deliverable. Permission edit anonymous menurun ke
+        // seluruh isi folder, sehingga pengguna yang mengakses link bisa
+        // upload/create/download langsung di folder ticket MAUPUN di subfolder
+        // Deliverable. Jika link dibuat di subfolder Deliverable saja, folder
+        // ticket induk hanya view-only (editable hilang saat naik ke folder ticket).
+        $update = [
+            'onedrive_folder_id'             => $ticketFolderId,
+            'onedrive_deliverable_folder_id' => $deliverableFolderId,
+        ];
+        // Link diperbarui bukan hanya saat kosong/pindah folder, tapi juga saat
+        // link tersimpan ternyata bukan share link, sudah kedaluwarsa, atau
+        // scope-nya bukan anonymous — kondisi yang bikin customer kena
+        // "Request access" padahal di EcoSystem terlihat normal.
+        $needsLink = empty($ticket->onedrive_folder_url)
+            || $ticket->onedrive_folder_id !== $ticketFolderId
+            || !$ticket->onedrive_link_is_public;
+
+        if ($needsLink) {
+            try {
+                $link = $oneDrive->createShareLink($ticketFolderId, 'edit');
+                $update['onedrive_folder_url']      = $link['url'];
+                $update['onedrive_link_scope']      = $link['scope'];
+                $update['onedrive_link_expires_at'] = $link['expires_at'];
+                $update['onedrive_link_checked_at'] = now();
+            } catch (\Throwable $e) {
+                Log::warning('Deliverable folder share link failed', ['ticket_id' => $ticket->ticket_id, 'error' => $e->getMessage()]);
+            }
+        }
+        $ticket->update($update);
+
+        return $deliverableFolderId;
+    }
+
+    /**
      * POST /api/tickets/{id}/deliverables
-     * Multipart form: doc_type, body_text (optional), file (optional)
+     * JSON body: doc_type, body_text (optional), onedrive_item_id + file_name
+     * (optional — hasil dari createUploadSession() + upload chunked ke Graph).
      */
     public function store(Request $request, $ticketId)
     {
@@ -84,9 +185,10 @@ class TicketDeliverableController extends Controller
         $validDocTypes = DeliverableDocumentType::active()->pluck('name');
 
         $request->validate([
-            'doc_type'  => ['required', 'string', 'in:' . $validDocTypes->implode(',')],
-            'body_text' => ['nullable', 'string', 'max:1000'],
-            'file'      => ['nullable', 'file', 'max:102400'], // 100 MB max
+            'doc_type'         => ['required', 'string', 'in:' . $validDocTypes->implode(',')],
+            'body_text'        => ['nullable', 'string', 'max:1000'],
+            'onedrive_item_id' => ['nullable', 'string'],
+            'file_name'        => ['required_with:onedrive_item_id', 'string', 'max:255'],
         ]);
 
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
@@ -95,95 +197,25 @@ class TicketDeliverableController extends Controller
         $fileUrl  = null;
         $fileName = null;
 
-        if ($request->hasFile('file') && $request->file('file')->isValid()) {
-            // Folder ticket berada di level customer:
-            //   {root}/{customer_id} {NAMA}/TICKETING/{ticket_number}/Deliverable
-            [$state, $message] = $this->resolveFolderState($ticket);
-            if ($state !== 'ready') {
-                return response()->json(['success' => false, 'message' => $message], 422);
-            }
+        if ($request->filled('onedrive_item_id')) {
+            $fileId   = $request->input('onedrive_item_id');
+            $fileName = $request->input('file_name');
 
-            $uploadedFile = $request->file('file');
-            $fileName     = $uploadedFile->getClientOriginalName();
-            $mimeType     = $uploadedFile->getMimeType() ?? 'application/octet-stream';
-            $fileContent  = file_get_contents($uploadedFile->getRealPath());
-
+            // webUrl dari upload adalah path SharePoint langsung — butuh izin akun
+            // (Request access). Buat anonymous share link agar file bisa dibuka
+            // customer tanpa login. File SUDAH terupload ke OneDrive di titik ini —
+            // kalau share link gagal dibuat, tetap simpan baris deliverable (fileUrl
+            // null) daripada kehilangan record untuk file yang sudah ada di OneDrive.
+            // `onedrive:audit-links --fix` bisa memperbaiki link-nya belakangan.
             try {
                 $oneDrive = new OneDriveService();
-
-                // Folder customer (di-find-or-create, diturunkan langsung dari customer ticket).
-                $rootPath           = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
-                $customerFolderId   = $oneDrive->findOrCreateFolderInPath($rootPath, $ticket->customerDeliverableFolderName());
-
-                // Rantai folder (idempotent, case-insensitive): TICKETING -> {ticket_number} -> Deliverable
-                $ticketingId    = $oneDrive->findOrCreateSubFolderById($customerFolderId, 'TICKETING');
-                $ticketFolderId = $oneDrive->findOrCreateSubFolderById(
-                    $ticketingId,
-                    $ticket->ticket_number ?: ('Ticket-' . $ticket->ticket_id)
-                );
-                // File deliverable ditempatkan di subfolder "Deliverable" agar tidak tercampur
-                // dengan file lain yang mungkin diupload manual ke folder ticket.
-                $deliverableFolderId = $oneDrive->findOrCreateSubFolderById($ticketFolderId, 'Deliverable');
-
-                // Cache folder id + share link (untuk tombol "Open folder").
-                // PENTING: link "edit" anonymous dibuat pada folder TICKET (induk),
-                // BUKAN subfolder Deliverable. Permission edit anonymous menurun ke
-                // seluruh isi folder, sehingga pengguna yang mengakses link bisa
-                // upload/create/download langsung di folder ticket MAUPUN di subfolder
-                // Deliverable. Jika link dibuat di subfolder Deliverable saja, folder
-                // ticket induk hanya view-only (editable hilang saat naik ke folder ticket).
-                $update = [
-                    'onedrive_folder_id'             => $ticketFolderId,
-                    'onedrive_deliverable_folder_id' => $deliverableFolderId,
-                ];
-                // Link diperbarui bukan hanya saat kosong/pindah folder, tapi juga saat
-                // link tersimpan ternyata bukan share link, sudah kedaluwarsa, atau
-                // scope-nya bukan anonymous — kondisi yang bikin customer kena
-                // "Request access" padahal di EcoSystem terlihat normal.
-                $needsLink = empty($ticket->onedrive_folder_url)
-                    || $ticket->onedrive_folder_id !== $ticketFolderId
-                    || !$ticket->onedrive_link_is_public;
-
-                if ($needsLink) {
-                    try {
-                        $link = $oneDrive->createShareLink($ticketFolderId, 'edit');
-                        $update['onedrive_folder_url']      = $link['url'];
-                        $update['onedrive_link_scope']      = $link['scope'];
-                        $update['onedrive_link_expires_at'] = $link['expires_at'];
-                        $update['onedrive_link_checked_at'] = now();
-                    } catch (\Throwable $e) {
-                        Log::warning('Deliverable folder share link failed', ['ticket_id' => $ticketId, 'error' => $e->getMessage()]);
-                    }
-                }
-                $ticket->update($update);
-
-                $result  = $oneDrive->uploadFile($deliverableFolderId, $fileName, $fileContent, $mimeType);
-                $fileId  = $result['id'];
-
-                // webUrl dari upload adalah path SharePoint langsung — butuh izin akun (Request access).
-                // Buat anonymous share link agar file bisa dibuka customer tanpa login.
-                try {
-                    $fileUrl = $oneDrive->createShareLink($fileId, 'view')['url'];
-                } catch (\Throwable $e) {
-                    // Fallback webUrl HANYA bisa dibuka akun yang punya izin item —
-                    // customer akan kena "Request access". Dicatat sebagai error supaya
-                    // ketahuan, dan `onedrive:audit-links --fix` bisa memperbaikinya nanti.
-                    Log::error('Deliverable file share link failed — falling back to direct webUrl (external users cannot open it)', [
-                        'ticket_id' => $ticketId,
-                        'file_id'   => $fileId,
-                        'error'     => $e->getMessage(),
-                    ]);
-                    $fileUrl = $result['webUrl'] ?? $result['downloadUrl'] ?? null;
-                }
+                $fileUrl  = $oneDrive->createShareLink($fileId, 'view')['url'];
             } catch (\Throwable $e) {
-                Log::error('Deliverable upload to OneDrive failed', [
+                Log::error('Deliverable file share link failed — file uploaded but no public link yet', [
                     'ticket_id' => $ticketId,
+                    'file_id'   => $fileId,
                     'error'     => $e->getMessage(),
                 ]);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to upload file to OneDrive: ' . $e->getMessage(),
-                ], 500);
             }
         }
 

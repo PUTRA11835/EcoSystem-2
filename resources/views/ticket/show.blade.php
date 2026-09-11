@@ -9206,6 +9206,45 @@ function updateFileName() {
     document.getElementById('ndFileName').textContent = f ? f.name : 'Choose file...';
 }
 
+// Upload file langsung ke Graph dalam potongan (chunked), bypass server Laravel
+// sepenuhnya untuk byte file-nya — lihat createUploadSession() di
+// TicketDeliverableController untuk alasannya (batas post_max_size PHP & 4 MB
+// simple-PUT Graph).
+async function _deliverableUploadChunked(uploadUrl, file, onProgress) {
+    const CHUNK = 5 * 1024 * 1024; // 5 MB per chunk
+    let start  = 0;
+    let itemId = null;
+
+    while (start < file.size) {
+        const end   = Math.min(start + CHUNK, file.size);
+        const chunk = file.slice(start, end);
+
+        const res = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Range': `bytes ${start}-${end - 1}/${file.size}`,
+                'Content-Type': file.type || 'application/octet-stream',
+            },
+            body: chunk,
+        });
+
+        if (res.status === 202) {
+            onProgress(Math.round(end / file.size * 95));
+        } else if (res.status === 200 || res.status === 201) {
+            const data = await res.json();
+            itemId = data.id;
+            onProgress(100);
+        } else {
+            const errText = await res.text();
+            throw new Error(`OneDrive upload failed (${res.status}): ${errText}`);
+        }
+
+        start = end;
+    }
+
+    return itemId;
+}
+
 async function submitNewDoc() {
     const docType  = document.getElementById('ndDocType').value.trim();
     const bodyText = document.getElementById('ndBodyText').value.trim();
@@ -9230,16 +9269,41 @@ async function submitNewDoc() {
     submitBtn.textContent = 'Saving…';
 
     try {
-        const form = new FormData();
-        form.append('doc_type',  docType);
-        if (bodyText) form.append('body_text', bodyText);
-        if (file)     form.append('file', file);
+        let onedriveItemId = null;
+
+        if (file) {
+            // Step 1: minta upload session (tidak membawa byte file — request kecil).
+            submitBtn.textContent = 'Preparing upload…';
+            const sessionRes  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/upload-session`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ file_name: file.name }),
+            });
+            const sessionJson = await delivParseJson(sessionRes);
+            if (!sessionJson.success) throw new Error(sessionJson.message);
+
+            // Step 2: upload file langsung ke OneDrive (chunked).
+            onedriveItemId = await _deliverableUploadChunked(sessionJson.upload_url, file, pct => {
+                submitBtn.textContent = `Uploading… ${pct}%`;
+            });
+            if (!onedriveItemId) throw new Error('Upload completed but no item ID returned.');
+        }
+
+        // Step 3: simpan metadata dokumen (server buat share link kalau ada file).
+        submitBtn.textContent = 'Saving…';
+        const body = { doc_type: docType };
+        if (bodyText) body.body_text = bodyText;
+        if (onedriveItemId) {
+            body.onedrive_item_id = onedriveItemId;
+            body.file_name        = file.name;
+        }
 
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
             method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
             credentials: 'same-origin',
-            body: form,
+            body: JSON.stringify(body),
         });
         const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
