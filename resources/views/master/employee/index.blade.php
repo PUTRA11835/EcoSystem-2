@@ -2105,7 +2105,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     }
 
     function closeEmpMenu() {
-        document.getElementById('floatingEmpMenu').classList.add('hidden');
+        document.getElementById('floatingEmpMenu')?.classList.add('hidden');
     }
 
     function empMenuChangePassword() {

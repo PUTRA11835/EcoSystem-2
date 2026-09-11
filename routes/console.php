@@ -11,6 +11,15 @@ Artisan::command('inspire', function () {
 // Proses email masuk setiap menit → buat tiket / tambah pesan ke tiket
 Schedule::command('email:process-inbox')->everyMinute();
 
+// Reminder Microsoft Teams (lewat Power Automate) untuk tiket yang masih berstatus
+// open. Jalan tiap menit karena jarak antar reminder memang dikonfigurasi dalam
+// menit; command-nya sendiri yang memutuskan tiket mana yang sudah jatuh tempo
+// (services.power_automate.reminder), dan langsung keluar tanpa efek kalau flow
+// belum dikonfigurasi. withoutOverlapping supaya run yang lambat tidak menumpuk.
+Schedule::command('tickets:open-reminders')
+    ->everyMinute()
+    ->withoutOverlapping();
+
 // Recompute delivery activity statuses tiap hari 00:05 (untuk transisi delayed berbasis tanggal)
 Schedule::command('activities:recompute-status')->dailyAt('00:05');
 

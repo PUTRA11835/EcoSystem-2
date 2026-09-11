@@ -1,0 +1,56 @@
+{
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.4",
+    "body": [
+        {
+            "type": "TextBlock",
+            "text": "Tiket masih Open",
+            "weight": "Bolder",
+            "size": "Medium",
+            "color": "Attention"
+        },
+        {
+            "type": "TextBlock",
+            "text": "**@{triggerBody()?['ticket']?['number']}** - @{triggerBody()?['ticket']?['subject']}",
+            "wrap": true
+        },
+        {
+            "type": "FactSet",
+            "facts": [
+                {
+                    "title": "Customer",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['customer'], '-')}"
+                },
+                {
+                    "title": "Modul",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['module'], '-')}"
+                },
+                {
+                    "title": "Prioritas",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['priority'], '-')}"
+                },
+                {
+                    "title": "Terbuka selama",
+                    "value": "@{triggerBody()?['reminder']?['open_for_minutes']} menit"
+                },
+                {
+                    "title": "Pengingat ke-",
+                    "value": "@{triggerBody()?['reminder']?['count']}"
+                }
+            ]
+        },
+        {
+            "type": "TextBlock",
+            "text": "Tiket ini belum diproses. Mohon assign member atau ambil sendiri - pengingat berhenti otomatis begitu statusnya berubah dari Open.",
+            "wrap": true
+        }
+    ],
+    "actions": [
+        {
+            "type": "Action.OpenUrl",
+            "title": "Buka Tiket",
+            "url": "@{triggerBody()?['ticket']?['url']}"
+        }
+    ]
+}

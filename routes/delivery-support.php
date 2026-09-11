@@ -7,6 +7,7 @@ use App\Http\Controllers\Delivery\DeliverySupportPhaseController;
 use App\Http\Controllers\Delivery\DeliverySupportActivityController;
 use App\Http\Controllers\Delivery\DeliverySupportStageController;
 use App\Http\Controllers\Delivery\DeliverySupportDataController;
+use App\Http\Controllers\Delivery\DeliverySupportReconsController;
 use App\Http\Controllers\DeliverySupportPaymentTermController;
 use App\Http\Controllers\DeliverySupportCostController;
 use App\Http\Middleware\CheckAuthToken;
@@ -161,8 +162,13 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
                 Route::post('/reorder', [DeliverySupportActivityController::class, 'reorder'])->name('reorder');
                 Route::post('/bulk-progress', [DeliverySupportActivityController::class, 'bulkUpdateProgress'])->name('bulk-progress');
                 Route::put('/{activity}', [DeliverySupportActivityController::class, 'update'])->name('update');
-                Route::patch('/{activity}/remove-ticket', [DeliverySupportActivityController::class, 'removeTicketLink'])->name('remove-ticket');
                 Route::put('/{activity}/employees/{employeeId}', [DeliverySupportActivityController::class, 'updateAssignment'])->name('employees.update');
+            });
+
+            // "Remove Ticket from DS" — gating-nya slug sendiri (bukan activities.edit)
+            // supaya bisa diberi/dicabut lewat Control Center → Menu Access.
+            Route::middleware('menu:delivery-support.remove-ticket')->group(function () {
+                Route::patch('/{activity}/remove-ticket', [DeliverySupportActivityController::class, 'removeTicketLink'])->name('remove-ticket');
             });
 
             Route::middleware('menu:delivery-support.activities.manage')->group(function () {
@@ -286,6 +292,48 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
         Route::middleware('menu:delivery-support.plan-cost.edit')->group(function () {
             Route::put('/costs/{cost}',                   [DeliverySupportCostController::class, 'update'])->name('costs.update');
             Route::put('/costs/{cost}/items/{item}',      [DeliverySupportCostController::class, 'updateItem'])->name('costs.items.update');
+        });
+
+        // =====================================================================
+        // RECONS (rekonsiliasi tiket)
+        // =====================================================================
+        // Catatan: SEMUA route di bawah sengaja hanya GET/POST (tanpa
+        // PUT/PATCH/DELETE) karena environment produksi bisa memblokir verb
+        // tersebut. Aksi hapus/submit memakai POST dengan path eksplisit,
+        // konsisten dengan varian `-post` yang sudah dipakai section lain.
+        Route::prefix('recons')->name('recons.')->group(function () {
+
+            Route::middleware('menu:delivery-support.recons.view')->group(function () {
+                // Data untuk tab Recons di halaman Support Details
+                Route::get('/tickets',          [DeliverySupportReconsController::class, 'tickets'])->name('tickets');
+                Route::get('/eligible-tickets', [DeliverySupportReconsController::class, 'eligibleTickets'])->name('eligible-tickets');
+                Route::get('/batches',          [DeliverySupportReconsController::class, 'batches'])->name('batches');
+            });
+
+            // Membuat Recons baru (halaman + simpan) — izin manage.
+            Route::middleware('menu:delivery-support.recons.manage')->group(function () {
+                Route::get('/create', [DeliverySupportReconsController::class, 'create'])->name('create');
+                Route::post('/save',  [DeliverySupportReconsController::class, 'store'])->name('store');
+            });
+
+            // Route ber-parameter diletakkan SETELAH path statis di atas supaya
+            // '/create' & '/batches' tidak tertangkap sebagai {recons}.
+            Route::middleware('menu:delivery-support.recons.view')->group(function () {
+                Route::get('/{recons}',        [DeliverySupportReconsController::class, 'show'])->name('show');
+                Route::get('/{recons}/export', [DeliverySupportReconsController::class, 'export'])->name('export');
+            });
+
+            Route::middleware('menu:delivery-support.recons.edit')->group(function () {
+                Route::get('/{recons}/edit',    [DeliverySupportReconsController::class, 'edit'])->name('edit');
+                Route::post('/{recons}/save',   [DeliverySupportReconsController::class, 'update'])->name('update');
+                Route::post('/{recons}/submit', [DeliverySupportReconsController::class, 'submit'])->name('submit');
+                // Batalkan submit → status kembali draft (tiketnya tetap terkunci).
+                Route::post('/{recons}/cancel', [DeliverySupportReconsController::class, 'cancel'])->name('cancel');
+            });
+
+            Route::middleware('menu:delivery-support.recons.manage')->group(function () {
+                Route::post('/{recons}/delete', [DeliverySupportReconsController::class, 'destroy'])->name('destroy');
+            });
         });
 
         Route::middleware('menu:delivery-support.plan-cost.manage')->group(function () {
