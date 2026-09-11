@@ -832,25 +832,12 @@ Route::prefix('general')
                     ->middleware('menu:general.kpi-evaluation.create');
 
                 // -------------------------------------------------------------
-                // TEAM & LEADS — tab where HR/admin set each employee's leader
-                // (writes employee_basic_data.direct_supervision).
+                // LEAD & PROJECT — read-only reporting-line tab. The leader
+                // shown is derived (project manager → employee_basic_data
+                // .direct_supervision → none); it can only be changed from
+                // master employee data. See KpiController::resolveReportsTo().
                 // -------------------------------------------------------------
                 Route::get('/teams', [\App\Http\Controllers\HR\KpiController::class, 'teams'])->name('teams');
-                Route::post('/teams/groups/save', [\App\Http\Controllers\HR\KpiController::class, 'saveTeam'])
-                    ->name('teams.groups.save')
-                    ->middleware('menu:general.kpi-evaluation.create');
-                Route::post('/teams/groups/{id}/delete', [\App\Http\Controllers\HR\KpiController::class, 'deleteTeam'])
-                    ->name('teams.groups.delete')
-                    ->middleware('menu:general.kpi-evaluation.create');
-                Route::post('/teams/{employeeId}/lead', [\App\Http\Controllers\HR\KpiController::class, 'updateLead'])
-                    ->name('teams.lead')
-                    ->middleware('menu:general.kpi-evaluation.create');
-                Route::post('/teams/{employeeId}/team', [\App\Http\Controllers\HR\KpiController::class, 'updateTeam'])
-                    ->name('teams.team')
-                    ->middleware('menu:general.kpi-evaluation.create');
-                Route::post('/teams/{employeeId}/project-lead', [\App\Http\Controllers\HR\KpiController::class, 'applyProjectLead'])
-                    ->name('teams.project-lead')
-                    ->middleware('menu:general.kpi-evaluation.create');
 
                 // -------------------------------------------------------------
                 // ASSESSMENT TEMPLATES — rendered as a tab inside this page.

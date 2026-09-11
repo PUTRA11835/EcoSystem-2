@@ -48,8 +48,6 @@ class EmployeeBasicData extends Model
         'division',
         'department',
         'direct_supervision',
-        'kpi_team_id',
-        'lead_source',
         'manager',
         'authorization_group',
         'home_base',
@@ -91,14 +89,6 @@ class EmployeeBasicData extends Model
     public function employee()
     {
         return $this->belongsTo(Employee::class, 'employee_id', 'employee_id');
-    }
-
-    /**
-     * KPI team this employee belongs to (drives their leader when lead_source = 'team').
-     */
-    public function kpiTeam()
-    {
-        return $this->belongsTo(KpiTeam::class, 'kpi_team_id');
     }
 
     /**

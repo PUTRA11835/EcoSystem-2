@@ -7,7 +7,6 @@ use App\Models\Employee;
 use App\Models\EmployeeBasicData;
 use App\Models\KpiEvaluation;
 use App\Models\KpiEvaluationDetail;
-use App\Models\KpiTeam;
 use App\Models\KpiTemplate;
 use App\Support\KpiAssignments;
 use Carbon\Carbon;
@@ -216,12 +215,10 @@ class KpiController extends Controller
                 ->values();
         }
 
-        // ── Resolve each employee's reporting-line supervisor to a name ──────
-        $supNameIds = collect($activeEmployees->items())
-            ->map(fn($e) => $e->basicData?->direct_supervision)
-            ->filter()->unique()->values();
-        $supervisorNames = Employee::with('basicData')->whereIn('employee_id', $supNameIds)->get()
-            ->mapWithKeys(fn($e) => [$e->employee_id => ($e->basicData?->full_name ?: $e->eci)]);
+        // ── Resolve each employee's reporting-line leader to a name ──────────
+        // Derived, display only: project manager → employee_basic_data
+        // .direct_supervision → none. Changed only from master employee data.
+        $reportsToMap = $this->resolveReportsTo(collect($activeEmployees->items()));
 
         $hasActiveFilters = $search !== '' || $positionFilter !== '' || $statusFilter !== ''
             || $supervisorId !== '' || $templateId !== '' || $typeFilter !== '';
@@ -268,7 +265,7 @@ class KpiController extends Controller
             'recentEvaluations',
             'activeTemplates',
             'eligibleTemplates',
-            'supervisorNames',
+            'reportsToMap',
             'hasActiveFilters',
             'activeEmployees',
             'allActiveEmployees',
@@ -723,29 +720,86 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         ]);
     }
 
-    // ── Team & Leads ─────────────────────────────────────────────────────────
+    // ── Lead & Project ──────────────────────────────────────────────────────
 
     /**
-     * "Team & Leads" tab — HR/admin set which leader each employee reports to.
-     * The leader is stored on employee_basic_data.direct_supervision, which the
-     * rest of the KPI flow reads (lead-assessment filling, "My Team", the
-     * supervisor auto-fill on assignment).
+     * Resolve each employee's KPI "reports to" leader — DISPLAY ONLY.
+     *
+     * Master data (employee_basic_data.direct_supervision) is the single source
+     * of truth and the only place it can be changed; nothing here is written
+     * back. Resolution order:
+     *
+     *   1. On a delivery project → the most recent project (by id) that has a
+     *      project_manager_id set                       → source 'project'
+     *   2. Otherwise → employee_basic_data.direct_supervision → source 'master'
+     *   3. Otherwise → no leader (caller renders "—")
+     *
+     * @param  \Illuminate\Support\Collection|\App\Models\Employee[]  $employees
+     *         each needs `basicData` and `deliveryProjects` eager-loaded
+     * @return array<int, array{id: int|null, name: string|null, source: string|null}>
+     *         keyed by employee_id
+     */
+    private function resolveReportsTo($employees): array
+    {
+        $projectLeader = [];   // employee_id => project_manager_id
+        $masterLeader  = [];   // employee_id => direct_supervision
+
+        foreach ($employees as $emp) {
+            $sup = $emp->basicData?->direct_supervision;
+            if ($sup) {
+                $masterLeader[$emp->employee_id] = (int) $sup;
+            }
+
+            $pm = collect($emp->deliveryProjects ?? [])
+                ->filter(fn ($p) => !empty($p->project_manager_id))
+                ->sortByDesc('id')
+                ->first();
+            if ($pm) {
+                $projectLeader[$emp->employee_id] = (int) $pm->project_manager_id;
+            }
+        }
+
+        $ids = collect($projectLeader)->merge($masterLeader)->filter()->unique()->values();
+        $names = $ids->isEmpty() ? collect() : Employee::with('basicData')
+            ->whereIn('employee_id', $ids)
+            ->get()
+            ->mapWithKeys(fn ($e) => [$e->employee_id => ($e->basicData?->full_name ?: $e->eci)]);
+
+        $out = [];
+        foreach ($employees as $emp) {
+            $id  = $projectLeader[$emp->employee_id] ?? $masterLeader[$emp->employee_id] ?? null;
+            $src = isset($projectLeader[$emp->employee_id]) ? 'project'
+                 : (isset($masterLeader[$emp->employee_id]) ? 'master' : null);
+            $out[$emp->employee_id] = [
+                'id'     => $id,
+                'name'   => $id ? ($names[$id] ?? ('#' . $id)) : null,
+                'source' => $src,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * "Lead & Project" tab — read-only view of each employee's reporting line.
+     * The leader is derived (project manager → employee_basic_data
+     * .direct_supervision → none) and can only be changed from master employee
+     * data. See {@see resolveReportsTo()}.
      */
     public function teams(Request $request)
     {
         $user           = session('user');
         $search         = trim((string) $request->query('search', ''));
         $positionFilter = $request->query('position', '');
-        $leadFilter     = $request->query('lead', '');
-        $teamFilter     = $request->query('team', '');
-        $noLeadOnly     = $leadFilter === 'none';
+        $projectFilter  = $request->query('project', '');
+        $leadFilter     = $request->query('lead', ''); // '' | 'none' | <employee_id>
 
         $perPage = (int) $request->query('per_page', 15);
         if (!in_array($perPage, [10, 15, 25, 50])) {
             $perPage = 15;
         }
 
-        $q = Employee::with(['basicData.kpiTeam.lead.basicData', 'deliveryProjects:id,name,project_manager_id,delivery_manager_id,delivery_owner_id'])
+        $q = Employee::with(['basicData', 'deliveryProjects:id,name,project_manager_id'])
             ->where('is_active', true);
 
         if ($search !== '') {
@@ -761,15 +815,23 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         if ($positionFilter) {
             $q->whereHas('basicData', fn($b) => $b->where('position', $positionFilter));
         }
-        if ($noLeadOnly) {
-            $q->whereHas('basicData', fn($b) => $b->whereNull('direct_supervision')->orWhere('direct_supervision', ''));
-        } elseif ($leadFilter) {
-            $q->whereHas('basicData', fn($b) => $b->where('direct_supervision', $leadFilter));
+        if ($projectFilter === 'none') {
+            $q->whereDoesntHave('deliveryProjects');
+        } elseif ($projectFilter !== '') {
+            $q->whereHas('deliveryProjects', fn($p) => $p->where('delivery_projects.id', $projectFilter));
         }
-        if ($teamFilter === 'none') {
-            $q->whereHas('basicData', fn($b) => $b->whereNull('kpi_team_id'));
-        } elseif ($teamFilter !== '') {
-            $q->whereHas('basicData', fn($b) => $b->where('kpi_team_id', $teamFilter));
+
+        // Leader filter — the leader is derived (project manager → master
+        // "report to"), so resolve it across the whole filtered candidate set
+        // and constrain the query to the matching employees.
+        if ($leadFilter !== '') {
+            $resolvedAll = $this->resolveReportsTo((clone $q)->get());
+            $matchIds = collect($resolvedAll)->filter(function ($r) use ($leadFilter) {
+                return $leadFilter === 'none'
+                    ? empty($r['id'])
+                    : (string) ($r['id'] ?? '') === (string) $leadFilter;
+            })->keys()->all();
+            $q->whereIn('employee.employee_id', $matchIds ?: [0]);
         }
 
         $employees = $q->leftJoin('employee_basic_data as bd', 'employee.employee_id', '=', 'bd.employee_id')
@@ -777,305 +839,59 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
             ->orderBy('bd.first_name')->orderBy('bd.last_name')
             ->paginate($perPage)->withQueryString();
 
-        // Resolve the leader names shown on this page.
-        $leadIds = collect($employees->items())
-            ->map(fn($e) => $e->basicData?->direct_supervision)
-            ->filter()->unique()->values();
-        $leadMap = Employee::with('basicData')->whereIn('employee_id', $leadIds)->get()->keyBy('employee_id');
-
-        // Direct-report counts across the whole org (cheap grouped count).
-        $reportCounts = EmployeeBasicData::whereNotNull('direct_supervision')
-            ->where('direct_supervision', '!=', '')
-            ->selectRaw('direct_supervision, COUNT(*) as c')
-            ->groupBy('direct_supervision')
-            ->pluck('c', 'direct_supervision');
-
-        // Options for every leader picker + the header "Lead" filter.
-        $leadOptions = Employee::with('basicData')->where('is_active', true)->get()
-            ->map(fn($e) => [
-                'id'       => (string) $e->employee_id,
-                'name'     => $e->basicData?->full_name ?: $e->eci,
-                'meta'     => trim(($e->eci ?? '') . ' · ' . ($e->basicData?->position ?? ''), ' ·'),
-                'is_lead'  => (int) ($reportCounts[$e->employee_id] ?? 0) > 0,
-            ])
-            ->sortBy('name')->values();
-
-        // KPI teams (with resolved lead names) + a project → lead map for the
-        // "use project lead" shortcut.
-        $teams = KpiTeam::with('lead.basicData')->withCount('memberBasicData')->orderBy('name')->get();
-
-        $projIds = collect($employees->items())->flatMap(fn($e) => $e->deliveryProjects->pluck('id'))->unique()->values();
-        $projRows = \App\Models\DeliveryProject::whereIn('id', $projIds)
-            ->get(['id', 'name', 'project_manager_id', 'delivery_manager_id', 'delivery_owner_id']);
-        $pmIds = $projRows->flatMap(fn($p) => [$p->project_manager_id, $p->delivery_manager_id, $p->delivery_owner_id])->filter()->unique();
-        $pmNames = Employee::with('basicData')->whereIn('employee_id', $pmIds)->get()
-            ->mapWithKeys(fn($e) => [$e->employee_id => ($e->basicData?->full_name ?: $e->eci)]);
-        $projectLeadMap = $projRows->mapWithKeys(function ($p) use ($pmNames) {
-            $lid = $p->project_manager_id ?: ($p->delivery_manager_id ?: $p->delivery_owner_id);
-            return [(string) $p->id => [
-                'name'      => $p->name,
-                'lead_id'   => $lid ? (string) $lid : null,
-                'lead_name' => $lid ? ($pmNames[$lid] ?? ('#' . $lid)) : null,
-            ]];
-        });
+        // Derived leader for each row — project manager → master report-to →
+        // none. Display only; changed only from master employee data.
+        $reportsToMap = $this->resolveReportsTo(collect($employees->items()));
 
         $positions = EmployeeBasicData::whereNotNull('position')->where('position', '!=', '')
             ->distinct()->orderBy('position')->pluck('position');
 
+        // Projects for the header "Project" filter dropdown.
+        $projects = \App\Models\DeliveryProject::orderBy('name')->get(['id', 'name']);
+
+        // Leaders actually in use (someone's "report to" or a project manager),
+        // resolved to names for the header "Leader" filter dropdown.
+        $leadIds = EmployeeBasicData::whereNotNull('direct_supervision')->where('direct_supervision', '!=', '')
+            ->distinct()->pluck('direct_supervision')
+            ->merge(\App\Models\DeliveryProject::whereNotNull('project_manager_id')->distinct()->pluck('project_manager_id'))
+            ->filter()->unique()->values();
+        $leadOptions = Employee::with('basicData')->whereIn('employee_id', $leadIds)->get()
+            ->map(fn($e) => [
+                'id'   => (string) $e->employee_id,
+                'name' => $e->basicData?->full_name ?: $e->eci,
+                'meta' => $e->eci,
+            ])
+            ->sortBy('name')->values();
+
         $totalEmployees = Employee::where('is_active', true)->count();
         $withLead = Employee::where('is_active', true)
-            ->whereHas('basicData', fn($b) => $b->whereNotNull('direct_supervision')->where('direct_supervision', '!=', ''))
+            ->where(function ($w) {
+                $w->whereHas('basicData', fn($b) => $b->whereNotNull('direct_supervision')->where('direct_supervision', '!=', ''))
+                  ->orWhereHas('deliveryProjects', fn($p) => $p->whereNotNull('project_manager_id'));
+            })
             ->count();
 
         $stats = [
             'total'    => $totalEmployees,
             'withLead' => $withLead,
             'noLead'   => max(0, $totalEmployees - $withLead),
-            'teams'    => $teams->count(),
         ];
 
-        $canEdit = $this->can('general.kpi-evaluation.create');
-
         $viewData = compact(
-            'user', 'employees', 'leadMap', 'reportCounts', 'leadOptions',
-            'teams', 'projectLeadMap', 'positions', 'stats',
-            'search', 'positionFilter', 'leadFilter', 'teamFilter',
-            'perPage', 'canEdit'
+            'user', 'employees', 'reportsToMap', 'positions', 'projects', 'leadOptions', 'stats',
+            'search', 'positionFilter', 'projectFilter', 'leadFilter', 'perPage'
         );
 
         // Realtime filtering: return just the rows + pager for XHR replacement.
         if ($request->boolean('partial')) {
             return response()->json([
-                'rows'  => view('hr-general.kpi.partials._teams-rows', $viewData)->render(),
-                'pager' => view('hr-general.kpi.partials._teams-pager', $viewData)->render(),
+                'rows'  => view('hr-general.kpi.partials._lead-project-rows', $viewData)->render(),
+                'pager' => view('hr-general.kpi.partials._lead-project-pager', $viewData)->render(),
                 'total' => $employees->total(),
             ]);
         }
 
-        return view('hr-general.kpi.teams', $viewData);
-    }
-
-    /**
-     * Re-point the open (un-reviewed) current lead-assessment rows for a set of
-     * employees at a new leader, so a re-org never leaves a stale evaluator.
-     */
-    private function syncOpenLeadEvals(array $employeeIds, $leadId): int
-    {
-        if (empty($employeeIds)) {
-            return 0;
-        }
-        return KpiEvaluation::whereIn('employee_id', $employeeIds)
-            ->whereNull('reviewed_at')
-            ->whereHas('template', fn($t) => $t->whereIn('target_type', ['supervisor', 'peer']))
-            ->update(['supervisor_id' => $leadId]);
-    }
-
-    /**
-     * POST: set (or clear) an employee's leader manually.
-     */
-    public function updateLead(Request $request, int $employeeId)
-    {
-        $request->validate([
-            'lead_id'  => 'nullable|integer',
-            'sync_kpi' => 'nullable|boolean',
-        ]);
-
-        $bd = EmployeeBasicData::where('employee_id', $employeeId)->first();
-        if (!$bd) {
-            return response()->json(['success' => false, 'message' => 'Employee basic data not found.'], 404);
-        }
-
-        $leadId = $request->input('lead_id') ?: null;
-
-        if ($leadId && (int) $leadId === $employeeId) {
-            return response()->json(['success' => false, 'message' => 'An employee cannot be their own leader.'], 422);
-        }
-        if ($leadId && !Employee::where('employee_id', $leadId)->exists()) {
-            return response()->json(['success' => false, 'message' => 'Selected leader was not found.'], 422);
-        }
-
-        $bd->direct_supervision = $leadId;
-        $bd->lead_source        = $leadId ? 'manual' : null;
-        $bd->save();
-
-        $synced = $request->boolean('sync_kpi') ? $this->syncOpenLeadEvals([$employeeId], $leadId) : 0;
-
-        $leadName = $leadId
-            ? (Employee::with('basicData')->find($leadId)?->basicData?->full_name ?? ('#' . $leadId))
-            : null;
-
-        return response()->json([
-            'success'   => true,
-            'message'   => $leadId
-                ? "Leader set to {$leadName}." . ($synced ? " {$synced} open KPI evaluation(s) updated." : '')
-                : 'Leader cleared.',
-            'lead_id'   => $leadId,
-            'lead_name' => $leadName,
-            'source'    => $leadId ? 'manual' : null,
-            'reports'   => EmployeeBasicData::where('direct_supervision', $employeeId)->count(),
-        ]);
-    }
-
-    /**
-     * POST: put an employee on a KPI team. If the team has a lead, that becomes
-     * the employee's leader (lead_source = 'team'). Clearing the team leaves the
-     * current leader in place but drops the 'team' source.
-     */
-    public function updateTeam(Request $request, int $employeeId)
-    {
-        $request->validate(['team_id' => 'nullable|integer']);
-
-        $bd = EmployeeBasicData::where('employee_id', $employeeId)->first();
-        if (!$bd) {
-            return response()->json(['success' => false, 'message' => 'Employee basic data not found.'], 404);
-        }
-
-        $teamId = $request->input('team_id') ?: null;
-        $team   = $teamId ? KpiTeam::find($teamId) : null;
-        if ($teamId && !$team) {
-            return response()->json(['success' => false, 'message' => 'Team not found.'], 422);
-        }
-
-        $bd->kpi_team_id = $teamId;
-
-        $leadName = null;
-        $synced   = 0;
-        if ($team && $team->lead_employee_id && (int) $team->lead_employee_id !== $employeeId) {
-            $bd->direct_supervision = $team->lead_employee_id;
-            $bd->lead_source        = 'team';
-            $leadName = $team->lead?->basicData?->full_name ?? ('#' . $team->lead_employee_id);
-            $synced   = $this->syncOpenLeadEvals([$employeeId], $team->lead_employee_id);
-        } elseif (!$teamId && $bd->lead_source === 'team') {
-            $bd->lead_source = 'manual';
-        }
-        $bd->save();
-
-        return response()->json([
-            'success'   => true,
-            'message'   => $team
-                ? "Assigned to “{$team->name}”." . ($leadName ? " Leader → {$leadName}." : ' (team has no lead yet)')
-                . ($synced ? " {$synced} open KPI evaluation(s) updated." : '')
-                : 'Removed from team.',
-            'team_id'   => $teamId,
-            'team_name' => $team?->name,
-            'lead_id'   => $team?->lead_employee_id ? (string) $team->lead_employee_id : ($bd->direct_supervision ? (string) $bd->direct_supervision : null),
-            'lead_name' => $leadName,
-            'source'    => $bd->lead_source,
-        ]);
-    }
-
-    /**
-     * POST: copy a delivery project's manager onto the employee as their leader
-     * (lead_source = 'project'). Does not change project membership.
-     */
-    public function applyProjectLead(Request $request, int $employeeId)
-    {
-        $request->validate(['project_id' => 'required|integer']);
-
-        $bd = EmployeeBasicData::where('employee_id', $employeeId)->first();
-        if (!$bd) {
-            return response()->json(['success' => false, 'message' => 'Employee basic data not found.'], 404);
-        }
-
-        $project = \App\Models\DeliveryProject::find($request->input('project_id'));
-        if (!$project) {
-            return response()->json(['success' => false, 'message' => 'Project not found.'], 422);
-        }
-
-        $leadId = $project->project_manager_id ?: ($project->delivery_manager_id ?: $project->delivery_owner_id);
-        if (!$leadId) {
-            return response()->json(['success' => false, 'message' => "“{$project->name}” has no project manager set."], 422);
-        }
-        if ((int) $leadId === $employeeId) {
-            return response()->json(['success' => false, 'message' => 'That project is managed by this employee.'], 422);
-        }
-
-        $bd->direct_supervision = $leadId;
-        $bd->lead_source        = 'project';
-        $bd->save();
-
-        $synced   = $this->syncOpenLeadEvals([$employeeId], $leadId);
-        $leadName = Employee::with('basicData')->find($leadId)?->basicData?->full_name ?? ('#' . $leadId);
-
-        return response()->json([
-            'success'   => true,
-            'message'   => "Leader → {$leadName} (from “{$project->name}”)." . ($synced ? " {$synced} open KPI evaluation(s) updated." : ''),
-            'lead_id'   => (string) $leadId,
-            'lead_name' => $leadName,
-            'source'    => 'project',
-        ]);
-    }
-
-    /**
-     * POST: create or update a KPI team definition. Changing a team's lead
-     * re-points every member whose leader currently comes from the team.
-     */
-    public function saveTeam(Request $request)
-    {
-        $request->validate([
-            'id'               => 'nullable|integer|exists:kpi_teams,id',
-            'name'             => 'required|string|max:150',
-            'lead_employee_id' => 'nullable|integer',
-        ]);
-
-        $leadId = $request->input('lead_employee_id') ?: null;
-        if ($leadId && !Employee::where('employee_id', $leadId)->exists()) {
-            return response()->json(['success' => false, 'message' => 'Selected lead was not found.'], 422);
-        }
-
-        $team = $request->filled('id') ? KpiTeam::find($request->input('id')) : new KpiTeam();
-        $leadChanged = $team->exists && (int) $team->lead_employee_id !== (int) $leadId;
-
-        $team->name             = $request->input('name');
-        $team->lead_employee_id = $leadId;
-        $team->is_active        = true;
-        $team->save();
-
-        $repointed = 0;
-        if ($leadChanged || !$team->wasRecentlyCreated) {
-            $memberIds = EmployeeBasicData::where('kpi_team_id', $team->id)
-                ->where('lead_source', 'team')
-                ->pluck('employee_id');
-            if ($memberIds->isNotEmpty()) {
-                EmployeeBasicData::whereIn('employee_id', $memberIds)->update(['direct_supervision' => $leadId]);
-                $repointed = $this->syncOpenLeadEvals($memberIds->all(), $leadId);
-            }
-        }
-
-        $team->load('lead.basicData')->loadCount('memberBasicData');
-
-        return response()->json([
-            'success'   => true,
-            'message'   => ($request->filled('id') ? 'Team updated.' : 'Team created.')
-                . ($repointed ? " {$repointed} evaluation(s) re-pointed." : ''),
-            'team'      => [
-                'id'         => $team->id,
-                'name'       => $team->name,
-                'lead_id'    => $team->lead_employee_id ? (string) $team->lead_employee_id : '',
-                'lead_name'  => $team->lead?->basicData?->full_name ?? ($team->lead_employee_id ? ('#' . $team->lead_employee_id) : null),
-                'members'    => $team->member_basic_data_count,
-            ],
-        ]);
-    }
-
-    /**
-     * POST: delete a KPI team. Members are detached (kpi_team_id nulled) but keep
-     * whatever leader they already have.
-     */
-    public function deleteTeam(Request $request, int $id)
-    {
-        $team = KpiTeam::find($id);
-        if (!$team) {
-            return response()->json(['success' => false, 'message' => 'Team not found.'], 404);
-        }
-
-        EmployeeBasicData::where('kpi_team_id', $team->id)->update([
-            'kpi_team_id' => null,
-            'lead_source' => DB::raw("CASE WHEN lead_source = 'team' THEN 'manual' ELSE lead_source END"),
-        ]);
-        $team->delete();
-
-        return response()->json(['success' => true, 'message' => 'Team deleted.']);
+        return view('hr-general.kpi.lead-project', $viewData);
     }
 
     // ── Export ────────────────────────────────────────────────────────────────
