@@ -63,6 +63,7 @@ class AttendanceSettingController extends Controller
             'correction_max_days'            => ['required', 'integer', 'between:1,365'],
             'auto_close_hours'               => ['required', 'integer', 'between:1,48'],
             'require_location'               => ['nullable', 'boolean'],
+            'show_location_diagnostic'       => ['nullable', 'boolean'],
             'allow_self_correction'          => ['nullable', 'boolean'],
         ], [
             'min_accuracy_meters.between'     => 'The accuracy threshold must be between 10 and 5000 meters.',
@@ -71,6 +72,9 @@ class AttendanceSettingController extends Controller
         ]);
 
         $validated['require_location']      = $request->boolean('require_location');
+        // Checkbox yang tidak dicentang TIDAK terkirim sama sekali — tanpa baris
+        // ini, mematikan sakelarnya mustahil dari layar.
+        $validated['show_location_diagnostic'] = $request->boolean('show_location_diagnostic');
         $validated['allow_self_correction'] = $request->boolean('allow_self_correction');
 
         return $validated;

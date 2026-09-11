@@ -17,6 +17,7 @@ class AttendanceSetting extends Model
 
     protected $fillable = [
         'geofence_mode', 'min_accuracy_meters', 'require_location',
+        'show_location_diagnostic',
         'attendance_source', 'max_shifts_per_employee',
         'default_check_in', 'default_check_out', 'default_late_tolerance_minutes',
         'allow_self_correction', 'correction_max_days',
@@ -26,6 +27,7 @@ class AttendanceSetting extends Model
     protected $casts = [
         'min_accuracy_meters'            => 'integer',
         'require_location'               => 'boolean',
+        'show_location_diagnostic'       => 'boolean',
         'max_shifts_per_employee'        => 'integer',
         'default_late_tolerance_minutes' => 'integer',
         'allow_self_correction'          => 'boolean',

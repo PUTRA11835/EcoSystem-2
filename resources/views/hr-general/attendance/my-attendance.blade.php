@@ -142,7 +142,13 @@
                  Ditaruh di halaman, bukan hanya di console, karena kegagalan
                  lokasi hampir selalu berasal dari pengaturan browser atau
                  sistem operasi PENGGUNA — dan tanpa data mentahnya, penyebabnya
-                 hanya bisa ditebak. --}}
+                 hanya bisa ditebak.
+
+                 Tampil-atau-tidaknya diatur HR lewat Attendance Settings →
+                 "Show the Test location access tool" (D173). Skrip di bawah
+                 sudah berhenti sendiri bila tombolnya tidak dirender
+                 (`if (!btn) return;`), jadi menyembunyikan markup-nya cukup. --}}
+            @if($settings->show_location_diagnostic)
             <div class="mb-4">
                 <button type="button" id="btnDiagnose"
                         class="inline-flex items-center gap-2 px-3 py-1.5 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
@@ -158,6 +164,7 @@
                     </button>
                 </div>
             </div>
+            @endif
 
             {{-- Pemberitahuan privasi. Tetap tampil, tidak dapat ditutup. --}}
             <p class="text-xs text-gray-500 leading-relaxed mb-4">

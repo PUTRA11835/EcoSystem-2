@@ -123,26 +123,51 @@
                 </div>
             @endif
 
+            {{-- Sejak 8 Sep 2026 item ini menunjuk halaman sungguhan, bukan lagi
+                 route('coming-soon'). Pola yang sama dipakai My Attendance,
+                 Overtime, Reimbursement, dan Purchase Request saat modulnya jadi.
+
+                 DUA GERBANG, keduanya harus terbuka: sakelar ESS di bawah mengatur
+                 apakah itemnya DIRENDER, sementara slug `general.my-cash-advance`
+                 di Control Center mengatur apakah RUTENYA boleh dibuka. Item yang
+                 terlihat tetapi menolak saat diklik berarti slugnya belum dibagikan.
+
+                 🔴 Nama menunya POLOS — 'Cash Advance', bukan 'Cash Advance (CA)'.
+                 Singkatan dalam kurung adalah penanda sisi ADMIN (D142/D151).
+
+                 🔴 POLA AKTIFNYA PRESISI, BUKAN `my-cash-advance*` (Keputusan D161).
+                 Wildcard itu ikut menangkap `my-cash-advance-report`, sehingga
+                 membuka halaman laporan menyalakan DUA item sekaligus. Dilaporkan
+                 pemilik sistem. Konvensi `is('x') || is('x/*')` sudah dipakai di
+                 blok Reporting berkas ini. --}}
             @if(!empty($essConfig['advance_payment_ca']))
+                @php
+                    $essCaActive = Request::is('general/my-cash-advance')
+                        || Request::is('general/my-cash-advance/*');
+                @endphp
                 <div class="mb-2">
-                    <a href="{{ route('coming-soon', ['feature' => 'Advance Payment (CA)']) }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                    <a href="{{ route('general.my-cash-advance.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ $essCaActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-hand-holding-usd"></i>
                         </span>
-                        <span class="nav-text font-medium">Advance Payment (CA)</span>
+                        <span class="nav-text font-medium">Cash Advance</span>
                     </a>
                 </div>
             @endif
 
+            {{-- Menunjuk halaman sungguhan sejak 9 Sep 2026. Nama menunya POLOS
+                 (aturan D151) — singkatan (CAR) adalah penanda sisi admin.
+                 KUNCI `advance_payment_car` tidak diubah: kunci itulah yang
+                 tersimpan di JSON `ess_menu_settings`. --}}
             @if(!empty($essConfig['advance_payment_car']))
                 <div class="mb-2">
-                    <a href="{{ route('coming-soon', ['feature' => 'Advance Payment Report (CAR)']) }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
+                    <a href="{{ route('general.my-cash-advance-report.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-cash-advance-report*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-file-contract"></i>
                         </span>
-                        <span class="nav-text font-medium">Advance Payment Report (CAR)</span>
+                        <span class="nav-text font-medium">Cash Advance Report</span>
                     </a>
                 </div>
             @endif
@@ -449,7 +474,7 @@
                 </div>
             @endif
 
-            @if($can('general') || $can('hr_general.leave_permit.admin') || $can('general.attendance') || $can('general.attendance.correction') || $can('general.overtime') || $can('general.reimbursement') || $can('general.purchase-request'))
+            @if($can('general') || $can('hr_general.leave_permit.admin') || $can('general.attendance') || $can('general.attendance.correction') || $can('general.overtime') || $can('general.reimbursement') || $can('general.purchase-request') || $can('general.cash-advance') || $can('general.cash-advance-report'))
                 <!-- HR & GENERAL -->
                 @php
                     $hrGeneralOpen = Request::is('hr-general*') || Request::is('general/attendance*') || Request::is('general/overtime*') || Request::is('general/reimbursement*') || Request::is('general/purchase-request*');
@@ -477,7 +502,21 @@
                         @endif
 
                         @if($can('general.attendance') || $can('general'))
-                            <a href="{{ route('general.attendance.daily') }}"
+                            {{-- 🔴 Membuka MONTHLY lebih dulu — keputusan rapat tim, 11 Sep
+                                 2026 (D172). Rekap bulanan adalah yang paling sering dicari
+                                 HR; harian tetap satu klik jauhnya lewat tombol "Daily Recap".
+
+                                 Tetapi Monthly dijaga slug-nya SENDIRI
+                                 (`general.attendance.monthly`). Pemegang `general.attendance`
+                                 saja tidak boleh dilempar ke halaman yang akan menolaknya —
+                                 baginya menu ini tetap menuju Daily. Tautan yang berujung
+                                 403 lebih buruk daripada tautan yang "kurang ideal". --}}
+                            @php
+                                $attendanceLanding = ($can('general.attendance.monthly') || $can('general'))
+                                    ? route('general.attendance.monthly')
+                                    : route('general.attendance.daily');
+                            @endphp
+                            <a href="{{ $attendanceLanding }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance*') && !Request::is('general/attendance/corrections*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-clipboard-list text-xs"></i>
@@ -523,6 +562,38 @@
                                     <i class="fas fa-cart-shopping text-xs"></i>
                                 </span>
                                 <span class="nav-text text-sm">Purchase Request Review</span>
+                            </a>
+                        @endif
+
+                        {{-- 🔴 Namanya memakai singkatan — "Cash Advance (CA)", bukan
+                             "Cash Advance" polos. Itulah PEMBEDA sisi admin dari item
+                             ESS bernama sama (Keputusan D142/D151); tanpanya, dua baris
+                             identik di layar Menu Access membuat pembagian izin jadi
+                             tebak-tebakan. --}}
+                        @if($can('general.cash-advance') || $can('general'))
+                            {{-- 🔴 Presisi, bukan `cash-advance*` (D161) — cacat yang
+                                 sama dengan sisi ESS: wildcard itu ikut menangkap
+                                 `cash-advance-report` dan menyalakan dua item. --}}
+                            @php
+                                $hrCaActive = Request::is('general/cash-advance')
+                                    || Request::is('general/cash-advance/*');
+                            @endphp
+                            <a href="{{ route('general.cash-advance.index') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ $hrCaActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-hand-holding-usd text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm">Cash Advance (CA)</span>
+                            </a>
+                        @endif
+
+                        @if($can('general.cash-advance-report') || $can('general'))
+                            <a href="{{ route('general.cash-advance-report.index') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/cash-advance-report*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-file-invoice-dollar text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm">Cash Advance Report (CAR)</span>
                             </a>
                         @endif
 
@@ -832,7 +903,19 @@
                 </div>
             @endif
 
-            @if($can('management'))
+            {{-- Dropdown Management.
+
+                 🔴 Kondisinya diperluas dengan `management.cash-advance-settings`
+                 (Keputusan D141). Sebelumnya hanya `$can('management')`, dan itu
+                 membatalkan maksud memindahkan halaman setelan Cash Advance ke
+                 sini: orang Finance yang hanya diberi slug setelannya tetap TIDAK
+                 melihat dropdownnya, sehingga ia harus ikut diberi slug induk
+                 `management` — persis masalah yang mau dihindari.
+
+                 Pola yang sama sudah dipakai dropdown "HR & General" di atas,
+                 yang menyebut slug anaknya satu per satu. Menambah item baru di
+                 sini berarti menambah slugnya ke kondisi ini juga. --}}
+            @if($can('management') || $can('management.cash-advance-settings'))
                 <!-- MANAJEMEN -->
                 <div class="mb-2">
                     <button onclick="toggleManajemenDropdown()"
@@ -889,10 +972,16 @@
                             </a>
                         @endif
                         @php
-                            $hrGeneralSettingsActive = Request::is('general/settings*');
+                            // Halaman setelan Cash Advance ikut menyalakan dropdown ini
+                            // meski URL-nya berawalan /management — letaknya memang di sini
+                            // (konvensi: seluruh halaman konfigurasi dikumpulkan di
+                            // Management -> HR & General), sementara SLUG-nya sengaja
+                            // `management.*` supaya dapat diberikan ke role mana pun (D141).
+                            $hrGeneralSettingsActive = Request::is('general/settings*')
+                                || Request::is('management/cash-advance-settings*');
                         @endphp
                         
-                        @if($can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance') || $can('general.settings.overtime') || $can('general.settings.reimbursement') || $can('general.settings.purchase-request'))
+                        @if($can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance') || $can('general.settings.overtime') || $can('general.settings.reimbursement') || $can('general.settings.purchase-request') || $can('management.cash-advance-settings'))
                         <div class="mt-1">
                             <button onclick="toggleHrGeneralMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $hrGeneralSettingsActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="w-4 h-4 flex items-center justify-center">
@@ -936,6 +1025,22 @@
                                 <a href="{{ route('general.settings.purchase-request.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/purchase-request*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-cart-shopping text-xs"></i></span>
                                     <span class="nav-text text-xs">Purchase Request Settings</span>
+                                </a>
+                                @endif
+                                {{-- Cash Advance Settings — SATU halaman untuk aturan CA
+                                     DAN CAR beserta dua editor alur persetujuan (C11).
+
+                                     Letaknya di sini mengikuti konvensi yang sudah berlaku:
+                                     seluruh halaman konfigurasi dikumpulkan di
+                                     Management → HR & General. Yang BERBEDA dari tetangganya
+                                     adalah SLUG-nya — `management.cash-advance-settings`,
+                                     bukan `general.settings.*` — supaya haknya dapat
+                                     diberikan ke Finance/Accounting/Direksi tanpa ikut
+                                     membuka satu pun halaman kepegawaian (Keputusan D141). --}}
+                                @if($can('management.cash-advance-settings'))
+                                <a href="{{ route('management.cash-advance-settings.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/cash-advance-settings*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-hand-holding-usd text-xs"></i></span>
+                                    <span class="nav-text text-xs">Cash Advance Settings</span>
                                 </a>
                                 @endif
                                     {{-- KPI Templates moved into the KPI Evaluation page as a tab
