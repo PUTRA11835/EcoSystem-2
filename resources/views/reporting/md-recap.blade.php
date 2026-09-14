@@ -79,59 +79,80 @@
     {{-- ── Table ───────────────────────────────────────────────────────────── --}}
     <div class="rounded-xl border border-gray-200 overflow-hidden">
         <div class="overflow-auto" style="max-height: calc(100vh - 300px); min-height: 200px;">
-            <table class="w-full text-sm border-collapse" style="min-width: 480px;">
-                <thead class="sticky top-0 z-10 bg-gray-50">
-                    <tr>
-                        {{-- Name: text search panel --}}
-                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:180px; position:relative;">
-                            <button type="button" onclick="toggleRecapTextPanel(event,'Name')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Name</span>
-                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-                                <svg id="recapTextIcon_Name" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
-                            </button>
-                            <div id="recapTextPanel_Name" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
-                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search name</label>
-                                <input type="text" id="colFilterRecapName" placeholder="Type name…" oninput="applyRecapFilter()" onclick="event.stopPropagation()"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
-                                <div class="flex justify-end gap-2 mt-2">
-                                    <button type="button" onclick="clearRecapTextPanel('Name')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
-                                </div>
+            {{-- CSS Grid instead of a <table>: with only 4 columns of very different
+                 natures (2 text columns that should share leftover space, 2 compact
+                 fixed-content columns), HTML table width distribution (auto OR fixed
+                 layout) can't reliably do "some columns flexible + fill 100% + stay
+                 aligned across every row" at once — Grid's `fr` units do this natively
+                 and consistently. `.recap-grid-row` (defined in the styles block below)
+                 is the single source of truth for the 4 column widths; every row
+                 (header, data, loading/error placeholder) reuses the same class so
+                 columns always line up. --}}
+            <div class="w-full text-sm">
+                <div class="recap-grid-row sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
+                    {{-- Name: text search panel --}}
+                    <div class="p-0 text-left whitespace-nowrap" style="position:relative;">
+                        <button type="button" onclick="toggleRecapTextPanel(event,'Name')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                            <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Name</span>
+                            <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                            <svg id="recapTextIcon_Name" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                        </button>
+                        <div id="recapTextPanel_Name" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search name</label>
+                            <input type="text" id="colFilterRecapName" placeholder="Type name…" oninput="applyRecapFilter()" onclick="event.stopPropagation()"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                            <div class="flex justify-end gap-2 mt-2">
+                                <button type="button" onclick="clearRecapTextPanel('Name')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
                             </div>
-                        </th>
-                        {{-- Mode: custom-dd --}}
-                        <th class="p-0 text-center whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:120px;">
-                            <div class="custom-dd relative w-full" id="ddColFilterRecapMode" data-fixed="true" data-onchange="applyRecapFilter">
-                                <button type="button" class="custom-dd-btn w-full flex items-center justify-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Mode</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-                                </button>
-                                <input type="hidden" id="colFilterRecapMode" value="">
-                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5" style="max-height:200px;min-width:130px;">
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="OnSite">OnSite</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Remote">Remote</button>
-                                </div>
+                        </div>
+                    </div>
+                    {{-- Delivery: text search panel, same pattern as Name --}}
+                    <div class="p-0 text-left whitespace-nowrap" style="position:relative;">
+                        <button type="button" onclick="toggleRecapTextPanel(event,'Delivery')" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                            <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Delivery</span>
+                            <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                            <svg id="recapTextIcon_Delivery" class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                        </button>
+                        <div id="recapTextPanel_Delivery" class="hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search delivery</label>
+                            <input type="text" id="colFilterRecapDelivery" placeholder="Type delivery…" oninput="applyRecapFilter()" onclick="event.stopPropagation()"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                            <div class="flex justify-end gap-2 mt-2">
+                                <button type="button" onclick="clearRecapTextPanel('Delivery')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
                             </div>
-                        </th>
-                        {{-- Mandays: sort panel --}}
-                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:110px; position:relative;">
-                            <button type="button" onclick="toggleRecapMdSort()" title="Click to toggle sort (descending ↔ ascending)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Mandays</span>
-                                <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-                                <span id="recapSortMdIcon" class="text-[10px] text-red-500 font-bold shrink-0"></span>
+                        </div>
+                    </div>
+                    {{-- Mode: custom-dd --}}
+                    <div class="p-0 text-center whitespace-nowrap">
+                        <div class="custom-dd relative w-full" id="ddColFilterRecapMode" data-fixed="true" data-onchange="applyRecapFilter">
+                            <button type="button" class="custom-dd-btn w-full flex items-center justify-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Mode</span>
+                                <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                             </button>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody id="recapTableBody" class="bg-white">
-                    <tr>
-                        <td colspan="4" class="px-4 py-14 text-center text-gray-400 text-sm">
-                            <i class="fas fa-spinner fa-spin text-2xl mb-3 block primary-text opacity-50"></i>
-                            <span class="text-gray-400">Loading data...</span>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+                            <input type="hidden" id="colFilterRecapMode" value="">
+                            <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5" style="max-height:200px;min-width:130px;">
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="OnSite">OnSite</button>
+                                <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="Remote">Remote</button>
+                            </div>
+                        </div>
+                    </div>
+                    {{-- Mandays: sort panel --}}
+                    <div class="p-0 text-left whitespace-nowrap" style="position:relative;">
+                        <button type="button" onclick="toggleRecapMdSort()" title="Click to toggle sort (descending ↔ ascending)" class="w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                            <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Mandays</span>
+                            <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                            <span id="recapSortMdIcon" class="text-[10px] text-red-500 font-bold shrink-0"></span>
+                        </button>
+                    </div>
+                </div>
+                <div id="recapTableBody" class="bg-white">
+                    <div class="px-4 py-14 text-center text-gray-400 text-sm">
+                        <i class="fas fa-spinner fa-spin text-2xl mb-3 block primary-text opacity-50"></i>
+                        <span class="text-gray-400">Loading data...</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         {{-- Empty state --}}
@@ -157,10 +178,21 @@
     box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15) !important;
 }
 .primary-text { color: var(--primary-color) !important; }
-.recap-emp-row td   { background: #f9fafb; }
-.recap-emp-row:hover td { background: #f3f4f6; }
-.recap-sub-row td   { background: #fff; }
-.recap-sub-row:hover td { background: #f9fafb; }
+
+/* Single source of truth for the 4 columns — Name and Delivery share leftover
+   width proportionally (1.1fr : 2fr) while Mode/Mandays stay fixed, and this
+   stays IDENTICAL across every row (header, data, group header spans across
+   all 4 via grid-column), so columns always line up regardless of how short
+   or long each row's content is. */
+.recap-grid-row {
+    display: grid;
+    grid-template-columns: minmax(200px, 1.1fr) minmax(220px, 2fr) 130px 150px;
+    align-items: center;
+}
+.recap-emp-row  { background: #f9fafb; }
+.recap-emp-row:hover { background: #f3f4f6; }
+.recap-sub-row  { background: #fff; }
+.recap-sub-row:hover { background: #f9fafb; }
 </style>
 @endpush
 
@@ -228,10 +260,10 @@ function _getPeriodParams() {
 async function loadRecap() {
     const tbody = document.getElementById('recapTableBody');
 
-    tbody.innerHTML = `<tr><td colspan="3" class="px-4 py-14 text-center text-gray-400 text-sm">
+    tbody.innerHTML = `<div class="px-4 py-14 text-center text-gray-400 text-sm">
         <i class="fas fa-spinner fa-spin text-2xl mb-3 block primary-text opacity-50"></i>
         <span>Loading data...</span>
-    </td></tr>`;
+    </div>`;
     document.getElementById('recapEmpty').classList.add('hidden');
     document.getElementById('recapStats').classList.add('hidden');
 
@@ -249,18 +281,20 @@ async function loadRecap() {
 
     } catch (e) {
         console.error(e);
-        tbody.innerHTML = `<tr><td colspan="3" class="px-4 py-10 text-center text-sm">
+        tbody.innerHTML = `<div class="px-4 py-10 text-center text-sm">
             <div class="inline-flex flex-col items-center gap-2 text-red-500">
                 <i class="fas fa-exclamation-circle text-xl"></i>
                 <span>${escHtml(e.message)}</span>
             </div>
-        </td></tr>`;
+        </div>`;
     }
 }
 
 function resetRecap() {
     const nameEl = document.getElementById('colFilterRecapName');
     if (nameEl) nameEl.value = '';
+    const deliveryEl = document.getElementById('colFilterRecapDelivery');
+    if (deliveryEl) deliveryEl.value = '';
     if (typeof setCustomDropdownValue === 'function') {
         setCustomDropdownValue('colFilterRecapMode', '');
     }
@@ -294,12 +328,14 @@ function updateRecapSortVisuals() {
 }
 
 function _updateRecapFilterIcons() {
-    const icon  = document.getElementById('recapTextIcon_Name');
-    const input = document.getElementById('colFilterRecapName');
-    if (!icon) return;
-    const active = !!(input?.value);
-    icon.classList.toggle('text-red-500', active);
-    icon.classList.toggle('text-gray-300', !active);
+    ['Name', 'Delivery'].forEach(key => {
+        const icon  = document.getElementById('recapTextIcon_' + key);
+        const input = document.getElementById('colFilterRecap' + key);
+        if (!icon) return;
+        const active = !!(input?.value);
+        icon.classList.toggle('text-red-500', active);
+        icon.classList.toggle('text-gray-300', !active);
+    });
 }
 
 function toggleRecapTextPanel(event, key) {
@@ -326,14 +362,16 @@ function clearRecapTextPanel(key) {
 }
 
 function renderRecap() {
-    const tbody      = document.getElementById('recapTableBody');
-    const empty      = document.getElementById('recapEmpty');
-    const stats      = document.getElementById('recapStats');
-    const nameFilter = (document.getElementById('colFilterRecapName')?.value || '').toLowerCase().trim();
-    const modeFilter = (document.getElementById('colFilterRecapMode')?.value || '');
+    const tbody          = document.getElementById('recapTableBody');
+    const empty          = document.getElementById('recapEmpty');
+    const stats          = document.getElementById('recapStats');
+    const nameFilter     = (document.getElementById('colFilterRecapName')?.value || '').toLowerCase().trim();
+    const deliveryFilter = (document.getElementById('colFilterRecapDelivery')?.value || '').toLowerCase().trim();
+    const modeFilter     = (document.getElementById('colFilterRecapMode')?.value || '');
 
     const filtered = recapData.filter(r => {
         if (nameFilter && !(r.name || '').toLowerCase().includes(nameFilter)) return false;
+        if (deliveryFilter && !(r.delivery || '').toLowerCase().includes(deliveryFilter)) return false;
         if (modeFilter && r.mode !== modeFilter) return false;
         return true;
     });
@@ -350,13 +388,19 @@ function renderRecap() {
         ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">OnSite</span>`
         : `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">Remote</span>`;
 
-    // Group by employee → mode → {count, mandays}
+    // Group by employee → mode → delivery → {count, mandays}. A single employee
+    // can log mandays against different deliveries (project/ticket) even within
+    // the same mode, so delivery is its own grouping level rather than being
+    // blended into one number — mirrors the export's grouping exactly.
     const grouped = new Map();
     filtered.forEach(row => {
         if (!grouped.has(row.name)) grouped.set(row.name, new Map());
         const modeMap = grouped.get(row.name);
-        if (!modeMap.has(row.mode)) modeMap.set(row.mode, { count: 0, mandays: 0 });
-        const agg = modeMap.get(row.mode);
+        if (!modeMap.has(row.mode)) modeMap.set(row.mode, new Map());
+        const deliveryMap = modeMap.get(row.mode);
+        const delivery = row.delivery || 'Unassigned';
+        if (!deliveryMap.has(delivery)) deliveryMap.set(delivery, { count: 0, mandays: 0 });
+        const agg = deliveryMap.get(delivery);
         agg.count++;
         agg.mandays += Number(row.mandays || 0);
     });
@@ -370,7 +414,7 @@ function renderRecap() {
     const empTotals = new Map();
     grouped.forEach((modeMap, name) => {
         let t = 0;
-        modeMap.forEach(agg => { t += agg.mandays; });
+        modeMap.forEach(deliveryMap => deliveryMap.forEach(agg => { t += agg.mandays; }));
         empTotals.set(name, t);
     });
 
@@ -385,38 +429,42 @@ function renderRecap() {
 
     let html = '';
     sortedEntries.forEach(([name, modeMap]) => {
-        modeMap.forEach((agg, mode) => {
-            totalMd += agg.mandays;
-            if ((mode || '').toLowerCase() === 'onsite') totalOnsite += agg.mandays;
-            else totalRemote += agg.mandays;
+        modeMap.forEach((deliveryMap, mode) => {
+            deliveryMap.forEach((agg) => {
+                totalMd += agg.mandays;
+                if ((mode || '').toLowerCase() === 'onsite') totalOnsite += agg.mandays;
+                else totalRemote += agg.mandays;
+            });
         });
 
-        // Employee header row
+        // Employee header row — a plain flex row (not `.recap-grid-row`), it spans
+        // the full width as one block same as a table row's colspan would.
         const initials = name.trim().split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
-        html += `<tr class="recap-emp-row border-t-2 border-gray-200">
-            <td class="px-4 py-2.5" colspan="4">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0">${initials}</div>
-                    <span class="text-sm font-semibold text-gray-800">${escHtml(name)}</span>
-                </div>
-            </td>
-        </tr>`;
+        html += `<div class="recap-emp-row border-t-2 border-gray-200 px-4 py-2.5">
+            <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0">${initials}</div>
+                <span class="text-sm font-semibold text-gray-800">${escHtml(name)}</span>
+            </div>
+        </div>`;
 
-        // One merged row per mode
-        modeMap.forEach((agg, mode) => {
+        // One merged row per mode + delivery combination
+        modeMap.forEach((deliveryMap, mode) => {
             const isOnsite   = (mode || '').toLowerCase() === 'onsite';
             const valueColor = isOnsite ? 'text-green-700 font-semibold' : 'text-blue-700 font-semibold';
-            const entryLabel = agg.count === 1 ? '1 entry' : `${agg.count} entries`;
-            html += `<tr class="recap-sub-row border-t border-gray-100">
-                <td class="px-4 py-2">
-                    <span class="inline-flex items-center gap-2 pl-6 text-xs text-gray-400">
-                        <span class="w-1 h-1 rounded-full bg-gray-300 shrink-0"></span>
-                        ${entryLabel}
-                    </span>
-                </td>
-                <td class="px-4 py-2 text-center">${modeBadge(mode)}</td>
-                <td class="px-4 py-2 text-sm text-center ${valueColor}">${agg.mandays.toFixed(2)}</td>
-            </tr>`;
+            deliveryMap.forEach((agg, delivery) => {
+                const entryLabel = agg.count === 1 ? '1 entry' : `${agg.count} entries`;
+                html += `<div class="recap-grid-row recap-sub-row border-t border-gray-100">
+                    <div class="px-4 py-2">
+                        <span class="inline-flex items-center gap-2 pl-6 text-xs text-gray-400">
+                            <span class="w-1 h-1 rounded-full bg-gray-300 shrink-0"></span>
+                            ${entryLabel}
+                        </span>
+                    </div>
+                    <div class="px-4 py-2 text-xs text-gray-600 truncate" title="${escHtml(delivery)}">${escHtml(delivery)}</div>
+                    <div class="px-4 py-2 text-center">${modeBadge(mode)}</div>
+                    <div class="px-4 py-2 text-sm text-center ${valueColor}">${agg.mandays.toFixed(2)}</div>
+                </div>`;
+            });
         });
     });
 
