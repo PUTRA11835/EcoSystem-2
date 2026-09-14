@@ -493,8 +493,12 @@ class AiTicketAnalyzerService
             return [];
         }
 
+        // eligibleForTicketTeam() (bukan cuma is_active) — supaya AI tidak menyarankan
+        // employee yang sudah di-block/ditandai untuk dihapus, sinkron dengan
+        // gerbang yang sama dipakai TicketController::assignTicketLead()/addMember()
+        // saat saran ini benar-benar diklik oleh validator.
         $employees = Employee::whereIn('employee_id', $candidateIds)
-            ->where('is_active', true)
+            ->eligibleForTicketTeam()
             ->with('basicData')
             ->get()
             ->keyBy('employee_id');
@@ -649,12 +653,18 @@ class AiTicketAnalyzerService
             return [];
         }
 
+        // Dibatasi ke N tiket TERBARU (bukan seluruh histori) — customer lama
+        // dengan ribuan tiket cuma perlu sinyal "siapa yang baru-baru ini
+        // menangani customer ini" untuk saran assignee, bukan seluruh riwayat.
+        // orderByDesc di atas sudah memastikan yang dibuang adalah yang paling
+        // lama, bukan acak.
         $tickets = Ticket::query()
             ->where(function ($q) use ($customerIds) {
                 $q->whereIn('customer_id', $customerIds)->orWhereIn('end_customer_id', $customerIds);
             })
             ->with(['ticketLead.basicData', 'members.basicData'])
             ->orderByDesc('last_message_at')
+            ->limit(200)
             ->get(['ticket_id', 'ticket_number', 'ticket_lead_id', 'last_message_at']);
 
         if ($tickets->isEmpty()) {
@@ -788,6 +798,11 @@ class AiTicketAnalyzerService
             return [];
         }
 
+        // Dibatasi + diurutkan ke yang paling baru — endpoint ini jalan OTOMATIS
+        // tiap kali admin membuka staging ticket, jadi full-table LIKE scan tanpa
+        // batas jadi makin mahal seiring tabel ticket membesar. Tiket TERBARU
+        // yang mirip lebih relevan untuk "similar issues"/saran assignee
+        // daripada kecocokan lama yang mungkin sudah tidak representatif.
         return Ticket::query()
             ->when(!empty($moduleIds), fn ($q) => $q->whereHas('modules', fn ($q2) => $q2->whereIn('module_id', $moduleIds)))
             ->where(function ($q) use ($tokens) {
@@ -795,6 +810,8 @@ class AiTicketAnalyzerService
                     $q->orWhere('description', 'like', '%' . $token . '%');
                 }
             })
+            ->orderByDesc('created_at')
+            ->limit(300)
             ->pluck('ticket_id')
             ->all();
     }

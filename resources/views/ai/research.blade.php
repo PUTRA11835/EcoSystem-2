@@ -241,13 +241,13 @@
                           class="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm text-gray-800 placeholder-gray-400 focus:outline-none air-scroll"></textarea>
 
                 <div class="flex items-center gap-1.5 px-2.5 pb-2.5 pt-1">
-                    <input type="file" id="airFile" class="hidden" multiple accept="image/*,application/pdf" onchange="airOnFilesPicked(this)">
+                    <input type="file" id="airFile" class="hidden" multiple accept="image/*,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*,.md,.csv,.json,.log" onchange="airOnFilesPicked(this)">
 
                     {{-- Tooltip memakai angka dari controller. Yang tertulis di
                          sini sebelumnya ("max 2 files, 5 MB each") sudah lama
                          tidak benar. --}}
                     <button type="button" onclick="document.getElementById('airFile').click()"
-                            title="Attach images or PDFs, up to {{ $limits['file_mb'] }} MB per file and {{ $limits['message_mb'] }} MB per message. No limit on how many."
+                            title="Attach images, PDFs, Word (.docx) or text/code files, up to {{ $limits['file_mb'] }} MB per file and {{ $limits['message_mb'] }} MB per message. No limit on how many."
                             class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
                         <i class="fas fa-paperclip text-sm"></i>
                     </button>
@@ -310,8 +310,9 @@
                 <dt class="text-xs font-semibold text-gray-800">Attachments per message</dt>
                 <dd class="text-gray-500 mt-0.5">
                     Any number of files, up to {{ $limits['file_mb'] }} MB each and {{ $limits['message_mb'] }} MB in
-                    total per message, and only if the conversation still has room for them (see below). Only PDF and
-                    images (PNG, JPEG, GIF, WEBP) can be read; other file types are skipped, and the reply says which
+                    total per message, and only if the conversation still has room for them (see below). PDF, images
+                    (PNG, JPEG, GIF, WEBP), Word documents (.docx — text only, formatting and images inside it are not
+                    read), and text/code files can be read; other file types are skipped, and the reply says which
                     ones.
                 </dd>
             </div>
@@ -437,6 +438,7 @@ const AIR_LIST_ENDPOINT = @json(route('ai-research.conversations'));
    di sisi JS dengan string mentah gampang salah kalau prefiks app berubah. */
 const AIR_CONV_ENDPOINT   = @json(route('ai-research.conversation', ['conversation' => '__ID__']));
 const AIR_DELETE_ENDPOINT = @json(route('ai-research.conversation.delete', ['conversation' => '__ID__']));
+const AIR_EXPORT_DOCX_ENDPOINT = @json(route('ai-research.export-docx'));
 const AIR_CONVERSATION_STORAGE_KEY = 'ai_research_conversation_id';
 
 let airFiles = [];      // File[] yang dipilih untuk pesan berikutnya
@@ -1263,6 +1265,10 @@ function airAppendAssistantPending(at) {
                             class="w-6 h-6 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
                         <i class="fas fa-copy text-[10px]"></i>
                     </button>
+                    <button type="button" onclick="airDownload('${id}')" title="Download as .docx"
+                            class="w-6 h-6 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
+                        <i class="fas fa-download text-[10px]"></i>
+                    </button>
                     <span class="text-[10px] text-gray-400 ml-1">${airTime(at)}</span>
                 </div>
             </div>
@@ -1547,6 +1553,52 @@ function airCopy(id) {
     navigator.clipboard.writeText(text.trim())
         .then(() => showToast('Response copied.', 'success'))
         .catch(() => showToast('Could not copy the response.', 'error'));
+}
+
+/**
+ * Kirim teks jawaban assistant ke server untuk diubah jadi berkas .docx
+ * sungguhan, lalu unduh hasilnya. Assistant sendiri tidak punya alat untuk
+ * membuat/melampirkan file selama chat — konversi .docx terjadi di server
+ * (AiResearchController::exportDocx / AiDocxExport) atas teks yang SUDAH
+ * ADA di bubble ini, bukan pertanyaan baru ke model.
+ */
+async function airDownload(id) {
+    const body = document.querySelector('#' + id + ' .air-body');
+    if (!body) return;
+
+    const text = (body.dataset.text || body.innerText).trim();
+    if (!text) {
+        showToast('Nothing to download yet.', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch(AIR_EXPORT_DOCX_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': airCsrfToken(),
+                'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            },
+            body: JSON.stringify({ text }),
+        });
+
+        if (!res.ok) throw new Error('export failed: ' + res.status);
+
+        const blob = await res.blob();
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ai-research-${stamp}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        showToast('Could not create the .docx file.', 'error');
+    }
 }
 
 /* ── Kirim ─────────────────────────────────────────────────────────────── */

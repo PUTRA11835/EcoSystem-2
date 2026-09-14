@@ -173,18 +173,83 @@ let currentStagingData = null;
 let _lastAiAnalysis = null;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Init custom-dd untuk filter "Pending Validation". Guard typeof biar
     // halaman tidak crash kalau custom-dropdown.js gagal di-load.
     if (typeof initCustomDropdowns === 'function') {
         initCustomDropdowns();
     }
-    loadStats();
-    loadStagingTickets();
-    fetchEmailInbox(true);                              // fetch sekali saat halaman dibuka
-    setInterval(() => fetchEmailInbox(true), 60000);   // auto-poll email tiap 60 detik
-    setInterval(() => { loadStats(); loadStagingTickets(); }, 30000); // auto-refresh list tiap 30 detik
+    fetchEmailInbox(true);                              // fetch sekali saat halaman dibuka, tidak perlu ditunggu
+
+    // Baseline latest_update BARU direkam SETELAH list/stats di atas selesai
+    // dimuat (bukan ditembak paralel) — supaya tidak ada celah balapan: kalau
+    // ditembak bersamaan, satu perubahan yang masuk PERSIS di antara kedua
+    // request bisa membuat baseline lebih baru dari data yang benar-benar
+    // ditampilkan, dan polling berikutnya diam-diam menganggap "tidak ada
+    // perubahan" walau tampilan awal sebenarnya sudah basi.
+    //
+    // Baseline direkam langsung di sini (bukan menunggu tick interval atau
+    // event visibilitychange pertama) supaya kalau user pindah tab SEBELUM
+    // interval sempat jalan sekali lalu balik lagi, visibilitychange tidak
+    // memanggil checkStagingUpdates() untuk PERTAMA KALINYA saat itu (yang
+    // kalau _isFirstStagingPoll masih true, cuma simpan baseline lalu
+    // berhenti — TIDAK jadi refresh, persis kasus yang harusnya ditangani
+    // "sinkron ulang segera begitu tab aktif" di bawah). Pola dasarnya sama
+    // dengan startEmailPolling() di ticket/index.blade.php (checkTicketUpdates()
+    // dipanggil sekali di awal, bukan ditunda sampai event pertama).
+    await Promise.all([loadStats(), loadStagingTickets()]);
+    checkStagingUpdates();
+
+    // Skip kerja polling selagi tab di-background/minimize — fetchEmailInbox()
+    // manggil Microsoft Graph (bukan cuma DB lokal) tiap 60 detik. Kalau staff
+    // buka banyak tab, biaya jaringan itu berlipat tanpa ada yang benar-benar
+    // melihat hasilnya. Begitu tab aktif lagi, sinkron ulang segera (bukan
+    // nunggu interval berikutnya) supaya data tidak basi.
+    setInterval(() => { if (!document.hidden) fetchEmailInbox(true); }, 60000);
+    setInterval(() => { if (!document.hidden) checkStagingUpdates(); }, 30000);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) checkStagingUpdates();
+    });
 });
+
+// -------------------------------------------------------------------------
+// Polling ringan: cek /latest-update (satu MAX(updated_at), tidak sentuh
+// Graph API) tiap 30 detik, dan cuma tarik ulang list+stats PENUH kalau
+// nilainya benar-benar berubah dari polling sebelumnya — sama seperti pola
+// checkTicketUpdates() di ticket/index.blade.php. Tanpa ini, tiap tick 30
+// detik selalu re-fetch seluruh halaman (list + 4 relasi eager-load) walau
+// tidak ada satu pun staging ticket yang berubah sejak polling terakhir.
+// -------------------------------------------------------------------------
+let _lastStagingUpdate = null;
+let _isFirstStagingPoll = true;
+
+async function checkStagingUpdates() {
+    try {
+        const res = await fetch('/api/staging-tickets/latest-update', {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const latest = data.latest_update ?? null;
+
+        if (_isFirstStagingPoll) {
+            // Simpan baseline — jangan reload (loadStats/loadStagingTickets sudah
+            // dipanggil saat DOMContentLoaded).
+            _lastStagingUpdate = latest;
+            _isFirstStagingPoll = false;
+            return;
+        }
+
+        if (latest !== _lastStagingUpdate) {
+            _lastStagingUpdate = latest;
+            loadStats();
+            loadStagingTickets(currentPage);
+        }
+    } catch (err) {
+        console.warn('[Staging Polling] error:', err.message);
+    }
+}
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 async function loadStats() {
@@ -604,24 +669,6 @@ function fillModal(s) {
                                placeholder="Phone number">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module (as written by submitter)</label>
-                        <input type="text" id="approveModule" maxlength="255"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all"
-                               placeholder="Related module">
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Module</label>
-                        <select id="approveModule"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all">
-                            <option value="">-- none --</option>
-                            @foreach ($modules as $moduleOption)
-                            <option value="{{ $moduleOption['id'] }}">{{ $moduleOption['name'] }}</option>
-                            @endforeach
-                        </select>
-                        {{-- Modul yang tertulis di staging tapi tidak cocok dengan Master Module
-                             (tiket email menulisnya sebagai teks bebas) ditampilkan sebagai
-                             patokan, bukan diam-diam hilang. --}}
-                        <p id="approveModuleHint" class="text-[11px] text-gray-400 mt-1 hidden"></p>
-                    </div>
-                    <div>
                         {{-- Pilihan modul TERSTRUKTUR — beda dari teks bebas "Module" di atas
                              (yang cuma diketik pengirim, tidak divalidasi). Ini yang benar-benar
                              tersimpan ke ticket_module saat tiket dibuat; boleh pilih lebih dari
@@ -688,8 +735,19 @@ function fillModal(s) {
     </div>`;
 
     // ── Assemble body ──
-    document.getElementById('modalBody').innerHTML =
+    const modalBodyEl = document.getElementById('modalBody');
+    modalBodyEl.innerHTML =
         metaHtml + validationHtml + rejectAreaHtml + contentHtml + attachmentsHtml;
+
+    // custom-dd (dipakai widget "Module(s)") cuma di-wire sekali saat
+    // DOMContentLoaded, sebelum modalBody ini punya isi apa pun — tanpa
+    // panggilan ulang di sini, dropdown yang baru saja disuntikkan lewat
+    // innerHTML di atas tidak pernah dapat click listener-nya sama sekali
+    // (initCustomDropdowns() sendiri sudah idempotent lewat flag _ddInited,
+    // jadi aman dipanggil berkali-kali tiap modal dibuka).
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns(modalBodyEl);
+    }
 
     // ── Lazy-load email attachments from Graph if no local attachments ──
     if (!webAttachments.length && s.graph_message_id) {
@@ -760,7 +818,6 @@ function fillModal(s) {
             const el = document.getElementById(id);
             if (el) el.value = val;
         });
-        setApproveModule(s.module_id ?? null, s.module ?? '');
         // Pre-select type if staging already has a value
         if (s.ticket_type) {
             const typeEl = document.getElementById('approveTicketType');
@@ -832,9 +889,15 @@ function aiAnalysisPanelHtml(s) {
     const status = s.ai_analysis_status || null;
     const isRunning = 'pending' === status;
     const hasResult = !isRunning && !!s.ai_analysis;
-    const timeNote = (hasResult && s.ai_analysis_generated_at)
+    const timeNote = ((hasResult || s.ai_analysis_restricted) && s.ai_analysis_generated_at)
         ? `<span class="text-[11px] text-gray-400 ml-2">Analyzed ${timeAgo(s.ai_analysis_generated_at)}</span>`
         : '';
+    // ai_analysis_restricted (lihat StagingTicketController::canViewAiAnalysis()):
+    // hasResult sengaja tetap FALSE untuk kasus ini (bukan bug) — tombol
+    // Re-analyze TIDAK ditampilkan supaya validator yang tidak punya izin
+    // credential tidak bisa tanpa sengaja menimpa analisa lama yang lebih
+    // lengkap (analisa baru dari akun ini tidak akan menyertakan catatan
+    // credential sama sekali, karena gerbangnya di sisi PEMICU analisa).
     const reanalyzeBtn = (hasResult || status === 'failed')
         ? `<button type="button" onclick="runAiAnalysis(${s.id}, true)" class="ml-auto text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
                <i class="fas fa-rotate-right text-[10px]"></i> Re-analyze
@@ -864,6 +927,18 @@ function aiAnalysisPanelHtml(s) {
     let bodyHtml;
     if (hasResult) {
         bodyHtml = renderAiAnalysisBody(s.ai_analysis);
+    } else if (s.ai_analysis_restricted) {
+        // Analisa SUDAH ada (status completed), tapi disembunyikan dari viewer
+        // ini — bukan "belum dianalisa" (jangan tampilkan spinner/Connecting…
+        // yang menyesatkan seolah masih berjalan).
+        bodyHtml = `
+            <div class="flex items-start gap-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3.5 py-3">
+                <i class="fas fa-lock text-gray-400 mt-0.5"></i>
+                <div>
+                    <p class="font-semibold text-gray-700">This ticket's AI analysis is hidden from you</p>
+                    <p class="text-xs text-gray-500 mt-1">It may reference this customer's stored credential notes. Ask an admin for "Customer Credential" access if you need to view it, or fill in the classification (Type/Priority/Scale/Module) manually below.</p>
+                </div>
+            </div>`;
     } else if ('failed' === status) {
         bodyHtml = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> AI analysis failed for this ticket. Click Re-analyze to try again, or fill in the classification (Type/Priority/Scale/Module) manually.</p>`;
     } else {
@@ -1157,7 +1232,17 @@ async function runAiAnalysis(id, force = false) {
             data = doneData;
         } else {
             const json = await res.json();
-            if (!json.success) throw new Error(json.message || 'Request failed');
+            if (!json.success) {
+                const err = new Error(json.message || 'Request failed');
+                // 'restricted' (lihat StagingTicketController::analyze()): analisa
+                // SUDAH ada, cuma disembunyikan dari actor ini karena izin
+                // credential — beda dari kegagalan AI sungguhan, jangan ditandai
+                // status 'failed' (itu akan memunculkan tombol Re-analyze yang,
+                // kalau diklik, justru MENIMPA analisa lengkap yang sudah ada
+                // dengan versi baru tanpa konteks credential).
+                err.status = json.status || null;
+                throw err;
+            }
             data = json.data;
         }
 
@@ -1175,8 +1260,14 @@ async function runAiAnalysis(id, force = false) {
         autoFillEmptyFromAi(data);
         refreshAiAnalysisPanel(id);
     } catch (e) {
+        const isRestricted = 'restricted' === e.status;
         if (currentStagingData && currentStagingData.id === id) {
-            currentStagingData.ai_analysis_status = 'failed';
+            // 'restricted': status SEBENARNYA masih 'completed' di server (ada
+            // hasil, cuma disembunyikan) — jangan ditimpa 'failed', supaya
+            // tombol Re-analyze (yang bisa menimpa analisa lengkap yang sudah
+            // ada) tidak ikut muncul untuk actor yang tidak berhak lihat itu.
+            currentStagingData.ai_analysis_status = isRestricted ? 'completed' : 'failed';
+            if (isRestricted) currentStagingData.ai_analysis_restricted = true;
         }
         // Refresh dulu (supaya header ikut ter-render ulang — kalau tidak,
         // tombol Re-analyze tetap hilang karena disembunyikan saat status
@@ -1184,8 +1275,10 @@ async function runAiAnalysis(id, force = false) {
         // spesifik dari server (mis. rate limit/config) alih-alih pesan
         // generik "gagal" dari aiAnalysisPanelHtml().
         refreshAiAnalysisPanel(id);
-        const freshBody = document.getElementById('aiAnalysisBody');
-        if (freshBody) freshBody.innerHTML = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> ${escHtml(e.message || 'AI analysis failed. Please fill in the classification manually.')}</p>`;
+        if (!isRestricted) {
+            const freshBody = document.getElementById('aiAnalysisBody');
+            if (freshBody) freshBody.innerHTML = `<p class="text-sm text-red-600"><i class="fas fa-circle-exclamation"></i> ${escHtml(e.message || 'AI analysis failed. Please fill in the classification manually.')}</p>`;
+        }
     } finally {
         // WAJIB finally, bukan ditaruh lepas di akhir try/catch: harus tetap
         // kelepas apa pun jalur keluarnya (sukses, gagal, atau exception tak
@@ -1378,9 +1471,6 @@ function autoFillEmptyFromAi(data) {
     const moduleIdsEl = document.getElementById('approveModuleIds');
     if (moduleIdsEl && !moduleIdsEl.value && Array.isArray(data.suggested_module_ids) && data.suggested_module_ids.length) {
         setCustomDropdownMulti('approveModuleIds', data.suggested_module_ids);
-    const moduleEl = document.getElementById('approveModule');
-    if (moduleEl && !moduleEl.value && data.suggested_module_name) {
-        setApproveModule(null, data.suggested_module_name);
     }
 }
 
@@ -1392,7 +1482,6 @@ function applyAiSuggestions() {
     setVal('approveTicketType', d.suggested_ticket_type);
     setVal('approvePriority',   d.suggested_priority);
     setVal('approveScale',      d.suggested_scale);
-    if (d.suggested_module_name) setApproveModule(null, d.suggested_module_name);
     showNotif('AI suggestions applied to form.', 'success');
 }
 
@@ -1558,51 +1647,13 @@ function cancelReject() {
     if (currentStagingData) renderFooter(currentStagingData);
 }
 
-/**
- * Pilih modul di dropdown berdasarkan id (kalau staging sudah punya module_id)
- * atau berdasarkan NAMA (tiket email menyimpan modul sebagai teks bebas).
- * Nama yang tidak cocok baris mana pun ditampilkan sebagai hint, supaya
- * helpdesk tahu apa yang tertulis sebelumnya dan bisa memilih padanannya.
- */
-function setApproveModule(moduleId, moduleName) {
-    const el   = document.getElementById('approveModule');
-    const hint = document.getElementById('approveModuleHint');
-    if (!el) return;
-
-    let matched = '';
-    if (moduleId) {
-        matched = [...el.options].some(o => o.value === String(moduleId)) ? String(moduleId) : '';
-    }
-    if (!matched && moduleName) {
-        const needle = String(moduleName).trim().toLowerCase();
-        matched = [...el.options].find(o => o.value && o.textContent.trim().toLowerCase() === needle)?.value ?? '';
-    }
-    el.value = matched;
-
-    if (hint) {
-        const stale = !matched && moduleName ? String(moduleName).trim() : '';
-        hint.textContent = stale ? `Tertulis di tiket: "${stale}" — tidak ada di Master Module.` : '';
-        hint.classList.toggle('hidden', stale === '');
-    }
-}
-
-/** Nama modul terpilih — ikut dikirim supaya kolom teks `module` tetap konsisten. */
-function selectedApproveModuleName() {
-    const el = document.getElementById('approveModule');
-    if (!el || !el.value) return '';
-    return el.options[el.selectedIndex]?.textContent.trim() ?? '';
-}
-
 async function submitApprove(id) {
     const ticketType        = document.getElementById('approveTicketType')?.value ?? '';
     const priority          = document.getElementById('approvePriority')?.value   ?? '';
     const scale             = document.getElementById('approveScale')?.value      ?? '';
     const name              = document.getElementById('approveName')?.value.trim()   ?? '';
     const noHp              = document.getElementById('approveNoHp')?.value.trim()   ?? '';
-    const module            = document.getElementById('approveModule')?.value.trim() ?? '';
     const moduleIds         = (document.getElementById('approveModuleIds')?.value || '').split(',').filter(Boolean).map(Number);
-    const moduleId          = document.getElementById('approveModule')?.value || null;
-    const module            = selectedApproveModuleName();
     const client            = document.getElementById('approveClient')?.value.trim() ?? '';
     const deliverySupportId = _stagingDsSelected.id || null;
     const endCustomerId     = document.getElementById('approveEndCustomer')?.value || null;
@@ -1638,12 +1689,15 @@ async function submitApprove(id) {
             scale:                scale  || null,
             name:                 name   || null,
             no_hp:                noHp   || null,
-            module:               module || null,
+            // `module`/`module_id` (teks bebas + FK singular legacy) SENGAJA tidak
+            // dikirim di sini — tidak ada lagi kontrol UI untuk itu (dulu ada
+            // dropdown "Module" terpisah, sudah dihapus karena tidak pernah
+            // mempengaruhi modul tiket yang sebenarnya). "Module(s)" di bawah
+            // (module_ids) adalah SATU-SATUNYA cara mengatur modul tiket — lihat
+            // Ticket::syncModules(). Modul teks bebas asli dari staging (kalau
+            // ada, dari submission awal) otomatis ikut ke tiket tanpa perlu
+            // ditulis ulang di sini.
             module_ids:           moduleIds,
-            // Modul hanya ditimpa kalau helpdesk benar-benar memilih. Dibiarkan
-            // "-- none --" berarti teks modul asli dari staging tetap tersimpan
-            // (tiket email lama menulis modul sebagai teks bebas).
-            ...(moduleId ? { module: module, module_id: moduleId } : { module_id: null }),
             client:               client || null,
             delivery_support_id:  deliverySupportId,
             end_customer_id:      endCustomerId,

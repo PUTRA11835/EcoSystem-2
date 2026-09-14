@@ -83,7 +83,7 @@ class AiTicketSummaryController extends Controller
             abort(401);
         }
 
-        if (!in_array(self::PERMISSION_SLUG, $employee->allPermissionSlugs(), true)) {
+        if (!$employee->hasPermission(self::PERMISSION_SLUG)) {
             abort(403);
         }
 

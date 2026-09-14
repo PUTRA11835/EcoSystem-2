@@ -167,6 +167,32 @@ class Ticket extends Model
     }
 
     /**
+     * Versi batch dari getModuleNamesAttribute() untuk caller yang punya baris
+     * ticket dari query builder mentah (bukan Eloquent, jadi relasi modules()
+     * tidak terjangkau) dan perlu nama modul banyak tiket sekaligus tanpa N+1 —
+     * lihat TaskController::list(). TIDAK menyertakan fallback ke `module` teks
+     * lama di sini (caller yang punya baris $ticket->module sendiri sudah bisa
+     * fallback ke situ, seperti TaskController melakukannya).
+     *
+     * @param array<int, int> $ticketIds
+     * @return \Illuminate\Support\Collection<int, string> keyed by ticket_id
+     */
+    public static function moduleNamesMapFor(array $ticketIds): \Illuminate\Support\Collection
+    {
+        if (empty($ticketIds)) {
+            return collect();
+        }
+
+        return \Illuminate\Support\Facades\DB::table('ticket_module')
+            ->join('modules', 'modules.id', '=', 'ticket_module.module_id')
+            ->whereIn('ticket_module.ticket_id', $ticketIds)
+            ->orderBy('modules.name')
+            ->get(['ticket_module.ticket_id', 'modules.name'])
+            ->groupBy('ticket_id')
+            ->map(fn ($rows) => $rows->pluck('name')->implode(', '));
+    }
+
+    /**
      * Daftar LENGKAP modul tiket ini (satu tiket boleh menyentuh lebih dari
      * satu modul) — lihat migrasi create_ticket_module_table. `module_id`
      * (scalar, dipakai moduleMaster()/module_name di atas) tetap ada sebagai
