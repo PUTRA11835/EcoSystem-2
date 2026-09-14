@@ -547,6 +547,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                     <div class="space-y-4">
                         <h4 class="text-base font-bold text-gray-900 mb-4 pb-2 border-b-2 border-gray-200">Organizational Data</h4>
 
+                        @if($dropdownFieldActive['personnel_area'] ?? true)
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Personnel Area</label>
                             <div class="custom-dd relative" data-fixed="true">
@@ -563,7 +564,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </div>
+                        @endif
 
+                        @if($dropdownFieldActive['position'] ?? true)
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Position</label>
                             <div class="custom-dd relative" data-fixed="true">
@@ -580,12 +583,14 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </div>
+                        @endif
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Current Assignment</label>
                             <input type="text" id="currentAssignment" placeholder="e.g., Project X" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                         </div>
 
+                        @if($dropdownFieldActive['employee_group'] ?? true)
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Employee Group</label>
                             <div class="custom-dd relative" data-fixed="true">
@@ -602,7 +607,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </div>
+                        @endif
 
+                        @if($dropdownFieldActive['employee_subgroup'] ?? true)
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Employee Sub-Group</label>
                             <div class="custom-dd relative" data-fixed="true">
@@ -619,7 +626,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </div>
+                        @endif
 
+                        @if($dropdownFieldActive['division'] ?? true)
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Division</label>
                             <div class="custom-dd relative" data-fixed="true">
@@ -636,6 +645,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </div>
+                        @endif
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Home Base</label>
@@ -1472,11 +1482,13 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                     setCustomDropdownValue('division', emp.division || '');
                     setCustomDropdownValue('homeBase', emp.home_base || '');
                 } else {
-                    document.getElementById('personnelArea').value = emp.personnel_area || '';
-                    document.getElementById('position').value = emp.position || '';
-                    document.getElementById('employeeGroup').value = emp.employee_group || '';
-                    document.getElementById('employeeSubgroup').value = emp.employee_subgroup || '';
-                    document.getElementById('division').value = emp.division || '';
+                    // Optional chaining — a field whose dropdown config is inactive
+                    // isn't rendered (see dropdownFieldActive), so its element is null.
+                    if (document.getElementById('personnelArea')) document.getElementById('personnelArea').value = emp.personnel_area || '';
+                    if (document.getElementById('position')) document.getElementById('position').value = emp.position || '';
+                    if (document.getElementById('employeeGroup')) document.getElementById('employeeGroup').value = emp.employee_group || '';
+                    if (document.getElementById('employeeSubgroup')) document.getElementById('employeeSubgroup').value = emp.employee_subgroup || '';
+                    if (document.getElementById('division')) document.getElementById('division').value = emp.division || '';
                     document.getElementById('homeBase').value = emp.home_base || '';
                 }
 
@@ -1540,12 +1552,15 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             cell_phone: document.getElementById('cellPhone').value,
             
             // SECTION 3: ORGANIZATIONAL DATA
-            personnel_area: document.getElementById('personnelArea').value,
-            position: document.getElementById('position').value,
+            // Optional chaining here on purpose — a field whose dropdown config is
+            // inactive (see DropdownConfig/dropdownFieldActive) isn't rendered at
+            // all, so document.getElementById() returns null for it.
+            personnel_area: document.getElementById('personnelArea')?.value || '',
+            position: document.getElementById('position')?.value || '',
             current_assignment: document.getElementById('currentAssignment').value,
-            employee_group: document.getElementById('employeeGroup').value,
-            employee_subgroup: document.getElementById('employeeSubgroup').value,
-            division: document.getElementById('division').value,
+            employee_group: document.getElementById('employeeGroup')?.value || '',
+            employee_subgroup: document.getElementById('employeeSubgroup')?.value || '',
+            division: document.getElementById('division')?.value || '',
             home_base: document.getElementById('homeBase').value,
         };
 

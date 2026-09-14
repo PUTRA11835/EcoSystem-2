@@ -101,10 +101,19 @@ class AppServiceProvider extends ServiceProvider
         View::composer(
             ['master.employee.index', 'master.employee.sections.basicdata'],
             function ($view) {
+                $dropdownCodes = ['position', 'department', 'division', 'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup'];
+
                 // Guard: hindari error bila tabel belum ada (mis. saat migrate awal).
-                $dd = fn (string $code) => Schema::hasTable('dropdown_config_values')
-                    ? DropdownConfig::optionsFor($code)
-                    : [];
+                $hasDropdownTables = Schema::hasTable('dropdown_config_values');
+                $dd = fn (string $code) => $hasDropdownTables ? DropdownConfig::optionsFor($code) : [];
+
+                // Config yang di-nonaktifkan (is_active=false) bukan cuma dikosongkan
+                // opsinya — seluruh blok field-nya disembunyikan dari form Employee
+                // (lihat DropdownConfig::activeMap()). Field dengan config yang belum
+                // ada barisnya (mis. tabel belum ke-migrate) dianggap aktif (fail open).
+                $dropdownFieldActive = $hasDropdownTables
+                    ? DropdownConfig::activeMap($dropdownCodes)
+                    : array_fill_keys($dropdownCodes, true);
 
                 // "Current Assignment" — dropdown-nya diambil dari daftar Business
                 // Partner bertipe Customer (bukan free text lagi), sama sumbernya
@@ -129,6 +138,7 @@ class AppServiceProvider extends ServiceProvider
                      ->with('personnelSubareaOptions', $dd('personnel_subarea'))
                      ->with('employeeGroupOptions', $dd('employee_group'))
                      ->with('employeeSubgroupOptions', $dd('employee_subgroup'))
+                     ->with('dropdownFieldActive', $dropdownFieldActive)
                      ->with('customerOptions', $customerOptions);
             }
         );
