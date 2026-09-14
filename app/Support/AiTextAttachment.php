@@ -74,6 +74,9 @@ class AiTextAttachment
     /** Berkas teks tanpa ekstensi yang berarti (Dockerfile, Makefile, …). */
     private const TEXT_BASENAMES = ['dockerfile', 'makefile', 'procfile', 'gemfile', 'rakefile'];
 
+    /** MIME resmi .docx — tapi banyak browser/OS malah melaporkannya sebagai application/zip. */
+    private const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
     /**
      * Apakah berkas ini bisa dibaca sebagai teks?
      *
@@ -95,6 +98,10 @@ class AiTextAttachment
             return true;
         }
 
+        if (self::isDocx($file)) {
+            return true;
+        }
+
         $mime = (string) $file->getMimeType();
 
         if (str_starts_with($mime, 'text/') || in_array($mime, ['application/json', 'application/xml', 'application/csv'], true)) {
@@ -105,15 +112,76 @@ class AiTextAttachment
     }
 
     /**
+     * .docx BUKAN teks polos — dia zip berisi XML, jadi diperiksa lewat
+     * ekstensi/MIME saja di sini; isinya baru diambil di fromFile().
+     */
+    private static function isDocx(UploadedFile $file): bool
+    {
+        $name = strtolower($file->getClientOriginalName());
+        $extension = strtolower($file->getClientOriginalExtension() ?: pathinfo($name, PATHINFO_EXTENSION));
+
+        if ('docx' === $extension) {
+            return true;
+        }
+
+        $mime = (string) $file->getMimeType();
+
+        return self::DOCX_MIME === $mime;
+    }
+
+    /**
      * Berkas terunggah → lampiran teks siap kirim.
      *
      * @return array{type: string, name: string, text: string, chars: int, lines: int, truncated: bool}
      */
     public static function fromFile(UploadedFile $file): array
     {
+        if (self::isDocx($file)) {
+            return self::fromText($file->getClientOriginalName(), self::extractDocxText($file->getRealPath()));
+        }
+
         $raw = (string) file_get_contents($file->getRealPath());
 
         return self::fromText($file->getClientOriginalName(), $raw);
+    }
+
+    /**
+     * .docx → teks polos. Format aslinya adalah zip berisi XML (word/document.xml
+     * menyimpan isi badan dokumen); memformat ulang XML itu di luar cakupan sini —
+     * yang dibutuhkan model hanyalah ISI-nya, bukan tata letaknya.
+     *
+     * Batas paragraf/baris/tab XML diubah jadi karakter teks yang sepadan SEBELUM
+     * tag-nya dibuang, supaya paragraf tidak menempel jadi satu baris raksasa.
+     */
+    private static function extractDocxText(string $path): string
+    {
+        $zip = new \ZipArchive();
+
+        if (true !== $zip->open($path)) {
+            return '[Could not read this .docx file — it may be corrupted or password-protected.]';
+        }
+
+        $xml = $zip->getFromName('word/document.xml');
+        $zip->close();
+
+        if (false === $xml || '' === $xml) {
+            return '[This .docx file has no readable body text.]';
+        }
+
+        $xml = preg_replace('/<w:tab\b[^>]*\/>/', "\t", $xml) ?? $xml;
+        $xml = preg_replace('/<w:(br|cr)\b[^>]*\/>/', "\n", $xml) ?? $xml;
+        $xml = preg_replace('/<\/w:p>/', "\n", $xml) ?? $xml;
+        $xml = preg_replace('/<\/w:tr>/', "\n", $xml) ?? $xml;
+
+        $text = preg_replace('/<[^>]+>/', '', $xml) ?? $xml;
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_XML1, 'UTF-8');
+
+        // Tabel/paragraf kosong berturut-turut jadi banyak baris kosong; dirapikan
+        // supaya tidak memboroskan karakter dari plafon MAX_CHARS untuk hal yang
+        // tidak menambah informasi.
+        $text = preg_replace('/\n{3,}/', "\n\n", trim($text)) ?? trim($text);
+
+        return $text;
     }
 
     /**

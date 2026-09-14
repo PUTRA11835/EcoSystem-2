@@ -437,6 +437,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/approve', [StagingTicketController::class, 'approve']);
         Route::post('/{id}/reject', [StagingTicketController::class, 'reject']);
         Route::post('/{id}/analyze', [StagingTicketController::class, 'analyze']);
+        Route::post('/{id}/ask', [StagingTicketController::class, 'ask']);
     });
 
     // ==================== TICKET ROUTES ====================
@@ -497,6 +498,7 @@ Route::middleware(['web'])->group(function () {
 
         // ==================== DELIVERABLE ROUTES ====================
         Route::get('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'index']);
+        Route::post('/{id}/deliverables/upload-session', [\App\Http\Controllers\TicketDeliverableController::class, 'createUploadSession']);
         Route::post('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'store']);
         Route::patch('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'update']);
         Route::patch('/{id}/deliverables/{delivId}/send', [\App\Http\Controllers\TicketDeliverableController::class, 'send']);
@@ -625,6 +627,10 @@ Route::middleware(['web'])->group(function () {
         Route::get('/resource-timeline/entries',       [\App\Http\Controllers\ResourceTimelineController::class, 'entries']);
         Route::post('/resource-timeline/entries',      [\App\Http\Controllers\ResourceTimelineController::class, 'upsertEntries']);
         Route::post('/resource-timeline/entries/delete', [\App\Http\Controllers\ResourceTimelineController::class, 'deleteEntries']);
+
+        // Customer MD — tiket type CR dan/atau yang punya Customer Mandays proposal.
+        // Izinnya diperiksa di controller lewat Employee::canAccessMenu().
+        Route::get('/customer-md', [\App\Http\Controllers\ReportingController::class, 'customerMd']);
     });
 
     // ==================== NOTIFICATION ROUTES ====================

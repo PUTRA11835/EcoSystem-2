@@ -100,6 +100,13 @@ class AiResearchService
      * @param bool $resume giliran ini adalah "Continue" yang DIMINTA USER lewat tombol,
      *                     bukan pertanyaan baru: tidak ada teks user, yang dikirim
      *                     adalah instruksi lanjutan yang sama dengan penyambung otomatis.
+     * @param bool $initial giliran pembuka OTOMATIS untuk percakapan tiket yang baru
+     *                      dibuat (lihat AiResearchController::openForTicket()) — beda
+     *                      dari resume: tidak ada JAWABAN sebelumnya untuk disambung,
+     *                      yang ada justru giliran USER (konteks tiket yang di-seed)
+     *                      yang belum pernah dijawab. Tidak ada apa pun ditambahkan ke
+     *                      $messages; model diminta menjawab giliran user yang sudah
+     *                      ada di ujung transkrip apa adanya.
      */
     public function streamReply(
         Employee $employee,
@@ -111,6 +118,7 @@ class AiResearchService
         Closure $onEvent,
         Closure $isAborted,
         bool $resume = false,
+        bool $initial = false,
     ): void {
         $cacheKey = $this->cacheKey($employee, $conversationId);
         $messages = $this->restoreMessages($cacheKey);
@@ -151,6 +159,22 @@ class AiResearchService
             }
 
             $messages[] = ['role' => 'user', 'content' => [$this->continuationBlock()]];
+        } elseif ($initial) {
+            // Giliran user (konteks tiket) SUDAH ada di ujung transkrip yang
+            // baru dipulihkan dari arsip — tidak ada apa pun untuk ditambahkan.
+            // Dua penjaga di sini, dan KEDUANYA independen dari sisi client
+            // (yang bisa saja mengulang trigger karena race/refresh):
+            //   - transkrip kosong: tidak ada tiket yang di-seed sama sekali.
+            //   - giliran TERAKHIR bukan role user: percakapan ini sudah pernah
+            //     dijawab (atau baru saja dijawab oleh permintaan lain yang
+            //     lebih dulu selesai) — trigger kedua di sini dibiarkan tidak
+            //     melakukan apa pun, bukan melempar error, supaya klik ulang
+            //     tombol "Ask AI" atau tab ganda tidak pernah menghasilkan DUA
+            //     jawaban (dan dua tagihan) untuk seed yang sama.
+            $last = end($messages);
+            if (!$last || 'user' !== ($last['role'] ?? null)) {
+                return;
+            }
         } else {
             $messages[] = [
                 'role' => 'user',

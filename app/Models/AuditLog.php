@@ -150,19 +150,23 @@ class AuditLog extends Model
         string $message,
         int $attachmentCount,
         string $modelTier,
-        bool $resume = false
+        bool $resume = false,
+        bool $initial = false
     ): void {
         $isResume = $resume && $message === '';
-        $isAttachmentOnly = !$resume && $message === '' && $attachmentCount > 0;
+        $isInitial = $initial && $message === '';
+        $isAttachmentOnly = !$resume && !$initial && $message === '' && $attachmentCount > 0;
 
         $description = match (true) {
             $isResume => "continued a {$module} conversation",
+            $isInitial => "auto-triggered a {$module} conversation (ticket context seed)",
             $isAttachmentOnly => "sent {$attachmentCount} attachment(s) to {$module} with no message",
             default => sprintf('asked %s: "%s"', $module, Str::limit($message, 150)),
         };
 
         $recordLabel = match (true) {
             $isResume => '[continued]',
+            $isInitial => '[auto-triggered]',
             $isAttachmentOnly => "[{$attachmentCount} attachment(s), no message]",
             default => Str::limit($message, 120),
         };

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Enums\RoleId;
 use App\Models\AuditLog;
 use App\Models\Customer;
+use App\Models\CustomerCredential;
+use App\Models\Employee;
 use App\Models\StagingAttachment;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * StagingTicketController
@@ -75,6 +78,9 @@ class StagingTicketController extends Controller
             'scales' => \App\Support\TicketClassification::SCALES,
         ];
 
+        // Untuk widget multi-select modul di modal approve (lihat approveModuleIds).
+        $modules = \App\Models\Module::active()->orderBy('name')->get(['id', 'name']);
+
         return view('staging.index', compact('user', 'deliverySupports', 'deliverySupportsJson', 'ticketClassification', 'modules'));
     }
 
@@ -120,6 +126,8 @@ class StagingTicketController extends Controller
             'ip'          => $request->ip(),
         ]);
 
+        $isCustomerViewer = RoleId::EC_USER->value === $roleId;
+
         if (in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value, RoleId::EC_USER->value], RoleId::STAGING_GROUP), true)) {
             $query = StagingTicket::query();
         } else {
@@ -134,7 +142,14 @@ class StagingTicketController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
-        if ($request->filled('customer_id')) {
+        // Customer (EC_USER): SELALU dipaksa ke customer_id sesi sendiri, tidak
+        // pernah percaya customer_id dari request — supaya satu akun customer
+        // tidak bisa mengintip staging ticket customer lain sekadar dengan
+        // mengganti/menghapus parameter query-nya. Staff internal boleh filter
+        // customer_id manapun seperti biasa.
+        if ($isCustomerViewer) {
+            $query->where('customer_id', (int) $sessionUser['id']);
+        } elseif ($request->filled('customer_id')) {
             $query->where('customer_id', $request->customer_id);
         }
 
@@ -159,9 +174,22 @@ class StagingTicketController extends Controller
             'user_id' => $sessionUser['id'] ?? null,
         ]);
 
+        // Gerbang ai_analysis (lihat canViewAiAnalysis()) — dihitung SEKALI untuk
+        // seluruh halaman, bukan per baris, supaya tidak N+1.
+        $hasCredentialPermission = false;
+        $customerIdsWithCredentials = [];
+        if (!$isCustomerViewer) {
+            $hasCredentialPermission = (bool) Employee::find($sessionUser['id'] ?? null)?->hasMenuPermission('customer.section.credential.view');
+            if (!$hasCredentialPermission) {
+                $customerIdsWithCredentials = CustomerCredential::whereIn('customer_id', $data->pluck('customer_id')->unique()->filter())
+                    ->pluck('customer_id')
+                    ->all();
+            }
+        }
+
         return response()->json([
             'success' => true,
-            'data'    => $data->map(fn ($s) => $this->formatStaging($s)),
+            'data'    => $data->map(fn ($s) => $this->formatStaging($s, $isCustomerViewer, $hasCredentialPermission, $customerIdsWithCredentials)),
             'meta'    => [
                 'total'        => $data->total(),
                 'per_page'     => $data->perPage(),
@@ -180,11 +208,42 @@ class StagingTicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
+        // Sama seperti index(): role harus salah satu yang boleh melihat staging
+        // ticket sama sekali. Dulu endpoint ini TIDAK punya gerbang role apa pun
+        // (cuma cek login) — siapa pun yang sudah login (termasuk akun customer
+        // lain) bisa membaca detail staging ticket manapun lewat ID sekadar
+        // dengan menebak angka di URL.
+        $roleId = $sessionUser['role']['id'] ?? null;
+        $isCustomerViewer = RoleId::EC_USER->value === $roleId;
+        $allowedRoles = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value, RoleId::EC_USER->value], RoleId::STAGING_GROUP);
+        if (!in_array($roleId, $allowedRoles, true)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
         try {
             $staging = StagingTicket::with(['customer.basicData', 'endCustomer.basicData', 'validator.basicData', 'ticket', 'attachments'])
                 ->findOrFail($id);
 
-            return response()->json(['success' => true, 'data' => $this->formatStaging($staging)]);
+            // Customer hanya boleh lihat staging ticket miliknya sendiri —
+            // tanpa ini, EC_USER yang tahu/menebak ID staging ticket customer
+            // lain bisa membaca seluruh detailnya (email, body, attachment).
+            if ($isCustomerViewer && (int) $staging->customer_id !== (int) $sessionUser['id']) {
+                return response()->json(['success' => false, 'message' => 'Staging ticket not found.'], 404);
+            }
+
+            $hasCredentialPermission = false;
+            $customerIdsWithCredentials = [];
+            if (!$isCustomerViewer && $staging->customer_id) {
+                $hasCredentialPermission = (bool) Employee::find($sessionUser['id'] ?? null)?->hasMenuPermission('customer.section.credential.view');
+                if (!$hasCredentialPermission && CustomerCredential::where('customer_id', $staging->customer_id)->exists()) {
+                    $customerIdsWithCredentials = [$staging->customer_id];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data'    => $this->formatStaging($staging, $isCustomerViewer, $hasCredentialPermission, $customerIdsWithCredentials),
+            ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['success' => false, 'message' => 'Staging ticket not found.'], 404);
         } catch (\Throwable $e) {
@@ -352,6 +411,8 @@ class StagingTicketController extends Controller
             'name'                => 'nullable|string|max:255',
             'no_hp'               => 'nullable|string|max:255',
             'module'              => 'nullable|string|max:255',
+            'module_ids'          => 'nullable|array',
+            'module_ids.*'        => 'integer|exists:modules,id',
             'module_id'           => 'nullable|exists:modules,id',
             'client'              => 'nullable|string|max:255',
             'delivery_support_id' => 'nullable|exists:delivery_support,id',
@@ -409,7 +470,8 @@ class StagingTicketController extends Controller
             $ticketType     = $request->input('ticket_type');
             $ticketPriority = $request->input('ticket_priority');
             $scale          = $request->input('scale');
-            $result         = $this->service->approve($staging, $sessionUser['id'], $ticketType, $ticketPriority, $scale);
+            $moduleIds      = $request->input('module_ids', []);
+            $result         = $this->service->approve($staging, $sessionUser['id'], $ticketType, $ticketPriority, $scale, $moduleIds);
             $ticket       = $result['ticket'];
             $firstMessage = $result['first_message'];
 
@@ -584,7 +646,7 @@ class StagingTicketController extends Controller
         }
 
         $roleId = $sessionUser['role']['id'];
-        if (!in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
+        if (!$this->canManageStagingTicket($roleId)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -630,6 +692,24 @@ class StagingTicketController extends Controller
             $staging->refresh();
 
             if ('completed' === $staging->ai_analysis_status && $staging->ai_analysis) {
+                // Cache ini bisa saja dibuat oleh actor LAIN (siapa pun yang
+                // memicu analyze() pertama kali) yang punya izin credential —
+                // gerbang yang sama dengan canViewAiAnalysis()/formatStaging()
+                // supaya jalur "sudah completed, tinggal kembalikan cache" ini
+                // tidak jadi jalan belakang buat actor yang tidak punya izin.
+                $hasCredentialPermission = (bool) Employee::find($sessionUser['id'] ?? null)?->hasMenuPermission('customer.section.credential.view');
+                $customerIdsWithCredentials = (!$hasCredentialPermission && $staging->customer_id && CustomerCredential::where('customer_id', $staging->customer_id)->exists())
+                    ? [$staging->customer_id]
+                    : [];
+
+                if (!$this->canViewAiAnalysis(false, $hasCredentialPermission, $staging->customer_id, $customerIdsWithCredentials)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'This ticket already has an AI analysis, but it references this customer\'s stored credential notes. You need "Customer Credential" view access to see it — ask an admin, or fill in the classification manually.',
+                        'status'  => 'restricted',
+                    ], 403);
+                }
+
                 return response()->json(['success' => true, 'data' => $staging->ai_analysis]);
             }
 
@@ -680,49 +760,84 @@ class StagingTicketController extends Controller
         // worker selamanya.
         set_time_limit(630);
 
-        try {
-            $result = $analyzer->analyze(
-                staging: $staging,
-                actorId: (int) $sessionUser['id'],
-                actorRoleId: $roleId,
-                actorName: $sessionUser['name'] ?? null,
-            );
+        // Lepas kunci file session sebelum stream panjang, supaya tab lain
+        // milik user yang sama tidak ikut menunggu — pola sama AiTicketSummaryController.
+        $request->session()->save();
 
-            return response()->json(['success' => true, 'data' => $result]);
-        } catch (\Anthropic\Core\Exceptions\AuthenticationException |
-                 \Anthropic\Core\Exceptions\PermissionDeniedException |
-                 \Anthropic\Core\Exceptions\BadRequestException |
-                 \Anthropic\Core\Exceptions\NotFoundException $e) {
-            // Konfigurasi/kredit/otentikasi bermasalah di sisi provider — mencoba
-            // lagi TIDAK akan membantu sampai penyebabnya dibenahi (mis. saldo
-            // Anthropic/OpenAI habis, API key dicabut, skill ID salah). Dibedakan
-            // dari error transient di bawah supaya pesannya tidak menyesatkan
-            // admin dengan "coba lagi" padahal percuma, dan supaya log-nya bisa
-            // dipantau/di-alert terpisah dari sekadar gangguan jaringan sesaat.
-            return $this->analyzeFailureResponse($id, $e, retryable: false);
-        } catch (\OpenAI\Exceptions\ErrorException $e) {
-            $retryable = !in_array($e->getStatusCode(), [400, 401, 403, 404], true);
+        return response()->stream(function () use ($analyzer, $staging, $id, $sessionUser, $roleId) {
+            set_time_limit(630);
 
-            return $this->analyzeFailureResponse($id, $e, retryable: $retryable);
-        } catch (\Anthropic\Core\Exceptions\RateLimitException |
-                 \Anthropic\Core\Exceptions\InternalServerException |
-                 \Anthropic\Core\Exceptions\APIConnectionException |
-                 \OpenAI\Exceptions\RateLimitException |
-                 \OpenAI\Exceptions\ServerException |
-                 \OpenAI\Exceptions\TransporterException $e) {
-            // Rate limit / server sibuk / koneksi terputus — genuinely transient,
-            // retry (termasuk retry otomatis bawaan SDK) punya peluang berhasil.
-            return $this->analyzeFailureResponse($id, $e, retryable: true);
-        } catch (\RuntimeException $e) {
-            // Guard rail internal AiTicketAnalyzerService sendiri (skill ID belum
-            // diisi di .env, atau jawaban AI gagal di-parse sebagai JSON valid) —
-            // bukan outage provider, tapi tetap bukan sesuatu yang pasti akan
-            // beda hasilnya kalau di-retry begitu saja.
-            return $this->analyzeFailureResponse($id, $e, retryable: true);
-        } catch (\Throwable $e) {
-            return $this->analyzeFailureResponse($id, $e, retryable: true);
-        }
+            $send = function (string $event, array $payload): void {
+                echo 'event: ' . $event . "\n";
+                echo 'data: ' . json_encode($payload) . "\n\n";
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            };
+
+            $isAborted = fn (): bool => 1 === connection_aborted();
+
+            try {
+                $result = $analyzer->analyze(
+                    staging: $staging,
+                    actorId: (int) $sessionUser['id'],
+                    actorRoleId: $roleId,
+                    actorName: $sessionUser['name'] ?? null,
+                    onEvent: fn (string $event, array $payload) => $send($event, $payload),
+                    isAborted: $isAborted,
+                );
+
+                $send('done', ['data' => $result]);
+            } catch (\Anthropic\Core\Exceptions\AuthenticationException |
+                     \Anthropic\Core\Exceptions\PermissionDeniedException |
+                     \Anthropic\Core\Exceptions\BadRequestException |
+                     \Anthropic\Core\Exceptions\NotFoundException $e) {
+                // Konfigurasi/kredit/otentikasi bermasalah di sisi provider — mencoba
+                // lagi TIDAK akan membantu sampai penyebabnya dibenahi (mis. saldo
+                // Anthropic/OpenAI habis, API key dicabut, skill ID salah). Dibedakan
+                // dari error transient di bawah supaya log-nya bisa dipantau/
+                // di-alert terpisah dari sekadar gangguan jaringan sesaat.
+                $this->logAndMarkAnalyzeFailure($id, $e, retryable: false);
+                $send('error', ['message' => self::ANALYZE_FAILURE_MESSAGE]);
+            } catch (\OpenAI\Exceptions\ErrorException $e) {
+                $retryable = !in_array($e->getStatusCode(), [400, 401, 403, 404], true);
+                $this->logAndMarkAnalyzeFailure($id, $e, retryable: $retryable);
+                $send('error', ['message' => self::ANALYZE_FAILURE_MESSAGE]);
+            } catch (\Anthropic\Core\Exceptions\RateLimitException |
+                     \Anthropic\Core\Exceptions\InternalServerException |
+                     \Anthropic\Core\Exceptions\APIConnectionException |
+                     \OpenAI\Exceptions\RateLimitException |
+                     \OpenAI\Exceptions\ServerException |
+                     \OpenAI\Exceptions\TransporterException $e) {
+                // Rate limit / server sibuk / koneksi terputus — genuinely transient,
+                // retry (termasuk retry otomatis bawaan SDK) punya peluang berhasil.
+                $this->logAndMarkAnalyzeFailure($id, $e, retryable: true);
+                $send('error', ['message' => self::ANALYZE_FAILURE_MESSAGE]);
+            } catch (\RuntimeException $e) {
+                // Guard rail internal AiTicketAnalyzerService sendiri (skill ID belum
+                // diisi di .env, jawaban AI gagal di-parse sebagai JSON valid, atau
+                // koneksi ditutup user di tengah stream) — bukan outage provider,
+                // tapi tetap bukan sesuatu yang pasti akan beda hasilnya kalau
+                // di-retry begitu saja.
+                $this->logAndMarkAnalyzeFailure($id, $e, retryable: true);
+                if (0 === connection_aborted()) {
+                    $send('error', ['message' => self::ANALYZE_FAILURE_MESSAGE]);
+                }
+            } catch (\Throwable $e) {
+                $this->logAndMarkAnalyzeFailure($id, $e, retryable: true);
+                $send('error', ['message' => self::ANALYZE_FAILURE_MESSAGE]);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache, no-transform',
+            'X-Accel-Buffering' => 'no',
+            'Connection' => 'keep-alive',
+        ]);
     }
+
+    /** Pesan yang dilihat admin yang lagi validasi tiket — SAMA di semua jenis kegagalan analyze(). */
+    private const ANALYZE_FAILURE_MESSAGE = 'AI analysis failed for this ticket. Use the Re-analyze button to try again, or fill in the classification (Type/Priority/Scale/Module) manually.';
 
     /**
      * Satu titik keluar untuk semua kegagalan analyze() — menandai
@@ -730,11 +845,16 @@ class StagingTicketController extends Controller
      * Re-analyze, tapi TIDAK ada retry otomatis dari sisi sistem), lalu log
      * level & pesan diagnostik dibedakan berdasarkan apakah penyebabnya
      * genuinely transient ($retryable, buat dipantau ops) atau butuh campur
-     * tangan admin sistem (billing/config). Pesan yang dilihat admin yang lagi
-     * validasi tiket TETAP sama di kedua kasus: analisa gagal, isi manual atau
-     * Re-analyze.
+     * tangan admin sistem (billing/config).
+     *
+     * Dulu method ini juga membentuk response JSON (analyzeFailureResponse(),
+     * dengan status HTTP 503/502 dibedakan by $retryable) — sejak analyze()
+     * jadi SSE, badan responsnya sudah dikirim (event `error`) SEBELUM
+     * exception ini ditangani, jadi status code HTTP tidak relevan lagi di
+     * sini; frontend sudah lama tidak membedakan 409/502/503 sama sekali,
+     * cuma baca `message`.
      */
-    private function analyzeFailureResponse(int|string $stagingId, \Throwable $e, bool $retryable)
+    private function logAndMarkAnalyzeFailure(int|string $stagingId, \Throwable $e, bool $retryable): void
     {
         StagingTicket::where('id', $stagingId)->update(['ai_analysis_status' => 'failed']);
 
@@ -749,12 +869,107 @@ class StagingTicketController extends Controller
         } else {
             Log::error('StagingTicketController@analyze: failed to analyze (transient)', $context);
         }
+    }
 
-        return response()->json([
-            'success' => false,
-            'message' => 'AI analysis failed for this ticket. Use the Re-analyze button to try again, or fill in the classification (Type/Priority/Scale/Module) manually.',
-            'status'  => 'failed',
-        ], $retryable ? 503 : 502);
+    /**
+     * Peran yang boleh memicu analisa AI ATAU bertanya lewat panelnya —
+     * dipakai bersama oleh analyze() dan ask() supaya kedua pintu masuk ke
+     * fitur AI Analyzer tidak bisa diam-diam melenceng izinnya satu sama lain.
+     */
+    private function canManageStagingTicket(?int $roleId): bool
+    {
+        return in_array($roleId, array_merge(
+            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value],
+            RoleId::STAGING_GROUP,
+        ), true);
+    }
+
+    /**
+     * POST /api/staging-tickets/{id}/ask
+     * Tanya-jawab interaktif atas staging ticket yang sedang divalidasi (lihat
+     * AiTicketQaService) — SSE, bentuknya sama persis dengan
+     * AiAssistantController::chat(). Beda dari analyze(): endpoint ini boleh
+     * dipanggil berkali-kali per tiket (satu giliran chat per request), dan
+     * tidak butuh klaim atomic seperti ai_analysis_status — tidak ada state
+     * bersama yang diperebutkan, tiap sesi (session_id, dibuat baru oleh
+     * frontend setiap modal validasi dibuka) sudah terisolasi sendiri-sendiri
+     * lewat AiTicketQaService::cacheKey().
+     */
+    public function ask(Request $request, $id, \App\Services\Ai\AiTicketQaService $qa): StreamedResponse
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $roleId = $sessionUser['role']['id'] ?? null;
+        if (!$this->canManageStagingTicket($roleId)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'session_id' => 'required|string|max:100',
+            'message' => 'required|string|max:2000',
+        ]);
+
+        $staging = StagingTicket::findOrFail($id);
+
+        if ($staging->isProcessed()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This ticket has already been validated/rejected — asking about it is no longer relevant.',
+            ], 422);
+        }
+
+        $employee = Employee::find($sessionUser['id']);
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        // Lepas lock session sebelum stream panjang, supaya tab/request lain
+        // milik user yang sama tidak ikut terblokir — sama seperti analyze().
+        $request->session()->save();
+
+        return response()->stream(function () use ($employee, $staging, $validated, $qa, $sessionUser, $roleId) {
+            set_time_limit(0);
+
+            $send = function (string $event, array $payload): void {
+                echo 'event: ' . $event . "\n";
+                echo 'data: ' . json_encode($payload) . "\n\n";
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            };
+
+            try {
+                $qa->streamReply(
+                    employee: $employee,
+                    staging: $staging,
+                    sessionId: $validated['session_id'],
+                    userText: trim($validated['message']),
+                    onDelta: function (string $text) use ($send): void {
+                        $send('delta', ['text' => $text]);
+                    },
+                    isAborted: fn () => 1 === connection_aborted(),
+                    actorRoleId: $roleId,
+                    actorName: $sessionUser['name'] ?? null,
+                );
+
+                if (0 === connection_aborted()) {
+                    $send('done', []);
+                }
+            } catch (\Throwable $e) {
+                Log::error('Staging ticket Q&A failed', ['staging_id' => $staging->id, 'error' => $e->getMessage()]);
+                if (0 === connection_aborted()) {
+                    $send('error', ['message' => 'Something went wrong while answering. Please try again.']);
+                }
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no',
+        ]);
     }
 
     // ─── API: Admin reject ────────────────────────────────────────────────────
@@ -1782,8 +1997,47 @@ class StagingTicketController extends Controller
 
     // ─── Private formatter ────────────────────────────────────────────────────
 
-    private function formatStaging(StagingTicket $s): array
+    /**
+     * Siapa boleh benar-benar membaca isi staging_tickets.ai_analysis:
+     *   - Customer (bukan employee): TIDAK PERNAH — itu catatan kerja internal
+     *     validator (termasuk saran assignee, dugaan akar masalah), bukan
+     *     sesuatu yang ditujukan untuk customer baca sendiri.
+     *   - Staff internal: boleh, KECUALI staging ticket ini milik customer yang
+     *     punya catatan credential tersimpan (CustomerCredential) DAN staff ini
+     *     sendiri tidak punya izin 'customer.section.credential.view'.
+     *     AiTicketAnalyzerService::resolveCredentialContext() bisa menyerap
+     *     catatan credential itu ke dalam ai_analysis berdasarkan izin siapa
+     *     pun yang MEMICU analisa-nya (lihat CustomerCredential::contextNotesFor())
+     *     — bukan siapa yang MEMBACA hasilnya sekarang. Tanpa gerbang ini,
+     *     validator lain yang sebenarnya tidak punya izin credential bisa
+     *     membaca cache ai_analysis itu dan diam-diam melihat info credential
+     *     lewat jalan belakang.
+     *
+     * @param array<int, int> $customerIdsWithCredentials customer_id yang PUNYA
+     *        baris di customer_credential — dihitung SEKALI per request (lihat
+     *        index()/show()), bukan query per baris, supaya tidak N+1.
+     */
+    private function canViewAiAnalysis(bool $isCustomerViewer, bool $hasCredentialPermission, ?int $customerId, array $customerIdsWithCredentials): bool
     {
+        if ($isCustomerViewer) {
+            return false;
+        }
+
+        if (!$customerId || !in_array($customerId, $customerIdsWithCredentials, true)) {
+            return true;
+        }
+
+        return $hasCredentialPermission;
+    }
+
+    private function formatStaging(
+        StagingTicket $s,
+        bool $isCustomerViewer = true,
+        bool $hasCredentialPermission = false,
+        array $customerIdsWithCredentials = []
+    ): array {
+        $canViewAi = $this->canViewAiAnalysis($isCustomerViewer, $hasCredentialPermission, $s->customer_id, $customerIdsWithCredentials);
+
         $customerName = null;
         if ($s->customer) {
             $bd = $s->customer->basicData;
@@ -1842,6 +2096,7 @@ class StagingTicketController extends Controller
             'ticket_id'           => $s->ticket_id,
             'ticket_number'       => $s->ticket?->ticket_number,
             'created_at'          => $s->created_at?->toIso8601String(),
+            'updated_at'          => $s->updated_at?->toIso8601String(),
             'attachments'         => $attachments,       // ← file attachments (web uploads)
             // Field tambahan
             'name'                => $s->name,
@@ -1849,10 +2104,38 @@ class StagingTicketController extends Controller
             'module'              => $s->module,
             'module_id'           => $s->module_id,
             'client'              => $s->client,
-            // Analisa AI (cache — lihat AiTicketAnalyzerService)
-            'ai_analysis'              => $s->ai_analysis,
+            // Analisa AI (cache — lihat AiTicketAnalyzerService). Digerbangi
+            // canViewAiAnalysis() — lihat docblock method itu. ai_analysis_restricted
+            // biar frontend bisa kasih pesan yang jelas ("ada hasil tapi disembunyikan
+            // dari Anda"), bukan cuma diam-diam kosong seperti "belum pernah dianalisa".
+            'ai_analysis'              => $canViewAi ? $s->ai_analysis : null,
             'ai_analysis_generated_at' => $s->ai_analysis_generated_at?->toIso8601String(),
             'ai_analysis_status'       => $s->ai_analysis_status,
+            'ai_analysis_stale'        => $this->isAiAnalysisStale($s),
+            'ai_analysis_restricted'   => !$canViewAi && null !== $s->ai_analysis,
         ];
+    }
+
+    /**
+     * True kalau staging ticket ini diperbarui SETELAH analisis AI-nya dibuat
+     * — beda dari AI Summarize (yang auto-invalidate lewat sidik jari isi
+     * tiket), analisis AI di sini TIDAK auto-refresh karena panggilan Opus-5
+     * + Agent Skill mahal untuk dipicu ulang otomatis tiap kali staging
+     * ticket-nya diedit. Ini cukup jadi PERINGATAN pasif buat validator,
+     * bukan trigger auto re-analyze.
+     *
+     * Toleransi 3 detik menyerap selisih mikro-waktu wajar antara
+     * ai_analysis_generated_at (di-set eksplisit di
+     * AiTicketAnalyzerService::analyze()) dan updated_at (di-set Eloquent
+     * otomatis pada UPDATE query yang SAMA) — tanpa ini, hasil yang baru saja
+     * selesai dianalisis akan langsung tertandai basi oleh selisih milidetik.
+     */
+    private function isAiAnalysisStale(StagingTicket $s): bool
+    {
+        if (!$s->ai_analysis || !$s->ai_analysis_generated_at || !$s->updated_at) {
+            return false;
+        }
+
+        return $s->updated_at->gt($s->ai_analysis_generated_at->copy()->addSeconds(3));
     }
 }

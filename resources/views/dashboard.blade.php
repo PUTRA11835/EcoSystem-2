@@ -824,7 +824,8 @@
                             || Request::is('reporting/ticketing-overview*')
                             || Request::is('reporting/ticket-by-module*')
                             || Request::is('reporting/log-shifting*')
-                            || Request::is('reporting/resolution-days*');
+                            || Request::is('reporting/resolution-days*')
+                            || Request::is('reporting/customer-md*');
                         $canRepProject = $can('reporting.collection-outlook') || $can('reporting.consultant-assignment') || $can('reporting.resource-timeline');
                         $canRepSupport = $can('reporting.validation')
                             || $can('reporting.md-recap')
@@ -832,7 +833,8 @@
                             || $can('reporting.ticketing-overview')
                             || $can('reporting.ticket-by-module')
                             || $can('reporting.log-shifting')
-                            || $can('reporting.resolution-days');
+                            || $can('reporting.resolution-days')
+                            || $can('reporting.customer-md');
                     @endphp
                     <div id="reportingDropdown" class="nav-text {{ Request::is('reporting*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                         @if($canRepProject)
@@ -938,6 +940,14 @@
                                         <i class="fas fa-hourglass-half text-xs"></i>
                                     </span>
                                     <span class="nav-text text-sm">Resolution Days</span>
+                                </a>
+                                @endif
+                                @if($can('reporting.customer-md'))
+                                <a href="{{ route('reporting.customer-md') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/customer-md*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                        <i class="fas fa-file-invoice-dollar text-xs"></i>
+                                    </span>
+                                    <span class="nav-text text-sm">Customer MD</span>
                                 </a>
                                 @endif
                             </div>
