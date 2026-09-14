@@ -207,12 +207,15 @@ window.ReconsDetail = (function () {
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 credentials: 'same-origin',
+                // `redirect` memberi tahu server bahwa halaman akan reload penuh,
+                // jadi pesan sukses dititipkan lewat flash session dan tampil
+                // sesudah reload (bukan toast JS yang keburu hilang saat reload).
+                body: JSON.stringify({ redirect: true }),
             });
             const data = await res.json();
 
             if (!res.ok || !data.success) throw new Error(data.message || 'Failed to submit recons.');
 
-            notify(data.message, 'success');
             window.location.reload();
         } catch (e) {
             notify(e.message || 'Failed to submit recons.', 'error');
@@ -245,12 +248,13 @@ window.ReconsDetail = (function () {
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 credentials: 'same-origin',
+                // Lihat submit(): halaman reload penuh → pesan sukses lewat flash.
+                body: JSON.stringify({ redirect: true }),
             });
             const data = await res.json();
 
             if (!res.ok || !data.success) throw new Error(data.message || 'Failed to cancel recons.');
 
-            notify(data.message, 'success');
             window.location.reload();
         } catch (e) {
             notify(e.message || 'Failed to cancel recons.', 'error');

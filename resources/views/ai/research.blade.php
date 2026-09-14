@@ -97,6 +97,13 @@
     .air-prose th, .air-prose td { border: 1px solid #e5e7eb; padding: .35rem .6rem; text-align: left; }
     .air-prose th { background: rgba(0,0,0,.04); font-weight: 700; }
 
+    /* Kartu konteks tiket (seed otomatis) — <summary> collapsed by default,
+       marker native dimatikan manual karena list-style saja tidak cukup di
+       semua engine (Chrome/Safari masih pakai ::-webkit-details-marker). */
+    .air-ticket-ctx summary { list-style: none; }
+    .air-ticket-ctx summary::-webkit-details-marker { display: none; }
+    .air-ticket-ctx[open] summary .air-ticket-ctx-chevron { transform: rotate(90deg); }
+
     /* ── Lampiran gambar ───────────────────────────────────────────────────── */
     .air-thumb {
         display: block; border-radius: .5rem; object-fit: cover;
@@ -234,13 +241,13 @@
                           class="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm text-gray-800 placeholder-gray-400 focus:outline-none air-scroll"></textarea>
 
                 <div class="flex items-center gap-1.5 px-2.5 pb-2.5 pt-1">
-                    <input type="file" id="airFile" class="hidden" multiple accept="image/*,application/pdf" onchange="airOnFilesPicked(this)">
+                    <input type="file" id="airFile" class="hidden" multiple accept="image/*,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*,.md,.csv,.json,.log" onchange="airOnFilesPicked(this)">
 
                     {{-- Tooltip memakai angka dari controller. Yang tertulis di
                          sini sebelumnya ("max 2 files, 5 MB each") sudah lama
                          tidak benar. --}}
                     <button type="button" onclick="document.getElementById('airFile').click()"
-                            title="Attach images or PDFs, up to {{ $limits['file_mb'] }} MB per file and {{ $limits['message_mb'] }} MB per message. No limit on how many."
+                            title="Attach images, PDFs, Word (.docx) or text/code files, up to {{ $limits['file_mb'] }} MB per file and {{ $limits['message_mb'] }} MB per message. No limit on how many."
                             class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
                         <i class="fas fa-paperclip text-sm"></i>
                     </button>
@@ -303,8 +310,9 @@
                 <dt class="text-xs font-semibold text-gray-800">Attachments per message</dt>
                 <dd class="text-gray-500 mt-0.5">
                     Any number of files, up to {{ $limits['file_mb'] }} MB each and {{ $limits['message_mb'] }} MB in
-                    total per message, and only if the conversation still has room for them (see below). Only PDF and
-                    images (PNG, JPEG, GIF, WEBP) can be read; other file types are skipped, and the reply says which
+                    total per message, and only if the conversation still has room for them (see below). PDF, images
+                    (PNG, JPEG, GIF, WEBP), Word documents (.docx — text only, formatting and images inside it are not
+                    read), and text/code files can be read; other file types are skipped, and the reply says which
                     ones.
                 </dd>
             </div>
@@ -430,12 +438,14 @@ const AIR_LIST_ENDPOINT = @json(route('ai-research.conversations'));
    di sisi JS dengan string mentah gampang salah kalau prefiks app berubah. */
 const AIR_CONV_ENDPOINT   = @json(route('ai-research.conversation', ['conversation' => '__ID__']));
 const AIR_DELETE_ENDPOINT = @json(route('ai-research.conversation.delete', ['conversation' => '__ID__']));
+const AIR_EXPORT_DOCX_ENDPOINT = @json(route('ai-research.export-docx'));
 const AIR_CONVERSATION_STORAGE_KEY = 'ai_research_conversation_id';
 
 let airFiles = [];      // File[] yang dipilih untuk pesan berikutnya
 let airBusy  = false;   // sedang menunggu balasan
 let airAbort = null;    // AbortController pembatal request berjalan
 let airConversationId = null;
+let airAttachSeq = 0;   // id unik elemen badge lampiran arsip, lihat airAppendUserStored()
 
 /* Nama user yang login, untuk sapaan di empty state (airGreeting()). */
 const AIR_USER_NAME = @json(session('user.name', ''));
@@ -568,6 +578,76 @@ function airPreviewUrl(file) {
         airPreviewUrls.push(url);
     }
     return airPreviews.get(file);
+}
+
+/* ── Cache lampiran di browser (opsional, murni kenyamanan) ──────────────
+   Server TIDAK PERNAH menyimpan byte gambar (lihat migration
+   create_ai_conversation_tables: "tanpa menyimpan screenshot sistem
+   customer selamanya") — arsip cuma mencatat JUMLAH lampiran. Supaya
+   thumbnail tetap muncul lagi saat conversation dibuka ulang DI BROWSER/
+   DEVICE YANG SAMA, file-nya disimpan di IndexedDB milik user sendiri,
+   dikunci dari teks pesan (bukan posisi/index — lebih tahan terhadap
+   pesan yang gagal/ditolak terkirim, yang tidak pernah benar-benar
+   sampai ke arsip). Kegagalan di jalur ini SELALU diam: ini cuma
+   penambah, bukan pengganti, badge teks "N attachment" yang sudah ada. */
+const AIR_ATTACHMENT_DB = 'ai_attachment_cache';
+const AIR_ATTACHMENT_STORE = 'files';
+const AIR_ATTACHMENT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 hari
+
+function airAttachmentDb() {
+    return new Promise((resolve, reject) => {
+        if (!window.indexedDB) { reject(new Error('no indexedDB')); return; }
+        const req = indexedDB.open(AIR_ATTACHMENT_DB, 1);
+        req.onupgradeneeded = () => req.result.createObjectStore(AIR_ATTACHMENT_STORE);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+function airAttachmentCacheKey(conversationId, text, fileIndex) {
+    return conversationId + '::' + (text || '').trim().slice(0, 200) + '::' + fileIndex;
+}
+
+async function airCacheAttachmentFile(key, file) {
+    try {
+        const db = await airAttachmentDb();
+        await new Promise((resolve) => {
+            const tx = db.transaction(AIR_ATTACHMENT_STORE, 'readwrite');
+            tx.objectStore(AIR_ATTACHMENT_STORE).put({ file, at: Date.now() }, key);
+            tx.oncomplete = resolve;
+            tx.onerror = resolve;
+        });
+    } catch { /* diam — lihat catatan di atas */ }
+}
+
+async function airGetCachedAttachmentFile(key) {
+    try {
+        const db = await airAttachmentDb();
+        return await new Promise((resolve) => {
+            const tx = db.transaction(AIR_ATTACHMENT_STORE, 'readonly');
+            const req = tx.objectStore(AIR_ATTACHMENT_STORE).get(key);
+            req.onsuccess = () => resolve(req.result?.file || null);
+            req.onerror = () => resolve(null);
+        });
+    } catch {
+        return null;
+    }
+}
+
+/** Buang entri lebih dari 30 hari. Dipanggil sekali tiap halaman dimuat, non-blocking. */
+async function airPruneAttachmentCache() {
+    try {
+        const db = await airAttachmentDb();
+        const cutoff = Date.now() - AIR_ATTACHMENT_MAX_AGE_MS;
+        const store = db.transaction(AIR_ATTACHMENT_STORE, 'readwrite').objectStore(AIR_ATTACHMENT_STORE);
+        const req = store.openCursor();
+        req.onsuccess = () => {
+            const cursor = req.result;
+            if (!cursor) return;
+            if ((cursor.value?.at || 0) < cutoff) cursor.delete();
+            cursor.continue();
+        };
+    } catch { /* diam */ }
 }
 
 function airAddFiles(files) {
@@ -1110,9 +1190,11 @@ function airAppendUser(text, files) {
     const images = files.filter(airIsImage);
     const others = files.filter(f => !airIsImage(f));
 
-    // Gambar tampil utuh sebagai thumbnail; file lain tetap sebagai chip nama.
+    // Lampiran DULU, teks/prompt di bawahnya — sama seperti composer
+    // claude.ai. Gambar tampil utuh sebagai thumbnail; file lain sebagai
+    // chip nama.
     const thumbs = images.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end ${text ? 'mt-2' : ''}">
+        <div class="flex flex-wrap gap-1.5 justify-end">
             ${images.map(f => `
                 <img src="${airPreviewUrl(f)}" alt="${airEsc(f.name)}" title="${airEsc(f.name)}"
                      class="air-thumb w-28 h-28 border border-white/25"
@@ -1120,7 +1202,7 @@ function airAppendUser(text, files) {
         </div>`;
 
     const chips = others.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end mt-2">
+        <div class="flex flex-wrap gap-1.5 justify-end ${images.length ? 'mt-2' : ''}">
             ${others.map(f => `
                 <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/15 border border-white/20">
                     <i class="fas ${airFileIcon(f.name)} text-[10px]"></i>
@@ -1128,13 +1210,15 @@ function airAppendUser(text, files) {
                 </span>`).join('')}
         </div>`;
 
-    const body = text ? `<p class="whitespace-pre-wrap break-words">${airEsc(text)}</p>` : '';
+    const body = text
+        ? `<p class="whitespace-pre-wrap break-words ${(images.length || others.length) ? 'mt-2' : ''}">${airEsc(text)}</p>`
+        : '';
 
     document.getElementById('airMessages').insertAdjacentHTML('beforeend', `
         <div class="air-bubble-in flex justify-end gap-3">
             <div class="max-w-[85%] sm:max-w-[70%]">
                 <div class="bg-indigo-600 text-white text-sm rounded-2xl rounded-br-md px-4 py-2.5">
-                    ${body}${thumbs}${chips}
+                    ${thumbs}${chips}${body}
                 </div>
                 <p class="text-[10px] text-gray-400 mt-1 text-right">${airTime()}</p>
             </div>
@@ -1180,6 +1264,10 @@ function airAppendAssistantPending(at) {
                     <button type="button" onclick="airCopy('${id}')" title="Copy"
                             class="w-6 h-6 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
                         <i class="fas fa-copy text-[10px]"></i>
+                    </button>
+                    <button type="button" onclick="airDownload('${id}')" title="Download as .docx"
+                            class="w-6 h-6 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
+                        <i class="fas fa-download text-[10px]"></i>
                     </button>
                     <span class="text-[10px] text-gray-400 ml-1">${airTime(at)}</span>
                 </div>
@@ -1344,6 +1432,50 @@ async function airContinue(id) {
     }
 }
 
+/**
+ * Pemicu SEKALI untuk percakapan tiket yang baru dibuat lewat tombol "Ask AI"
+ * (lihat AiResearchController::openForTicket()) — bukan giliran user mengetik,
+ * jadi tidak lewat airSend()/airAppendUser(): tidak ada bubble user baru yang
+ * perlu ditambahkan, konteks tiketnya sudah tampil sebagai kartu (lihat
+ * airAppendTicketContextCard()) dari riwayat yang baru dimuat. Server tahu ini
+ * bukan pertanyaan baru maupun "Continue" lewat flag initial=1 — ia menjawab
+ * giliran user yang SUDAH ada di ujung transkrip alih-alih menambah yang baru
+ * (lihat AiResearchService::streamReply()).
+ *
+ * Dipanggil hanya dari DOMContentLoaded, dan hanya saat URL membawa
+ * ?autorun=1 DAN riwayat yang baru dimuat benar-benar cuma satu pesan user
+ * tanpa jawaban — dua syarat sekaligus supaya me-refresh atau membuka ulang
+ * percakapan yang sudah dijawab tidak pernah memicu panggilan berbayar kedua.
+ */
+function airTriggerInitial() {
+    if (airBusy) return;
+
+    airShowThread();
+    airSetBusy(true);
+    const pendingId = airAppendAssistantPending();
+    airSetStatus(pendingId, 'Analyzing the ticket…');
+
+    airSendToBackend('', [], 'default', pendingId, false, true)
+        .then(() => airResolveAssistant(pendingId, '', false))
+        .catch(err => {
+            const stopped = err.name === 'AbortError';
+            airResolveAssistant(pendingId, stopped ? '' : (err.message || 'Something went wrong.'), !stopped);
+
+            if (!stopped) {
+                airRenderNotice(pendingId, {
+                    tone: 'error',
+                    title: 'The assistant could not finish',
+                    text: 'Nothing was saved for this turn. Ask your question directly in the box below instead.',
+                    can_continue: false,
+                });
+            }
+        })
+        .finally(() => {
+            airSetBusy(false);
+            airLoadHistory();
+        });
+}
+
 /** Isi panel saat user menekan Stop — beda pesan kalau belum ada teks apa pun. */
 function airStoppedNotice(id) {
     const body = document.querySelector('#' + id + ' .air-body');
@@ -1423,6 +1555,52 @@ function airCopy(id) {
         .catch(() => showToast('Could not copy the response.', 'error'));
 }
 
+/**
+ * Kirim teks jawaban assistant ke server untuk diubah jadi berkas .docx
+ * sungguhan, lalu unduh hasilnya. Assistant sendiri tidak punya alat untuk
+ * membuat/melampirkan file selama chat — konversi .docx terjadi di server
+ * (AiResearchController::exportDocx / AiDocxExport) atas teks yang SUDAH
+ * ADA di bubble ini, bukan pertanyaan baru ke model.
+ */
+async function airDownload(id) {
+    const body = document.querySelector('#' + id + ' .air-body');
+    if (!body) return;
+
+    const text = (body.dataset.text || body.innerText).trim();
+    if (!text) {
+        showToast('Nothing to download yet.', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch(AIR_EXPORT_DOCX_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': airCsrfToken(),
+                'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            },
+            body: JSON.stringify({ text }),
+        });
+
+        if (!res.ok) throw new Error('export failed: ' + res.status);
+
+        const blob = await res.blob();
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ai-research-${stamp}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        showToast('Could not create the .docx file.', 'error');
+    }
+}
+
 /* ── Kirim ─────────────────────────────────────────────────────────────── */
 
 function airSend() {
@@ -1444,6 +1622,18 @@ function airSend() {
 
     airShowThread();
     airAppendUser(text, files);
+
+    // Cache opsional di browser sendiri (lihat blok "Cache lampiran" di
+    // atas) — kalau turn ini ternyata gagal/ditolak dan tidak pernah sampai
+    // ke arsip, entrinya cuma jadi sisa yang tidak pernah dicocokkan siapa
+    // pun; tidak ada salahnya menyimpan lebih awal daripada menunggu
+    // konfirmasi sukses. airEnsureConversationId(), bukan airConversationId
+    // mentah: untuk pesan PERTAMA di percakapan baru, id-nya baru dijamin
+    // ada di titik ini (airSendToBackend() di bawah memanggil fungsi yang
+    // sama, jadi id-nya dijamin sama persis dengan yang nanti dipakai
+    // server untuk arsip).
+    const cacheConversationId = airEnsureConversationId();
+    files.forEach((f, fi) => airCacheAttachmentFile(airAttachmentCacheKey(cacheConversationId, text, fi), f));
 
     input.value = '';
     airFiles = [];
@@ -1530,7 +1720,7 @@ function airStop() {
  * — instruksi lanjutannya disusun server supaya identik dengan penyambung
  * otomatisnya.
  */
-async function airSendToBackend(text, files, model, pendingId, resume = false) {
+async function airSendToBackend(text, files, model, pendingId, resume = false, initial = false) {
     const controller = new AbortController();
     airAbort = controller;
 
@@ -1539,6 +1729,7 @@ async function airSendToBackend(text, files, model, pendingId, resume = false) {
     form.append('message', text);
     form.append('model', model);
     if (resume) form.append('resume', '1');
+    if (initial) form.append('initial', '1');
     files.forEach(file => form.append('files[]', file));
 
     const response = await fetch(AIR_CHAT_ENDPOINT, {
@@ -1735,6 +1926,11 @@ function airMarkActive(id) {
  * silent = dipanggil otomatis saat halaman dimuat ulang; percakapan yang
  * belum sempat diarsipkan (belum ada jawaban) wajar tidak ditemukan, dan
  * memunculkan toast error untuk itu hanya membingungkan.
+ *
+ * Return value: true kalau riwayatnya persis SATU pesan user tanpa jawaban
+ * apa pun — bentuk yang cuma terjadi tepat setelah AiResearchController::
+ * openForTicket() menyeed konteks tiket dan belum ada giliran chat sungguhan.
+ * Dipakai DOMContentLoaded untuk memutuskan boleh-tidaknya airTriggerInitial().
  */
 async function airOpenConversation(id, silent = false) {
     try {
@@ -1768,7 +1964,7 @@ async function airOpenConversation(id, silent = false) {
                 if (i === cut) airAppendMemoryDivider();
 
                 m.role === 'user'
-                    ? airAppendUserStored(m.content, m.attachments, m.at)
+                    ? airAppendUserStored(m.content, m.attachments, m.at, data.id)
                     : airAppendAssistantStored(m.content, m.sources, m.at);
             });
         }
@@ -1776,8 +1972,11 @@ async function airOpenConversation(id, silent = false) {
         airMarkActive(data.id);
         airCloseHistoryDrawer();
         document.getElementById('airInput').focus();
+
+        return messages.length === 1 && messages[0].role === 'user';
     } catch {
         if (!silent) showToast('Could not open that conversation.', 'error');
+        return false;
     }
 }
 
@@ -1821,27 +2020,112 @@ function airAppendMemoryDivider() {
     `);
 }
 
-/** Bubble user dari arsip: teksnya tersimpan, lampirannya tidak. */
-function airAppendUserStored(text, attachmentCount, at) {
+/** Awalan pesan seed konteks tiket — lihat AiResearchController::ticketContextSeed(). */
+const AIR_TICKET_CONTEXT_PREFIX = '📋 Konteks tiket (otomatis';
+
+/**
+ * Bubble user dari arsip: teksnya tersimpan, lampirannya (di server) tidak.
+ * Badge teks ditampilkan LEBIH DULU (selalu benar, tidak pernah menunggu apa
+ * pun); kalau file aslinya kebetulan masih ada di cache browser (dikirim
+ * dari browser/device yang sama, lihat airCacheAttachmentFile()), badge-nya
+ * ditingkatkan jadi thumbnail sungguhan secara asinkron begitu ketemu.
+ */
+function airAppendUserStored(text, attachmentCount, at, conversationId) {
+    if (text && text.startsWith(AIR_TICKET_CONTEXT_PREFIX)) {
+        airAppendTicketContextCard(text, at);
+        return;
+    }
+
+    const noteId = attachmentCount > 0 ? 'airAtt' + (++airAttachSeq) : null;
+
     const note = attachmentCount > 0 ? `
-        <div class="flex items-center gap-1.5 justify-end ${text ? 'mt-2' : ''} text-[10px] text-white/70">
+        <div id="${noteId}" class="flex items-center gap-1.5 justify-end text-[10px] text-white/70">
             <i class="fas fa-paperclip text-[9px]"></i>
             ${attachmentCount} attachment${attachmentCount > 1 ? 's' : ''} (not kept in history)
         </div>` : '';
 
-    const body = text ? `<p class="whitespace-pre-wrap break-words">${airEsc(text)}</p>` : '';
+    const body = text
+        ? `<p class="whitespace-pre-wrap break-words ${attachmentCount > 0 ? 'mt-2' : ''}">${airEsc(text)}</p>`
+        : '';
 
     document.getElementById('airMessages').insertAdjacentHTML('beforeend', `
         <div class="flex justify-end gap-3">
             <div class="max-w-[85%] sm:max-w-[70%]">
                 <div class="bg-indigo-600 text-white text-sm rounded-2xl rounded-br-md px-4 py-2.5">
-                    ${body}${note}
+                    ${note}${body}
                 </div>
                 <p class="text-[10px] text-gray-400 mt-1 text-right">${airTime(at)}</p>
             </div>
         </div>
     `);
     airScrollToBottom();
+
+    if (attachmentCount > 0 && conversationId) {
+        airUpgradeStoredAttachments(noteId, conversationId, text, attachmentCount);
+    }
+}
+
+/**
+ * Kartu konteks tiket yang di-seed otomatis (bukan pesan yang diketik user —
+ * lihat AiResearchController::ticketContextSeed()). Dirender collapsed by
+ * default lewat <details> supaya tidak jadi wall-of-text pertama yang harus
+ * discroll user, dan isinya di-markdown lewat airMarkdown() yang sama dipakai
+ * balasan asisten (bukan <p> escaped polos) supaya heading/list-nya rapi.
+ */
+function airAppendTicketContextCard(text, at) {
+    // Baris pertama ("📋 Konteks tiket...") sudah terwakili di <summary>.
+    const body = text.replace(/^[^\n]*\n+/, '');
+
+    document.getElementById('airMessages').insertAdjacentHTML('beforeend', `
+        <details class="air-ticket-ctx">
+            <summary class="flex items-center gap-2 cursor-pointer select-none py-1 text-[11px] text-gray-400 hover:text-gray-600">
+                <i class="fas fa-chevron-right air-ticket-ctx-chevron text-[9px] transition-transform"></i>
+                <i class="fas fa-clipboard-list text-[10px]"></i>
+                <span>Ticket context (auto-attached) — ${airTime(at)}</span>
+            </summary>
+            <div class="mt-1.5 mb-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 air-prose text-gray-700">
+                ${airMarkdown(body)}
+            </div>
+        </details>
+    `);
+    airScrollToBottom();
+}
+
+/** Ganti badge teks jadi thumbnail sungguhan kalau SEMUA file-nya ketemu di cache browser. */
+async function airUpgradeStoredAttachments(noteId, conversationId, text, count) {
+    const files = await Promise.all(
+        Array.from({ length: count }, (_, fi) => airGetCachedAttachmentFile(airAttachmentCacheKey(conversationId, text, fi)))
+    );
+
+    if (files.some(f => !f)) return; // sebagian/semua tidak ada — biarkan badge teks apa adanya
+
+    const el = document.getElementById(noteId);
+    if (!el) return;
+
+    const images = files.filter(airIsImage);
+    const others = files.filter(f => !airIsImage(f));
+
+    const thumbs = images.length === 0 ? '' : `
+        <div class="flex flex-wrap gap-1.5 justify-end">
+            ${images.map(f => `
+                <img src="${airPreviewUrl(f)}" alt="${airEsc(f.name)}" title="${airEsc(f.name)}"
+                     class="air-thumb w-28 h-28 border border-white/25"
+                     data-air-full="${airPreviewUrl(f)}" data-air-caption="${airEsc(f.name)}">`).join('')}
+        </div>`;
+
+    const chips = others.length === 0 ? '' : `
+        <div class="flex flex-wrap gap-1.5 justify-end ${images.length ? 'mt-2' : ''}">
+            ${others.map(f => `
+                <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/15 border border-white/20">
+                    <i class="fas ${airFileIcon(f.name)} text-[10px]"></i>
+                    <span class="text-[10px] font-medium truncate max-w-[140px]">${airEsc(f.name)}</span>
+                </span>`).join('')}
+        </div>`;
+
+    // Note (badge lampiran) diganti thumbs+chips di POSISI YANG SAMA — bubble
+    // sudah dirakit dengan lampiran DI ATAS teks (lihat airAppendUserStored()),
+    // jadi tidak perlu urus ulang posisi teksnya di sini.
+    el.outerHTML = thumbs + chips;
 }
 
 /** Bubble assistant dari arsip — bentuknya sama dengan hasil streaming. */
@@ -1882,12 +2166,39 @@ document.addEventListener('DOMContentLoaded', () => {
     input.focus();
 
     airLoadHistory();
+    airPruneAttachmentCache();
+
+    // Datang dari tombol "Ask AI" di halaman tiket (lihat AiResearchController::
+    // openForTicket()) — conversation-nya sudah disiapkan di server (judul +
+    // konteks tiket), di sini cukup arahkan sessionStorage ke situ supaya
+    // logic di bawah (yang sudah ada) membukanya seperti biasa.
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromTicket = urlParams.get('conversation');
+    if (fromTicket) {
+        sessionStorage.setItem(AIR_CONVERSATION_STORAGE_KEY, fromTicket);
+    }
+
+    // autorun=1 → percakapan ini baru saja dibuat oleh openForTicket() dan
+    // belum pernah dijawab; begitu riwayatnya terbukti benar cuma satu pesan
+    // user (lihat airOpenConversation()), picu SATU jawaban otomatis. Dibuang
+    // dari URL segera supaya refresh atau membagikan link ini tidak memicu
+    // panggilan berbayar kedua.
+    const autorun = urlParams.get('autorun') === '1';
+    if (autorun) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('autorun');
+        window.history.replaceState({}, '', url);
+    }
 
     // Refresh halaman tidak lagi mengosongkan layar: percakapan tab ini
     // dimuat ulang dari arsip. Silent, karena percakapan yang baru dimulai
     // (belum ada jawaban) memang belum diarsipkan.
     const saved = sessionStorage.getItem(AIR_CONVERSATION_STORAGE_KEY);
-    if (saved) airOpenConversation(saved, true);
+    if (saved) {
+        airOpenConversation(saved, true).then(isFreshSeed => {
+            if (autorun && isFreshSeed) airTriggerInitial();
+        });
+    }
 
     // Paste didengarkan di level dokumen supaya screenshot bisa ditempel
     // tanpa harus mengklik textarea lebih dulu.

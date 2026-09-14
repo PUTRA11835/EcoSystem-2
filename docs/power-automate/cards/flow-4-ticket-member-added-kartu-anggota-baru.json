@@ -1,0 +1,46 @@
+{
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.4",
+    "body": [
+        {
+            "type": "TextBlock",
+            "text": "@{triggerBody()?['person']?['role_label']} baru di tiket ini",
+            "weight": "Bolder",
+            "size": "Medium",
+            "wrap": true
+        },
+        {
+            "type": "FactSet",
+            "facts": [
+                {
+                    "title": "Nama",
+                    "value": "@{coalesce(triggerBody()?['person']?['name'], triggerBody()?['person']?['email'])}"
+                },
+                {
+                    "title": "Peran",
+                    "value": "@{triggerBody()?['person']?['role_label']}"
+                },
+                {
+                    "title": "Tiket",
+                    "value": "@{triggerBody()?['ticket']?['number']} - @{triggerBody()?['ticket']?['subject']}"
+                },
+                {
+                    "title": "Customer",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['customer'], '-')}"
+                },
+                {
+                    "title": "Ditambahkan oleh",
+                    "value": "@{coalesce(triggerBody()?['added_by']?['name'], '-')}"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "type": "Action.OpenUrl",
+            "title": "Buka di EcoSystem",
+            "url": "@{triggerBody()?['ticket']?['url']}"
+        }
+    ]
+}

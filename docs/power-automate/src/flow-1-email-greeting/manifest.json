@@ -1,0 +1,43 @@
+{
+    "schema": "1.0",
+    "details": {
+        "displayName": "EcoSystem - Email Greeting",
+        "description": "Balas greeting otomatis ke pengirim saat email customer baru masuk ke staging ticket EcoSystem.",
+        "createdTime": "2026-09-02T00:00:00.0000000Z",
+        "packageTelemetryId": "3f1a7c20-0001-4a11-9b01-a1b2c3d4000a",
+        "creator": "EcoSystem",
+        "sourceEnvironment": ""
+    },
+    "resources": {
+        "3f1a7c20-0001-4a11-9b01-a1b2c3d4000a": {
+            "id": null,
+            "name": "3f1a7c20-0001-4a11-9b01-a1b2c3d40001",
+            "type": "Microsoft.Flow/flows",
+            "suggestedCreationType": "New",
+            "creationType": "New, Existing, Update",
+            "details": {
+                "displayName": "EcoSystem - Email Greeting"
+            },
+            "configurableBy": "User",
+            "hierarchy": "Root",
+            "dependsOn": [
+                "3f1a7c20-0001-4a11-9b01-a1b2c3d4000b"
+            ]
+        },
+        "3f1a7c20-0001-4a11-9b01-a1b2c3d4000b": {
+            "id": "/providers/Microsoft.PowerApps/apis/shared_office365",
+            "name": "shared_office365",
+            "type": "Microsoft.PowerApps/apis",
+            "suggestedCreationType": "Existing",
+            "creationType": "Existing",
+            "details": {
+                "displayName": "Office 365 Outlook",
+                "type": "Microsoft.PowerApps/apis",
+                "environmentName": ""
+            },
+            "configurableBy": "System",
+            "hierarchy": "Child",
+            "dependsOn": []
+        }
+    }
+}

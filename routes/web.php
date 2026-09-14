@@ -9,6 +9,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\DeliveryProjectIssueController;
 use App\Http\Controllers\DeliveryProjectWricefController;
+use App\Http\Controllers\DeliveryProjectStakeholderController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\DeliveryProjectController;
@@ -101,6 +102,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== AI ASSISTANT ====================
     Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
     Route::post('/ai-assistant/chat', [\App\Http\Controllers\AiAssistantController::class, 'chat'])->name('ai-assistant.chat')->middleware('menu:ai-assistant');
+    Route::get('/ai-assistant/conversations/{conversation}', [\App\Http\Controllers\AiAssistantController::class, 'conversation'])->name('ai-assistant.conversation')->middleware('menu:ai-assistant');
 
     // ==================== WORD REPORT GENERATOR ====================
     // Menu slug 'word-report-generator' didaftarkan lewat migration
@@ -125,6 +127,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/ai-research/conversations', [\App\Http\Controllers\AiResearchController::class, 'conversations'])->name('ai-research.conversations')->middleware('menu:ai-research');
     Route::get('/ai-research/conversations/{conversation}', [\App\Http\Controllers\AiResearchController::class, 'conversation'])->name('ai-research.conversation')->middleware('menu:ai-research');
     Route::post('/ai-research/conversations/{conversation}/delete', [\App\Http\Controllers\AiResearchController::class, 'destroyConversation'])->name('ai-research.conversation.delete')->middleware('menu:ai-research');
+    // Ubah teks jawaban assistant jadi file .docx yang bisa diunduh — assistant
+    // sendiri tidak punya alat untuk membuat/melampirkan file, jadi konversinya
+    // dilakukan di sini saat user menekan tombol Download.
+    Route::post('/ai-research/export-docx', [\App\Http\Controllers\AiResearchController::class, 'exportDocx'])->name('ai-research.export-docx')->middleware('menu:ai-research');
 
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
@@ -152,6 +158,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/consultant-assignment/export', [\App\Http\Controllers\ReportingController::class, 'exportConsultantAssignment'])->name('reporting.consultant-assignment.export')->middleware('menu:reporting.consultant-assignment');
     Route::get('/reporting/diagram-report',              [\App\Http\Controllers\ReportingController::class, 'diagramReportIndex'])->name('reporting.diagram-report')->middleware('menu:reporting.diagram-report');
     Route::get('/reporting/resource-timeline',            [\App\Http\Controllers\ResourceTimelineController::class, 'index'])->name('reporting.resource-timeline')->middleware('menu:reporting.resource-timeline');
+    Route::get('/reporting/customer-md',                  [\App\Http\Controllers\ReportingController::class, 'customerMdIndex'])->name('reporting.customer-md')->middleware('menu:reporting.customer-md');
+    Route::get('/reporting/customer-md/export',           [\App\Http\Controllers\ReportingController::class, 'exportCustomerMd'])->name('reporting.customer-md.export')->middleware('menu:reporting.customer-md');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
@@ -283,6 +291,11 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // Reopen membukanya lagi. Keduanya butuh izin delivery-project.close-project.
     Route::post('/projects/{project}/close',  [DeliveryProjectController::class, 'close'])->name('projects.close')->middleware('menu:delivery-project.close-project');
     Route::post('/projects/{project}/reopen', [DeliveryProjectController::class, 'reopen'])->name('projects.reopen')->middleware('menu:delivery-project.close-project');
+
+    // Export daftar project ke Excel. Wajib didaftarkan sebelum
+    // `projects/{project}` agar "export" tidak tertangkap sebagai {project}.
+    // Izinnya sama dengan halaman list — isinya memang data list yang sama.
+    Route::get('/projects/export', [DeliveryProjectController::class, 'export'])->name('projects.export')->middleware('menu:delivery.project');
 
     Route::get('/projects', [DeliveryProjectController::class, 'index'])->name('projects.index')->middleware('menu:delivery.project');
     Route::get('/projects/{project}', [DeliveryProjectController::class, 'show'])->name('projects.show')->middleware('menu:delivery.project');
@@ -447,6 +460,18 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::post('/projects/{project}/wricefs/{wricef}/delete',  [DeliveryProjectWricefController::class, 'destroy'])->name('projects.wricefs.destroy.post');
     });
 
+    // Stakeholder Register routes (AJAX CRUD on the project detail page)
+    Route::get('/projects/{project}/stakeholders',            [DeliveryProjectStakeholderController::class, 'apiIndex'])->name('projects.stakeholders.index')->middleware('menu:delivery-project.stakeholder.view');
+    Route::middleware(['menu:delivery-project.stakeholder.edit', 'project.editable'])->group(function () {
+        Route::put('/projects/{project}/stakeholders/{stakeholder}', [DeliveryProjectStakeholderController::class, 'update'])->name('projects.stakeholders.update');
+    });
+    Route::middleware(['menu:delivery-project.stakeholder.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/stakeholders',                       [DeliveryProjectStakeholderController::class, 'store'])->name('projects.stakeholders.store');
+        Route::delete('/projects/{project}/stakeholders/{stakeholder}',       [DeliveryProjectStakeholderController::class, 'destroy'])->name('projects.stakeholders.destroy');
+        // Verb DELETE diblokir edge/WAF di production — sediakan jalur POST.
+        Route::post('/projects/{project}/stakeholders/{stakeholder}/delete',  [DeliveryProjectStakeholderController::class, 'destroy'])->name('projects.stakeholders.destroy.post');
+    });
+
     // Profile routes
     Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index')->middleware('menu:tickets.staging');
     Route::get('/staging-tickets/rejected', [StagingTicketController::class, 'viewRejected'])->name('staging.rejected');
@@ -587,6 +612,15 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::post('/{id}/ai-summary', [\App\Http\Controllers\AiTicketSummaryController::class, 'stream'])
             ->name('ai-summary')
             ->middleware('menu:tickets.inbox');
+        // Tombol "Ask AI" — siapkan/temukan lagi conversation AI Research milik
+        // employee ini tentang tiket ini, lalu redirect ke sana. Lihat
+        // AiResearchController::openForTicket().
+        Route::get('/{id}/ai-research', [\App\Http\Controllers\AiResearchController::class, 'openForTicket'])
+            ->name('ai-research')
+            ->middleware('menu:tickets.inbox');
+        // Buka tiket berdasarkan NOMOR tiket (bukan id). Dipakai hyperlink "#NNNNNNNN"
+        // di internal note — di-resolve ke id lalu redirect ke halaman tiket.
+        Route::get('/ref/{number}', [TicketViewController::class, 'showByNumber'])->name('ref');
         Route::get('/{id}', [TicketViewController::class, 'show'])->name('show');
     });
 
@@ -614,6 +648,21 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/module-groups', [\App\Http\Controllers\ModuleGroupController::class, 'page'])
             ->middleware('menu:management.module-groups')
             ->name('module-groups.index');
+
+        Route::prefix('ticket')->name('ticket.')->group(function () {
+            Route::get('/document-type', [\App\Http\Controllers\DeliverableDocumentTypeController::class, 'page'])
+                ->middleware('menu:management.ticket.document-type')
+                ->name('document-type.index');
+        });
+
+        Route::prefix('delivery')->name('delivery.')->group(function () {
+            Route::get('/project', [\App\Http\Controllers\DeliveryProjectTypeController::class, 'page'])
+                ->middleware('menu:management.delivery.project')
+                ->name('project.index');
+            Route::get('/support', [\App\Http\Controllers\DeliverySupportTypeController::class, 'page'])
+                ->middleware('menu:management.delivery.support')
+                ->name('support.index');
+        });
 
         Route::prefix('employee')->name('employee.')->group(function () {
             Route::get('/basic-data',     [\App\Http\Controllers\ManagementEmployeeController::class, 'basicData'])    ->middleware('menu:management.employee.basic-data')    ->name('basic-data.index');

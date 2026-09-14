@@ -533,6 +533,23 @@
     const EC_USER_ROLE                  = {{ \App\Enums\RoleId::EC_USER->value }};
     const DELIVERY_SUPPORT_HEAD_ROLE    = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_HEAD->value }};
     const DELIVERY_SUPPORT_MANAGER_ROLE = {{ \App\Enums\RoleId::DELIVERY_SUPPORT_MANAGER->value }};
+
+    // Support type filter options — loaded from master data (menu Management >
+    // Master Delivery Settings > Support Type), bukan hardcode lagi. Fallback
+    // list di bawah menutupi jeda sebelum fetch selesai (atau bila fetch gagal)
+    // supaya filter "Type" tidak pernah kosong.
+    let SUPPORT_TYPE_NAMES = ['AMS', 'MO', 'ATS', 'CR', 'RISE', 'CLOUD', 'POSTPAID', 'Project', 'Internal'];
+    (async function loadSupportTypeFilterOptions() {
+        try {
+            const res  = await fetch('/api/delivery-support-types?is_active=1', { credentials: 'same-origin' });
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data) && json.data.length) {
+                SUPPORT_TYPE_NAMES = json.data.map(t => t.name);
+            }
+        } catch (e) {
+            // keep fallback list
+        }
+    })();
     const hasRole = (id) => userRoleIds.includes(id);
     // Admin/Head defaults to 'all'; Support User or Manager (without head/admin) defaults to 'my'
     let currentView = (hasRole(EC_ADMINISTRATOR_ROLE) || hasRole(DELIVERY_SUPPORT_HEAD_ROLE)) ? 'all'
@@ -1078,7 +1095,7 @@
 
         const optionsMap = {
             'status':   ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold', 'cancelled', 'closed'],
-            'type':     ['AMS', 'MO', 'ATS', 'CR', 'RISE', 'CLOUD', 'POSTPAID', 'Project', 'Internal'],
+            'type':     SUPPORT_TYPE_NAMES,
             'priority': ['Low', 'Medium', 'High'],
         };
 

@@ -4,6 +4,8 @@ namespace App\Services\Ai\Drivers;
 
 use Anthropic\Client;
 use Anthropic\Lib\Streaming\MessageAccumulator;
+use Anthropic\Messages\CacheControlEphemeral;
+use Anthropic\Messages\TextBlockParam;
 use Anthropic\Messages\TextDelta;
 use Anthropic\Messages\WebFetchTool20260209;
 use Anthropic\Messages\WebSearchTool20260209;
@@ -50,7 +52,10 @@ class AnthropicResearchDriver implements ResearchDriver
                 maxTokens: $maxTokens,
                 messages: $messages,
                 model: $model,
-                system: $systemPrompt,
+                // Cache breakpoint: dalam SATU giliran ini, system prompt yang sama
+                // persis terkirim ulang di setiap resume 'pause_turn' (loop while di
+                // atas) — jadi cache hit alih-alih diproses ulang dari nol tiap kali.
+                system: [TextBlockParam::with(text: $systemPrompt, cacheControl: CacheControlEphemeral::with())],
                 thinking: ['type' => 'adaptive'],
                 outputConfig: $effort ? ['effort' => $effort] : null,
                 tools: $this->toolDefinitions(),

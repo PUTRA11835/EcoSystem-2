@@ -44,6 +44,9 @@ use App\Http\Controllers\AdminNotificationSoundController;
 use App\Http\Controllers\TicketMigrationController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\ModuleGroupController;
+use App\Http\Controllers\DeliverableDocumentTypeController;
+use App\Http\Controllers\DeliveryProjectTypeController;
+use App\Http\Controllers\DeliverySupportTypeController;
 use App\Http\Controllers\EmployeeModuleController;
 use App\Http\Controllers\ModuleLeadController;
 
@@ -242,6 +245,43 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/delete', [ModuleGroupController::class, 'destroy']);
     });
 
+    // Deliverable Document Type master data endpoints — dropdown "Doc Type" di
+    // modal "New Document" (Deliverable Panel ticket). Menggantikan daftar
+    // hardcoded lama di TicketDeliverableController::DOC_TYPES.
+    Route::prefix('deliverable-document-types')->group(function () {
+        Route::get('/', [DeliverableDocumentTypeController::class, 'index']);
+        Route::post('/', [DeliverableDocumentTypeController::class, 'store']);
+        Route::get('/{id}', [DeliverableDocumentTypeController::class, 'show']);
+        Route::put('/{id}', [DeliverableDocumentTypeController::class, 'update']);
+        Route::delete('/{id}', [DeliverableDocumentTypeController::class, 'destroy']);
+        Route::post('/{id}/delete', [DeliverableDocumentTypeController::class, 'destroy']);
+    });
+
+    // Delivery Project Type master data endpoints — dropdown "Project Type" di
+    // form create/edit Delivery Project. Menggantikan daftar hardcoded lama di
+    // DeliveryProjectController & resources/views/delivery/project/**.
+    Route::prefix('delivery-project-types')->group(function () {
+        Route::get('/', [DeliveryProjectTypeController::class, 'index']);
+        Route::post('/', [DeliveryProjectTypeController::class, 'store']);
+        Route::get('/{id}', [DeliveryProjectTypeController::class, 'show']);
+        Route::put('/{id}', [DeliveryProjectTypeController::class, 'update']);
+        Route::delete('/{id}', [DeliveryProjectTypeController::class, 'destroy']);
+        Route::post('/{id}/delete', [DeliveryProjectTypeController::class, 'destroy']);
+    });
+
+    // Delivery Support Type master data endpoints — dropdown "Type" di form
+    // create/edit Delivery Support & filter list. Menggantikan daftar
+    // hardcoded lama di Delivery\DeliverySupportController, TicketController &
+    // resources/views/delivery/support/**.
+    Route::prefix('delivery-support-types')->group(function () {
+        Route::get('/', [DeliverySupportTypeController::class, 'index']);
+        Route::post('/', [DeliverySupportTypeController::class, 'store']);
+        Route::get('/{id}', [DeliverySupportTypeController::class, 'show']);
+        Route::put('/{id}', [DeliverySupportTypeController::class, 'update']);
+        Route::delete('/{id}', [DeliverySupportTypeController::class, 'destroy']);
+        Route::post('/{id}/delete', [DeliverySupportTypeController::class, 'destroy']);
+    });
+
     // Module Lead endpoints — siapa yang jadi lead untuk tiap module.
     // Gating disamakan dengan penugasan module ke employee (menu:master.employee.action).
     Route::get('/module-leads/search-employees', [ModuleLeadController::class, 'searchEmployees']);
@@ -388,6 +428,7 @@ Route::middleware(['web'])->group(function () {
     // ==================== STAGING TICKET ROUTES ====================
     Route::prefix('staging-tickets')->group(function () {
         Route::get('/statistics', [StagingTicketController::class, 'statistics']);
+        Route::get('/latest-update', [StagingTicketController::class, 'latestUpdate']);
         Route::get('/', [StagingTicketController::class, 'index']);
         Route::post('/', [StagingTicketController::class, 'store']);
         Route::get('/{id}', [StagingTicketController::class, 'show']);
@@ -397,6 +438,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/approve', [StagingTicketController::class, 'approve']);
         Route::post('/{id}/reject', [StagingTicketController::class, 'reject']);
         Route::post('/{id}/analyze', [StagingTicketController::class, 'analyze']);
+        Route::post('/{id}/ask', [StagingTicketController::class, 'ask']);
     });
 
     // ==================== TICKET ROUTES ====================
@@ -457,6 +499,7 @@ Route::middleware(['web'])->group(function () {
 
         // ==================== DELIVERABLE ROUTES ====================
         Route::get('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'index']);
+        Route::post('/{id}/deliverables/upload-session', [\App\Http\Controllers\TicketDeliverableController::class, 'createUploadSession']);
         Route::post('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'store']);
         Route::patch('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'update']);
         Route::patch('/{id}/deliverables/{delivId}/send', [\App\Http\Controllers\TicketDeliverableController::class, 'send']);
@@ -585,6 +628,10 @@ Route::middleware(['web'])->group(function () {
         Route::get('/resource-timeline/entries',       [\App\Http\Controllers\ResourceTimelineController::class, 'entries']);
         Route::post('/resource-timeline/entries',      [\App\Http\Controllers\ResourceTimelineController::class, 'upsertEntries']);
         Route::post('/resource-timeline/entries/delete', [\App\Http\Controllers\ResourceTimelineController::class, 'deleteEntries']);
+
+        // Customer MD — tiket type CR dan/atau yang punya Customer Mandays proposal.
+        // Izinnya diperiksa di controller lewat Employee::canAccessMenu().
+        Route::get('/customer-md', [\App\Http\Controllers\ReportingController::class, 'customerMd']);
     });
 
     // ==================== NOTIFICATION ROUTES ====================

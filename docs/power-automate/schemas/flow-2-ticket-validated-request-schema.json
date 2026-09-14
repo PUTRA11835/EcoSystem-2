@@ -1,0 +1,207 @@
+{
+    "type": "object",
+    "properties": {
+        "event": {
+            "type": "string"
+        },
+        "sent_at": {
+            "type": "string"
+        },
+        "source": {
+            "type": "string"
+        },
+        "ticket": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "subject": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "status": {
+                    "type": "string"
+                },
+                "status_label": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "type": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "scale": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "channel": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "customer": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "end_customer": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "module": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "module_id": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "submitted_by": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        },
+                        "email": {
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        },
+                        "phone": {
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        }
+                    }
+                },
+                "pic": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "is_assigned": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "age_minutes": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "module_leads": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "employee_id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "email": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                }
+            }
+        },
+        "lead_emails": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "chat": {
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "members_csv": {
+                    "type": "string"
+                },
+                "has_lead": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "validated_by": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "name": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "email": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            }
+        }
+    }
+}

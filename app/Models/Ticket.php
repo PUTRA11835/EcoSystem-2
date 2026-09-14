@@ -139,6 +139,8 @@ class Ticket extends Model
 
     // Relasi ke tabel modules (master). Nama relasi sengaja beda dari kolom
     // string `module` (legacy free text) supaya keduanya bisa diakses terpisah.
+    // Ini masih mengacu ke module_id TUNGGAL ("modul utama") — lihat modules()
+    // di bawah untuk daftar LENGKAP tiket yang sudah bisa multi-modul.
     public function moduleMaster()
     {
         return $this->belongsTo(Module::class, 'module_id', 'id');
@@ -149,6 +151,78 @@ class Ticket extends Model
     public function getModuleNameAttribute(): ?string
     {
         return $this->moduleMaster?->name ?? $this->module;
+    }
+
+    /**
+     * Nama SEMUA modul tiket ini, digabung koma — dipakai di tempat-tempat yang
+     * memang menampilkan modul tiket ke user (list, export, SLA, task, konteks
+     * AI) supaya tiket multi-modul tidak terlihat cuma 1 modul. Fallback ke
+     * teks lama (module) kalau belum ada satu pun baris di pivot ticket_module
+     * (tiket lama yang belum di-assign modul terstruktur).
+     */
+    public function getModuleNamesAttribute(): ?string
+    {
+        $names = $this->modules->pluck('name')->filter()->implode(', ');
+        return $names !== '' ? $names : $this->module;
+    }
+
+    /**
+     * Versi batch dari getModuleNamesAttribute() untuk caller yang punya baris
+     * ticket dari query builder mentah (bukan Eloquent, jadi relasi modules()
+     * tidak terjangkau) dan perlu nama modul banyak tiket sekaligus tanpa N+1 —
+     * lihat TaskController::list(). TIDAK menyertakan fallback ke `module` teks
+     * lama di sini (caller yang punya baris $ticket->module sendiri sudah bisa
+     * fallback ke situ, seperti TaskController melakukannya).
+     *
+     * @param array<int, int> $ticketIds
+     * @return \Illuminate\Support\Collection<int, string> keyed by ticket_id
+     */
+    public static function moduleNamesMapFor(array $ticketIds): \Illuminate\Support\Collection
+    {
+        if (empty($ticketIds)) {
+            return collect();
+        }
+
+        return \Illuminate\Support\Facades\DB::table('ticket_module')
+            ->join('modules', 'modules.id', '=', 'ticket_module.module_id')
+            ->whereIn('ticket_module.ticket_id', $ticketIds)
+            ->orderBy('modules.name')
+            ->get(['ticket_module.ticket_id', 'modules.name'])
+            ->groupBy('ticket_id')
+            ->map(fn ($rows) => $rows->pluck('name')->implode(', '));
+    }
+
+    /**
+     * Daftar LENGKAP modul tiket ini (satu tiket boleh menyentuh lebih dari
+     * satu modul) — lihat migrasi create_ticket_module_table. `module_id`
+     * (scalar, dipakai moduleMaster()/module_name di atas) tetap ada sebagai
+     * "modul utama" untuk kompatibilitas ~20 tempat lama yang cuma baca satu
+     * nilai; tabel ini yang jadi sumber kebenaran untuk daftar lengkapnya.
+     */
+    public function modules()
+    {
+        return $this->belongsToMany(Module::class, 'ticket_module', 'ticket_id', 'module_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * SATU-SATUNYA titik tulis untuk modul tiket — dipakai oleh semua jalur
+     * create/update/approve (TicketController, StagingTicketService) supaya
+     * "modul utama" (module_id) dan daftar lengkap (pivot ticket_module)
+     * TIDAK PERNAH bisa saling menyimpang. Modul utama otomatis mengikuti
+     * modul PERTAMA dalam daftar — bukan pilihan terpisah — supaya tempat
+     * lama yang cuma baca module_id tetap melihat sesuatu yang masuk akal
+     * tanpa perlu tahu apa-apa soal multi-modul.
+     *
+     * @param array<int, int|null> $moduleIds boleh memuat null/duplikat — dibuang sebelum disimpan
+     */
+    public function syncModules(array $moduleIds): void
+    {
+        $moduleIds = array_values(array_unique(array_filter($moduleIds)));
+
+        $this->modules()->sync($moduleIds);
+        $this->module_id = $moduleIds[0] ?? null;
+        $this->save();
     }
 
     public function endCustomer()

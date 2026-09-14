@@ -12,7 +12,10 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-RUN echo "upload_max_filesize=25M\npost_max_size=30M" > /usr/local/etc/php/conf.d/uploads.ini
+# upload_max_filesize menampung 1 file terbesar (attachment tiket kini 25 MB,
+# beri sedikit headroom untuk overhead multipart). post_max_size harus jauh di
+# atasnya karena 1 request bisa membawa beberapa attachment + body pesan.
+RUN echo "upload_max_filesize=30M\npost_max_size=80M" > /usr/local/etc/php/conf.d/uploads.ini
 
 WORKDIR /var/www/html
 

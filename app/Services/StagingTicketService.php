@@ -207,6 +207,29 @@ class StagingTicketService
             ]);
         }
 
+        // Greeting otomatis ke pengirim, lewat Power Automate. Titik pemicunya
+        // sengaja DI SINI, bukan di trigger mailbox Power Automate, karena di sini
+        // email yang lolos sudah tersaring: bukan balasan untuk tiket yang sudah
+        // ada, bukan NDR/auto-reply, bukan duplikat, dan pengirimnya memang contact
+        // person customer terdaftar. Trigger mailbox akan menyapa semuanya —
+        // termasuk balasan di tengah percakapan.
+        //
+        // graph_message_id ikut dikirim supaya flow bisa memakai action "Reply to
+        // email", sehingga greeting menempel pada thread yang sama dan balasan
+        // customer berikutnya tidak terbaca sebagai tiket baru.
+        try {
+            $powerAutomate = app(\App\Services\PowerAutomateService::class);
+            $powerAutomate->dispatchAfterResponse(
+                \App\Services\PowerAutomateService::FLOW_EMAIL_RECEIVED,
+                ['staging' => $powerAutomate->stagingPayload($staging)]
+            );
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketService@createFromEmail: gagal menyiapkan greeting Power Automate (non-fatal)', [
+                'staging_id' => $staging->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+
         return $staging;
     }
 
@@ -224,7 +247,7 @@ class StagingTicketService
      * @throws \LogicException   jika staging sudah pernah diproses
      * @throws \RuntimeException jika DB transaction gagal
      */
-    public function approve(StagingTicket $staging, int $validatedBy, ?string $ticketType = null, ?string $ticketPriority = null, ?string $scale = null): array
+    public function approve(StagingTicket $staging, int $validatedBy, ?string $ticketType = null, ?string $ticketPriority = null, ?string $scale = null, array $moduleIds = []): array
     {
         // Guard: cegah double validation
         if ($staging->isProcessed()) {
@@ -233,7 +256,7 @@ class StagingTicketService
             );
         }
 
-        return DB::transaction(function () use ($staging, $validatedBy, $ticketType, $ticketPriority, $scale) {
+        return DB::transaction(function () use ($staging, $validatedBy, $ticketType, $ticketPriority, $scale, $moduleIds) {
 
             // Generate ticket number (format: YYMM####, locked against race condition)
             $ticketNumber = $this->ticketNumbers->generate();
@@ -269,11 +292,23 @@ class StagingTicketService
                 'name'               => $staging->name,
                 'no_hp'              => $staging->no_hp,
                 'module'             => $staging->module,
-                'module_id'          => $staging->module_id,
                 'client'             => $staging->client,
                 'submitted_by_email' => $staging->submitted_by_email,
                 'submitted_by_name'  => $staging->sender_name,
             ]);
+
+            // Modul dipilih VALIDATOR di modal approve (biasanya pre-filled dari
+            // saran AI, lihat AiTicketAnalyzerService) — $moduleIds ini SATU-
+            // SATUNYA sumber untuk modul ticket hasil approve. staging_tickets.
+            // module_id (kolom legacy singular) memang masih ditulis di
+            // StagingTicketController::approve() dan dipakai buat pre-fill
+            // dropdown modul saat modal dibuka (lihat staging/index.blade.php,
+            // setApproveModule(s.module_id, ...)) — tapi TIDAK dibaca lagi di
+            // sini, jadi kalau validator mengubah pilihan modul sebelum submit,
+            // staging_tickets.module_id bisa berbeda dari ticket.module_id hasil
+            // akhir. Itu sudah cukup: kolom ini cuma untuk pre-fill UI, bukan
+            // sumber kebenaran ticket.
+            $ticket->syncModules($moduleIds);
 
             // Update staging → approved, simpan FK ke ticket
             $staging->update([

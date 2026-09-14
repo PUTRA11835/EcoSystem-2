@@ -468,6 +468,43 @@
 
     <div id="rightSidePanel" class="hidden xl:flex xl:flex-col w-64 gap-3 flex-shrink-0 overflow-y-auto" style="transition: width 0.25s ease, opacity 0.25s ease;">
 
+        {{-- AI Summarize --}}
+        @php $canAiSummarize = $can('ui.ticket.btn-ai-summarize'); @endphp
+        @if($canAiSummarize)
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0 p-3">
+            <button type="button" onclick="openTicketSummary({{ $ticket->ticket_id }}, '{{ $ticket->ticket_number }}')"
+                class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors">
+                <svg class="w-3.5 h-3.5 text-indigo-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10 1.5l1.6 4.2 4.4 1.3-4.4 1.3L10 12.5 8.4 8.3 4 7l4.4-1.3L10 1.5zM15.5 12l.9 2.3 2.6.7-2.6.7-.9 2.3-.9-2.3-2.6-.7 2.6-.7.9-2.3zM4.5 11l.7 1.8 2 .5-2 .5-.7 1.8-.7-1.8-2-.5 2-.5.7-1.8z" />
+                </svg>
+                AI Summarize
+            </button>
+        </div>
+        @endif
+
+        {{-- Ask AI (Research) — dua gerbang BERLAPIS, lihat migration
+             add_ai_research_ticket_button_menu.php:
+               1. ui.ticket.btn-ai-research — role mana yang BOLEH memakai
+                  fitur ini sama sekali, admin-only secara default, diatur
+                  admin lewat Control Center > Menu Access.
+               2. isLeadOrMember() ATAU EC Administrator — KE TIKET MANA
+                  (cuma yang orang itu benar-benar tangani; admin selalu
+                  lolos lintas-tiket). hasRole() dicek, bukan
+                  $user->role->role_id (primary saja), supaya employee
+                  dengan banyak role tetap kebagian walau EC Administrator
+                  bukan role utamanya. --}}
+        @if($can('ui.ticket.btn-ai-research') && \App\Support\TicketTeamAccess::canAccessAiResearch($user->id, $ticket, $user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value)))
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0 p-3">
+            <a href="{{ route('ticket.ai-research', $ticket->ticket_id) }}"
+                class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors">
+                <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Ask AI (Research)
+            </a>
+        </div>
+        @endif
+
         {{-- â"€â"€ Mandays Panel â"€â"€ --}}
         @if($hasMandaysSection)
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
@@ -955,22 +992,32 @@
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->submitted_by_email }}</p>
                 </div>
                 @endif
-                {{-- Module --}}
+                {{-- Module — tiket boleh menyentuh lebih dari satu (Ticket::modules());
+                     module_id (scalar) tetap ada sebagai "modul utama", otomatis mengikuti
+                     modul pertama di sini (lihat Ticket::syncModules()). --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Module</label>
                     @if($canEditAdditionalInfo)
-                    <select id="additionalInfoModuleId"
-                           class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
-                        <option value="">-- none --</option>
-                        @foreach ($modules as $moduleOption)
-                        <option value="{{ $moduleOption['id'] }}" @selected($ticket->module_id == $moduleOption['id'])>{{ $moduleOption['name'] }}</option>
-                        @endforeach
-                    </select>
+                    <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Select module(s)">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs hover:border-gray-300 transition-all text-left">
+                            <span class="custom-dd-label text-gray-500">Select module(s)</span>
+                            <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" name="module_ids" id="additionalInfoModuleIds" value="{{ $ticket->modules->pluck('id')->implode(',') }}">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:320px;">
+                            @foreach ($modules as $moduleOption)
+                            <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $moduleOption['id'] }}">
+                                <span class="custom-dd-item-text">{{ $moduleOption['name'] }}</span>
+                                <svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            </button>
+                            @endforeach
+                        </div>
+                    </div>
                     @if($ticket->module)
                     <p class="text-[11px] text-gray-400 mt-1">Nilai lama (patokan): {{ $ticket->module }}</p>
                     @endif
                     @else
-                    <span class="{{ $roValCls }}">{{ $ticket->module_name ?? '—' }}</span>
+                    <span class="{{ $roValCls }}">{{ $ticket->modules->pluck('name')->implode(', ') ?: '—' }}</span>
                     @endif
                 </div>
                 {{-- Client --}}
@@ -989,6 +1036,450 @@
 
     </div>
 </div>
+
+{{-- ══════════════════ AI SUMMARIZE ══════════════════ --}}
+@if($canAiSummarize)
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+
+<style>
+    /* Preflight Tailwind mematikan marker list dan ukuran heading. Markdown
+       hasil AI butuh keduanya kembali — dibatasi ke dalam .ai-sum-body saja
+       supaya tidak bocor ke halaman detail tiket. Sengaja tanpa warna: pewarnaan
+       tetap lewat utility Tailwind di elemen induk, jadi dark mode global ikut. */
+    .ai-sum-body ul { list-style: disc; padding-left: 1.15rem; margin: .25rem 0; }
+    .ai-sum-body ol { list-style: decimal; padding-left: 1.35rem; margin: .25rem 0; }
+    .ai-sum-body li { margin: .2rem 0; }
+    .ai-sum-body p { margin: .35rem 0; }
+    .ai-sum-body p:first-child { margin-top: 0; }
+    .ai-sum-body strong { font-weight: 600; }
+    .ai-sum-body code { font-family: ui-monospace, monospace; font-size: .85em; }
+    /* Tautan rujukan dokumentasi luar; preflight Tailwind menanggalkan garis
+       bawahnya, jadi dikembalikan di sini supaya terbaca sebagai tautan. */
+    .ai-sum-body a { text-decoration: underline; text-underline-offset: 2px; word-break: break-word; }
+</style>
+
+<div id="ticketSummaryModal" class="hidden fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-4">
+    {{-- Lebar 5xl: isinya kini langkah teknis bernomor berikut TCODE, nama tabel,
+         dan URL rujukan — kolom sempit membuat satu langkah pecah jadi 6-7 baris. --}}
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+        {{-- Header --}}
+        <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <span class="shrink-0 w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M10 1.5l1.6 4.2 4.4 1.3-4.4 1.3L10 12.5 8.4 8.3 4 7l4.4-1.3L10 1.5zM15.5 12l.9 2.3 2.6.7-2.6.7-.9 2.3-.9-2.3-2.6-.7 2.6-.7.9-2.3zM4.5 11l.7 1.8 2 .5-2 .5-.7 1.8-.7-1.8-2-.5 2-.5.7-1.8z" />
+                    </svg>
+                </span>
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-gray-800">AI Summarize</h3>
+                    <p id="ticketSummaryTicketNo" class="text-xs text-gray-500 truncate">—</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <span id="ticketSummaryStatus" class="text-[11px] text-gray-400"></span>
+                {{-- Copy: ringkasan hanya hidup di modal ini, dan sengaja dibuat
+                     ulang setiap kali isi tiket berubah (lihat AiTicketSummaryController).
+                     Tanpa tombol ini satu-satunya cara membawa hasilnya ke chat,
+                     email, atau work log adalah blok-seret manual melintasi tiga
+                     kartu — yang justru kehilangan penanda markdown-nya. Yang
+                     disalin adalah markdown MENTAH, bukan HTML yang terlihat. --}}
+                <button type="button" id="ticketSummaryCopy" onclick="copyTicketSummary()" disabled
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2v-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                    <span id="ticketSummaryCopyLabel">Copy</span>
+                </button>
+                <button type="button" onclick="closeTicketSummary()" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        {{-- Body: tiga kartu tetap, diisi sambil teksnya mengalir --}}
+        <div class="overflow-y-auto px-5 py-4 space-y-3">
+            <div id="ticketSummaryError" class="hidden rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700"></div>
+            {{-- Peringatan, bukan kegagalan: ringkasan yang mentok di plafon token
+                 tetap ditampilkan (sebagian besar isinya masih berguna) tapi tidak
+                 disimpan, jadi warnanya amber dan terpisah dari kotak error merah. --}}
+            <div id="ticketSummaryNotice" class="hidden rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800"></div>
+
+            @foreach ([
+                ['key' => 'issue',      'label' => 'Issue',            'tone' => 'amber'],
+                ['key' => 'resolution', 'label' => 'Resolution Steps', 'tone' => 'blue'],
+                ['key' => 'conclusion', 'label' => 'Conclusion',       'tone' => 'emerald'],
+            ] as $sec)
+            <div class="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+                <div class="px-4 py-2 border-b border-gray-100 bg-{{ $sec['tone'] }}-50">
+                    <span class="text-[11px] font-bold uppercase tracking-widest text-{{ $sec['tone'] }}-700">{{ $sec['label'] }}</span>
+                </div>
+                <div id="ticketSummary-{{ $sec['key'] }}" class="ai-sum-body px-4 py-3 text-sm text-gray-700 leading-relaxed">
+                    <span class="text-gray-300 italic">Waiting…</span>
+                </div>
+                @if ('resolution' === $sec['key'])
+                {{-- Rujukan dokumentasi luar yang benar-benar dibuka model saat
+                     menyusun langkah penyelesaian. Diisi dari event 'sources'. --}}
+                <div id="ticketSummarySources" class="hidden px-4 pb-3 pt-0 border-t border-gray-100">
+                    <div class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mt-2.5 mb-1.5">Documentation sources</div>
+                    <ul id="ticketSummarySourcesList" class="space-y-1"></ul>
+                </div>
+                @endif
+            </div>
+            @endforeach
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    // Judul heading di bawah adalah KONTRAK dengan system prompt di
+    // App\Services\Ai\AiTicketSummaryService::systemPrompt(). Kalau di sana
+    // berubah, ubah juga di sini — kalau tidak, teksnya mengalir masuk ke kartu
+    // yang salah (atau tidak masuk sama sekali).
+    const TICKET_SUMMARY_SECTIONS = {
+        'issue': 'issue',
+        'resolution steps': 'resolution',
+        'conclusion': 'conclusion',
+
+        // Alias heading Indonesia dari ringkasan versi lama. Prompt sudah lama
+        // berbahasa Inggris, tapi ringkasan yang terlanjur tersimpan di cache
+        // (atau sedang ditampilkan dari tab yang belum di-reload) masih memakai
+        // judul lama — tanpa alias ini seluruh isinya jatuh ke satu kartu.
+        'isu': 'issue',
+        'cara penyelesaian': 'resolution',
+        'kesimpulan': 'conclusion',
+    };
+
+    let summaryAbort = null;
+
+    // Markdown mentah ringkasan yang sedang ditampilkan, plus rujukannya —
+    // dipegang di sini supaya tombol Copy punya sesuatu untuk disalin setelah
+    // stream selesai. Ringkasan sengaja TIDAK disimpan permanen (isinya wajib
+    // ikut berubah setiap kali tiket berubah), jadi menyalin adalah satu-satunya
+    // cara membawanya keluar dari modal ini.
+    let summaryText = '';
+    let summarySources = [];
+    let summaryTicketNo = '';
+    let summaryTicketId = null;
+    let summaryCopyTimer = null;
+
+    function el(id) { return document.getElementById(id); }
+
+    function mdToHtml(text) {
+        return DOMPurify.sanitize(marked.parse(String(text ?? '')));
+    }
+
+    /**
+     * Loop parsing SSE (event:/data: frame, dipisah "\n\n") dipakai
+     * ringkasan awal (openTicketSummary).
+     */
+    async function consumeSse(response, onEvent) {
+        if (!response.ok || !response.body) {
+            throw new Error('Could not reach the AI service (HTTP ' + response.status + ').');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            let boundary;
+            while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                const frame = buffer.slice(0, boundary);
+                buffer = buffer.slice(boundary + 2);
+
+                let eventName = 'message';
+                let dataLine = '';
+                frame.split('\n').forEach(line => {
+                    if (line.startsWith('event:')) eventName = line.slice(6).trim();
+                    if (line.startsWith('data:')) dataLine = line.slice(5).trim();
+                });
+                if (!dataLine) continue;
+
+                let payload;
+                try { payload = JSON.parse(dataLine); } catch { continue; }
+
+                onEvent(eventName, payload);
+            }
+        }
+    }
+
+    /**
+     * Pecah teks yang sedang mengalir pada heading "## ", lalu render tiap
+     * bagian ke kartunya. Dipanggil ulang setiap delta: heading terakhir
+     * mungkin masih setengah tertulis, dan itu tidak apa-apa — bagian yang
+     * belum dikenali cukup diabaikan sampai barisnya utuh.
+     */
+    function renderSummary(full) {
+        const buckets = { issue: '', resolution: '', conclusion: '' };
+        let current = null;
+        let preamble = '';
+
+        // Di sela pencarian, model kadang menulis satu kalimat kerja ("Ada hasil
+        // bagus. Mari fetch halaman berikutnya.") lalu menyambung heading TANPA
+        // baris baru — jadi "…langkah.## Isu". Tanpa dipisahkan, heading itu tak
+        // pernah cocok dan seluruh jawaban menumpuk di satu kartu.
+        const normalized = String(full).replace(
+            /([^\n])(#{1,3}\s*(?:Issue|Resolution Steps|Conclusion|Isu|Cara Penyelesaian|Kesimpulan)\b)/gi,
+            '$1\n$2'
+        );
+
+        normalized.split('\n').forEach(line => {
+            const heading = line.match(/^\s*#{1,3}\s*(.+?)\s*$/);
+            if (heading) {
+                const key = TICKET_SUMMARY_SECTIONS[heading[1].trim().toLowerCase()];
+                if (key) { current = key; return; }
+            }
+            // Teks sebelum heading pertama ditahan dulu, JANGAN langsung
+            // ditumpahkan ke kartu Isu: itu biasanya narasi kerja model di sela
+            // pencarian, bukan isi ringkasan. Baru dipakai kalau sampai akhir
+            // tidak ada satu pun heading yang dikenali (lihat di bawah).
+            if (!current) { preamble += line + '\n'; return; }
+            buckets[current] += line + '\n';
+        });
+
+        // Belum ada heading sama sekali — tampilkan apa adanya di kartu Issue
+        // supaya streaming tetap terlihat bergerak, bukan diam "Waiting…".
+        if (!current && preamble.trim()) {
+            buckets.issue = preamble;
+        }
+
+        Object.keys(buckets).forEach(key => {
+            const target = el('ticketSummary-' + key);
+            const body = buckets[key].trim();
+            if (body) {
+                target.innerHTML = mdToHtml(body);
+                // Tautan rujukan di dalam langkah penyelesaian mengarah ke luar
+                // sistem — jangan menimpa halaman detail tiket yang sedang dibuka.
+                target.querySelectorAll('a[href]').forEach(a => {
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                });
+            }
+        });
+    }
+
+    /**
+     * Daftar rujukan dokumentasi luar. Judul & URL datang dari hasil web_search
+     * di sisi server — dianggap teks asing, jadi judulnya di-set lewat
+     * textContent dan hanya URL http(s) yang boleh menjadi href.
+     */
+    function renderSources(items) {
+        const box = el('ticketSummarySources');
+        const list = el('ticketSummarySourcesList');
+        list.innerHTML = '';
+        summarySources = (items || []).filter(item => /^https?:\/\//i.test(item.url || ''));
+
+        (items || []).forEach(item => {
+            if (!/^https?:\/\//i.test(item.url || '')) return;
+
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.href = item.url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.className = 'text-xs text-indigo-600 hover:underline break-all';
+            a.textContent = item.title || item.url;
+            li.appendChild(a);
+            list.appendChild(li);
+        });
+
+        box.classList.toggle('hidden', list.children.length === 0);
+    }
+
+    function resetSummary() {
+        el('ticketSummaryError').classList.add('hidden');
+        el('ticketSummaryError').textContent = '';
+        el('ticketSummaryNotice').classList.add('hidden');
+        el('ticketSummaryNotice').textContent = '';
+        renderSources([]);
+        summaryText = '';
+        setCopyEnabled(false);
+        ['issue', 'resolution', 'conclusion'].forEach(key => {
+            el('ticketSummary-' + key).innerHTML = '<span class="text-gray-300 italic">Waiting…</span>';
+        });
+    }
+
+    function showSummaryError(message) {
+        const box = el('ticketSummaryError');
+        box.textContent = message;
+        box.classList.remove('hidden');
+    }
+
+    /**
+     * Copy baru hidup setelah ada teks: menyalin ringkasan setengah jadi
+     * menghasilkan catatan yang terpotong di tengah langkah, dan itu justru
+     * paling berbahaya di bagian Resolution Steps.
+     */
+    function setCopyEnabled(enabled) {
+        const btn = el('ticketSummaryCopy');
+        if (!btn) return;
+        btn.disabled = !enabled;
+        if (!enabled) {
+            clearTimeout(summaryCopyTimer);
+            el('ticketSummaryCopyLabel').textContent = 'Copy';
+        }
+    }
+
+    /** Markdown mentah + daftar rujukan, siap ditempel ke work log atau email. */
+    function buildSummaryClipboardText() {
+        const parts = [];
+
+        if (summaryTicketNo) parts.push('AI Summary — Ticket ' + summaryTicketNo);
+        parts.push(summaryText.trim());
+
+        if (summarySources.length) {
+            parts.push('## Documentation sources\n' + summarySources
+                .map(item => '- ' + (item.title || item.url) + ' — ' + item.url)
+                .join('\n'));
+        }
+
+        return parts.filter(Boolean).join('\n\n') + '\n';
+    }
+
+    window.copyTicketSummary = async function () {
+        if (!summaryText.trim()) return;
+
+        const text = buildSummaryClipboardText();
+        let ok = false;
+
+        try {
+            // navigator.clipboard hanya ada di secure context (https/localhost).
+            // Deployment internal sering diakses lewat http di jaringan kantor,
+            // jadi jalur execCommand di bawah BUKAN sekadar dukungan browser
+            // lama — di sanalah tombol ini benar-benar bekerja.
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                ok = true;
+            }
+        } catch (e) {
+            ok = false;
+        }
+
+        if (!ok) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            // Di luar viewport, tapi tetap fokusable — readOnly mencegah
+            // keyboard virtual muncul di perangkat sentuh.
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '-1000px';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            document.body.removeChild(ta);
+        }
+
+        const label = el('ticketSummaryCopyLabel');
+        label.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+        clearTimeout(summaryCopyTimer);
+        summaryCopyTimer = setTimeout(() => { label.textContent = 'Copy'; }, 1800);
+    };
+
+    window.openTicketSummary = async function (ticketId, ticketNumber) {
+        if (summaryAbort) summaryAbort.abort();
+
+        summaryTicketId = ticketId;
+        summaryTicketNo = ticketNumber || ('#' + ticketId);
+        el('ticketSummaryTicketNo').textContent = summaryTicketNo;
+        el('ticketSummaryModal').classList.remove('hidden');
+        el('ticketSummaryStatus').textContent = 'Analyzing…';
+        resetSummary();
+
+        summaryAbort = new AbortController();
+        const controller = summaryAbort;
+
+        let full = '';
+        let sawError = null;
+
+        try {
+            const response = await fetch('/ticket/' + ticketId + '/ai-summary', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'text/event-stream',
+                },
+                signal: controller.signal,
+            });
+
+            await consumeSse(response, (eventName, payload) => {
+                if (eventName === 'meta') {
+                    // 'cached' = tiket belum berubah sejak ringkasan terakhir,
+                    // jadi yang diputar ulang ini persis hasil sebelumnya —
+                    // bukan hasil baru yang kebetulan mirip.
+                    el('ticketSummaryStatus').textContent = payload.cached ? 'Saved summary' : 'Analyzing…';
+                } else if (eventName === 'status') {
+                    // Progres riset dokumentasi luar dari driver provider:
+                    // "Searching the web…", "Reading the results…".
+                    if (payload.label) el('ticketSummaryStatus').textContent = payload.label;
+                } else if (eventName === 'sources') {
+                    renderSources(payload.items);
+                } else if (eventName === 'delta' && payload.text) {
+                    full += payload.text;
+                    summaryText = full;
+                    renderSummary(full);
+                    setCopyEnabled(true);
+                } else if (eventName === 'notice') {
+                    // Ringkasan mentok di plafon token: tampil, tapi tidak disimpan.
+                    const box = el('ticketSummaryNotice');
+                    box.textContent = payload.message || '';
+                    box.classList.toggle('hidden', !payload.message);
+                } else if (eventName === 'error') {
+                    sawError = payload.message || 'Something went wrong.';
+                } else if (eventName === 'done') {
+                    el('ticketSummaryStatus').textContent = payload.cached
+                        ? 'Saved summary · regenerated when the ticket changes'
+                        : 'Done';
+                }
+            });
+
+            if (sawError) throw new Error(sawError);
+
+            // Model membalas tanpa satu pun heading yang dikenali: jangan biarkan
+            // ketiga kartu diam bertuliskan "Menunggu…" seolah masih memuat.
+            if (!full.trim()) {
+                showSummaryError('The AI returned no summary at all. Please try again.');
+                el('ticketSummaryStatus').textContent = '';
+                setCopyEnabled(false);
+            }
+        } catch (e) {
+            if (e.name === 'AbortError') return;
+            showSummaryError(e.message);
+            el('ticketSummaryStatus').textContent = '';
+        } finally {
+            if (summaryAbort === controller) summaryAbort = null;
+        }
+    };
+
+    window.closeTicketSummary = function () {
+        // Batalkan stream yang masih jalan — tanpa ini koneksi SSE-nya menggantung
+        // di server sampai model selesai bicara ke modal yang sudah tertutup.
+        if (summaryAbort) { summaryAbort.abort(); summaryAbort = null; }
+        el('ticketSummaryModal').classList.add('hidden');
+    };
+
+    document.getElementById('ticketSummaryModal').addEventListener('click', function (e) {
+        if (e.target === this) closeTicketSummary();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !el('ticketSummaryModal').classList.contains('hidden')) {
+            closeTicketSummary();
+        }
+    });
+})();
+</script>
+@endif
 
 <style>
 /* Message Bubbles */
@@ -1438,6 +1929,21 @@
     width: 100%;
     height: 100%;
     cursor: pointer;
+}
+
+/* ── Meeting modal: expand sideways as recipients grow, never squeeze notes ──
+   The chip list scrolls in its own area; the "add email" input row stays put
+   below it so it's never scrolled out of view while the list grows. */
+#meetingModalCard { transition: max-width .2s ease; }
+#meetingToTagsContainer,
+#meetingCcTagsContainer { max-height: 7.5rem; overflow-y: auto; transition: max-height .2s ease; }
+#meetingToTagsContainer:not(:empty) + div,
+#meetingCcTagsContainer:not(:empty) + div { border-top: 1px solid #f3f4f6; }
+@media (min-width: 640px) {
+    #meetingRecipientsCol { width: 22rem; transition: width .2s ease; }
+    #meetingModalCard.meeting-wide #meetingRecipientsCol { width: 34rem; }
+    #meetingModalCard.meeting-wide #meetingToTagsContainer,
+    #meetingModalCard.meeting-wide #meetingCcTagsContainer { max-height: 11rem; }
 }
 
 @if(session('user_preferences.theme', 'light') === 'dark')
@@ -2246,8 +2752,8 @@
 
 {{-- ===== MEETING MODAL ===== --}}
 @if($can('ticket.meeting'))
-<div id="meetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onclick="if(event.target===this) closeMeetingPanel()">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+<div id="meetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto" onclick="if(event.target===this) closeMeetingPanel()">
+    <div id="meetingModalCard" class="bg-white rounded-2xl shadow-2xl w-full max-w-md sm:w-auto sm:max-w-[95vw] my-auto max-h-[92vh] flex flex-col">
         {{-- Header --}}
         <div id="meetingModalHeader" class="flex items-center justify-between px-6 py-4 rounded-t-2xl">
             <div class="flex items-center gap-3">
@@ -2265,32 +2771,75 @@
             </button>
         </div>
 
-        {{-- Body --}}
-        <div class="px-6 pb-2 space-y-3">
-            {{-- Template Meeting --}}
+        {{-- Body — To/CC on the left, schedule on the right; notes span the full width below the split --}}
+        <div class="flex-1 overflow-y-auto px-6 pb-2 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:gap-6 sm:items-start">
+        {{-- Left column: recipients — this column and the modal widen sideways as chips fill --}}
+        <div id="meetingRecipientsCol" class="space-y-3 w-full sm:flex-shrink-0">
+            {{-- To --}}
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Gunakan Template</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">To</label>
+                <div id="meetingToDropZone"
+                     class="flex flex-col border border-gray-300 rounded-xl bg-white cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
+                     onclick="document.getElementById('meetingToInput').focus()">
+                    <div id="meetingToTagsContainer" class="flex flex-wrap gap-1 items-center px-2.5 pt-1.5 empty:pt-0 overflow-y-auto"></div>
+                    <div class="relative flex-shrink-0 px-2.5 py-1.5">
+                        <input type="text" id="meetingToInput"
+                               placeholder="Add an email then press Enter…"
+                               class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                               onkeydown="handleMeetingRecipientKeydown(event,'to')"
+                               onblur="handleMeetingRecipientBlur('to')"
+                               onpaste="handleMeetingRecipientPaste(event,'to')">
+                    </div>
+                </div>
+            </div>
+            {{-- CC --}}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">
+                    CC <span class="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <div id="meetingCcDropZone"
+                     class="flex flex-col border border-gray-300 rounded-xl bg-white cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
+                     onclick="document.getElementById('meetingCcInput').focus()">
+                    <div id="meetingCcTagsContainer" class="flex flex-wrap gap-1 items-center px-2.5 pt-1.5 empty:pt-0 overflow-y-auto"></div>
+                    <div class="relative flex-shrink-0 px-2.5 py-1.5">
+                        <input type="text" id="meetingCcInput"
+                               placeholder="Add an email then press Enter…"
+                               class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
+                               onkeydown="handleMeetingRecipientKeydown(event,'cc')"
+                               onblur="handleMeetingRecipientBlur('cc')"
+                               onpaste="handleMeetingRecipientPaste(event,'cc')">
+                    </div>
+                </div>
+                <p class="mt-1 text-xs text-gray-400">Automatically filled with the same To/CC used last time on this ticket.</p>
+            </div>
+        </div>
+        {{-- Right column: template, schedule & link — fixed width, never squeezed --}}
+        <div class="space-y-3 w-full mt-4 pt-4 border-t border-gray-100 sm:mt-0 sm:pt-0 sm:border-t-0 sm:border-l sm:border-gray-100 sm:pl-6 sm:w-[20rem] sm:flex-shrink-0">
+            {{-- Meeting Template --}}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Use Template</label>
                 <div class="custom-dd relative w-full" data-onchange="onMeetingTemplateSelect" data-fixed="true">
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between gap-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm bg-white hover:border-gray-400 transition-all">
-                        <span class="custom-dd-label text-gray-500">Tidak pakai template</span>
+                        <span class="custom-dd-label text-gray-500">No template</span>
                         <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                     </button>
                     <input type="hidden" id="meetingTemplateSelect" value="">
                     <div id="meetingTemplatePanel" class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:240px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">Tidak pakai template (kosongkan)</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">No template (clear)</button>
                     </div>
                 </div>
             </div>
-            {{-- Link meeting — hanya tampil saat mulai meeting --}}
+            {{-- Schedule + link --}}
             <div id="meetingLinkWrap">
-                {{-- Waktu --}}
+                {{-- Time --}}
                 <label id="meetingTimesLabel" class="block text-sm font-medium text-gray-700 mb-2">
-                    Waktu Meeting
+                    Meeting Time
                 </label>
 
-                {{-- Mulai: tanggal + jam --}}
+                {{-- Start: date + time --}}
                 <div id="meetingStartRow" class="mb-2">
-                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Mulai</p>
+                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Start</p>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
                             <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2309,9 +2858,9 @@
                     </div>
                 </div>
 
-                {{-- Selesai: tanggal + jam --}}
+                {{-- End: date + time --}}
                 <div class="mb-3">
-                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">Selesai</p>
+                    <p class="text-xs text-gray-400 mb-1.5 font-medium tracking-wide uppercase">End</p>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div class="relative overflow-hidden flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-400 transition-all">
                             <svg class="w-4 h-4 text-purple-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2333,8 +2882,8 @@
                 {{-- Link --}}
                 <div id="meetingLinkSection">
                     <label class="block text-sm font-medium text-gray-700 mb-1.5">
-                        Link Meeting
-                        <span class="text-gray-400 font-normal">(opsional)</span>
+                        Meeting Link
+                        <span class="text-gray-400 font-normal">(optional)</span>
                     </label>
                     <div class="flex items-center gap-2 px-3 py-2.5 border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-purple-300 transition-all">
                         <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2342,75 +2891,41 @@
                         </svg>
                         <input id="meetingLink" type="url"
                             class="flex-1 text-sm bg-transparent focus:outline-none"
-                            placeholder="https://meet.google.com/… atau https://zoom.us/…">
+                            placeholder="https://meet.google.com/… or https://zoom.us/…">
                     </div>
-                    <p class="mt-1 text-xs text-gray-400">Waktu dan link akan dikirim via email ke customer</p>
-                </div>
-
-                {{-- To / CC undangan meeting — chip input, sama gaya dengan kolom pesan --}}
-                <div class="mt-3">
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">To</label>
-                    <div id="meetingToDropZone"
-                         class="flex flex-wrap items-center gap-1 min-h-[38px] border border-gray-300 rounded-xl bg-white px-2.5 py-1.5 cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
-                         onclick="document.getElementById('meetingToInput').focus()">
-                        <div id="meetingToTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
-                        <div class="relative flex-1 min-w-[150px]">
-                            <input type="text" id="meetingToInput"
-                                   placeholder="Tambah email lalu tekan Enter…"
-                                   class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
-                                   onkeydown="handleMeetingRecipientKeydown(event,'to')"
-                                   onblur="handleMeetingRecipientBlur('to')"
-                                   onpaste="handleMeetingRecipientPaste(event,'to')">
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">
-                        CC <span class="text-gray-400 font-normal">(opsional)</span>
-                    </label>
-                    <div id="meetingCcDropZone"
-                         class="flex flex-wrap items-center gap-1 min-h-[38px] border border-gray-300 rounded-xl bg-white px-2.5 py-1.5 cursor-text focus-within:ring-2 focus-within:ring-purple-300 transition-all"
-                         onclick="document.getElementById('meetingCcInput').focus()">
-                        <div id="meetingCcTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
-                        <div class="relative flex-1 min-w-[150px]">
-                            <input type="text" id="meetingCcInput"
-                                   placeholder="Tambah email lalu tekan Enter…"
-                                   class="text-sm border-none bg-transparent outline-none w-full placeholder-gray-300 py-0.5"
-                                   onkeydown="handleMeetingRecipientKeydown(event,'cc')"
-                                   onblur="handleMeetingRecipientBlur('cc')"
-                                   onpaste="handleMeetingRecipientPaste(event,'cc')">
-                        </div>
-                    </div>
-                    <p class="mt-1 text-xs text-gray-400">Otomatis terisi sama seperti To/CC yang dipakai terakhir kali pada tiket ini.</p>
+                    <p class="mt-1 text-xs text-gray-400">The time and link will be emailed to the customer</p>
                 </div>
             </div>
+        </div>
+        </div>
 
-            <div>
-                <label id="meetingNotesLabel" class="block text-sm font-medium text-gray-700 mb-1.5"></label>
-                <textarea id="meetingNotes" rows="2"
-                    class="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all bg-white"
-                    placeholder="(opsional)"></textarea>
-            </div>
+        {{-- Notes — full width, outside the split so it keeps a comfortable size --}}
+        <div>
+            <label id="meetingNotesLabel" class="block text-sm font-medium text-gray-700 mb-1.5"></label>
+            <textarea id="meetingNotes" rows="5"
+                class="w-full px-3 py-2.5 text-sm leading-relaxed border border-gray-300 rounded-xl resize-y min-h-[8rem] max-h-[24rem] focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all bg-white"
+                placeholder="News, editorial info, meeting invitation details, or other supplementary notes…"></textarea>
+        </div>
 
-            {{-- Simpan sebagai template --}}
-            <div class="pt-1">
-                <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                    <input type="checkbox" id="saveAsTemplateCheckbox" class="rounded border-gray-300 text-purple-600 focus:ring-purple-400" onchange="toggleSaveTemplateFields()">
-                    Simpan sebagai template
-                </label>
-                <div id="saveTemplateFields" class="hidden mt-2 space-y-2">
-                    <input id="templateNameInput" type="text" placeholder="Nama template, mis. Sync Mingguan Support"
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300">
-                    <p class="text-xs text-gray-400">Template ini hanya bisa dipakai di tiket ini.</p>
-                </div>
+        {{-- Save as template --}}
+        <div class="pt-1">
+            <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" id="saveAsTemplateCheckbox" class="rounded border-gray-300 text-purple-600 focus:ring-purple-400" onchange="toggleSaveTemplateFields()">
+                Save as template
+            </label>
+            <div id="saveTemplateFields" class="hidden mt-2 space-y-2">
+                <input id="templateNameInput" type="text" placeholder="Template name, e.g. Weekly Support Sync"
+                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300">
+                <p class="text-xs text-gray-400">This template can only be used on this ticket.</p>
             </div>
+        </div>
         </div>
 
         {{-- Footer --}}
         <div class="flex justify-end gap-3 px-6 py-4">
             <button onclick="closeMeetingPanel()"
                 class="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all font-medium">
-                Batal
+                Cancel
             </button>
             <button id="meetingConfirmBtn" onclick="confirmMeeting()"
                 class="px-5 py-2 text-sm font-semibold text-white rounded-xl transition-all">
@@ -2427,8 +2942,8 @@
     <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
             <div>
-                <h3 class="text-sm font-bold text-gray-900">Konfirmasi Undangan Meeting</h3>
-                <p class="text-[11px] text-gray-400 mt-0.5">Periksa kembali sebelum mengirim</p>
+                <h3 class="text-sm font-bold text-gray-900">Confirm Meeting Invitation</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">Review before sending</p>
             </div>
             <button onclick="closeConfirmMeetingModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
@@ -2445,26 +2960,26 @@
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Mulai</span>
+                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Start</span>
                     <p id="confirmMeetingStart" class="text-xs text-gray-800">-</p>
                 </div>
                 <div>
-                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Selesai</span>
+                    <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">End</span>
                     <p id="confirmMeetingEnd" class="text-xs text-gray-800">-</p>
                 </div>
             </div>
             <div>
-                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Link Meeting</span>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Meeting Link</span>
                 <p id="confirmMeetingLink" class="text-xs text-purple-600 break-all">-</p>
             </div>
             <div>
-                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Pesan / Catatan</span>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Message / Notes</span>
                 <div id="confirmMeetingNotes" class="text-xs text-gray-800 border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto bg-gray-50 whitespace-pre-wrap">-</div>
             </div>
         </div>
         <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 flex-shrink-0">
             <button onclick="closeConfirmMeetingModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">Edit</button>
-            <button id="confirmMeetingSendBtn" onclick="finalizeMeetingSend()" class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all">Kirim Undangan</button>
+            <button id="confirmMeetingSendBtn" onclick="finalizeMeetingSend()" class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all">Send Invitation</button>
         </div>
     </div>
 </div>
@@ -3250,8 +3765,8 @@
                             input.onchange = () => {
                                 const file = input.files[0];
                                 if (!file) return;
-                                if (file.size > 10 * 1024 * 1024) {
-                                    showNotification('Image too large (max 10 MB)', 'error');
+                                if (file.size > 25 * 1024 * 1024) {
+                                    showNotification('Image too large (max 25 MB)', 'error');
                                     return;
                                 }
                                 const reader = new FileReader();
@@ -3392,6 +3907,11 @@
             if (source === 'user') clearMentionFormatIfNeeded(quillEditor);
         });
 
+        // "#NNNNNNNN" → langsung terblok biru seperti chip @mention saat diketik
+        quillEditor.on('text-change', function (delta, oldDelta, source) {
+            autoFormatTicketRef(quillEditor, delta, source);
+        });
+
         quillEditor.on('text-change', function(delta, _old, source) {
             // Hanya proses input dari user (bukan format API call)
             if (source !== 'user' || !delta || !delta.ops) return;
@@ -3486,6 +4006,43 @@
             quill.format('color', false);
             if (fmt.bold) quill.format('bold', false);
         }
+    }
+
+    // ── Auto-format ref tiket "#NNNNNNNN" di editor ──────────────────────────────
+    // Saat user mengetik spasi/enter tepat setelah "#" + 6–10 digit, token itu
+    // diberi warna+bold IDENTIK dengan chip @mention employee (#1d4ed8) supaya
+    // langsung "terblok biru" seperti tag username. Reuse warna mention berarti:
+    // dark-mode CSS ikut mencerahkan, dan binding Backspace menghapusnya sekaligus.
+    // Ini murni kosmetik di editor — hyperlink asli tetap dibuat saat render lewat
+    // linkifyTicketRefsHtml, jadi note lama / yang belum sempat ter-spasi tetap jalan.
+    // Pola sama persis dengan auto-link URL di composer.
+    function autoFormatTicketRef(quill, delta, source) {
+        if (source !== 'user' || !delta || !delta.ops) return;
+        const lastOp = delta.ops[delta.ops.length - 1];
+        if (!lastOp || typeof lastOp.insert !== 'string') return;
+        const sep = lastOp.insert;
+        if (sep !== ' ' && sep !== '\n') return;
+
+        let insertPos = 0;
+        for (const op of delta.ops) {
+            if (typeof op.retain === 'number') { insertPos = op.retain; break; }
+        }
+
+        const textBefore = quill.getText(0, insertPos);
+        // "#" harus di awal ATAU tidak menempel huruf/angka/"/"/"&" (bukan bagian kata/URL)
+        const m = /(?:^|[^\w/&#])(#\d{6,10})$/.exec(textBefore);
+        if (!m) return;
+
+        const refLen   = m[1].length;
+        const refStart = insertPos - refLen;
+
+        setTimeout(function () {
+            const fmt = quill.getFormat(refStart, refLen);
+            if (fmt.color === MENTION_COLORS[0] && fmt.bold) return; // sudah diformat
+            quill.formatText(refStart, refLen, { color: MENTION_COLORS[0], bold: true }, 'api');
+            // Spasi/enter pemisah jangan ikut berwarna
+            quill.formatText(refStart + refLen, sep.length, { color: false, bold: false }, 'api');
+        }, 0);
     }
 
     // ==================== @MENTION AUTOCOMPLETE ====================
@@ -4065,6 +4622,33 @@
         );
     }
 
+    // ── Ref nomor tiket "#NNNNNNNN" di internal note → hyperlink ────────────────
+    // Sinkron: dijalankan saat string HTML bubble dibangun (sama jalur & mekanisme
+    // dengan linkifyHtml untuk URL). "#26070128" → <a href="/ticket/ref/26070128">;
+    // di server route itu me-resolve ke tiket-nya lalu redirect, atau tampilkan
+    // halaman "tiket tidak ditemukan" bila nomornya tidak ada.
+    //
+    // Hanya text node yang disentuh (pecah di semua tag). "#" cocok bila di awal string
+    // ATAU tidak menempel huruf/angka/underscore (bagian kata/ID), "/" (fragment URL
+    // mis. .../#12345), atau "&"/"#" (entity HTML) — karakter pembatas itu (pre) di-emit
+    // ulang apa adanya. Spasi opsional setelah "#" ("tiket # 26070128") dinormalisasi
+    // jadi "#26070128" pada teks link.
+    function linkifyTicketRefsHtml(html) {
+        if (!html) return html;
+        return html.split(/(<[^>]*>)/g).map((part, i) => {
+            if (i % 2 === 1) return part; // tag utuh — jangan disentuh
+            return part.replace(
+                /(^|[^\w/&#])#[ \t]?(\d{6,10})(?!\d)/g,
+                (m, pre, num) => `${pre}<a href="/ticket/ref/${num}" target="_blank" rel="noopener noreferrer" style="${_linkStyle}" title="Buka tiket #${num}">#${num}</a>`
+            );
+        }).join('');
+    }
+
+    // Untuk internal note: ref tiket DULU (menghasilkan href relatif), baru URL absolut.
+    function linkifyNoteHtml(html) {
+        return linkifyHtml(linkifyTicketRefsHtml(html));
+    }
+
     // Ganti sisa referensi cid: yang tidak ter-replace backend dengan placeholder
     function sanitizeEmailHtml(html) {
         if (!html) return html;
@@ -4085,13 +4669,13 @@
         // Fall back to plain text with mention highlighting if no html
         if (msg.message_type === 'internal_note') {
             if (msg.message_html) {
-                return `<div class="message-content text-sm text-gray-700">${linkifyHtml(msg.message_html)}</div>`;
+                return `<div class="message-content text-sm text-gray-700">${linkifyNoteHtml(msg.message_html)}</div>`;
             }
             if (!msg.message_body) return '';
             const highlighted = msg.message_body.replace(/@([\w.]+(?:\s[\w.]+)*)/g, (match) =>
                 `<span class="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">${escHtml(match)}</span>`
             );
-            return `<div class="message-content text-sm text-gray-700">${linkifyText(highlighted)}</div>`;
+            return `<div class="message-content text-sm text-gray-700">${linkifyTicketRefsHtml(linkifyText(highlighted))}</div>`;
         }
 
         // Employee reply dengan message_html &rarr; render HTML + linkify URL plain text
@@ -4631,10 +5215,10 @@
     let selectedFiles = []; // File[] yang dipilih user untuk dikirim bersama reply
 
     document.getElementById('attachInput').addEventListener('change', function () {
-        const maxSize = 10 * 1024 * 1024; // 10 MB per file
+        const maxSize = 25 * 1024 * 1024; // 25 MB per file
         Array.from(this.files).forEach(file => {
             if (file.size > maxSize) {
-                showNotification(`${file.name} is too large (max 10 MB)`, 'error');
+                showNotification(`${file.name} is too large (max 25 MB)`, 'error');
                 return;
             }
             // Hindari duplikat berdasarkan nama + ukuran
@@ -5381,6 +5965,16 @@
                 <button type="button" onclick="removeMeetingRecipientTag('${field}',${i})" class="${closeCls} hover:text-red-500 transition-colors flex-shrink-0 leading-none ml-0.5">&times;</button>
             </span>`
         ).join('');
+        adjustMeetingModalWidth();
+    }
+
+    // Grow the modal sideways once the recipient list gets long, so the left
+    // column (schedule + notes) keeps its width instead of being squeezed.
+    function adjustMeetingModalWidth() {
+        const card = document.getElementById('meetingModalCard');
+        if (!card) return;
+        const total = meetingToEmails.length + meetingCcEmails.length;
+        card.classList.toggle('meeting-wide', total > 6);
     }
 
     function renderMeetingToTags() { renderMeetingRecipientTags('to'); }
@@ -5485,13 +6079,13 @@
 
         if (header)     { header.classList.add('bg-purple-50'); header.classList.remove('bg-red-50'); }
         if (iconWrap)   { iconWrap.classList.add('bg-purple-100', 'text-purple-600'); iconWrap.classList.remove('bg-red-100', 'text-red-600'); }
-        if (titleEl)    titleEl.textContent = 'Jadwalkan Meeting';
-        if (notesLbl)   notesLbl.textContent = 'Catatan (opsional)';
-        if (confirmBtn) { confirmBtn.textContent = 'Jadwalkan Meeting'; confirmBtn.className = confirmBtn.className.replace(/bg-\S+/g, ''); confirmBtn.classList.add('px-5', 'py-2', 'text-sm', 'font-semibold', 'text-white', 'rounded-xl', 'transition-all', 'bg-purple-500', 'hover:bg-purple-600'); }
+        if (titleEl)    titleEl.textContent = 'Schedule Meeting';
+        if (notesLbl)   notesLbl.textContent = 'Notes (optional)';
+        if (confirmBtn) { confirmBtn.textContent = 'Schedule Meeting'; confirmBtn.className = confirmBtn.className.replace(/bg-\S+/g, ''); confirmBtn.classList.add('px-5', 'py-2', 'text-sm', 'font-semibold', 'text-white', 'rounded-xl', 'transition-all', 'bg-purple-500', 'hover:bg-purple-600'); }
         if (linkWrap)   linkWrap.classList.remove('hidden');
         if (startRow)   startRow.classList.remove('hidden');
         if (linkSec)    linkSec.classList.remove('hidden');
-        if (timesLbl)   timesLbl.textContent = 'Waktu Meeting';
+        if (timesLbl)   timesLbl.textContent = 'Meeting Time';
 
         // Pre-fill: start = sekarang, end = +1 jam
         const pad = (n) => String(n).padStart(2, '0');
@@ -5537,14 +6131,14 @@
         // di dalam .custom-dd-item, taruh di attribute `title` (tooltip) saja.
         const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
         const renderItem = (t) => `
-            <div class="custom-dd-item w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer" data-value="${t.id}" title="${t.created_by_name ? 'Dibuat oleh ' + escapeHtml(t.created_by_name) : ''}">
+            <div class="custom-dd-item w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer" data-value="${t.id}" title="${t.created_by_name ? 'Created by ' + escapeHtml(t.created_by_name) : ''}">
                 <span class="truncate">${escapeHtml(t.name)}</span>
-                ${t.is_owner ? `<button type="button" onclick="event.stopPropagation(); deleteMeetingTemplate(${t.id})" class="text-gray-300 hover:text-red-500 flex-shrink-0 p-0.5" title="Hapus template">
+                ${t.is_owner ? `<button type="button" onclick="event.stopPropagation(); deleteMeetingTemplate(${t.id})" class="text-gray-300 hover:text-red-500 flex-shrink-0 p-0.5" title="Delete template">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>` : ''}
             </div>`;
 
-        let html = `<button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">Tidak pakai template (kosongkan)</button>`;
+        let html = `<button type="button" class="custom-dd-item w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">No template (clear)</button>`;
         html += _meetingTemplates.map(renderItem).join('');
         panel.innerHTML = html;
     }
@@ -5586,27 +6180,27 @@
             });
             const data = await res.json();
             if (data.success) {
-                showNotification('Template "' + name + '" tersimpan.', 'success');
+                showNotification('Template "' + name + '" saved.', 'success');
             } else {
-                showNotification(data.message || 'Gagal menyimpan template', 'error');
+                showNotification(data.message || 'Failed to save template', 'error');
             }
         } catch {
-            showNotification('Meeting terkirim, tapi template gagal disimpan (jaringan)', 'error');
+            showNotification('Meeting sent, but the template failed to save (network)', 'error');
         }
     }
 
     async function deleteMeetingTemplate(id) {
-        if (!await showConfirm('Hapus template ini?', 'Hapus Template', 'danger')) return;
+        if (!await showConfirm('Delete this template?', 'Delete Template', 'danger')) return;
         try {
             const res  = await fetch(`/api/tickets/${ticketId}/meeting-templates/${id}/delete`, { method: 'POST', headers: getHeaders(), credentials: 'same-origin' });
             const data = await res.json();
             if (data.success) {
                 loadMeetingTemplates();
             } else {
-                showNotification(data.message || 'Gagal menghapus template', 'error');
+                showNotification(data.message || 'Failed to delete template', 'error');
             }
         } catch {
-            showNotification('Terjadi kesalahan jaringan', 'error');
+            showNotification('A network error occurred', 'error');
         }
     }
 
@@ -5626,11 +6220,11 @@
         const endTime   = endDate   && endH   ? `${endDate}T${endH}`     : null;
 
         if (!startTime || !endTime) {
-            showNotification('Waktu mulai dan selesai meeting wajib diisi', 'error');
+            showNotification('Meeting start and end time are required', 'error');
             return;
         }
         if (new Date(endTime) <= new Date(startTime)) {
-            showNotification('Waktu selesai meeting harus lebih besar dari waktu mulai', 'error');
+            showNotification('Meeting end time must be after the start time', 'error');
             return;
         }
 
@@ -5639,7 +6233,7 @@
         commitMeetingRecipientInput('cc');
 
         if (!meetingToEmails.length && !meetingCcEmails.length) {
-            showNotification('Isi minimal satu penerima (To atau CC) sebelum mengirim undangan', 'error');
+            showNotification('Add at least one recipient (To or CC) before sending the invitation', 'error');
             return;
         }
 
@@ -5655,7 +6249,7 @@
         const fmt = (iso) => {
             if (!iso) return '-';
             const d = new Date(iso);
-            return isNaN(d) ? iso : d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+            return isNaN(d) ? iso : d.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
         };
 
         document.getElementById('confirmMeetingTo').textContent    = payload.to_emails.length ? payload.to_emails.join(', ') : '-';
@@ -5663,7 +6257,7 @@
         document.getElementById('confirmMeetingStart').textContent = fmt(payload.meeting_start_time);
         document.getElementById('confirmMeetingEnd').textContent   = fmt(payload.meeting_end_time);
         document.getElementById('confirmMeetingLink').textContent  = payload.meeting_link || '-';
-        document.getElementById('confirmMeetingNotes').textContent = payload.notes || '(tidak ada catatan)';
+        document.getElementById('confirmMeetingNotes').textContent = payload.notes || '(no notes)';
 
         document.getElementById('confirmMeetingModal').classList.remove('hidden');
     }
@@ -5682,7 +6276,7 @@
 
         const sendBtn = document.getElementById('confirmMeetingSendBtn');
         const btn     = document.getElementById('meetingConfirmBtn');
-        if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Mengirim…'; }
+        if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
 
         try {
             const res  = await fetch(`/api/tickets/${ticketId}/sla/meeting/start`, {
@@ -5700,12 +6294,12 @@
                 await saveMeetingTemplateIfRequested(payload.meeting_link, payload.notes);
                 try { await loadMessages(); } catch (_) {}
             } else {
-                showNotification(data.message || 'Gagal', 'error');
+                showNotification(data.message || 'Failed', 'error');
             }
         } catch {
-            showNotification('Terjadi kesalahan jaringan', 'error');
+            showNotification('A network error occurred', 'error');
         } finally {
-            if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Kirim Undangan'; }
+            if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send Invitation'; }
             if (btn)     { btn.disabled = false; }
             _pendingMeetingPayload = null;
         }
@@ -5819,10 +6413,10 @@
                 headers: { ...getHeaders(), 'Content-Type': 'application/json' },
                 credentials: 'same-origin',
                 body: JSON.stringify({
-                    name:      document.getElementById('additionalInfoName').value.trim()   || null,
-                    no_hp:     document.getElementById('additionalInfoNoHp').value.trim()   || null,
-                    module_id: document.getElementById('additionalInfoModuleId').value || null,
-                    client:    document.getElementById('additionalInfoClient').value.trim() || null,
+                    name:       document.getElementById('additionalInfoName').value.trim()   || null,
+                    no_hp:      document.getElementById('additionalInfoNoHp').value.trim()   || null,
+                    module_ids: (document.getElementById('additionalInfoModuleIds').value || '').split(',').filter(Boolean).map(Number),
+                    client:     document.getElementById('additionalInfoClient').value.trim() || null,
                 }),
             });
             const json = await res.json();
@@ -7965,6 +8559,9 @@
             editNoteQuill.on('text-change', function (delta, oldDelta, source) {
                 if (source === 'user') clearMentionFormatIfNeeded(editNoteQuill);
             });
+            editNoteQuill.on('text-change', function (delta, oldDelta, source) {
+                autoFormatTicketRef(editNoteQuill, delta, source);
+            });
         }
 
         // Pre-fill content
@@ -8636,10 +9233,7 @@ async function _loadLogShiftingData() {
             <div>
                 <label class="text-xs font-semibold text-gray-600 mb-1 block">Doc Type <span class="text-red-500">*</span></label>
                 <select id="ndDocType" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 focus:outline-none">
-                    <option value="">-- Select --</option>
-                    @foreach(['IR','RCA','CR Form','FSD','TD','UAT','MOM','BAST','EWA','Other'] as $dt)
-                    <option value="{{ $dt }}">{{ $dt }}</option>
-                    @endforeach
+                    <option value="" selected disabled hidden>Select Type</option>
                 </select>
             </div>
             {{-- Body Text --}}
@@ -8766,10 +9360,13 @@ const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
 let deliverableData = [];
 
-const DOC_TYPE_ROWS = ['IR', 'RCA', 'CR Form', 'FSD', 'TD', 'UAT', 'MOM', 'BAST', 'EWA', 'Other'];
+// Doc Type dropdown dimuat dari master data (menu Management > Master Ticket
+// Settings > Document Type), bukan hardcode lagi — lihat DeliverableDocumentTypeController.
+let deliverableDocTypes       = [];
+let deliverableDocTypesLoaded = false;
 
-// Batas ukuran file deliverable (sinkron dengan validasi server: 20 MB).
-const DELIV_MAX_FILE_BYTES = 20 * 1024 * 1024;
+// Batas ukuran file deliverable (sinkron dengan validasi server: 100 MB).
+const DELIV_MAX_FILE_BYTES = 100 * 1024 * 1024;
 
 // Parse response API secara aman. Jika server membalas HTML (mis. halaman error
 // 413/419/500 dari nginx/PHP saat file melebihi batas upload), `res.json()` akan
@@ -9060,6 +9657,26 @@ function escHtmlD(s) {
 }
 
 // â"€â"€ New Document modal â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Dimuat sekali lalu dicache — daftar tipe dokumen jarang berubah, jadi tidak
+// perlu fetch ulang tiap kali modal dibuka.
+async function loadDeliverableDocTypes() {
+    if (deliverableDocTypesLoaded) return;
+    const select = document.getElementById('ndDocType');
+    try {
+        const res  = await fetch('/api/deliverable-document-types?is_active=1', { credentials: 'same-origin' });
+        const json = await res.json();
+        deliverableDocTypes = json.success ? (json.data || []) : [];
+    } catch (e) {
+        deliverableDocTypes = [];
+    }
+    deliverableDocTypesLoaded = true;
+
+    // Placeholder tetap "selected disabled hidden" — hanya tampil sebagai label
+    // default, tidak bisa dipilih ulang dari daftar begitu tipe asli ada.
+    select.innerHTML = '<option value="" selected disabled hidden>Select Type</option>'
+        + deliverableDocTypes.map(t => `<option value="${escHtmlD(t.name)}">${escHtmlD(t.name)}</option>`).join('');
+}
+
 function openNewDocModal() {
     document.getElementById('ndDocType').value = '';
     document.getElementById('ndBodyText').value = '';
@@ -9068,6 +9685,7 @@ function openNewDocModal() {
     document.getElementById('ndError').classList.add('hidden');
     document.getElementById('ndSubmitBtn').disabled = false;
     document.getElementById('newDocModal').classList.remove('hidden');
+    loadDeliverableDocTypes();
 }
 
 function closeNewDocModal() {
@@ -9077,6 +9695,45 @@ function closeNewDocModal() {
 function updateFileName() {
     const f = document.getElementById('ndFile').files[0];
     document.getElementById('ndFileName').textContent = f ? f.name : 'Choose file...';
+}
+
+// Upload file langsung ke Graph dalam potongan (chunked), bypass server Laravel
+// sepenuhnya untuk byte file-nya — lihat createUploadSession() di
+// TicketDeliverableController untuk alasannya (batas post_max_size PHP & 4 MB
+// simple-PUT Graph).
+async function _deliverableUploadChunked(uploadUrl, file, onProgress) {
+    const CHUNK = 5 * 1024 * 1024; // 5 MB per chunk
+    let start  = 0;
+    let itemId = null;
+
+    while (start < file.size) {
+        const end   = Math.min(start + CHUNK, file.size);
+        const chunk = file.slice(start, end);
+
+        const res = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Range': `bytes ${start}-${end - 1}/${file.size}`,
+                'Content-Type': file.type || 'application/octet-stream',
+            },
+            body: chunk,
+        });
+
+        if (res.status === 202) {
+            onProgress(Math.round(end / file.size * 95));
+        } else if (res.status === 200 || res.status === 201) {
+            const data = await res.json();
+            itemId = data.id;
+            onProgress(100);
+        } else {
+            const errText = await res.text();
+            throw new Error(`OneDrive upload failed (${res.status}): ${errText}`);
+        }
+
+        start = end;
+    }
+
+    return itemId;
 }
 
 async function submitNewDoc() {
@@ -9093,7 +9750,7 @@ async function submitNewDoc() {
     // dengan halaman error HTML dari server (penyebab "Unexpected token '<'").
     if (file && file.size > DELIV_MAX_FILE_BYTES) {
         const mb = (file.size / 1024 / 1024).toFixed(1);
-        errEl.textContent = `File terlalu besar (${mb} MB). Maksimal 20 MB.`;
+        errEl.textContent = `File terlalu besar (${mb} MB). Maksimal 100 MB.`;
         errEl.classList.remove('hidden');
         return;
     }
@@ -9103,16 +9760,41 @@ async function submitNewDoc() {
     submitBtn.textContent = 'Saving…';
 
     try {
-        const form = new FormData();
-        form.append('doc_type',  docType);
-        if (bodyText) form.append('body_text', bodyText);
-        if (file)     form.append('file', file);
+        let onedriveItemId = null;
+
+        if (file) {
+            // Step 1: minta upload session (tidak membawa byte file — request kecil).
+            submitBtn.textContent = 'Preparing upload…';
+            const sessionRes  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/upload-session`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ file_name: file.name }),
+            });
+            const sessionJson = await delivParseJson(sessionRes);
+            if (!sessionJson.success) throw new Error(sessionJson.message);
+
+            // Step 2: upload file langsung ke OneDrive (chunked).
+            onedriveItemId = await _deliverableUploadChunked(sessionJson.upload_url, file, pct => {
+                submitBtn.textContent = `Uploading… ${pct}%`;
+            });
+            if (!onedriveItemId) throw new Error('Upload completed but no item ID returned.');
+        }
+
+        // Step 3: simpan metadata dokumen (server buat share link kalau ada file).
+        submitBtn.textContent = 'Saving…';
+        const body = { doc_type: docType };
+        if (bodyText) body.body_text = bodyText;
+        if (onedriveItemId) {
+            body.onedrive_item_id = onedriveItemId;
+            body.file_name        = file.name;
+        }
 
         const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
             method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
             credentials: 'same-origin',
-            body: form,
+            body: JSON.stringify(body),
         });
         const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
@@ -9277,9 +9959,9 @@ function showDelivError(msg) {
 document.getElementById('deliverableModal').addEventListener('click', function(e) {
     if (e.target === this) closeDeliverableModal();
 });
-document.getElementById('newDocModal').addEventListener('click', function(e) {
-    if (e.target === this) closeNewDocModal();
-});
+// Intentionally no backdrop-click-to-close on #newDocModal — it should only
+// be dismissed via its own close controls (X / Cancel), never by an
+// accidental click outside while filling the "New Document" form.
 
 // Load badge on page load
 (async () => {

@@ -92,6 +92,26 @@ class TicketViewController extends Controller
     }
 
     /**
+     * Buka tiket berdasarkan NOMOR tiket (mis. "26070128"), lalu redirect ke
+     * halaman tiket (yang memakai id). Dipakai hyperlink "#NNNNNNNN" di internal note.
+     */
+    public function showByNumber($number)
+    {
+        if (!$this->getUserObject()) {
+            return redirect()->route('login');
+        }
+
+        $number = ltrim(trim((string) $number), '#');
+        $ticket = Ticket::where('ticket_number', $number)->first();
+
+        if (!$ticket) {
+            abort(404, "Tiket #{$number} tidak ditemukan.");
+        }
+
+        return redirect()->route('ticket.show', $ticket->ticket_id);
+    }
+
+    /**
      * Display single ticket detail view
      */
     public function show($id)
@@ -181,7 +201,7 @@ class TicketViewController extends Controller
             // Get employees eligible for the member dropdown (role-based, configurable via
             // Management > Permissions — see ticket.eligible-ticket-member)
             $employees = Employee::withMenuPermission('ticket.eligible-ticket-member')
-                ->where('is_active', 1)
+                ->eligibleForTicketTeam()
                 ->with('basicData:employee_id,first_name,last_name')
                 ->get()
                 ->map(fn ($e) => [

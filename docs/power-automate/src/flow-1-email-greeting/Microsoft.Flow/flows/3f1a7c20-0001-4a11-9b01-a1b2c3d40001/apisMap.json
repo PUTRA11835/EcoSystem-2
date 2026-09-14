@@ -1,0 +1,8 @@
+{
+    "shared_office365": {
+        "apiName": "shared_office365",
+        "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
+        "displayName": "Office 365 Outlook",
+        "tier": "Standard"
+    }
+}

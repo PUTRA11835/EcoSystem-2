@@ -1,0 +1,91 @@
+{
+    "type": "object",
+    "properties": {
+        "event": {
+            "type": "string"
+        },
+        "sent_at": {
+            "type": "string"
+        },
+        "source": {
+            "type": "string"
+        },
+        "staging": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "subject": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "status": {
+                    "type": "string"
+                },
+                "channel": {
+                    "type": "string"
+                },
+                "customer": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "customer_id": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "sender_name": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "sender_email": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "cc_emails": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "graph_message_id": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "internet_message_id": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "conversation_id": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "has_attachments": {
+                    "type": "boolean"
+                },
+                "received_at": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            }
+        }
+    }
+}

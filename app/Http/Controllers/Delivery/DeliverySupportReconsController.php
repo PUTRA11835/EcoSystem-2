@@ -295,11 +295,19 @@ class DeliverySupportReconsController extends Controller
             return $e->toResponse();
         }
 
+        $message = $validated['action'] === 'submit'
+            ? 'Recons submitted successfully.'
+            : 'Recons draft saved successfully.';
+
+        // Form selalu berpindah ke halaman detail (window.location.href) setelah
+        // simpan, jadi toast-nya dititipkan lewat flash session — mekanisme yang
+        // sama dipakai DeliverySupportController::store(). Toast dirender di
+        // halaman tujuan oleh blok session('success') di dashboard.blade.php.
+        session()->flash('success', $message);
+
         return response()->json([
             'success'     => true,
-            'message'     => $validated['action'] === 'submit'
-                ? 'Recons submitted successfully.'
-                : 'Recons draft saved successfully.',
+            'message'     => $message,
             'recons_id'   => $recons->id,
             'redirect_url' => route('delivery.support.recons.show', [$support->id, $recons->id]),
         ], 201);
@@ -351,11 +359,17 @@ class DeliverySupportReconsController extends Controller
             return $e->toResponse();
         }
 
+        $message = $validated['action'] === 'submit'
+            ? 'Recons submitted successfully.'
+            : 'Recons draft saved successfully.';
+
+        // Lihat catatan di store(): toast dititipkan lewat flash session karena
+        // form berpindah ke halaman detail setelah simpan.
+        session()->flash('success', $message);
+
         return response()->json([
             'success'      => true,
-            'message'      => $validated['action'] === 'submit'
-                ? 'Recons submitted successfully.'
-                : 'Recons draft saved successfully.',
+            'message'      => $message,
             'recons_id'    => $recons->id,
             'redirect_url' => route('delivery.support.recons.show', [$support->id, $recons->id]),
         ]);
@@ -365,7 +379,7 @@ class DeliverySupportReconsController extends Controller
      * POST /delivery/support/{support}/recons/{recons}/submit — kunci batch.
      * Dipakai dari halaman detail (tanpa mengubah header/daftar tiket).
      */
-    public function submit(DeliverySupport $support, DeliverySupportRecons $recons)
+    public function submit(Request $request, DeliverySupport $support, DeliverySupportRecons $recons)
     {
         if ($response = $this->guardBelongsToJson($support, $recons)) {
             return $response;
@@ -385,7 +399,15 @@ class DeliverySupportReconsController extends Controller
             'submitted_at'    => now(),
         ]);
 
-        return response()->json(['success' => true, 'message' => 'Recons submitted successfully.']);
+        // Halaman detail me-reload dirinya sendiri setelah submit → titipkan toast
+        // lewat flash. Pemanggil yang menyegarkan tampilan tanpa reload (mis. tab
+        // Recons List) tidak mengirim `redirect` sehingga tetap memakai toast JS.
+        $message = 'Recons submitted successfully.';
+        if ($request->boolean('redirect')) {
+            session()->flash('success', $message);
+        }
+
+        return response()->json(['success' => true, 'message' => $message]);
     }
 
     /**
@@ -396,7 +418,7 @@ class DeliverySupportReconsController extends Controller
      * (tidak bisa dipilih Recons lain) selama masih tercatat di batch ini —
      * baik saat draft maupun submitted.
      */
-    public function cancel(DeliverySupport $support, DeliverySupportRecons $recons)
+    public function cancel(Request $request, DeliverySupport $support, DeliverySupportRecons $recons)
     {
         if ($response = $this->guardBelongsToJson($support, $recons)) {
             return $response;
@@ -415,9 +437,16 @@ class DeliverySupportReconsController extends Controller
             'submitted_at'    => null,
         ]);
 
+        // Lihat catatan di submit(): halaman detail me-reload → titipkan toast
+        // lewat flash; tab Recons List menyegarkan tanpa reload → tidak dikirim.
+        $message = 'Recons has been reverted to draft.';
+        if ($request->boolean('redirect')) {
+            session()->flash('success', $message);
+        }
+
         return response()->json([
             'success' => true,
-            'message' => 'Recons has been reverted to draft.',
+            'message' => $message,
         ]);
     }
 

@@ -30,7 +30,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
         });
     </script>
     @endif
-    
+
     {{-- Basic Project Information --}}
     <div class="bg-white overflow-hidden shadow-md sm:rounded-lg mb-6">
         <div class="p-6 border-b border-gray-200">
@@ -88,14 +88,14 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
             <div>
                 <label class="block font-medium text-sm text-gray-700">Project Type <span class="text-red-500">*</span></label>
                 <div class="custom-dd relative mt-1" data-fixed="true" data-onchange="refreshIoOptions">
-                    @php $oldPt = old('project_type', 'Implementation'); @endphp
+                    @php $oldPt = old('project_type'); @endphp
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-700">{{ $oldPt }}</span>
+                        <span class="custom-dd-label {{ $oldPt ? 'text-gray-700' : 'text-gray-500' }}">{{ $oldPt ?: 'Select Type' }}</span>
                         <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
                     <input type="hidden" name="project_type" id="project_type" value="{{ $oldPt }}" required>
                     <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:240px;">
-                        @foreach(['Implementation','Roll Out','Migration','Upgrade','WRICEF','Body Hire'] as $pt)
+                        @foreach($projectTypes as $pt)
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pt }}">{{ $pt }}</button>
                         @endforeach
                     </div>
@@ -408,22 +408,22 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                             </div>
                         </div>
                     </div>
-                    
+
                     <div>
                         <label for="warranty_period" class="block text-sm font-medium text-gray-700 mb-1">
                             Warranty Period (Weeks)
                         </label>
-                        <input type="number" name="warranty_period" id="warranty_period" 
+                        <input type="number" name="warranty_period" id="warranty_period"
                                value="{{ old('warranty_period') }}"
                                min="0"
                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                     </div>
-                    
+
                     <div>
                         <label for="total_mandays" class="block text-sm font-medium text-gray-700 mb-1">
                             Total Mandays
                         </label>
-                        <input type="number" name="total_mandays" id="total_mandays" 
+                        <input type="number" name="total_mandays" id="total_mandays"
                                value="{{ old('total_mandays') }}"
                                min="0"
                                class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
@@ -485,11 +485,11 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                     <label for="location_name" class="block text-sm font-medium text-gray-700 mb-1">
                         Location Name
                     </label>
-                    <input type="text" name="location_name" id="location_name" 
+                    <input type="text" name="location_name" id="location_name"
                            value="{{ old('location_name') }}"
                            class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm primary-focus text-sm px-4 py-2.5">
                 </div>
-                
+
                 <div>
                     <label for="location_type" class="block text-sm font-medium text-gray-700 mb-1">
                         Type of Address
@@ -508,17 +508,17 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         </div>
                     </div>
                 </div>
-                
+
                 <div>
                     <label for="location_country" class="block text-sm font-medium text-gray-700 mb-1">
                         Country
                     </label>
-                    <input type="text" name="location_country" id="location_country" 
+                    <input type="text" name="location_country" id="location_country"
                            value="Indonesia"
                            readonly
                            class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm bg-gray-50 text-sm px-4 py-2.5">
                 </div>
-                
+
                 <div>
                     <label for="location_geographical" class="block text-sm font-medium text-gray-700 mb-1">
                         Geographical
@@ -538,7 +538,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         </div>
                     </div>
                 </div>
-                
+
                 <div>
                     <label for="location_region" class="block text-sm font-medium text-gray-700 mb-1">
                         Region / Province
@@ -555,7 +555,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         <option value="">-- Select Region --</option>
                     </select>
                 </div>
-                
+
                 <div>
                     <label for="location_city" class="block text-sm font-medium text-gray-700 mb-1">
                         City
@@ -567,7 +567,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                         <option value="">-- Select City --</option>
                     </select>
                 </div>
-                
+
                 <div class="md:col-span-2 lg:col-span-3">
                     <label for="location_street" class="block text-sm font-medium text-gray-700 mb-1">
                         Street Address
@@ -582,7 +582,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
     {{-- Submit Buttons --}}
     <div class="bg-white overflow-hidden shadow-md sm:rounded-lg">
         <div class="p-6 bg-gray-50 text-right">
-            <a href="{{ route('projects.index') }}" 
+            <a href="{{ route('projects.index') }}"
                class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 mr-3">
                 <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -796,11 +796,11 @@ const indonesiaCities = {
 
     'Banten' : [ 'Serang', 'Tangerang', 'Tangerang Selatan', 'Cilegon', 'Pandeglang', 'Lebak'],
 
-    'Jawa Barat': ['Bandung', 'Bekasi', 'Bogor', 'Cirebon', 'Depok', 'Sukabumi', 'Tasikmalaya','Banjar', 'Cimahi', 'Garut', 'Indramayu', 'Karawang', 
+    'Jawa Barat': ['Bandung', 'Bekasi', 'Bogor', 'Cirebon', 'Depok', 'Sukabumi', 'Tasikmalaya','Banjar', 'Cimahi', 'Garut', 'Indramayu', 'Karawang',
                     'Kuningan', 'Majalengka', 'Purwakarta', 'Subang', 'Sumedang', 'Ciamis', 'Cianjur', 'Pangandaran'],
 
-    'Jawa Tengah': ['Semarang', 'Solo', 'Magelang', 'Salatiga', 'Pekalongan', 'Tegal', 'Banyumas', 'Cilacap', 'Purbalingga', 'Banjarnegara', 'Kebumen', 
-                    'Purworejo', 'Wonosobo', 'Klaten', 'Boyolali', 'Sukoharjo', 'Wonogiri', 'Karanganyar', 'Sragen', 'Grobogan', 'Blora', 'Rembang', 
+    'Jawa Tengah': ['Semarang', 'Solo', 'Magelang', 'Salatiga', 'Pekalongan', 'Tegal', 'Banyumas', 'Cilacap', 'Purbalingga', 'Banjarnegara', 'Kebumen',
+                    'Purworejo', 'Wonosobo', 'Klaten', 'Boyolali', 'Sukoharjo', 'Wonogiri', 'Karanganyar', 'Sragen', 'Grobogan', 'Blora', 'Rembang',
                     'Pati', 'Kudus', 'Jepara', 'Demak', 'Kendal', 'Temanggung', 'Batang', 'Pemalang', 'Brebes'],
 
     'Jawa Timur': ['Surabaya', 'Malang', 'Sidoarjo', 'Gresik', 'Mojokerto', 'Kediri', 'Jember', 'Batu', 'Blitar', 'Madiun', 'Pasuruan', 'Probolinggo',
@@ -811,75 +811,75 @@ const indonesiaCities = {
 
     'Aceh' : [ 'Banda Aceh', 'Sabang', 'Langsa', 'Lhokseumawe', 'Subulussalam', 'Aceh Besar', 'Aceh Jaya', 'Aceh Selatan', 'Aceh Singkil', 'Aceh Tengah',
                 'Aceh Tenggara', 'Aceh Timur', 'Aceh Utara', 'Bener Meriah', 'Bireuen', 'Gayo Lues', 'Nagan Raya', 'Pidie', 'Pidie Jaya', 'Simeulue'],
-    
+
     'Sumatera Utara' : ['Medan', 'Binjai', 'Pematangsiantar', 'Tanjungbalai', 'Tebing Tinggi', 'Padang Sidempuan', 'Gunungsitoli', 'Sibolga',
                         'Asahan', 'Batubara', 'Dairi', 'Deli Serdang', 'Humbang Hasundutan', 'Karo', 'Labuhanbatu', 'Labuhanbatu Selatan', 'Labuhanbatu Utara',
                         'Langkat', 'Mandailing Natal', 'Nias', 'Nias Barat', 'Nias Selatan', 'Nias Utara', 'Padang Lawas', 'Padang Lawas Utara', 'Pakpak Bharat',
                         'Samosir', 'Serdang Bedagai', 'Simalungun', 'Tapanuli Selatan', 'Tapanuli Tengah', 'Tapanuli Utara', 'Toba Samosir'],
-    
+
     'Sumatera Barat' : ['Padang', 'Bukittinggi', 'Padang Panjang', 'Pariaman', 'Payakumbuh', 'Sawahlunto', 'Solok', 'Agam', 'Dharmasraya', 'Kepulauan Mentawai', 'Lima Puluh Kota',
                         'Padang Pariaman', 'Pasaman', 'Pasaman Barat', 'Pesisir Selatan', 'Sijunjung', 'Solok Selatan', 'Tanah Datar'],
-    
+
     'Riau' : ['Pekanbaru', 'Dumai', 'Bengkalis', 'Indragiri Hilir', 'Indragiri Hulu', 'Kampar', 'Kepulauan Meranti', 'Kuantan Singingi', 'Pelalawan', 'Rokan Hilir',
                 'Rokan Hulu', 'Siak'],
-    
+
     'Kepulauan Riau' : ['Batam', 'Tanjung Pinang', 'Bintan', 'Karimun', 'Kepulauan Anambas', 'Lingga', 'Natuna'],
-    
+
     'Jambi': ['Jambi', 'Sungai Penuh', 'Batang Hari', 'Bungo', 'Kerinci', 'Merangin', 'Muaro Jambi', 'Sarolangun', 'Tanjung Jabung Barat', 'Tanjung Jabung Timur', 'Tebo'],
-    
+
     'Sumatera Selatan' : ['Palembang', 'Lubuklinggau', 'Pagar Alam', 'Prabumulih', 'Banyuasin', 'Empat Lawang', 'Lahat', 'Muara Enim', 'Musi Banyuasin',
                             'Musi Rawas', 'Musi Rawas Utara', 'Ogan Ilir', 'Ogan Komering Ilir', 'Ogan Komering Ulu', 'Ogan Komering Ulu Selatan', 'Ogan Komering Ulu Timur',
                             'Penukal Abab Lematang Ilir'],
-    
+
     'Bengkulu': ['Bengkulu', 'Bengkulu Selatan', 'Bengkulu Tengah', 'Bengkulu Utara', 'Kaur', 'Kepahiang', 'Lebong', 'Mukomuko', 'Rejang Lebong', 'Seluma'],
-    
+
     'Lampung' :['Bandar Lampung', 'Metro', 'Lampung Barat', 'Lampung Selatan', 'Lampung Tengah', 'Lampung Timur', 'Lampung Utara', 'Mesuji', 'Pesawaran', 'Pesisir Barat', 'Pringsewu',
                 'Tanggamus', 'Tulang Bawang', 'Tulang Bawang Barat', 'Way Kanan'],
-    
+
     'Kepulauan Bangka Belitung': ['Pangkal Pinang', 'Bangka', 'Bangka Barat', 'Bangka Selatan', 'Bangka Tengah', 'Belitung', 'Belitung Timur'],
-    
+
     'Bali' : ['Denpasar','Badung', 'Bangli', 'Buleleng', 'Gianyar', 'Jembrana', 'Karangasem', 'Klungkung', 'Tabanan'],
-    
+
     'Nusa Tenggara Barat': ['Mataram', 'Bima', 'Dompu', 'Lombok Barat', 'Lombok Tengah', 'Lombok Timur', 'Lombok Utara', 'Sumbawa', 'Sumbawa Barat'],
-    
+
     'Nusa Tenggara Timur' : ['Kupang', 'Alor', 'Belu', 'Ende', 'Flores Timur', 'Kupang', 'Lembata', 'Manggarai', 'Manggarai Barat', 'Manggarai Timur', 'Nagekeo', 'Ngada',
                                 'Rote Ndao', 'Sabu Raijua', 'Sikka', 'Sumba Barat', 'Sumba Barat Daya', 'Sumba Tengah', 'Sumba Timur', 'Timor Tengah Selatan', 'Timor Tengah Utara'],
-    
-    'Kalimantan Barat': ['Pontianak', 'Singkawang', 'Bengkayang', 'Kapuas Hulu', 'Kayong Utara', 'Ketapang', 'Kubu Raya', 
+
+    'Kalimantan Barat': ['Pontianak', 'Singkawang', 'Bengkayang', 'Kapuas Hulu', 'Kayong Utara', 'Ketapang', 'Kubu Raya',
                             'Landak', 'Melawi', 'Mempawah', 'Sambas', 'Sanggau', 'Sekadau', 'Sintang'],
-    
+
     'Kalimantan Tengah' :['Palangka Raya', 'Barito Selatan', 'Barito Timur', 'Barito Utara', 'Gunung Mas', 'Kapuas', 'Katingan', 'Kotawaringin Barat', 'Kotawaringin Timur',
                             'Lamandau', 'Murung Raya', 'Pulang Pisau', 'Seruyan', 'Sukamara'],
-    
+
     'Kalimantan Selatan': ['Banjarmasin', 'Banjarbaru', 'Balangan', 'Banjar', 'Barito Kuala', 'Hulu Sungai Selatan', 'Hulu Sungai Tengah', 'Hulu Sungai Utara', 'Kotabaru', 'Tabalong',
                             'Tanah Bumbu', 'Tanah Laut', 'Tapin'],
-    
+
     'Kalimantan Timur' : ['Balikpapan', 'Bontang', 'Samarinda', 'Berau', 'Kutai Barat', 'Kutai Kartanegara', 'Kutai Timur', 'Mahakam Ulu', 'Paser', 'Penajam Paser Utara'],
-    
+
     'Kalimantan Utara' :['Tarakan', 'Bulungan', 'Malinau', 'Nunukan', 'Tana Tidung'],
-    
-    'Sulawesi Utara' : ['Manado', 'Bitung', 'Kotamobagu', 'Tomohon', 'Bolaang Mongondow', 'Bolaang Mongondow Selatan', 'Bolaang Mongondow Timur', 'Bolaang Mongondow Utara', 
+
+    'Sulawesi Utara' : ['Manado', 'Bitung', 'Kotamobagu', 'Tomohon', 'Bolaang Mongondow', 'Bolaang Mongondow Selatan', 'Bolaang Mongondow Timur', 'Bolaang Mongondow Utara',
                         'Kepulauan Sangihe', 'Kepulauan Siau Tagulandang Biaro', 'Kepulauan Talaud', 'Minahasa', 'Minahasa Selatan', 'Minahasa Tenggara', 'Minahasa Utara'],
-    
+
     'Sulawesi Tengah' : ['Palu', 'Banggai', 'Banggai Kepulauan', 'Banggai Laut', 'Buol', 'Donggala', 'Morowali', 'Morowali Utara', 'Parigi Moutong', 'Poso', 'Sigi',
                             'Tojo Una-Una', 'Toli-Toli'],
-    
-    'Sulawesi Selatan' : ['Makassar', 'Palopo', 'Parepare', 'Bantaeng', 'Barru', 'Bone', 'Bulukumba', 'Enrekang', 'Gowa', 'Jeneponto', 'Kepulauan Selayar', 'Luwu', 
-                            'Luwu Timur', 'Luwu Utara', 'Maros', 'Pangkajene dan Kepulauan', 'Pinrang', 'Sidenreng Rappang', 'Sinjai', 'Soppeng', 'Takalar', 'Tana Toraja', 
+
+    'Sulawesi Selatan' : ['Makassar', 'Palopo', 'Parepare', 'Bantaeng', 'Barru', 'Bone', 'Bulukumba', 'Enrekang', 'Gowa', 'Jeneponto', 'Kepulauan Selayar', 'Luwu',
+                            'Luwu Timur', 'Luwu Utara', 'Maros', 'Pangkajene dan Kepulauan', 'Pinrang', 'Sidenreng Rappang', 'Sinjai', 'Soppeng', 'Takalar', 'Tana Toraja',
                             'Toraja Utara', 'Wajo'],
-    
-    'Sulawesi Tenggara' : ['Kendari', 'Baubau', 'Bombana', 'Buton', 'Buton Selatan', 'Buton Tengah', 'Buton Utara', 'Kolaka', 'Kolaka Timur', 'Kolaka Utara', 'Konawe', 
+
+    'Sulawesi Tenggara' : ['Kendari', 'Baubau', 'Bombana', 'Buton', 'Buton Selatan', 'Buton Tengah', 'Buton Utara', 'Kolaka', 'Kolaka Timur', 'Kolaka Utara', 'Konawe',
                             'Konawe Kepulauan', 'Konawe Selatan', 'Konawe Utara', 'Muna', 'Muna Barat', 'Wakatobi'],
-    
+
     'Gorontalo' : ['Gorontalo', 'Boalemo', 'Bone Bolango', 'Gorontalo', 'Gorontalo Utara', 'Pohuwato'],
-    
+
     'Sulawesi Barat' : ['Mamuju', 'Majene', 'Mamasa', 'Mamuju', 'Mamuju Tengah', 'Mamuju Utara', 'Polewali Mandar'],
-    
-    'Maluku' : ['Ambon', 'Tual', 'Buru', 'Buru Selatan', 'Kepulauan Aru', 'Maluku Barat Daya', 'Maluku Tengah', 'Maluku Tenggara', 'Maluku Tenggara Barat', 
+
+    'Maluku' : ['Ambon', 'Tual', 'Buru', 'Buru Selatan', 'Kepulauan Aru', 'Maluku Barat Daya', 'Maluku Tengah', 'Maluku Tenggara', 'Maluku Tenggara Barat',
                 'Seram Bagian Barat', 'Seram Bagian Timur'],
-    
-    'Maluku Utara' : ['Ternate', 'Tidore Kepulauan', 'Halmahera Barat', 'Halmahera Selatan', 'Halmahera Tengah', 'Halmahera Timur', 'Halmahera Utara', 'Kepulauan Sula', 
-                        'Pulau Morotai', 'Pulau Taliabu'], 
+
+    'Maluku Utara' : ['Ternate', 'Tidore Kepulauan', 'Halmahera Barat', 'Halmahera Selatan', 'Halmahera Tengah', 'Halmahera Timur', 'Halmahera Utara', 'Kepulauan Sula',
+                        'Pulau Morotai', 'Pulau Taliabu'],
 
     'Papua' : ['Jayapura', 'Biak Numfor', 'Jayapura', 'Keerom', 'Kepulauan Yapen', 'Mamberamo Raya', 'Sarmi', 'Supiori', 'Waropen'],
 
@@ -959,10 +959,10 @@ function updateRegions() {
     const regionSelect = document.getElementById('location_region');
     const selectedGeo = geoSelect.value;
     const oldRegion = '{{ old('location_region') }}';
-    
+
     regionSelect.innerHTML = '<option value="">-- Select Region --</option>';
     document.getElementById('location_city').innerHTML = '<option value="">-- Select City --</option>';
-    
+
     if (selectedGeo && indonesiaRegions[selectedGeo]) {
         indonesiaRegions[selectedGeo].forEach(region => {
             const option = document.createElement('option');
@@ -973,7 +973,7 @@ function updateRegions() {
             }
             regionSelect.appendChild(option);
         });
-        
+
         // If there's an old region value, update cities too
         if (oldRegion && indonesiaRegions[selectedGeo].includes(oldRegion)) {
             updateCities();
@@ -987,9 +987,9 @@ function updateCities() {
     const citySelect = document.getElementById('location_city');
     const selectedRegion = regionSelect.value;
     const oldCity = '{{ old('location_city') }}';
-    
+
     citySelect.innerHTML = '<option value="">-- Select City --</option>';
-    
+
     if (selectedRegion && indonesiaCities[selectedRegion]) {
         indonesiaCities[selectedRegion].forEach(city => {
             const option = document.createElement('option');

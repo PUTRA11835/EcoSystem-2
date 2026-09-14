@@ -55,7 +55,9 @@ return [
         // Ephemeral storage for in-flight conversation state of both AI pages
         // (AI Assistant and AI Research — keys are namespaced per assistant).
         // Isolated from the shared 'file' store so it can be inspected/cleared
-        // independently. No conversation content is ever persisted to the database.
+        // independently. This is working memory only (attachment bytes included,
+        // sliding TTL) — a separate, longer-lived text-only archive of both
+        // assistants also lives in the ai_conversations/ai_messages DB tables.
         'ai_chat' => [
             'driver' => 'file',
             'path' => storage_path('framework/cache/ai-chat'),

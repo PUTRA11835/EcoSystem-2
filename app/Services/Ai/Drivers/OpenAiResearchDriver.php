@@ -46,7 +46,12 @@ class OpenAiResearchDriver implements ResearchDriver
             // janji yang sama berlaku di sisi OpenAI.
             'store' => false,
             'tools' => [
-                ['type' => 'web_search'],
+                // search_context_size ditulis eksplisit ('medium' = default
+                // OpenAI kalau tidak diisi, jadi TIDAK mengubah perilaku) —
+                // supaya trade-off ini terlihat & gampang di-tuning di satu
+                // tempat kalau nanti dibutuhkan: 'low' lebih cepat/murah tapi
+                // konten per hasil pencarian lebih sedikit, 'high' sebaliknya.
+                ['type' => 'web_search', 'search_context_size' => 'medium'],
             ],
         ];
 

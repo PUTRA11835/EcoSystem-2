@@ -1,0 +1,61 @@
+{
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.4",
+    "body": [
+        {
+            "type": "TextBlock",
+            "text": "#@{triggerBody()?['ticket']?['number']} - @{triggerBody()?['ticket']?['subject']}",
+            "weight": "Bolder",
+            "size": "Large",
+            "wrap": true
+        },
+        {
+            "type": "TextBlock",
+            "text": "Tiket baru divalidasi - balas di thread ini untuk membahasnya.",
+            "wrap": true,
+            "spacing": "None",
+            "isSubtle": true
+        },
+        {
+            "type": "FactSet",
+            "facts": [
+                {
+                    "title": "Customer",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['customer'], '-')}"
+                },
+                {
+                    "title": "Modul",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['module'], 'Belum ditentukan')}"
+                },
+                {
+                    "title": "Prioritas",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['priority'], '-')}"
+                },
+                {
+                    "title": "Tipe",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['type'], '-')}"
+                },
+                {
+                    "title": "Pelapor",
+                    "value": "@{coalesce(triggerBody()?['ticket']?['submitted_by']?['name'], '-')}"
+                },
+                {
+                    "title": "Divalidasi oleh",
+                    "value": "@{coalesce(triggerBody()?['validated_by']?['name'], '-')}"
+                },
+                {
+                    "title": "Lead Modul",
+                    "value": "@{if(empty(triggerBody()?['lead_emails']), 'Belum ada lead', join(triggerBody()?['lead_emails'], ', '))}"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "type": "Action.OpenUrl",
+            "title": "Buka di EcoSystem",
+            "url": "@{triggerBody()?['ticket']?['url']}"
+        }
+    ]
+}
