@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\Ticket;
 use App\Services\Ai\AiResearchService;
 use App\Services\Ai\TicketSummaryContext;
+use App\Support\AiDocxExport;
 use App\Support\AiTextAttachment;
 use App\Support\TicketTeamAccess;
 use Illuminate\Http\JsonResponse;
@@ -556,6 +557,29 @@ class AiResearchController extends Controller
         return floor($base64Bytes * 0.75 / 1024 / 1024) . ' MB';
     }
 
+    /**
+     * Ubah teks jawaban assistant (yang sedang ditampilkan di satu bubble)
+     * jadi berkas .docx untuk diunduh. Assistant sendiri tidak punya alat
+     * untuk membuat/melampirkan file — konversinya terjadi di sini, atas
+     * teks yang SUDAH ADA di browser user, bukan permintaan baru ke model.
+     */
+    public function exportDocx(Request $request): Response
+    {
+        $this->currentEmployee();
+
+        $validated = $request->validate([
+            'text' => 'required|string|max:2000000',
+        ]);
+
+        $bytes = AiDocxExport::build($validated['text']);
+        $filename = 'ai-research-' . now()->format('Y-m-d-His') . '.docx';
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
     private function currentEmployee(): Employee
     {
         $sessionUser = session('user');
@@ -617,7 +641,7 @@ class AiResearchController extends Controller
         if (!empty($rejected)) {
             $names = implode(', ', $rejected);
             $note = "_Note: {$names} — this file type isn't supported yet. Only PDF, image "
-                . "(PNG, JPEG, GIF, WEBP), and text/code attachments can be read right now._\n\n";
+                . "(PNG, JPEG, GIF, WEBP), Word (.docx), and text/code attachments can be read right now._\n\n";
         }
 
         return [$attachments, $note];
