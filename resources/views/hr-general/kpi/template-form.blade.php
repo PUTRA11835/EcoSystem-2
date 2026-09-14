@@ -15,6 +15,7 @@
     $vType      = old('target_type', $template->target_type ?? 'supervisor');
     $vPeriod    = old('period_type', $template->period_type ?? 'monthly');
     $vDesc      = old('description', $template->description);
+    $vAnonymous = old('is_anonymous', $template->is_anonymous ?? false);
     $vRoles     = collect(old('target_roles', $template->target_roles ?? []))->map(fn($v) => (string) $v)->all();
     $vPositions = collect(old('target_positions', $template->target_positions ?? []))->map(fn($v) => (string) $v)->all();
     $vEmployees = collect(old('target_employees', $template->target_employees ?? []))->map(fn($v) => (string) $v)->all();
@@ -88,32 +89,50 @@
         {{-- ── Basic details ─────────────────────────────────────────────────── --}}
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <h3 class="text-sm font-bold text-gray-800 mb-4">Template Details</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div class="sm:col-span-2">
+            <div class="grid grid-cols-1 gap-4">
+                <div>
                     <label class="block text-xs font-semibold text-gray-700 mb-1.5">Template Name <span class="text-red-500">*</span></label>
                     <input type="text" name="name" required maxlength="200" value="{{ $vName }}"
                         class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300 focus:border-red-400"
                         placeholder="e.g. Engineering Staff Monthly KPI">
                 </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 mb-1.5">Assessment Type <span class="text-red-500">*</span></label>
-                    <select name="target_type" required
-                        class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300">
-                        <option value="self" {{ $vType === 'self' ? 'selected' : '' }}>Self-Assessment (Evaluasi Mandiri)</option>
-                        <option value="supervisor" {{ $vType === 'supervisor' ? 'selected' : '' }}>Lead Assessment (Penilaian Atasan)</option>
-                        <option value="peer" {{ $vType === 'peer' ? 'selected' : '' }}>Peer Assessment</option>
-                    </select>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">Assessment Type <span class="text-red-500">*</span></label>
+                        <select name="target_type" id="targetTypeSelect" required onchange="toggleAnonymousVisibility()"
+                            class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300">
+                            <option value="self" {{ $vType === 'self' ? 'selected' : '' }}>Self-Assessment (Evaluasi Mandiri)</option>
+                            <option value="supervisor" {{ $vType === 'supervisor' ? 'selected' : '' }}>Lead Assessment (Penilaian Atasan)</option>
+                            <option value="peer" {{ $vType === 'peer' ? 'selected' : '' }}>Peer Assessment</option>
+                            <option value="upward" {{ $vType === 'upward' ? 'selected' : '' }}>Upward Assessment (Bawahan ke Atasan)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">Period Type <span class="text-red-500">*</span></label>
+                        <select name="period_type" required
+                            class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300">
+                            <option value="monthly" {{ $vPeriod === 'monthly' ? 'selected' : '' }}>Monthly</option>
+                            <option value="quarterly" {{ $vPeriod === 'quarterly' ? 'selected' : '' }}>Quarterly</option>
+                            <option value="annual" {{ $vPeriod === 'annual' ? 'selected' : '' }}>Annual</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="anonymousToggleWrap" class="hidden">
+                    <label class="flex items-start gap-3 p-3.5 rounded-xl border border-gray-200 bg-gray-50/60 cursor-pointer hover:bg-gray-50 transition-all">
+                        <input type="hidden" name="is_anonymous" value="0">
+                        <input type="checkbox" name="is_anonymous" id="isAnonymousChk" value="1" {{ $vAnonymous ? 'checked' : '' }}
+                            class="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-2 focus:ring-indigo-400">
+                        <span>
+                            <span class="block text-xs font-bold text-gray-800">Anonymous evaluation</span>
+                            <span class="block text-[11px] text-gray-500 mt-0.5">
+                                Individual rater identities and scores are never shown to the person being evaluated. HR reviews each
+                                submission, then publishes the <strong>average score</strong> — the only thing they ever see — so no one
+                                can guess who gave which rating.
+                            </span>
+                        </span>
+                    </label>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-700 mb-1.5">Period Type <span class="text-red-500">*</span></label>
-                    <select name="period_type" required
-                        class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300">
-                        <option value="monthly" {{ $vPeriod === 'monthly' ? 'selected' : '' }}>Monthly</option>
-                        <option value="quarterly" {{ $vPeriod === 'quarterly' ? 'selected' : '' }}>Quarterly</option>
-                        <option value="annual" {{ $vPeriod === 'annual' ? 'selected' : '' }}>Annual</option>
-                    </select>
-                </div>
-                <div class="sm:col-span-3">
                     <label class="block text-xs font-semibold text-gray-700 mb-1.5">Description</label>
                     <textarea name="description" rows="2"
                         class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300 resize-none"
@@ -181,12 +200,16 @@
                 </h3>
                 <div class="flex items-center gap-2">
                     <label class="text-[11px] font-semibold text-gray-500">Score divisor</label>
-                    <input type="number" name="score_divisor" id="scoreDivisor" value="{{ $vDivisor }}" min="1" max="100"
-                        class="w-16 px-2 py-1.5 text-xs text-center font-bold border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400">
-                    <span class="text-[10px] text-gray-400">Weighted Score = Score ÷ divisor × Bobot. Leave = highest scale value.</span>
+                    <input type="number" name="score_divisor" id="scoreDivisor" value="{{ $vDivisor }}" min="1" max="100" readonly
+                        class="w-16 px-2 py-1.5 text-xs text-center font-bold border border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed">
+                    <span class="text-[10px] text-gray-400">Weighted Score = Score ÷ divisor × Bobot. Auto-synced to the number of scale rows below.</span>
                 </div>
             </div>
-            <p class="text-xs text-gray-400 mb-3">Define what each rating value means. This table is shown to evaluators on the self-assessment and review screens.</p>
+            <p class="text-xs text-gray-400 mb-3">
+                Define what each rating value means, from <strong>1 (lowest)</strong> at the top to the highest value at the bottom. This table is shown
+                to evaluators on the self-assessment and review screens. The score divisor above always matches the <strong>number of rows</strong> here —
+                so a 5-row scale (1 through 5) gives a divisor of 5.
+            </p>
 
             <div class="hidden sm:grid grid-cols-12 gap-2 px-1 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                 <div class="col-span-1 text-center">Value</div>
@@ -202,7 +225,8 @@
                 <div class="scale-row grid grid-cols-12 gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
                     <div class="col-span-3 sm:col-span-1">
                         <input type="number" name="scales[__S__][scale_value]" value="{{ $s->scale_value ?? '' }}" min="1" max="100"
-                            placeholder="5" class="w-full px-2 py-2 text-xs text-center font-bold border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400">
+                            oninput="syncScoreDivisor()"
+                            placeholder="5" class="scale-value-input w-full px-2 py-2 text-xs text-center font-bold border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400">
                     </div>
                     <div class="col-span-9 sm:col-span-2">
                         <input type="text" name="scales[__S__][category]" value="{{ $s->category ?? '' }}"
@@ -224,7 +248,7 @@
                     <input type="hidden" name="scales[__S__][achievement_max]" value="{{ $s->achievement_max ?? '' }}">
                     <div class="col-span-12 sm:col-span-1 flex items-center justify-center">
                         <button type="button" title="Remove scale row"
-                            onclick="this.closest('.scale-row').remove(); reindexScales();"
+                            onclick="this.closest('.scale-row').remove(); reindexScales(); syncScoreDivisor();"
                             class="w-7 h-7 flex items-center justify-center bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-200 transition-all">
                             <i class="fas fa-trash text-[11px]"></i>
                         </button>
@@ -252,7 +276,7 @@
                 Each <strong>Rating</strong> row is scored on the scale above:
                 <span class="font-mono">indicator score = (stars &divide; scale max) &times; weight</span>.
                 A <strong>Paragraph</strong> row just collects text — no weight, not scored.
-                “Scale max” is optional; leave blank to use the template scale ({{ $vDivisor ?: 5 }}), or set e.g. 3 for a shorter scale on that row.
+                Every indicator shares the same <strong>Scale max</strong> — it always equals the template's score divisor (<span id="templateScaleHint">{{ $vDivisor ?: 5 }}</span>), so ratings stay consistent across the whole template.
             </p>
 
             {{-- Column headers --}}
@@ -287,9 +311,8 @@
                             oninput="updateWeightSum()">
                     </div>
                     <div class="col-span-4 sm:col-span-3">
-                        <input type="number" name="indicators[__I__][rating_max]" value="{{ $r->rating_max ?? '' }}"
-                            placeholder="scale ({{ $vDivisor ?: 5 }})" min="1" max="100" {{ $isPara ? 'disabled' : '' }}
-                            class="w-full px-2.5 py-2 text-xs text-center border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 {{ $isPara ? 'bg-gray-100 text-gray-400' : '' }}">
+                        <input type="number" value="{{ $vDivisor ?: 5 }}" readonly tabindex="-1"
+                            class="rating-max-input w-full px-2.5 py-2 text-xs text-center border border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed">
                     </div>
                     <div class="col-span-2 sm:col-span-1 flex items-center justify-center">
                         <button type="button" title="Remove indicator"
@@ -339,12 +362,14 @@ function addIndicatorRow() {
     const tpl = document.querySelector('#indicatorList .indicator-row');
     const clone = tpl ? tpl.cloneNode(true) : null;
     if (!clone) return;
-    clone.querySelectorAll('input').forEach(el => { el.value = ''; el.disabled = false; el.classList.remove('bg-gray-100', 'text-gray-400'); });
+    clone.querySelectorAll('input:not(.rating-max-input)').forEach(el => { el.value = ''; el.disabled = false; el.classList.remove('bg-gray-100', 'text-gray-400'); });
+    clone.querySelectorAll('.rating-max-input').forEach(el => el.classList.remove('opacity-50'));
     const sel = clone.querySelector('.answer-type'); if (sel) sel.value = 'rating';
     clone.querySelectorAll('.unit-dd-menu').forEach(m => m.classList.add('hidden'));
     document.getElementById('indicatorList').appendChild(clone);
     reindexRows();
     updateWeightSum();
+    syncScoreDivisor();
     clone.querySelector('input')?.focus();
 }
 
@@ -352,11 +377,14 @@ function addIndicatorRow() {
 function toggleIndicatorType(sel) {
     const row = sel.closest('.indicator-row');
     const para = sel.value === 'paragraph';
-    row.querySelectorAll('.weight-input, [name*="[rating_max]"]').forEach(el => {
+    row.querySelectorAll('.weight-input').forEach(el => {
         el.disabled = para;
         el.classList.toggle('bg-gray-100', para);
         el.classList.toggle('text-gray-400', para);
         if (para) el.value = '';
+    });
+    row.querySelectorAll('.rating-max-input').forEach(el => {
+        el.classList.toggle('opacity-50', para);
     });
     updateWeightSum();
 }
@@ -377,6 +405,27 @@ function addScaleRow() {
     document.getElementById('scaleList').appendChild(clone);
     reindexScales();
     clone.querySelector('input')?.focus();
+}
+
+// Score divisor is derived, never typed: it always equals the number of
+// Scoring Scale rows defined (e.g. 5 rows = a 5-point scale), falling back
+// to 5 when the table is empty, so it can never silently drift out of sync
+// with the scale itself. Every place that echoes that number — the
+// indicators' "Scale max" placeholder and hint text — is refreshed here too,
+// so nothing shows a stale value from page load.
+function syncScoreDivisor() {
+    let count = 0;
+    document.querySelectorAll('.scale-value-input').forEach(i => {
+        if (i.value !== '') count++;
+    });
+    const divisor = count || 5;
+    document.getElementById('scoreDivisor').value = divisor;
+
+    document.querySelectorAll('.rating-max-input').forEach(i => {
+        i.value = divisor;
+    });
+    const hint = document.getElementById('templateScaleHint');
+    if (hint) hint.textContent = divisor;
 }
 
 function updateWeightSum() {
@@ -567,8 +616,21 @@ document.addEventListener('click', function (e) {
     tgtRenderList();
 })();
 
+// Anonymous evaluation only makes sense when raters are distinct from the
+// subject and identity should be shielded — Peer and Upward assessments.
+function toggleAnonymousVisibility() {
+    const type = document.getElementById('targetTypeSelect').value;
+    const wrap = document.getElementById('anonymousToggleWrap');
+    const chk  = document.getElementById('isAnonymousChk');
+    const show = type === 'peer' || type === 'upward';
+    wrap.classList.toggle('hidden', !show);
+    if (!show) chk.checked = false;
+}
+toggleAnonymousVisibility();
+
 reindexRows();
 reindexScales();
 updateWeightSum();
+syncScoreDivisor();
 </script>
 @endsection

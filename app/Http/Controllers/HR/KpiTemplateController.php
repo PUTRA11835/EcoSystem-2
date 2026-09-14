@@ -88,7 +88,7 @@ class KpiTemplateController extends Controller
         $template   = KpiTemplate::with(['indicators', 'scoringScales'])->findOrFail($id);
         $indicators = $template->indicators->sortBy('order_seq')->values();
         $scales     = $template->scoringScales->isNotEmpty()
-            ? $template->scoringScales->sortByDesc('scale_value')->values()
+            ? $template->scoringScales->sortBy('scale_value')->values()
             : collect(KpiScoringScale::defaultRows())->map(fn ($r) => (object) $r);
         $mode       = 'edit';
 
@@ -142,7 +142,8 @@ class KpiTemplateController extends Controller
             'description'         => 'nullable|string',
             'role_id'             => 'nullable|integer|exists:employee_role,id',
             'period_type'         => 'required|in:monthly,quarterly,annual',
-            'target_type'         => 'nullable|in:self,supervisor,peer',
+            'target_type'         => 'nullable|in:self,supervisor,peer,upward',
+            'is_anonymous'        => 'nullable|boolean',
             'target_roles'        => 'nullable|array',
             'target_roles.*'      => 'integer|exists:employee_role,id',
             'target_positions'    => 'nullable|array',
@@ -179,6 +180,7 @@ class KpiTemplateController extends Controller
                 'role_id'         => $request->role_id,
                 'period_type'     => $request->period_type,
                 'target_type'     => $request->target_type ?? 'supervisor',
+                'is_anonymous'    => $request->boolean('is_anonymous'),
                 'target_roles'    => $this->cleanList($request->input('target_roles', [])),
                 'target_positions'=> $this->cleanList($request->input('target_positions', [])),
                 'target_employees'=> $this->cleanList($request->input('target_employees', [])),
@@ -232,7 +234,8 @@ class KpiTemplateController extends Controller
             'description'         => 'nullable|string',
             'role_id'             => 'nullable|integer|exists:employee_role,id',
             'period_type'         => 'required|in:monthly,quarterly,annual',
-            'target_type'         => 'nullable|in:self,supervisor,peer',
+            'target_type'         => 'nullable|in:self,supervisor,peer,upward',
+            'is_anonymous'        => 'nullable|boolean',
             'target_roles'        => 'nullable|array',
             'target_roles.*'      => 'integer|exists:employee_role,id',
             'target_positions'    => 'nullable|array',
@@ -269,6 +272,7 @@ class KpiTemplateController extends Controller
                 'role_id'         => $request->role_id,
                 'period_type'     => $request->period_type,
                 'target_type'     => $request->target_type ?? $template->target_type ?? 'supervisor',
+                'is_anonymous'    => $request->boolean('is_anonymous'),
                 'target_roles'    => $this->cleanList($request->input('target_roles', [])),
                 'target_positions'=> $this->cleanList($request->input('target_positions', [])),
                 'target_employees'=> $this->cleanList($request->input('target_employees', [])),
@@ -402,14 +406,22 @@ class KpiTemplateController extends Controller
         return null;
     }
 
-    /** Divisor for the weighted-score formula — explicit input, else the top scale value, else 5. */
+    /**
+     * Divisor for the weighted-score formula. Always derived from the
+     * Scoring Scale rows — the number of rows defined (e.g. 5 rows = a
+     * 5-point scale) — never taken from client input (the form field is
+     * read-only for the same reason), so it can never silently drift out of
+     * sync with the scale itself. Falls back to 5 when no scale rows are
+     * submitted.
+     */
     private function resolveDivisor(Request $request): int
     {
-        if ($request->filled('score_divisor')) {
-            return max(1, (int) $request->input('score_divisor'));
-        }
-        $top = collect($request->input('scales', []))->max('scale_value');
-        return (int) ($top ?: 5);
+        $count = collect($request->input('scales', []))
+            ->pluck('scale_value')
+            ->filter(fn ($v) => $v !== null && $v !== '')
+            ->count();
+
+        return $count ?: 5;
     }
 
     /** (Re)create indicator rows from the submitted repeater. */

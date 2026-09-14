@@ -14,6 +14,7 @@ class KpiEvaluation extends Model
         'period_month',
         'supervisor_id',
         'status',
+        'is_anonymous',
         'overall_score',
         'general_notes',
         'self_deadline',
@@ -23,16 +24,20 @@ class KpiEvaluation extends Model
         'hr_approved_at',
         'hr_approved_by',
         'hr_notes',
+        'published_at',
+        'published_by',
         'created_by',
     ];
 
     protected $casts = [
         'overall_score'       => 'float',
+        'is_anonymous'        => 'boolean',
         'self_deadline'       => 'date',
         'supervisor_deadline' => 'date',
         'self_assessed_at'    => 'datetime',
         'reviewed_at'         => 'datetime',
         'hr_approved_at'      => 'datetime',
+        'published_at'        => 'datetime',
     ];
 
     // ── Status constants ─────────────────────────────────────────────────────
@@ -74,21 +79,47 @@ class KpiEvaluation extends Model
                     ->with('basicData');
     }
 
+    public function publishedBy()
+    {
+        return $this->belongsTo(Employee::class, 'published_by', 'employee_id')
+                    ->with('basicData');
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
      * Assessment kind, derived from the linked template's target_type.
      * A "self" row is filled by the employee; a "lead" row (supervisor/peer)
-     * is filled by the direct manager. Each is an independent evaluation.
+     * is filled by the direct manager. An "upward" row is filled by the
+     * employee too (rating their supervisor, stored in supervisor_id) — it
+     * reuses the self_* fields but is its own category, kept out of both the
+     * self-assessment and lead-assessment groupings.
+     * Each is an independent evaluation.
      */
     public function isSelfType(): bool
     {
         return ($this->template?->target_type ?? 'supervisor') === 'self';
     }
 
+    public function isUpwardType(): bool
+    {
+        return ($this->template?->target_type ?? 'supervisor') === 'upward';
+    }
+
     public function isLeadType(): bool
     {
-        return !$this->isSelfType();
+        return !$this->isSelfType() && !$this->isUpwardType();
+    }
+
+    /**
+     * Whether this row is filled via the self_* fields (self-assessment
+     * pathway) rather than the supervisor_* fields — true for both "self"
+     * and "upward" rows, since both are filled by employee_id about
+     * themselves or, for upward, about their supervisor.
+     */
+    protected function usesSelfFields(): bool
+    {
+        return $this->isSelfType() || $this->isUpwardType();
     }
 
     /**
@@ -115,7 +146,7 @@ class KpiEvaluation extends Model
      */
     public function isReadyForApproval(): bool
     {
-        return $this->isSelfType()
+        return $this->usesSelfFields()
             ? $this->hasSelfAssessment()
             : $this->hasSupervisorReview();
     }
@@ -160,9 +191,9 @@ class KpiEvaluation extends Model
     {
         $details = $this->details()->with('indicator')->get();
 
-        // Self rows score off the employee's own achievement; lead rows off the
-        // manager's rating. Each row only ever carries one of the two.
-        $field = $this->isSelfType() ? 'self_achievement' : 'supervisor_score';
+        // Self/upward rows score off the filler's own achievement input; lead
+        // rows off the manager's rating. Each row only ever carries one of the two.
+        $field = $this->usesSelfFields() ? 'self_achievement' : 'supervisor_score';
 
         $totalScore = $details->sum(function ($detail) use ($field) {
             if (is_null($detail->$field)) return 0;
@@ -187,9 +218,9 @@ class KpiEvaluation extends Model
             return;
         }
 
-        // Self and lead rows are independent: each completes on its own input,
-        // never waiting on the other side.
-        if ($this->isSelfType()) {
+        // Self/upward and lead rows are independent: each completes on its own
+        // input, never waiting on the other side.
+        if ($this->usesSelfFields()) {
             $this->status = $hasSelf ? self::STATUS_COMPLETED : self::STATUS_DRAFT;
         } else {
             $this->status = $hasSupv ? self::STATUS_COMPLETED : self::STATUS_DRAFT;
