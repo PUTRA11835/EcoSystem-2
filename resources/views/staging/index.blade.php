@@ -670,8 +670,19 @@ function fillModal(s) {
     </div>`;
 
     // ── Assemble body ──
-    document.getElementById('modalBody').innerHTML =
+    const modalBodyEl = document.getElementById('modalBody');
+    modalBodyEl.innerHTML =
         metaHtml + validationHtml + rejectAreaHtml + contentHtml + attachmentsHtml;
+
+    // custom-dd (dipakai widget "Module(s)") cuma di-wire sekali saat
+    // DOMContentLoaded, sebelum modalBody ini punya isi apa pun — tanpa
+    // panggilan ulang di sini, dropdown yang baru saja disuntikkan lewat
+    // innerHTML di atas tidak pernah dapat click listener-nya sama sekali
+    // (initCustomDropdowns() sendiri sudah idempotent lewat flag _ddInited,
+    // jadi aman dipanggil berkali-kali tiap modal dibuka).
+    if (typeof initCustomDropdowns === 'function') {
+        initCustomDropdowns(modalBodyEl);
+    }
 
     // ── Lazy-load email attachments from Graph if no local attachments ──
     if (!webAttachments.length && s.graph_message_id) {
