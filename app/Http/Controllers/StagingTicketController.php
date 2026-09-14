@@ -174,22 +174,14 @@ class StagingTicketController extends Controller
             'user_id' => $sessionUser['id'] ?? null,
         ]);
 
-        // Gerbang ai_analysis (lihat canViewAiAnalysis()) — dihitung SEKALI untuk
-        // seluruh halaman, bukan per baris, supaya tidak N+1.
-        $hasCredentialPermission = false;
-        $customerIdsWithCredentials = [];
-        if (!$isCustomerViewer) {
-            $hasCredentialPermission = (bool) Employee::find($sessionUser['id'] ?? null)?->hasMenuPermission('customer.section.credential.view');
-            if (!$hasCredentialPermission) {
-                $customerIdsWithCredentials = CustomerCredential::whereIn('customer_id', $data->pluck('customer_id')->unique()->filter())
-                    ->pluck('customer_id')
-                    ->all();
-            }
-        }
-
+        // Gerbang credential/ai_analysis TIDAK perlu dihitung di sini — list ini
+        // dipanggil dengan includeHeavyFields: false, jadi ai_analysis tidak
+        // pernah ikut terkirim untuk baris manapun (lihat formatStaging()).
+        // Menghitungnya di sini hanya akan jadi query CustomerCredential yang
+        // sia-sia, tidak pernah dipakai hasilnya.
         return response()->json([
             'success' => true,
-            'data'    => $data->map(fn ($s) => $this->formatStaging($s, $isCustomerViewer, $hasCredentialPermission, $customerIdsWithCredentials)),
+            'data'    => $data->map(fn ($s) => $this->formatStaging($s, $isCustomerViewer, includeHeavyFields: false)),
             'meta'    => [
                 'total'        => $data->total(),
                 'per_page'     => $data->perPage(),
@@ -1279,13 +1271,21 @@ class StagingTicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
+        // Satu query GROUP BY, bukan 4 COUNT terpisah (unvalidated/approved/
+        // rejected/total) — status hanya punya 3 nilai yang mungkin (lihat
+        // scopeUnvalidated/Approved/Rejected), jadi cukup satu pass lalu
+        // dijumlah di PHP untuk total.
+        $counts = StagingTicket::selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
         return response()->json([
             'success' => true,
             'data' => [
-                'unvalidated' => StagingTicket::unvalidated()->count(),
-                'approved'    => StagingTicket::approved()->count(),
-                'rejected'    => StagingTicket::rejected()->count(),
-                'total'       => StagingTicket::count(),
+                'unvalidated' => (int) ($counts['unvalidated'] ?? 0),
+                'approved'    => (int) ($counts['approved'] ?? 0),
+                'rejected'    => (int) ($counts['rejected'] ?? 0),
+                'total'       => (int) $counts->sum(),
             ],
         ]);
     }
@@ -2030,13 +2030,25 @@ class StagingTicketController extends Controller
         return $hasCredentialPermission;
     }
 
+    /**
+     * @param bool $includeHeavyFields false untuk list (index()) — body/
+     *        email_body_html/ai_analysis bisa besar (email lengkap, JSON
+     *        analisa AI) dan list cuma menampilkan potongan description
+     *        (lihat renderTable() di staging/index.blade.php maupun
+     *        staging/rejected.blade.php) — tidak ada baris tabel yang benar-benar
+     *        membaca field ini. Detail lengkap tetap diambil terpisah lewat
+     *        show() saat validator benar-benar buka satu tiket (openModal()).
+     *        true (default) dipakai show()/store() yang memang butuh detail penuh.
+     */
     private function formatStaging(
         StagingTicket $s,
         bool $isCustomerViewer = true,
         bool $hasCredentialPermission = false,
-        array $customerIdsWithCredentials = []
+        array $customerIdsWithCredentials = [],
+        bool $includeHeavyFields = true
     ): array {
-        $canViewAi = $this->canViewAiAnalysis($isCustomerViewer, $hasCredentialPermission, $s->customer_id, $customerIdsWithCredentials);
+        $canViewAi = $includeHeavyFields
+            && $this->canViewAiAnalysis($isCustomerViewer, $hasCredentialPermission, $s->customer_id, $customerIdsWithCredentials);
 
         $customerName = null;
         if ($s->customer) {
@@ -2079,7 +2091,6 @@ class StagingTicketController extends Controller
             'sender_name'         => $s->sender_name,
             'cc_emails'           => $s->cc_emails,
             'description'         => $s->description,
-            'body'                => $s->body,           // ← full message body dari Jarvies/web form
             'ticket_priority'     => $s->ticket?->ticket_priority ?? $s->ticket_priority,
             'ticket_type'         => $s->ticket?->ticket_type ?? $s->ticket_type,
             'scale'               => $s->ticket?->scale ?? $s->scale,
@@ -2087,7 +2098,6 @@ class StagingTicketController extends Controller
             'rejection_reason'    => $s->rejection_reason,
             'channel'             => $s->channel,
             'email_thread_id'     => $s->email_thread_id,
-            'email_body_html'     => $s->email_body_html,
             'has_attachments'     => $s->has_attachments || count($attachments) > 0,
             'graph_message_id'    => $s->graph_message_id,
             'validated_by'        => $s->validated_by,
@@ -2104,6 +2114,16 @@ class StagingTicketController extends Controller
             'module'              => $s->module,
             'module_id'           => $s->module_id,
             'client'              => $s->client,
+        ]
+        // Field "berat" (body email lengkap + JSON analisa AI) — cuma disertakan
+        // untuk show()/store() yang memang butuh detail penuh satu tiket. List
+        // (index()) tidak pernah menampilkan isinya (cuma potongan description),
+        // jadi tidak perlu ikut terkirim untuk tiap baris — lihat renderTable()
+        // di staging/index.blade.php & staging/rejected.blade.php (keduanya
+        // fetch ulang lewat show($id) baru baca field-field ini, via openModal()).
+        + ($includeHeavyFields ? [
+            'body'            => $s->body,           // ← full message body dari Jarvies/web form
+            'email_body_html' => $s->email_body_html,
             // Analisa AI (cache — lihat AiTicketAnalyzerService). Digerbangi
             // canViewAiAnalysis() — lihat docblock method itu. ai_analysis_restricted
             // biar frontend bisa kasih pesan yang jelas ("ada hasil tapi disembunyikan
@@ -2113,7 +2133,7 @@ class StagingTicketController extends Controller
             'ai_analysis_status'       => $s->ai_analysis_status,
             'ai_analysis_stale'        => $this->isAiAnalysisStale($s),
             'ai_analysis_restricted'   => !$canViewAi && null !== $s->ai_analysis,
-        ];
+        ] : []);
     }
 
     /**

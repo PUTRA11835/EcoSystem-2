@@ -182,8 +182,18 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStats();
     loadStagingTickets();
     fetchEmailInbox(true);                              // fetch sekali saat halaman dibuka
-    setInterval(() => fetchEmailInbox(true), 60000);   // auto-poll email tiap 60 detik
-    setInterval(() => { loadStats(); loadStagingTickets(); }, 30000); // auto-refresh list tiap 30 detik
+
+    // Skip kerja polling selagi tab di-background/minimize — fetchEmailInbox()
+    // manggil Microsoft Graph (bukan cuma DB lokal) tiap 60 detik, dan
+    // loadStagingTickets() menarik ulang seluruh list tiap 30 detik. Kalau
+    // staff buka banyak tab, biaya jaringan itu berlipat tanpa ada yang
+    // benar-benar melihat hasilnya. Begitu tab aktif lagi, sinkron ulang
+    // segera (bukan nunggu interval berikutnya) supaya data tidak basi.
+    setInterval(() => { if (!document.hidden) fetchEmailInbox(true); }, 60000);
+    setInterval(() => { if (!document.hidden) { loadStats(); loadStagingTickets(); } }, 30000);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) { loadStats(); loadStagingTickets(); }
+    });
 });
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
