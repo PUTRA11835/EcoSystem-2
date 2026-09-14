@@ -1192,9 +1192,11 @@ function airAppendUser(text, files) {
 
     // Lampiran DULU, teks/prompt di bawahnya — sama seperti composer
     // claude.ai. Gambar tampil utuh sebagai thumbnail; file lain sebagai
-    // chip nama.
+    // chip nama. justify-start (bukan justify-end) — bubble-nya sendiri sudah
+    // rata kanan (flex justify-end di bawah), thumbnail di DALAM bubble harus
+    // rata kiri seperti alur baca normal, bukan menempel ke sudut kanan.
     const thumbs = images.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end">
+        <div class="flex flex-wrap gap-1.5 justify-start">
             ${images.map(f => `
                 <img src="${airPreviewUrl(f)}" alt="${airEsc(f.name)}" title="${airEsc(f.name)}"
                      class="air-thumb w-28 h-28 border border-white/25"
@@ -1202,7 +1204,7 @@ function airAppendUser(text, files) {
         </div>`;
 
     const chips = others.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end ${images.length ? 'mt-2' : ''}">
+        <div class="flex flex-wrap gap-1.5 justify-start ${images.length ? 'mt-2' : ''}">
             ${others.map(f => `
                 <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/15 border border-white/20">
                     <i class="fas ${airFileIcon(f.name)} text-[10px]"></i>
@@ -2039,7 +2041,7 @@ function airAppendUserStored(text, attachmentCount, at, conversationId) {
     const noteId = attachmentCount > 0 ? 'airAtt' + (++airAttachSeq) : null;
 
     const note = attachmentCount > 0 ? `
-        <div id="${noteId}" class="flex items-center gap-1.5 justify-end text-[10px] text-white/70">
+        <div id="${noteId}" class="flex items-center gap-1.5 justify-start text-[10px] text-white/70">
             <i class="fas fa-paperclip text-[9px]"></i>
             ${attachmentCount} attachment${attachmentCount > 1 ? 's' : ''} (not kept in history)
         </div>` : '';
@@ -2106,7 +2108,7 @@ async function airUpgradeStoredAttachments(noteId, conversationId, text, count) 
     const others = files.filter(f => !airIsImage(f));
 
     const thumbs = images.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end">
+        <div class="flex flex-wrap gap-1.5 justify-start">
             ${images.map(f => `
                 <img src="${airPreviewUrl(f)}" alt="${airEsc(f.name)}" title="${airEsc(f.name)}"
                      class="air-thumb w-28 h-28 border border-white/25"
@@ -2114,7 +2116,7 @@ async function airUpgradeStoredAttachments(noteId, conversationId, text, count) 
         </div>`;
 
     const chips = others.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end ${images.length ? 'mt-2' : ''}">
+        <div class="flex flex-wrap gap-1.5 justify-start ${images.length ? 'mt-2' : ''}">
             ${others.map(f => `
                 <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/15 border border-white/20">
                     <i class="fas ${airFileIcon(f.name)} text-[10px]"></i>
