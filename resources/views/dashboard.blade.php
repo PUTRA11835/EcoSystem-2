@@ -1636,7 +1636,7 @@
                                     class="relative w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-gray-600 hover:text-red-800">
                                     <i class="fas fa-bell"></i>
                                     <span id="bellBadge"
-                                        class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 rounded-full border-2 border-white text-white text-[10px] font-bold flex items-center justify-center leading-none"></span>
+                                        class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 rounded-full border-2 border-white text-white text-[10px] font-bold items-center justify-center leading-none"></span>
                                 </button>
 
                                 <!-- Notification Dropdown -->
@@ -2271,8 +2271,10 @@
                                 if (count > 0) {
                                     badge.textContent = count > 99 ? '99+' : count;
                                     badge.classList.remove('hidden');
+                                    badge.classList.add('flex');
                                 } else {
                                     badge.classList.add('hidden');
+                                    badge.classList.remove('flex');
                                 }
                                 updateTabTitle(count);
 
@@ -2512,7 +2514,7 @@
                         var list = document.getElementById('bellNotifList');
                         if (list) setListMessage(list, 'No notifications');
                         var badge = document.getElementById('bellBadge');
-                        if (badge) badge.classList.add('hidden');
+                        if (badge) { badge.classList.add('hidden'); badge.classList.remove('flex'); }
                         fetch('/api/notifications/read-all', { method: 'PUT', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': csrf } })
                             .catch(function () { });
                     }

@@ -14,6 +14,7 @@ class KpiTemplate extends Model
         'description',
         'period_type',
         'target_type',
+        'is_anonymous',
         'target_roles',
         'target_positions',
         'target_employees',
@@ -26,6 +27,7 @@ class KpiTemplate extends Model
 
     protected $casts = [
         'is_active'         => 'boolean',
+        'is_anonymous'      => 'boolean',
         'target_roles'      => 'array',
         'target_positions'  => 'array',
         'target_employees'  => 'array',
@@ -97,7 +99,7 @@ class KpiTemplate extends Model
 
     public function scoringScales()
     {
-        return $this->hasMany(KpiScoringScale::class, 'template_id')->orderByDesc('scale_value');
+        return $this->hasMany(KpiScoringScale::class, 'template_id')->orderBy('scale_value');
     }
 
     public function evaluations()
@@ -121,8 +123,10 @@ class KpiTemplate extends Model
     }
 
     /**
-     * Highest value on this template's scoring scale — the widget max and the
-     * divisor in "Weighted Score = Score ÷ divisor × Bobot".
+     * The widget max and the divisor in "Weighted Score = Score ÷ divisor ×
+     * Bobot" — the number of rows on this template's scoring scale (e.g. 5
+     * rows defined = a 5-point scale), kept in sync at save time by
+     * KpiTemplateController::resolveDivisor().
      */
     public function scaleMax(): int
     {
@@ -130,15 +134,16 @@ class KpiTemplate extends Model
             return (int) $this->score_divisor;
         }
         if ($this->relationLoaded('scoringScales') && $this->scoringScales->isNotEmpty()) {
-            return (int) $this->scoringScales->max('scale_value');
+            return $this->scoringScales->count();
         }
-        $max = $this->scoringScales()->max('scale_value');
-        return (int) ($max ?: 5);
+        $count = $this->scoringScales()->count();
+        return $count ?: 5;
     }
 
     /**
      * The template's scale rows, or the standard 5-point scale when none are
-     * configured — always a Collection of row-shaped arrays/models.
+     * configured — always a Collection of row-shaped arrays/models, ordered
+     * ascending (1 at top, highest value at bottom).
      */
     public function scaleRows()
     {
@@ -147,7 +152,7 @@ class KpiTemplate extends Model
             : $this->scoringScales()->get();
 
         if ($rows->isNotEmpty()) {
-            return $rows->sortByDesc('scale_value')->values();
+            return $rows->sortBy('scale_value')->values();
         }
 
         return collect(KpiScoringScale::defaultRows())->map(fn ($r) => (object) $r);
@@ -175,6 +180,7 @@ class KpiTemplate extends Model
             'self'       => 'Evaluasi Mandiri (Self-Assessment)',
             'supervisor' => 'Penilaian Atasan (Supervisor Evaluation)',
             'peer'       => 'Evaluasi Rekan Kerja (Peer Evaluation)',
+            'upward'     => 'Evaluasi Atasan oleh Bawahan (Upward Evaluation)',
             default      => 'Penilaian Atasan',
         };
     }

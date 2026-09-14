@@ -37,7 +37,7 @@ class KpiAssignments
             ->where('is_active', true)
             ->get();
 
-        // Desired set: "empId|tplId" => [empId, tplId, supervisorId]
+        // Desired set: "empId|tplId" => [empId, tplId, supervisorId, isAnonymous]
         $desired       = [];
         $tplIndicators = [];
         foreach ($templates as $tpl) {
@@ -48,6 +48,7 @@ class KpiAssignments
                         $emp->employee_id,
                         $tpl->id,
                         $emp->basicData?->direct_supervision ?: null,
+                        (bool) $tpl->is_anonymous,
                     ];
                 }
             }
@@ -62,7 +63,7 @@ class KpiAssignments
 
         DB::transaction(function () use ($desired, $existingKeys, $periodMonth, $actorId, $tplIndicators, $prune, &$created, &$removed) {
             // ── create the missing ones ──────────────────────────────────────
-            foreach ($desired as $key => [$empId, $tplId, $supId]) {
+            foreach ($desired as $key => [$empId, $tplId, $supId, $isAnon]) {
                 if (isset($existingKeys[$key])) {
                     continue;
                 }
@@ -72,6 +73,7 @@ class KpiAssignments
                     'period_month'  => $periodMonth,
                     'supervisor_id' => $supId,
                     'status'        => KpiEvaluation::STATUS_DRAFT,
+                    'is_anonymous'  => $isAnon,
                     'created_by'    => $actorId,
                 ]);
 
@@ -139,6 +141,7 @@ class KpiAssignments
                 'period_month'  => $periodMonth,
                 'supervisor_id' => $emp->basicData?->direct_supervision ?: null,
                 'status'        => KpiEvaluation::STATUS_DRAFT,
+                'is_anonymous'  => (bool) $tpl->is_anonymous,
                 'created_by'    => $actorId,
             ]);
             $rows = $tpl->indicators->map(fn ($ind) => [
