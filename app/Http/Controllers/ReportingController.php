@@ -721,7 +721,15 @@ class ReportingController extends Controller
             ->get()
             ->keyBy('ticket_id');
 
-        return $tickets->map(function (Ticket $ticket) use ($deliveryMap) {
+        // Latest version's proposed total per ticket (a ticket can have several
+        // draft/revision versions — only the newest one reflects the current proposal).
+        $mandaysMap = CustomerMandays::whereIn('ticket_id', $ticketIds)
+            ->orderByDesc('version')
+            ->get()
+            ->unique('ticket_id')
+            ->keyBy('ticket_id');
+
+        return $tickets->map(function (Ticket $ticket) use ($deliveryMap, $mandaysMap) {
             $status = $ticket->mandays_proposal_status ?: 'none';
 
             return [
@@ -737,9 +745,10 @@ class ReportingController extends Controller
                 'lead_name'     => $ticket->ticketLead
                     ? (trim(($ticket->ticketLead->basicData?->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData?->last_name ?? '')) ?: null)
                     : null,
-                'md_status'       => $status,
-                'md_status_label' => self::CUSTOMER_MD_STATUS_LABELS[$status] ?? $status,
-                'created_at'      => $ticket->created_at,
+                'md_status'         => $status,
+                'md_status_label'   => self::CUSTOMER_MD_STATUS_LABELS[$status] ?? $status,
+                'customer_mandays'  => ($mandays = $mandaysMap->get($ticket->ticket_id)?->total_mandays) !== null ? (float) $mandays : null,
+                'created_at'        => $ticket->created_at,
             ];
         })->values();
     }
