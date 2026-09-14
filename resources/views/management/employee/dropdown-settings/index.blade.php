@@ -39,85 +39,129 @@
 </div>
 
 <!-- ── Modal: Create / Edit Dropdown List (config) ─────────────────────────── -->
-<div id="configModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md">
-        <div class="flex justify-between items-center p-6 border-b border-gray-100">
-            <h3 id="configModalTitle" class="text-lg font-bold text-gray-900">New Dropdown List</h3>
-            <button onclick="closeModal('configModal')" class="text-gray-400 hover:text-gray-600 transition-colors">
-                <i class="fas fa-times text-xl"></i>
+<div id="configModal" class="modal-overlay hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div class="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <span class="w-10 h-10 rounded-xl bg-red-50 text-red-700 flex items-center justify-center shrink-0">
+                    <i class="fas fa-list-ul"></i>
+                </span>
+                <div>
+                    <h3 id="configModalTitle" class="text-base font-bold text-gray-900 leading-tight">New Dropdown List</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">A dropdown type used across Employee Information</p>
+                </div>
+            </div>
+            <button onclick="closeModal('configModal')" title="Close"
+                class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors shrink-0">
+                <i class="fas fa-times"></i>
             </button>
         </div>
         <form id="configForm" onsubmit="submitConfig(event)" class="p-6 space-y-4">
             <input type="hidden" id="configId">
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Name <span class="text-red-500">*</span></label>
+                <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Name <span class="text-red-500">*</span></label>
                 <input type="text" id="configName" required maxlength="150" oninput="autoFillConfigCode()"
-                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                    class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400 transition-shadow"
                     placeholder="e.g. Cost Center">
-                <p class="text-xs text-gray-400 mt-1">Shown as the label wherever this dropdown is used.</p>
+                <p class="text-xs text-gray-400 mt-1.5">Shown as the label wherever this dropdown is used.</p>
             </div>
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Code <span class="text-red-500">*</span></label>
-                <input type="text" id="configCode" required maxlength="100" pattern="[a-z0-9_]+"
-                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
-                    placeholder="e.g. cost_center">
-                <p class="text-xs text-gray-400 mt-1">Lowercase letters, numbers, underscores only. Used internally to look this list up — avoid changing it once other code depends on it.</p>
+                <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Code <span class="text-red-500">*</span></label>
+                <div class="relative">
+                    <i class="fas fa-hashtag absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300 text-xs"></i>
+                    <input type="text" id="configCode" required maxlength="100" pattern="[a-z0-9_]+"
+                        class="w-full pl-9 pr-3.5 py-2.5 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400 transition-shadow"
+                        placeholder="cost_center">
+                </div>
+                <p class="text-xs text-gray-400 mt-1.5">Lowercase letters, numbers, underscores only. Used internally to look this list up — avoid changing it once other code depends on it.</p>
             </div>
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Description</label>
+                <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Description</label>
                 <textarea id="configDescription" maxlength="1000" rows="2"
-                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                    class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400 transition-shadow resize-none"
                     placeholder="Optional note about what this list is for"></textarea>
             </div>
-            <div class="flex items-center gap-2">
-                <input type="checkbox" id="configActive" checked class="w-4 h-4 rounded cursor-pointer accent-red-800">
-                <label for="configActive" class="text-sm text-gray-700 cursor-pointer">Active</label>
+            <label class="flex items-center justify-between gap-3 px-3.5 py-3 border border-gray-200 rounded-lg cursor-pointer hover:border-gray-300 transition-colors">
+                <span class="text-sm text-gray-700">
+                    Active
+                    <span class="block text-xs text-gray-400 font-normal mt-0.5">When off, this entire field is hidden from the Employee form — not just emptied of options.</span>
+                </span>
+                <span class="relative inline-flex items-center shrink-0">
+                    <input type="checkbox" id="configActive" checked class="peer sr-only">
+                    <span class="w-9 h-5 rounded-full bg-gray-200 peer-checked:bg-red-800 transition-colors"></span>
+                    <span class="absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span>
+                </span>
+            </label>
+            <div id="configFormError" class="hidden flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                <i class="fas fa-exclamation-circle mt-0.5"></i>
+                <span id="configFormErrorText"></span>
             </div>
-            <div id="configFormError" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5"></div>
-            <div class="flex gap-3 justify-end pt-2">
+            <div class="flex gap-3 justify-end border-t border-gray-100 -mx-6 px-6 pt-4">
                 <button type="button" onclick="closeModal('configModal')" class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
-                <button type="submit" class="px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">Save</button>
+                <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
+                    <i class="fas fa-check text-xs"></i> Save
+                </button>
             </div>
         </form>
     </div>
 </div>
 
 <!-- ── Modal: Create / Edit Value ──────────────────────────────────────────── -->
-<div id="valueModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md">
-        <div class="flex justify-between items-center p-6 border-b border-gray-100">
-            <h3 id="valueModalTitle" class="text-lg font-bold text-gray-900">Add Value</h3>
-            <button onclick="closeModal('valueModal')" class="text-gray-400 hover:text-gray-600 transition-colors">
-                <i class="fas fa-times text-xl"></i>
+<div id="valueModal" class="modal-overlay hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div class="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <span class="w-10 h-10 rounded-xl bg-red-50 text-red-700 flex items-center justify-center shrink-0">
+                    <i class="fas fa-tag"></i>
+                </span>
+                <div>
+                    <h3 id="valueModalTitle" class="text-base font-bold text-gray-900 leading-tight">Add Value</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">A selectable option in this dropdown list</p>
+                </div>
+            </div>
+            <button onclick="closeModal('valueModal')" title="Close"
+                class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors shrink-0">
+                <i class="fas fa-times"></i>
             </button>
         </div>
         <form id="valueForm" onsubmit="submitValue(event)" class="p-6 space-y-4">
             <input type="hidden" id="valueId">
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Value <span class="text-red-500">*</span></label>
+                <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Value <span class="text-red-500">*</span></label>
                 <input type="text" id="valueText" required maxlength="255"
-                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                    class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400 transition-shadow"
                     placeholder="e.g. SAP CONSULTANT">
-                <p class="text-xs text-gray-400 mt-1">Exactly as it should appear in the dropdown (and as it will be stored on the employee record).</p>
+                <p class="text-xs text-gray-400 mt-1.5">Exactly as it should appear in the dropdown (and as it will be stored on the employee record).</p>
             </div>
-            <div class="flex items-center gap-2">
-                <input type="checkbox" id="valueActive" checked class="w-4 h-4 rounded cursor-pointer accent-red-800">
-                <label for="valueActive" class="text-sm text-gray-700 cursor-pointer">Active (offered in the dropdown)</label>
+            <label class="flex items-center justify-between gap-3 px-3.5 py-3 border border-gray-200 rounded-lg cursor-pointer hover:border-gray-300 transition-colors">
+                <span class="text-sm text-gray-700">Active <span class="text-gray-400 font-normal">(offered in the dropdown)</span></span>
+                <span class="relative inline-flex items-center shrink-0">
+                    <input type="checkbox" id="valueActive" checked class="peer sr-only">
+                    <span class="w-9 h-5 rounded-full bg-gray-200 peer-checked:bg-red-800 transition-colors"></span>
+                    <span class="absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></span>
+                </span>
+            </label>
+            <p class="flex items-start gap-2 text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-3.5 py-2.5">
+                <i class="fas fa-circle-info mt-0.5 text-gray-300"></i>
+                New values are added at the end of the list. Use the ↑ / ↓ buttons on the list to reorder afterwards.
+            </p>
+            <div id="valueFormError" class="hidden flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                <i class="fas fa-exclamation-circle mt-0.5"></i>
+                <span id="valueFormErrorText"></span>
             </div>
-            <p class="text-xs text-gray-400">New values are added at the end of the list. Use the ↑ / ↓ buttons on the list to reorder afterwards.</p>
-            <div id="valueFormError" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5"></div>
-            <div class="flex gap-3 justify-end pt-2">
+            <div class="flex gap-3 justify-end border-t border-gray-100 -mx-6 px-6 pt-4">
                 <button type="button" onclick="closeModal('valueModal')" class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
-                <button type="submit" class="px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">Save</button>
+                <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
+                    <i class="fas fa-check text-xs"></i> Save
+                </button>
             </div>
         </form>
     </div>
 </div>
 
 <!-- ── Modal: Custom Confirm ───────────────────────────────────────────────── -->
-<div id="confirmModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+<div id="confirmModal" class="modal-overlay hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+    <div class="modal-panel relative bg-white rounded-2xl shadow-2xl w-full max-w-sm">
         <div class="p-6 text-center">
             <div id="confirmIconWrap" class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i id="confirmIcon" class="text-xl"></i>
@@ -136,6 +180,13 @@
 .config-row { cursor: pointer; transition: background 0.1s; }
 .config-row:hover { background: #f9fafb; }
 .config-row.active { background: #fef2f2; box-shadow: inset 3px 0 0 #991b1b; }
+
+/* Modal enter/exit — panel scales+fades in, overlay just fades.
+   `hidden` still fully removes it from layout/interaction once closed. */
+.modal-overlay { transition: opacity 0.18s ease; opacity: 0; }
+.modal-overlay.modal-visible { opacity: 1; }
+.modal-panel { transition: transform 0.18s ease, opacity 0.18s ease; transform: scale(0.96); opacity: 0; }
+.modal-overlay.modal-visible .modal-panel { transform: scale(1); opacity: 1; }
 </style>
 
 <script>
@@ -350,7 +401,7 @@ function renderConfigList() {
         <div class="config-row px-4 py-3 ${c.id === selectedConfigId ? 'active' : ''}" onclick="selectConfig(${c.id})">
             <div class="flex items-center justify-between gap-2">
                 <span class="text-sm font-semibold text-gray-800 truncate">${escHtml(c.name)}</span>
-                ${c.is_active ? '' : '<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 shrink-0">Inactive</span>'}
+                ${c.is_active ? '' : '<span title="Field hidden from the Employee form" class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 shrink-0">Inactive</span>'}
             </div>
             <div class="flex items-center justify-between gap-2 mt-1">
                 <span class="text-[11px] font-mono text-gray-400 truncate">${escHtml(c.code)}</span>
@@ -579,6 +630,10 @@ document.getElementById('configCode').addEventListener('input', () => {
 async function submitConfig(e) {
     e.preventDefault();
     const id = document.getElementById('configId').value;
+    // Turning a config off hides its entire field block on the Employee form
+    // (see AppServiceProvider's dropdownFieldActive, consumed by
+    // master/employee/index.blade.php and .../sections/basicdata.blade.php) —
+    // it no longer just empties the dropdown's options.
     const payload = {
         code:        document.getElementById('configCode').value.trim(),
         name:        document.getElementById('configName').value.trim(),
@@ -731,7 +786,6 @@ async function deleteValue(id) {
 
 function customConfirm({ title, message, okLabel = 'Confirm', okClass = 'bg-red-600 hover:bg-red-700', icon = 'fas fa-exclamation-triangle', iconBg = 'bg-red-50', iconColor = 'text-red-500' } = {}) {
     return new Promise(resolve => {
-        const modal     = document.getElementById('confirmModal');
         const okBtn     = document.getElementById('confirmOkBtn');
         const cancelBtn = document.getElementById('confirmCancelBtn');
         document.getElementById('confirmTitle').textContent   = title || '';
@@ -740,9 +794,9 @@ function customConfirm({ title, message, okLabel = 'Confirm', okClass = 'bg-red-
         okBtn.className   = `flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition ${okClass}`;
         document.getElementById('confirmIconWrap').className = `w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${iconBg}`;
         document.getElementById('confirmIcon').className     = `${icon} text-xl ${iconColor}`;
-        modal.classList.remove('hidden');
+        openModal('confirmModal');
         function done(val) {
-            modal.classList.add('hidden');
+            closeModal('confirmModal');
             okBtn.removeEventListener('click', onOk);
             cancelBtn.removeEventListener('click', onCancel);
             resolve(val);
@@ -756,8 +810,20 @@ function customConfirm({ title, message, okLabel = 'Confirm', okClass = 'bg-red-
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
-function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+// Panel scales/fades in via .modal-visible (see the .modal-overlay/.modal-panel
+// CSS above) — added a frame after `hidden` is removed so the transition
+// actually plays, instead of snapping straight to the open state. Closing
+// reverses it and waits out the transition before re-adding `hidden`.
+function openModal(id) {
+    const overlay = document.getElementById(id);
+    overlay.classList.remove('hidden');
+    requestAnimationFrame(() => overlay.classList.add('modal-visible'));
+}
+function closeModal(id) {
+    const overlay = document.getElementById(id);
+    overlay.classList.remove('modal-visible');
+    setTimeout(() => overlay.classList.add('hidden'), 180);
+}
 
 function jsonHeaders() {
     return {
@@ -768,7 +834,8 @@ function jsonHeaders() {
 
 function showFormError(elId, message) {
     const el = document.getElementById(elId);
-    el.textContent = message;
+    const textEl = document.getElementById(elId + 'Text');
+    if (textEl) textEl.textContent = message; else el.textContent = message;
     el.classList.remove('hidden');
 }
 function hideFormError(elId) {
@@ -788,8 +855,9 @@ function escHtml(str) {
     return d.innerHTML;
 }
 
-document.getElementById('configModal').addEventListener('click', function(e) { if (e.target === this) closeModal('configModal'); });
-document.getElementById('valueModal').addEventListener('click', function(e) { if (e.target === this) closeModal('valueModal'); });
+// Intentionally no backdrop-click-to-close on configModal/valueModal — these
+// forms can hold unsaved input, so the only way out is the × button (or
+// Cancel), never an accidental click outside.
 
 // Init
 loadConfigs();

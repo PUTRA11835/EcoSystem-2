@@ -49,4 +49,26 @@ class DropdownConfig extends Model
             ->pluck('value')
             ->all();
     }
+
+    /**
+     * [code => is_active] for the given codes — used to decide whether to
+     * render a field's block at all on the Employee form (not just whether
+     * it has options). A code with no matching row is treated as active
+     * (fail open, so a not-yet-seeded/renamed config never silently hides
+     * a field).
+     *
+     * @param  string[]  $codes
+     * @return array<string, bool>
+     */
+    public static function activeMap(array $codes): array
+    {
+        $found = static::whereIn('code', $codes)->pluck('is_active', 'code');
+
+        $map = [];
+        foreach ($codes as $code) {
+            $map[$code] = $found->has($code) ? (bool) $found->get($code) : true;
+        }
+
+        return $map;
+    }
 }
