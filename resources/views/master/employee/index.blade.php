@@ -21,6 +21,12 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 <span id="employeeShowingText" class="text-xs text-gray-500"></span>
             </div>
             <div class="flex items-center gap-2.5">
+                @if($can('management.employee.dropdown-settings'))
+                <a href="{{ route('management.employee.dropdown-settings.index') }}" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+                    <i class="fas fa-list-ul text-gray-500"></i>
+                    Manage Dropdown Data
+                </a>
+                @endif
                 <button onclick="exportEmployees()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-green-600">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
