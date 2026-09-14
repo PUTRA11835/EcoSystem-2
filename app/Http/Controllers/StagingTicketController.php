@@ -864,9 +864,17 @@ class StagingTicketController extends Controller
     }
 
     /**
-     * Peran yang boleh memicu analisa AI ATAU bertanya lewat panelnya —
-     * dipakai bersama oleh analyze() dan ask() supaya kedua pintu masuk ke
-     * fitur AI Analyzer tidak bisa diam-diam melenceng izinnya satu sama lain.
+     * Peran yang boleh mengelola staging ticket secara umum — SAMA PERSIS
+     * dengan gerbang role di view() (halaman /staging-tickets sendiri), jadi
+     * siapa pun yang bisa membuka halaman ini otomatis lolos di semua endpoint
+     * di bawah, tidak ada yang diam-diam ter-403 padahal sedang lihat halamannya.
+     * Dipakai bersama oleh:
+     *   - analyze() & ask()   — dua pintu masuk fitur AI Analyzer (memicu
+     *                           analisa AI / bertanya lewat panelnya)
+     *   - statistics()        — badge Pending/Approved/Rejected
+     *   - latestUpdate()      — polling ringan (cuma cek ada perubahan atau tidak)
+     * Kalau daftar peran ini berubah, keempat fitur di atas ikut berubah
+     * bersamaan — itu yang diinginkan, bukan efek samping.
      */
     private function canManageStagingTicket(?int $roleId): bool
     {
@@ -1259,6 +1267,31 @@ class StagingTicketController extends Controller
         return response()->json(['success' => true, 'html' => $html]);
     }
 
+    // ─── API: Lightweight polling check ───────────────────────────────────────
+
+    /**
+     * GET /api/staging-tickets/latest-update
+     *
+     * Endpoint ringan untuk polling — cuma satu MAX(updated_at), tidak
+     * menyentuh Graph API atau eager-load relasi apa pun. Pola yang sama
+     * dengan TicketController::latestUpdate() untuk daftar tiket utama.
+     * Frontend (staging/index.blade.php) memanggil ini tiap beberapa detik
+     * dan HANYA menarik ulang list/stats penuh kalau nilainya berubah dari
+     * polling sebelumnya — supaya polling 30 detik tidak selalu re-fetch
+     * seluruh halaman walau tidak ada perubahan sama sekali.
+     */
+    public function latestUpdate()
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser || !$this->canManageStagingTicket($sessionUser['role']['id'] ?? null)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $latest = StagingTicket::max('updated_at');
+
+        return response()->json(['latest_update' => $latest]);
+    }
+
     // ─── API: Statistics (untuk badge/notif admin) ────────────────────────────
 
     /**
@@ -1267,7 +1300,7 @@ class StagingTicketController extends Controller
     public function statistics()
     {
         $sessionUser = session('user');
-        if (!$sessionUser || !in_array($sessionUser['role']['id'], array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
+        if (!$sessionUser || !$this->canManageStagingTicket($sessionUser['role']['id'] ?? null)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 

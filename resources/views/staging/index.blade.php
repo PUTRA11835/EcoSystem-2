@@ -173,28 +173,83 @@ let currentStagingData = null;
 let _lastAiAnalysis = null;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Init custom-dd untuk filter "Pending Validation". Guard typeof biar
     // halaman tidak crash kalau custom-dropdown.js gagal di-load.
     if (typeof initCustomDropdowns === 'function') {
         initCustomDropdowns();
     }
-    loadStats();
-    loadStagingTickets();
-    fetchEmailInbox(true);                              // fetch sekali saat halaman dibuka
+    fetchEmailInbox(true);                              // fetch sekali saat halaman dibuka, tidak perlu ditunggu
+
+    // Baseline latest_update BARU direkam SETELAH list/stats di atas selesai
+    // dimuat (bukan ditembak paralel) — supaya tidak ada celah balapan: kalau
+    // ditembak bersamaan, satu perubahan yang masuk PERSIS di antara kedua
+    // request bisa membuat baseline lebih baru dari data yang benar-benar
+    // ditampilkan, dan polling berikutnya diam-diam menganggap "tidak ada
+    // perubahan" walau tampilan awal sebenarnya sudah basi.
+    //
+    // Baseline direkam langsung di sini (bukan menunggu tick interval atau
+    // event visibilitychange pertama) supaya kalau user pindah tab SEBELUM
+    // interval sempat jalan sekali lalu balik lagi, visibilitychange tidak
+    // memanggil checkStagingUpdates() untuk PERTAMA KALINYA saat itu (yang
+    // kalau _isFirstStagingPoll masih true, cuma simpan baseline lalu
+    // berhenti — TIDAK jadi refresh, persis kasus yang harusnya ditangani
+    // "sinkron ulang segera begitu tab aktif" di bawah). Pola dasarnya sama
+    // dengan startEmailPolling() di ticket/index.blade.php (checkTicketUpdates()
+    // dipanggil sekali di awal, bukan ditunda sampai event pertama).
+    await Promise.all([loadStats(), loadStagingTickets()]);
+    checkStagingUpdates();
 
     // Skip kerja polling selagi tab di-background/minimize — fetchEmailInbox()
-    // manggil Microsoft Graph (bukan cuma DB lokal) tiap 60 detik, dan
-    // loadStagingTickets() menarik ulang seluruh list tiap 30 detik. Kalau
-    // staff buka banyak tab, biaya jaringan itu berlipat tanpa ada yang
-    // benar-benar melihat hasilnya. Begitu tab aktif lagi, sinkron ulang
-    // segera (bukan nunggu interval berikutnya) supaya data tidak basi.
+    // manggil Microsoft Graph (bukan cuma DB lokal) tiap 60 detik. Kalau staff
+    // buka banyak tab, biaya jaringan itu berlipat tanpa ada yang benar-benar
+    // melihat hasilnya. Begitu tab aktif lagi, sinkron ulang segera (bukan
+    // nunggu interval berikutnya) supaya data tidak basi.
     setInterval(() => { if (!document.hidden) fetchEmailInbox(true); }, 60000);
-    setInterval(() => { if (!document.hidden) { loadStats(); loadStagingTickets(); } }, 30000);
+    setInterval(() => { if (!document.hidden) checkStagingUpdates(); }, 30000);
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) { loadStats(); loadStagingTickets(); }
+        if (!document.hidden) checkStagingUpdates();
     });
 });
+
+// -------------------------------------------------------------------------
+// Polling ringan: cek /latest-update (satu MAX(updated_at), tidak sentuh
+// Graph API) tiap 30 detik, dan cuma tarik ulang list+stats PENUH kalau
+// nilainya benar-benar berubah dari polling sebelumnya — sama seperti pola
+// checkTicketUpdates() di ticket/index.blade.php. Tanpa ini, tiap tick 30
+// detik selalu re-fetch seluruh halaman (list + 4 relasi eager-load) walau
+// tidak ada satu pun staging ticket yang berubah sejak polling terakhir.
+// -------------------------------------------------------------------------
+let _lastStagingUpdate = null;
+let _isFirstStagingPoll = true;
+
+async function checkStagingUpdates() {
+    try {
+        const res = await fetch('/api/staging-tickets/latest-update', {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const latest = data.latest_update ?? null;
+
+        if (_isFirstStagingPoll) {
+            // Simpan baseline — jangan reload (loadStats/loadStagingTickets sudah
+            // dipanggil saat DOMContentLoaded).
+            _lastStagingUpdate = latest;
+            _isFirstStagingPoll = false;
+            return;
+        }
+
+        if (latest !== _lastStagingUpdate) {
+            _lastStagingUpdate = latest;
+            loadStats();
+            loadStagingTickets(currentPage);
+        }
+    } catch (err) {
+        console.warn('[Staging Polling] error:', err.message);
+    }
+}
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 async function loadStats() {

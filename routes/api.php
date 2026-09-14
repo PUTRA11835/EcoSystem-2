@@ -428,6 +428,7 @@ Route::middleware(['web'])->group(function () {
     // ==================== STAGING TICKET ROUTES ====================
     Route::prefix('staging-tickets')->group(function () {
         Route::get('/statistics', [StagingTicketController::class, 'statistics']);
+        Route::get('/latest-update', [StagingTicketController::class, 'latestUpdate']);
         Route::get('/', [StagingTicketController::class, 'index']);
         Route::post('/', [StagingTicketController::class, 'store']);
         Route::get('/{id}', [StagingTicketController::class, 'show']);
