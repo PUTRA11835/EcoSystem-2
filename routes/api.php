@@ -108,6 +108,7 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/{id}', [EmployeeController::class, 'destroy'])->middleware('menu:master.employee.action');
         Route::post('/{id}/delete', [EmployeeController::class, 'destroy'])->middleware('menu:master.employee.action');
         Route::patch('/{id}/change-password', [EmployeeController::class, 'changePassword'])->middleware('menu:master.employee.action');
+        Route::patch('/{id}/change-eci', [EmployeeController::class, 'changeEci'])->middleware('menu:master.employee.action');
         Route::patch('/{id}/change-role', [EmployeeController::class, 'changeRole'])->middleware('menu:master.employee.action');
     });
 

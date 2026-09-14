@@ -11,6 +11,8 @@ use App\Exports\TimesheetReportExport;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\CustomerMandays;
+use App\Models\DeliveryProject;
+use App\Models\DeliverySupport;
 use App\Models\DeliverySupportActivity;
 use App\Models\ReportingPeriod;
 use App\Models\Ticket;
@@ -388,6 +390,48 @@ class ReportingController extends Controller
 
     // ── Web: MD Recap page ────────────────────────────────────────────────
 
+    /**
+     * Resolve a human-readable "Delivery" label per timesheet row for MD Recap.
+     * Priority: `delivery_projects_id` (already joined as delivery_project_name)
+     * → project name; else `ticket_id` → the Delivery Support linked to that
+     * ticket via delivery_support_activities; else "Unassigned".
+     *
+     * Done as a separate lookup rather than another JOIN so a ticket that ever
+     * ends up linked to more than one delivery_support_activities row can't
+     * multiply the timesheet rows (each timesheet must stay exactly one row).
+     */
+    private function attachDeliveryNames(\Illuminate\Support\Collection $rows): \Illuminate\Support\Collection
+    {
+        $ticketIds = $rows
+            ->filter(fn($r) => empty($r->delivery_project_name) && !empty($r->ticket_id))
+            ->pluck('ticket_id')
+            ->unique()
+            ->values();
+
+        $ticketToSupportName = [];
+        if ($ticketIds->isNotEmpty()) {
+            $activities = DeliverySupportActivity::whereIn('ticket_id', $ticketIds)
+                ->whereNotNull('delivery_support_id')
+                ->select('ticket_id', 'delivery_support_id')
+                ->get()
+                ->unique('ticket_id'); // one Delivery Support per ticket — first match wins
+
+            $supportNames = DeliverySupport::whereIn('id', $activities->pluck('delivery_support_id')->unique())
+                ->pluck('name', 'id');
+
+            foreach ($activities as $activity) {
+                $ticketToSupportName[$activity->ticket_id] = $supportNames[$activity->delivery_support_id] ?? null;
+            }
+        }
+
+        return $rows->map(function ($r) use ($ticketToSupportName) {
+            $r->delivery = $r->delivery_project_name
+                ?: ($ticketToSupportName[$r->ticket_id] ?? null)
+                ?: 'Unassigned';
+            return $r;
+        });
+    }
+
     public function mdRecapIndex()
     {
         $sessionUser = session('user');
@@ -418,6 +462,7 @@ class ReportingController extends Controller
             $query = DB::table('timesheets')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
+                ->leftJoin('delivery_projects', 'timesheets.delivery_projects_id', '=', 'delivery_projects.id')
                 ->where('timesheets.status', 'approved')
                 ->whereNull('timesheets.deleted_at');
 
@@ -439,6 +484,8 @@ class ReportingController extends Controller
                 ->select(
                     'timesheets.id',
                     'timesheets.date',
+                    'timesheets.ticket_id',
+                    'delivery_projects.name as delivery_project_name',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     DB::raw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END as mode"),
                     DB::raw('COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0) as mandays')
@@ -447,12 +494,15 @@ class ReportingController extends Controller
                 ->orderBy('timesheets.date')
                 ->get();
 
+            $rows = $this->attachDeliveryNames($rows);
+
             $data = $rows->map(fn($r) => [
-                'id'      => $r->id,
-                'name'    => trim($r->employee_name),
-                'date'    => $r->date,
-                'mode'    => $r->mode,
-                'mandays' => round((float) $r->mandays, 2),
+                'id'       => $r->id,
+                'name'     => trim($r->employee_name),
+                'date'     => $r->date,
+                'mode'     => $r->mode,
+                'mandays'  => round((float) $r->mandays, 2),
+                'delivery' => $r->delivery,
             ]);
 
             return response()->json(['success' => true, 'data' => $data]);
@@ -484,6 +534,7 @@ class ReportingController extends Controller
             $query = DB::table('timesheets')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
+                ->leftJoin('delivery_projects', 'timesheets.delivery_projects_id', '=', 'delivery_projects.id')
                 ->where('timesheets.status', 'approved')
                 ->whereNull('timesheets.deleted_at');
 
@@ -511,6 +562,8 @@ class ReportingController extends Controller
             $rows = $query
                 ->select(
                     'timesheets.date',
+                    'timesheets.ticket_id',
+                    'delivery_projects.name as delivery_project_name',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     DB::raw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END as mode"),
                     DB::raw('COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0) as mandays')
@@ -519,16 +572,22 @@ class ReportingController extends Controller
                 ->orderBy('timesheets.date')
                 ->get();
 
-            // Aggregate: same employee + same mode → one merged row
+            $rows = $this->attachDeliveryNames($rows);
+
+            // Aggregate: same employee + same mode + same delivery → one merged row.
+            // A single employee can log mandays against different deliveries within
+            // the same period, so grouping by delivery too keeps each one on its
+            // own row instead of blending unrelated work into one total.
             $exportRows = $rows
-                ->groupBy(fn($r) => trim($r->employee_name) . '||' . $r->mode)
+                ->groupBy(fn($r) => trim($r->employee_name) . '||' . $r->mode . '||' . $r->delivery)
                 ->map(fn($group) => [
-                    'name'    => trim($group->first()->employee_name),
-                    'mode'    => $group->first()->mode,
-                    'entries' => $group->count(),
-                    'mandays' => round((float) $group->sum(fn($r) => (float) $r->mandays), 2),
+                    'name'     => trim($group->first()->employee_name),
+                    'mode'     => $group->first()->mode,
+                    'delivery' => $group->first()->delivery,
+                    'entries'  => $group->count(),
+                    'mandays'  => round((float) $group->sum(fn($r) => (float) $r->mandays), 2),
                 ])
-                ->sortBy([['name', 'asc'], ['mode', 'asc']])
+                ->sortBy([['name', 'asc'], ['mode', 'asc'], ['delivery', 'asc']])
                 ->values();
 
             $periodSuffix = ($filterMonth && $filterYear)

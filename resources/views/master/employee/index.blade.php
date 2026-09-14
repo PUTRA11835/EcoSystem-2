@@ -348,7 +348,12 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Employee <span class="text-red-600">*</span></label>
-                            <input type="text" id="eci" placeholder="e.g., ECI001" required class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <input type="text" id="eci" placeholder="e.g., ECI001" required class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 read-only:bg-gray-100 read-only:text-gray-500 read-only:cursor-not-allowed">
+                            {{-- ECI juga dipakai sebagai username login — begitu employee sudah dibuat, field
+                                 ini dikunci (readonly) di sini dan hanya bisa diubah lewat "Change Employee ID"
+                                 di menu aksi (⋮) baris karyawan, yang punya alur konfirmasi + re-auth khusus.
+                                 Lihat empMenuChangeEci()/changeEciModal di bawah. --}}
+                            <small id="eciReadonlyHint" class="hidden text-xs text-gray-400 mt-1">Locked — use "Change Employee ID" from the row menu to edit.</small>
                         </div>
 
                         <div class="flex flex-col">
@@ -701,6 +706,66 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             <button onclick="closeChangePasswordModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
             <button onclick="submitChangePassword()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                 Change Password
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Change Employee ID (ECI) — separate from the general edit form because
+     ECI doubles as the login username (see AuthController::login, auth_users.username).
+     Requires: re-type the new ECI + the acting admin's own password, and force-logs-out
+     the affected employee's existing sessions once changed. -->
+<div id="changeEciModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Change Employee ID</h3>
+                <p id="ceEmployeeName" class="text-sm text-gray-500 mt-0.5"></p>
+            </div>
+            <button onclick="closeChangeEciModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="p-6 space-y-4">
+            <input type="hidden" id="ceEmployeeId">
+            <div class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <p class="text-xs text-amber-800">This ID is also the employee's <strong>login username</strong>. Changing it will sign them out of any active session — they'll need to log in again with the new ID.</p>
+            </div>
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1">Current Employee ID</label>
+                <input type="text" id="ceCurrentEci" disabled class="px-3 py-2 border border-gray-200 rounded text-sm bg-gray-100 text-gray-500">
+            </div>
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1">New Employee ID <span class="text-red-600">*</span></label>
+                <input type="text" id="ceNewEci" placeholder="e.g., ECI002" oninput="onCeInputChange()" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+            </div>
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1">Confirm New Employee ID <span class="text-red-600">*</span></label>
+                <input type="text" id="ceConfirmEci" placeholder="Re-enter the new ID exactly" oninput="onCeInputChange()" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                <small id="ceMismatchHint" class="hidden text-xs text-red-600 mt-1">Doesn't match the new ID above.</small>
+            </div>
+            <div class="flex flex-col pt-2 border-t border-gray-100">
+                <label class="text-xs font-semibold text-gray-600 mb-1">Your Password <span class="text-red-600">*</span></label>
+                <div class="relative">
+                    <input type="password" id="ceAdminPassword" placeholder="Confirm with your own password" oninput="onCeInputChange()" class="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-10">
+                    <button type="button" onclick="toggleCpField('ceAdminPassword', 'ceEye1')" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                        <svg id="ceEye1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        </svg>
+                    </button>
+                </div>
+                <small class="text-xs text-gray-400 mt-1">Confirms it's really you making this change — not the employee's password.</small>
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+            <button onclick="closeChangeEciModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
+            <button id="ceSubmitBtn" onclick="submitChangeEci()" disabled class="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed">
+                Change Employee ID
             </button>
         </div>
     </div>
@@ -1082,6 +1147,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             const fullName = [emp.first_name, emp.last_name].filter(n => n).join(' ') || '-';
             _empRowData.set(Number(emp.id), {
                 name    : fullName,
+                eci     : emp.eci || '',
                 roleIds : emp.roles ? emp.roles.map(r => Number(r.id)) : [],
             });
         });
@@ -1280,6 +1346,10 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         document.getElementById('employeeForm').reset();
         document.getElementById('employeeId').value = '';
 
+        // New employee — ECI is still being decided here, so keep it editable.
+        document.getElementById('eci').readOnly = false;
+        document.getElementById('eciReadonlyHint').classList.add('hidden');
+
         // Reset modal custom dropdowns
         if (typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('title', '');
@@ -1336,7 +1406,12 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 currentEmployeeId = id;
                 
                 // SECTION 1: GENERAL DATA
+                // ECI is locked here once the employee exists — it's also the login
+                // username, so it only changes through the dedicated Change Employee
+                // ID flow (empMenuChangeEci), not this general edit form.
                 document.getElementById('eci').value = emp.eci || '';
+                document.getElementById('eci').readOnly = true;
+                document.getElementById('eciReadonlyHint').classList.remove('hidden');
                 document.getElementById('firstName').value = emp.first_name || '';
                 document.getElementById('lastName').value = emp.last_name || '';
                 document.getElementById('nickName').value = emp.nick_name || '';
@@ -1826,6 +1901,78 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
     }
 
+    // ── Change Employee ID (ECI) ────────────────────────────────────────────────
+    // Separate flow from the general edit form — see comment on #changeEciModal.
+    function openChangeEciModal(employeeId, employeeName, currentEci) {
+        document.getElementById('ceEmployeeId').value = employeeId;
+        document.getElementById('ceEmployeeName').textContent = employeeName;
+        document.getElementById('ceCurrentEci').value = currentEci || '';
+        document.getElementById('ceNewEci').value = '';
+        document.getElementById('ceConfirmEci').value = '';
+        document.getElementById('ceAdminPassword').value = '';
+        document.getElementById('ceMismatchHint').classList.add('hidden');
+        document.getElementById('ceSubmitBtn').disabled = true;
+        document.getElementById('changeEciModal').classList.remove('hidden');
+        document.getElementById('changeEciModal').classList.add('flex');
+        document.getElementById('ceNewEci').focus();
+    }
+
+    function closeChangeEciModal() {
+        document.getElementById('changeEciModal').classList.add('hidden');
+        document.getElementById('changeEciModal').classList.remove('flex');
+    }
+
+    // Enables Submit only once: new ID filled, confirm matches it exactly, and a
+    // password was entered — cheap client-side guard, backend re-validates all of it.
+    function onCeInputChange() {
+        const newEci     = document.getElementById('ceNewEci').value.trim();
+        const confirmEci = document.getElementById('ceConfirmEci').value.trim();
+        const password   = document.getElementById('ceAdminPassword').value;
+        const mismatch   = confirmEci !== '' && confirmEci !== newEci;
+
+        document.getElementById('ceMismatchHint').classList.toggle('hidden', !mismatch);
+        document.getElementById('ceSubmitBtn').disabled =
+            !newEci || !confirmEci || newEci !== confirmEci || !password;
+    }
+
+    async function submitChangeEci() {
+        const employeeId   = document.getElementById('ceEmployeeId').value;
+        const newEci       = document.getElementById('ceNewEci').value.trim();
+        const confirmEci   = document.getElementById('ceConfirmEci').value.trim();
+        const adminPassword = document.getElementById('ceAdminPassword').value;
+
+        if (!newEci || newEci !== confirmEci || !adminPassword) {
+            showNotification('Please fill in all fields correctly', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/employees/${employeeId}/change-eci`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ new_eci: newEci, admin_password: adminPassword }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showNotification('Employee ID changed successfully. The employee has been signed out.', 'success');
+                closeChangeEciModal();
+                fetchEmployees(getCurrentFilters(), currentPage);
+            } else {
+                showApiErrors(data, 'Failed to change Employee ID');
+            }
+        } catch (error) {
+            showNotification('An error occurred, please try again', 'error');
+        }
+    }
+
     // ── Change Role (multi) ────────────────────────────────────────────────────
     let allRoles = [];
 
@@ -1980,6 +2127,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             if (!document.getElementById('changePasswordModal').classList.contains('hidden')) {
                 closeChangePasswordModal();
             }
+            if (!document.getElementById('changeEciModal').classList.contains('hidden')) {
+                closeChangeEciModal();
+            }
             if (!document.getElementById('changeRoleModal').classList.contains('hidden')) {
                 closeChangeRoleModal();
             }
@@ -2079,13 +2229,14 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
     }
 
-    let _empMenuId = null, _empMenuName = null, _empMenuRoles = null;
+    let _empMenuId = null, _empMenuName = null, _empMenuEci = null, _empMenuRoles = null;
 
     function openEmpMenu(event, id) {
         event.stopPropagation();
-        const data    = _empRowData.get(Number(id)) ?? { name: '-', roleIds: [] };
+        const data    = _empRowData.get(Number(id)) ?? { name: '-', eci: '', roleIds: [] };
         _empMenuId    = id;
         _empMenuName  = data.name;
+        _empMenuEci   = data.eci;
         _empMenuRoles = data.roleIds;
         const menu = document.getElementById('floatingEmpMenu');
         const btn  = event.currentTarget;
@@ -2112,6 +2263,10 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         closeEmpMenu();
         openChangePasswordModal(_empMenuId, _empMenuName);
     }
+    function empMenuChangeEci() {
+        closeEmpMenu();
+        openChangeEciModal(_empMenuId, _empMenuName, _empMenuEci);
+    }
     function empMenuChangeRole() {
         closeEmpMenu();
         openChangeRoleModal(_empMenuId, _empMenuName, _empMenuRoles);
@@ -2132,6 +2287,12 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 0 1 21.75 8.25Z"/>
         </svg>
         Change Password
+    </button>
+    <button onclick="empMenuChangeEci()" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-all">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-amber-600">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"/>
+        </svg>
+        Change Employee ID
     </button>
     <button onclick="empMenuChangeRole()" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-all">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-purple-500">
