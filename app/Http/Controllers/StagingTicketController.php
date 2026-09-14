@@ -413,6 +413,19 @@ class StagingTicketController extends Controller
 
         $staging = StagingTicket::findOrFail($id);
 
+        // Approve HANYA boleh kalau AI Analyzer sudah selesai — bukan cuma
+        // preferensi UI, ini prasyarat keras: room AI Research BERSAMA yang
+        // dibuat di bawah (createSharedAiResearchRoom()) di-seed dari hasil
+        // analisa ini, jadi tanpa analisa yang selesai tidak ada apa pun yang
+        // bisa di-seed. Tidak ada jalur manual untuk melewati ini — validator
+        // harus menunggu/mencoba ulang (tombol Re-analyze) sampai berhasil.
+        if ('completed' !== $staging->ai_analysis_status || !$staging->ai_analysis) {
+            return response()->json([
+                'success' => false,
+                'message' => 'AI analysis must complete successfully before this ticket can be approved. Please wait for the analysis to finish, or click Re-analyze if it failed.',
+            ], 422);
+        }
+
         // Delivery support wajib dipilih SELAMA customer tiket ini memang punya
         // delivery support terdaftar (kalau tidak punya, field boleh kosong).
         // Yang dipilih juga harus benar-benar milik customer tersebut.
@@ -516,6 +529,13 @@ class StagingTicketController extends Controller
             // membatalkan approve yang sudah tersimpan.
             $this->notifyTeamsTicketValidated($ticket, $sessionUser);
 
+            // Room AI Research BERSAMA — dibuat SEKARANG (bukan saat tombol
+            // "Ask AI Research" diklik) supaya semua anggota tim tiket
+            // langsung dapat konteks hasil AI Analyzer, bukan ringkasan
+            // generik. Gagal di sini TIDAK boleh membatalkan approve yang
+            // sudah tersimpan — sama seperti side-effect lain di atas.
+            $this->createSharedAiResearchRoom($ticket, $staging, (int) $sessionUser['id']);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Ticket validated and created successfully.',
@@ -596,6 +616,57 @@ class StagingTicketController extends Controller
             );
         } catch (\Throwable $e) {
             Log::warning('StagingTicketController@approve: gagal menyiapkan notifikasi Teams (non-fatal)', [
+                'ticket_id' => $ticket->ticket_id,
+                'error'     => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Room AI Research BERSAMA untuk tiket ini — bisa diakses (baca+tulis)
+     * oleh SEMUA anggota tim tiket (lead + member aktif, lihat
+     * TicketTeamAccess::canAccessAiResearch()), bukan privat per-employee
+     * seperti jalur PALING lama (sebelum room bersama ada sama sekali).
+     * AiResearchController::openForTicket() SEKARANG JUGA membuat room
+     * bersama yang sama bentuknya (bukan privat) — bedanya cuma pemicunya:
+     * di sini dipicu approve(), di sana dipicu klik tombol untuk tiket yang
+     * approve()-nya terjadi sebelum method ini ada.
+     *
+     * conversation_id pakai pola BARU ("ticket-team-{id}") — beda dari pola
+     * lama ("ticket-{id}") yang dulu dipakai room privat — supaya TIDAK
+     * PERNAH bentrok dengan unique constraint (employee_id, assistant,
+     * conversation_id) milik room privat lama; tidak perlu ubah constraint
+     * itu sama sekali. employee_id di baris ini cuma metadata "siapa yang
+     * approve", BUKAN penentu akses — lihat AiResearchController::
+     * resolveConversation().
+     *
+     * approve() sudah menggerbang: method ini TIDAK dipanggil kalau
+     * ai_analysis belum completed (lihat pengecekan di awal approve()),
+     * jadi $staging->ai_analysis selalu ada di sini.
+     */
+    private function createSharedAiResearchRoom(Ticket $ticket, StagingTicket $staging, int $validatedBy): void
+    {
+        try {
+            $conversationId = "ticket-team-{$ticket->ticket_id}";
+
+            $conversation = \App\Models\AiConversation::create([
+                'employee_id'     => $validatedBy,
+                'ticket_id'       => $ticket->ticket_id,
+                'assistant'       => \App\Models\AiConversation::ASSISTANT_RESEARCH,
+                'conversation_id' => $conversationId,
+                'title'           => \Illuminate\Support\Str::limit(
+                    trim($ticket->ticket_number . ' - ' . (string) $ticket->description),
+                    180,
+                    ''
+                ),
+            ]);
+
+            $conversation->messages()->create([
+                'role'    => 'user',
+                'content' => \App\Support\TicketAnalysisSeed::build($ticket, (array) $staging->ai_analysis),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('StagingTicketController@approve: gagal membuat room AI Research bersama (non-fatal)', [
                 'ticket_id' => $ticket->ticket_id,
                 'error'     => $e->getMessage(),
             ]);

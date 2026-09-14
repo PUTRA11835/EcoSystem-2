@@ -172,7 +172,7 @@
                     </div>
                     <div>
                         <h3 class="text-sm font-semibold text-gray-800">AI Settings</h3>
-                        <p class="text-xs text-gray-400">Model & token ceiling per assistant</p>
+                        <p class="text-xs text-gray-400">Model & reasoning effort per assistant</p>
                     </div>
                 </div>
                 <div class="space-y-2">
@@ -184,7 +184,7 @@
                                 <p class="text-xs font-medium text-gray-700">{{ $aiName }}</p>
                                 <p class="text-xs text-gray-400 truncate">
                                     {{ \App\Support\AiModelSettings::catalog()[$aiActive['model']]['label'] ?? $aiActive['model'] }}
-                                    &middot; max {{ number_format($aiActive['max_tokens']) }} tokens
+                                    &middot; effort {{ $aiActive['effort'] ? ucfirst($aiActive['effort']) : 'Off' }}
                                 </p>
                             </div>
                         </div>

@@ -728,9 +728,11 @@ function aiAppendUser(text, files) {
 
     // Lampiran DULU, teks/prompt di bawahnya — sama seperti composer
     // claude.ai (gambar/berkas adalah "subjek", teksnya keterangan/pertanyaan
-    // tentangnya).
+    // tentangnya). justify-start (bukan justify-end) — bubble-nya sendiri
+    // sudah rata kanan (flex justify-end di bawah), thumbnail di DALAM bubble
+    // harus rata kiri seperti alur baca normal, bukan menempel ke sudut kanan.
     const thumbs = images.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end">
+        <div class="flex flex-wrap gap-1.5 justify-start">
             ${images.map(f => `
                 <img src="${aiPreviewUrl(f)}" alt="${aiEsc(f.name)}" title="${aiEsc(f.name)}"
                      class="ai-thumb w-28 h-28 border border-white/25"
@@ -738,7 +740,7 @@ function aiAppendUser(text, files) {
         </div>`;
 
     const chips = others.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end ${images.length ? 'mt-2' : ''}">
+        <div class="flex flex-wrap gap-1.5 justify-start ${images.length ? 'mt-2' : ''}">
             ${others.map(f => `
                 <span class="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-white/15 border border-white/20 max-w-[220px]">
                     ${aiChipFace(f, 'text-white/70', 'text-white', 'bg-white/20')}
@@ -819,7 +821,7 @@ function aiAppendUserStored(text, attachmentCount, at, conversationId) {
     const noteId = attachmentCount > 0 ? 'aiAtt' + (++aiAttachSeq) : null;
 
     const note = attachmentCount > 0 ? `
-        <div id="${noteId}" class="flex items-center gap-1.5 justify-end text-[10px] text-white/70">
+        <div id="${noteId}" class="flex items-center gap-1.5 justify-start text-[10px] text-white/70">
             <i class="fas fa-paperclip text-[9px]"></i>
             ${attachmentCount} attachment${attachmentCount > 1 ? 's' : ''} (not kept in history)
         </div>` : '';
@@ -860,7 +862,7 @@ async function aiUpgradeStoredAttachments(noteId, conversationId, text, count) {
     const others = files.filter(f => !aiIsImage(f));
 
     const thumbs = images.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end">
+        <div class="flex flex-wrap gap-1.5 justify-start">
             ${images.map(f => `
                 <img src="${aiPreviewUrl(f)}" alt="${aiEsc(f.name)}" title="${aiEsc(f.name)}"
                      class="ai-thumb w-28 h-28 border border-white/25"
@@ -868,7 +870,7 @@ async function aiUpgradeStoredAttachments(noteId, conversationId, text, count) {
         </div>`;
 
     const chips = others.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end ${images.length ? 'mt-2' : ''}">
+        <div class="flex flex-wrap gap-1.5 justify-start ${images.length ? 'mt-2' : ''}">
             ${others.map(f => `
                 <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/15 border border-white/20">
                     <i class="fas ${aiFileIcon(f.name)} text-[10px]"></i>
