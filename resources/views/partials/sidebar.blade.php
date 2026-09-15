@@ -477,7 +477,18 @@
             @if($can('general') || $can('hr_general.leave_permit.admin') || $can('general.attendance') || $can('general.attendance.correction') || $can('general.overtime') || $can('general.reimbursement') || $can('general.purchase-request') || $can('general.cash-advance') || $can('general.cash-advance-report'))
                 <!-- HR & GENERAL -->
                 @php
-                    $hrGeneralOpen = Request::is('hr-general*') || Request::is('general/attendance*') || Request::is('general/overtime*') || Request::is('general/reimbursement*') || Request::is('general/purchase-request*');
+                    // 🔴 Daftar ini harus diperbarui setiap kali item baru masuk ke grup —
+                    // kelalaian yang sempat terjadi pada Cash Advance: itemnya menyala di
+                    // dalam grup, tetapi grupnya sendiri tetap TERLIPAT saat halamannya
+                    // dibuka. Sidebar yang ditulis tangan selalu punya dua daftar yang
+                    // harus dijaga sejalan: siapa boleh melihat, dan kapan grup terbuka.
+                    $hrGeneralOpen = Request::is('hr-general*')
+                        || Request::is('general/attendance*')
+                        || Request::is('general/overtime*')
+                        || Request::is('general/reimbursement*')
+                        || Request::is('general/purchase-request*')
+                        || Request::is('general/cash-advance*')
+                        || Request::is('general/kpi-evaluation*');
                 @endphp
                 <div class="mb-2">
                     <button onclick="toggleHrGeneralDropdown()"
