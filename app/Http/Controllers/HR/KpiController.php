@@ -374,6 +374,7 @@ class KpiController extends Controller
                     'period_month'       => $request->period_month,
                     'supervisor_id'      => $supId,
                     'status'             => KpiEvaluation::STATUS_DRAFT,
+                    'is_anonymous'       => $template->is_anonymous,
                     'self_deadline'      => $request->self_deadline ?: null,
                     'supervisor_deadline'=> $request->supervisor_deadline ?: null,
                     'created_by'         => $user['id'] ?? null,
@@ -496,10 +497,24 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
 
         $canApprove = $this->can('general.kpi-evaluation.approve');
 
+        // Upward assessments are filled by the rater via the self-assessment
+        // pathway (see KpiEvaluation::usesSelfFields). HR reviews the group of
+        // sibling submissions here and publishes their average — the subject
+        // (supervisor_id) never sees this list.
+        $siblingUpwardEvaluations = collect();
+        if ($evaluation->isUpwardType()) {
+            $siblingUpwardEvaluations = KpiEvaluation::with('employee.basicData')
+                ->where('template_id', $evaluation->template_id)
+                ->where('supervisor_id', $evaluation->supervisor_id)
+                ->where('period_month', $evaluation->period_month)
+                ->get();
+        }
+
         return view('hr-general.kpi.review', compact(
             'user',
             'evaluation',
-            'canApprove'
+            'canApprove',
+            'siblingUpwardEvaluations'
         ));
     }
 
@@ -512,6 +527,18 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         $userId = (int) ($user['id'] ?? 0);
 
         $evaluation = KpiEvaluation::with(['details.indicator', 'template'])->findOrFail($id);
+
+        // Upward evaluations are filled by the rater via the self-assessment
+        // pathway (self_* fields), never here.
+        if ($evaluation->isUpwardType()) {
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Upward evaluations are filled via the self-assessment form, not the supervisor review form.',
+                ], 422);
+            }
+            return redirect()->back()->with('error', 'Upward evaluations are filled via the self-assessment form.');
+        }
 
         // Security check: employees cannot evaluate themselves as supervisor
         if ($userId === (int) $evaluation->employee_id && empty($user['is_admin'])) {
@@ -656,6 +683,63 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
             return response()->json(['success' => true, 'message' => 'Evaluation rejected.']);
         }
         return redirect()->back()->with('success', 'Evaluation rejected. HR notes have been saved.');
+    }
+
+    // ── Upward Evaluation — Publish Anonymous Average ─────────────────────────
+
+    /**
+     * POST: Compute and publish the average score across every hr_approved
+     * "upward" evaluation for a supervisor (subject) + template + period, so
+     * the subject sees only that average — never an individual rater's score.
+     *
+     * $id can be any one evaluation belonging to the group; the group itself
+     * is resolved by (supervisor_id, template_id, period_month).
+     */
+    public function publishUpwardAverage(Request $request, int $id)
+    {
+        $anchor = KpiEvaluation::with('template')->findOrFail($id);
+
+        if (!$anchor->isUpwardType()) {
+            $msg = 'Only upward-assessment evaluations can be published this way.';
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return redirect()->back()->with('error', $msg);
+        }
+
+        $group = KpiEvaluation::where('template_id', $anchor->template_id)
+            ->where('supervisor_id', $anchor->supervisor_id)
+            ->where('period_month', $anchor->period_month)
+            ->where('status', KpiEvaluation::STATUS_HR_APPROVED)
+            ->get();
+
+        if ($group->isEmpty()) {
+            $msg = 'No approved rater submissions yet — approve at least one before publishing.';
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return redirect()->back()->with('error', $msg);
+        }
+
+        $user = session('user');
+        $now  = now();
+        $avg  = round((float) $group->avg('overall_score'), 2);
+
+        KpiEvaluation::whereIn('id', $group->pluck('id'))->update([
+            'published_at' => $now,
+            'published_by' => $user['id'] ?? null,
+        ]);
+
+        $msg = "Published average score {$avg} from {$group->count()} rater(s) — the supervisor sees only this average, not individual submissions.";
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success'      => true,
+                'message'      => $msg,
+                'average'      => $avg,
+                'rater_count'  => $group->count(),
+            ]);
+        }
+        return redirect()->back()->with('success', $msg);
     }
 
     /**

@@ -77,14 +77,20 @@
 
     {{-- ── Template Table — filters live in the column headers ────────────────── --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="p-5 border-b border-gray-100 flex items-center gap-2">
-            <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
-                <span>All Templates</span>
-                <span id="templateCountBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#00c5a2]/15 text-[#00a88a]">
-                    {{ $templates->count() }}
-                </span>
-            </h3>
-            <p class="text-xs text-gray-400">Use the <i class="fas fa-filter text-[10px]"></i> icons in the header to filter.</p>
+        <div class="p-5 border-b border-gray-100 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
+                    <span>All Templates</span>
+                    <span id="templateCountBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[rgba(var(--primary-rgb),0.15)] text-[var(--primary-color)]">
+                        {{ $templates->count() }}
+                    </span>
+                </h3>
+                <p class="text-xs text-gray-400">Use the <i class="fas fa-filter text-[10px]"></i> icons in the header to filter.</p>
+            </div>
+            <button type="button" id="hfResetBtn" onclick="resetHF()"
+                class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 bg-[rgba(var(--primary-rgb),0.15)] hover:bg-[rgba(var(--primary-rgb),0.25)] text-[var(--primary-color)] text-xs font-semibold rounded-lg transition-all">
+                <i class="fas fa-rotate-left text-[10px]"></i> Reset Filters
+            </button>
         </div>
 
         {{-- filter state (client-side) --}}
@@ -131,7 +137,7 @@
                                 </button>
                             </div>
                             <div id="hfType" class="hf-pop hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-[170px] normal-case font-normal" onclick="event.stopPropagation()">
-                                @foreach(['' => 'All types', 'self' => 'Self-Assessment', 'lead' => 'Lead Assessment'] as $v => $l)
+                                @foreach(['' => 'All types', 'self' => 'Self-Assessment', 'lead' => 'Lead Assessment', 'upward' => 'Upward Assessment'] as $v => $l)
                                 <button type="button" onclick="setHF('fType','{{ $v }}')" class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">{{ $l }}</button>
                                 @endforeach
                             </div>
@@ -174,15 +180,18 @@
                         </th>
 
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">
-                            <button type="button" id="hfResetBtn" onclick="resetHF()" class="hidden inline-flex items-center px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg normal-case">Reset</button>
-                            <span id="hfActionLbl">Action</span>
+                            Action
                         </th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50" id="templateRows">
                     @foreach($templates as $i => $tmpl)
                     @php
-                        $ttype = ($tmpl->target_type ?? 'supervisor') === 'self' ? 'self' : 'lead';
+                        $ttype = match ($tmpl->target_type ?? 'supervisor') {
+                            'self'   => 'self',
+                            'upward' => 'upward',
+                            default  => 'lead',
+                        };
                         $scaleMax = $tmpl->score_divisor ?: ($tmpl->relationLoaded('scoringScales') && $tmpl->scoringScales->isNotEmpty() ? $tmpl->scoringScales->max('scale_value') : 5);
                         $weightOk = abs($tmpl->total_weight - 100) < 0.01;
                     @endphp
@@ -218,9 +227,17 @@
                             @endif
                         </td>
                         <td class="px-4 py-3.5 align-top">
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $ttype === 'self' ? 'bg-purple-100 text-purple-700' : 'bg-indigo-100 text-indigo-700' }}">
-                                {{ $ttype === 'self' ? 'Self' : 'Lead' }}
-                            </span>
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold
+                                    {{ $ttype === 'self' ? 'bg-purple-100 text-purple-700' : ($ttype === 'upward' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700') }}">
+                                    {{ $ttype === 'self' ? 'Self' : ($ttype === 'upward' ? 'Upward' : 'Lead') }}
+                                </span>
+                                @if($tmpl->is_anonymous)
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600" title="Rater identities are hidden from the subject">
+                                    <i class="fas fa-user-secret text-[9px]"></i> Anonymous
+                                </span>
+                                @endif
+                            </div>
                         </td>
                         <td class="px-4 py-3.5 text-center align-top text-xs font-semibold text-gray-600">1&ndash;{{ $scaleMax }}</td>
                         <td class="px-4 py-3.5 text-center align-top text-xs text-gray-600">{{ $tmpl->indicators->count() }}</td>
@@ -263,7 +280,7 @@
                 <i class="fas fa-search"></i>
             </div>
             <p class="text-gray-700 text-sm font-bold">No matching KPI templates found</p>
-            <button type="button" onclick="resetHF()" class="mt-3.5 inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-semibold bg-[#00c5a2]/15 text-[#008f75] hover:bg-[#00c5a2]/25 transition-all">Reset filters</button>
+            <button type="button" onclick="resetHF()" class="mt-3.5 inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(var(--primary-rgb),0.15)] text-[var(--primary-color)] hover:bg-[rgba(var(--primary-rgb),0.25)] transition-all">Reset filters</button>
         </div>
         @else
         <div class="py-16 text-center">

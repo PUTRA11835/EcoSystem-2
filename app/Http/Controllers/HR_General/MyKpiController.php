@@ -60,16 +60,44 @@ class MyKpiController extends Controller
         // Selected period evaluation for the detail card switcher
         $selectedEval = $evaluations->firstWhere('period_month', $selectedPeriod) ?: $currentEval;
 
-        // Split by assessment kind. Self and Lead assessments are now separate
-        // evaluation rows on separate templates (different indicators).
-        $selfEvals = $evaluations->filter(fn($e) => $e->isSelfType())->values();
-        $leadEvals = $evaluations->filter(fn($e) => $e->isLeadType())->values();
+        // Split by assessment kind. Self, Upward and Lead assessments are
+        // separate evaluation rows on separate templates (different indicators).
+        // Upward rows are filled the same way as self rows (self_* fields,
+        // via this same self-assessment pathway) but rate the employee's
+        // supervisor rather than the employee — kept in its own bucket so the
+        // "Lead Assessment" tab never lists them.
+        $selfEvals   = $evaluations->filter(fn($e) => $e->isSelfType())->values();
+        $upwardEvals = $evaluations->filter(fn($e) => $e->isUpwardType())->values();
+        $leadEvals   = $evaluations->filter(fn($e) => $e->isLeadType())->values();
 
-        // Self-assessments still awaiting the employee's input
-        $pendingSelfAssessment = $selfEvals->filter(fn($e) =>
+        // Self-assessments and upward evaluations still awaiting the employee's input
+        $pendingSelfAssessment = $selfEvals->concat($upwardEvals)->filter(fn($e) =>
             !$e->hasSelfAssessment() &&
             !in_array($e->status, [KpiEvaluation::STATUS_HR_APPROVED])
         )->values();
+
+        // Anonymized average of upward evaluations *about this employee*
+        // (i.e. where this employee is the supervisor/subject being rated by
+        // subordinates). Individual rater submissions are never exposed here
+        // — only the HR-published average, grouped by template + period.
+        $upwardFeedback = KpiEvaluation::with('template')
+            ->where('supervisor_id', $employeeId)
+            ->whereHas('template', fn($t) => $t->where('target_type', 'upward'))
+            ->whereNotNull('published_at')
+            ->get()
+            ->groupBy(fn($e) => $e->template_id . '|' . $e->period_month)
+            ->map(function ($group) {
+                $first = $group->first();
+                return (object) [
+                    'template'      => $first->template,
+                    'period_month'  => $first->period_month,
+                    'average_score' => round((float) $group->avg('overall_score'), 2),
+                    'rater_count'   => $group->count(),
+                    'published_at'  => $group->max('published_at'),
+                ];
+            })
+            ->sortByDesc('period_month')
+            ->values();
 
         // Approved evaluations visible to employee
         $approvedEvaluations = $evaluations->where('status', KpiEvaluation::STATUS_HR_APPROVED);
@@ -120,6 +148,8 @@ class MyKpiController extends Controller
             'user',
             'evaluations',
             'selfEvals',
+            'upwardEvals',
+            'upwardFeedback',
             'leadEvals',
             'currentEval',
             'currentPeriod',
@@ -156,7 +186,7 @@ class MyKpiController extends Controller
 
         // Only self-type rows are fillable by the employee. Lead-assessment rows
         // are scored by the manager and are read-only here.
-        if (!$evaluation->isSelfType()) {
+        if (!$evaluation->isSelfType() && !$evaluation->isUpwardType()) {
             return redirect()->route('general.my-kpi.index')
                 ->with('error', 'This is a lead assessment and cannot be filled as a self-assessment.');
         }
@@ -187,7 +217,7 @@ class MyKpiController extends Controller
             ->where('employee_id', $employeeId)
             ->findOrFail($id);
 
-        if (!$evaluation->isSelfType()) {
+        if (!$evaluation->isSelfType() && !$evaluation->isUpwardType()) {
             if ($request->wantsJson()) {
                 return response()->json(['success' => false, 'message' => 'This row is a lead assessment, not a self-assessment.'], 422);
             }

@@ -13,6 +13,7 @@
     $periodObj = Carbon::createFromFormat('Y-m', $evaluation->period_month);
     $periodLabel = $periodObj->format('F Y');
     $isApproved = $evaluation->status === \App\Models\KpiEvaluation::STATUS_HR_APPROVED;
+    $isUpward = $evaluation->isUpwardType();
     // View-only once submitted, or once HR approves.
     $locked = $locked ?? ($evaluation->hasSelfAssessment() || $isApproved);
     $scaleMax  = $evaluation->template?->scaleMax() ?: 5;
@@ -27,10 +28,13 @@
             <div class="flex items-center gap-2 text-xs text-gray-400 mb-1.5">
                 <a href="{{ route('general.my-kpi.index') }}" class="hover:text-gray-600">My KPI</a>
                 <i class="fas fa-chevron-right text-[10px]"></i>
-                <span class="text-gray-700 font-medium">Self-Assessment</span>
+                <span class="text-gray-700 font-medium">{{ $isUpward ? 'Upward Assessment' : 'Self-Assessment' }}</span>
             </div>
             <h1 class="text-xl font-bold text-gray-900">{{ $evaluation->template?->name ?? 'KPI Self-Assessment' }}</h1>
             <p class="text-xs text-gray-500 mt-0.5">Evaluation Period: <strong>{{ $periodLabel }}</strong></p>
+            @if($isUpward)
+            <p class="text-xs text-gray-500 mt-0.5">Evaluating: <strong>{{ $supBd?->full_name ?? 'your supervisor' }}</strong></p>
+            @endif
         </div>
         <a href="{{ route('general.my-kpi.index') }}"
            class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 text-xs font-semibold rounded-xl hover:bg-gray-200 transition-all">
@@ -40,6 +44,15 @@
 
     {{-- ── Guidelines & Locked Warning ───────────────────────────────────── --}}
     <div class="space-y-3">
+        @if($evaluation->is_anonymous)
+        <div class="bg-slate-800 text-white rounded-2xl p-4 shadow-sm flex items-start gap-3">
+            <i class="fas fa-user-secret text-lg mt-0.5 shrink-0 text-slate-300"></i>
+            <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-200">Anonymous Evaluation</p>
+                <p class="text-xs text-slate-300 mt-1">This evaluation is anonymous; please evaluate honestly. Your responses are never shown individually to the person you're evaluating — HR only shares the average score.</p>
+            </div>
+        </div>
+        @endif
         @if($locked)
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm flex items-start gap-3">
             <i class="fas fa-lock text-amber-600 text-lg mt-0.5 shrink-0"></i>
@@ -117,7 +130,7 @@
 
             <div class="p-6 border-b border-gray-100 flex items-center justify-between">
                 <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
-                    <i class="fas fa-list-check text-indigo-500"></i> Indikator KPI — Self-Assessment
+                    <i class="fas fa-list-check text-indigo-500"></i> Indikator KPI — {{ $isUpward ? 'Upward Assessment' : 'Self-Assessment' }}
                 </h3>
                 <span class="text-xs text-gray-400">
                     {{ $evaluation->details->count() }} indicators &middot; Total weight:
@@ -254,7 +267,7 @@
 </div>
 
 {{-- ── Custom Submission Confirmation Modal ────────────────────────────── --}}
-<div id="confirmSubmitModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+<div id="confirmSubmitModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 text-center border border-gray-100 transform transition-all scale-100">
         <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-2xl shadow-sm">
             <i class="fas fa-exclamation-triangle"></i>
@@ -314,11 +327,18 @@ function recalcTotalScore() {
     if (display) display.textContent = total.toFixed(2);
 }
 
+// The modal wrapper stays 'flex' only while visible — kept off the static
+// class list (and toggled in lockstep with 'hidden' here) so the two never
+// sit on the element at the same time.
 function openConfirmSubmitModal() {
-    document.getElementById('confirmSubmitModal').classList.remove('hidden');
+    const el = document.getElementById('confirmSubmitModal');
+    el.classList.remove('hidden');
+    el.classList.add('flex');
 }
 function closeConfirmSubmitModal() {
-    document.getElementById('confirmSubmitModal').classList.add('hidden');
+    const el = document.getElementById('confirmSubmitModal');
+    el.classList.add('hidden');
+    el.classList.remove('flex');
 }
 
 function submitSelfAssessment(e) {

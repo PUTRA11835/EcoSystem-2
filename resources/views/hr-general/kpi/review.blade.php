@@ -13,12 +13,16 @@
     $periodObj = Carbon::createFromFormat('Y-m', $evaluation->period_month);
     $periodLabel = $periodObj->format('F Y');
     $isApproved = $evaluation->status === \App\Models\KpiEvaluation::STATUS_HR_APPROVED;
+    $isUpward = $evaluation->isUpwardType();
     $isSelf = (int)($user['id'] ?? 0) === (int)$evaluation->employee_id && empty($user['is_admin']);
-    $isReadOnly = $isApproved || $isSelf;
+    // Upward rows are filled by the rater via the self-assessment pathway
+    // (My KPI), never here — this page is HR's read-only review + approval.
+    $isReadOnly = $isApproved || $isSelf || $isUpward;
     $canReviewNow = $can('general.kpi-evaluation.review') && !$isReadOnly;
     $canApproveNow = $canApprove && $evaluation->isReadyForApproval() && !$isApproved && !$isSelf;
     $scaleMax  = $evaluation->template?->scaleMax() ?: 5;
     $scaleRows = $evaluation->template ? $evaluation->template->scaleRows() : collect();
+    $siblingUpwardEvaluations = $siblingUpwardEvaluations ?? collect();
 @endphp
 
 <div class="space-y-6">
@@ -98,6 +102,78 @@
             @endif
         </div>
     </div>
+
+    {{-- ── Anonymous evaluation notice ──────────────────────────────────────── --}}
+    @if($evaluation->is_anonymous)
+    <div class="bg-slate-800 text-white rounded-2xl p-4 shadow-sm flex items-start gap-3">
+        <i class="fas fa-user-secret text-lg mt-0.5 shrink-0 text-slate-300"></i>
+        <div>
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-200">Anonymous Evaluation</p>
+            <p class="text-xs text-slate-300 mt-1">This evaluation is anonymous; please evaluate honestly. Individual rater identities and scores are never shown to the supervisor being evaluated — only the published average is.</p>
+        </div>
+    </div>
+    @endif
+
+    {{-- ── Upward Assessment: sibling submissions & anonymous average publish ── --}}
+    @if($isUpward && $canApprove)
+    @php
+        $approvedSiblings = $siblingUpwardEvaluations->where('status', \App\Models\KpiEvaluation::STATUS_HR_APPROVED);
+        $publishedSiblings = $siblingUpwardEvaluations->whereNotNull('published_at');
+        $currentAvg = $approvedSiblings->isNotEmpty() ? round($approvedSiblings->avg('overall_score'), 2) : null;
+    @endphp
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+                <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-users text-amber-500"></i> Upward Assessment — Rater Submissions
+                </h3>
+                <p class="text-xs text-gray-500 mt-0.5">
+                    Every subordinate rating <strong>{{ $supBd?->full_name ?? 'this supervisor' }}</strong> for {{ $periodLabel }}.
+                    Only the average is ever shown to them — visible here to HR for review purposes only.
+                </p>
+            </div>
+            <button type="button" onclick="publishUpwardAverage()"
+                {{ $approvedSiblings->isEmpty() ? 'disabled' : '' }}
+                class="inline-flex items-center gap-1.5 px-4 py-2 {{ $approvedSiblings->isEmpty() ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800' }} text-xs font-bold rounded-xl shadow transition-all shrink-0">
+                <i class="fas fa-broadcast-tower text-xs"></i> Publish Average to Supervisor
+            </button>
+        </div>
+
+        <div class="overflow-x-auto border border-gray-100 rounded-xl">
+            <table class="w-full text-xs">
+                <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase">
+                    <tr>
+                        <th class="text-left px-4 py-2.5 font-semibold">Rater (subordinate)</th>
+                        <th class="text-center px-4 py-2.5 font-semibold w-28">Status</th>
+                        <th class="text-center px-4 py-2.5 font-semibold w-24">Score</th>
+                        <th class="text-center px-4 py-2.5 font-semibold w-28">Published</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @foreach($siblingUpwardEvaluations as $s)
+                    <tr>
+                        <td class="px-4 py-2.5 font-semibold text-gray-800">{{ $s->employee?->basicData?->full_name ?? $s->employee?->eci ?? '—' }}</td>
+                        <td class="px-4 py-2.5 text-center">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $s->status === 'hr_approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' }}">
+                                {{ $s->status_label }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2.5 text-center font-bold">{{ $s->overall_score !== null ? number_format($s->overall_score, 1) : '—' }}</td>
+                        <td class="px-4 py-2.5 text-center">{{ $s->published_at ? $s->published_at->format('d M Y') : '—' }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+
+        @if($publishedSiblings->isNotEmpty())
+        <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
+            <i class="fas fa-check-circle mr-1"></i>
+            Published average <strong>{{ $currentAvg }}</strong> from {{ $approvedSiblings->count() }} approved rater(s) — visible on the supervisor's My KPI page.
+        </div>
+        @endif
+    </div>
+    @endif
 
     {{-- ── Section 2: Analisa Timesheet Widget (Screenshot 3) ──────────────── --}}
     <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
@@ -234,7 +310,11 @@
                                 $isPara = $ind && $ind->isParagraph();
                                 $max = $ind?->effectiveMax() ?: $scaleMax;
                                 $weight = $ind?->weight ?? 0;
-                                $currentRating = $detail->star_rating ?? ($detail->supervisor_score ? min($max, max(1, (int) round($detail->supervisor_score / 100 * $max))) : null);
+                                // Upward rows are filled via self_* fields (rater's own input);
+                                // every other type via supervisor_* fields.
+                                $scoreVal = $isUpward ? $detail->self_achievement : $detail->supervisor_score;
+                                $notesVal = $isUpward ? $detail->self_notes : $detail->supervisor_notes;
+                                $currentRating = $detail->star_rating ?? ($scoreVal ? min($max, max(1, (int) round($scoreVal / 100 * $max))) : null);
                                 $isUnfilled = !$isPara && is_null($currentRating);
                             @endphp
                             <tr class="indicator-tr hover:bg-gray-50/50 transition-colors {{ $isUnfilled ? 'bg-amber-50/20' : '' }}" data-weight="{{ $weight }}">
@@ -253,13 +333,13 @@
                                     <textarea name="scores[{{ $detail->id }}][notes]" rows="3"
                                         {{ $isReadOnly ? 'readonly' : '' }}
                                         placeholder="Catatan / tanggapan atas jawaban karyawan..."
-                                        class="w-full px-3 py-2 text-[11px] border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y bg-white">{{ old("scores.{$detail->id}.notes", $detail->supervisor_notes) }}</textarea>
-                                    @if($detail->self_notes)
+                                        class="w-full px-3 py-2 text-[11px] border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y bg-white">{{ old("scores.{$detail->id}.notes", $notesVal) }}</textarea>
+                                    @if(!$isUpward && $detail->self_notes)
                                     <p class="text-[11px] text-gray-500 mt-1"><span class="font-semibold text-gray-600">Jawaban karyawan:</span> {{ $detail->self_notes }}</p>
                                     @endif
                                     @else
                                     <input type="text" name="scores[{{ $detail->id }}][notes]"
-                                        value="{{ old("scores.{$detail->id}.notes", $detail->supervisor_notes) }}"
+                                        value="{{ old("scores.{$detail->id}.notes", $notesVal) }}"
                                         {{ $isReadOnly ? 'readonly' : '' }}
                                         placeholder="Tambahkan catatan khusus untuk indikator ini (opsional)..."
                                         class="w-full px-3 py-1.5 text-[11px] border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 bg-white">
@@ -350,7 +430,7 @@
 </div>
 
 {{-- Submit-to-HR Confirmation Modal (lead review) --}}
-<div id="reviewConfirmModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+<div id="reviewConfirmModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 text-center border border-gray-100">
         <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-2xl shadow-sm">
             <i class="fas fa-exclamation-triangle"></i>
@@ -363,7 +443,7 @@
             </p>
         </div>
         <div class="flex items-center justify-center gap-3 pt-2">
-            <button type="button" onclick="document.getElementById('reviewConfirmModal').classList.add('hidden')"
+            <button type="button" onclick="hideKpiModal('reviewConfirmModal')"
                 class="px-5 py-2.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-xl hover:bg-gray-200 transition-all">
                 Batal
             </button>
@@ -376,14 +456,14 @@
 </div>
 
 {{-- Approve Modal --}}
-<div id="approveModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+<div id="approveModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
         <h3 class="text-base font-bold text-gray-900">Approve Evaluation</h3>
         <p class="text-sm text-gray-600">Once approved, <strong>{{ $bd?->full_name ?? 'the employee' }}</strong> will be able to view their final KPI scorecard.</p>
         <textarea id="approveNotes" rows="3" placeholder="HR notes (optional)..."
             class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-300 resize-none"></textarea>
         <div class="flex items-center justify-end gap-3">
-            <button onclick="document.getElementById('approveModal').classList.add('hidden')" class="px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl">Cancel</button>
+            <button onclick="hideKpiModal('approveModal')" class="px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl">Cancel</button>
             <button onclick="confirmApprove()" class="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl shadow hover:bg-emerald-700">
                 <i class="fas fa-check text-xs"></i> Confirm Approval
             </button>
@@ -428,6 +508,18 @@ function recalcTotalScore() {
     if (display) display.textContent = total.toFixed(2);
 }
 
+// Modal wrappers stay 'flex' only while visible — kept off the static class
+// list (and toggled in lockstep with 'hidden' here) so the two never sit on
+// the element at the same time.
+function showKpiModal(id) {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('hidden'); el.classList.add('flex'); }
+}
+function hideKpiModal(id) {
+    const el = document.getElementById(id);
+    if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
+}
+
 let _kpiReviewForm = null;
 
 function submitKpiReview(e) {
@@ -435,14 +527,14 @@ function submitKpiReview(e) {
     _kpiReviewForm = e.target;
     // "Kirim Ke HR" needs an explicit confirmation; "Simpan Draft" saves silently.
     if (window._kpiReviewAction === 'submit') {
-        document.getElementById('reviewConfirmModal').classList.remove('hidden');
+        showKpiModal('reviewConfirmModal');
         return;
     }
     executeKpiReview();
 }
 
 async function executeKpiReview() {
-    document.getElementById('reviewConfirmModal').classList.add('hidden');
+    hideKpiModal('reviewConfirmModal');
     const form = _kpiReviewForm || document.getElementById('kpiReviewForm');
     const fd = new FormData(form);
     fd.append('action', window._kpiReviewAction || 'draft');
@@ -456,7 +548,7 @@ async function executeKpiReview() {
     if (data.success) setTimeout(() => location.reload(), 1000);
 }
 
-function openApproveModal() { document.getElementById('approveModal').classList.remove('hidden'); }
+function openApproveModal() { showKpiModal('approveModal'); }
 async function confirmApprove() {
     const notes = document.getElementById('approveNotes').value;
     const form  = new FormData(); form.append('hr_notes', notes);
@@ -464,7 +556,17 @@ async function confirmApprove() {
         method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }, body: form,
     });
     const data = await res.json();
-    document.getElementById('approveModal').classList.add('hidden');
+    hideKpiModal('approveModal');
+    showToast(data.message, data.success ? 'success' : 'error');
+    if (data.success) setTimeout(() => location.reload(), 1000);
+}
+
+async function publishUpwardAverage() {
+    if (!await showConfirm('Publish the average across all approved rater submissions? The supervisor will see only this average — never an individual rater\'s score.', 'Publish Average', 'primary')) return;
+    const res  = await fetch('{{ route("general.kpi-evaluation.publish-upward", $evaluation->id) }}', {
+        method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+    });
+    const data = await res.json();
     showToast(data.message, data.success ? 'success' : 'error');
     if (data.success) setTimeout(() => location.reload(), 1000);
 }

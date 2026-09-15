@@ -802,6 +802,12 @@ Route::prefix('general')
                     ->name('reject')
                     ->middleware('menu:general.kpi-evaluation.approve');
 
+                // Publish the anonymized average of an upward-assessment group
+                // (all approved rater submissions for one supervisor+template+period)
+                Route::post('/{id}/publish-upward', [\App\Http\Controllers\HR\KpiController::class, 'publishUpwardAverage'])
+                    ->name('publish-upward')
+                    ->middleware('menu:general.kpi-evaluation.approve');
+
                 // Delete (draft or rejected only)
                 Route::post('/{id}/delete', [\App\Http\Controllers\HR\KpiController::class, 'deleteEvaluation'])
                     ->name('delete')
