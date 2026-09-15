@@ -1,7 +1,7 @@
 @extends('dashboard')
 
-@section('title', 'Purchase Requests')
-@section('page-title', 'Purchase Requests')
+@section('title', 'Purchase Request — Management')
+@section('page-title', 'Purchase Request')
 @section('page-subtitle', 'Review and process employee purchase requests')
 
 @section('page-actions')
@@ -24,6 +24,8 @@
 
 @section('content')
 @php use App\Models\PurchaseRequest\PurchaseRequest; @endphp
+
+@include('partials.hub-tabs-purchase-request')
 
 <div class="space-y-5">
 

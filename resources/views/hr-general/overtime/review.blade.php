@@ -1,7 +1,7 @@
 @extends('dashboard')
 
-@section('title', 'Overtime Management')
-@section('page-title', 'Overtime Management')
+@section('title', 'Overtime — Management')
+@section('page-title', 'Overtime')
 @section('page-subtitle', 'Review, approve, and export employee overtime claims')
 
 @section('page-actions')
@@ -18,6 +18,8 @@
 
 @section('content')
 <div class="space-y-5">
+
+    @include('partials.hub-tabs-overtime')
 
     {{-- Kartu ringkasan --}}
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">

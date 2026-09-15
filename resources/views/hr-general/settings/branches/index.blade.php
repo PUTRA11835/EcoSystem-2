@@ -1,10 +1,14 @@
 @extends('dashboard')
 
-@section('title', 'Branches')
-@section('page-title', 'Branches')
+@section('title', 'Attendance — Branches')
+@section('page-title', 'Attendance')
 @section('page-subtitle', 'Branch master data and the geofence points used to validate attendance')
 
 @section('content')
+<div class="space-y-5">
+
+@include('partials.hub-tabs-attendance')
+
 <div class="bg-white rounded-xl p-6 shadow-sm">
 
     {{-- Header --}}
@@ -16,7 +20,7 @@
             </p>
         </div>
         @if($can('general.settings.branches.manage'))
-        <a href="{{ route('general.settings.branches.create') }}"
+        <a href="{{ route('general.attendance.branches.create') }}"
            class="inline-flex items-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
             <i class="fas fa-plus"></i> Add Branch
         </a>
@@ -24,7 +28,7 @@
     </div>
 
     {{-- Filter --}}
-    <form method="GET" action="{{ route('general.settings.branches.index') }}"
+    <form method="GET" action="{{ route('general.attendance.branches.index') }}"
           class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-5">
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
             <div class="md:col-span-7">
@@ -47,7 +51,7 @@
                         class="flex-1 px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-900 transition-all">
                     Apply
                 </button>
-                <a href="{{ route('general.settings.branches.index') }}"
+                <a href="{{ route('general.attendance.branches.index') }}"
                    class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
                     Reset
                 </a>
@@ -105,7 +109,7 @@
                     @if($can('general.settings.branches.manage'))
                     <td class="px-4 py-3">
                         <div class="flex items-center justify-center gap-1.5">
-                            <a href="{{ route('general.settings.branches.edit', $branch) }}"
+                            <a href="{{ route('general.attendance.branches.edit', $branch) }}"
                                title="Edit"
                                class="w-8 h-8 flex items-center justify-center rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-all">
                                 <i class="fas fa-pen text-xs"></i>
@@ -155,6 +159,8 @@
     </div>
 </div>
 
+</div>
+
 {{-- Form penghapusan; dikirim setelah showConfirm() disetujui --}}
 <form id="deleteBranchForm" method="POST" class="hidden">
     @csrf
@@ -174,7 +180,7 @@ async function deleteBranch(id, name) {
     if (!ok) return;
 
     const form = document.getElementById('deleteBranchForm');
-    form.action = `/general/settings/branches/${id}/delete`;
+    form.action = `/general/attendance/branches/${id}/delete`;
     form.submit();
 }
 </script>

@@ -1,11 +1,13 @@
 @extends('dashboard')
 
-@section('title', 'Attendance Corrections')
-@section('page-title', 'Attendance Corrections')
+@section('title', 'Attendance — Corrections')
+@section('page-title', 'Attendance')
 @section('page-subtitle', 'Review employee check-in and check-out changes before applying them to attendance data')
 
 @section('content')
 <div class="space-y-5">
+
+    @include('partials.hub-tabs-attendance')
 
     {{-- Kartu ringkasan --}}
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">

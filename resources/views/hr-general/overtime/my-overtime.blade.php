@@ -4,16 +4,6 @@
 @section('page-title', 'Overtime')
 @section('page-subtitle', 'Submit and track your own overtime requests')
 
-@section('page-actions')
-    <a href="{{ route('general.my-overtime.create') }}"
-       class="inline-flex items-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-        </svg>
-        Submit Overtime
-    </a>
-@endsection
-
 @section('content')
 <div class="space-y-5">
 
@@ -52,6 +42,14 @@
                     A request can only be cancelled while it is still waiting for the first reviewer.
                 </p>
             </div>
+            {{-- Sejajar dengan judul, mengikuti pola Cash Advance (D176). --}}
+            <a href="{{ route('general.my-overtime.create') }}"
+               class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all whitespace-nowrap">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Submit Overtime
+            </a>
         </div>
 
         <div class="border border-gray-200 rounded-lg overflow-x-auto">

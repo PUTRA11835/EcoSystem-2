@@ -1,7 +1,7 @@
 @extends('dashboard')
 
-@section('title', 'Overtime Settings')
-@section('page-title', 'Overtime Settings')
+@section('title', 'Overtime — Settings')
+@section('page-title', 'Overtime')
 @section('page-subtitle', 'Overtime rules and the approval workflow')
 
 @section('content')
@@ -10,7 +10,12 @@
     use App\Models\Overtime\OvertimeSetting;
 @endphp
 
-<div class="max-w-6xl space-y-5">
+@include('partials.hub-tabs-overtime')
+
+{{-- Lebar penuh (D152/D176) — sebelumnya max-w-6xl, satu-satunya tab di hub
+     ini yang masih sempit dibanding Branches/Shifts/Cash Advance Settings.
+     Grid-grid di dalamnya sudah responsif (3/4/3/2 kolom per bagian). --}}
+<div class="w-full space-y-5">
 
     {{-- =============================================================
          BAGIAN 1 — ALUR PERSETUJUAN
@@ -48,7 +53,7 @@
                 <tbody class="divide-y divide-gray-100">
                     @foreach($steps as $step)
                     <tr class="align-top hover:bg-gray-50 transition-colors">
-                        <form method="POST" action="{{ route('general.settings.overtime.steps.update', $step) }}" id="step-{{ $step->id }}">
+                        <form method="POST" action="{{ route('general.overtime.settings.steps.update', $step) }}" id="step-{{ $step->id }}">
                             @csrf
                         </form>
 
@@ -69,10 +74,10 @@
                                 </div>
                             </div>
 
-                            <form method="POST" action="{{ route('general.settings.overtime.steps.move', $step) }}" id="move-up-{{ $step->id }}" class="hidden">
+                            <form method="POST" action="{{ route('general.overtime.settings.steps.move', $step) }}" id="move-up-{{ $step->id }}" class="hidden">
                                 @csrf <input type="hidden" name="direction" value="up">
                             </form>
-                            <form method="POST" action="{{ route('general.settings.overtime.steps.move', $step) }}" id="move-down-{{ $step->id }}" class="hidden">
+                            <form method="POST" action="{{ route('general.overtime.settings.steps.move', $step) }}" id="move-down-{{ $step->id }}" class="hidden">
                                 @csrf <input type="hidden" name="direction" value="down">
                             </form>
                         </td>
@@ -148,7 +153,7 @@
                                         class="px-3 py-1.5 bg-gray-800 text-white text-xs font-semibold rounded hover:bg-gray-900 transition-all">
                                     Save
                                 </button>
-                                <form method="POST" action="{{ route('general.settings.overtime.steps.destroy', $step) }}"
+                                <form method="POST" action="{{ route('general.overtime.settings.steps.destroy', $step) }}"
                                       class="js-delete-step" data-name="{{ $step->name }}">
                                     @csrf
                                     <button type="submit"
@@ -166,7 +171,7 @@
                          antara daftar dan form membuat pengguna mengira keduanya
                          mengisi hal yang berbeda. --}}
                     <tr class="bg-gray-50 align-top">
-                        <form method="POST" action="{{ route('general.settings.overtime.steps.store') }}" id="newStepForm">@csrf</form>
+                        <form method="POST" action="{{ route('general.overtime.settings.steps.store') }}" id="newStepForm">@csrf</form>
 
                         <td class="px-4 py-3">
                             <span class="w-7 h-7 flex items-center justify-center bg-gray-300 text-white rounded-full text-xs font-bold">
@@ -221,7 +226,7 @@
     {{-- =============================================================
          BAGIAN 2 — ATURAN LEMBUR
          ============================================================= --}}
-    <form method="POST" action="{{ route('general.settings.overtime.update') }}" class="bg-white rounded-xl p-6 shadow-sm space-y-6">
+    <form method="POST" action="{{ route('general.overtime.settings.update') }}" class="bg-white rounded-xl p-6 shadow-sm space-y-6">
         @csrf
 
         <div class="pb-4 border-b-2 border-gray-100">

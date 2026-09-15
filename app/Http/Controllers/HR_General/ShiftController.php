@@ -75,7 +75,7 @@ class ShiftController extends Controller
         });
 
         return redirect()
-            ->route('general.settings.shifts.index')
+            ->route('general.attendance.shifts.index')
             ->with('success', "Shift \"{$shift->name}\" has been added.");
     }
 
@@ -90,7 +90,7 @@ class ShiftController extends Controller
         });
 
         return redirect()
-            ->route('general.settings.shifts.index')
+            ->route('general.attendance.shifts.index')
             ->with('success', "Shift \"{$shift->name}\" has been updated.");
     }
 
@@ -119,7 +119,7 @@ class ShiftController extends Controller
         $shift->delete();
 
         return redirect()
-            ->route('general.settings.shifts.index')
+            ->route('general.attendance.shifts.index')
             ->with('success', "Shift \"{$name}\" has been deleted.");
     }
 

@@ -474,7 +474,27 @@
                 </div>
             @endif
 
-            @if($can('general') || $can('hr_general.leave_permit.admin') || $can('general.attendance') || $can('general.attendance.correction') || $can('general.overtime') || $can('general.reimbursement') || $can('general.purchase-request') || $can('general.cash-advance') || $can('general.cash-advance-report'))
+            {{-- 🔴 D175: Branches/Shifts/Attendance Settings/Overtime Settings
+                 pindah jadi tab DI DALAM dropdown ini (bukan lagi hidup di
+                 dropdown Management terpisah yang punya gerbangnya sendiri).
+                 Keempat slug itu — plus `general.attendance.monthly` yang
+                 sebelumnya juga terlewat — WAJIB ada di gerbang terluar ini.
+                 Tanpanya, orang yang HANYA memegang mis. `general.settings.
+                 branches` kehilangan SATU-SATUNYA jalan menuju Branches:
+                 dropdown-nya sendiri tidak pernah dirender. Ditemukan lewat
+                 uji nyata (render sidebar dengan satu slug terisolasi), bukan
+                 dugaan — lihat smoke-hub-tabs.php. --}}
+            {{-- 🔴 D177: Reimbursement/Purchase Request/Cash Advance Settings ikut
+                 masuk gerbang ini — kelas cacat yang sama dengan D175, kali ini
+                 dicegah dari awal alih-alih ditemukan lewat uji. --}}
+            @if($can('general') || $can('hr_general.leave_permit.admin')
+                || $can('general.attendance') || $can('general.attendance.monthly') || $can('general.attendance.correction')
+                || $can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance')
+                || $can('general.overtime') || $can('general.settings.overtime')
+                || $can('general.reimbursement') || $can('general.settings.reimbursement')
+                || $can('general.purchase-request') || $can('general.settings.purchase-request')
+                || $can('general.cash-advance') || $can('management.cash-advance-settings')
+                || $can('general.cash-advance-report'))
                 <!-- HR & GENERAL -->
                 @php
                     // 🔴 Daftar ini harus diperbarui setiap kali item baru masuk ke grup —
@@ -488,6 +508,12 @@
                         || Request::is('general/reimbursement*')
                         || Request::is('general/purchase-request*')
                         || Request::is('general/cash-advance*')
+                        // 🔴 D177 — Cash Advance Settings TETAP di URL lama
+                        // (management/cash-advance-settings*, lihat routes/hr-general.php),
+                        // tetapi kini tab di hub "Cash Advance (CA)". Tanpa baris ini,
+                        // membuka tab Settings membuat dropdown "HR & General" tertutup
+                        // sendiri padahal baris "Cash Advance (CA)" ikut menyala.
+                        || Request::is('management/cash-advance-settings*')
                         || Request::is('general/kpi-evaluation*');
                 @endphp
                 <div class="mb-2">
@@ -512,67 +538,104 @@
                             </a>
                         @endif
 
-                        @if($can('general.attendance') || $can('general'))
-                            {{-- 🔴 Membuka MONTHLY lebih dulu — keputusan rapat tim, 11 Sep
-                                 2026 (D172). Rekap bulanan adalah yang paling sering dicari
-                                 HR; harian tetap satu klik jauhnya lewat tombol "Daily Recap".
+                        {{-- 🔴 SATU baris untuk hub Attendance (D175) — dulunya DUA
+                             ("Attendance Recap" + "Attendance Corrections"), plus TIGA
+                             baris lagi di Management → HR & General (Branches, Shifts,
+                             Attendance Settings). Keenamnya kini tab di dalam satu hub;
+                             sidebar hanya perlu satu pintu masuk.
 
-                                 Tetapi Monthly dijaga slug-nya SENDIRI
-                                 (`general.attendance.monthly`). Pemegang `general.attendance`
-                                 saja tidak boleh dilempar ke halaman yang akan menolaknya —
-                                 baginya menu ini tetap menuju Daily. Tautan yang berujung
-                                 403 lebih buruk daripada tautan yang "kurang ideal". --}}
-                            @php
-                                $attendanceLanding = ($can('general.attendance.monthly') || $can('general'))
-                                    ? route('general.attendance.monthly')
-                                    : route('general.attendance.daily');
-                            @endphp
+                             Gerbangnya "ATAU" atas SELURUH enam slug — bukan cuma
+                             `general.attendance` — supaya orang yang HANYA memegang
+                             mis. Branches (tanpa Daily Recap) tetap melihat baris ini.
+                             Landasannya tab PERTAMA yang benar-benar ia pegang, mengikuti
+                             urutan yang sama dengan tab bar (partials/hub-tabs-attendance),
+                             sehingga tidak pernah melempar ke halaman yang menolaknya
+                             (pola yang sama dengan D172). --}}
+                        @php
+                            $attendanceGate = $can('general.attendance')
+                                || $can('general.attendance.monthly')
+                                || $can('general.attendance.correction')
+                                || $can('general.settings.branches')
+                                || $can('general.settings.shifts')
+                                || $can('general.settings.attendance')
+                                || $can('general');
+
+                            $attendanceLanding = match (true) {
+                                $can('general.attendance') || $can('general')            => route('general.attendance.daily'),
+                                $can('general.attendance.monthly')                       => route('general.attendance.monthly'),
+                                $can('general.attendance.correction')                    => route('general.attendance.corrections.index'),
+                                $can('general.settings.branches')                        => route('general.attendance.branches.index'),
+                                $can('general.settings.shifts')                          => route('general.attendance.shifts.index'),
+                                $can('general.settings.attendance')                      => route('general.attendance.settings.edit'),
+                                default                                                  => route('general.attendance.daily'),
+                            };
+                        @endphp
+                        @if($attendanceGate)
                             <a href="{{ $attendanceLanding }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance*') && !Request::is('general/attendance/corrections*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-clipboard-list text-xs"></i>
                                 </span>
-                                <span class="nav-text text-sm">Attendance Recap</span>
+                                <span class="nav-text text-sm">Attendance</span>
                             </a>
                         @endif
 
-                        @if($can('general.attendance.correction') || $can('general'))
-                            <a href="{{ route('general.attendance.corrections.index') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance/corrections*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-user-check text-xs"></i>
-                                </span>
-                                <span class="nav-text text-sm">Attendance Corrections</span>
-                            </a>
-                        @endif
-
-                        @if($can('general.overtime') || $can('general'))
-                            <a href="{{ route('general.overtime.index') }}"
+                        {{-- 🔴 Label DISAMAKAN dengan `menu.name` (D174). Gerbang &
+                             landasannya DILEBARKAN untuk D175: dulu hanya
+                             `general.overtime` yang membuka baris ini, sehingga
+                             seseorang yang HANYA memegang Overtime Settings (kini tab
+                             kedua di hub yang sama) tidak akan melihat baris ini sama
+                             sekali — jalan satu-satunya menuju Settings hilang. --}}
+                        @php
+                            $overtimeGate = $can('general.overtime') || $can('general.settings.overtime') || $can('general');
+                            $overtimeLanding = ($can('general.overtime') || $can('general'))
+                                ? route('general.overtime.index')
+                                : route('general.overtime.settings.edit');
+                        @endphp
+                        @if($overtimeGate)
+                            <a href="{{ $overtimeLanding }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/overtime*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-clock text-xs"></i>
                                 </span>
-                                <span class="nav-text text-sm">Overtime Review</span>
+                                <span class="nav-text text-sm">Overtime Management</span>
                             </a>
                         @endif
 
-                        @if($can('general.reimbursement') || $can('general'))
-                            <a href="{{ route('general.reimbursement.index') }}"
+                        {{-- 🔴 D177 — Gerbang & landasan DILEBARKAN, pola sama dengan
+                             Overtime di atas: Reimbursement Settings kini tab kedua di
+                             hub yang sama, jadi orang yang HANYA memegang slug
+                             setelannya tetap perlu jalan masuk lewat baris ini. --}}
+                        @php
+                            $reimbursementGate = $can('general.reimbursement') || $can('general.settings.reimbursement') || $can('general');
+                            $reimbursementLanding = ($can('general.reimbursement') || $can('general'))
+                                ? route('general.reimbursement.index')
+                                : route('general.reimbursement.settings.edit');
+                        @endphp
+                        @if($reimbursementGate)
+                            <a href="{{ $reimbursementLanding }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/reimbursement*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-receipt text-xs"></i>
                                 </span>
-                                <span class="nav-text text-sm">Reimbursement</span>
+                                <span class="nav-text text-sm">Reimbursement Management</span>
                             </a>
                         @endif
 
-                        @if($can('general.purchase-request') || $can('general'))
-                            <a href="{{ route('general.purchase-request.index') }}"
+                        {{-- 🔴 D177 — sama seperti Reimbursement di atas. --}}
+                        @php
+                            $purchaseRequestGate = $can('general.purchase-request') || $can('general.settings.purchase-request') || $can('general');
+                            $purchaseRequestLanding = ($can('general.purchase-request') || $can('general'))
+                                ? route('general.purchase-request.index')
+                                : route('general.purchase-request.settings.edit');
+                        @endphp
+                        @if($purchaseRequestGate)
+                            <a href="{{ $purchaseRequestLanding }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/purchase-request*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-cart-shopping text-xs"></i>
                                 </span>
-                                <span class="nav-text text-sm">Purchase Request Review</span>
+                                <span class="nav-text text-sm">Purchase Request Management</span>
                             </a>
                         @endif
 
@@ -580,16 +643,26 @@
                              "Cash Advance" polos. Itulah PEMBEDA sisi admin dari item
                              ESS bernama sama (Keputusan D142/D151); tanpanya, dua baris
                              identik di layar Menu Access membuat pembagian izin jadi
-                             tebak-tebakan. --}}
-                        @if($can('general.cash-advance') || $can('general'))
+                             tebak-tebakan.
+
+                             🔴 D177 — Gerbang & landasan DILEBARKAN dengan
+                             `management.cash-advance-settings`: halaman itu kini tab
+                             kedua di hub ini (lihat routes/hr-general.php, blok Cash
+                             Advance Settings), meski URL & slug-nya TETAP di luar
+                             `general.*` (D141) — hanya tampilannya yang digabung. --}}
+                        @if($can('general.cash-advance') || $can('management.cash-advance-settings') || $can('general'))
                             {{-- 🔴 Presisi, bukan `cash-advance*` (D161) — cacat yang
                                  sama dengan sisi ESS: wildcard itu ikut menangkap
                                  `cash-advance-report` dan menyalakan dua item. --}}
                             @php
                                 $hrCaActive = Request::is('general/cash-advance')
-                                    || Request::is('general/cash-advance/*');
+                                    || Request::is('general/cash-advance/*')
+                                    || Request::is('management/cash-advance-settings*');
+                                $cashAdvanceLanding = ($can('general.cash-advance') || $can('general'))
+                                    ? route('general.cash-advance.index')
+                                    : route('management.cash-advance-settings.edit');
                             @endphp
-                            <a href="{{ route('general.cash-advance.index') }}"
+                            <a href="{{ $cashAdvanceLanding }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ $hrCaActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-hand-holding-usd text-xs"></i>
@@ -916,17 +989,16 @@
 
             {{-- Dropdown Management.
 
-                 🔴 Kondisinya diperluas dengan `management.cash-advance-settings`
-                 (Keputusan D141). Sebelumnya hanya `$can('management')`, dan itu
-                 membatalkan maksud memindahkan halaman setelan Cash Advance ke
-                 sini: orang Finance yang hanya diberi slug setelannya tetap TIDAK
-                 melihat dropdownnya, sehingga ia harus ikut diberi slug induk
-                 `management` — persis masalah yang mau dihindari.
-
-                 Pola yang sama sudah dipakai dropdown "HR & General" di atas,
-                 yang menyebut slug anaknya satu per satu. Menambah item baru di
-                 sini berarti menambah slugnya ke kondisi ini juga. --}}
-            @if($can('management') || $can('management.cash-advance-settings'))
+                 🔴 D177 — `$can('management.cash-advance-settings')` DICABUT dari
+                 kondisi ini. Sejak Keputusan D141 slug itu sengaja diperluas ke
+                 sini karena Cash Advance Settings dulu HANYA bisa dibuka lewat
+                 submenu Management → HR & General. Kini halaman itu juga jadi tab
+                 "Settings" di hub "Cash Advance (CA)" (lihat baris `general.
+                 cash-advance` di bawah, yang gerbangnya sudah diperluas dengan
+                 slug yang sama) — orang Finance yang HANYA memegang slug setelan
+                 ini tetap punya pintu masuk, tanpa perlu ikut melihat dropdown
+                 Management yang tidak relevan baginya. --}}
+            @if($can('management'))
                 <!-- MANAJEMEN -->
                 <div class="mb-2">
                     <button onclick="toggleManajemenDropdown()"
@@ -982,83 +1054,13 @@
                                 <span class="nav-text text-sm">Hidden Tickets</span>
                             </a>
                         @endif
-                        @php
-                            // Halaman setelan Cash Advance ikut menyalakan dropdown ini
-                            // meski URL-nya berawalan /management — letaknya memang di sini
-                            // (konvensi: seluruh halaman konfigurasi dikumpulkan di
-                            // Management -> HR & General), sementara SLUG-nya sengaja
-                            // `management.*` supaya dapat diberikan ke role mana pun (D141).
-                            $hrGeneralSettingsActive = Request::is('general/settings*')
-                                || Request::is('management/cash-advance-settings*');
-                        @endphp
-                        
-                        @if($can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance') || $can('general.settings.overtime') || $can('general.settings.reimbursement') || $can('general.settings.purchase-request') || $can('management.cash-advance-settings'))
-                        <div class="mt-1">
-                            <button onclick="toggleHrGeneralMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $hrGeneralSettingsActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-users-cog text-xs"></i>
-                                </span>
-                                <span class="nav-text text-sm flex-1">HR &amp; General</span>
-                                <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $hrGeneralSettingsActive ? 'rotate-180' : '' }}" id="hrGeneralMgmtChevron"></i>
-                            </button>
-                            <div id="hrGeneralMgmtDropdown" class="nav-text {{ $hrGeneralSettingsActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
-                                @if($can('general.settings.branches'))
-                                <a href="{{ route('general.settings.branches.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/branches*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-map-marker-alt text-xs"></i></span>
-                                    <span class="nav-text text-xs">Branches</span>
-                                </a>
-                                @endif
-                                @if($can('general.settings.shifts'))
-                                <a href="{{ route('general.settings.shifts.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/shifts*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-clock text-xs"></i></span>
-                                    <span class="nav-text text-xs">Shifts</span>
-                                </a>
-                                @endif
-                                @if($can('general.settings.attendance'))
-                                <a href="{{ route('general.settings.attendance.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/attendance*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-sliders text-xs"></i></span>
-                                    <span class="nav-text text-xs">Attendance Settings</span>
-                                </a>
-                                @endif
-                                @if($can('general.settings.overtime'))
-                                <a href="{{ route('general.settings.overtime.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/overtime*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-business-time text-xs"></i></span>
-                                    <span class="nav-text text-xs">Overtime Settings</span>
-                                </a>
-                                @endif
-                                @if($can('general.settings.reimbursement'))
-                                <a href="{{ route('general.settings.reimbursement.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/reimbursement*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-receipt text-xs"></i></span>
-                                    <span class="nav-text text-xs">Reimbursement Settings</span>
-                                </a>
-                                @endif
-                                @if($can('general.settings.purchase-request'))
-                                <a href="{{ route('general.settings.purchase-request.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('general/settings/purchase-request*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-cart-shopping text-xs"></i></span>
-                                    <span class="nav-text text-xs">Purchase Request Settings</span>
-                                </a>
-                                @endif
-                                {{-- Cash Advance Settings — SATU halaman untuk aturan CA
-                                     DAN CAR beserta dua editor alur persetujuan (C11).
-
-                                     Letaknya di sini mengikuti konvensi yang sudah berlaku:
-                                     seluruh halaman konfigurasi dikumpulkan di
-                                     Management → HR & General. Yang BERBEDA dari tetangganya
-                                     adalah SLUG-nya — `management.cash-advance-settings`,
-                                     bukan `general.settings.*` — supaya haknya dapat
-                                     diberikan ke Finance/Accounting/Direksi tanpa ikut
-                                     membuka satu pun halaman kepegawaian (Keputusan D141). --}}
-                                @if($can('management.cash-advance-settings'))
-                                <a href="{{ route('management.cash-advance-settings.edit') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/cash-advance-settings*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-hand-holding-usd text-xs"></i></span>
-                                    <span class="nav-text text-xs">Cash Advance Settings</span>
-                                </a>
-                                @endif
-                                    {{-- KPI Templates moved into the KPI Evaluation page as a tab
-                                         (general.kpi-evaluation.templates.*). --}}
-                                </div>
-                            </div>
-                        @endif
+                        {{-- 🔴 D177 — Submenu "HR & General" DIHAPUS. Reimbursement/Purchase
+                             Request/Cash Advance Settings (yang terakhir menghuninya setelah
+                             D175 memindahkan Branches/Shifts/Attendance/Overtime Settings)
+                             kini masing-masing jadi tab "Settings" di hub-nya sendiri —
+                             Reimbursement Management, Purchase Request Management, dan
+                             Cash Advance (CA) — persis pola D175. Submenu ini jadi kosong
+                             begitu ketiganya pindah, jadi dihapus, bukan dibiarkan hampa. --}}
                         @if($can('management.employee'))
                             <div class="mt-1">
                                 <button onclick="toggleMasterMgmtDropdown()"

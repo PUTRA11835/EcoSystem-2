@@ -145,9 +145,22 @@ Route::prefix('general')
         });
 
         // =====================================================================
-        // SETTINGS — BRANCHES
+        // ATTENDANCE HUB — Branches, Shifts, Settings sebagai TAB (D175)
         // =====================================================================
-        Route::prefix('settings/branches')->name('settings.branches.')->group(function () {
+        // 🔴 URI & NAMA RUTE pindah ke bawah prefix `attendance/*`, supaya
+        // seluruh permukaan HR untuk presensi hidup di satu ruang navigasi —
+        // sejalan dengan Daily/Monthly Recap dan Corrections yang sudah ada di
+        // sana. SLUG IZIN TIDAK BERUBAH SATU HURUF PUN: `general.settings.
+        // branches`, `.manage`, `general.settings.shifts`, `.manage`, dan
+        // `general.settings.attendance` tetap identik dengan sebelumnya, jadi
+        // grant yang sudah dibagikan lewat Control Center tetap berlaku apa
+        // adanya begitu kode ini di-deploy — nol regrant diperlukan.
+        //
+        // URL LAMA (general/settings/branches, .../shifts, .../attendance)
+        // TETAP HIDUP sebagai redirect — lihat blok "ALIAS URL LAMA" di bawah.
+
+        // ── Branches ─────────────────────────────────────────────────────────
+        Route::prefix('attendance/branches')->name('attendance.branches.')->group(function () {
 
             Route::get('/', [BranchController::class, 'index'])
                 ->name('index')
@@ -164,10 +177,8 @@ Route::prefix('general')
             });
         });
 
-        // =====================================================================
-        // SETTINGS — SHIFTS
-        // =====================================================================
-        Route::prefix('settings/shifts')->name('settings.shifts.')->group(function () {
+        // ── Shifts ───────────────────────────────────────────────────────────
+        Route::prefix('attendance/shifts')->name('attendance.shifts.')->group(function () {
 
             Route::get('/', [ShiftController::class, 'index'])
                 ->name('index')
@@ -187,13 +198,11 @@ Route::prefix('general')
             });
         });
 
-        // =====================================================================
-        // SETTINGS — ATTENDANCE RULES
-        // =====================================================================
+        // ── Attendance Rules (Settings tab) ─────────────────────────────────
         // Katup pengaman modul: bila kebijakan yang dipilih ternyata memblokir
         // presensi, pemilik sistem dapat melonggarkannya sendiri dari sini.
-        Route::prefix('settings/attendance')
-            ->name('settings.attendance.')
+        Route::prefix('attendance/settings')
+            ->name('attendance.settings.')
             ->middleware('menu:general.settings.attendance')
             ->group(function () {
                 Route::get('/', [AttendanceSettingController::class, 'edit'])->name('edit');
@@ -201,15 +210,32 @@ Route::prefix('general')
             });
 
         // Master sumber presensi. Dipisah dari pengaturan karena berupa daftar
-        // yang dapat bertambah, bukan satu baris nilai.
-        Route::prefix('settings/attendance-sources')
-            ->name('settings.sources.')
+        // yang dapat bertambah, bukan satu baris nilai. Tetap bersarang di
+        // bawah tab Settings — sama slug, sama tab, hanya sub-aksi.
+        Route::prefix('attendance/settings/sources')
+            ->name('attendance.settings.sources.')
             ->middleware('menu:general.settings.attendance')
             ->group(function () {
                 Route::post('/', [AttendanceSourceController::class, 'store'])->name('store');
                 Route::post('/{source}/update', [AttendanceSourceController::class, 'update'])->name('update');
                 Route::post('/{source}/delete', [AttendanceSourceController::class, 'destroy'])->name('destroy');
             });
+
+        // ── ALIAS URL LAMA — bookmark & kebiasaan tim tetap jalan ───────────
+        // 🔴 Hanya rute GET yang dialiaskan: itulah satu-satunya yang mungkin
+        // dibuka lewat bookmark atau diketik manual. Rute POST (store/update/
+        // delete) tidak perlu dialiaskan — begitu view-nya diganti, tidak ada
+        // form lama yang tersisa menembak URL lama.
+        Route::get('/settings/branches', fn () => redirect()->route('general.attendance.branches.index'));
+        Route::get('/settings/branches/create', fn () => redirect()->route('general.attendance.branches.create'));
+        Route::get('/settings/branches/{branch}/edit', fn ($branch) => redirect()->route('general.attendance.branches.edit', $branch));
+
+        Route::get('/settings/shifts', fn () => redirect()->route('general.attendance.shifts.index'));
+        Route::get('/settings/shifts/create', fn () => redirect()->route('general.attendance.shifts.create'));
+        Route::get('/settings/shifts/{shift}/edit', fn ($shift) => redirect()->route('general.attendance.shifts.edit', $shift));
+        Route::get('/settings/shifts/{shift}/assign', fn ($shift) => redirect()->route('general.attendance.shifts.assign', $shift));
+
+        Route::get('/settings/attendance', fn () => redirect()->route('general.attendance.settings.edit'));
 
         // =====================================================================
         // MY OVERTIME — pengajuan lembur mandiri, untuk SELURUH karyawan
@@ -258,12 +284,12 @@ Route::prefix('general')
         });
 
         // =====================================================================
-        // SETTINGS — OVERTIME RULES & APPROVAL WORKFLOW
+        // OVERTIME HUB — Settings sebagai TAB kedua (D175)
         // =====================================================================
-        // Katup pengaman modul: setiap kebijakan yang dapat MENOLAK pengajuan
-        // harus dapat dilonggarkan dari sini tanpa perubahan kode.
-        Route::prefix('settings/overtime')
-            ->name('settings.overtime.')
+        // Sama seperti Attendance di atas: URI & nama rute pindah ke bawah
+        // `overtime/*`, slug izin (`general.settings.overtime`) tidak berubah.
+        Route::prefix('overtime/settings')
+            ->name('overtime.settings.')
             ->middleware('menu:general.settings.overtime')
             ->group(function () {
                 Route::get('/', [OvertimeSettingController::class, 'edit'])->name('edit');
@@ -277,6 +303,9 @@ Route::prefix('general')
                 Route::post('/steps/{step}/delete', [OvertimeSettingController::class, 'destroyStep'])->name('steps.destroy');
                 Route::post('/steps/{step}/move', [OvertimeSettingController::class, 'moveStep'])->name('steps.move');
             });
+
+        // Alias URL lama.
+        Route::get('/settings/overtime', fn () => redirect()->route('general.overtime.settings.edit'));
 
         // =====================================================================
         // MY REIMBURSEMENT — pengajuan mandiri, untuk SELURUH karyawan
@@ -512,12 +541,95 @@ Route::prefix('general')
         });
 
         // =====================================================================
+        // SETTINGS — REIMBURSEMENT RULES & APPROVAL WORKFLOW
+        // =====================================================================
+        // Katup pengaman sub-modul Reimbursement, dengan alasan yang sama
+        // seperti Overtime: setiap kebijakan yang dapat MENOLAK pengajuan —
+        // batas mundur, batas jumlah item, batas nominal bermode `block`,
+        // penguncian periode — harus dapat dilonggarkan dari sini tanpa
+        // perubahan kode.
+        //
+        // Didaftarkan lebih dulu daripada halaman operasionalnya (My
+        // Reimbursement dan Reimbursement Management, langkah R4-R5) karena
+        // tanpa satu langkah persetujuan aktif, dokumen tidak dapat diajukan
+        // sama sekali.
+        //
+        // 🔴 D177 — DIPINDAH KE SINI, DI ATAS blok "Reimbursement — Pengelolaan"
+        // di bawah, dan itu BUKAN kosmetik. Blok itu punya rute
+        // `GET /{reimbursementRequest}` (show dokumen). Prefix-nya ('reimbursement/
+        // settings') SAMA-SAMA berada di bawah 'reimbursement/*', jadi kalau
+        // rute berparameter itu terdaftar LEBIH DULU, Laravel mencocokkan
+        // /reimbursement/settings ke /{reimbursementRequest} DULUAN — "settings"
+        // dibaca sebagai ID dokumen, gagal dicari, 404. Persis jebakan yang
+        // sudah diperingatkan di komentar blok Pengelolaan ("/create, /export,
+        // /import harus SEBELUM /{id}") — kali ini kelewat karena blok baru ini
+        // ditambahkan di TEMPAT LAIN dalam berkas, bukan di dalam grup yang
+        // sama, jadi peringatan lama tidak terlihat saat menulisnya. Ditemukan
+        // pemilik sistem lewat uji nyata di peramban (404 di /general/
+        // purchase-request/settings), bukan lewat uji asap — uji asap yang ada
+        // memanggil controller LANGSUNG (`app()->call(...)`), jadi tidak pernah
+        // melalui pencocokan rute sungguhan yang justru jadi sumber cacatnya.
+        // SLUG middleware TIDAK berubah: `general.settings.reimbursement` tetap
+        // sama, supaya hak yang sudah diberikan ke role mana pun tidak perlu
+        // diberikan ulang.
+        Route::prefix('reimbursement/settings')
+            ->name('reimbursement.settings.')
+            ->middleware('menu:general.settings.reimbursement')
+            ->group(function () {
+                Route::get('/', [ReimbursementSettingController::class, 'edit'])->name('edit');
+                Route::post('/update', [ReimbursementSettingController::class, 'update'])->name('update');
+
+                // Alur persetujuan. Perubahan di sini berlaku pada dokumen BARU;
+                // yang sedang berjalan memakai salinan langkah miliknya sendiri.
+                Route::post('/steps', [ReimbursementSettingController::class, 'storeStep'])->name('steps.store');
+                Route::post('/steps/{step}/update', [ReimbursementSettingController::class, 'updateStep'])->name('steps.update');
+                Route::post('/steps/{step}/delete', [ReimbursementSettingController::class, 'destroyStep'])->name('steps.destroy');
+                Route::post('/steps/{step}/move', [ReimbursementSettingController::class, 'moveStep'])->name('steps.move');
+            });
+
+        // URL lama — dipertahankan sebagai alias GET (D177), pola sama dengan D175.
+        Route::get('/settings/reimbursement', fn () => redirect()->route('general.reimbursement.settings.edit'));
+
+        // =====================================================================
+        // SETTINGS -> PURCHASE REQUEST  (aturan dokumen + alur persetujuan)
+        // =====================================================================
+        // Didaftarkan lebih dulu daripada halaman operasionalnya (My Purchase
+        // Request dan Purchase Request Management, langkah P4-P5) karena tanpa
+        // satu langkah persetujuan aktif, dokumen tidak dapat diajukan sama
+        // sekali — persis alasan yang sama dengan blok Reimbursement di atas.
+        //
+        // 🔴 D177 — DIPINDAH KE SINI juga, alasan SAMA PERSIS dengan
+        // Reimbursement di atas: blok "Purchase Request — Pengelolaan" di
+        // bawah punya `GET /{purchaseRequest}`, dan tanpa ini
+        // /general/purchase-request/settings tertangkap sebagai id="settings"
+        // lalu 404 — inilah yang dilaporkan pemilik sistem lewat tangkapan
+        // layar. Slug middleware tidak berubah.
+        Route::prefix('purchase-request/settings')
+            ->name('purchase-request.settings.')
+            ->middleware('menu:general.settings.purchase-request')
+            ->group(function () {
+                Route::get('/', [PurchaseRequestSettingController::class, 'edit'])->name('edit');
+                Route::post('/update', [PurchaseRequestSettingController::class, 'update'])->name('update');
+
+                // Alur persetujuan. Perubahan di sini berlaku pada dokumen BARU;
+                // yang sedang berjalan memakai salinan langkah miliknya sendiri.
+                Route::post('/steps', [PurchaseRequestSettingController::class, 'storeStep'])->name('steps.store');
+                Route::post('/steps/{step}/update', [PurchaseRequestSettingController::class, 'updateStep'])->name('steps.update');
+                Route::post('/steps/{step}/delete', [PurchaseRequestSettingController::class, 'destroyStep'])->name('steps.destroy');
+                Route::post('/steps/{step}/move', [PurchaseRequestSettingController::class, 'moveStep'])->name('steps.move');
+            });
+
+        // URL lama — dipertahankan sebagai alias GET (D177).
+        Route::get('/settings/purchase-request', fn () => redirect()->route('general.purchase-request.settings.edit'));
+
+        // =====================================================================
         // REIMBURSEMENT — PENGELOLAAN (sisi HR / GA / penyetuju)
         // =====================================================================
         // 🔴 URUTAN PENDAFTARAN PENTING: /create, /export, dan /import harus
         // berada SEBELUM /{reimbursementRequest}, kalau tidak ketiganya
         // tertangkap sebagai id dokumen. Jebakan yang sama sudah pernah ditemui
-        // pada rekap Attendance dan Overtime.
+        // pada rekap Attendance dan Overtime. 🔴 Blok Settings di atas juga
+        // WAJIB tetap di atas blok ini — lihat komentarnya (D177).
         Route::prefix('reimbursement')->name('reimbursement.')->group(function () {
 
             Route::get('/', [ReimbursementController::class, 'index'])
@@ -597,7 +709,8 @@ Route::prefix('general')
         // =====================================================================
         // Rute BERPARAMETER didaftarkan TERAKHIR di dalam grup ini; rute statis
         // seperti /create dan /export (menyusul di P6) harus mendahuluinya, kalau
-        // tidak keduanya tertangkap sebagai id dokumen.
+        // tidak keduanya tertangkap sebagai id dokumen. 🔴 Blok Settings di atas
+        // juga WAJIB tetap terdaftar SEBELUM grup ini — lihat komentarnya (D177).
         Route::prefix('purchase-request')->name('purchase-request.')->group(function () {
 
             Route::get('/', [PurchaseRequestController::class, 'index'])
@@ -669,56 +782,6 @@ Route::prefix('general')
                 ->name('destroy')
                 ->middleware('menu:general.purchase-request.manage');
         });
-
-        // =====================================================================
-        // SETTINGS — REIMBURSEMENT RULES & APPROVAL WORKFLOW
-        // =====================================================================
-        // Katup pengaman sub-modul Reimbursement, dengan alasan yang sama
-        // seperti Overtime: setiap kebijakan yang dapat MENOLAK pengajuan —
-        // batas mundur, batas jumlah item, batas nominal bermode `block`,
-        // penguncian periode — harus dapat dilonggarkan dari sini tanpa
-        // perubahan kode.
-        //
-        // Didaftarkan lebih dulu daripada halaman operasionalnya (My
-        // Reimbursement dan Reimbursement Management, langkah R4-R5) karena
-        // tanpa satu langkah persetujuan aktif, dokumen tidak dapat diajukan
-        // sama sekali.
-        Route::prefix('settings/reimbursement')
-            ->name('settings.reimbursement.')
-            ->middleware('menu:general.settings.reimbursement')
-            ->group(function () {
-                Route::get('/', [ReimbursementSettingController::class, 'edit'])->name('edit');
-                Route::post('/update', [ReimbursementSettingController::class, 'update'])->name('update');
-
-                // Alur persetujuan. Perubahan di sini berlaku pada dokumen BARU;
-                // yang sedang berjalan memakai salinan langkah miliknya sendiri.
-                Route::post('/steps', [ReimbursementSettingController::class, 'storeStep'])->name('steps.store');
-                Route::post('/steps/{step}/update', [ReimbursementSettingController::class, 'updateStep'])->name('steps.update');
-                Route::post('/steps/{step}/delete', [ReimbursementSettingController::class, 'destroyStep'])->name('steps.destroy');
-                Route::post('/steps/{step}/move', [ReimbursementSettingController::class, 'moveStep'])->name('steps.move');
-            });
-
-        // =====================================================================
-        // SETTINGS -> PURCHASE REQUEST  (aturan dokumen + alur persetujuan)
-        // =====================================================================
-        // Didaftarkan lebih dulu daripada halaman operasionalnya (My Purchase
-        // Request dan Purchase Request Management, langkah P4-P5) karena tanpa
-        // satu langkah persetujuan aktif, dokumen tidak dapat diajukan sama
-        // sekali — persis alasan yang sama dengan blok Reimbursement di atas.
-        Route::prefix('settings/purchase-request')
-            ->name('settings.purchase-request.')
-            ->middleware('menu:general.settings.purchase-request')
-            ->group(function () {
-                Route::get('/', [PurchaseRequestSettingController::class, 'edit'])->name('edit');
-                Route::post('/update', [PurchaseRequestSettingController::class, 'update'])->name('update');
-
-                // Alur persetujuan. Perubahan di sini berlaku pada dokumen BARU;
-                // yang sedang berjalan memakai salinan langkah miliknya sendiri.
-                Route::post('/steps', [PurchaseRequestSettingController::class, 'storeStep'])->name('steps.store');
-                Route::post('/steps/{step}/update', [PurchaseRequestSettingController::class, 'updateStep'])->name('steps.update');
-                Route::post('/steps/{step}/delete', [PurchaseRequestSettingController::class, 'destroyStep'])->name('steps.destroy');
-                Route::post('/steps/{step}/move', [PurchaseRequestSettingController::class, 'moveStep'])->name('steps.move');
-            });
 
         // =====================================================================
         // BLOK DASHBOARD — pemasok data untuk kartu Attendance di halaman utama
@@ -903,6 +966,17 @@ Route::prefix('general')
  * bertambah — `routes/web.php` tidak ikut tersentuh.
  *
  * Aturan verb yang sama berlaku: HANYA GET & POST, akhiran aksi eksplisit.
+ *
+ * 🔴 D177 — TETAP DI SINI, SENGAJA TIDAK DIPINDAH. Reimbursement Settings dan
+ * Purchase Request Settings pindah URL jadi tab di hub masing-masing (mengikuti
+ * D175), tetapi halaman ini sudah punya alasan KUAT untuk berdiri sendiri
+ * (D141 di atas) — memindah URL/prefix-nya ke bawah `general/cash-advance/*`
+ * hanya kosmetik dan mempertaruhkan pemisahan yang sudah teruji tanpa manfaat.
+ * Yang berubah HANYA tampilannya: halaman ini kini menyertakan tab bar yang
+ * sama dengan "Cash Advance (CA)" (lihat partials/hub-tabs-cash-advance.blade.php),
+ * jadi terasa satu hub bagi yang memegang kedua slug, sementara siapa pun yang
+ * HANYA memegang `management.cash-advance-settings` tetap membuka halaman ini
+ * lewat URL dan slug yang sama persis seperti sebelumnya.
  */
 Route::prefix('management/cash-advance-settings')
     ->name('management.cash-advance-settings.')

@@ -12,7 +12,8 @@
 @endsection
 
 @section('content')
-<div class="max-w-6xl space-y-5">
+{{-- Lebar penuh (D152/D176), sejalan dengan Purchase Request & Cash Advance. --}}
+<div class="w-full space-y-5">
 
     @if($steps->isEmpty())
     <div class="bg-red-50 border border-red-200 rounded-xl px-5 py-4">

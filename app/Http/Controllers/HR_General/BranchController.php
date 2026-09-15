@@ -72,7 +72,7 @@ class BranchController extends Controller
         });
 
         return redirect()
-            ->route('general.settings.branches.index')
+            ->route('general.attendance.branches.index')
             ->with('success', "Branch \"{$branch->name}\" has been added.");
     }
 
@@ -87,7 +87,7 @@ class BranchController extends Controller
         });
 
         return redirect()
-            ->route('general.settings.branches.index')
+            ->route('general.attendance.branches.index')
             ->with('success', "Branch \"{$branch->name}\" has been updated.");
     }
 
@@ -102,7 +102,7 @@ class BranchController extends Controller
         $branch->delete();
 
         return redirect()
-            ->route('general.settings.branches.index')
+            ->route('general.attendance.branches.index')
             ->with('success', "Branch \"{$name}\" has been deleted. Related attendance records are kept.");
     }
 

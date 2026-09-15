@@ -1,13 +1,17 @@
 @extends('dashboard')
 
-@section('title', 'Shifts')
-@section('page-title', 'Shifts')
+@section('title', 'Attendance — Shifts')
+@section('page-title', 'Attendance')
 @section('page-subtitle', 'Working hour patterns used to calculate lateness and working time')
 
 @section('content')
 @php
     $dayLabels = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
 @endphp
+<div class="space-y-5">
+
+@include('partials.hub-tabs-attendance')
+
 <div class="bg-white rounded-xl p-6 shadow-sm">
 
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b-2 border-gray-100">
@@ -18,14 +22,14 @@
             </p>
         </div>
         @if($can('general.settings.shifts.manage'))
-        <a href="{{ route('general.settings.shifts.create') }}"
+        <a href="{{ route('general.attendance.shifts.create') }}"
            class="inline-flex items-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
             <i class="fas fa-plus"></i> Add Shift
         </a>
         @endif
     </div>
 
-    <form method="GET" action="{{ route('general.settings.shifts.index') }}"
+    <form method="GET" action="{{ route('general.attendance.shifts.index') }}"
           class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-5">
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
             <div class="md:col-span-7">
@@ -44,7 +48,7 @@
             </div>
             <div class="md:col-span-2 flex gap-2">
                 <button type="submit" class="flex-1 px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-900 transition-all">Apply</button>
-                <a href="{{ route('general.settings.shifts.index') }}"
+                <a href="{{ route('general.attendance.shifts.index') }}"
                    class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Reset</a>
             </div>
         </div>
@@ -84,7 +88,7 @@
                     </td>
                     <td class="px-4 py-3 text-center">
                         @if($can('general.settings.shifts.manage'))
-                        <a href="{{ route('general.settings.shifts.assign', $shift) }}"
+                        <a href="{{ route('general.attendance.shifts.assign', $shift) }}"
                            class="inline-block px-2 py-0.5 text-xs font-semibold rounded {{ $shift->active_employees_count > 0 ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200' }} transition-colors">
                             {{ $shift->active_employees_count }}
                         </a>
@@ -107,11 +111,11 @@
                     <td class="px-4 py-3">
                         @if($can('general.settings.shifts.manage'))
                         <div class="flex items-center justify-center gap-1.5">
-                            <a href="{{ route('general.settings.shifts.assign', $shift) }}" title="Assign employees"
+                            <a href="{{ route('general.attendance.shifts.assign', $shift) }}" title="Assign employees"
                                class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">
                                 <i class="fas fa-user-plus text-xs"></i>
                             </a>
-                            <a href="{{ route('general.settings.shifts.edit', $shift) }}" title="Edit"
+                            <a href="{{ route('general.attendance.shifts.edit', $shift) }}" title="Edit"
                                class="w-8 h-8 flex items-center justify-center rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-all">
                                 <i class="fas fa-pen text-xs"></i>
                             </a>
@@ -155,6 +159,8 @@
     </div>
 </div>
 
+</div>
+
 <form id="deleteShiftForm" method="POST" class="hidden">
     @csrf
 </form>
@@ -177,7 +183,7 @@ async function deleteShift(id, name, assignedCount) {
     if (!ok) return;
 
     const form = document.getElementById('deleteShiftForm');
-    form.action = `/general/settings/shifts/${id}/delete`;
+    form.action = `/general/attendance/shifts/${id}/delete`;
     form.submit();
 }
 </script>
