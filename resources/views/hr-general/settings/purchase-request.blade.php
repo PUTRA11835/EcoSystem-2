@@ -1,7 +1,7 @@
 @extends('dashboard')
 
-@section('title', 'Purchase Request Settings')
-@section('page-title', 'Purchase Request Settings')
+@section('title', 'Purchase Request — Settings')
+@section('page-title', 'Purchase Request')
 @section('page-subtitle', 'Request rules, units, cost centers, and the approval workflow')
 
 @section('content')
@@ -11,7 +11,11 @@
     use App\Models\PurchaseRequest\PurchaseRequestSetting;
 @endphp
 
-<div class="max-w-6xl space-y-5">
+@include('partials.hub-tabs-purchase-request')
+
+{{-- Lebar penuh (D177), mengikuti pola Attendance/Overtime/Cash Advance
+     Settings — sebelumnya `max-w-6xl`. --}}
+<div class="w-full space-y-5">
 
     {{-- =============================================================
          BAGIAN 1 — ALUR PERSETUJUAN
@@ -56,7 +60,7 @@
                 <tbody class="divide-y divide-gray-100">
                     @foreach($steps as $step)
                     <tr class="align-top hover:bg-gray-50 transition-colors">
-                        <form method="POST" action="{{ route('general.settings.purchase-request.steps.update', $step) }}" id="step-{{ $step->id }}">
+                        <form method="POST" action="{{ route('general.purchase-request.settings.steps.update', $step) }}" id="step-{{ $step->id }}">
                             @csrf
                         </form>
 
@@ -77,10 +81,10 @@
                                 </div>
                             </div>
 
-                            <form method="POST" action="{{ route('general.settings.purchase-request.steps.move', $step) }}" id="move-up-{{ $step->id }}" class="hidden">
+                            <form method="POST" action="{{ route('general.purchase-request.settings.steps.move', $step) }}" id="move-up-{{ $step->id }}" class="hidden">
                                 @csrf <input type="hidden" name="direction" value="up">
                             </form>
-                            <form method="POST" action="{{ route('general.settings.purchase-request.steps.move', $step) }}" id="move-down-{{ $step->id }}" class="hidden">
+                            <form method="POST" action="{{ route('general.purchase-request.settings.steps.move', $step) }}" id="move-down-{{ $step->id }}" class="hidden">
                                 @csrf <input type="hidden" name="direction" value="down">
                             </form>
                         </td>
@@ -177,7 +181,7 @@
                                         class="px-3 py-1.5 bg-gray-800 text-white text-xs font-semibold rounded hover:bg-gray-900 transition-all">
                                     Save
                                 </button>
-                                <form method="POST" action="{{ route('general.settings.purchase-request.steps.destroy', $step) }}"
+                                <form method="POST" action="{{ route('general.purchase-request.settings.steps.destroy', $step) }}"
                                       class="js-delete-step" data-name="{{ $step->name }}">
                                     @csrf
                                     <button type="submit"
@@ -195,7 +199,7 @@
                          antara daftar dan form membuat pengguna mengira keduanya
                          mengisi hal yang berbeda. --}}
                     <tr class="bg-gray-50 align-top">
-                        <form method="POST" action="{{ route('general.settings.purchase-request.steps.store') }}" id="newStepForm">@csrf</form>
+                        <form method="POST" action="{{ route('general.purchase-request.settings.steps.store') }}" id="newStepForm">@csrf</form>
 
                         <td class="px-4 py-3">
                             <span class="w-7 h-7 flex items-center justify-center bg-gray-300 text-white rounded-full text-xs font-bold">
@@ -299,7 +303,7 @@
     {{-- =============================================================
          BAGIAN 2 — ATURAN PURCHASE REQUEST
          ============================================================= --}}
-    <form method="POST" action="{{ route('general.settings.purchase-request.update') }}" class="bg-white rounded-xl p-6 shadow-sm space-y-6">
+    <form method="POST" action="{{ route('general.purchase-request.settings.update') }}" class="bg-white rounded-xl p-6 shadow-sm space-y-6">
         @csrf
 
         <div class="pb-4 border-b-2 border-gray-100">

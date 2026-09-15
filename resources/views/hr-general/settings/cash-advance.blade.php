@@ -1,7 +1,7 @@
 @extends('dashboard')
 
-@section('title', 'Cash Advance Settings')
-@section('page-title', 'Cash Advance Settings')
+@section('title', 'Cash Advance (CA) — Settings')
+@section('page-title', 'Cash Advance (CA)')
 @section('page-subtitle', 'Request rules, settlement rules, and both approval workflows')
 
 @section('content')
@@ -11,10 +11,11 @@
     use App\Models\CashAdvance\CashAdvanceSetting;
 @endphp
 
-{{-- 🔴 Lebar PENUH atas permintaan pemilik sistem. Tetangganya (Overtime,
-     Reimbursement, Purchase Request Settings) masih `max-w-6xl`; ketiganya
-     SENGAJA tidak ikut diubah di sini karena sudah teruji dan menuju
-     produksi. Menyamakannya harus diminta terpisah. --}}
+@include('partials.hub-tabs-cash-advance')
+
+{{-- 🔴 Lebar PENUH atas permintaan pemilik sistem (sudah begini sejak
+     sebelum D177 — Reimbursement/Purchase Request Settings baru menyusul
+     lebar penuh di D177). --}}
 <div class="w-full space-y-5">
 
     {{-- 🔴 Diberitahukan di layar, bukan didiamkan. Tanpa cabang aktif, dropdown

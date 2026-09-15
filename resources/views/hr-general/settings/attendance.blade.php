@@ -1,11 +1,13 @@
 @extends('dashboard')
 
-@section('title', 'Attendance Settings')
-@section('page-title', 'Attendance Settings')
+@section('title', 'Attendance — Settings')
+@section('page-title', 'Attendance')
 @section('page-subtitle', 'Company-wide rules for check-in, geofencing, and corrections')
 
 @section('content')
-<form method="POST" action="{{ route('general.settings.attendance.update') }}" id="settingsForm" class="space-y-5">
+@include('partials.hub-tabs-attendance')
+
+<form method="POST" action="{{ route('general.attendance.settings.update') }}" id="settingsForm" class="space-y-5">
     @csrf
 
     @if($errors->any())
@@ -337,13 +339,13 @@
          Input pada tabel tetap terhubung ke form ini lewat atribut form="...",
          yang memang dirancang untuk keperluan seperti ini. --}}
     @foreach($sources as $source)
-    <form method="POST" action="{{ route('general.settings.sources.update', $source) }}"
+    <form method="POST" action="{{ route('general.attendance.settings.sources.update', $source) }}"
           id="srcForm{{ $source->id }}" class="hidden">
         @csrf
     </form>
     @endforeach
 
-    <form method="POST" action="{{ route('general.settings.sources.store') }}"
+    <form method="POST" action="{{ route('general.attendance.settings.sources.store') }}"
           id="srcCreateForm" class="hidden">
         @csrf
     </form>
@@ -387,7 +389,7 @@ async function deleteSource(id, name) {
     if (!ok) return;
 
     const form = document.getElementById('deleteSourceForm');
-    form.action = `/general/settings/attendance-sources/${id}/delete`;
+    form.action = `/general/attendance/settings/sources/${id}/delete`;
     form.submit();
 }
 </script>

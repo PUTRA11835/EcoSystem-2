@@ -1,7 +1,7 @@
 @extends('dashboard')
 
-@section('title', 'Reimbursements')
-@section('page-title', 'Reimbursements')
+@section('title', 'Reimbursement — Management')
+@section('page-title', 'Reimbursement')
 @section('page-subtitle', 'Manage and process employee reimbursement requests')
 
 @section('page-actions')
@@ -31,6 +31,8 @@
 
 @section('content')
 @php use App\Models\Reimbursement\ReimbursementRequest; @endphp
+
+@include('partials.hub-tabs-reimbursement')
 
 <div class="space-y-5">
 

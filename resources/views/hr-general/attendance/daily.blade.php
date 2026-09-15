@@ -1,7 +1,7 @@
 @extends('dashboard')
 
-@section('title', 'Attendance Recap')
-@section('page-title', 'Attendance Recap')
+@section('title', 'Attendance — Daily Recap')
+@section('page-title', 'Attendance')
 @section('page-subtitle', "Monitor daily attendance with department, status, search, and Excel export filters")
 
 @push('styles')
@@ -20,20 +20,19 @@
 
 <div class="space-y-5">
 
+    @include('partials.hub-tabs-attendance')
+
     {{-- Header + aksi --}}
     <div class="bg-white rounded-xl p-6 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5 pb-4 border-b-2 border-gray-100">
             <div>
-                <h2 class="text-2xl font-bold text-gray-900">Attendance Recap</h2>
+                <h2 class="text-2xl font-bold text-gray-900">Daily Recap</h2>
                 <p class="text-sm text-gray-500 mt-0.5">Daily attendance for {{ $filters['date']->translatedFormat('d F Y') }}.</p>
             </div>
             <div class="flex flex-wrap gap-2">
-                @if($can('general.attendance.monthly'))
-                <a href="{{ route('general.attendance.monthly') }}"
-                   class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-                    Monthly Recap
-                </a>
-                @endif
+                {{-- Tombol "Monthly Recap" DIGANTI tab bar di atas (D175) —
+                     dua jalan berbeda menuju hal yang sama di halaman yang
+                     sama adalah navigasi yang membingungkan, bukan fleksibel. --}}
                 @if($can('general.attendance.export'))
                 <a href="{{ route('general.attendance.export', request()->query()) }}"
                    class="inline-flex items-center gap-2 px-4 py-2 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-800 transition-all">

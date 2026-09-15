@@ -65,7 +65,7 @@
         $hrTiles[] = ['href' => route('hr-general.leave-permit'), 'icon' => 'fa-calendar-minus', 'bg' => 'bg-pink-50', 'color' => 'text-pink-600', 'title' => 'Leave & Permit', 'desc' => 'Review leave and permit applications from employees.'];
     }
     if ($can('general.settings.attendance')) {
-        $hrTiles[] = ['href' => route('general.settings.attendance.edit'), 'icon' => 'fa-sliders', 'bg' => 'bg-gray-100', 'color' => 'text-gray-600', 'title' => 'Attendance Settings', 'desc' => 'Geofence mode, tolerance, and attendance rules.'];
+        $hrTiles[] = ['href' => route('general.attendance.settings.edit'), 'icon' => 'fa-sliders', 'bg' => 'bg-gray-100', 'color' => 'text-gray-600', 'title' => 'Attendance Settings', 'desc' => 'Geofence mode, tolerance, and attendance rules.'];
     }
 
     // Pintasan sisi karyawan — presensi + Leave & Permit.

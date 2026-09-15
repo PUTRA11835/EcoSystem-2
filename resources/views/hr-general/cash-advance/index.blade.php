@@ -1,7 +1,7 @@
 @extends('dashboard')
 
-@section('title', 'Cash Advances')
-@section('page-title', 'Cash Advances')
+@section('title', 'Cash Advance (CA) — Management')
+@section('page-title', 'Cash Advance (CA)')
 @section('page-subtitle', 'Manage and process employee cash advance (CA) requests')
 
 @section('content')
@@ -10,6 +10,8 @@
 
     $amounts = app(\App\Services\CashAdvance\CashAdvanceAmountService::class);
 @endphp
+
+@include('partials.hub-tabs-cash-advance')
 
 <div class="space-y-5">
 

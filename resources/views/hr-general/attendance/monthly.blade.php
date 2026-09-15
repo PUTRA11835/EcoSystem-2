@@ -1,7 +1,7 @@
 @extends('dashboard')
 
-@section('title', 'Monthly Attendance Recap')
-@section('page-title', 'Monthly Attendance Recap')
+@section('title', 'Attendance — Monthly Recap')
+@section('page-title', 'Attendance')
 @section('page-subtitle', 'Compact monthly attendance matrix with quick filters and export')
 
 @push('styles')
@@ -21,18 +21,17 @@
 
 <div class="space-y-5">
 
+    @include('partials.hub-tabs-attendance')
+
     {{-- Header + aksi --}}
     <div class="bg-white rounded-xl p-6 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5 pb-4 border-b-2 border-gray-100">
             <div>
-                <h2 class="text-2xl font-bold text-gray-900">Monthly Attendance Recap</h2>
+                <h2 class="text-2xl font-bold text-gray-900">Monthly Recap</h2>
                 <p class="text-sm text-gray-500 mt-0.5">One row per employee, one column per day.</p>
             </div>
             <div class="flex flex-wrap gap-2">
-                <a href="{{ route('general.attendance.daily') }}"
-                   class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-                    Daily Recap
-                </a>
+                {{-- Tombol "Daily Recap" DIGANTI tab bar di atas (D175). --}}
                 @if($can('general.attendance.export'))
                 <a href="{{ route('general.attendance.monthly.export', request()->query()) }}"
                    class="inline-flex items-center gap-2 px-4 py-2 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-800 transition-all">

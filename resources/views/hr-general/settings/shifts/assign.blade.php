@@ -22,7 +22,7 @@
                     {{ $shift->break_minutes }} min break · {{ $assigned->count() }} employee(s) assigned
                 </p>
             </div>
-            <a href="{{ route('general.settings.shifts.index') }}"
+            <a href="{{ route('general.attendance.shifts.index') }}"
                class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all whitespace-nowrap">
                 <i class="fas fa-arrow-left mr-1"></i> Back to Shifts
             </a>
@@ -107,7 +107,7 @@
                 The limit is configurable in <em>Attendance Settings</em>.
             </p>
 
-            <form method="GET" action="{{ route('general.settings.shifts.assign', $shift) }}" class="flex gap-2 mb-4">
+            <form method="GET" action="{{ route('general.attendance.shifts.assign', $shift) }}" class="flex gap-2 mb-4">
                 <input type="text" name="search" value="{{ $search }}" placeholder="Search by name or employee code..."
                        class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                 <button type="submit" class="px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-900 transition-all">
@@ -115,7 +115,7 @@
                 </button>
             </form>
 
-            <form method="POST" action="{{ route('general.settings.shifts.assign.store', $shift) }}" id="assignForm">
+            <form method="POST" action="{{ route('general.attendance.shifts.assign.store', $shift) }}" id="assignForm">
                 @csrf
 
                 <div class="border border-gray-200 rounded-lg max-h-96 overflow-y-auto divide-y divide-gray-100">
@@ -236,7 +236,7 @@ async function releaseAssignment(assignmentId, employeeName) {
     if (!ok) return;
 
     const form = document.getElementById('releaseForm');
-    form.action = `/general/settings/shifts/${SHIFT_ID}/assign/${assignmentId}/release`;
+    form.action = `/general/attendance/shifts/${SHIFT_ID}/assign/${assignmentId}/release`;
     form.submit();
 }
 </script>

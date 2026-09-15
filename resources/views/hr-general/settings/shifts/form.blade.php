@@ -11,7 +11,7 @@
 @endphp
 
 <form method="POST" id="shiftForm"
-      action="{{ $isEditing ? route('general.settings.shifts.update', $shift) : route('general.settings.shifts.store') }}"
+      action="{{ $isEditing ? route('general.attendance.shifts.update', $shift) : route('general.attendance.shifts.store') }}"
       class="space-y-5">
     @csrf
 
@@ -32,7 +32,7 @@
     <div class="bg-white rounded-xl p-6 shadow-sm">
         <div class="flex items-center justify-between mb-6 pb-4 border-b-2 border-gray-100">
             <h2 class="text-2xl font-bold text-gray-900">{{ $isEditing ? 'Edit Shift' : 'Add Shift' }}</h2>
-            <a href="{{ route('general.settings.shifts.index') }}"
+            <a href="{{ route('general.attendance.shifts.index') }}"
                class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
                 <i class="fas fa-arrow-left mr-1"></i> Back
             </a>
@@ -137,7 +137,7 @@
                 class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
             <i class="fas fa-save"></i> Save
         </button>
-        <a href="{{ route('general.settings.shifts.index') }}"
+        <a href="{{ route('general.attendance.shifts.index') }}"
            class="px-5 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
             Cancel
         </a>
