@@ -9,7 +9,17 @@ use Symfony\Component\HttpFoundation\Response;
 
 class CheckMenuAccess
 {
-    public function handle(Request $request, Closure $next, string $menuSlug): Response
+    /**
+     * 🔴 D180 — Menerima SATU ATAU LEBIH slug (`menu:a,b`), diperiksa sebagai
+     * GABUNGAN (OR): lolos bila karyawan memegang SALAH SATU. Dibutuhkan oleh
+     * rute langkah persetujuan Cash Advance, yang SATU set rutenya melayani
+     * DUA modul sekaligus (CA dan CAR, D136) dengan slug terpisah masing-
+     * masing — pemisahan yang LEBIH SEMPIT (modul mana persisnya) tetap
+     * diperiksa ULANG di dalam controller, bukan di sini. Rute dengan satu
+     * slug (`menu:x`, mayoritas rute di aplikasi ini) berperilaku identik
+     * seperti sebelumnya — variadic ini backward compatible.
+     */
+    public function handle(Request $request, Closure $next, string ...$menuSlugs): Response
     {
         $user = session('user');
 
@@ -22,7 +32,9 @@ class CheckMenuAccess
 
         $employee = Employee::find($user['id'] ?? null);
 
-        if (!$employee || !$employee->canAccessMenu($menuSlug)) {
+        $allowed = $employee && collect($menuSlugs)->contains(fn (string $slug) => $employee->canAccessMenu($slug));
+
+        if (!$allowed) {
             if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([
                     'success' => false,

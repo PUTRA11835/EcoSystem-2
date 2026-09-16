@@ -52,44 +52,19 @@ use Illuminate\Validation\Rule;
  */
 class CashAdvanceSettingController extends Controller
 {
-    public function edit(CashAdvanceService $ca, CashAdvanceReportService $car)
+    /**
+     * 🔴 D180 — `caSteps`/`carSteps`/`caOpenCount`/`carOpenCount`/
+     * `roleCandidates` DIPINDAH ke ApprovalWorkflowController::cashAdvance()/
+     * cashAdvanceReport() — keduanya HANYA dipakai editor langkah, yang sudah
+     * tidak ada di halaman ini. `roles`/`employees` TETAP diambil: BAGIAN 3/4
+     * (Aturan Dokumen & Tanda Tangan Cetakan) yang tersisa masih memakainya
+     * (dropdown fallback reviewer, dropdown penanda tangan Accounting/Cashier).
+     */
+    public function edit()
     {
-        $caSteps  = $this->stepsOf(CashAdvanceApprovalStep::MODULE_CA);
-        $carSteps = $this->stepsOf(CashAdvanceApprovalStep::MODULE_CAR);
-
         return view('hr-general.settings.cash-advance', [
             'settings' => CashAdvanceSetting::current(),
-            'caSteps'  => $caSteps,
-            'carSteps' => $carSteps,
-
-            // Berapa dokumen berjalan yang akan terkena bila langkah baru
-            // ditambahkan. Angkanya disebut SEBELUM tombolnya ditekan (D116) —
-            // keputusan yang menyentuh dokumen berjalan tidak boleh diambil
-            // tanpa tahu berapa banyak yang tersentuh.
-            'caOpenCount'  => $ca->countOpenRequestsBefore((int) $caSteps->max('order_seq') + 1),
-            'carOpenCount' => $car->countOpenReportsBefore((int) $carSteps->max('order_seq') + 1),
-
-            'roles' => EmployeeRole::orderBy('name')->get(['id', 'name']),
-
-            // 🔴 Berapa karyawan yang MEMEGANG tiap posisi.
-            //
-            // Tanpa angka ini, memilih posisi di kolom Reference adalah tebakan:
-            // layar tidak memberi tahu apakah posisi itu punya pemegang sama
-            // sekali, dan langkah tanpa kandidat melahirkan dokumen yang menunggu
-            // orang yang tidak ada. Pemilik sistem melaporkan kebingungan persis
-            // di titik ini.
-            //
-            // Dihitung SATU kueri berkelompok, bukan per posisi — 68 posisi
-            // berarti 68 kueri kalau memakai Employee::withRole() satu per satu.
-            // Definisinya sengaja sama dengan scope withRole(): lewat tabel
-            // pivot employee_role_assignment, tanpa menyaring is_active, supaya
-            // angka yang DITAMPILKAN sama persis dengan kandidat yang nanti
-            // BENAR-BENAR dipakai CashAdvanceApprovalStep::candidateEmployeeIds().
-            // Angka yang berbeda dari kenyataan lebih buruk daripada tidak ada.
-            'roleCandidates' => DB::table('employee_role_assignment')
-                ->select('role_id', DB::raw('COUNT(DISTINCT employee_id) AS total'))
-                ->groupBy('role_id')
-                ->pluck('total', 'role_id'),
+            'roles'    => EmployeeRole::orderBy('name')->get(['id', 'name']),
 
             // Hanya karyawan aktif, dan hanya kolom yang benar-benar dipakai —
             // 207 baris berisi seluruh kolom membuat halaman berat tanpa manfaat.
@@ -177,7 +152,9 @@ class CashAdvanceSettingController extends Controller
     public function storeStep(Request $request, CashAdvanceService $ca, CashAdvanceReportService $car)
     {
         $module = $this->moduleOf($request);
-        $data   = $this->validateStep($request);
+        $this->assertCanManageWorkflow($module);
+
+        $data = $this->validateStep($request);
 
         if (is_string($data)) {
             return back()->withInput()->with('error', $data);
@@ -209,6 +186,8 @@ class CashAdvanceSettingController extends Controller
 
     public function updateStep(Request $request, CashAdvanceApprovalStep $step)
     {
+        $this->assertCanManageWorkflow($step->module);
+
         $data = $this->validateStep($request);
 
         if (is_string($data)) {
@@ -234,6 +213,8 @@ class CashAdvanceSettingController extends Controller
 
     public function destroyStep(CashAdvanceApprovalStep $step)
     {
+        $this->assertCanManageWorkflow($step->module);
+
         $guard = $this->guardStepRemoval($step, false, null);
         if ($guard !== null) {
             return back()->with('error', $guard);
@@ -269,6 +250,8 @@ class CashAdvanceSettingController extends Controller
     /** Geser satu langkah ke atas atau ke bawah — tombol panah pada editor. */
     public function moveStep(Request $request, CashAdvanceApprovalStep $step)
     {
+        $this->assertCanManageWorkflow($step->module);
+
         $validated = $request->validate([
             'direction' => ['required', Rule::in(['up', 'down'])],
         ]);
@@ -325,6 +308,31 @@ class CashAdvanceSettingController extends Controller
         return in_array($module, CashAdvanceApprovalStep::MODULES, true)
             ? $module
             : CashAdvanceApprovalStep::MODULE_CA;
+    }
+
+    /**
+     * 🔴 D180 — Pemisahan hak SEBENARNYA antara CA dan CAR, diperiksa di sini
+     * dan bukan di middleware rute. `menu:` pada grup rute langkah HANYA
+     * memeriksa "boleh masuk pintu ini SALAH SATU dari dua slug", karena satu
+     * set rute melayani dua modul sekaligus (D136) dan modulnya baru diketahui
+     * dari ISI request, bukan dari URL. Method ini yang menjawab pertanyaan
+     * sempit "boleh modul yang INI persisnya?" — pola yang sama dengan
+     * CashAdvanceController::canEditDocument() yang diperiksa ulang di dalam
+     * method meski gerbang rutenya satu slug halaman.
+     *
+     * Aborts 403 bila tidak berhak — pesan yang sama dengan penolakan
+     * middleware `menu:`, supaya tidak terasa seperti dua sistem izin berbeda.
+     */
+    private function assertCanManageWorkflow(string $module): void
+    {
+        $slug = $module === CashAdvanceApprovalStep::MODULE_CAR
+            ? 'management.approval-workflow.cash-advance-report'
+            : 'management.approval-workflow.cash-advance';
+
+        $employee = Employee::find(session('user.id'));
+
+        abort_unless($employee && $employee->canAccessMenu($slug), 403,
+            'Akses ditolak. Akun Anda tidak memiliki izin untuk mengakses halaman tersebut. Hubungi administrator.');
     }
 
     /**

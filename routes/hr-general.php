@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\HR_General\ApprovalWorkflowController;
 use App\Http\Controllers\HR_General\AttendanceCorrectionController;
 use App\Http\Controllers\HR_General\AttendanceRecapController;
 use App\Http\Controllers\HR_General\AttendanceSettingController;
@@ -294,10 +295,20 @@ Route::prefix('general')
             ->group(function () {
                 Route::get('/', [OvertimeSettingController::class, 'edit'])->name('edit');
                 Route::post('/update', [OvertimeSettingController::class, 'update'])->name('update');
+            });
 
-                // Alur persetujuan. Perubahan di sini berlaku pada pengajuan
-                // BARU; yang sedang berjalan memakai salinan langkah miliknya
-                // sendiri.
+        // 🔴 D180 — Rute langkah persetujuan DIPISAH dari grup Settings di atas,
+        // dijaga slug BARU `general.approval-workflow.overtime`, BUKAN lagi
+        // `general.settings.overtime`. Ini bukan kosmetik: kalau tetap di slug
+        // lama, siapa pun yang diberi hak "Approval Workflow" (tapi TIDAK
+        // diberi hak Settings) akan melihat tombolnya di halaman baru lalu
+        // kena 403 saat menekannya — tombol jebakan, kelas cacat D154. Nama
+        // rute TIDAK berubah (`general.overtime.settings.steps.*`), supaya
+        // seluruh form yang sudah ada tetap bekerja tanpa disunting.
+        Route::prefix('overtime/settings')
+            ->name('overtime.settings.')
+            ->middleware('menu:general.approval-workflow.overtime')
+            ->group(function () {
                 Route::post('/steps', [OvertimeSettingController::class, 'storeStep'])->name('steps.store');
                 Route::post('/steps/{step}/update', [OvertimeSettingController::class, 'updateStep'])->name('steps.update');
                 Route::post('/steps/{step}/delete', [OvertimeSettingController::class, 'destroyStep'])->name('steps.destroy');
@@ -578,9 +589,14 @@ Route::prefix('general')
             ->group(function () {
                 Route::get('/', [ReimbursementSettingController::class, 'edit'])->name('edit');
                 Route::post('/update', [ReimbursementSettingController::class, 'update'])->name('update');
+            });
 
-                // Alur persetujuan. Perubahan di sini berlaku pada dokumen BARU;
-                // yang sedang berjalan memakai salinan langkah miliknya sendiri.
+        // 🔴 D180 — sama seperti Overtime di atas: rute langkah dipisah, dijaga
+        // slug BARU `general.approval-workflow.reimbursement`.
+        Route::prefix('reimbursement/settings')
+            ->name('reimbursement.settings.')
+            ->middleware('menu:general.approval-workflow.reimbursement')
+            ->group(function () {
                 Route::post('/steps', [ReimbursementSettingController::class, 'storeStep'])->name('steps.store');
                 Route::post('/steps/{step}/update', [ReimbursementSettingController::class, 'updateStep'])->name('steps.update');
                 Route::post('/steps/{step}/delete', [ReimbursementSettingController::class, 'destroyStep'])->name('steps.destroy');
@@ -610,9 +626,14 @@ Route::prefix('general')
             ->group(function () {
                 Route::get('/', [PurchaseRequestSettingController::class, 'edit'])->name('edit');
                 Route::post('/update', [PurchaseRequestSettingController::class, 'update'])->name('update');
+            });
 
-                // Alur persetujuan. Perubahan di sini berlaku pada dokumen BARU;
-                // yang sedang berjalan memakai salinan langkah miliknya sendiri.
+        // 🔴 D180 — sama seperti Overtime/Reimbursement di atas: rute langkah
+        // dipisah, dijaga slug BARU `general.approval-workflow.purchase-request`.
+        Route::prefix('purchase-request/settings')
+            ->name('purchase-request.settings.')
+            ->middleware('menu:general.approval-workflow.purchase-request')
+            ->group(function () {
                 Route::post('/steps', [PurchaseRequestSettingController::class, 'storeStep'])->name('steps.store');
                 Route::post('/steps/{step}/update', [PurchaseRequestSettingController::class, 'updateStep'])->name('steps.update');
                 Route::post('/steps/{step}/delete', [PurchaseRequestSettingController::class, 'destroyStep'])->name('steps.destroy');
@@ -781,6 +802,37 @@ Route::prefix('general')
             Route::post('/{purchaseRequest}/delete', [PurchaseRequestController::class, 'destroy'])
                 ->name('destroy')
                 ->middleware('menu:general.purchase-request.manage');
+        });
+
+        // =====================================================================
+        // APPROVAL WORKFLOW — hub bertab lintas modul (Keputusan D180)
+        // =====================================================================
+        // Lima halaman GET, satu per modul. Setiap rute dijaga slug BARU-nya
+        // sendiri — lihat migrasi 2026_09_16_000001_add_approval_workflow_menus
+        // untuk alasan lengkap kenapa slug ini terpisah dari slug Settings.
+        // Rute POST (simpan/ubah/hapus/pindah langkah) TETAP hidup di bawah
+        // masing-masing prefix `*/settings` di atas — lihat komentar D180 di
+        // sana untuk kenapa middleware-nya sudah dipindah ke slug yang sama.
+        Route::prefix('approval-workflow')->name('approval-workflow.')->group(function () {
+            Route::get('/overtime', [ApprovalWorkflowController::class, 'overtime'])
+                ->name('overtime')
+                ->middleware('menu:general.approval-workflow.overtime');
+
+            Route::get('/reimbursement', [ApprovalWorkflowController::class, 'reimbursement'])
+                ->name('reimbursement')
+                ->middleware('menu:general.approval-workflow.reimbursement');
+
+            Route::get('/purchase-request', [ApprovalWorkflowController::class, 'purchaseRequest'])
+                ->name('purchase-request')
+                ->middleware('menu:general.approval-workflow.purchase-request');
+
+            Route::get('/cash-advance', [ApprovalWorkflowController::class, 'cashAdvance'])
+                ->name('cash-advance')
+                ->middleware('menu:management.approval-workflow.cash-advance');
+
+            Route::get('/cash-advance-report', [ApprovalWorkflowController::class, 'cashAdvanceReport'])
+                ->name('cash-advance-report')
+                ->middleware('menu:management.approval-workflow.cash-advance-report');
         });
 
         // =====================================================================
@@ -984,14 +1036,33 @@ Route::prefix('management/cash-advance-settings')
     ->group(function () {
         Route::get('/', [CashAdvanceSettingController::class, 'edit'])->name('edit');
         Route::post('/update', [CashAdvanceSettingController::class, 'update'])->name('update');
+    });
 
-        // Alur persetujuan. SATU set rute melayani DUA modul (cash_advance dan
-        // cash_advance_report) — modulnya dikirim sebagai field dan divalidasi
-        // terhadap daftar tertutup di controller (Keputusan D136).
-        //
-        // Perubahan di sini berlaku pada dokumen BARU; yang sedang berjalan
-        // memakai salinan langkah miliknya sendiri, kecuali `apply_to_open`
-        // dicentang saat MENAMBAH langkah (aturan asimetris D116).
+/**
+ * 🔴 D180 — Rute langkah persetujuan (store/update/destroy/move) DIPISAH dari
+ * grup Settings di atas. Middleware gerbangnya adalah GABUNGAN (OR) kedua slug
+ * baru — `management.approval-workflow.cash-advance` ATAU
+ * `management.approval-workflow.cash-advance-report` — karena SATU set rute
+ * ini melayani DUA modul sekaligus (D136), dan permintaan pemilik sistem
+ * justru meminta keduanya bisa diberikan TERPISAH satu sama lain.
+ *
+ * Middleware `menu:` di rute HANYA menjawab "boleh masuk pintu ini sama
+ * sekali?" — TIDAK tahu modul mana (CA atau CAR) yang sedang diproses,
+ * karena itu baru diketahui dari isi request (field `module` untuk
+ * storeStep, atau `$step->module` untuk update/destroy/move). Pemisahan hak
+ * yang SEBENARNYA — "orang ini boleh CA tapi tidak boleh CAR" — diperiksa
+ * ULANG di dalam controller lewat
+ * CashAdvanceSettingController::assertCanManageWorkflow(), pola yang sama
+ * dengan bagaimana CashAdvanceController memeriksa ulang canEditDocument() di
+ * dalam method meski gerbang rutenya cuma satu slug halaman.
+ */
+Route::prefix('management/cash-advance-settings')
+    ->name('management.cash-advance-settings.')
+    ->middleware([
+        CheckAuthToken::class,
+        'menu:management.approval-workflow.cash-advance,management.approval-workflow.cash-advance-report',
+    ])
+    ->group(function () {
         Route::post('/steps', [CashAdvanceSettingController::class, 'storeStep'])->name('steps.store');
         Route::post('/steps/{step}/update', [CashAdvanceSettingController::class, 'updateStep'])->name('steps.update');
         Route::post('/steps/{step}/delete', [CashAdvanceSettingController::class, 'destroyStep'])->name('steps.destroy');

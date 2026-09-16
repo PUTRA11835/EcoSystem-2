@@ -487,6 +487,11 @@
             {{-- 🔴 D177: Reimbursement/Purchase Request/Cash Advance Settings ikut
                  masuk gerbang ini — kelas cacat yang sama dengan D175, kali ini
                  dicegah dari awal alih-alih ditemukan lewat uji. --}}
+            {{-- 🔴 D180: kelima slug Approval Workflow ikut masuk gerbang ini juga,
+                 dengan alasan yang SAMA PERSIS — tanpanya, orang yang HANYA
+                 memegang mis. `general.approval-workflow.overtime` (dan tidak
+                 memegang slug HR & General lain apa pun) tidak akan pernah
+                 melihat dropdown-nya sama sekali. --}}
             @if($can('general') || $can('hr_general.leave_permit.admin')
                 || $can('general.attendance') || $can('general.attendance.monthly') || $can('general.attendance.correction')
                 || $can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance')
@@ -494,7 +499,10 @@
                 || $can('general.reimbursement') || $can('general.settings.reimbursement')
                 || $can('general.purchase-request') || $can('general.settings.purchase-request')
                 || $can('general.cash-advance') || $can('management.cash-advance-settings')
-                || $can('general.cash-advance-report'))
+                || $can('general.cash-advance-report')
+                || $can('general.approval-workflow.overtime') || $can('general.approval-workflow.reimbursement')
+                || $can('general.approval-workflow.purchase-request') || $can('management.approval-workflow.cash-advance')
+                || $can('management.approval-workflow.cash-advance-report'))
                 <!-- HR & GENERAL -->
                 @php
                     // 🔴 Daftar ini harus diperbarui setiap kali item baru masuk ke grup —
@@ -514,7 +522,9 @@
                         // membuka tab Settings membuat dropdown "HR & General" tertutup
                         // sendiri padahal baris "Cash Advance (CA)" ikut menyala.
                         || Request::is('management/cash-advance-settings*')
-                        || Request::is('general/kpi-evaluation*');
+                        || Request::is('general/kpi-evaluation*')
+                        // 🔴 D180 — hub Approval Workflow, satu prefix untuk kelima tab.
+                        || Request::is('general/approval-workflow*');
                 @endphp
                 <div class="mb-2">
                     <button onclick="toggleHrGeneralDropdown()"
@@ -702,6 +712,41 @@
                                     <i class="fas fa-chart-bar text-xs"></i>
                                 </span>
                                 <span class="nav-text text-sm">KPI Evaluation</span>
+                            </a>
+                        @endif
+
+                        {{-- 🔴 D180 — "Approval Workflow", di BAWAH grup ini (posisi
+                             disepakati pemilik sistem: konfigurasi berkala, bukan
+                             operasional harian). Gerbangnya SENGAJA TIDAK memakai
+                             `|| $can('general')` — kelima slug barunya (lihat migrasi
+                             2026_09_16_000001_add_approval_workflow_menus) memang
+                             dibuat supaya HANYA terlihat lewat pemberian manual,
+                             "pengawasan ketat" yang diminta secara eksplisit. Seorang
+                             pemegang `general` blanket TIDAK otomatis melihat baris
+                             ini — beda dari hampir seluruh baris lain di dropdown ini. --}}
+                        @php
+                            $approvalWorkflowGate = $can('general.approval-workflow.overtime')
+                                || $can('general.approval-workflow.reimbursement')
+                                || $can('general.approval-workflow.purchase-request')
+                                || $can('management.approval-workflow.cash-advance')
+                                || $can('management.approval-workflow.cash-advance-report');
+
+                            $approvalWorkflowLanding = match (true) {
+                                $can('general.approval-workflow.overtime')            => route('general.approval-workflow.overtime'),
+                                $can('general.approval-workflow.reimbursement')       => route('general.approval-workflow.reimbursement'),
+                                $can('general.approval-workflow.purchase-request')    => route('general.approval-workflow.purchase-request'),
+                                $can('management.approval-workflow.cash-advance')     => route('general.approval-workflow.cash-advance'),
+                                $can('management.approval-workflow.cash-advance-report') => route('general.approval-workflow.cash-advance-report'),
+                                default => route('general.approval-workflow.overtime'),
+                            };
+                        @endphp
+                        @if($approvalWorkflowGate)
+                            <a href="{{ $approvalWorkflowLanding }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/approval-workflow*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-list-check text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm">Approval Workflow</span>
                             </a>
                         @endif
                     </div>

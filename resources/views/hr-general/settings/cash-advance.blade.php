@@ -2,12 +2,11 @@
 
 @section('title', 'Cash Advance (CA) — Settings')
 @section('page-title', 'Cash Advance (CA)')
-@section('page-subtitle', 'Request rules, settlement rules, and both approval workflows')
+@section('page-subtitle', 'Request rules and settlement rules — both approval workflows moved to their own page')
 
 @section('content')
 @php
     use App\Models\CashAdvance\CashAdvance;
-    use App\Models\CashAdvance\CashAdvanceApprovalStep;
     use App\Models\CashAdvance\CashAdvanceSetting;
 @endphp
 
@@ -40,26 +39,22 @@
         </div>
     @endif
 
-    {{-- =============================================================
-         BAGIAN 1 & 2 — DUA ALUR PERSETUJUAN
-         Ditaruh paling atas karena inilah yang paling sering diubah, dan
-         karena tanpa satu langkah aktif pun modulnya tidak jalan.
-         ============================================================= --}}
-    @include('hr-general.settings._ca_step_editor', [
-        'module'    => CashAdvanceApprovalStep::MODULE_CA,
-        'steps'     => $caSteps,
-        'openCount' => $caOpenCount,
-        'heading'   => 'Cash Advance — Approval Workflow',
-        'blurb'     => 'Approval for submitted cash advance requests. Step order runs from top to bottom.',
-    ])
-
-    @include('hr-general.settings._ca_step_editor', [
-        'module'    => CashAdvanceApprovalStep::MODULE_CAR,
-        'steps'     => $carSteps,
-        'openCount' => $carOpenCount,
-        'heading'   => 'Cash Advance Report — Approval Workflow',
-        'blurb'     => 'Approval for settlement reports. Approving the last step closes the cash advance.',
-    ])
+    {{-- 🔴 D180 — Kedua Approval Workflow (CA dan CAR) PINDAH ke halaman
+         tersendiri, MASING-MASING dengan hak akses TERPISAH dari halaman ini
+         dan terpisah SATU SAMA LAIN (bisa diberikan CA saja, CAR saja, atau
+         keduanya). Diberitahukan di sini, bukan didiamkan — orang yang
+         terbiasa mencari alur di sini akan mengira fiturnya hilang tanpa
+         pengingat ini. --}}
+    <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+        <p class="text-sm text-blue-900">
+            <span class="font-semibold">Looking for the approval workflow?</span>
+            Both moved to their own page —
+            <a href="{{ route('general.approval-workflow.cash-advance') }}" class="underline font-semibold hover:text-blue-700">Cash Advance</a>
+            and
+            <a href="{{ route('general.approval-workflow.cash-advance-report') }}" class="underline font-semibold hover:text-blue-700">Cash Advance Report</a>
+            under Approval Workflow.
+        </p>
+    </div>
 
     {{-- =============================================================
          BAGIAN 3 — ATURAN DOKUMEN
@@ -431,98 +426,3 @@
     </form>
 </div>
 @endsection
-
-@push('scripts')
-<script>
-    // 🔴 showConfirm(), bukan confirm() bawaan peramban — permintaan eksplisit
-    // pemilik sistem, dan pola yang sudah dipakai seluruh Purchase Request.
-    // showPrompt() TIDAK ADA di aplikasi ini; hanya showConfirm() & showToast().
-    //
-    // Form-nya SUNGGUHAN dan sudah membawa @csrf dari Blade; JavaScript hanya
-    // menahan submit-nya sebentar. Membangun form di JavaScript akan memaksa
-    // membaca meta tag csrf-token — dan di aplikasi ini ada satu pembacaan meta
-    // yang rusak karena kutip tipografis, jadi pola itu sengaja dihindari.
-    document.querySelectorAll('.js-ca-delete-step').forEach(function (form) {
-        form.addEventListener('submit', async function (event) {
-            if (form.dataset.confirmed === 'yes') return;
-            event.preventDefault();
-
-            const ok = await showConfirm(
-                `Delete the approval step "${form.dataset.name}"? Documents already in progress keep `
-                + `their own copy of the workflow and are not affected.`,
-                'Delete approval step',
-                'danger',
-                { okText: 'Delete', cancelText: 'Cancel' }
-            );
-
-            if (!ok) return;
-            form.dataset.confirmed = 'yes';
-            form.submit();
-        });
-    });
-
-    // ── KOLOM REFERENCE: hanya tampilkan kontrol yang dipakai tipenya ────────
-    //
-    // 🔴 Memperbaiki kejanggalan yang dilaporkan pemilik sistem: "masa saya ganti
-    // posisi, karyawannya tetap sama?". Sebelumnya dropdown posisi DAN daftar
-    // karyawan tampil berdampingan apa pun tipenya, sehingga layar seolah
-    // menjanjikan hubungan yang memang tidak pernah ada — keduanya milik tipe
-    // yang BERBEDA, dan yang tidak dipakai dibuang server saat disimpan.
-    //
-    // Lingkupnya per baris (`[data-ca-step-row]`), bukan per halaman: satu baris
-    // tidak boleh pernah mengubah tampilan baris lain, dan halaman ini memuat
-    // DUA editor sekaligus.
-    function caSyncReference(scope) {
-        const typeSelect = scope.querySelector('[data-ca-type-select]');
-        if (!typeSelect) return;
-
-        const type = typeSelect.value;
-
-        scope.querySelectorAll('[data-ref-for]').forEach(function (box) {
-            box.hidden = box.dataset.refFor !== type;
-        });
-
-        caSyncRoleHint(scope);
-    }
-
-    // Menyebutkan berapa orang yang memegang posisi terpilih. Posisi tanpa
-    // pemegang berarti langkah ini tidak akan pernah menemukan penyetuju — dan
-    // itu harus terbaca SEBELUM disimpan, bukan setelah dokumen mandek.
-    function caSyncRoleHint(scope) {
-        const roleSelect = scope.querySelector('[data-ca-role-select]');
-        const hint       = scope.querySelector('[data-ca-role-hint]');
-        if (!roleSelect || !hint) return;
-
-        const option  = roleSelect.selectedOptions[0];
-        const holders = option ? parseInt(option.dataset.holders || '0', 10) : 0;
-
-        if (!roleSelect.value) {
-            hint.textContent = 'No position chosen yet.';
-            hint.className   = 'text-xs mt-1 text-gray-400';
-            return;
-        }
-
-        if (holders === 0) {
-            hint.textContent = 'This position has no employee assigned — a document at this step '
-                             + 'would wait for nobody.';
-            hint.className   = 'text-xs mt-1 text-red-600';
-            return;
-        }
-
-        hint.textContent = holders === 1
-            ? 'One employee holds this position; the approver is fixed.'
-            : holders + ' employees hold this position — any one of them can act.';
-        hint.className = 'text-xs mt-1 text-gray-500';
-    }
-
-    document.querySelectorAll('[data-ca-step-row]').forEach(function (scope) {
-        caSyncReference(scope);
-
-        const typeSelect = scope.querySelector('[data-ca-type-select]');
-        if (typeSelect) typeSelect.addEventListener('change', () => caSyncReference(scope));
-
-        const roleSelect = scope.querySelector('[data-ca-role-select]');
-        if (roleSelect) roleSelect.addEventListener('change', () => caSyncRoleHint(scope));
-    });
-</script>
-@endpush
