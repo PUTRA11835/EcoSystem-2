@@ -141,7 +141,7 @@
             <!-- Total Days Preview Badge -->
             <div id="daysCountBadge" class="p-3 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between text-xs hidden">
                 <span class="font-semibold text-gray-600">Calculated Business Days:</span>
-                <span class="font-bold text-red-700 text-sm" id="daysCountValue">0 days</span>
+                <span class="font-bold primary-text text-sm" id="daysCountValue">0 days</span>
             </div>
 
             <!-- Quota Exceeded Warning Banner -->

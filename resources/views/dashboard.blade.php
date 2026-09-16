@@ -2318,7 +2318,11 @@
                         ticket_member_reactivated: { bg: '#dbeafe', color: '#2563eb', fa: 'fa-user-check' },
                         ticket_internal_note: { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-sticky-note' },
                         ticket_reply: { bg: '#dbeafe', color: '#2563eb', fa: 'fa-reply' },
-                        customer_email_reply: { bg: '#dcfce7', color: '#16a34a', fa: 'fa-envelope' }
+                        customer_email_reply: { bg: '#dcfce7', color: '#16a34a', fa: 'fa-envelope' },
+                        leave_permit_submitted: { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-calendar-plus' },
+                        leave_permit_approved: { bg: '#dcfce7', color: '#16a34a', fa: 'fa-calendar-check' },
+                        leave_permit_rejected: { bg: '#fee2e2', color: '#dc2626', fa: 'fa-calendar-times' },
+                        leave_permit_revision: { bg: '#dbeafe', color: '#2563eb', fa: 'fa-calendar-alt' }
                     };
                     var DEFAULT_CFG = { bg: '#fee2e2', color: '#b91c1c', fa: 'fa-at' };
 
@@ -2342,6 +2346,10 @@
                             case 'ticket_internal_note': return (n.from_name || 'Someone') + ' added an internal note';
                             case 'ticket_reply': return (n.from_name || 'Someone') + ' replied to a ticket';
                             case 'customer_email_reply': return (n.from_name || 'Customer') + ' replied via email';
+                            case 'leave_permit_submitted': return (n.from_name || 'An employee') + ' submitted a Leave/Permit request for approval';
+                            case 'leave_permit_approved': return 'Your Leave/Permit request was approved';
+                            case 'leave_permit_rejected': return 'Your Leave/Permit request was rejected';
+                            case 'leave_permit_revision': return 'Revision requested for your Leave/Permit request';
                             default: return (n.from_name || 'Someone') + ' mentioned you';
                         }
                     }
