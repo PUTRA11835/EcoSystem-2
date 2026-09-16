@@ -7,9 +7,11 @@ use App\Models\Employee;
 use App\Models\LeavePermitApplication;
 use App\Models\LeavePermitLog;
 use App\Models\LeavePermitType;
+use App\Models\Notification;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class LeavePermitController extends Controller
@@ -83,13 +85,16 @@ class LeavePermitController extends Controller
         $activeTypes = LeavePermitType::where('is_active', true)->get();
         $currentYear = (int) date('Y');
 
+        $pendingCount = LeavePermitApplication::where('status', 'pending')->count();
+
         return view('hr-general.leave-permit.index', [
-            'user'        => $user,
-            'employeeId'  => $employeeId,
-            'isHR'        => $isHR,
-            'activeTypes' => $activeTypes,
-            'allTypes'    => $allTypes,
-            'currentYear' => $currentYear,
+            'user'         => $user,
+            'employeeId'   => $employeeId,
+            'isHR'         => $isHR,
+            'activeTypes'  => $activeTypes,
+            'allTypes'     => $allTypes,
+            'currentYear'  => $currentYear,
+            'pendingCount' => $pendingCount,
         ]);
     }
 
@@ -649,11 +654,85 @@ class LeavePermitController extends Controller
             'notes'          => $isHR && $applicantEmpId !== $currentEmpId ? 'Submitted by HR on behalf of employee.' : 'Application submitted.',
         ]);
 
+        $this->notifyHrOfSubmission($application, $applicantModel, $currentEmpId);
+
         return response()->json([
             'success' => true,
             'message' => 'Leave/Permit application submitted successfully.',
             'data'    => $application->load(['leavePermitType', 'employee.basicData']),
         ]);
+    }
+
+    /**
+     * Notify every employee holding the HR Leave & Permit management menu permission
+     * that a new application is waiting for their review.
+     */
+    private function notifyHrOfSubmission(LeavePermitApplication $application, ?Employee $applicant, ?int $submittedBy): void
+    {
+        try {
+            $fromName = $applicant && $applicant->basicData ? $applicant->basicData->full_name : ($applicant->eci ?? 'An employee');
+
+            $approvers = Employee::withMenuPermission('hr_general.leave_permit')
+                ->where('is_active', true)
+                ->where('employee_id', '!=', $submittedBy)
+                ->get();
+
+            foreach ($approvers as $approver) {
+                Notification::create([
+                    'employee_id'      => $approver->employee_id,
+                    'type'             => 'leave_permit_submitted',
+                    'from_employee_id' => $submittedBy,
+                    'from_name'        => $fromName,
+                    'preview'          => "{$fromName} submitted application {$application->application_no} ({$application->total_days} day(s)) and needs your review.",
+                    'link'             => '/hr-general/leave-permit',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Failed to notify HR of leave/permit submission.', [
+                'application_id' => $application->id,
+                'message'        => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Notify the applicant about a decision (approved / rejected / revision requested) on their application.
+     */
+    private function notifyEmployeeOfDecision(LeavePermitApplication $application, string $outcome, ?int $performedBy, ?string $notes = null): void
+    {
+        try {
+            $type = match ($outcome) {
+                'approved' => 'leave_permit_approved',
+                'rejected' => 'leave_permit_rejected',
+                'revision' => 'leave_permit_revision',
+                default    => null,
+            };
+            if (!$type) return;
+
+            $reviewer     = $performedBy ? Employee::with('basicData')->find($performedBy) : null;
+            $reviewerName = $reviewer && $reviewer->basicData ? $reviewer->basicData->full_name : ($reviewer->eci ?? 'HR');
+
+            $preview = match ($outcome) {
+                'approved' => "Your application {$application->application_no} was approved by {$reviewerName}.",
+                'rejected' => "Your application {$application->application_no} was rejected by {$reviewerName}." . ($notes ? " Reason: {$notes}" : ''),
+                'revision' => "Revision requested for your application {$application->application_no} by {$reviewerName}." . ($notes ? " Note: {$notes}" : ''),
+            };
+
+            Notification::create([
+                'employee_id'      => $application->employee_id,
+                'type'             => $type,
+                'from_employee_id' => $performedBy,
+                'from_name'        => $reviewerName,
+                'preview'          => $preview,
+                'link'             => '/my-leave-permit',
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to notify employee of leave/permit decision.', [
+                'application_id' => $application->id,
+                'outcome'        => $outcome,
+                'message'        => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -745,12 +824,16 @@ class LeavePermitController extends Controller
         $application->reviewed_at = now();
         $application->save();
 
+        $reviewNotes = $request->input('notes', 'Application approved by HR.');
+
         LeavePermitLog::create([
             'application_id' => $application->id,
             'action'         => 'approved',
             'performed_by'   => $currentEmp,
-            'notes'          => $request->input('notes', 'Application approved by HR.'),
+            'notes'          => $reviewNotes,
         ]);
+
+        $this->notifyEmployeeOfDecision($application, 'approved', $currentEmp, $request->input('notes'));
 
         return response()->json([
             'success' => true,
@@ -784,6 +867,8 @@ class LeavePermitController extends Controller
             'notes'          => $validated['rejection_reason'],
         ]);
 
+        $this->notifyEmployeeOfDecision($application, 'rejected', $currentEmp, $validated['rejection_reason']);
+
         return response()->json([
             'success' => true,
             'message' => 'Leave/permit application rejected.',
@@ -815,6 +900,8 @@ class LeavePermitController extends Controller
             'performed_by'   => $currentEmp,
             'notes'          => $validated['revision_notes'],
         ]);
+
+        $this->notifyEmployeeOfDecision($application, 'revision', $currentEmp, $validated['revision_notes']);
 
         return response()->json([
             'success' => true,

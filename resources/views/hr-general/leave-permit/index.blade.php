@@ -3,6 +3,24 @@
 @section('page-title', 'Leave & Permit Attendance Management')
 @section('page-subtitle', 'Manage master leave types, employee attendance quotas, review applications, and view analytics reports')
 
+@php
+    $pendingReqCount = $pendingCount ?? 0;
+@endphp
+
+@section('page-actions')
+<div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+    @if($pendingReqCount > 0)
+    <button type="button" onclick="switchTab('inbox')"
+        title="{{ $pendingReqCount }} pending validation"
+        class="inline-flex items-center gap-1.5 border text-xs font-semibold px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg hover:opacity-80 transition shadow-sm whitespace-nowrap active:scale-95"
+        style="background: rgba(var(--primary-rgb), 0.08); border-color: rgba(var(--primary-rgb), 0.35); color: var(--primary-color);">
+        <span class="w-2 h-2 rounded-full animate-pulse shrink-0" style="background: var(--primary-color);"></span>
+        <span>{{ $pendingReqCount }} request</span>
+    </button>
+    @endif
+</div>
+@endsection
+
 @section('content')
     <div class="w-full space-y-6 px-1 lg:px-2">
         <!-- Header Section -->
@@ -43,28 +61,28 @@
             </div>
         </div>
 
-        <!-- Navigation Tabs -->
-        <div class="border-b border-gray-200 bg-white rounded-t-xl px-4 pt-2 shadow-sm">
-            <nav class="flex space-x-6 text-xs sm:text-sm font-semibold" aria-label="Tabs">
+        <!-- Navigation Tabs (styled like the Attendance hub tab bar) -->
+        <div class="mb-2 bg-white rounded-lg shadow-sm border border-gray-200">
+            <nav class="flex flex-wrap gap-1 p-1" aria-label="Tabs">
                 <button id="tabBtnInbox" onclick="switchTab('inbox')"
-                    class="py-3 border-b-2 border-red-700 text-red-700 flex items-center gap-2 transition-colors">
+                    class="hub-tab-btn primary-gradient text-white shadow-sm flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all flex items-center justify-center gap-2">
                     <i class="fas fa-inbox"></i> Approval Inbox
                     <span id="badgePendingCount"
                         class="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full hidden">0</span>
                 </button>
 
                 <button id="tabBtnTypes" onclick="switchTab('types')"
-                    class="py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 flex items-center gap-2 transition-colors">
+                    class="hub-tab-btn flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all text-gray-600 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center gap-2">
                     <i class="fas fa-layer-group"></i> Master Data Leave Type
                 </button>
 
                 <button id="tabBtnAllQuotas" onclick="switchTab('all_quotas')"
-                    class="py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 flex items-center gap-2 transition-colors">
-                    <i class="fas fa-users text-indigo-600"></i> All Employee Quotas
+                    class="hub-tab-btn flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all text-gray-600 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center gap-2">
+                    <i class="fas fa-users"></i> All Employee Quotas
                 </button>
 
                 <button id="tabBtnReport" onclick="switchTab('report')"
-                    class="py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 flex items-center gap-2 transition-colors">
+                    class="hub-tab-btn flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all text-gray-600 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center gap-2">
                     <i class="fas fa-chart-bar"></i> Reports & Analytics
                 </button>
             </nav>
@@ -78,29 +96,87 @@
                     <h3 class="font-bold text-xs uppercase tracking-wider text-gray-700 flex items-center gap-2">
                         <i class="fas fa-inbox text-yellow-600"></i> Employee Applications Pending Review
                     </h3>
-                    <div class="flex items-center gap-2">
-                        <select id="filterInboxStatus" class="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5"
-                            onchange="loadInboxApplications()">
-                            <option value="">All Statuses</option>
-                            <option value="pending" selected>Pending Only</option>
-                            <option value="approved">Approved</option>
-                            <option value="revision">Revision Requested</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
-                    </div>
+                    <p class="text-[10px] text-gray-400">Use the <i class="fas fa-filter text-[9px]"></i> icons in the table header to search &amp; filter.</p>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs text-left">
                         <thead
-                            class="bg-gray-50 text-gray-500 uppercase tracking-wider text-[10px] font-bold border-b border-gray-200">
+                            class="bg-gray-50 text-gray-500 uppercase tracking-wider text-[10px] font-bold border-b border-gray-200 select-none">
                             <tr>
                                 <th class="px-5 py-3">App No & Date</th>
-                                <th class="px-4 py-3">Employee Name</th>
-                                <th class="px-4 py-3">Type</th>
+
+                                {{-- Employee Name filter --}}
+                                <th class="px-4 py-3 min-w-40">
+                                    <div class="flex items-center justify-between gap-1.5">
+                                        <span>Employee Name</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'inboxEmployeeFilterBox')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Filter Employee">
+                                            <i class="fas fa-filter text-[10px]"></i>
+                                            <span id="inboxEmployeeFilterDot" class="hidden absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
+                                        </button>
+                                    </div>
+                                    <div id="inboxEmployeeFilterBox" class="header-filter-popover hidden w-60 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Employee</span>
+                                            <button type="button" onclick="document.getElementById('inboxEmployeeSearch').value='';setInboxEmployeeFilter('');" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
+                                        </div>
+                                        <div class="p-2.5">
+                                            <div class="relative">
+                                                <input type="text" id="inboxEmployeeSearch" placeholder="Type a name…" autocomplete="off"
+                                                    oninput="setInboxEmployeeFilter(this.value)"
+                                                    class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
+                                                <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </th>
+
+                                {{-- Type filter --}}
+                                <th class="px-4 py-3 min-w-36">
+                                    <div class="flex items-center justify-between gap-1.5">
+                                        <span>Type</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'inboxTypeFilterBox')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Filter Type">
+                                            <i class="fas fa-filter text-[10px]"></i>
+                                            <span id="inboxTypeFilterDot" class="hidden absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
+                                        </button>
+                                    </div>
+                                    <div id="inboxTypeFilterBox" class="header-filter-popover hidden w-56 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Type</span>
+                                        </div>
+                                        <div class="py-1 max-h-64 overflow-y-auto" id="inboxTypeFilterOptions"></div>
+                                    </div>
+                                </th>
+
                                 <th class="px-4 py-3">Period</th>
                                 <th class="px-4 py-3 text-center">Total Days</th>
                                 <th class="px-4 py-3 text-center">Quota Limit Check</th>
-                                <th class="px-4 py-3 text-center">Status</th>
+
+                                {{-- Status filter --}}
+                                <th class="px-4 py-3 text-center min-w-32">
+                                    <div class="flex items-center justify-center gap-1.5">
+                                        <span>Status</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'inboxStatusFilterBox')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Filter Status">
+                                            <i class="fas fa-filter text-[10px]"></i>
+                                            <span id="inboxStatusFilterDot" class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
+                                        </button>
+                                    </div>
+                                    <div id="inboxStatusFilterBox" class="header-filter-popover hidden w-44 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden text-left normal-case font-normal" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100">
+                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Status</span>
+                                        </div>
+                                        <div class="py-1">
+                                            <button type="button" onclick="setInboxStatusFilter('')" class="w-full px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors text-gray-700">All Statuses</button>
+                                            <button type="button" onclick="setInboxStatusFilter('pending')" class="w-full px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors text-gray-700">Pending Only</button>
+                                            <button type="button" onclick="setInboxStatusFilter('approved')" class="w-full px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors text-gray-700">Approved</button>
+                                            <button type="button" onclick="setInboxStatusFilter('revision')" class="w-full px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors text-gray-700">Revision Requested</button>
+                                            <button type="button" onclick="setInboxStatusFilter('rejected')" class="w-full px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors text-gray-700">Rejected</button>
+                                        </div>
+                                    </div>
+                                </th>
+
                                 <th class="px-5 py-3 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -111,6 +187,7 @@
                         </tbody>
                     </table>
                 </div>
+                <div id="paginationInbox"></div>
             </div>
         </div>
 
@@ -120,7 +197,7 @@
                 <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                     <div>
                         <h3 class="font-bold text-sm text-gray-800 flex items-center gap-2">
-                            <i class="fas fa-layer-group text-red-600"></i> Master Data Leave & Permit Type
+                            <i class="fas fa-layer-group primary-text"></i> Master Data Leave & Permit Type
                         </h3>
                         <p class="text-xs text-gray-500 mt-0.5">Manage master leave types, quotas, paid/unpaid provisions,
                             and gender eligibility rules. Delete action is restricted to maintain history integrity.</p>
@@ -133,24 +210,74 @@
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs text-left border-collapse">
                         <thead
-                            class="bg-gray-100 text-gray-700 uppercase tracking-wider text-[10px] font-bold border-b border-gray-200">
+                            class="bg-gray-100 text-gray-700 uppercase tracking-wider text-[10px] font-bold border-b border-gray-200 select-none">
                             <tr>
                                 <th class="px-3 py-3 text-center">No</th>
                                 <th class="px-3 py-3">Code</th>
-                                <th class="px-4 py-3">Leave & Permit Type</th>
+
+                                {{-- Name/Code search filter --}}
+                                <th class="px-4 py-3 min-w-48">
+                                    <div class="flex items-center justify-between gap-1.5">
+                                        <span>Leave & Permit Type</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'masterTypesSearchFilterBox')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Search Type">
+                                            <i class="fas fa-filter text-[10px]"></i>
+                                            <span id="masterTypesSearchFilterDot" class="hidden absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
+                                        </button>
+                                    </div>
+                                    <div id="masterTypesSearchFilterBox" class="header-filter-popover hidden w-60 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Search · Code or Name</span>
+                                            <button type="button" onclick="document.getElementById('masterTypesSearch').value='';setMasterTypesSearchFilter('');" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
+                                        </div>
+                                        <div class="p-2.5">
+                                            <div class="relative">
+                                                <input type="text" id="masterTypesSearch" placeholder="Type code or name…" autocomplete="off"
+                                                    oninput="setMasterTypesSearchFilter(this.value)"
+                                                    class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
+                                                <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </th>
+
                                 <th class="px-3 py-3 text-center">Default Quota</th>
                                 <th class="px-3 py-3 text-center">Paid Status</th>
                                 <th class="px-3 py-3 text-center">Gender Target</th>
-                                <th class="px-3 py-3 text-center">Status</th>
+
+                                {{-- Status filter --}}
+                                <th class="px-3 py-3 text-center min-w-28">
+                                    <div class="flex items-center justify-center gap-1.5">
+                                        <span>Status</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'masterTypesStatusFilterBox')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Filter Status">
+                                            <i class="fas fa-filter text-[10px]"></i>
+                                            <span id="masterTypesStatusFilterDot" class="hidden absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
+                                        </button>
+                                    </div>
+                                    <div id="masterTypesStatusFilterBox" class="header-filter-popover hidden w-40 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden text-left normal-case font-normal" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100">
+                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Status</span>
+                                        </div>
+                                        <div class="py-1">
+                                            <button type="button" onclick="setMasterTypesStatusFilter('')" class="w-full px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors text-gray-700">All</button>
+                                            <button type="button" onclick="setMasterTypesStatusFilter('1')" class="w-full px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors text-gray-700">Active</button>
+                                            <button type="button" onclick="setMasterTypesStatusFilter('0')" class="w-full px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors text-gray-700">Nonactive</button>
+                                        </div>
+                                    </div>
+                                </th>
+
                                 <th class="px-4 py-3">Description</th>
                                 <th class="px-4 py-3 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="tblMasterTypesBody" class="divide-y divide-gray-100 text-gray-700">
                             @foreach($allTypes as $idx => $t)
-                                <tr class="hover:bg-gray-50 transition-colors">
+                                <tr class="hover:bg-gray-50 transition-colors"
+                                    data-search="{{ strtolower($t->code.' '.$t->name) }}"
+                                    data-active="{{ $t->is_active ? '1' : '0' }}">
                                     <td class="px-3 py-3 text-center font-bold text-gray-500">{{ $idx + 1 }}</td>
-                                    <td class="px-3 py-3 font-bold text-red-700">{{ $t->code }}</td>
+                                    <td class="px-3 py-3 font-bold primary-text">{{ $t->code }}</td>
                                     <td class="px-4 py-3 font-semibold text-gray-900">{{ $t->name }}</td>
                                     <td class="px-3 py-3 text-center font-bold">
                                         {{ $t->default_quota > 0 ? (int) $t->default_quota . ' days' : ($t->code === 'CTU' ? 'No quota' : '0 (Event)') }}
@@ -198,6 +325,7 @@
                         </tbody>
                     </table>
                 </div>
+                <div id="paginationMasterTypes"></div>
             </div>
         </div>
 
@@ -213,19 +341,40 @@
                         <p class="text-xs text-gray-400 mt-0.5">Overview of total quota allocated, used, and remaining
                             balances per employee.</p>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <input type="text" id="searchAllQuotasInput" placeholder="🔍 Search employee name or ECI..."
-                            class="text-xs border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-red-500"
-                            onkeyup="loadAllEmployeesQuotas()">
-                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs text-left">
                         <thead
-                            class="bg-gray-50 text-gray-500 uppercase tracking-wider text-[10px] font-bold border-b border-gray-200">
+                            class="bg-gray-50 text-gray-500 uppercase tracking-wider text-[10px] font-bold border-b border-gray-200 select-none">
                             <tr>
                                 <th class="px-5 py-3 text-center">No</th>
-                                <th class="px-5 py-3">Employee Name</th>
+
+                                {{-- Employee Name / ECI filter --}}
+                                <th class="px-5 py-3 min-w-48">
+                                    <div class="flex items-center justify-between gap-1.5">
+                                        <span>Employee Name</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'allQuotasFilterBox')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Filter Employee">
+                                            <i class="fas fa-filter text-[10px]"></i>
+                                            <span id="allQuotasFilterDot" class="hidden absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
+                                        </button>
+                                    </div>
+                                    <div id="allQuotasFilterBox" class="header-filter-popover hidden w-60 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Employee</span>
+                                            <button type="button" onclick="document.getElementById('allQuotasSearch').value='';setAllQuotasEmployeeFilter('');" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
+                                        </div>
+                                        <div class="p-2.5">
+                                            <div class="relative">
+                                                <input type="text" id="allQuotasSearch" placeholder="Name or ECI…" autocomplete="off"
+                                                    oninput="setAllQuotasEmployeeFilter(this.value)"
+                                                    class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
+                                                <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </th>
+
                                 <th class="px-4 py-3">ECI</th>
                                 <th class="px-4 py-3 text-right">Total Allocated</th>
                                 <th class="px-4 py-3 text-right">Total Used</th>
@@ -242,6 +391,7 @@
                         </tbody>
                     </table>
                 </div>
+                <div id="paginationAllQuotas"></div>
             </div>
         </div>
 
@@ -314,14 +464,38 @@
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                     <h3 class="font-bold text-xs uppercase tracking-wider text-gray-700">
-                        <i class="fas fa-users text-red-600 mr-1.5"></i> Employee Attendance & Leave Recap Summary
+                        <i class="fas fa-users primary-text mr-1.5"></i> Employee Attendance & Leave Recap Summary
                     </h3>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs text-left">
-                        <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider text-[10px] font-bold border-b border-gray-200">
+                        <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider text-[10px] font-bold border-b border-gray-200 select-none">
                             <tr>
-                                <th class="px-5 py-3">Employee Name</th>
+                                {{-- Employee Name filter --}}
+                                <th class="px-5 py-3 min-w-48">
+                                    <div class="flex items-center justify-between gap-1.5">
+                                        <span>Employee Name</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'rptEmployeeFilterBox')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Filter Employee">
+                                            <i class="fas fa-filter text-[10px]"></i>
+                                            <span id="rptEmployeeFilterDot" class="hidden absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
+                                        </button>
+                                    </div>
+                                    <div id="rptEmployeeFilterBox" class="header-filter-popover hidden w-60 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Employee</span>
+                                            <button type="button" onclick="document.getElementById('rptEmployeeSearch').value='';setRptEmployeeFilter('');" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
+                                        </div>
+                                        <div class="p-2.5">
+                                            <div class="relative">
+                                                <input type="text" id="rptEmployeeSearch" placeholder="Name or ECI…" autocomplete="off"
+                                                    oninput="setRptEmployeeFilter(this.value)"
+                                                    class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
+                                                <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th class="px-4 py-3">ECI</th>
                                 <th class="px-4 py-3 text-center">Total Requests</th>
                                 <th class="px-4 py-3 text-right text-green-700">Approved Days</th>
@@ -336,6 +510,7 @@
                         </tbody>
                     </table>
                 </div>
+                <div id="paginationRptEmployee"></div>
             </div>
 
             <!-- Breakdown Section 2: Leave & Permit Type Distribution Table -->
@@ -407,9 +582,239 @@
         let currentReviewApp = null;
         let pendingReviewAction = null;
 
+        // ── Shared client-side pagination + header-filter helper (Inbox, All Quotas, Master Types, Employee Report) ──
+        const PAGE_SIZE = 10;
+        const paginationState = {
+            inbox:       { page: 1, perPage: PAGE_SIZE, data: [], filtered: [], filters: { employee: '', type: '', status: 'pending' } },
+            allQuotas:   { page: 1, perPage: PAGE_SIZE, data: [], filters: { employee: '' } },
+            rptEmployee: { page: 1, perPage: PAGE_SIZE, data: [], filtered: [], filters: { employee: '' } },
+            masterTypes: { page: 1, perPage: PAGE_SIZE, rows: [], filters: { search: '', status: '' } },
+        };
+
+        function goToPage(key, page) {
+            paginationState[key].page = page;
+            if (key === 'inbox') renderInboxPage();
+            else if (key === 'allQuotas') renderAllQuotasPage();
+            else if (key === 'rptEmployee') renderRptEmployeePage();
+            else if (key === 'masterTypes') renderMasterTypesPage();
+        }
+
+        function changeRowsPerPage(key, val) {
+            paginationState[key].perPage = parseInt(val, 10);
+            goToPage(key, 1);
+        }
+
+        function pageBtn(key, p, current) {
+            if (p === current) {
+                return `<span class="w-8 h-8 rounded-lg text-white font-bold flex items-center justify-center text-xs shadow-sm" style="background: var(--primary-color) !important;">${p}</span>`;
+            }
+            return `<button onclick="goToPage('${key}', ${p})" class="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 font-semibold flex items-center justify-center text-xs shadow-sm transition-all">${p}</button>`;
+        }
+
+        // Numbered pagination footer (matches the KPI Evaluation page's pagination style)
+        function renderPaginationControls(containerId, key, totalItems) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            if (totalItems === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const state = paginationState[key];
+            const perPage = state.perPage || PAGE_SIZE;
+            const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+            if (state.page > totalPages) state.page = totalPages;
+            const current = state.page;
+            const firstItem = (current - 1) * perPage + 1;
+            const lastItem = Math.min(current * perPage, totalItems);
+
+            let start = Math.max(1, current - 2);
+            let end = Math.min(totalPages, current + 2);
+            if (end - start < 4) {
+                if (start === 1) end = Math.min(totalPages, start + 4);
+                else if (end === totalPages) start = Math.max(1, end - 4);
+            }
+
+            let pagesHtml = '';
+            if (start > 1) {
+                pagesHtml += pageBtn(key, 1, current);
+                if (start > 2) pagesHtml += `<span class="w-5 text-center text-gray-400 text-xs">...</span>`;
+            }
+            for (let p = start; p <= end; p++) pagesHtml += pageBtn(key, p, current);
+            if (end < totalPages) {
+                if (end < totalPages - 1) pagesHtml += `<span class="w-5 text-center text-gray-400 text-xs">...</span>`;
+                pagesHtml += pageBtn(key, totalPages, current);
+            }
+
+            container.innerHTML = `
+                <div class="px-5 py-4 border-t border-gray-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <button onclick="goToPage('${key}', ${current - 1})" ${current <= 1 ? 'disabled' : ''}
+                            class="w-8 h-8 rounded-lg border ${current <= 1 ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed shadow-none' : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 shadow-sm'} flex items-center justify-center text-xs transition-all">
+                            <i class="fas fa-chevron-left text-[10px]"></i>
+                        </button>
+                        ${pagesHtml}
+                        <button onclick="goToPage('${key}', ${current + 1})" ${current >= totalPages ? 'disabled' : ''}
+                            class="w-8 h-8 rounded-lg border ${current >= totalPages ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed shadow-none' : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 shadow-sm'} flex items-center justify-center text-xs transition-all">
+                            <i class="fas fa-chevron-right text-[10px]"></i>
+                        </button>
+                        <span class="text-xs text-gray-500 ml-3 font-normal whitespace-nowrap">Showing ${firstItem} to ${lastItem} of ${totalItems} results</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500 font-normal">Rows per page:</span>
+                        <select onchange="changeRowsPerPage('${key}', this.value)"
+                            class="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-1 focus:ring-(--primary-color) cursor-pointer shadow-sm transition-all">
+                            ${[10, 15, 25, 50].map(n => `<option value="${n}" ${perPage == n ? 'selected' : ''}>${n}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ── Floating per-column header filter popovers (same pattern as the KPI Evaluation page) ──
+        let _hfOpen = null;
+        function toggleHF(e, popoverId) {
+            e.stopPropagation();
+            const btn = e.currentTarget;
+            const pop = document.getElementById(popoverId);
+            if (!pop) return;
+            const wasHidden = pop.classList.contains('hidden');
+            closeAllHF();
+            if (wasHidden) {
+                pop.classList.remove('hidden');
+                floatHF(btn, pop);
+                _hfOpen = { btn, pop };
+                const input = pop.querySelector('input');
+                if (input) setTimeout(() => input.focus(), 50);
+            }
+        }
+        function floatHF(btn, pop) {
+            pop.style.position = 'fixed';
+            pop.style.margin   = '0';
+            pop.style.zIndex   = '9999';
+            pop.style.top = '-9999px'; pop.style.left = '-9999px';
+            const pw = pop.offsetWidth || 220, ph = pop.offsetHeight || 200;
+            const r  = btn.getBoundingClientRect();
+            const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+            let left = Math.min(Math.max(8, r.right - pw), vw - pw - 8);
+            let top  = r.bottom + 4;
+            if (top + ph > vh - 8 && r.top - ph - 4 > 8) top = r.top - ph - 4;
+            top = Math.max(8, Math.min(top, vh - ph - 8));
+            pop.style.left = left + 'px';
+            pop.style.top  = top + 'px';
+        }
+        function closeAllHF() {
+            document.querySelectorAll('.header-filter-popover').forEach(p => {
+                p.classList.add('hidden');
+                p.style.position = p.style.top = p.style.left = p.style.zIndex = p.style.margin = '';
+            });
+            _hfOpen = null;
+        }
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.header-filter-popover') && !e.target.closest('[data-hf-btn]')) closeAllHF();
+        });
+        window.addEventListener('scroll', e => {
+            if (_hfOpen && !(e.target.closest && e.target.closest('.header-filter-popover'))) closeAllHF();
+        }, true);
+        window.addEventListener('resize', () => { if (_hfOpen) floatHF(_hfOpen.btn, _hfOpen.pop); });
+
+        function toggleFilterDot(dotId, active) {
+            const dot = document.getElementById(dotId);
+            if (dot) dot.classList.toggle('hidden', !active);
+        }
+
+        // ── Approval Inbox — header filters (Employee / Type / Status) ─────────────
+        let _inboxEmployeeDebounce = null;
+        function setInboxEmployeeFilter(val) {
+            clearTimeout(_inboxEmployeeDebounce);
+            _inboxEmployeeDebounce = setTimeout(() => {
+                paginationState.inbox.filters.employee = val;
+                toggleFilterDot('inboxEmployeeFilterDot', !!val);
+                applyInboxFilters();
+            }, 250);
+        }
+        function setInboxTypeFilter(val) {
+            paginationState.inbox.filters.type = val;
+            toggleFilterDot('inboxTypeFilterDot', !!val);
+            applyInboxFilters();
+            closeAllHF();
+        }
+        function setInboxStatusFilter(val) {
+            paginationState.inbox.filters.status = val;
+            toggleFilterDot('inboxStatusFilterDot', !!val);
+            applyInboxFilters();
+            closeAllHF();
+        }
+        function applyInboxFilters() {
+            const st = paginationState.inbox;
+            const f = st.filters;
+            st.filtered = st.data.filter(app => {
+                if (f.employee && !(app.employee_display_name || '').toLowerCase().includes(f.employee.toLowerCase())) return false;
+                if (f.type && String(app.leave_permit_type_id) !== String(f.type)) return false;
+                if (f.status && app.status !== f.status) return false;
+                return true;
+            });
+            st.page = 1;
+            renderInboxPage();
+        }
+
+        // ── All Employee Quotas — header filter (Employee / ECI) ────────────────────
+        let _allQuotasDebounce = null;
+        function setAllQuotasEmployeeFilter(val) {
+            paginationState.allQuotas.filters.employee = val;
+            toggleFilterDot('allQuotasFilterDot', !!val);
+            clearTimeout(_allQuotasDebounce);
+            _allQuotasDebounce = setTimeout(() => loadAllEmployeesQuotas(), 350);
+        }
+
+        // ── Employee Recap Report — header filter (Employee) ────────────────────────
+        let _rptEmployeeDebounce = null;
+        function setRptEmployeeFilter(val) {
+            clearTimeout(_rptEmployeeDebounce);
+            _rptEmployeeDebounce = setTimeout(() => {
+                paginationState.rptEmployee.filters.employee = val;
+                toggleFilterDot('rptEmployeeFilterDot', !!val);
+                applyRptEmployeeFilters();
+            }, 250);
+        }
+        function applyRptEmployeeFilters() {
+            const st = paginationState.rptEmployee;
+            const f = st.filters;
+            st.filtered = st.data.filter(emp => {
+                if (f.employee) {
+                    const needle = f.employee.toLowerCase();
+                    if (!(emp.employee_name || '').toLowerCase().includes(needle) && !(emp.eci || '').toLowerCase().includes(needle)) return false;
+                }
+                return true;
+            });
+            st.page = 1;
+            renderRptEmployeePage();
+        }
+
+        // ── Master Data Leave Type — header filters (Name/Code search, Status) ──────
+        let _masterTypesDebounce = null;
+        function setMasterTypesSearchFilter(val) {
+            clearTimeout(_masterTypesDebounce);
+            _masterTypesDebounce = setTimeout(() => {
+                paginationState.masterTypes.filters.search = val;
+                toggleFilterDot('masterTypesSearchFilterDot', !!val);
+                paginationState.masterTypes.page = 1;
+                renderMasterTypesPage();
+            }, 250);
+        }
+        function setMasterTypesStatusFilter(val) {
+            paginationState.masterTypes.filters.status = val;
+            toggleFilterDot('masterTypesStatusFilterDot', val !== '');
+            paginationState.masterTypes.page = 1;
+            renderMasterTypesPage();
+            closeAllHF();
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             loadInboxApplications();
             loadAllEmployeesQuotas();
+            initMasterTypesPagination();
         });
 
         function onGlobalYearChange() {
@@ -430,12 +835,12 @@
 
                 if (btn && content) {
                     if (t === tabName) {
-                        btn.classList.remove('border-transparent', 'text-gray-500');
-                        btn.classList.add('border-red-700', 'text-red-700');
+                        btn.classList.remove('text-gray-600', 'hover:text-gray-900', 'hover:bg-gray-100');
+                        btn.classList.add('primary-gradient', 'text-white', 'shadow-sm');
                         content.classList.remove('hidden');
                     } else {
-                        btn.classList.remove('border-red-700', 'text-red-700');
-                        btn.classList.add('border-transparent', 'text-gray-500');
+                        btn.classList.remove('primary-gradient', 'text-white', 'shadow-sm');
+                        btn.classList.add('text-gray-600', 'hover:text-gray-900', 'hover:bg-gray-100');
                         content.classList.add('hidden');
                     }
                 }
@@ -451,105 +856,150 @@
         }
 
         // ── HR Inbox ─────────────────────────────────────────────────────────────
+        // Fetches every application for the selected year once; status/employee/type
+        // filtering happens client-side via the per-column header filters below.
         async function loadInboxApplications() {
-            const status = document.getElementById('filterInboxStatus').value;
             try {
-                const res = await fetch(`/api/hr-general/leave-permit/applications?year=${globalYear}&status=${status}`, { credentials: 'same-origin' });
+                const res = await fetch(`/api/hr-general/leave-permit/applications?year=${globalYear}`, { credentials: 'same-origin' });
                 const json = await res.json();
 
                 if (json.success) {
-                    let html = '';
-                    let pendingCount = 0;
-
-                    json.data.forEach(app => {
-                        if (app.status === 'pending') pendingCount++;
-
-                        let quotaBadge = '';
-                        if (app.is_event_based) {
-                            if (app.type_code === 'CTU' || (app.leave_permit_type && app.leave_permit_type.code === 'CTU')) {
-                                quotaBadge = `<span class="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px]">Event-based</span>`;
-                            } else {
-                                quotaBadge = `<span class="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px]">Doctor Note Event</span>`;
-                            }
-                        } else if (app.is_within_quota) {
-                            quotaBadge = `<span class="bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded text-[10px]">✓ Within Limit (${app.remaining_quota}d avail)</span>`;
-                        } else {
-                            quotaBadge = `<span class="bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded text-[10px]">🔴 Exceeded (${app.remaining_quota}d avail)</span>`;
-                        }
-
-                        html += `
-                            <tr class="hover:bg-gray-50 transition-colors">
-                                <td class="px-5 py-3">
-                                    <span class="font-bold text-gray-900 block">${app.application_no}</span>
-                                    <span class="text-[10px] text-gray-400">${new Date(app.created_at).toLocaleDateString()}</span>
-                                </td>
-                                <td class="px-4 py-3 font-semibold text-gray-800">${app.employee_display_name}</td>
-                                <td class="px-4 py-3">${app.type_name}</td>
-                                <td class="px-4 py-3 text-gray-600">${app.start_date} ~ ${app.end_date}</td>
-                                <td class="px-4 py-3 text-center font-bold text-red-700">${app.total_days}</td>
-                                <td class="px-4 py-3 text-center">${quotaBadge}</td>
-                                <td class="px-4 py-3 text-center">${renderStatusBadge(app.status)}</td>
-                                <td class="px-5 py-3 text-right">
-                                    <button onclick='openReviewModal(${JSON.stringify(app)})' class="px-3 py-1 primary-gradient text-white text-[11px] font-semibold rounded hover:opacity-90">
-                                        Review / Edit
-                                    </button>
-                                </td>
-                            </tr>
-                        `;
-                    });
-
-                    document.getElementById('tblInboxBody').innerHTML = html || `<tr><td colspan="8" class="px-5 py-6 text-center text-gray-400">Inbox is empty.</td></tr>`;
-
                     const badge = document.getElementById('badgePendingCount');
                     if (badge) {
+                        const pendingCount = json.data.filter(a => a.status === 'pending').length;
                         badge.innerText = pendingCount;
                         badge.classList.toggle('hidden', pendingCount === 0);
                     }
+
+                    paginationState.inbox.data = json.data;
+                    renderInboxTypeFilterOptions();
+                    applyInboxFilters();
                 }
             } catch (err) {
                 console.error(err);
             }
         }
 
+        function renderInboxTypeFilterOptions() {
+            const container = document.getElementById('inboxTypeFilterOptions');
+            if (!container) return;
+            const seen = new Map();
+            paginationState.inbox.data.forEach(a => {
+                if (a.leave_permit_type_id != null && !seen.has(a.leave_permit_type_id)) {
+                    seen.set(a.leave_permit_type_id, a.type_name);
+                }
+            });
+            let html = `<button type="button" onclick="setInboxTypeFilter('')" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors text-gray-700">All Types</button>`;
+            seen.forEach((name, id) => {
+                html += `<button type="button" onclick="setInboxTypeFilter('${id}')" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors text-gray-700"><span class="truncate">${name}</span></button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function buildInboxRow(app) {
+            let quotaBadge = '';
+            if (app.is_event_based) {
+                if (app.type_code === 'CTU' || (app.leave_permit_type && app.leave_permit_type.code === 'CTU')) {
+                    quotaBadge = `<span class="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px]">Event-based</span>`;
+                } else {
+                    quotaBadge = `<span class="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px]">Doctor Note Event</span>`;
+                }
+            } else if (app.is_within_quota) {
+                quotaBadge = `<span class="bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded text-[10px]">✓ Within Limit (${app.remaining_quota}d avail)</span>`;
+            } else {
+                quotaBadge = `<span class="bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded text-[10px]">🔴 Exceeded (${app.remaining_quota}d avail)</span>`;
+            }
+
+            return `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-5 py-3">
+                        <span class="font-bold text-gray-900 block">${app.application_no}</span>
+                        <span class="text-[10px] text-gray-400">${new Date(app.created_at).toLocaleDateString()}</span>
+                    </td>
+                    <td class="px-4 py-3 font-semibold text-gray-800">${app.employee_display_name}</td>
+                    <td class="px-4 py-3">${app.type_name}</td>
+                    <td class="px-4 py-3 text-gray-600">${app.start_date} ~ ${app.end_date}</td>
+                    <td class="px-4 py-3 text-center font-bold primary-text">${app.total_days}</td>
+                    <td class="px-4 py-3 text-center">${quotaBadge}</td>
+                    <td class="px-4 py-3 text-center">${renderStatusBadge(app.status)}</td>
+                    <td class="px-5 py-3 text-right">
+                        <button onclick='openReviewModal(${JSON.stringify(app)})' class="px-3 py-1 primary-gradient text-white text-[11px] font-semibold rounded hover:opacity-90">
+                            Review / Edit
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderInboxPage() {
+            const state = paginationState.inbox;
+            const totalItems = state.filtered.length;
+            const perPage = state.perPage || PAGE_SIZE;
+            const start = (state.page - 1) * perPage;
+            const pageItems = state.filtered.slice(start, start + perPage);
+
+            document.getElementById('tblInboxBody').innerHTML = pageItems.length
+                ? pageItems.map(buildInboxRow).join('')
+                : `<tr><td colspan="8" class="px-5 py-6 text-center text-gray-400">${state.data.length ? 'No applications match the current filters.' : 'Inbox is empty.'}</td></tr>`;
+
+            renderPaginationControls('paginationInbox', 'inbox', totalItems);
+        }
+
         // ── All Employees Quotas Table (Requirement 8) ───────────────────────────
+        // Employee/ECI search lives in the "Employee Name" column header filter and
+        // is sent to the backend (already supports ?search=), same as before.
         async function loadAllEmployeesQuotas() {
-            const search = document.getElementById('searchAllQuotasInput').value;
-            const tbody = document.getElementById('tblAllQuotasSummaryBody');
+            const search = paginationState.allQuotas.filters.employee || '';
             try {
                 const res = await fetch(`/api/hr-general/leave-permit/all-employees-quotas?year=${globalYear}&search=${encodeURIComponent(search)}`, { credentials: 'same-origin' });
                 const json = await res.json();
 
                 if (json.success) {
-                    if (json.data.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="8" class="px-5 py-6 text-center text-gray-400">No employee quota records found.</td></tr>`;
-                        return;
-                    }
-
-                    let html = '';
-                    json.data.forEach((emp, idx) => {
-                        html += `
-                            <tr class="hover:bg-gray-50 transition-colors">
-                                <td class="px-5 py-3 text-center font-bold text-gray-500">${idx + 1}</td>
-                                <td class="px-5 py-3 font-bold text-gray-900">${emp.display_name}</td>
-                                <td class="px-4 py-3 text-gray-600">${emp.eci}</td>
-                                <td class="px-4 py-3 text-right font-semibold text-gray-700">${emp.total_allocated} days</td>
-                                <td class="px-4 py-3 text-right font-semibold text-green-600">${emp.total_used} days</td>
-                                <td class="px-4 py-3 text-right font-semibold text-yellow-600">${emp.total_pending} days</td>
-                                <td class="px-5 py-3 text-right font-bold ${emp.total_remaining > 0 ? 'text-red-700' : 'text-gray-400'}">${emp.total_remaining} days</td>
-                                <td class="px-5 py-3 text-center">
-                                    <button onclick="openEmployeeQuotaDetailModal(${emp.employee_id}, '${emp.display_name}')" class="px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-semibold rounded transition-colors flex items-center justify-center gap-1 mx-auto">
-                                        <i class="fas fa-list text-[10px]"></i> View Details
-                                    </button>
-                                </td>
-                            </tr>
-                        `;
-                    });
-
-                    tbody.innerHTML = html;
+                    paginationState.allQuotas.data = json.data;
+                    paginationState.allQuotas.page = 1;
+                    renderAllQuotasPage();
                 }
             } catch (err) {
                 console.error(err);
             }
+        }
+
+        function buildAllQuotasRow(emp, rowNo) {
+            return `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-5 py-3 text-center font-bold text-gray-500">${rowNo}</td>
+                    <td class="px-5 py-3 font-bold text-gray-900">${emp.display_name}</td>
+                    <td class="px-4 py-3 text-gray-600">${emp.eci}</td>
+                    <td class="px-4 py-3 text-right font-semibold text-gray-700">${emp.total_allocated} days</td>
+                    <td class="px-4 py-3 text-right font-semibold text-green-600">${emp.total_used} days</td>
+                    <td class="px-4 py-3 text-right font-semibold text-yellow-600">${emp.total_pending} days</td>
+                    <td class="px-5 py-3 text-right font-bold ${emp.total_remaining > 0 ? 'primary-text' : 'text-gray-400'}">${emp.total_remaining} days</td>
+                    <td class="px-5 py-3 text-center">
+                        <button onclick="openEmployeeQuotaDetailModal(${emp.employee_id}, '${emp.display_name}')" class="px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-semibold rounded transition-colors flex items-center justify-center gap-1 mx-auto">
+                            <i class="fas fa-list text-[10px]"></i> View Details
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderAllQuotasPage() {
+            const state = paginationState.allQuotas;
+            const tbody = document.getElementById('tblAllQuotasSummaryBody');
+            const totalItems = state.data.length;
+
+            if (totalItems === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="px-5 py-6 text-center text-gray-400">No employee quota records found.</td></tr>`;
+                renderPaginationControls('paginationAllQuotas', 'allQuotas', 0);
+                return;
+            }
+
+            const perPage = state.perPage || PAGE_SIZE;
+            const start = (state.page - 1) * perPage;
+            const pageItems = state.data.slice(start, start + perPage);
+            tbody.innerHTML = pageItems.map((emp, i) => buildAllQuotasRow(emp, start + i + 1)).join('');
+
+            renderPaginationControls('paginationAllQuotas', 'allQuotas', totalItems);
         }
 
         // ── Open Employee Quota Detailed Breakdown Modal ─────────────────────────
@@ -585,7 +1035,7 @@
                                 <td class="px-3 py-2.5 text-right text-gray-600">${item.is_event_based ? '-' : item.allocated_quota}</td>
                                 <td class="px-3 py-2.5 text-right font-medium text-green-600">${item.used_quota}</td>
                                 <td class="px-3 py-2.5 text-right font-medium text-yellow-600">${item.pending_quota}</td>
-                                <td class="px-4 py-2.5 text-right font-bold ${item.remaining_quota > 0 || item.is_event_based ? 'text-red-700' : 'text-gray-400'}">${remText}</td>
+                                <td class="px-4 py-2.5 text-right font-bold ${item.remaining_quota > 0 || item.is_event_based ? 'primary-text' : 'text-gray-400'}">${remText}</td>
                             </tr>
                         `;
                     });
@@ -599,6 +1049,43 @@
 
         function closeEmployeeQuotaDetailModal() {
             document.getElementById('modalEmployeeQuotaDetail').classList.add('hidden');
+        }
+
+        // ── Master Data Leave Type table pagination (server-rendered rows, paginated client-side) ──
+        function initMasterTypesPagination() {
+            const tbody = document.getElementById('tblMasterTypesBody');
+            if (!tbody) return;
+            paginationState.masterTypes.rows = Array.from(tbody.querySelectorAll('tr'));
+            renderMasterTypesPage();
+        }
+
+        function renderMasterTypesPage() {
+            const state = paginationState.masterTypes;
+            const f = state.filters;
+
+            const visibleRows = state.rows.filter(row => {
+                if (f.search && !row.dataset.search.includes(f.search.toLowerCase())) return false;
+                if (f.status !== '' && row.dataset.active !== f.status) return false;
+                return true;
+            });
+
+            // Hide everything first, then reveal only the current page's matches.
+            state.rows.forEach(row => { row.style.display = 'none'; });
+
+            const totalItems = visibleRows.length;
+            if (totalItems === 0) {
+                renderPaginationControls('paginationMasterTypes', 'masterTypes', 0);
+                return;
+            }
+
+            const perPage = state.perPage || PAGE_SIZE;
+            const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+            if (state.page > totalPages) state.page = totalPages;
+            const start = (state.page - 1) * perPage;
+            const pageRows = visibleRows.slice(start, start + perPage);
+            pageRows.forEach(row => { row.style.display = ''; });
+
+            renderPaginationControls('paginationMasterTypes', 'masterTypes', totalItems);
         }
 
         // ── Master Leave Type CRUD & Activation Protection (Requirement 1 & 2) ──
@@ -732,25 +1219,9 @@
                         document.getElementById('rptStatEmployeesSub').innerText = `${s.approved_employees || 0} approved`;
                     }
 
-                    // 1. Employee Recap Table
-                    let empHtml = '';
-                    if (!json.by_employee || json.by_employee.length === 0) {
-                        empHtml = `<tr><td colspan="6" class="px-5 py-6 text-center text-gray-400">No attendance records for this period.</td></tr>`;
-                    } else {
-                        json.by_employee.forEach(emp => {
-                            empHtml += `
-                                <tr class="hover:bg-gray-50 transition-colors">
-                                    <td class="px-5 py-3 font-semibold text-gray-900">${emp.employee_name}</td>
-                                    <td class="px-4 py-3 text-gray-500 font-medium">${emp.eci}</td>
-                                    <td class="px-4 py-3 text-center font-bold">${emp.total_apps}</td>
-                                    <td class="px-4 py-3 text-right font-bold text-green-600">${emp.approved_days} days</td>
-                                    <td class="px-4 py-3 text-right font-bold text-yellow-600">${emp.pending_days} days</td>
-                                    <td class="px-4 py-3 text-right text-red-600 font-semibold">${emp.rejected_apps}</td>
-                                </tr>
-                            `;
-                        });
-                    }
-                    document.getElementById('tblRptEmployeeBody').innerHTML = empHtml;
+                    // 1. Employee Recap Table (paginated — this list grows with headcount and can get long)
+                    paginationState.rptEmployee.data = json.by_employee || [];
+                    applyRptEmployeeFilters();
 
                     // 2. Type Distribution Analysis Table
                     if (document.getElementById('tblRptTypeBody')) {
@@ -797,6 +1268,37 @@
             } catch (err) {
                 console.error(err);
             }
+        }
+
+        function buildRptEmployeeRow(emp) {
+            return `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-5 py-3 font-semibold text-gray-900">${emp.employee_name}</td>
+                    <td class="px-4 py-3 text-gray-500 font-medium">${emp.eci}</td>
+                    <td class="px-4 py-3 text-center font-bold">${emp.total_apps}</td>
+                    <td class="px-4 py-3 text-right font-bold text-green-600">${emp.approved_days} days</td>
+                    <td class="px-4 py-3 text-right font-bold text-yellow-600">${emp.pending_days} days</td>
+                    <td class="px-4 py-3 text-right text-red-600 font-semibold">${emp.rejected_apps}</td>
+                </tr>
+            `;
+        }
+
+        function renderRptEmployeePage() {
+            const state = paginationState.rptEmployee;
+            const totalItems = state.filtered.length;
+
+            if (totalItems === 0) {
+                document.getElementById('tblRptEmployeeBody').innerHTML = `<tr><td colspan="6" class="px-5 py-6 text-center text-gray-400">${state.data.length ? 'No employees match the current filter.' : 'No attendance records for this period.'}</td></tr>`;
+                renderPaginationControls('paginationRptEmployee', 'rptEmployee', 0);
+                return;
+            }
+
+            const perPage = state.perPage || PAGE_SIZE;
+            const start = (state.page - 1) * perPage;
+            const pageItems = state.filtered.slice(start, start + perPage);
+            document.getElementById('tblRptEmployeeBody').innerHTML = pageItems.map(buildRptEmployeeRow).join('');
+
+            renderPaginationControls('paginationRptEmployee', 'rptEmployee', totalItems);
         }
 
         // ── Employee Custom Searchable Dropdown for HR Apply Modal ─────────────────
