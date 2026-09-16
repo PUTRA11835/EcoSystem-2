@@ -39,6 +39,10 @@
             'ticket_member_added'         => ['icon' => 'fa-user-plus',           'color' => 'green',  'title' => null],
             'ticket_member_removed'       => ['icon' => 'fa-user-minus',          'color' => 'red',    'title' => null],
             'ticket_member_reactivated'   => ['icon' => 'fa-user-check',          'color' => 'blue',   'title' => null],
+            'leave_permit_submitted'      => ['icon' => 'fa-calendar-plus',       'color' => 'yellow', 'title' => null],
+            'leave_permit_approved'       => ['icon' => 'fa-calendar-check',      'color' => 'green',  'title' => null],
+            'leave_permit_rejected'       => ['icon' => 'fa-calendar-times',      'color' => 'red',    'title' => null],
+            'leave_permit_revision'       => ['icon' => 'fa-calendar-alt',        'color' => 'blue',   'title' => null],
         ];
         $colorMap = [
             'yellow' => ['bg' => 'bg-yellow-100', 'icon' => 'text-yellow-600'],
@@ -93,6 +97,14 @@
                                 {{ $notif->from_name ?? 'Someone' }} removed a member from a ticket
                             @elseif($notif->type === 'ticket_member_reactivated')
                                 {{ $notif->from_name ?? 'Someone' }} re-added a member to a ticket
+                            @elseif($notif->type === 'leave_permit_submitted')
+                                {{ $notif->from_name ?? 'An employee' }} submitted a Leave/Permit request for approval
+                            @elseif($notif->type === 'leave_permit_approved')
+                                Your Leave/Permit request was approved
+                            @elseif($notif->type === 'leave_permit_rejected')
+                                Your Leave/Permit request was rejected
+                            @elseif($notif->type === 'leave_permit_revision')
+                                Revision requested for your Leave/Permit request
                             @else
                                 {{ $notif->from_name ?? 'Someone' }} mentioned you
                                 @if($notif->ticket_id)

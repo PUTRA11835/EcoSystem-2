@@ -47,7 +47,7 @@
                     <div>
                         <span class="text-gray-400 block text-[10px] uppercase font-bold tracking-wider">Total
                             Duration</span>
-                        <span class="font-bold text-red-600 text-xs mt-0.5 block" id="reviewTotalDays">-</span>
+                        <span class="font-bold primary-text text-xs mt-0.5 block" id="reviewTotalDays">-</span>
                     </div>
                 </div>
                 <div class="pt-2 border-t border-gray-200">
