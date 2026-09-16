@@ -205,7 +205,16 @@
         </div>
 
         {{-- Messages Thread --}}
-        <div id="messagesThread" class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        {{-- `min-height:0` overrides the flex default (`min-height:auto`), which
+             normally stops a `flex-1` child from shrinking below its own content's
+             height. Without it, dragging the reply editor's resize handle taller
+             couldn't shrink this thread to make room, so the parent card (which is
+             `overflow-hidden`, see the wrapper above) clipped the overflow — hiding
+             the Internal Note / Meeting / Send buttons below the visible area with
+             no way to scroll to them. This lets the thread shrink and scroll
+             internally instead, so the compose area (and its buttons) always stays
+             fully visible regardless of how tall the editor is dragged. --}}
+        <div id="messagesThread" class="flex-1 overflow-y-auto px-6 py-4 space-y-4" style="min-height:0;">
             <div id="messagesLoading" class="flex items-center justify-center py-8">
                 <svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -257,8 +266,19 @@
             {{-- Collapsible compose content --}}
             {{-- overflow:visible (default expanded) agar dropdown picker Quill ("Normal") tidak ter-clip.
                  Saat collapse via toggleReplyBox(), JS akan switch ke overflow:hidden sementara untuk
-                 menyembunyikan konten yang ter-collapse. --}}
-            <div id="replyComposeInner" style="max-height:600px;overflow:visible;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
+                 menyembunyikan konten yang ter-collapse.
+                 max-height dipakai HANYA sebagai target animasi collapse/expand (transition butuh
+                 nilai px konkret, tidak bisa dari/ke "none"). Nilainya sengaja dibuat jauh lebih besar
+                 (2000px) daripada tinggi konten realistis (To/CC row + editor di-drag maksimal + tombol
+                 aksi, sekitar ~900px), karena max-height + overflow:visible adalah kombinasi yang mudah
+                 jebak: kalau max-height < tinggi konten sebenarnya, box ini dianggap "hanya setinggi
+                 max-height" oleh flexbox parent (jadi area lain dialokasikan ruang seolah compose area
+                 sekecil itu), padahal isinya (termasuk baris tombol Send/Internal Note/Meeting di paling
+                 bawah) tetap dirender melebihi itu karena overflow:visible — hasilnya baris tombol
+                 ter-render di luar area yang diperhitungkan layout lalu ter-potong oleh overflow-hidden
+                 milik card pembungkus. Menjaga max-height selalu > tinggi konten maksimum menghilangkan
+                 celah ini. Nilai ini harus sama dengan yang di-set toggleReplyBox() (lihat JS). --}}
+            <div id="replyComposeInner" style="max-height:2000px;overflow:visible;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
 
             {{-- To Row: selalu dirender; untuk non-email ticket dikontrol JS (showEmailInitMode/hideEmailInitMode) --}}
             <div class="px-4 pt-1.5" id="toRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
@@ -3129,7 +3149,8 @@
         const iconUp   = document.getElementById('replyToggleIconUp');
         if (!inner) return;
         const isExpanded = inner.style.maxHeight !== '0px';
-        inner.style.maxHeight = isExpanded ? '0px'   : '600px';
+        // 2000px harus sama dengan nilai awal inline style #replyComposeInner (lihat komentar di blade)
+        inner.style.maxHeight = isExpanded ? '0px'   : '2000px';
         inner.style.opacity   = isExpanded ? '0'     : '1';
         // overflow switch: hidden saat collapse (sembunyikan konten yang ter-collapse),
         // visible saat expand (agar dropdown picker Quill tidak ter-clip).
