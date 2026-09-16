@@ -27,6 +27,10 @@
             'route' => 'general.attendance.corrections.index',
             'is'    => 'general/attendance/corrections*',
             'gate'  => 'general.attendance.correction',
+            // 🔴 D179 — HR-wide, bukan "milik saya": siapa pun yang boleh
+            // membuka Corrections boleh meninjau baris apa pun (satu slug,
+            // D77), jadi hitungannya sama untuk semua penerimanya.
+            'badge' => fn () => \App\Models\Attendance\AttendanceCorrection::pending()->count(),
         ],
         [
             'label' => 'Branches',

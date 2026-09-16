@@ -11,7 +11,7 @@
     $amounts = app(\App\Services\CashAdvance\CashAdvanceAmountService::class);
 @endphp
 
-@include('partials.hub-tabs-cash-advance')
+@include('hr-general.cash-advance.hub-tabs-cash-advance')
 
 <div class="space-y-5">
 
@@ -85,7 +85,7 @@
 
                 @if($canCreate)
                     <a href="{{ route('general.cash-advance.create') }}"
-                       class="w-full sm:w-auto text-center px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 transition-colors whitespace-nowrap">
+                       class="w-full sm:w-auto text-center px-4 py-2 primary-gradient text-white rounded-lg text-sm font-medium hover:opacity-90 transition-all whitespace-nowrap">
                         + New CA
                     </a>
                 @endif
@@ -135,10 +135,12 @@
 
             <div class="flex items-end gap-2">
                 <input type="hidden" name="scope" value="{{ $filters['scope'] }}">
-                {{-- bg-gray-800 SENGAJA netral, bukan warna aksen — konvensi UI
-                     modul ini untuk tombol filter. --}}
+                {{-- Mengikuti warna tema (Settings → Appearance), bukan lagi netral
+                     tetap — permintaan konsistensi D179: tombol aksi utama harus
+                     ikut berubah saat warna tema diganti, persis seperti sidebar
+                     dan tab bar. --}}
                 <button type="submit"
-                        class="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 transition-colors">
+                        class="flex-1 px-4 py-2 primary-gradient text-white rounded-lg text-sm font-medium hover:opacity-90 transition-all">
                     Apply
                 </button>
                 <a href="{{ route('general.cash-advance.index') }}"

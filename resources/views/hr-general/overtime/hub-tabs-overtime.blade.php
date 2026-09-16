@@ -10,6 +10,11 @@
             'route' => 'general.overtime.index',
             'is'    => 'general/overtime',
             'gate'  => 'general.overtime',
+            // 🔴 D179 — "menunggu SAYA", bukan seluruh yang pending: dihitung
+            // lewat langkah persetujuan dokumen (siapa gilirannya sekarang),
+            // persis kartu "Waiting for You" di halaman ini sendiri.
+            'badge' => fn () => count(app(\App\Services\Overtime\OvertimeService::class)
+                ->pendingIdsFor((int) session('user.id'))),
         ],
         [
             'label' => 'Settings',

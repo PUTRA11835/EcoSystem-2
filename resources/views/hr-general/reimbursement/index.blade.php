@@ -15,7 +15,7 @@
 
         @if($can('general.reimbursement.create'))
         <a href="{{ route('general.reimbursement.create') }}"
-           class="inline-flex items-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+           class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
             <i class="fas fa-plus"></i> New RB
         </a>
         @endif
@@ -32,7 +32,7 @@
 @section('content')
 @php use App\Models\Reimbursement\ReimbursementRequest; @endphp
 
-@include('partials.hub-tabs-reimbursement')
+@include('hr-general.reimbursement.hub-tabs-reimbursement')
 
 <div class="space-y-5">
 
@@ -102,7 +102,7 @@
                 </div>
 
                 <div class="md:col-span-12 flex gap-2">
-                    <button type="submit" class="px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-900 transition-all">Apply</button>
+                    <button type="submit" class="px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">Apply</button>
                     <a href="{{ route('general.reimbursement.index') }}"
                        class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Reset</a>
                 </div>

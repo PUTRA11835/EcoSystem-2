@@ -364,7 +364,7 @@
                          adalah pertanggungjawaban orang yang menerima uangnya. --}}
                     @if($reportRoute ?? null)
                         <a href="{{ $reportRoute }}"
-                           class="mt-4 block text-center w-full px-4 py-2.5 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 transition-colors">
+                           class="mt-4 block text-center w-full px-4 py-2.5 primary-gradient text-white rounded-lg text-sm font-medium hover:opacity-90 transition-all">
                             Create CAR
                         </a>
                     @else

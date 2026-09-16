@@ -10,6 +10,9 @@
             'route' => 'general.purchase-request.index',
             'is'    => 'general/purchase-request',
             'gate'  => 'general.purchase-request',
+            // 🔴 D179 — "menunggu SAYA", pola sama dengan Overtime di atas.
+            'badge' => fn () => count(app(\App\Services\PurchaseRequest\PurchaseRequestService::class)
+                ->pendingIdsFor((int) session('user.id'))),
         ],
         [
             'label' => 'Settings',

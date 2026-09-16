@@ -49,7 +49,7 @@
 
             <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
                 <button type="submit"
-                        class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+                        class="inline-flex items-center gap-2 px-5 py-2.5 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
                     <i class="fas fa-file-import"></i> Import
                 </button>
 

@@ -43,7 +43,13 @@ use Illuminate\Validation\Rule;
  */
 class PurchaseRequestSettingController extends Controller
 {
-    public function edit(PurchaseRequestService $purchaseRequest)
+    /**
+     * 🔴 D180 — sama seperti ReimbursementSettingController: `openCount`
+     * dipindah ke ApprovalWorkflowController::purchaseRequest(), sementara
+     * `steps`/`roles`/`employees` TETAP diambil karena BAGIAN 2 (Aturan) yang
+     * tersisa masih memakainya.
+     */
+    public function edit()
     {
         $steps = PurchaseRequestApprovalStep::forPurchaseRequest()
             ->with('role')
@@ -53,12 +59,6 @@ class PurchaseRequestSettingController extends Controller
         return view('hr-general.settings.purchase-request', [
             'settings' => PurchaseRequestSetting::current(),
             'steps'    => $steps,
-
-            // Berapa dokumen berjalan yang akan terkena bila langkah baru
-            // ditambahkan. Angkanya disebut SEBELUM tombolnya ditekan (D116).
-            'openCount' => $purchaseRequest->countOpenRequestsBefore(
-                (int) $steps->max('order_seq') + 1
-            ),
             'roles'    => EmployeeRole::orderBy('name')->get(['id', 'name']),
 
             // Hanya karyawan aktif, dan hanya kolom yang benar-benar dipakai —

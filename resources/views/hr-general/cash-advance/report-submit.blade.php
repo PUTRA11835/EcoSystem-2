@@ -268,7 +268,7 @@
                 Cancel
             </a>
             <button type="submit" @disabled(! $isEdit && $steps->isEmpty())
-                    class="w-full sm:w-auto px-6 py-2.5 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    class="w-full sm:w-auto px-6 py-2.5 primary-gradient text-white rounded-lg text-sm font-medium hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                 {{ $isEdit ? 'Save Changes' : 'Submit' }}
             </button>
         </div>

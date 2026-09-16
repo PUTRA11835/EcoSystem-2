@@ -21,7 +21,7 @@
 
 <div class="space-y-5">
 
-    @include('partials.hub-tabs-attendance')
+    @include('hr-general.attendance.hub-tabs-attendance')
 
     {{-- Header + aksi --}}
     <div class="bg-white rounded-xl p-6 shadow-sm">
@@ -66,7 +66,7 @@
                     </select>
                 </div>
                 <div class="md:col-span-2 flex gap-2">
-                    <button type="submit" class="flex-1 px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-900 transition-all">Search</button>
+                    <button type="submit" class="flex-1 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">Search</button>
                     <a href="{{ route('general.attendance.monthly') }}"
                        class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Reset</a>
                 </div>

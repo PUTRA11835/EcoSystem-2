@@ -30,7 +30,16 @@ use Illuminate\Validation\Rule;
  */
 class ReimbursementSettingController extends Controller
 {
-    public function edit(ReimbursementService $reimbursement)
+    /**
+     * 🔴 D180 — Sejak alur persetujuan pindah jadi halaman tersendiri (lihat
+     * ApprovalWorkflowController::reimbursement()), method ini TIDAK LAGI
+     * mengambil `openCount` — angka itu hanya dipakai kotak centang "apply to
+     * open" milik editor langkah, yang sudah tidak ada di halaman ini. `steps`,
+     * `roles`, dan `employees` TETAP diambil: BAGIAN 2 (Aturan) yang tersisa di
+     * halaman ini masih memakainya (dropdown fallback reviewer, peringatan
+     * self-approval dengan satu langkah aktif, dropdown penanda tangan).
+     */
+    public function edit()
     {
         $steps = ReimbursementApprovalStep::forReimbursement()
             ->with('role')
@@ -40,12 +49,6 @@ class ReimbursementSettingController extends Controller
         return view('hr-general.settings.reimbursement', [
             'settings' => ReimbursementSetting::current(),
             'steps'    => $steps,
-
-            // Berapa dokumen berjalan yang akan terkena bila langkah baru
-            // ditambahkan. Angkanya disebut SEBELUM tombolnya ditekan.
-            'openCount' => $reimbursement->countOpenRequestsBefore(
-                (int) $steps->max('order_seq') + 1
-            ),
             'roles'    => EmployeeRole::orderBy('name')->get(['id', 'name']),
 
             // Hanya karyawan aktif, dan hanya kolom yang benar-benar dipakai —

@@ -5,7 +5,7 @@
 @section('page-subtitle', 'Company-wide rules for check-in, geofencing, and corrections')
 
 @section('content')
-@include('partials.hub-tabs-attendance')
+@include('hr-general.attendance.hub-tabs-attendance')
 
 <form method="POST" action="{{ route('general.attendance.settings.update') }}" id="settingsForm" class="space-y-5">
     @csrf
@@ -263,7 +263,7 @@
                         <td class="px-3 py-3">
                             <div class="flex items-center justify-center gap-1.5">
                                 <button type="submit" form="srcForm{{ $source->id }}" title="Save changes"
-                                        class="px-2.5 py-1.5 bg-gray-800 text-white text-xs font-semibold rounded hover:bg-gray-900 transition-all">
+                                        class="px-2.5 py-1.5 primary-gradient text-white text-xs font-semibold rounded hover:opacity-90 transition-all">
                                     Save
                                 </button>
                                 @if($source->is_builtin)
@@ -310,7 +310,7 @@
                         </td>
                         <td class="px-3 py-3 text-center">
                             <button type="submit" form="srcCreateForm"
-                                    class="px-3 py-1.5 bg-red-800 text-white text-xs font-semibold rounded hover:bg-red-900 transition-all whitespace-nowrap">
+                                    class="px-3 py-1.5 primary-gradient text-white text-xs font-semibold rounded hover:opacity-90 transition-all whitespace-nowrap">
                                 <i class="fas fa-plus mr-1"></i> Add
                             </button>
                         </td>
@@ -356,7 +356,7 @@
 
     <div class="flex items-center gap-3">
         <button type="submit" form="settingsForm"
-                class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+                class="inline-flex items-center gap-2 px-5 py-2.5 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
             <i class="fas fa-save"></i> Save Settings
         </button>
         <a href="{{ route('general.attendance.daily') }}"
