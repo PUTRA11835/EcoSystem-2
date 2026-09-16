@@ -110,7 +110,7 @@
             <form method="GET" action="{{ route('general.attendance.shifts.assign', $shift) }}" class="flex gap-2 mb-4">
                 <input type="text" name="search" value="{{ $search }}" placeholder="Search by name or employee code..."
                        class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                <button type="submit" class="px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-900 transition-all">
+                <button type="submit" class="px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
                     <i class="fas fa-search"></i>
                 </button>
             </form>
@@ -162,7 +162,7 @@
                         Select all shown
                     </label>
                     <button type="submit"
-                            class="inline-flex items-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+                            class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
                         <i class="fas fa-user-plus"></i> Assign Selected
                     </button>
                 </div>

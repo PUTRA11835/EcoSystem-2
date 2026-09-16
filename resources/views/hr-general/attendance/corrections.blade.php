@@ -7,7 +7,7 @@
 @section('content')
 <div class="space-y-5">
 
-    @include('partials.hub-tabs-attendance')
+    @include('hr-general.attendance.hub-tabs-attendance')
 
     {{-- Kartu ringkasan --}}
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -53,7 +53,7 @@
                     </select>
                 </div>
                 <div class="md:col-span-2 flex gap-2">
-                    <button type="submit" class="flex-1 px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-900 transition-all">Apply</button>
+                    <button type="submit" class="flex-1 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">Apply</button>
                     <a href="{{ route('general.attendance.corrections.index') }}"
                        class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Reset</a>
                 </div>

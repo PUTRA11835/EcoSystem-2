@@ -548,7 +548,7 @@
                              `general.attendance` — supaya orang yang HANYA memegang
                              mis. Branches (tanpa Daily Recap) tetap melihat baris ini.
                              Landasannya tab PERTAMA yang benar-benar ia pegang, mengikuti
-                             urutan yang sama dengan tab bar (partials/hub-tabs-attendance),
+                             urutan yang sama dengan tab bar (hr-general/attendance/hub-tabs-attendance),
                              sehingga tidak pernah melempar ke halaman yang menolaknya
                              (pola yang sama dengan D172). --}}
                         @php
@@ -671,13 +671,27 @@
                             </a>
                         @endif
 
+                        {{-- 🔴 D179 — CAR TIDAK punya hub tab (D177 sengaja membiarkannya
+                             terpisah dari Cash Advance), jadi badge "menunggu saya"-nya
+                             ditaruh di baris sidebar ini langsung, bukan di sebuah tab.
+                             Dihitung HANYA saat gerbangnya lolos — pengguna yang tidak
+                             berhak atas baris ini tidak pernah memicu query-nya. --}}
                         @if($can('general.cash-advance-report') || $can('general'))
+                            @php
+                                $carPending = count(app(\App\Services\CashAdvance\CashAdvanceReportService::class)
+                                    ->pendingIdsFor((int) session('user.id')));
+                            @endphp
                             <a href="{{ route('general.cash-advance-report.index') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/cash-advance-report*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-file-invoice-dollar text-xs"></i>
                                 </span>
-                                <span class="nav-text text-sm">Cash Advance Report (CAR)</span>
+                                <span class="nav-text text-sm flex-1">Cash Advance Report (CAR)</span>
+                                @if($carPending > 0)
+                                    <span class="nav-text bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                        {{ $carPending > 99 ? '99+' : $carPending }}
+                                    </span>
+                                @endif
                             </a>
                         @endif
 

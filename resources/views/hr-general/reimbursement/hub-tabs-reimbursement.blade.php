@@ -10,6 +10,9 @@
             'route' => 'general.reimbursement.index',
             'is'    => 'general/reimbursement',
             'gate'  => 'general.reimbursement',
+            // 🔴 D179 — "menunggu SAYA", pola sama dengan Overtime di atas.
+            'badge' => fn () => count(app(\App\Services\Reimbursement\ReimbursementService::class)
+                ->pendingIdsFor((int) session('user.id'))),
         ],
         [
             'label' => 'Settings',

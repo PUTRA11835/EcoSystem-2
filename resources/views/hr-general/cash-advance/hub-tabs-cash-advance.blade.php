@@ -15,6 +15,12 @@
             'route' => 'general.cash-advance.index',
             'is'    => 'general/cash-advance',
             'gate'  => 'general.cash-advance',
+            // 🔴 D179 — "menunggu SAYA", pola sama dengan Overtime di atas.
+            // Cash Advance Report (CAR) TIDAK ikut di sini — CAR sengaja
+            // tetap terpisah dari hub ini (D177); badge-nya sendiri
+            // ditaruh langsung di baris sidebar CAR, bukan di sebuah tab.
+            'badge' => fn () => count(app(\App\Services\CashAdvance\CashAdvanceService::class)
+                ->pendingIdsFor((int) session('user.id'))),
         ],
         [
             'label'  => 'Settings',

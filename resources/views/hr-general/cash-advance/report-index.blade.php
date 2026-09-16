@@ -49,7 +49,7 @@
                             {{ $advance->currency }} {{ $amounts->format((float) $advance->amount) }}
                         </p>
                         <a href="{{ route('general.my-cash-advance-report.create', ['ca' => $advance->id]) }}"
-                           class="mt-auto text-center px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 transition-colors">
+                           class="mt-auto text-center px-4 py-2 primary-gradient text-white rounded-lg text-sm font-medium hover:opacity-90 transition-all">
                             Create CAR
                         </a>
                     </div>

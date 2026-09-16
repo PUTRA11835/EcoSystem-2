@@ -11,7 +11,7 @@
     use App\Models\CashAdvance\CashAdvanceSetting;
 @endphp
 
-@include('partials.hub-tabs-cash-advance')
+@include('hr-general.cash-advance.hub-tabs-cash-advance')
 
 {{-- 🔴 Lebar PENUH atas permintaan pemilik sistem (sudah begini sejak
      sebelum D177 — Reimbursement/Purchase Request Settings baru menyusul
@@ -424,7 +424,7 @@
 
         <div class="flex flex-col sm:flex-row sm:justify-end">
             <button type="submit"
-                    class="w-full sm:w-auto px-6 py-2.5 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 transition-colors">
+                    class="w-full sm:w-auto px-6 py-2.5 primary-gradient text-white rounded-lg text-sm font-medium hover:opacity-90 transition-all">
                 Save settings
             </button>
         </div>

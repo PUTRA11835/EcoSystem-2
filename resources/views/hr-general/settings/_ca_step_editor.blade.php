@@ -214,7 +214,7 @@
                     <td class="px-4 py-3">
                         <div class="flex items-center justify-center gap-2">
                             <button type="submit" form="step-{{ $step->id }}"
-                                    class="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-medium hover:bg-gray-900 transition-colors">
+                                    class="px-3 py-1.5 primary-gradient text-white rounded text-xs font-medium hover:opacity-90 transition-colors">
                                 Save
                             </button>
                             {{-- Form SUNGGUHAN ber-@csrf yang di-intercept JavaScript,
@@ -333,7 +333,7 @@
             </label>
 
             <button type="submit"
-                    class="ml-auto px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 transition-colors">
+                    class="ml-auto px-4 py-2 primary-gradient text-white rounded-lg text-sm font-medium hover:opacity-90 transition-colors">
                 Add step
             </button>
         </div>

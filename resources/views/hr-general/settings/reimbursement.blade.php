@@ -10,7 +10,7 @@
     use App\Models\Reimbursement\ReimbursementSetting;
 @endphp
 
-@include('partials.hub-tabs-reimbursement')
+@include('hr-general.reimbursement.hub-tabs-reimbursement')
 
 {{-- Lebar penuh (D177), mengikuti pola Attendance/Overtime/Cash Advance
      Settings — sebelumnya `max-w-6xl`. --}}
@@ -155,7 +155,7 @@
                         <td class="px-4 py-3">
                             <div class="flex gap-2 justify-center">
                                 <button type="submit" form="step-{{ $step->id }}"
-                                        class="px-3 py-1.5 bg-gray-800 text-white text-xs font-semibold rounded hover:bg-gray-900 transition-all">
+                                        class="px-3 py-1.5 primary-gradient text-white text-xs font-semibold rounded hover:opacity-90 transition-all">
                                     Save
                                 </button>
                                 <form method="POST" action="{{ route('general.reimbursement.settings.steps.destroy', $step) }}"
@@ -218,7 +218,7 @@
                         <td class="px-4 py-3 text-center text-xs text-gray-400">on</td>
                         <td class="px-4 py-3 text-center">
                             <button type="submit" form="newStepForm"
-                                    class="px-3 py-1.5 bg-red-800 text-white text-xs font-semibold rounded hover:bg-red-900 transition-all">
+                                    class="px-3 py-1.5 primary-gradient text-white text-xs font-semibold rounded hover:opacity-90 transition-all">
                                 Add Step
                             </button>
                         </td>
@@ -552,7 +552,7 @@
 
         <div class="pt-4 border-t border-gray-100">
             <button type="submit"
-                    class="px-5 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+                    class="px-5 py-2.5 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
                 Save Settings
             </button>
         </div>

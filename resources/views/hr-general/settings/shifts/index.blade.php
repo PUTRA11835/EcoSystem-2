@@ -10,7 +10,7 @@
 @endphp
 <div class="space-y-5">
 
-@include('partials.hub-tabs-attendance')
+@include('hr-general.attendance.hub-tabs-attendance')
 
 <div class="bg-white rounded-xl p-6 shadow-sm">
 
@@ -23,7 +23,7 @@
         </div>
         @if($can('general.settings.shifts.manage'))
         <a href="{{ route('general.attendance.shifts.create') }}"
-           class="inline-flex items-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+           class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
             <i class="fas fa-plus"></i> Add Shift
         </a>
         @endif
@@ -47,7 +47,7 @@
                 </select>
             </div>
             <div class="md:col-span-2 flex gap-2">
-                <button type="submit" class="flex-1 px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-900 transition-all">Apply</button>
+                <button type="submit" class="flex-1 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">Apply</button>
                 <a href="{{ route('general.attendance.shifts.index') }}"
                    class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Reset</a>
             </div>

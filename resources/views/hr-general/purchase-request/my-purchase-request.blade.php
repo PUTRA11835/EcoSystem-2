@@ -43,7 +43,7 @@
                  secara visual dari kartu "Purchase Requests" yang justru
                  dituju daftarnya. --}}
             <a href="{{ route('general.my-purchase-request.create') }}"
-               class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all whitespace-nowrap">
+               class="inline-flex items-center justify-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all whitespace-nowrap">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                 </svg>

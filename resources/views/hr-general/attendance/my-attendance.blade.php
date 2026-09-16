@@ -133,7 +133,7 @@
                     <i class="fas fa-right-to-bracket"></i> Check-in
                 </button>
                 <button type="button" id="btnCheckOut" @disabled(!$hasCheckIn || $hasCheckOut)
-                        class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                        class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
                     <i class="fas fa-right-from-bracket"></i> Check-out
                 </button>
             </div>
@@ -389,7 +389,7 @@
                 </div>
 
                 <button type="submit"
-                        class="inline-flex items-center gap-2 px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+                        class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
                     <i class="fas fa-paper-plane"></i> Submit Correction
                 </button>
             </form>
