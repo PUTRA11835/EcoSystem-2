@@ -5,7 +5,7 @@
 @section('page-subtitle', 'Choose the AI provider and model powering each assistant')
 
 @section('content')
-<div class="max-w-5xl mx-auto space-y-6">
+<div class="space-y-6">
 
     {{-- Flash session sengaja TIDAK dirender di sini: dashboard.blade.php sudah
          menampilkannya lewat showToast(). Merendernya ulang membuat toast dobel. --}}
@@ -26,9 +26,10 @@
     <div class="flex items-start gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
         <i class="fas fa-circle-info mt-0.5 text-xs text-indigo-500"></i>
         <p class="text-xs leading-relaxed text-indigo-900">
-            Model choice sets both the <strong>provider being billed</strong> and the <strong>price per token</strong>;
-            the token ceiling sets how much a single answer can spend. Changes apply to the next message immediately,
-            with no deploy required. Users never pick a model themselves; everyone gets the model configured below.
+            Model choice sets both the <strong>provider being billed</strong> and the <strong>price per token</strong>.
+            Each model keeps its own built-in token ceiling, so it doesn't need to be set here. Changes apply to the
+            next message immediately, with no deploy required. Users never pick a model themselves; everyone gets the
+            model configured below.
         </p>
     </div>
 
@@ -98,7 +99,6 @@
                 // sudah mengirim daftar per asisten dari AiModelSettings::catalogFor(),
                 // satu-satunya sumber yang sama dengan yang menegakkan di sisi simpan.
                 $allowed = $allowedByAssistant[$assistantKey];
-                $needsWeb = $requiresWebByAssistant[$assistantKey];
                 $meta = $assistantMeta[$assistantKey] ?? $assistantMetaFallback;
 
                 // Dikelompokkan per provider untuk <optgroup>: bukan cuma kosmetik,
@@ -123,21 +123,11 @@
                     </div>
                 </header>
 
-                @if ($needsWeb)
-                    <div class="flex items-start gap-2.5 px-6 pt-4">
-                        <i class="fas fa-triangle-exclamation mt-0.5 text-xs text-amber-500"></i>
-                        <p class="text-xs leading-relaxed text-amber-700">
-                            Only models with built-in web search and fetch are listed here; Claude Haiku 4.5 is
-                            excluded because it does not support them.
-                        </p>
-                    </div>
-                @endif
-
                 {{-- Satu model per asisten: tidak ada lagi radio "Active" atau beberapa
                      preset untuk dipilih. Field-field ini langsung mengikat ke
                      assistants[$assistantKey][...], bukan ke tiers bersarang. --}}
                 <div class="p-6">
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
                             <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Model</label>
                             <select name="assistants[{{ $assistantKey }}][model]"
@@ -154,21 +144,6 @@
                                     </optgroup>
                                 @endforeach
                             </select>
-                        </div>
-
-                        <div>
-                            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                                Max tokens per answer
-                            </label>
-                            <input type="number"
-                                   name="assistants[{{ $assistantKey }}][max_tokens]"
-                                   value="{{ $config['max_tokens'] }}"
-                                   min="512"
-                                   step="256"
-                                   data-ai-maxtokens
-                                   data-target="{{ $assistantKey }}"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100">
-                            <p class="mt-1 text-[10px] text-gray-400" data-ai-maxnote="{{ $assistantKey }}"></p>
                         </div>
 
                         <div>
@@ -189,9 +164,6 @@
                             <p class="mt-1 text-[10px] text-gray-400" data-ai-effortnote="{{ $assistantKey }}"></p>
                         </div>
                     </div>
-
-                    <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-[11px] text-gray-500"
-                         data-ai-modelnote="{{ $assistantKey }}"></div>
                 </div>
             </section>
         @endforeach
@@ -213,21 +185,14 @@
 @push('scripts')
 <script>
 /*
- * Katalog dikirim ke browser supaya batasan per-model terlihat SEBELUM submit:
- * plafon max_tokens milik model, dan daftar effort yang model itu terima
- * (kosakata Claude dan OpenAI berbeda, lihat AiModelSettings::CATALOG). Ini
- * murni bantuan tampilan; penegakan sebenarnya tetap di
- * AiModelSettings::sanitize(), yang jalan di server pada setiap penyimpanan
- * DAN setiap pembacaan.
+ * Katalog dikirim ke browser supaya daftar effort yang model itu terima
+ * terlihat SEBELUM submit (kosakata Claude dan OpenAI berbeda, lihat
+ * AiModelSettings::CATALOG). Plafon max_tokens tidak lagi diatur di form ini
+ * — tiap model memakai bawaannya sendiri (AiModelSettings::DEFAULTS), yang
+ * ditegakkan di AiModelSettings::sanitize() pada setiap penyimpanan DAN
+ * setiap pembacaan.
  */
 const AI_CATALOG = @json($catalog);
-const AI_PROVIDER_LABELS = @json($providerLabels);
-
-// Warna badge provider di baris keterangan model, murni tampilan.
-const AI_PROVIDER_BADGE = {
-    anthropic: 'bg-indigo-50 text-indigo-700',
-    openai: 'bg-teal-50 text-teal-700',
-};
 
 function aiApplyModelLimits(target) {
     const modelSelect = document.querySelector(`[data-ai-model][data-target="${target}"]`);
@@ -236,21 +201,8 @@ function aiApplyModelLimits(target) {
     const model = AI_CATALOG[modelSelect.value];
     if (!model) return;
 
-    const maxInput   = document.querySelector(`[data-ai-maxtokens][data-target="${target}"]`);
-    const maxNote    = document.querySelector(`[data-ai-maxnote="${target}"]`);
     const effort     = document.querySelector(`[data-ai-effort][data-target="${target}"]`);
     const effortNote = document.querySelector(`[data-ai-effortnote="${target}"]`);
-    const modelNote  = document.querySelector(`[data-ai-modelnote="${target}"]`);
-
-    if (maxInput) {
-        maxInput.max = model.max_output;
-        if (Number(maxInput.value) > model.max_output) {
-            maxInput.value = model.max_output;
-        }
-    }
-    if (maxNote) {
-        maxNote.textContent = 'Ceiling for this model: ' + model.max_output.toLocaleString() + ' tokens.';
-    }
 
     // Daftar effort dibangun ulang dari nol tiap kali model berganti: Claude dan
     // OpenAI tidak berbagi kosakata (low/medium/high/xhigh/max vs.
@@ -280,19 +232,6 @@ function aiApplyModelLimits(target) {
         effortNote.textContent = (model.efforts || []).length > 0
             ? 'Higher effort means deeper thinking and higher token usage.'
             : 'This model does not accept an effort setting.';
-    }
-
-    if (modelNote) {
-        const providerLabel = AI_PROVIDER_LABELS[model.provider] || model.provider;
-        const badgeClass = AI_PROVIDER_BADGE[model.provider] || 'bg-gray-100 text-gray-600';
-
-        modelNote.innerHTML = [
-            `<span class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${badgeClass}">${providerLabel}</span>`,
-            `<span class="text-gray-300">&bull;</span>`,
-            `<span>${model.context} context</span>`,
-            `<span class="text-gray-300">&bull;</span>`,
-            `<span>${model.note}</span>`,
-        ].join('');
     }
 }
 

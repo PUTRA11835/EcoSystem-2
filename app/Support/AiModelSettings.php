@@ -396,23 +396,11 @@ final class AiModelSettings
      * (TICKET_SUMMARY, dijamin ber-server-tool oleh sanitize()), pemeriksaan itu
      * tidak dibutuhkan lagi — tapi helper-nya dipertahankan karena ini satu-
      * satunya cara membaca flag `server_tools` untuk SATU model dari luar kelas
-     * ini (requiresServerTools() menjawab pertanyaan berbeda: per asisten).
+     * ini.
      */
     public static function supportsServerTools(string $model): bool
     {
         return (bool) (self::CATALOG[$model]['server_tools'] ?? false);
-    }
-
-    /**
-     * Apakah asisten ini dibatasi ke model ber-server-tool?
-     *
-     * Dipakai form admin supaya keterangan "cuma model dengan web search yang
-     * ditawarkan" muncul di baris yang memang dibatasi — tanpa menyalin lagi
-     * daftar NEEDS_SERVER_TOOLS ke dalam Blade.
-     */
-    public static function requiresServerTools(string $assistant): bool
-    {
-        return in_array($assistant, self::NEEDS_SERVER_TOOLS, true);
     }
 
     public static function catalog(): array
