@@ -824,8 +824,10 @@ class SlaController extends Controller
             );
 
             // Fallback: jika tidak ada customer email atau email gagal, simpan sebagai pesan internal
+            $meetingMsg = $emailMsg;
+
             if (!$emailMsg) {
-                TicketMessage::create([
+                $meetingMsg = TicketMessage::create([
                     'ticket_id'        => $ticket->ticket_id,
                     'sender_type'      => 'system',
                     'sender_id'        => $senderId,
@@ -837,6 +839,29 @@ class SlaController extends Controller
                     'created_at'       => $startAt,
                     'updated_at'       => $startAt,
                 ]);
+            }
+
+            // Umumkan jadwalnya ke group chat Teams tiket, kalau tiketnya punya.
+            // Dijalankan untuk KEDUA cabang di atas: yang menentukan perlu-tidaknya
+            // tim diberi tahu adalah adanya jadwal meeting, bukan berhasil-tidaknya
+            // undangan email ke customer.
+            //
+            // try/catch sendiri: jadwal meeting sudah tersimpan dan SLA sudah
+            // ditahan; Teams yang bermasalah tidak boleh membatalkan itu.
+            if ($meetingMsg) {
+                try {
+                    app(\App\Services\Teams\TeamsOutboxService::class)->queueMeeting($meetingMsg, [
+                        'notes' => $notes,
+                        'link'  => $meetingLink,
+                        'start' => $meetingStartTime,
+                        'end'   => $meetingEndTime,
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::warning('SlaController@startMeeting: gagal mengantre jadwal meeting ke Teams (non-fatal)', [
+                        'ticket_id' => $ticket->ticket_id,
+                        'error'     => $e->getMessage(),
+                    ]);
+                }
             }
 
             // Update last_message_at agar list tiket terurutkan ke posisi teratas

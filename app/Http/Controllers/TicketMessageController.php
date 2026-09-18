@@ -391,6 +391,23 @@ class TicketMessageController extends Controller
                     $this->saveLocalAttachments($uploadedFiles, $message, $ticketId, $senderId);
                 }
 
+                // Antrekan ke group chat Teams tiket (kalau tiketnya punya, dan
+                // kalau arah keluar dinyalakan). Ditaruh SESUDAH lampiran
+                // tersimpan karena teks yang dikirim menyebut jumlah lampiran.
+                //
+                // try/catch sendiri: gagal mengantre berarti note tetap tersimpan
+                // dan tetap terlihat di tiket, hanya tidak sampai ke Teams —
+                // itu jauh lebih baik daripada menggagalkan penyimpanan note.
+                try {
+                    app(\App\Services\Teams\TeamsOutboxService::class)->queue($message);
+                } catch (\Throwable $e) {
+                    Log::warning('TicketMessageController@store: gagal mengantre internal note ke Teams (non-fatal)', [
+                        'ticket_id'  => $ticketId,
+                        'message_id' => $message->id,
+                        'error'      => $e->getMessage(),
+                    ]);
+                }
+
                 $ticket->update([
                     'last_message_at'              => now(),
                     'last_internal_note_at'        => now(),

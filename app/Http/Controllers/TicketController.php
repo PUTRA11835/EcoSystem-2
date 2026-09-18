@@ -3232,12 +3232,13 @@ class TicketController extends Controller
 
     /**
      * Kirim event "orang ditambahkan ke tiket" ke Power Automate supaya orang itu
-     * ikut masuk ke channel Teams tiket tersebut.
+     * ikut masuk ke group chat Teams tiket tersebut.
      *
-     * Flow tidak menyimpan channel id (aksi HTTP untuk memanggil balik EcoSystem
-     * butuh lisensi Premium), jadi payload membawa nama channel hasil rakitan
-     * fungsi yang sama dengan yang dipakai flow 2 saat membuat channelnya; flow
-     * mencarinya lewat aksi Teams "List channels".
+     * Flow tidak menyimpan chat id (aksi HTTP untuk memanggil balik EcoSystem
+     * butuh lisensi Premium), jadi payload membawa topic group chat hasil
+     * rakitan fungsi yang sama dengan yang dipakai flow "ticket validated" saat
+     * membuat grupnya; flow mencarinya lewat aksi Teams "List chats" lalu
+     * mencocokkannya persis.
      *
      * Semua kegagalan ditelan: penambahan member tidak boleh gagal hanya karena
      * notifikasi Teams bermasalah.
@@ -3257,7 +3258,7 @@ class TicketController extends Controller
             // lebih baik flow tidak dipanggil sama sekali daripada gagal separuh.
             $person = $powerAutomate->employeeContact($employeeId);
             if (!$person) {
-                Log::info('PowerAutomate: penambahan ke channel dilewati, employee tanpa email kerja', [
+                Log::info('PowerAutomate: penambahan ke wadah Teams dilewati, employee tanpa email kerja', [
                     'ticket_id'   => $ticket->ticket_id,
                     'employee_id' => $employeeId,
                 ]);

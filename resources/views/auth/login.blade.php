@@ -743,6 +743,23 @@
     const showError   = m => showToast('error',   m);
     const showSuccess = m => showToast('success', m);
 
+    // ── URL tujuan (deep link) ───────────────────────────────────
+    // Middleware CheckAuthToken menaruh tujuan di ?redirect= saat user yang belum
+    // login membuka deep link. Hanya path relatif same-origin yang diterima —
+    // "//evil.com", "https://lain.com/x", dan "javascript:" ditolak.
+    function safePath(value) {
+        const raw = (value || '').trim();
+        if (!raw || raw[0] !== '/' || raw.startsWith('//')) return null;
+        try {
+            const u = new URL(raw, window.location.origin);
+            if (u.origin !== window.location.origin) return null;
+            return u.pathname + u.search + u.hash;
+        } catch { return null; }
+    }
+    function intendedTarget() {
+        return safePath(new URLSearchParams(window.location.search).get('redirect'));
+    }
+
     // ── Form ─────────────────────────────────────────────────────
     const form     = document.getElementById('loginForm');
     const btn      = document.getElementById('submitBtn');
@@ -781,7 +798,7 @@
                     'X-Requested-With':'XMLHttpRequest',
                 },
                 credentials:'same-origin',
-                body:JSON.stringify({ email, password, remember }),
+                body:JSON.stringify({ email, password, remember, redirect: intendedTarget() }),
             });
             const data = await res.json();
             if (res.ok && data.success) {
@@ -795,7 +812,11 @@
                 localStorage.setItem('api_token', data.data.token);
                 localStorage.setItem('user_data', JSON.stringify(data.data.user));
                 showSuccess('Login successful! Redirecting…');
-                setTimeout(() => window.location.href = '/dashboard', 1000);
+                // Server yang menentukan tujuan akhir (URL deep link yang tadi
+                // diklik, mis. /ticket/123 dari kartu Teams) — sudah disanitasi
+                // di sisi server. Di sini tetap dipagari: hanya path relatif.
+                const target = safePath(data.redirect_url) || intendedTarget() || '/dashboard';
+                setTimeout(() => window.location.href = target, 1000);
             } else {
                 showError(data.message || 'Login failed. Please check your credentials.');
                 setLoading(false);

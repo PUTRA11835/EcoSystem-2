@@ -27,6 +27,7 @@ class PowerAutomateService
     public const FLOW_TICKET_VALIDATED     = 'ticket_validated';
     public const FLOW_TICKET_OPEN_REMINDER = 'ticket_open_reminder';
     public const FLOW_TICKET_MEMBER_ADDED  = 'ticket_member_added';
+    public const FLOW_TEAMS_POST_MESSAGE   = 'teams_post_message';
 
     // ─── Konfigurasi ─────────────────────────────────────────────────────────
 
@@ -49,6 +50,93 @@ class PowerAutomateService
         return $this->isEnabled() && $this->flowUrl($flow) !== null;
     }
 
+    // ─── Pagar staging ───────────────────────────────────────────────────────
+
+    /**
+     * Daftar email pelapor yang BOLEH memicu Power Automate (pisah koma).
+     *
+     * KOSONG = tanpa batas; itu keadaan produksi, dan sengaja jadi default supaya
+     * lupa mengisinya tidak pernah membisukan notifikasi customer sungguhan.
+     *
+     * Diisi HANYA di server dev/staging. Masalah yang dipecahkannya: staging
+     * membaca mailbox support@eclectic.co.id yang SAMA dengan produksi, jadi
+     * tanpa pagar ini email customer sungguhan yang masuk saat demo akan memicu
+     * group chat Teams dan notifikasi ke employee sungguhan — dari server yang
+     * datanya belum tentu benar.
+     *
+     * @return list<string> huruf kecil semua
+     */
+    public function allowedSubmitters(): array
+    {
+        $raw = trim((string) config('services.power_automate.allowed_submitters'));
+
+        if ($raw === '') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            static fn ($e) => mb_strtolower(trim($e)),
+            explode(',', $raw)
+        )));
+    }
+
+    /**
+     * Email pelapor di dalam payload, dari dua bentuk yang dipakai semua flow:
+     * tiket (`ticket.submitted_by.email`) dan email masuk (`sender_email`).
+     *
+     * Bentuk tiket juga dicek di akar payload karena sebagian pemanggil mengirim
+     * ticketPayload() apa adanya, tanpa membungkusnya dalam kunci 'ticket'.
+     */
+    private function submitterEmail(array $payload): ?string
+    {
+        $candidates = [
+            $payload['ticket']['submitted_by']['email'] ?? null,
+            $payload['submitted_by']['email'] ?? null,
+            $payload['sender_email'] ?? null,
+            $payload['staging']['sender_email'] ?? null,
+        ];
+
+        foreach ($candidates as $email) {
+            if (is_string($email) && trim($email) !== '') {
+                return mb_strtolower(trim($email));
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Boleh berangkat? Selalu true di produksi (daftar kosong).
+     *
+     * Saat daftarnya terisi, payload yang email pelapornya TIDAK DIKENALI ikut
+     * DIHADANG — bukan diloloskan. Pagar ini memang dipasang untuk mencegah
+     * kebocoran ke orang sungguhan, dan meloloskan yang tak teridentifikasi akan
+     * membolongi tepat pada kasus yang paling tidak kita pahami.
+     */
+    private function passesSubmitterGate(string $flow, array $payload): bool
+    {
+        $allowed = $this->allowedSubmitters();
+
+        if ($allowed === []) {
+            return true;
+        }
+
+        $email = $this->submitterEmail($payload);
+
+        if ($email !== null && in_array($email, $allowed, true)) {
+            return true;
+        }
+
+        Log::info('PowerAutomate: flow DIHADANG pagar staging', [
+            'flow'      => $flow,
+            'submitter' => $email ?? '(tidak teridentifikasi di payload)',
+            'ticket'    => $payload['ticket']['number'] ?? null,
+            'allowed'   => $allowed,
+        ]);
+
+        return false;
+    }
+
     // ─── Pengiriman ──────────────────────────────────────────────────────────
 
     /**
@@ -66,6 +154,14 @@ class PowerAutomateService
         $url = $this->flowUrl($flow);
         if (!$url) {
             Log::debug('PowerAutomate: flow dilewati karena URL kosong', ['flow' => $flow]);
+            return false;
+        }
+
+        // Pagar staging. Ditaruh di sini — satu-satunya pintu keluar ke Power
+        // Automate — supaya SETIAP flow ikut terjaga, termasuk flow yang belum
+        // ditulis. Menaruhnya di tiap pemanggil berarti flow berikutnya harus
+        // ingat memasangnya sendiri, dan yang lupa baru ketahuan setelah bocor.
+        if (!$this->passesSubmitterGate($flow, $payload)) {
             return false;
         }
 
@@ -258,6 +354,42 @@ class PowerAutomateService
     }
 
     /**
+     * Nama (topic) group chat tiket.
+     *
+     * Dipisah dari {@see ticketChatPayload()} karena dipakai DUA flow: flow yang
+     * MEMBUAT chatnya saat tiket divalidasi, dan flow yang mencari chat itu lagi
+     * saat ada orang baru ditambahkan ke tiket. Konektor Teams tidak punya cara
+     * menyimpan chat id tanpa lisensi Premium, jadi flow kedua mencocokkan
+     * `topic` hasil aksi "List chats" dengan string ini — cocoknya harus
+     * exact-match, dan itu hanya terjamin selama kedua jalur memakai fungsi yang
+     * sama persis.
+     *
+     * CATATAN: kalau subject tiket diubah SETELAH chatnya terbentuk, string ini
+     * tidak lagi sama dengan topic yang terlanjur dipakai. Karena itu nomor tiket
+     * ikut dikirim terpisah sebagai kunci cadangan (lihat `chat.number`).
+     *
+     * @param  array<string,mixed>  $ticketPayload  hasil ticketPayload()
+     */
+    public function ticketChatTopic(array $ticketPayload): string
+    {
+        $number  = trim((string) ($ticketPayload['number'] ?? ''));
+        $subject = trim((string) ($ticketPayload['subject'] ?? ''));
+
+        // Batas nama group chat di Teams 250 karakter; potong subjeknya, bukan
+        // nomornya, supaya tiket tetap bisa dikenali saat subjeknya panjang.
+        $topic = trim($number . ' - ' . $subject);
+        if (mb_strlen($topic) > 250) {
+            // Penanda potongnya '...' ASCII, bukan elipsis satu karakter: topic
+            // ini dibandingkan huruf-per-huruf oleh ekspresi di Power Automate,
+            // dan karakter non-ASCII rawan berubah saat diketik ulang di
+            // designer (lihat catatan lapangan 4 soal apostrof melengkung).
+            $topic = rtrim(mb_substr($topic, 0, 247)) . '...';
+        }
+
+        return $topic;
+    }
+
+    /**
      * Bahan group chat Teams per tiket.
      *
      * Tim support sudah terbiasa membuat group chat manual bernama
@@ -269,36 +401,44 @@ class PowerAutomateService
      * `members_csv` memakai pemisah titik-koma karena itu yang diterima field
      * *Members* pada aksi Teams "Create a chat".
      *
+     * Urutan penggabungan anggota BERARTI: kalau jumlahnya melewati batas 20
+     * peserta milik konektor Teams, yang dipotong adalah yang paling belakang
+     * (lihat {@see capChatMembers()}). Lead modul dan orang Delivery Support yang
+     * memang menangani tiket ini didahulukan atas anggota tetap.
+     *
      * @param  array<string,mixed>  $ticketPayload  hasil ticketPayload()
      * @param  list<string>         $leadEmails
-     * @return array{topic:string,members:list<string>,members_csv:string,has_lead:bool}
+     * @return array{topic:string,members:list<string>,members_csv:string,has_lead:bool,support_team:list<array{employee_id:int,name:?string,email:string,role:string,role_label:string}>}
      */
     public function ticketChatPayload(array $ticketPayload, array $leadEmails, ?string $validatorEmail = null): array
     {
-        $number  = trim((string) ($ticketPayload['number'] ?? ''));
-        $subject = trim((string) ($ticketPayload['subject'] ?? ''));
+        $topic = $this->ticketChatTopic($ticketPayload);
 
-        // Batas nama group chat di Teams 250 karakter; potong subjeknya, bukan
-        // nomornya, supaya tiket tetap bisa dikenali saat subjeknya panjang.
-        $topic = trim($number . ' - ' . $subject);
-        if (mb_strlen($topic) > 250) {
-            $topic = mb_substr($topic, 0, 249) . '…';
-        }
+        // Tim Delivery Support yang menangani tiket ini (Delivery Owner, Support
+        // Manager, CO PM, Support Admin). Dibaca dari delivery support yang sudah
+        // dipilih helpdesk saat validasi, jadi orangnya spesifik per tiket —
+        // berbeda dari role penjaga di bawah yang sama untuk semua tiket.
+        $supportTeam = $this->deliverySupportTeam(
+            $this->deliverySupportIdForTicket((int) ($ticketPayload['id'] ?? 0))
+        );
 
         // Role penjaga (Delivery Support Head / Helpdesk) ikut di jalur group chat
         // juga, supaya kedua bentuk flow 2 memuat orang yang sama.
         $members = array_merge(
             $leadEmails,
+            array_column($supportTeam, 'email'),
             array_column($this->roleMembers(), 'email'),
             $this->extraChatMembers()
         );
 
-        // Validator TIDAK ikut secara default. Akun yang menekan Validate bisa
-        // berupa akun sistem (ECI_ADMIN -> admin@eclectic.co.id) yang bukan
-        // mailbox Microsoft 365; satu alamat asing saja membuat aksi Teams
-        // "Create a chat" menolak SELURUH permintaan dengan BadRequest.
-        // Helpdesk yang memang perlu selalu hadir cukup didaftarkan lewat
-        // POWER_AUTOMATE_TEAMS_EXTRA_MEMBERS.
+        // Validator ikut secara default (POWER_AUTOMATE_TEAMS_INCLUDE_VALIDATOR
+        // = true): yang menekan Validate umumnya helpdesk manusia yang memang
+        // perlu hadir di grup. Pengamannya ada di rejectExcluded() di bawah —
+        // akun sistem seperti ECI_ADMIN (admin@eclectic.co.id) punya email di
+        // database tapi bukan mailbox Microsoft 365, dan SATU alamat asing saja
+        // membuat aksi Teams "Create a chat" menolak seluruh permintaan dengan
+        // BadRequest. Jadi knob ini hanya aman selama
+        // POWER_AUTOMATE_TEAMS_EXCLUDE_MEMBERS memuat akun-akun sistem itu.
         if (config('services.power_automate.teams_include_validator')
             && $validatorEmail
             && filter_var($validatorEmail, FILTER_VALIDATE_EMAIL)) {
@@ -315,30 +455,65 @@ class PowerAutomateService
             }
             $unique[mb_strtolower($email)] = $email;
         }
-        $members = $this->rejectExcluded(array_values($unique));
+        $members = $this->capChatMembers($this->rejectExcluded(array_values($unique)), $topic);
 
         return [
-            'topic'       => $topic,
-            'members'     => $members,
-            'members_csv' => implode(';', $members),
-            'has_lead'    => $leadEmails !== [],
+            'topic'        => $topic,
+            'members'      => $members,
+            'members_csv'  => implode(';', $members),
+            'has_lead'     => $leadEmails !== [],
+            // Nama + peran tim Delivery Support, untuk ditampilkan di Adaptive
+            // Card. Email-nya sudah ikut di `members`; blok ini murni tampilan.
+            'support_team' => $supportTeam,
         ];
     }
 
     /**
+     * Potong daftar peserta di batas konektor Teams (20 orang untuk satu chat).
+     *
+     * Melebihi batas membuat aksi "Create a chat" menolak SELURUH permintaan
+     * dengan BadRequest — jadi lebih baik grupnya terbentuk dengan peserta yang
+     * paling penting daripada tidak terbentuk sama sekali. Yang dibuang adalah
+     * yang paling belakang: anggota tetap (`TEAMS_EXTRA_MEMBERS`) dan pemegang
+     * role penjaga, bukan lead modul atau tim Delivery Support tiket itu.
+     *
+     * Sisa slotnya juga dipakai flow 6 untuk menambahkan consultant, jadi
+     * batasnya sengaja dibikin bisa diturunkan lewat env.
+     *
+     * @param  list<string>  $members
+     * @return list<string>
+     */
+    private function capChatMembers(array $members, string $topic): array
+    {
+        $max = (int) config('services.power_automate.teams_max_members', 20);
+        if ($max <= 0 || count($members) <= $max) {
+            return $members;
+        }
+
+        Log::warning('PowerAutomate: peserta group chat melebihi batas, sisanya dipotong', [
+            'topic'   => $topic,
+            'total'   => count($members),
+            'max'     => $max,
+            'dropped' => array_slice($members, $max),
+        ]);
+
+        return array_slice($members, 0, $max);
+    }
+
+    /**
      * Payload flow "ticket_member_added": satu orang baru pada satu tiket yang
-     * sudah punya channel.
+     * sudah punya group chat.
      *
-     * Flow di Power Automate TIDAK menyimpan channel id (aksi HTTP untuk
-     * memanggil balik EcoSystem butuh lisensi Premium), jadi channel dicari
-     * lewat aksi Teams "List channels" pada team support lalu dicocokkan dengan
-     * `channel.name` di bawah. Nama itu dibangun ulang oleh fungsi yang SAMA
-     * dengan yang dipakai flow 2 saat membuat channelnya, jadi cocoknya
-     * exact-match, bukan tebak-tebakan prefix.
+     * Flow di Power Automate TIDAK menyimpan chat id (aksi HTTP untuk memanggil
+     * balik EcoSystem butuh lisensi Premium), jadi chatnya dicari ulang tiap
+     * kali lewat aksi Teams "List chats" lalu dicocokkan dengan `chat.topic` di
+     * bawah. Topic itu dibangun ulang oleh fungsi yang SAMA dengan yang dipakai
+     * flow "ticket_validated" saat membuat grupnya, jadi cocoknya exact-match,
+     * bukan tebak-tebakan prefix.
      *
-     * CATATAN: kalau subject tiket diubah setelah validasi, nama hasil rakitan
-     * ini tidak lagi sama dengan nama channel yang terlanjur dibuat. Karena itu
-     * `channel.number` ikut dikirim sebagai kunci cadangan — nomor tiket tidak
+     * CATATAN: kalau subject tiket diubah setelah validasi, topic hasil rakitan
+     * ini tidak lagi sama dengan nama grup yang terlanjur dibuat. Karena itu
+     * `chat.number` ikut dikirim sebagai kunci cadangan — nomor tiket tidak
      * pernah berubah, dan flow bisa memakainya untuk pencocokan awalan.
      *
      * @param  array{employee_id:?int,name:?string,email:?string}  $person
@@ -351,8 +526,8 @@ class PowerAutomateService
 
         return [
             'ticket'  => $ticketPayload,
-            'channel' => [
-                'name'   => $this->ticketChannelPayload($ticketPayload)['name'],
+            'chat'    => [
+                'topic'  => $this->ticketChatTopic($ticketPayload),
                 'number' => (string) ($ticketPayload['number'] ?? ''),
             ],
             'person'  => [
@@ -426,142 +601,187 @@ class PowerAutomateService
         )));
     }
 
+    // ─── Tim Delivery Support ────────────────────────────────────────────────
+
     /**
-     * Bahan channel Teams per tiket (aksi "Create a channel").
+     * Delivery support yang menangani satu tiket.
      *
-     * Aturan nama channel jauh lebih ketat daripada nama group chat: maksimal 50
-     * karakter dan sederet karakter dilarang. Subject tiket sering melanggar
-     * keduanya, dan Teams menolak seluruh aksi kalau namanya tidak sah — jadi
-     * pembersihannya dikerjakan di sini, bukan lewat ekspresi di designer.
+     * PITFALL: tiket TIDAK punya kolom `delivery_support_id`. Kaitannya lewat
+     * tabel `delivery_support_activities` — saat helpdesk memilih delivery
+     * support di modal validasi, EcoSystem membuat satu baris activity di sana
+     * (lihat StagingTicketController::assignTicketToDeliverySupport()). Karena
+     * itu fungsi ini dibaca dari tabel activity, bukan dari request: hasilnya
+     * benar juga untuk tiket yang di-assign belakangan, bukan hanya saat
+     * validasi.
      *
-     * Nomor tiket selalu dipertahankan utuh di depan; yang dipotong subjeknya,
-     * supaya channel tetap bisa dicari dari nomor tiketnya.
-     *
-     * @param  array<string,mixed>  $ticketPayload  hasil ticketPayload()
-     * @param  list<string>         $leadEmails     hasil leadEmails()
-     * @return array{name:string,description:string,members:list<array{name:?string,email:string,source:'module_lead'|'role'}>,member_emails:list<string>,member_csv:string,member_count:int}
+     * Satu tiket bisa punya lebih dari satu activity (mis. dipindah ke delivery
+     * support lain); yang dipakai adalah yang TERBARU.
      */
-    public function ticketChannelPayload(array $ticketPayload, array $leadEmails = []): array
+    public function deliverySupportIdForTicket(int $ticketId): ?int
     {
-        $number  = $this->sanitizeChannelName((string) ($ticketPayload['number'] ?? ''));
-        $subject = $this->sanitizeChannelName((string) ($ticketPayload['subject'] ?? ''));
-
-        $prefix = $number !== '' ? $number . ' - ' : '';
-        $room   = 50 - mb_strlen($prefix);
-
-        if ($room < 1) {
-            // Nomor tiket saja sudah memenuhi batas — biarkan tanpa subjek.
-            $name = mb_substr($prefix, 0, 50);
-        } else {
-            $name = $prefix . mb_substr($subject, 0, $room);
+        if ($ticketId <= 0) {
+            return null;
         }
 
-        $name = trim($name, " .\t\n\r\0\x0B");
-        if ($name === '') {
-            $name = 'Tiket ' . ($ticketPayload['id'] ?? 'baru');
+        $id = DB::table('delivery_support_activities')
+            ->where('ticket_id', $ticketId)
+            ->orderByDesc('id')
+            ->value('delivery_support_id');
+
+        return $id ? (int) $id : null;
+    }
+
+    /**
+     * Orang Delivery Support yang menangani tiket: Delivery Owner, Support
+     * Manager, CO PM, dan Support Admin. Mereka ikut jadi peserta group chat
+     * tiket (keputusan meeting 11 Sep 2026) — sebelumnya grup hanya berisi lead
+     * modul + role penjaga, sehingga pemilik delivery-nya sendiri tidak ada di
+     * dalam grup tiket miliknya.
+     *
+     * Bentuk penyimpanannya TIDAK seragam, dan ini sumber kesalahan yang mudah:
+     * Delivery Owner / CO PM / Support Admin adalah kolom tunggal di tabel
+     * `delivery_support`, sedangkan Support Manager BISA LEBIH DARI SATU dan
+     * tersimpan di tabel pivot `delivery_support_managers`. Kolom lama
+     * `delivery_support.support_manager_id` masih ada di skema tapi sudah tidak
+     * dipakai (tidak ada di `$fillable`, tidak ikut di-update controller), jadi
+     * isinya bisa basi — JANGAN dibaca.
+     *
+     * `sales_id` sengaja TIDAK diikutkan: Sales bukan pelaksana tiket.
+     *
+     * Employee non-aktif dibuang, sama seperti {@see roleMembers()} — mantan
+     * karyawan tidak punya mailbox lagi, dan satu alamat tanpa mailbox membuat
+     * aksi Teams "Create a chat" menolak seluruh permintaan.
+     *
+     * @return list<array{employee_id:int,name:?string,email:string,role:string,role_label:string}>
+     */
+    public function deliverySupportTeam(?int $deliverySupportId): array
+    {
+        if (!$deliverySupportId || !config('services.power_automate.teams_include_support_team', true)) {
+            return [];
         }
 
-        // Deskripsi channel menampung subject utuh, jadi pemotongan nama di atas
-        // tidak menghilangkan informasi.
-        $description = trim(sprintf(
-            '%s | Customer: %s | Modul: %s',
-            (string) ($ticketPayload['subject'] ?? '-'),
-            (string) ($ticketPayload['customer'] ?? '-'),
-            (string) ($ticketPayload['module'] ?? '-')
-        ));
+        $support = DB::table('delivery_support')
+            ->where('id', $deliverySupportId)
+            ->first(['id', 'delivery_owner_id', 'co_pm_id', 'support_admin_id']);
 
-        // Anggota tetap channel: lead modul + role penjaga (Delivery Support Head,
-        // Delivery Support Service Helpdesk).
-        // Standard channel di Teams TIDAK punya daftar anggota sendiri — yang bisa
-        // membaca channel adalah anggota TEAM-nya, jadi daftar ini dipakai flow
-        // untuk aksi "Add a member to a team", bukan "add to channel".
-        $members = $this->channelMembers($leadEmails);
+        if (!$support) {
+            return [];
+        }
+
+        // role => list<employee_id>. Urutannya jadi urutan tampil di kartu.
+        $byRole = [
+            'delivery_owner'  => array_filter([$support->delivery_owner_id]),
+            'support_manager' => DB::table('delivery_support_managers')
+                ->where('delivery_support_id', $deliverySupportId)
+                ->pluck('employee_id')
+                ->all(),
+            'co_pm'           => array_filter([$support->co_pm_id]),
+            'support_admin'   => array_filter([$support->support_admin_id]),
+        ];
+
+        $employeeIds = array_values(array_unique(array_map(
+            'intval',
+            array_merge(...array_values($byRole))
+        )));
+
+        if ($employeeIds === []) {
+            return [];
+        }
+
+        $active = DB::table('employee')
+            ->whereIn('employee_id', $employeeIds)
+            ->where('is_active', true)
+            ->pluck('employee_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $names  = $this->employeeNames($active);
+        $emails = $this->workEmails($active);
+
+        $labels = [
+            'delivery_owner'  => 'Delivery Owner',
+            'support_manager' => 'Support Manager',
+            'co_pm'           => 'CO PM',
+            'support_admin'   => 'Support Admin',
+        ];
+
+        $team = [];
+        $seen = [];
+        foreach ($byRole as $role => $ids) {
+            foreach ($ids as $id) {
+                $id = (int) $id;
+                // Satu orang bisa memegang dua peran sekaligus (mis. Delivery
+                // Owner merangkap CO PM); peran PERTAMA yang dipakai supaya
+                // alamatnya tidak dobel di members_csv.
+                if (isset($seen[$id]) || !in_array($id, $active, true)) {
+                    continue;
+                }
+
+                $email = trim((string) ($emails[$id] ?? ''));
+                if ($email === '') {
+                    // Tanpa email kerja, konektor Teams tidak bisa menemukan orangnya.
+                    continue;
+                }
+
+                $seen[$id] = true;
+                $team[] = [
+                    'employee_id' => $id,
+                    'name'        => $names[$id] ?? null,
+                    'email'       => $email,
+                    'role'        => $role,
+                    'role_label'  => $labels[$role],
+                ];
+            }
+        }
+
+        return $team;
+    }
+
+    /**
+     * Blok `delivery_support` untuk payload flow: identitas delivery support
+     * tiket beserta timnya. Dipakai Adaptive Card supaya penerima tahu grup ini
+     * milik delivery support mana; daftar emailnya sendiri sudah masuk lewat
+     * `chat.members_csv`.
+     *
+     * @return array{id:?int,name:?string,type:?string,team:list<array<string,mixed>>,team_csv:string}
+     */
+    public function deliverySupportPayload(int $ticketId): array
+    {
+        $id      = $this->deliverySupportIdForTicket($ticketId);
+        $team    = $this->deliverySupportTeam($id);
+        $support = $id
+            ? DB::table('delivery_support')->where('id', $id)->first(['name', 'type'])
+            : null;
 
         return [
-            'name'          => $name,
-            'description'   => mb_substr($description, 0, 1024),
-            'members'       => $members,
-            'member_emails' => array_column($members, 'email'),
-            'member_csv'    => implode(';', array_column($members, 'email')),
-            'member_count'  => count($members),
+            'id'   => $id,
+            'name' => $support->name ?? null,
+            'type' => $support->type ?? null,
+            'team' => $team,
+            // Teks siap tampil: "Budi (Delivery Owner), Ani (Support Manager)".
+            // Dirakit di sini supaya kartunya tidak perlu Apply to each.
+            'team_csv' => implode(', ', array_map(
+                fn ($p) => trim(($p['name'] ?? $p['email']) . ' (' . $p['role_label'] . ')'),
+                $team
+            )),
         ];
     }
 
     /**
-     * Daftar orang yang harus bisa membaca channel tiket, sudah dedup dan bersih
-     * dari alamat terlarang. Urutan sumbernya sengaja: lead modul lebih dulu
-     * supaya kalau suatu saat daftarnya dipotong, lead-lah yang bertahan.
-     *
-     * Sumbernya HANYA dua: Module Lead tiket ini dan pemegang role penjaga.
-     * Lihat catatan di badan fungsi soal kenapa EXTRA_MEMBERS tidak ikut.
-     *
-     * Sumber `role` di-resolve DI SINI (bukan lewat aksi tambahan di designer)
-     * karena pemetaan role -> orang adalah pengetahuan EcoSystem; flow cukup
-     * menerima daftar email jadi.
-     *
-     * @param  list<string>  $leadEmails
-     * @return list<array{name:?string,email:string,source:'module_lead'|'role'}>
-     */
-    public function channelMembers(array $leadEmails = []): array
-    {
-        $rows = [];
-
-        foreach ($leadEmails as $email) {
-            $rows[] = ['name' => null, 'email' => (string) $email, 'source' => 'module_lead'];
-        }
-
-        foreach ($this->roleMembers() as $person) {
-            $rows[] = $person + ['source' => 'role'];
-        }
-
-        // POWER_AUTOMATE_TEAMS_EXTRA_MEMBERS sengaja TIDAK ikut di sini. Dua
-        // alasan keberadaannya khusus group chat: menjaga peserta >= 3 orang
-        // (syarat Teams agar grup boleh diberi nama) dan jadi penerima cadangan
-        // untuk modul tanpa Module Lead. Channel tidak punya syarat jumlah, dan
-        // anggota channel tidak menerima notifikasi apa pun — yang memberi
-        // notifikasi hanya @mention atas lead_emails — jadi di jalur channel
-        // knob itu tidak melakukan apa-apa selain menambah orang diam-diam.
-        // Peran "selalu ada yang mengawasi" dipegang role penjaga di atas.
-
-        // Dedup case-insensitive: Teams menolak SELURUH aksi kalau satu alamat
-        // muncul dua kali dengan kapitalisasi berbeda.
-        $unique = [];
-        foreach ($rows as $row) {
-            $email = trim((string) $row['email']);
-            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                continue;
-            }
-            $key = mb_strtolower($email);
-            if (!isset($unique[$key])) {
-                $unique[$key] = ['name' => $row['name'], 'email' => $email, 'source' => $row['source']];
-            } elseif ($unique[$key]['name'] === null && $row['name'] !== null) {
-                // Baris pertama (lead) tidak membawa nama; lengkapi dari baris role.
-                $unique[$key]['name'] = $row['name'];
-            }
-        }
-
-        $excluded = $this->excludedChatMembers();
-
-        return array_values(array_filter(
-            $unique,
-            fn ($row) => !in_array(mb_strtolower($row['email']), $excluded, true)
-        ));
-    }
-
-    /**
      * Employee pemegang role penjaga tiket (default: 5 Delivery Support Head dan
-     * 6 Delivery Support Service Helpdesk) beserta email kerjanya.
+     * 6 Delivery Support Service Helpdesk) beserta email kerjanya. Mereka ikut
+     * jadi peserta group chat tiap tiket, di samping Module Lead.
      *
      * PITFALL: keanggotaan role TIDAK ada sebagai kolom di tabel `employee` —
      * relasinya di tabel pivot `employee_role_assignment` (employee_id, role_id).
      * Employee non-aktif dibuang supaya mantan helpdesk tidak ikut ditarik ke
-     * setiap channel tiket baru.
+     * setiap grup tiket baru.
      *
      * @return list<array{employee_id:int,name:?string,email:string}>
      */
     public function roleMembers(): array
     {
-        $roleIds = $this->channelMemberRoleIds();
+        $roleIds = $this->chatMemberRoleIds();
         if ($roleIds === []) {
             return [];
         }
@@ -599,8 +819,8 @@ class PowerAutomateService
         return $people;
     }
 
-    /** @return list<int> role_id yang orangnya selalu diikutkan ke channel tiket */
-    private function channelMemberRoleIds(): array
+    /** @return list<int> role_id yang orangnya selalu diikutkan ke group chat tiket */
+    private function chatMemberRoleIds(): array
     {
         $raw = (string) config('services.power_automate.teams_member_role_ids');
 
@@ -608,18 +828,6 @@ class PowerAutomateService
             fn ($id) => (int) trim($id),
             explode(',', $raw)
         ))));
-    }
-
-    /**
-     * Buang karakter yang ditolak Teams untuk nama channel dan rapatkan spasi
-     * ganda yang tersisa setelahnya.
-     */
-    private function sanitizeChannelName(string $value): string
-    {
-        $clean = preg_replace('/[#%&*{}\\:<>?\/+|~"\']/u', '', $value) ?? '';
-        $clean = preg_replace('/\s+/u', ' ', $clean) ?? '';
-
-        return trim($clean);
     }
 
     /** @return list<string> */

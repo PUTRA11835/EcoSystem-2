@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Http\Controllers\PasswordSetupController;
 use App\Models\LoginActivity;
+use App\Support\IntendedUrl;
 use Illuminate\Support\Facades\Http;
 use Exception;
 
@@ -121,10 +122,15 @@ class AuthController extends Controller
             ]);
 
             if ($hasToken) {
-                Log::channel('daily')->info('User already authenticated, redirecting to dashboard', [
+                // Sudah login tapi membuka halaman login (mis. klik deep link lalu
+                // sempat mendarat di /auth/login) — langsung antar ke URL tujuan.
+                $target = IntendedUrl::pull(request());
+
+                Log::channel('daily')->info('User already authenticated, redirecting', [
                     'session_id' => $sessionId,
+                    'target'     => $target,
                 ]);
-                return redirect()->route('dashboard');
+                return redirect()->to($target);
             }
 
             // Request Client Hints from the browser for better device detection on login
@@ -836,6 +842,9 @@ class AuthController extends Controller
                 $response = response()->json([
                     'success' => true,
                     'message' => 'Login successful',
+                    // URL tujuan hasil deep link (mis. /ticket/123 dari kartu Teams).
+                    // Sudah disanitasi — selalu path relatif pada host sendiri.
+                    'redirect_url' => IntendedUrl::pull($request),
                     'data'    => [
                         'token' => $token,
                         'user'  => $userData

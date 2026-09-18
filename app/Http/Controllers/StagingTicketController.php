@@ -512,26 +512,62 @@ class StagingTicketController extends Controller
 
             $leadEmails    = $powerAutomate->leadEmails($leads);
 
+            $chatPayload = $powerAutomate->ticketChatPayload(
+                $payloadTicket,
+                $leadEmails,
+                $sessionUser['email'] ?? null
+            );
+
+            // Group chat dibuat EcoSystem sendiri lewat Graph, bukan oleh flow 5.
+            // Gunanya kita MEMEGANG chat_id: tanpa itu, sinkronisasi pesan masuk
+            // mustahil dan flow 6 terpaksa mencari chatnya lagi dengan mencocokkan
+            // nama grup. Lihat docs/teams-chat-sync-design.md §4.
+            //
+            // try/catch sendiri, terpisah dari dispatch di bawah: Teams yang
+            // bermasalah tidak boleh ikut membatalkan notifikasi Power Automate
+            // yang selama ini sudah jalan.
+            try {
+                $teamsChat = app(\App\Services\Teams\TeamsChatService::class)->createForTicket(
+                    (int) $ticket->ticket_id,
+                    $chatPayload['topic'],
+                    $chatPayload['members']
+                );
+
+                if ($teamsChat) {
+                    $chatPayload['id'] = $teamsChat->chat_id;
+
+                    // Penanda untuk flow 5: chatnya SUDAH ada, jangan bikin lagi.
+                    // Tanpa Condition atas flag ini di sisi Power Automate, satu
+                    // tiket akan punya DUA grup — satu dari sini, satu dari flow.
+                    $chatPayload['created_by_ecosystem'] = true;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('StagingTicketController@approve: gagal membuat group chat Teams lewat Graph (non-fatal)', [
+                    'ticket_id' => $ticket->ticket_id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+
             $powerAutomate->dispatchAfterResponse(
                 \App\Services\PowerAutomateService::FLOW_TICKET_VALIDATED,
                 [
                     'ticket'       => $payloadTicket,
                     'module_leads' => $leads,
                     'lead_emails'  => $leadEmails,
-                    // Nama channel tiket (aksi "Create a channel") — sudah
-                    // dipotong 50 karakter dan dibersihkan dari karakter
-                    // terlarang Teams. `channel.member_emails` berisi lead modul
-                    // PLUS pemegang role penjaga (Delivery Support Head dan
-                    // Delivery Support Service Helpdesk): standard channel tidak
-                    // punya daftar anggota sendiri, jadi flow menambahkan mereka
-                    // ke TEAM-nya supaya channel tiket ini terbaca.
-                    'channel'      => $powerAutomate->ticketChannelPayload($payloadTicket, $leadEmails),
-                    // Dipertahankan untuk jalur group chat (dipakai flow versi
-                    // lama dan tetap berguna kalau chat pribadi dihidupkan).
-                    'chat'         => $powerAutomate->ticketChatPayload(
-                        $payloadTicket,
-                        $leadEmails,
-                        $sessionUser['email'] ?? null
+                    // Bahan group chat tiket (aksi Teams "Create a chat"):
+                    // `chat.topic` jadi nama grup sekaligus kunci yang dipakai
+                    // flow "ticket member added" untuk menemukan grup ini lagi
+                    // lewat aksi "List chats". `chat.members_csv` berisi lead
+                    // modul PLUS tim Delivery Support tiket ini (Delivery Owner,
+                    // Support Manager, CO PM, Support Admin) PLUS pemegang role
+                    // penjaga (Delivery Support Head dan Delivery Support
+                    // Service Helpdesk).
+                    'chat'         => $chatPayload,
+                    // Identitas delivery support tiket + timnya, untuk baris
+                    // "Delivery Support" di Adaptive Card. Emailnya sendiri
+                    // sudah ikut lewat chat.members_csv di atas.
+                    'delivery_support' => $powerAutomate->deliverySupportPayload(
+                        (int) $ticket->ticket_id
                     ),
                     'validated_by' => [
                         'id'    => $sessionUser['id'] ?? null,

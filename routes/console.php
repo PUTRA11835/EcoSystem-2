@@ -49,3 +49,24 @@ Schedule::command('onedrive:audit-links --fix')
 Schedule::command('ai:prune-conversations --apply')
     ->twiceDailyAt(3, 15, 0)
     ->withoutOverlapping();
+
+// Tarik pesan group chat Teams jadi internal note tiket. Command-nya keluar
+// seketika kalau TEAMS_SYNC_ENABLED / TEAMS_SYNC_INBOUND masih false, jadi
+// menjadwalkannya tiap menit aman walau fiturnya belum dinyalakan.
+//
+// Tiap menit, bukan lebih jarang: internal note dari Teams baru berguna kalau
+// muncul di tiket selagi diskusinya berlangsung. UI tiket sendiri sudah polling
+// tiap 15 detik, jadi jeda terburuk yang dirasakan orang ~1 menit.
+Schedule::command('teams:sync-chat-messages')
+    ->everyMinute()
+    ->withoutOverlapping();
+
+// Kirim internal note yang mengantre ke group chat Teams (flow 7). Keluar
+// seketika kalau TEAMS_SYNC_ENABLED / TEAMS_SYNC_OUTBOUND masih false.
+//
+// Terpisah dari teams:sync-chat-messages dengan sengaja: dua arah ini bisa
+// dimatikan sendiri-sendiri, dan arah yang bermasalah tidak boleh ikut
+// menghentikan arah yang sehat.
+Schedule::command('teams:flush-outbox')
+    ->everyMinute()
+    ->withoutOverlapping();
