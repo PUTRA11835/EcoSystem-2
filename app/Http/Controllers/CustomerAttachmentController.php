@@ -155,7 +155,7 @@ class CustomerAttachmentController extends Controller
                 auditableId: $attachmentId,
                 event: 'created',
                 recordLabel: $request->document_title,
-                description: "added Customer Attachment: {$request->document_title} — Customer #{$customerId}",
+                description: "added Customer Attachment: {$request->document_title} - Customer #{$customerId}",
                 old: null,
                 new: $attachmentData,
             );
@@ -209,7 +209,7 @@ class CustomerAttachmentController extends Controller
         }
 
         try {
-            // Snapshot before update — needed for the audit log entry below.
+            // Snapshot before update - needed for the audit log entry below.
             $existingAttachment = DB::table('customer_attachment')
                 ->where('customer_id', $customerId)
                 ->where('attachment_id', $attachmentId)
@@ -242,7 +242,7 @@ class CustomerAttachmentController extends Controller
                 auditableId: $attachmentId,
                 event: 'updated',
                 recordLabel: $label,
-                description: "updated Customer Attachment: {$label} — Customer #{$customerId}",
+                description: "updated Customer Attachment: {$label} - Customer #{$customerId}",
                 old: (array) $existingAttachment,
                 new: $updateData,
             );
@@ -310,7 +310,7 @@ class CustomerAttachmentController extends Controller
                 auditableId: $attachmentId,
                 event: 'deleted',
                 recordLabel: $label,
-                description: "deleted Customer Attachment: {$label} — Customer #{$customerId}",
+                description: "deleted Customer Attachment: {$label} - Customer #{$customerId}",
                 old: (array) $attachment,
                 new: null,
             );

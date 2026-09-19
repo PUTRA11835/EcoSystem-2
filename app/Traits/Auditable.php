@@ -37,4 +37,18 @@ trait Auditable
     {
         return array_merge($this->hidden ?? [], static::$auditExcept ?? []);
     }
+
+    /**
+     * Attribute names left out of the audit trail entirely (not even
+     * redacted) - for system-touched bookkeeping columns that change on
+     * nearly every request but carry no audit value (e.g. a "last activity"
+     * cache column bumped on every incoming message). Unlike
+     * auditExcludedAttributes(), a change to one of these never appears in
+     * the change summary and, if it's the only thing that changed, no audit
+     * row is written at all.
+     */
+    public function auditIgnoredAttributes(): array
+    {
+        return static::$auditIgnore ?? [];
+    }
 }

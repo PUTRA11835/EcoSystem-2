@@ -26,6 +26,19 @@
 
     #aiInput { max-height: 200px; }
 
+    /* Sidebar riwayat. Di layar lebar ia kolom biasa; di layar sempit ruang
+       tidak cukup untuk dua kolom, jadi ia muncul sebagai drawer melayang —
+       pola sama persis dengan #airHistory di ai/research.blade.php. Selektor
+       ber-id dipakai supaya menang atas .hidden milik Tailwind. */
+    @media (max-width: 1023px) {
+        #aiHistory.is-open {
+            display: flex; position: fixed; z-index: 60;
+            top: 5.5rem; left: .75rem; bottom: 1rem; width: 17rem;
+            box-shadow: 0 12px 40px rgba(0,0,0,.18);
+        }
+    }
+    .ai-history-item.is-active { background: rgba(220,38,38,.08); border-color: #fecaca; }
+
     /* Isi jawaban assistant dirender dari markdown (lihat aiRenderMarkdown). */
     .ai-prose p { margin: 0 0 .6rem; }
     .ai-prose p:last-child, .ai-prose > *:last-child { margin-bottom: 0; }
@@ -77,6 +90,42 @@
 
 <div class="ai-shell flex gap-4">
 
+    {{-- ── Riwayat percakapan ───────────────────────────────────────────────
+         Isinya hanya milik user yang login — tidak ada jalur untuk melihat
+         riwayat orang lain, termasuk untuk admin (lihat AiAssistantController::
+         conversations()). Tersimpan di server (bukan sessionStorage), jadi
+         tetap tampak kalau login dari device/browser lain. --}}
+    <aside id="aiHistory" class="hidden lg:flex w-64 shrink-0 flex-col bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div class="flex items-center gap-2 px-3 py-3 border-b border-gray-100">
+            <h3 class="flex-1 text-xs font-bold text-gray-900">History</h3>
+            <button type="button" onclick="aiNewChat()" title="Start a new chat"
+                    class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-600 text-white text-[10px] font-semibold hover:bg-red-700 transition-all">
+                <i class="fas fa-plus text-[9px]"></i> New
+            </button>
+            <button type="button" onclick="aiToggleHistory()" title="Close"
+                    class="lg:hidden w-6 h-6 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100">
+                <i class="fas fa-xmark text-[11px]"></i>
+            </button>
+        </div>
+
+        <div class="px-3 pt-2.5 pb-2 border-b border-gray-100">
+            <div class="relative">
+                <i class="fas fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-300"></i>
+                <input type="text" id="aiHistorySearch" placeholder="Search chats…" autocomplete="off"
+                       oninput="aiRenderHistory(aiFilteredHistory())"
+                       class="w-full pl-7 pr-2.5 py-1.5 rounded-lg border border-gray-200 text-[11px] text-gray-700 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300">
+            </div>
+        </div>
+
+        <div id="aiHistoryList" class="flex-1 overflow-y-auto ai-scroll px-2 py-2 space-y-1">
+            <p class="px-2 py-6 text-center text-[11px] text-gray-400">Loading…</p>
+        </div>
+
+        <p class="px-3 py-2.5 border-t border-gray-100 text-[10px] text-gray-400 leading-snug">
+            Only you can see these, from any device you log in on.
+        </p>
+    </aside>
+
     {{-- ── Panel chat ───────────────────────────────────────────────────────── --}}
     <section class="flex-1 min-w-0 flex flex-col bg-white rounded-2xl border border-gray-200 overflow-hidden">
 
@@ -96,6 +145,10 @@
             </div>
 
             <div class="flex items-center gap-1.5">
+                <button type="button" onclick="aiToggleHistory()" title="Conversation history"
+                        class="lg:hidden w-8 h-8 inline-flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
+                    <i class="fas fa-clock-rotate-left text-xs"></i>
+                </button>
                 {{-- Pemilih model DIHAPUS: modelnya ditentukan super admin di
                      Control Center → AI Settings, sama untuk semua orang. --}}
                 <button type="button" onclick="aiNewChat()" title="Clear conversation"
@@ -220,6 +273,14 @@
    never re-fetched after a reload. aiOpenConversation() (called from
    DOMContentLoaded when a saved id exists) fixes that by pulling the archived
    transcript from GET /ai-assistant/conversations/{id} and re-rendering it.
+
+   sessionStorage only ever remembers "which conversation is active in THIS
+   tab" — it never carries across devices/browsers on its own. The History
+   sidebar (aiLoadHistory() et al., mirroring ai/research.blade.php's) is what
+   makes past conversations reachable from anywhere: it lists straight from
+   the server-side archive (AiAssistantController::conversations(), keyed by
+   employee_id, not by device), so logging in on a different device and
+   opening History shows the same chats.
    ────────────────────────────────────────────────────────────────────────── */
 
 const AI_MAX_CHARS = 4000;
@@ -227,6 +288,8 @@ const AI_CHAT_ENDPOINT = @json(route('ai-assistant.chat'));
 /* {id} diganti saat dipakai — route() butuh parameter, dan menyusun URL-nya
    di sisi JS dengan string mentah gampang salah kalau prefiks app berubah. */
 const AI_CONV_ENDPOINT = @json(route('ai-assistant.conversation', ['conversation' => '__ID__']));
+const AI_LIST_ENDPOINT = @json(route('ai-assistant.conversations'));
+const AI_DELETE_ENDPOINT = @json(route('ai-assistant.conversation.delete', ['conversation' => '__ID__']));
 const AI_CONVERSATION_STORAGE_KEY = 'ai_conversation_id';
 
 /* Ambang "ini tempelan, bukan ketikan". Di atas salah satu angka ini, teks
@@ -1133,12 +1196,106 @@ function aiNewChat() {
     // be explicitly torn down beyond dropping the id.
     aiConversationId = null;
     sessionStorage.removeItem(AI_CONVERSATION_STORAGE_KEY);
+    aiMarkActive(null);
 
     const input = document.getElementById('aiInput');
     input.value = '';
     input.placeholder = aiRandomPlaceholder();
     aiAutoGrow(input);
     input.focus();
+}
+
+/* ── Riwayat ───────────────────────────────────────────────────────────
+   Percakapan disimpan di server (ai_conversations, assistant 'internal') dan
+   hanya bisa dilihat pemiliknya — dari device/browser mana pun dia login,
+   bukan cuma tab yang memulainya. Pola sama persis dengan History milik
+   ai/research.blade.php (fungsi air*), cuma prefiks-nya "ai" di sini.
+   ────────────────────────────────────────────────────────────────────── */
+
+let aiHistoryItems = [];
+
+async function aiLoadHistory() {
+    const box = document.getElementById('aiHistoryList');
+
+    try {
+        const res = await fetch(AI_LIST_ENDPOINT, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        aiHistoryItems = (await res.json()).items || [];
+        aiRenderHistory(aiFilteredHistory());
+    } catch {
+        box.innerHTML = '<p class="px-2 py-6 text-center text-[11px] text-gray-400">Could not load history.</p>';
+    }
+}
+
+/* Pencarian murni di klien: 100 item terakhir sudah dimuat sekali lewat
+   aiLoadHistory(), jadi mengetik di kotak cari tidak perlu roundtrip baru —
+   cukup saring ulang array yang sudah ada lalu render lagi. */
+function aiFilteredHistory() {
+    const q = (document.getElementById('aiHistorySearch')?.value || '').trim().toLowerCase();
+    if (!q) return aiHistoryItems;
+
+    return aiHistoryItems.filter(item => (item.title || '').toLowerCase().includes(q));
+}
+
+function aiRenderHistory(items) {
+    const box = document.getElementById('aiHistoryList');
+
+    if (aiHistoryItems.length === 0) {
+        box.innerHTML = '<p class="px-2 py-6 text-center text-[11px] text-gray-400">No saved conversations yet.</p>';
+        return;
+    }
+
+    if (items.length === 0) {
+        box.innerHTML = '<p class="px-2 py-6 text-center text-[11px] text-gray-400">No chats match your search.</p>';
+        return;
+    }
+
+    box.innerHTML = items.map(item => `
+        <div class="ai-history-item group flex items-start gap-1 rounded-xl border border-transparent hover:bg-gray-50 transition-all"
+             data-ai-conv="${aiEsc(item.id)}">
+            <button type="button" onclick="aiOpenConversation('${aiEsc(item.id)}')"
+                    class="flex-1 min-w-0 text-left px-2.5 py-2">
+                <span class="block text-[11px] font-semibold text-gray-700 truncate">${aiEsc(item.title)}</span>
+                <span class="block text-[10px] text-gray-400 mt-0.5">${aiEsc(aiHistoryDate(item.updated_at))}</span>
+            </button>
+            <button type="button" onclick="aiDeleteConversation('${aiEsc(item.id)}', ${aiAttr(item.title)})" title="Delete"
+                    class="w-6 h-6 mt-2 mr-1.5 shrink-0 inline-flex items-center justify-center rounded-lg text-gray-300 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-gray-600 transition-all">
+                <i class="fas fa-trash text-[9px]"></i>
+            </button>
+        </div>`).join('');
+
+    aiMarkActive(aiConversationId);
+}
+
+/* Judul percakapan adalah teks user, jadi ia bisa memuat kutip atau backslash.
+   JSON.stringify membuat literal JS yang aman, aiEsc menjaganya tetap utuh
+   sebagai atribut HTML. */
+function aiAttr(value) {
+    return aiEsc(JSON.stringify(String(value ?? '')));
+}
+
+function aiHistoryDate(iso) {
+    if (!iso) return '';
+
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    const sameYear = d.getFullYear() === today.getFullYear();
+    return d.toLocaleDateString([], sameYear
+        ? { day: '2-digit', month: 'short' }
+        : { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function aiMarkActive(id) {
+    document.querySelectorAll('.ai-history-item').forEach(el => {
+        el.classList.toggle('is-active', !!id && el.dataset.aiConv === id);
+    });
 }
 
 /**
@@ -1188,10 +1345,44 @@ async function aiOpenConversation(id, silent = false) {
             });
         }
 
+        aiMarkActive(data.id);
+        aiCloseHistoryDrawer();
         document.getElementById('aiInput').focus();
     } catch {
         if (!silent) showToast('Could not open that conversation.', 'error');
     }
+}
+
+async function aiDeleteConversation(id, title) {
+    if (!await showConfirm('Delete "' + title + '"? This cannot be undone.', 'Delete Conversation', 'danger')) return;
+
+    try {
+        const res = await fetch(AI_DELETE_ENDPOINT.replace('__ID__', encodeURIComponent(id)), {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': aiCsrfToken(), 'Accept': 'application/json' },
+        });
+
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        // Menghapus percakapan yang sedang dibuka juga harus membersihkan layar,
+        // kalau tidak user masih melihat isi sesuatu yang sudah tidak ada.
+        if (aiConversationId === id) aiNewChat();
+
+        aiLoadHistory();
+        showToast('Conversation deleted.', 'success');
+    } catch {
+        showToast('Could not delete that conversation.', 'error');
+    }
+}
+
+/* ── Drawer riwayat (layar sempit) ─────────────────────────────────────── */
+
+function aiToggleHistory() {
+    document.getElementById('aiHistory').classList.toggle('is-open');
+}
+
+function aiCloseHistoryDrawer() {
+    document.getElementById('aiHistory').classList.remove('is-open');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1200,6 +1391,8 @@ document.addEventListener('DOMContentLoaded', () => {
     aiAutoGrow(input);
     document.getElementById('aiGreeting').textContent = aiGreeting();
     input.focus();
+
+    aiLoadHistory();
 
     // Switching menus and coming back no longer means losing the chat: this
     // tab's conversation id (if any) is reloaded from the archive.

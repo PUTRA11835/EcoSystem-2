@@ -248,4 +248,82 @@ class TableAccess
 
         return $row;
     }
+
+    /**
+     * Ticket yang di-hide (Ticket::is_hidden — lihat tombol Hide/Unhide di
+     * ticket/show.blade.php, permission ticket.hide) TIDAK PERNAH boleh
+     * terhitung lewat query_data/aggregate_data, dan begitu juga SELURUH
+     * data yang menempel padanya (SLA, mandays, attachment, message, dst) —
+     * bukan cuma baris ticket itu sendiri. Dua kasus:
+     *
+     *   - $table === 'ticket' sendiri → whereNull('is_hidden') langsung.
+     *   - tabel lain yang punya FOREIGN KEY sungguhan ke ticket.ticket_id
+     *     (lihat ticketForeignKeyColumn() — 24 tabel per audit skema saat
+     *     ini: ticket_message, ticket_sla, timesheets, dst) → buang baris
+     *     yang ticket_id-nya menunjuk ke ticket yang sedang di-hide.
+     *
+     * Sengaja dibatasi ke kolom yang BENAR-BENAR constrained FK ke ticket
+     * (bukan "tabel mana pun yang punya kolom bernama ticket_id") — dua
+     * tabel di skema ini (notifications, ticket_reads) punya kolom
+     * ticket_id tanpa FK constraint, jadi maknanya tidak bisa dipastikan
+     * sama; lebih aman diam daripada menebak dan salah membuang data yang
+     * tidak terkait.
+     *
+     * Dipanggil terpisah dari authorizeQuery() (bukan digabung) karena
+     * gerbang izin per-tabel di atas bisa MENOLAK query sama sekali,
+     * sedangkan ini hanya MENYARING baris — keduanya independen dan caller
+     * (QueryDataTool/AggregateDataTool) memanggil dua-duanya.
+     */
+    public static function excludeHiddenTickets(string $table, Builder $query): void
+    {
+        if ('ticket' === $table) {
+            $query->whereNull('is_hidden');
+
+            return;
+        }
+
+        $column = self::ticketForeignKeyColumn($table);
+        if (!$column) {
+            return;
+        }
+
+        // whereNull($column) OR whereNotIn(...) — bukan whereNotIn() polos:
+        // kolom FK ini nullable di beberapa tabel (mis. staging_tickets.ticket_id
+        // sebelum di-approve), dan "NULL NOT IN (subquery)" di SQL adalah
+        // UNKNOWN (bukan true), yang oleh MySQL diperlakukan sebagai false —
+        // baris ber-ticket_id NULL akan ikut terbuang meski sama sekali tidak
+        // menempel ke ticket manapun, apalagi ke yang di-hide.
+        $query->where(function ($q) use ($column) {
+            $q->whereNull($column)
+                ->orWhereNotIn($column, function ($sub) {
+                    $sub->select('ticket_id')->from('ticket')->whereNotNull('is_hidden');
+                });
+        });
+    }
+
+    /**
+     * Kolom di $table yang FK-nya menunjuk ke ticket.ticket_id, kalau ada —
+     * dibaca dari information_schema (bukan daftar statis digenggam tangan)
+     * supaya tabel baru yang menambahkan FK ke ticket di migrasi nanti
+     * otomatis ikut tersaring tanpa perlu ingat memperbarui berkas ini.
+     * Di-cache per REQUEST (static, bukan Cache facade) — cukup untuk
+     * menghindari query information_schema berulang dalam satu giliran
+     * tool-loop yang bisa memanggil query_data/aggregate_data berkali-kali.
+     */
+    private static function ticketForeignKeyColumn(string $table): ?string
+    {
+        static $map = null;
+
+        if (null === $map) {
+            $map = [];
+            foreach (DB::select(
+                "SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE "
+                . "WHERE REFERENCED_TABLE_NAME = 'ticket' AND TABLE_SCHEMA = DATABASE()"
+            ) as $row) {
+                $map[$row->TABLE_NAME] = $row->COLUMN_NAME;
+            }
+        }
+
+        return $map[$table] ?? null;
+    }
 }

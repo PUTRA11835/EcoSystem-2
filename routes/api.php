@@ -710,6 +710,18 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/sessions', [AdminSessionController::class, 'destroyAll']);
         Route::post('/sessions/delete-all', [AdminSessionController::class, 'destroyAll']);
 
+        // Security Center
+        Route::get('/security-events', [\App\Http\Controllers\SecurityCenterController::class, 'getData']);
+        Route::get('/security-events/event-types', [\App\Http\Controllers\SecurityCenterController::class, 'eventTypes']);
+        Route::get('/security-events/blocked-ips', [\App\Http\Controllers\SecurityCenterController::class, 'blockedIps']);
+        Route::get('/security-events/top-offenders', [\App\Http\Controllers\SecurityCenterController::class, 'topOffenders']);
+        Route::get('/security-events/export', [\App\Http\Controllers\SecurityCenterController::class, 'exportCsv']);
+        Route::post('/security-events/{id}/resolve', [\App\Http\Controllers\SecurityCenterController::class, 'resolve']);
+        Route::post('/security-events/unlock-account', [\App\Http\Controllers\SecurityCenterController::class, 'unlockAccount']);
+        Route::post('/security-events/block-ip', [\App\Http\Controllers\SecurityCenterController::class, 'blockIp']);
+        Route::post('/security-events/unblock-ip', [\App\Http\Controllers\SecurityCenterController::class, 'unblockIp']);
+        Route::post('/security-events/force-logout', [\App\Http\Controllers\SecurityCenterController::class, 'forceLogoutAccount']);
+
         // DB Backup
         Route::get('/backup/list', [AdminBackupController::class, 'listBackups']);
         Route::post('/backup/create', [AdminBackupController::class, 'createBackup']);
@@ -731,6 +743,7 @@ Route::middleware(['web'])->group(function () {
 
         // Failed Job Monitor
         Route::get('/failed-jobs', [AdminJobController::class, 'index']);
+        Route::get('/failed-jobs/queues', [AdminJobController::class, 'queues']);
         Route::get('/failed-jobs/{uuid}', [AdminJobController::class, 'show']);
         Route::post('/failed-jobs/{uuid}/retry', [AdminJobController::class, 'retry']);
         Route::post('/failed-jobs/retry-all', [AdminJobController::class, 'retryAll']);
@@ -738,6 +751,11 @@ Route::middleware(['web'])->group(function () {
         Route::post('/failed-jobs/{uuid}/delete', [AdminJobController::class, 'destroy']);
         Route::delete('/failed-jobs', [AdminJobController::class, 'clearAll']);
         Route::post('/failed-jobs/clear', [AdminJobController::class, 'clearAll']);
+
+        // Schedule Monitor
+        Route::get('/schedule-monitor', [\App\Http\Controllers\ScheduleMonitorController::class, 'index']);
+        Route::get('/schedule-monitor/runs', [\App\Http\Controllers\ScheduleMonitorController::class, 'getRuns']);
+        Route::get('/schedule-monitor/queue-health', [\App\Http\Controllers\ScheduleMonitorController::class, 'queueHealth']);
     });
 
     // ── SLA ────────────────────────────────────────────────────────────────

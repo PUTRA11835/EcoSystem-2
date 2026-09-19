@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Support\AiModelSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -51,6 +52,8 @@ class AiSettingsController extends Controller
             'assistants' => 'required|array',
         ]);
 
+        $before = AiModelSettings::all();
+
         AiModelSettings::save($request->input('assistants', []));
 
         $applied = AiModelSettings::all();
@@ -61,10 +64,31 @@ class AiSettingsController extends Controller
         // setiap asisten yang ditambahkan ke AiModelSettings ikut menagih, dan
         // daftar tetap di sini membuat asisten baru (mis. AI Summarize) hilang
         // dari jejak audit tanpa ada yang sadar.
+        //
+        // Ditulis ke audit_logs (bukan cuma Log::info) supaya benar-benar
+        // muncul di halaman Audit Log Control Center, bukan cuma di file log
+        // aplikasi yang jarang dibuka admin.
         Log::info('AI model settings updated', [
             'by' => session('user.name'),
             'settings' => $applied,
         ]);
+
+        // auditable_id is an unsignedBigInteger column - AppConfig rows have
+        // a real numeric id (unlike the string ->KEY), 0 is only a fallback
+        // for the near-impossible case AiModelSettings::save() just above
+        // didn't actually persist a row.
+        $configId = \App\Models\AppConfig::where('key', AiModelSettings::KEY)->value('id') ?? 0;
+
+        AuditLog::recordAction(
+            module: 'AI Settings',
+            auditableType: 'AppConfig',
+            auditableId: $configId,
+            event: 'updated',
+            recordLabel: 'AI model settings',
+            description: 'updated AI model settings',
+            old: $before,
+            new: $applied,
+        );
 
         return redirect()
             ->route('admin.ai-settings')

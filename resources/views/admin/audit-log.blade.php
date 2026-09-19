@@ -27,19 +27,19 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="statsRow">
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p class="text-xs text-gray-500 mb-1">Total Records</p>
-            <p class="text-2xl font-bold text-gray-900" id="statTotal">—</p>
+            <p class="text-2xl font-bold text-gray-900" id="statTotal">-</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p class="text-xs text-gray-500 mb-1">Created</p>
-            <p class="text-2xl font-bold text-green-600" id="statCreated">—</p>
+            <p class="text-2xl font-bold text-green-600" id="statCreated">-</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p class="text-xs text-gray-500 mb-1">Updated</p>
-            <p class="text-2xl font-bold text-blue-600" id="statUpdated">—</p>
+            <p class="text-2xl font-bold text-blue-600" id="statUpdated">-</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p class="text-xs text-gray-500 mb-1">Deleted</p>
-            <p class="text-2xl font-bold text-red-600" id="statDeleted">—</p>
+            <p class="text-2xl font-bold text-red-600" id="statDeleted">-</p>
         </div>
     </div>
 
@@ -98,56 +98,68 @@
                             </div>
                         </th>
 
-                        {{-- MODULE: single-select dropdown --}}
+                        {{-- MODULE: single-select dropdown, sortable --}}
                         <th class="p-0 whitespace-nowrap">
-                            <div class="custom-dd relative w-full" id="ddModule" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3 text-left hover:bg-gray-100 transition-colors">
-                                    <span class="custom-dd-label text-xs font-semibold text-gray-600">Module</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            <div class="flex items-center">
+                                <button type="button" onclick="toggleSort('module')" class="flex items-center gap-1 pl-4 pr-1 py-3 hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-600">Module</span>
+                                    <span class="sort-icon text-[10px] text-gray-300" data-sort="module">&#9650;</span>
                                 </button>
-                                <input type="hidden" id="filterModule" value="">
-                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5" style="min-width:180px;">
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Modules</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Employee">Employee</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Customer">Customer</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Delivery Project">Delivery Project</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Delivery Support">Delivery Support</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Ticket">Ticket</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Mandays">Mandays</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Reporting Period">Reporting Period</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Calendar">Calendar</button>
+                                <div class="custom-dd relative" id="ddModule" data-fixed="true" data-onchange="applyFilters">
+                                    <button type="button" class="custom-dd-btn flex items-center px-2 py-3 hover:bg-gray-100 transition-colors">
+                                        <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="filterModule" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5" style="min-width:180px;" id="moduleOptions">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Modules</button>
+                                    </div>
                                 </div>
                             </div>
                         </th>
 
-                        {{-- EVENT: single-select dropdown --}}
+                        {{-- EVENT: single-select dropdown, sortable --}}
                         <th class="p-0 whitespace-nowrap">
-                            <div class="custom-dd relative w-full" id="ddEvent" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3 text-left hover:bg-gray-100 transition-colors">
-                                    <span class="custom-dd-label text-xs font-semibold text-gray-600">Event</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            <div class="flex items-center">
+                                <button type="button" onclick="toggleSort('event')" class="flex items-center gap-1 pl-4 pr-1 py-3 hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-600">Event</span>
+                                    <span class="sort-icon text-[10px] text-gray-300" data-sort="event">&#9650;</span>
                                 </button>
-                                <input type="hidden" id="filterEvent" value="">
-                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5" style="min-width:160px;">
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Events</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="created">Created</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="updated">Updated</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="deleted">Deleted</button>
+                                <div class="custom-dd relative" id="ddEvent" data-fixed="true" data-onchange="applyFilters">
+                                    <button type="button" class="custom-dd-btn flex items-center px-2 py-3 hover:bg-gray-100 transition-colors">
+                                        <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="filterEvent" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5" style="min-width:160px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Events</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="created">Created</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="updated">Updated</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="deleted">Deleted</button>
+                                    </div>
                                 </div>
                             </div>
                         </th>
 
-                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Actor</th>
-
-                        {{-- TIME: date range popover --}}
                         <th class="p-0 whitespace-nowrap">
-                            <button type="button" id="timeFilterBtn" onclick="toggleHeaderFilter('timeFilterPanel', this)"
-                                class="hdr-filter-btn w-full flex items-center gap-1.5 px-4 py-3 text-left hover:bg-gray-100 transition-colors">
-                                <span class="text-xs font-semibold text-gray-600">Time (WIB)</span>
-                                <svg id="timeFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
-                                </svg>
+                            <button type="button" onclick="toggleSort('actor_name')" class="flex items-center gap-1 px-4 py-3 hover:bg-gray-100 transition-colors w-full text-left">
+                                <span class="text-xs font-semibold text-gray-600">Actor</span>
+                                <span class="sort-icon text-[10px] text-gray-300" data-sort="actor_name">&#9650;</span>
                             </button>
+                        </th>
+
+                        {{-- TIME: date range popover + sort --}}
+                        <th class="p-0 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <button type="button" onclick="toggleSort('time')" class="flex items-center gap-1 pl-4 pr-1 py-3 hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-600">Time (WIB)</span>
+                                    <span class="sort-icon text-[10px] text-gray-300" data-sort="time">&#9650;</span>
+                                </button>
+                                <button type="button" id="timeFilterBtn" onclick="toggleHeaderFilter('timeFilterPanel', this)"
+                                    class="hdr-filter-btn flex items-center px-2 py-3 hover:bg-gray-100 transition-colors">
+                                    <svg id="timeFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
                             <div id="timeFilterPanel" class="hdr-filter-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:240px;">
                                 <div class="space-y-2">
                                     <div>
@@ -208,11 +220,58 @@
     $customDdPath = public_path('js/custom-dropdown.js');
     $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 @endphp
-<script src="/js/custom-dropdown.js?v={{ $customDdVer }}" onerror="window.__customDdLoadFailed=true;console.error('custom-dropdown.js gagal dimuat — dropdown filter akan jalan tanpa custom UI');"></script>
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}" onerror="window.__customDdLoadFailed=true;console.error('custom-dropdown.js gagal dimuat - dropdown filter akan jalan tanpa custom UI');"></script>
 <script>
 let currentPage  = 1;
 let currentPerPage = 25;
 let currentFilters = {};
+let currentSort  = { by: 'time', dir: 'desc' };
+
+// ─── Sorting ──────────────────────────────────────────────────────────────────
+function toggleSort(column) {
+    if (currentSort.by === column) {
+        currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort = { by: column, dir: 'asc' };
+    }
+    updateSortIndicators();
+    loadTable(1);
+}
+
+function updateSortIndicators() {
+    document.querySelectorAll('.sort-icon').forEach(el => {
+        if (el.dataset.sort === currentSort.by) {
+            el.innerHTML = currentSort.dir === 'asc' ? '&#9650;' : '&#9660;';
+            el.classList.remove('text-gray-300');
+            el.classList.add('text-red-600');
+        } else {
+            el.classList.remove('text-red-600');
+            el.classList.add('text-gray-300');
+        }
+    });
+}
+
+// ─── Load module filter options ────────────────────────────────────────────────
+async function loadModuleOptions() {
+    try {
+        const res  = await fetch('/api/admin/audit-logs/modules', { credentials: 'same-origin' });
+        const json = await res.json();
+        if (!json.success) return;
+
+        const panel = document.getElementById('moduleOptions');
+        json.data.forEach(m => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors';
+            btn.dataset.value = m;
+            btn.textContent = m;
+            panel.appendChild(btn);
+        });
+        if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
+    } catch (e) {
+        console.error('loadModuleOptions error:', e);
+    }
+}
 
 // ─── Load stats ───────────────────────────────────────────────────────────────
 async function loadStats() {
@@ -237,6 +296,8 @@ async function loadTable(page = 1) {
     const params = new URLSearchParams({
         page,
         per_page: currentPerPage,
+        sort_by: currentSort.by,
+        sort_dir: currentSort.dir,
         ...currentFilters,
     });
 
@@ -263,7 +324,7 @@ async function loadTable(page = 1) {
             return;
         }
 
-        infoEl.textContent = `Showing ${((meta.current_page - 1) * meta.per_page) + 1}–${Math.min(meta.current_page * meta.per_page, meta.total)} of ${meta.total.toLocaleString('id-ID')}`;
+        infoEl.textContent = `Showing ${((meta.current_page - 1) * meta.per_page) + 1}-${Math.min(meta.current_page * meta.per_page, meta.total)} of ${meta.total.toLocaleString('id-ID')}`;
 
         tbody.innerHTML = rows.map((row, idx) => {
             const eventBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${eventColorClass(row.event)}">${escHtml(row.event_label)}</span>`;
@@ -273,8 +334,8 @@ async function loadTable(page = 1) {
             return `<tr class="border-t border-gray-50 hover:bg-gray-50 transition-colors">
                 <td class="px-4 py-3 text-xs text-gray-400">${rowNum}</td>
                 <td class="px-4 py-3">
-                    <div class="font-medium text-gray-900 text-sm">${escHtml(row.actor_name)} ${escHtml(row.description !== '-' ? row.description : ('updated ' + row.module + ': ' + row.record_label))}</div>
-                    <div class="text-xs text-gray-400 mt-0.5">${escHtml(row.auditable_type)} #${row.auditable_id}</div>
+                    <div class="font-medium text-gray-900 text-sm">${escHtml(row.description !== '-' ? row.description : ('updated ' + row.module + ': ' + row.record_label))}</div>
+                    <div class="text-xs text-gray-400 mt-0.5">${escHtml(row.auditable_label)} #${row.auditable_id}</div>
                 </td>
                 <td class="px-4 py-3 text-xs text-gray-700">${escHtml(row.module)}</td>
                 <td class="px-4 py-3">${eventBadge}</td>
@@ -287,7 +348,7 @@ async function loadTable(page = 1) {
                                 data-new="${escAttr(JSON.stringify(row.new_values))}"
                                 data-event="${escAttr(row.event)}"
                                 data-label="${escAttr(row.description !== '-' ? row.description : row.record_label)}">View</button>`
-                        : '<span class="text-xs text-gray-300">—</span>'}
+                        : '<span class="text-xs text-gray-300">-</span>'}
                 </td>
             </tr>`;
         }).join('');
@@ -357,6 +418,14 @@ function formatValue(v) {
     return escHtml(String(v));
 }
 
+// "response_status" -> "Response", "ticket_number" -> "Ticket Number", "sla_paused_at" -> "SLA Paused At" - mirrors AuditObserver::humanizeFieldName()/fixAcronyms().
+const FIELD_NAME_ACRONYMS = { Id: 'ID', Sla: 'SLA', Pic: 'PIC', Url: 'URL', Ip: 'IP', Api: 'API', Cc: 'CC', Wricef: 'WRICEF', Sap: 'SAP', Os: 'OS', Ua: 'UA', Qa: 'QA' };
+function humanizeFieldName(key) {
+    const stripped = key.replace(/_status$/, '');
+    const titled = stripped.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return titled.replace(/\b(Id|Sla|Pic|Url|Ip|Api|Cc|Wricef|Sap|Os|Ua|Qa)\b/g, m => FIELD_NAME_ACRONYMS[m]);
+}
+
 // ─── Changes modal ──────────────────────────────────────────────────────────────
 function showChanges(btn) {
     let oldValues = null, newValues = null;
@@ -365,7 +434,7 @@ function showChanges(btn) {
     const event = btn.dataset.event;
     const label = btn.dataset.label;
 
-    document.getElementById('changesModalTitle').textContent = `${label} — ${event.charAt(0).toUpperCase() + event.slice(1)}`;
+    document.getElementById('changesModalTitle').textContent = `${label} - ${event.charAt(0).toUpperCase() + event.slice(1)}`;
 
     const body = document.getElementById('changesModalBody');
 
@@ -373,14 +442,14 @@ function showChanges(btn) {
         const keys = Object.keys(newValues || {}).sort();
         body.innerHTML = keys.length
             ? `<table class="w-full text-xs"><thead><tr class="text-left text-gray-500"><th class="pb-2 pr-3">Field</th><th class="pb-2">Initial Value</th></tr></thead><tbody>${
-                keys.map(k => `<tr class="border-t border-gray-100"><td class="py-1.5 pr-3 font-medium text-gray-700 align-top whitespace-nowrap">${escHtml(k)}</td><td class="py-1.5 text-gray-600 break-all">${formatValue(newValues[k])}</td></tr>`).join('')
+                keys.map(k => `<tr class="border-t border-gray-100"><td class="py-1.5 pr-3 font-medium text-gray-700 align-top whitespace-nowrap">${escHtml(humanizeFieldName(k))}</td><td class="py-1.5 text-gray-600 break-all">${formatValue(newValues[k])}</td></tr>`).join('')
               }</tbody></table>`
             : '<p class="text-xs text-gray-400">No field data recorded.</p>';
     } else if (event === 'deleted') {
         const keys = Object.keys(oldValues || {}).sort();
         body.innerHTML = keys.length
             ? `<table class="w-full text-xs"><thead><tr class="text-left text-gray-500"><th class="pb-2 pr-3">Field</th><th class="pb-2">Value Before Deletion</th></tr></thead><tbody>${
-                keys.map(k => `<tr class="border-t border-gray-100"><td class="py-1.5 pr-3 font-medium text-gray-700 align-top whitespace-nowrap">${escHtml(k)}</td><td class="py-1.5 text-gray-600 break-all">${formatValue(oldValues[k])}</td></tr>`).join('')
+                keys.map(k => `<tr class="border-t border-gray-100"><td class="py-1.5 pr-3 font-medium text-gray-700 align-top whitespace-nowrap">${escHtml(humanizeFieldName(k))}</td><td class="py-1.5 text-gray-600 break-all">${formatValue(oldValues[k])}</td></tr>`).join('')
               }</tbody></table>`
             : '<p class="text-xs text-gray-400">No field data recorded.</p>';
     } else {
@@ -388,7 +457,7 @@ function showChanges(btn) {
         body.innerHTML = keys.length
             ? `<table class="w-full text-xs"><thead><tr class="text-left text-gray-500"><th class="pb-2 pr-3">Field</th><th class="pb-2 pr-3">Before</th><th class="pb-2">After</th></tr></thead><tbody>${
                 keys.map(k => `<tr class="border-t border-gray-100">
-                    <td class="py-1.5 pr-3 font-medium text-gray-700 align-top whitespace-nowrap">${escHtml(k)}</td>
+                    <td class="py-1.5 pr-3 font-medium text-gray-700 align-top whitespace-nowrap">${escHtml(humanizeFieldName(k))}</td>
                     <td class="py-1.5 pr-3 text-red-600 break-all align-top">${formatValue((oldValues || {})[k])}</td>
                     <td class="py-1.5 text-green-700 break-all align-top">${formatValue((newValues || {})[k])}</td>
                 </tr>`).join('')
@@ -558,12 +627,14 @@ document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCustomDropdowns === 'function') {
         initCustomDropdowns();
     } else {
-        console.warn('initCustomDropdowns belum tersedia — dropdown filter dinonaktifkan, tabel tetap dimuat.');
+        console.warn('initCustomDropdowns belum tersedia - dropdown filter dinonaktifkan, tabel tetap dimuat.');
     }
     const moduleBtn = document.querySelector('#ddModule .custom-dd-btn');
     if (moduleBtn) moduleBtn.addEventListener('click', closeHeaderFilters);
     const eventBtn = document.querySelector('#ddEvent .custom-dd-btn');
     if (eventBtn) eventBtn.addEventListener('click', closeHeaderFilters);
+    updateSortIndicators();
+    loadModuleOptions();
     loadStats();
     loadTable(1);
 });

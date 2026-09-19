@@ -21,7 +21,7 @@
     .seg-btn { color: #4b5563; background: #fff; }
     .seg-btn:hover { background: #f9fafb; }
     .seg-btn.active { background: #7f1d1d; border-color: #7f1d1d; color: #fff; }
-    /* Header filter popovers detach to <body> on open — keep them above everything */
+    /* Header filter popovers detach to <body> on open - keep them above everything */
     .hdr-filter-panel { z-index: 9999; }
     /* Jaga ukuran/berat teks label Status konsisten dengan header lain,
        walau custom-dd menimpa class-nya (text-sm) saat item dipilih. */
@@ -34,19 +34,19 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="statsRow">
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p class="text-xs text-gray-500 mb-1">Total Records</p>
-            <p class="text-2xl font-bold text-gray-900" id="statTotal">—</p>
+            <p class="text-2xl font-bold text-gray-900" id="statTotal">-</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p class="text-xs text-gray-500 mb-1">Successful Logins</p>
-            <p class="text-2xl font-bold text-green-600" id="statSuccess">—</p>
+            <p class="text-2xl font-bold text-green-600" id="statSuccess">-</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p class="text-xs text-gray-500 mb-1">Failed Attempts</p>
-            <p class="text-2xl font-bold text-red-600" id="statFailed">—</p>
+            <p class="text-2xl font-bold text-red-600" id="statFailed">-</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p class="text-xs text-gray-500 mb-1">Logouts</p>
-            <p class="text-2xl font-bold text-blue-600" id="statLogout">—</p>
+            <p class="text-2xl font-bold text-blue-600" id="statLogout">-</p>
         </div>
     </div>
 
@@ -86,15 +86,20 @@
                     <tr class="bg-gray-50 text-left">
                         <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">#</th>
 
-                        {{-- USER: keyword search + user type filter popover --}}
+                        {{-- USER: keyword search + user type filter popover, sortable by name --}}
                         <th class="p-0 whitespace-nowrap">
-                            <button type="button" id="userFilterBtn" onclick="toggleHeaderFilter('userFilterPanel', this)"
-                                class="hdr-filter-btn w-full flex items-center gap-1.5 px-4 py-3 text-left hover:bg-gray-100 transition-colors">
-                                <span class="text-xs font-semibold text-gray-600">User</span>
-                                <svg id="userFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
-                                </svg>
-                            </button>
+                            <div class="flex items-center">
+                                <button type="button" onclick="toggleSort('user_name')" class="flex items-center gap-1 pl-4 pr-1 py-3 hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-600">User</span>
+                                    <span class="sort-icon text-[10px] text-gray-300" data-sort="user_name">&#9650;</span>
+                                </button>
+                                <button type="button" id="userFilterBtn" onclick="toggleHeaderFilter('userFilterPanel', this)"
+                                    class="hdr-filter-btn flex items-center px-2 py-3 hover:bg-gray-100 transition-colors">
+                                    <svg id="userFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
                             <div id="userFilterPanel" class="hdr-filter-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:260px;">
                                 <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search</label>
                                 <input type="text" id="filterSearch" placeholder="Name, IP, browser, location…"
@@ -117,37 +122,57 @@
                             </div>
                         </th>
 
-                        {{-- STATUS: single-select dropdown --}}
+                        {{-- STATUS: single-select dropdown, sortable --}}
                         <th class="p-0 whitespace-nowrap">
-                            <div class="custom-dd relative w-full" id="ddStatus" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3 text-left hover:bg-gray-100 transition-colors">
-                                    <span class="custom-dd-label text-xs font-semibold text-gray-600">Status</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            <div class="flex items-center">
+                                <button type="button" onclick="toggleSort('status')" class="flex items-center gap-1 pl-4 pr-1 py-3 hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-600">Status</span>
+                                    <span class="sort-icon text-[10px] text-gray-300" data-sort="status">&#9650;</span>
                                 </button>
-                                <input type="hidden" id="filterStatus" value="">
-                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5" style="min-width:160px;">
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="success">Success</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="failed">Failed</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="logout">Logout</button>
+                                <div class="custom-dd relative" id="ddStatus" data-fixed="true" data-onchange="applyFilters">
+                                    <button type="button" class="custom-dd-btn flex items-center px-2 py-3 hover:bg-gray-100 transition-colors">
+                                        <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="filterStatus" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5" style="min-width:160px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="success">Success</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="failed">Failed</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="logout">Logout</button>
+                                    </div>
                                 </div>
                             </div>
                         </th>
 
-                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">IP Address</th>
+                        <th class="p-0 whitespace-nowrap">
+                            <button type="button" onclick="toggleSort('ip')" class="flex items-center gap-1 px-4 py-3 hover:bg-gray-100 transition-colors w-full text-left">
+                                <span class="text-xs font-semibold text-gray-600">IP Address</span>
+                                <span class="sort-icon text-[10px] text-gray-300" data-sort="ip">&#9650;</span>
+                            </button>
+                        </th>
                         <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Device</th>
                         <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Browser / OS</th>
-                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Location</th>
-
-                        {{-- TIME: date range popover --}}
                         <th class="p-0 whitespace-nowrap">
-                            <button type="button" id="timeFilterBtn" onclick="toggleHeaderFilter('timeFilterPanel', this)"
-                                class="hdr-filter-btn w-full flex items-center gap-1.5 px-4 py-3 text-left hover:bg-gray-100 transition-colors">
-                                <span class="text-xs font-semibold text-gray-600">Time (WIB)</span>
-                                <svg id="timeFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
-                                </svg>
+                            <button type="button" onclick="toggleSort('location')" class="flex items-center gap-1 px-4 py-3 hover:bg-gray-100 transition-colors w-full text-left">
+                                <span class="text-xs font-semibold text-gray-600">Location</span>
+                                <span class="sort-icon text-[10px] text-gray-300" data-sort="location">&#9650;</span>
                             </button>
+                        </th>
+
+                        {{-- TIME: date range popover, sortable --}}
+                        <th class="p-0 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <button type="button" onclick="toggleSort('time')" class="flex items-center gap-1 pl-4 pr-1 py-3 hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-600">Time (WIB)</span>
+                                    <span class="sort-icon text-[10px] text-gray-300" data-sort="time">&#9660;</span>
+                                </button>
+                                <button type="button" id="timeFilterBtn" onclick="toggleHeaderFilter('timeFilterPanel', this)"
+                                    class="hdr-filter-btn flex items-center px-2 py-3 hover:bg-gray-100 transition-colors">
+                                    <svg id="timeFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
                             <div id="timeFilterPanel" class="hdr-filter-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:240px;">
                                 <div class="space-y-2">
                                     <div>
@@ -206,11 +231,36 @@
     $customDdPath = public_path('js/custom-dropdown.js');
     $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 @endphp
-<script src="/js/custom-dropdown.js?v={{ $customDdVer }}" onerror="window.__customDdLoadFailed=true;console.error('custom-dropdown.js gagal dimuat — dropdown filter akan jalan tanpa custom UI');"></script>
+<script src="/js/custom-dropdown.js?v={{ $customDdVer }}" onerror="window.__customDdLoadFailed=true;console.error('custom-dropdown.js gagal dimuat - dropdown filter akan jalan tanpa custom UI');"></script>
 <script>
 let currentPage  = 1;
 let currentPerPage = 25;
 let currentFilters = {};
+let currentSort  = { by: 'time', dir: 'desc' };
+
+// ─── Sorting ──────────────────────────────────────────────────────────────────
+function toggleSort(column) {
+    if (currentSort.by === column) {
+        currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort = { by: column, dir: 'asc' };
+    }
+    updateSortIndicators();
+    loadTable(1);
+}
+
+function updateSortIndicators() {
+    document.querySelectorAll('.sort-icon').forEach(el => {
+        if (el.dataset.sort === currentSort.by) {
+            el.innerHTML = currentSort.dir === 'asc' ? '&#9650;' : '&#9660;';
+            el.classList.remove('text-gray-300');
+            el.classList.add('text-red-600');
+        } else {
+            el.classList.remove('text-red-600');
+            el.classList.add('text-gray-300');
+        }
+    });
+}
 
 // ─── Load stats ───────────────────────────────────────────────────────────────
 async function loadStats() {
@@ -219,7 +269,7 @@ async function loadStats() {
         const data = await res.json();
         if (!data.success) return;
 
-        // Quick summary query — use separate calls with status filter
+        // Quick summary query - use separate calls with status filter
         const [s, f, l] = await Promise.all([
             fetch('/api/admin/activity-logs?per_page=1&status=success', { credentials: 'same-origin' }).then(r => r.json()),
             fetch('/api/admin/activity-logs?per_page=1&status=failed', { credentials: 'same-origin' }).then(r => r.json()),
@@ -227,9 +277,9 @@ async function loadStats() {
         ]);
 
         document.getElementById('statTotal').textContent   = data.meta.total.toLocaleString('id-ID');
-        document.getElementById('statSuccess').textContent = s.meta?.total?.toLocaleString('id-ID') ?? '—';
-        document.getElementById('statFailed').textContent  = f.meta?.total?.toLocaleString('id-ID') ?? '—';
-        document.getElementById('statLogout').textContent  = l.meta?.total?.toLocaleString('id-ID') ?? '—';
+        document.getElementById('statSuccess').textContent = s.meta?.total?.toLocaleString('id-ID') ?? '-';
+        document.getElementById('statFailed').textContent  = f.meta?.total?.toLocaleString('id-ID') ?? '-';
+        document.getElementById('statLogout').textContent  = l.meta?.total?.toLocaleString('id-ID') ?? '-';
     } catch (e) {
         console.error('loadStats error:', e);
     }
@@ -242,6 +292,8 @@ async function loadTable(page = 1) {
     const params = new URLSearchParams({
         page,
         per_page: currentPerPage,
+        sort_by: currentSort.by,
+        sort_dir: currentSort.dir,
         ...currentFilters,
     });
 
@@ -268,7 +320,7 @@ async function loadTable(page = 1) {
             return;
         }
 
-        infoEl.textContent = `Showing ${((meta.current_page - 1) * meta.per_page) + 1}–${Math.min(meta.current_page * meta.per_page, meta.total)} of ${meta.total.toLocaleString('id-ID')}`;
+        infoEl.textContent = `Showing ${((meta.current_page - 1) * meta.per_page) + 1}-${Math.min(meta.current_page * meta.per_page, meta.total)} of ${meta.total.toLocaleString('id-ID')}`;
 
         tbody.innerHTML = rows.map((row, idx) => {
             const statusBadge = statusBadgeHtml(row.status);
@@ -551,7 +603,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCustomDropdowns === 'function') {
         initCustomDropdowns();
     } else {
-        console.warn('initCustomDropdowns belum tersedia — dropdown filter dinonaktifkan, tabel tetap dimuat.');
+        console.warn('initCustomDropdowns belum tersedia - dropdown filter dinonaktifkan, tabel tetap dimuat.');
     }
     // Tandai "All" sebagai user-type default aktif.
     document.querySelectorAll('#userTypeSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.value === ''));
@@ -559,6 +611,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // memakai stopPropagation sehingga listener document tidak ter-trigger).
     const statusBtn = document.querySelector('#ddStatus .custom-dd-btn');
     if (statusBtn) statusBtn.addEventListener('click', closeHeaderFilters);
+    updateSortIndicators();
     loadStats();
     loadTable(1);
 });

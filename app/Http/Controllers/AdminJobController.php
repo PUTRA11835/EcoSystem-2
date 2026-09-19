@@ -25,17 +25,44 @@ class AdminJobController extends Controller
             $perPage = max(1, min((int) $request->get('per_page', 200), 500));
             $page    = max(1, (int) $request->get('page', 1));
             $offset  = ($page - 1) * $perPage;
+            $search  = trim((string) $request->get('search', ''));
+            $queue   = trim((string) $request->get('queue', ''));
 
-            $total = DB::table('failed_jobs')->count();
+            $query = DB::table('failed_jobs');
 
-            $jobs = DB::table('failed_jobs')
-                ->orderByDesc('failed_at')
+            if ($search !== '') {
+                $query->where(function ($q) use ($search) {
+                    $q->where('payload', 'like', "%{$search}%")
+                      ->orWhere('exception', 'like', "%{$search}%")
+                      ->orWhere('queue', 'like', "%{$search}%");
+                });
+            }
+
+            if ($queue !== '') {
+                $query->where('queue', $queue);
+            }
+
+            $total = (clone $query)->count();
+
+            // Allowlisted sort columns only - never pass the request value straight into orderBy().
+            $sortColumns = [
+                'queue' => 'queue',
+                'time'  => 'failed_at',
+            ];
+            $sortBy  = $sortColumns[$request->input('sort_by')] ?? 'failed_at';
+            $sortDir = $request->input('sort_dir') === 'asc' ? 'asc' : 'desc';
+            $query->orderBy($sortBy, $sortDir);
+            if ($sortBy !== 'failed_at') {
+                $query->orderByDesc('failed_at'); // stable tie-break
+            }
+
+            $jobs = $query
                 ->offset($offset)
                 ->limit($perPage)
                 ->get()
                 ->map(function ($job) {
                     $payload = json_decode($job->payload, true);
-                    $job->job_name     = $payload['displayName'] ?? class_basename($payload['job'] ?? 'Unknown');
+                    $job->job_name     = class_basename($payload['displayName'] ?? $payload['job'] ?? 'Unknown');
                     $job->attempts     = $payload['attempts'] ?? 0;
                     $job->queue_name   = $job->queue;
                     $job->exception_short = $this->shortException($job->exception ?? '');
@@ -81,7 +108,7 @@ class AdminJobController extends Controller
                 'connection' => $job->connection,
                 'queue'      => $job->queue,
                 'failed_at'  => $job->failed_at,
-                'job_name'   => $payload['displayName'] ?? 'Unknown',
+                'job_name'   => class_basename($payload['displayName'] ?? 'Unknown'),
                 'attempts'   => $payload['attempts'] ?? 0,
                 'exception'  => $job->exception,
             ],
@@ -187,6 +214,22 @@ class AdminJobController extends Controller
             abort(403);
         }
         return view('admin.failed-jobs');
+    }
+
+    /** Distinct queue names for the filter dropdown. */
+    public function queues()
+    {
+        if (!$this->assertAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $queues = DB::table('failed_jobs')
+            ->select('queue')
+            ->distinct()
+            ->orderBy('queue')
+            ->pluck('queue');
+
+        return response()->json(['success' => true, 'data' => $queues]);
     }
 
     private function shortException(string $exception): string

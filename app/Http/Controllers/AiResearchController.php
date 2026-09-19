@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\RoleId;
 use App\Models\AiConversation;
 use App\Models\AuditLog;
 use App\Models\Employee;
@@ -157,7 +156,11 @@ class AiResearchController extends Controller
      * migration add_ai_research_ticket_button_menu.php untuk alasannya):
      *   1. Permission slug ui.ticket.btn-ai-research — role mana yang BOLEH
      *      memakai fitur ini sama sekali, admin-only default, diatur admin.
-     *   2. isLeadOrMember() ATAU EC Administrator — KE TIKET MANA.
+     *   2. isLeadOrMember() ATAU role privileged (lihat
+     *      TicketTeamAccess::isPrivilegedForAiResearch() — EC Administrator +
+     *      role yang bisa approve di Ticket Validation: Delivery Support
+     *      Head, Delivery Helpdesk, Delivery RPMO Head, Delivery Support
+     *      Manager) — KE TIKET MANA.
      *
      * Wajib DIULANG di sini (bukan cukup disembunyikan di Blade) — kalau
      * tidak, siapa pun yang tahu URL-nya bisa lewati tombolnya sama sekali.
@@ -194,8 +197,8 @@ class AiResearchController extends Controller
             abort(403);
         }
 
-        $isAdmin = $employee->hasRole(RoleId::EC_ADMINISTRATOR->value);
-        if (!TicketTeamAccess::canAccessAiResearch($employee->employee_id, $ticket, $isAdmin)) {
+        $isPrivileged = TicketTeamAccess::isPrivilegedForAiResearch($employee);
+        if (!TicketTeamAccess::canAccessAiResearch($employee->employee_id, $ticket, $isPrivileged)) {
             abort(403);
         }
 
@@ -518,7 +521,27 @@ class AiResearchController extends Controller
     }
 
     /**
-     * Daftar percakapan milik user yang sedang login.
+     * Daftar percakapan yang boleh dilihat user yang sedang login — dua
+     * bagian, di-UNION lewat orWhere (lihat AiConversation untuk arti
+     * ticket_id NULL vs terisi):
+     *   - Room PRIVAT (ticket_id NULL): cuma milik sendiri (employee_id baris
+     *     = employee yang login), sama seperti sebelumnya.
+     *   - Room BERSAMA (ticket_id terisi): SEMUA yang boleh mengaksesnya
+     *     lewat TicketTeamAccess::canAccessAiResearch() — bukan cuma
+     *     employee_id baris itu (sekadar metadata "siapa yang memicu
+     *     pembuatan", lihat docblock AiConversation). Kalau tidak begini,
+     *     anggota tim lain yang room-nya dibuat otomatis saat approve (atau
+     *     oleh rekan setimnya lewat tombol "Ask AI Research") tidak akan
+     *     pernah melihatnya muncul di sidebar History mereka sendiri, walau
+     *     mereka tetap BISA membukanya langsung lewat tombol di halaman
+     *     tiket — gerbang baca sebenarnya tetap di resolveConversation(),
+     *     query ini cuma soal kemunculan di daftar.
+     *
+     * Role privileged (isPrivilegedForAiResearch()) lolos syarat lead/member
+     * tiket, persis seperti saat membuka satu percakapan — konsisten dengan
+     * gerbang baca, supaya sidebar tidak pernah menyembunyikan sesuatu yang
+     * sebenarnya boleh dibuka, atau menampilkan sesuatu yang akan 403 kalau
+     * diklik.
      *
      * Sengaja ringkas (judul + waktu): isi percakapan baru diambil saat dibuka,
      * supaya sidebar tetap enteng meski riwayatnya panjang.
@@ -526,9 +549,28 @@ class AiResearchController extends Controller
     public function conversations(): JsonResponse
     {
         $employee = $this->currentEmployee();
+        $isPrivileged = TicketTeamAccess::isPrivilegedForAiResearch($employee);
 
-        $rows = AiConversation::where('employee_id', $employee->employee_id)
-            ->where('assistant', AiConversation::ASSISTANT_RESEARCH)
+        $rows = AiConversation::where('assistant', AiConversation::ASSISTANT_RESEARCH)
+            ->where(function ($query) use ($employee, $isPrivileged) {
+                $query->where(function ($private) use ($employee) {
+                    $private->whereNull('ticket_id')
+                        ->where('employee_id', $employee->employee_id);
+                });
+
+                $query->orWhere(function ($shared) use ($employee, $isPrivileged) {
+                    $shared->whereNotNull('ticket_id');
+
+                    if (!$isPrivileged) {
+                        $shared->whereHas('ticket', function ($ticketQuery) use ($employee) {
+                            $ticketQuery->where('ticket_lead_id', $employee->employee_id)
+                                ->orWhereHas('members', function ($memberQuery) use ($employee) {
+                                    $memberQuery->wherePivot('employee_id', $employee->employee_id);
+                                });
+                        });
+                    }
+                });
+            })
             ->orderByDesc('last_message_at')
             ->limit(100)
             ->get(['conversation_id', 'title', 'model_tier', 'last_message_at', 'ticket_id']);
@@ -680,8 +722,8 @@ class AiResearchController extends Controller
         }
 
         if ($row->ticket_id) {
-            $isAdmin = $employee->hasRole(RoleId::EC_ADMINISTRATOR->value);
-            if (!$row->ticket || !TicketTeamAccess::canAccessAiResearch($employee->employee_id, $row->ticket, $isAdmin)) {
+            $isPrivileged = TicketTeamAccess::isPrivilegedForAiResearch($employee);
+            if (!$row->ticket || !TicketTeamAccess::canAccessAiResearch($employee->employee_id, $row->ticket, $isPrivileged)) {
                 abort(403);
             }
 
