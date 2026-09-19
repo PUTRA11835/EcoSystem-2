@@ -108,6 +108,7 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/{id}', [EmployeeController::class, 'destroy'])->middleware('menu:master.employee.action');
         Route::post('/{id}/delete', [EmployeeController::class, 'destroy'])->middleware('menu:master.employee.action');
         Route::patch('/{id}/change-password', [EmployeeController::class, 'changePassword'])->middleware('menu:master.employee.action');
+        Route::patch('/{id}/change-eci', [EmployeeController::class, 'changeEci'])->middleware('menu:master.employee.action');
         Route::patch('/{id}/change-role', [EmployeeController::class, 'changeRole'])->middleware('menu:master.employee.action');
     });
 
@@ -815,6 +816,22 @@ Route::middleware(['web'])->group(function () {
     Route::put('/management/holidays/{id}',    [\App\Http\Controllers\HolidayManagementController::class, 'update']);
     Route::delete('/management/holidays/{id}', [\App\Http\Controllers\HolidayManagementController::class, 'destroy']);
     Route::post('/management/holidays/{id}/delete', [\App\Http\Controllers\HolidayManagementController::class, 'destroy']);
+
+    // Dropdown config management (Manajemen → Employee → Dropdown Settings) —
+    // generic Employee Information dropdown master data (Position, Division,
+    // Personnel Area/Subarea, Employee Group/Subgroup, Department, and any new
+    // dropdown type added later). See App\Models\DropdownConfig.
+    Route::get('/management/dropdown-configs',              [\App\Http\Controllers\DropdownConfigController::class, 'index']);
+    Route::post('/management/dropdown-configs',              [\App\Http\Controllers\DropdownConfigController::class, 'store']);
+    Route::put('/management/dropdown-configs/{id}',          [\App\Http\Controllers\DropdownConfigController::class, 'update']);
+    Route::delete('/management/dropdown-configs/{id}',       [\App\Http\Controllers\DropdownConfigController::class, 'destroy']);
+    Route::post('/management/dropdown-configs/{id}/delete',  [\App\Http\Controllers\DropdownConfigController::class, 'destroy']);
+
+    Route::get('/management/dropdown-configs/{id}/values',                     [\App\Http\Controllers\DropdownConfigController::class, 'values']);
+    Route::post('/management/dropdown-configs/{id}/values',                    [\App\Http\Controllers\DropdownConfigController::class, 'storeValue']);
+    Route::put('/management/dropdown-configs/{id}/values/{valueId}',           [\App\Http\Controllers\DropdownConfigController::class, 'updateValue']);
+    Route::delete('/management/dropdown-configs/{id}/values/{valueId}',        [\App\Http\Controllers\DropdownConfigController::class, 'destroyValue']);
+    Route::post('/management/dropdown-configs/{id}/values/{valueId}/delete',   [\App\Http\Controllers\DropdownConfigController::class, 'destroyValue']);
 
     // Employee ↔ Role assignment
     // Menentukan role seseorang = menentukan izinnya, jadi digate sama dengan

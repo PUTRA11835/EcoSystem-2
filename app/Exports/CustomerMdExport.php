@@ -30,19 +30,20 @@ class CustomerMdExport implements FromCollection, WithHeadings, WithStyles, Shou
             'delivery_name' => $r['delivery_name'] ?? '-',
             'lead_name'     => $r['lead_name'] ?? 'Unassigned',
             'md_status'     => $r['md_status_label'],
+            'customer_mandays' => $r['customer_mandays'] ?? '-',
             'created_at'    => $r['created_at'] ? $r['created_at']->timezone('Asia/Jakarta')->format('d/m/Y') : '',
         ]);
     }
 
     public function headings(): array
     {
-        return ['Ticket Number', 'Description', 'Ticket Type', 'Customer', 'Delivery', 'Ticket Lead', 'Customer MD Status', 'Created At'];
+        return ['Ticket Number', 'Description', 'Ticket Type', 'Customer', 'Delivery', 'Ticket Lead', 'Customer MD Status', 'Customer Mandays', 'Created At'];
     }
 
     public function styles(Worksheet $sheet): array
     {
         $lastRow = $this->rows->count() + 1;
-        $lastCol = 'H';
+        $lastCol = 'I';
 
         $styles = [
             1 => [
@@ -57,7 +58,7 @@ class CustomerMdExport implements FromCollection, WithHeadings, WithStyles, Shou
             $styles["A{$i}:{$lastCol}{$i}"] = [
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => $argb]],
             ];
-            foreach (['C', 'G', 'H'] as $col) {
+            foreach (['C', 'G', 'H', 'I'] as $col) {
                 $styles["{$col}{$i}"] = ['alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]];
             }
         }

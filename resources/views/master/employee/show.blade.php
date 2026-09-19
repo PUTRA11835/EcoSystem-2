@@ -142,13 +142,19 @@
                             $statusLabel = 'Inactive';
                         }
                     @endphp
-                    <span id="headerStatusBadge" class="inline-block px-4 py-2 text-sm font-semibold rounded-full {{ $statusClass }}">
-                        {{ $statusLabel }}
-                    </span>
-                    @php $empType = $employee->employee_type ?: 'Internal'; @endphp
-                    <span id="headerTypeBadge" class="inline-block mt-2 px-4 py-2 text-sm font-semibold rounded-full {{ $empType === 'External' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700' }}">
-                        {{ $empType }}
-                    </span>
+                    {{-- Grouped so both badges act as ONE flex item next to the name block —
+                         previously they were two separate siblings under `justify-between`,
+                         which spread all three (name block, Active, Internal) apart instead
+                         of keeping the badges together on the right. --}}
+                    <div class="flex items-center gap-2">
+                        <span id="headerStatusBadge" class="inline-block px-4 py-2 text-sm font-semibold rounded-full {{ $statusClass }}">
+                            {{ $statusLabel }}
+                        </span>
+                        @php $empType = $employee->employee_type ?: 'Internal'; @endphp
+                        <span id="headerTypeBadge" class="inline-block px-4 py-2 text-sm font-semibold rounded-full {{ $empType === 'External' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700' }}">
+                            {{ $empType }}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -382,7 +388,7 @@
             if (typeBadge) {
                 const t = d.employee_type || 'Internal';
                 typeBadge.textContent = t;
-                typeBadge.className = 'inline-block mt-2 px-4 py-2 text-sm font-semibold rounded-full ' +
+                typeBadge.className = 'inline-block px-4 py-2 text-sm font-semibold rounded-full ' +
                     (t === 'External' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700');
             }
             document.getElementById('headerEci').textContent         = d.eci          || 'N/A';

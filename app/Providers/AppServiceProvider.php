@@ -2,17 +2,11 @@
 
 namespace App\Providers;
 
-use App\Enums\Division;
-use App\Enums\EmployeeGroup;
-use App\Enums\EmployeeSubgroup;
 use App\Enums\HomeBase;
-use App\Enums\PersonnelArea;
-use App\Enums\PersonnelSubarea;
 use App\Enums\RoleId;
 use App\Models\Customer;
-use App\Models\Department;
+use App\Models\DropdownConfig;
 use App\Models\Grade;
-use App\Models\Position;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
@@ -93,17 +87,33 @@ class AppServiceProvider extends ServiceProvider
             return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
         });
 
-        // Suntik opsi Home Base, Position, Department & 4 enum organisasi ke form
+        // Suntik opsi Home Base & 7 dropdown master data organisasi ke form
         // employee (modal index + section basicdata yang dipakai detail & profile).
-        // Satu sumber per field — view tidak lagi hardcode daftarnya.
+        // Position/Department/Division/Personnel Area/Personnel Subarea/Employee
+        // Group/Employee Subgroup semuanya bersumber dari tabel generik
+        // dropdown_configs/dropdown_config_values (lihat App\Models\DropdownConfig)
+        // — admin-editable lewat halaman Management > Employee > Dropdown Settings,
+        // tanpa perlu migration/deploy tiap kali ada nilai baru. Home Base TETAP
+        // enum PHP karena nilainya dipakai di logic kode (lihat
+        // EmployeeBasicData::deriveEmployeeType()), bukan cuma label tampilan.
         // Catatan: Grade TIDAK lagi dipakai di Basic Data — konsepnya pindah ke
         // "Level" pada Employee Qualification (lihat composer di bawah).
         View::composer(
             ['master.employee.index', 'master.employee.sections.basicdata'],
             function ($view) {
+                $dropdownCodes = ['position', 'department', 'division', 'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup'];
+
                 // Guard: hindari error bila tabel belum ada (mis. saat migrate awal).
-                $positionOptions   = Schema::hasTable('positions') ? Position::options() : [];
-                $departmentOptions = Schema::hasTable('departments') ? Department::options() : [];
+                $hasDropdownTables = Schema::hasTable('dropdown_config_values');
+                $dd = fn (string $code) => $hasDropdownTables ? DropdownConfig::optionsFor($code) : [];
+
+                // Config yang di-nonaktifkan (is_active=false) bukan cuma dikosongkan
+                // opsinya — seluruh blok field-nya disembunyikan dari form Employee
+                // (lihat DropdownConfig::activeMap()). Field dengan config yang belum
+                // ada barisnya (mis. tabel belum ke-migrate) dianggap aktif (fail open).
+                $dropdownFieldActive = $hasDropdownTables
+                    ? DropdownConfig::activeMap($dropdownCodes)
+                    : array_fill_keys($dropdownCodes, true);
 
                 // "Current Assignment" — dropdown-nya diambil dari daftar Business
                 // Partner bertipe Customer (bukan free text lagi), sama sumbernya
@@ -121,13 +131,14 @@ class AppServiceProvider extends ServiceProvider
                     : collect();
 
                 $view->with('homeBaseOptions', HomeBase::options())
-                     ->with('positionOptions', $positionOptions)
-                     ->with('departmentOptions', $departmentOptions)
-                     ->with('divisionOptions', Division::options())
-                     ->with('personnelAreaOptions', PersonnelArea::options())
-                     ->with('personnelSubareaOptions', PersonnelSubarea::options())
-                     ->with('employeeGroupOptions', EmployeeGroup::options())
-                     ->with('employeeSubgroupOptions', EmployeeSubgroup::options())
+                     ->with('positionOptions', $dd('position'))
+                     ->with('departmentOptions', $dd('department'))
+                     ->with('divisionOptions', $dd('division'))
+                     ->with('personnelAreaOptions', $dd('personnel_area'))
+                     ->with('personnelSubareaOptions', $dd('personnel_subarea'))
+                     ->with('employeeGroupOptions', $dd('employee_group'))
+                     ->with('employeeSubgroupOptions', $dd('employee_subgroup'))
+                     ->with('dropdownFieldActive', $dropdownFieldActive)
                      ->with('customerOptions', $customerOptions);
             }
         );

@@ -205,7 +205,16 @@
         </div>
 
         {{-- Messages Thread --}}
-        <div id="messagesThread" class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        {{-- `min-height:0` overrides the flex default (`min-height:auto`), which
+             normally stops a `flex-1` child from shrinking below its own content's
+             height. Without it, dragging the reply editor's resize handle taller
+             couldn't shrink this thread to make room, so the parent card (which is
+             `overflow-hidden`, see the wrapper above) clipped the overflow — hiding
+             the Internal Note / Meeting / Send buttons below the visible area with
+             no way to scroll to them. This lets the thread shrink and scroll
+             internally instead, so the compose area (and its buttons) always stays
+             fully visible regardless of how tall the editor is dragged. --}}
+        <div id="messagesThread" class="flex-1 overflow-y-auto px-6 py-4 space-y-4" style="min-height:0;">
             <div id="messagesLoading" class="flex items-center justify-center py-8">
                 <svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -257,8 +266,19 @@
             {{-- Collapsible compose content --}}
             {{-- overflow:visible (default expanded) agar dropdown picker Quill ("Normal") tidak ter-clip.
                  Saat collapse via toggleReplyBox(), JS akan switch ke overflow:hidden sementara untuk
-                 menyembunyikan konten yang ter-collapse. --}}
-            <div id="replyComposeInner" style="max-height:600px;overflow:visible;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
+                 menyembunyikan konten yang ter-collapse.
+                 max-height dipakai HANYA sebagai target animasi collapse/expand (transition butuh
+                 nilai px konkret, tidak bisa dari/ke "none"). Nilainya sengaja dibuat jauh lebih besar
+                 (2000px) daripada tinggi konten realistis (To/CC row + editor di-drag maksimal + tombol
+                 aksi, sekitar ~900px), karena max-height + overflow:visible adalah kombinasi yang mudah
+                 jebak: kalau max-height < tinggi konten sebenarnya, box ini dianggap "hanya setinggi
+                 max-height" oleh flexbox parent (jadi area lain dialokasikan ruang seolah compose area
+                 sekecil itu), padahal isinya (termasuk baris tombol Send/Internal Note/Meeting di paling
+                 bawah) tetap dirender melebihi itu karena overflow:visible — hasilnya baris tombol
+                 ter-render di luar area yang diperhitungkan layout lalu ter-potong oleh overflow-hidden
+                 milik card pembungkus. Menjaga max-height selalu > tinggi konten maksimum menghilangkan
+                 celah ini. Nilai ini harus sama dengan yang di-set toggleReplyBox() (lihat JS). --}}
+            <div id="replyComposeInner" style="max-height:2000px;overflow:visible;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
 
             {{-- To Row: selalu dirender; untuk non-email ticket dikontrol JS (showEmailInitMode/hideEmailInitMode) --}}
             <div class="px-4 pt-1.5" id="toRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
@@ -1470,15 +1490,8 @@
         el('ticketSummaryModal').classList.add('hidden');
     };
 
-    document.getElementById('ticketSummaryModal').addEventListener('click', function (e) {
-        if (e.target === this) closeTicketSummary();
-    });
-
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && !el('ticketSummaryModal').classList.contains('hidden')) {
-            closeTicketSummary();
-        }
-    });
+    // Intentionally no backdrop-click / Escape-to-close — this modal should
+    // only be dismissed via its own X button.
 })();
 </script>
 @endif
@@ -2076,7 +2089,7 @@
 {{-- Assign to Delivery Support Modal --}}
 @if($canAssignDelivery)
 <div id="assignSupportModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl">
+    <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="px-6 py-4 border-b border-gray-200">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-bold text-gray-900">Assign to Delivery Support</h3>
@@ -2107,7 +2120,7 @@
 
 {{-- Success Confirmation Modal --}}
 <div id="assignSuccessModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl">
+    <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="p-6 text-center">
             <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7 text-green-600">
@@ -2272,7 +2285,7 @@
 {{-- Assign Ticket Lead Modal (Admin / Helpdesk / Delivery Support Head, atau Ticket Lead tiket ini / Module Lead) --}}
 @if($canAssignTicketLead)
 <div id="assignTicketLeadModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl flex flex-col">
+    <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center px-5 py-4 border-b border-gray-200">
             <h3 class="text-base font-bold text-gray-900">Assign Ticket Lead</h3>
             <button onclick="closeAssignTicketLeadModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
@@ -2303,7 +2316,7 @@
 
 {{-- ── Send Status Modal ───────────────────────────────────────────────── --}}
 <div id="sendStatusModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-xs shadow-2xl flex flex-col">
+    <div class="bg-white rounded-xl w-full max-w-xs shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100">
             <div>
                 <h3 class="text-sm font-bold text-gray-900">Send &amp; Set Status</h3>
@@ -2754,7 +2767,7 @@
 
 {{-- ===== MEETING MODAL ===== --}}
 @if($can('ticket.meeting'))
-<div id="meetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto" onclick="if(event.target===this) closeMeetingPanel()">
+<div id="meetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
     <div id="meetingModalCard" class="bg-white rounded-2xl shadow-2xl w-full max-w-md sm:w-auto sm:max-w-[95vw] my-auto max-h-[92vh] flex flex-col">
         {{-- Header --}}
         <div id="meetingModalHeader" class="flex items-center justify-between px-6 py-4 rounded-t-2xl">
@@ -3138,7 +3151,8 @@
         const iconUp   = document.getElementById('replyToggleIconUp');
         if (!inner) return;
         const isExpanded = inner.style.maxHeight !== '0px';
-        inner.style.maxHeight = isExpanded ? '0px'   : '600px';
+        // 2000px harus sama dengan nilai awal inline style #replyComposeInner (lihat komentar di blade)
+        inner.style.maxHeight = isExpanded ? '0px'   : '2000px';
         inner.style.opacity   = isExpanded ? '0'     : '1';
         // overflow switch: hidden saat collapse (sembunyikan konten yang ter-collapse),
         // visible saat expand (agar dropdown picker Quill tidak ter-clip).
@@ -4308,13 +4322,9 @@
             lightboxImg.src = '';
         };
 
-        // Klik overlay/tombol close → tutup. Klik pada gambar itu sendiri → jangan tutup.
-        overlay.addEventListener('click', function (e) {
-            if (e.target === lightboxImg) return;
+        // Hanya tombol close (X) yang menutup — tidak ada klik-di-luar atau Escape.
+        overlay.querySelector('.lightbox-close').addEventListener('click', function () {
             window.closeImageLightbox();
-        });
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && overlay.classList.contains('open')) window.closeImageLightbox();
         });
 
         // Event delegation: tangkap klik gambar di dalam thread pesan.
@@ -5359,10 +5369,7 @@
         openConfirmSendModal(chosenStatus || 'inprocess');
     }
 
-    // Klik backdrop modal → tutup
-    document.getElementById('sendStatusModal').addEventListener('click', function(e) {
-        if (e.target === this) closeSendStatusModal();
-    });
+    // Intentionally no backdrop-click-to-close — only the X button closes this modal.
 
     // ── Confirm Send Modal ────────────────────────────────────────────────────
     let _pendingChosenStatus = null;
@@ -5409,10 +5416,7 @@
         _pendingChosenStatus = null;
     }
 
-    // Klik backdrop modal → tutup (setara tombol Edit, tidak jadi kirim)
-    document.getElementById('confirmSendModal').addEventListener('click', function(e) {
-        if (e.target === this) closeConfirmSendModal();
-    });
+    // Intentionally no backdrop-click-to-close — only the X button closes this modal.
 
     async function sendReply(messageType) {
         const rawHtml      = quillEditor.root.innerHTML;
@@ -6268,9 +6272,7 @@
         document.getElementById('confirmMeetingModal').classList.add('hidden');
     }
 
-    document.getElementById('confirmMeetingModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeConfirmMeetingModal();
-    });
+    // Intentionally no backdrop-click-to-close — only the X button closes this modal.
 
     async function finalizeMeetingSend() {
         const payload = _pendingMeetingPayload;
@@ -8495,12 +8497,7 @@
         document.getElementById('credentialModal').classList.remove('flex');
     }
 
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            const modal = document.getElementById('credentialModal');
-            if (modal && !modal.classList.contains('hidden')) closeCredentialModal();
-        }
-    });
+    // Intentionally no Escape-to-close — only the X/Close button closes this modal.
     @endif
 
     // ==================== INTERNAL NOTE EDIT / DELETE ====================
@@ -8717,8 +8714,8 @@
             </button>
         </div>
     </div>
-    {{-- Click outside to close --}}
-    <div class="absolute inset-0 -z-10" onclick="closeCredentialModal()"></div>
+    {{-- Intentionally no click-outside-to-close — only the X/Close button closes this modal. --}}
+    <div class="absolute inset-0 -z-10"></div>
 </div>
 @endif
 
@@ -8728,8 +8725,8 @@
 {{-- Confirm modal dipakai dari partial global: resources/views/partials/confirm-modal.blade.php --}}
 
 {{-- ==================== SLA MESSAGE MODAL ==================== --}}
-<div id="slaMsgModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeSlaModal()">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+<div id="slaMsgModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <div class="flex items-center gap-2">
                 <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
@@ -8771,7 +8768,7 @@
 
 @if($can('ticket.sla-log'))
 {{-- ==================== SLA LOG MODAL ==================== --}}
-<div id="slaLogModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4" onclick="if(event.target===this)closeSlaLogModal()">
+<div id="slaLogModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4">
     <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
         <div class="flex-shrink-0 bg-white border-b border-gray-100">
             <div class="flex items-center justify-between px-6 py-4">
@@ -9018,7 +9015,7 @@ async function _loadSlaLogData() {
 {{-- ==================== LOG SHIFTING MODAL ====================
      Shortcut dari room chat — sumber data sama dengan Reporting > Log Shifting
      dan modal klik-kanan di list ticket (GET /api/reporting/log-shifting/{id}). --}}
-<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4" onclick="if(event.target===this)closeLogShiftingTicketModal()">
+<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4">
     <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
             <div class="flex items-center gap-3">
@@ -9221,7 +9218,7 @@ async function _loadLogShiftingData() {
 
 {{-- ==================== NEW DOCUMENT MODAL ==================== --}}
 <div id="newDocModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
             <h3 class="text-sm font-bold text-gray-900">New Document</h3>
             <button onclick="closeNewDocModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
@@ -9281,7 +9278,7 @@ async function _loadLogShiftingData() {
 
 {{-- ==================== EDIT DELIVERABLE MODAL ==================== --}}
 <div id="editDelivModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
             <h3 class="text-sm font-bold text-gray-900">Edit Body Text</h3>
             <button onclick="closeEditDelivModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
@@ -9313,7 +9310,7 @@ async function _loadLogShiftingData() {
 </div>
 
 {{-- ==================== EDIT INTERNAL NOTE MODAL ==================== --}}
-<div id="editNoteModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeEditNoteModal()">
+<div id="editNoteModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 flex flex-col" style="max-height:85vh">
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 flex-shrink-0">
             <div class="flex items-center gap-2">
@@ -9361,6 +9358,60 @@ async function _loadLogShiftingData() {
 const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
 let deliverableData = [];
+let deliverableFolderUrl = null;
+
+async function copyDeliverableFolderLink() {
+    if (!deliverableFolderUrl) return;
+    let ok = false;
+
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(deliverableFolderUrl);
+            ok = true;
+        }
+    } catch (e) {
+        ok = false;
+    }
+
+    if (!ok) {
+        const ta = document.createElement('textarea');
+        ta.value = deliverableFolderUrl;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+    }
+
+    const label = document.getElementById('delivCopyLinkLabel');
+    if (label) {
+        label.textContent = ok ? 'Copied!' : 'Press Ctrl+C';
+        clearTimeout(window._delivCopyLinkTimer);
+        window._delivCopyLinkTimer = setTimeout(() => { label.textContent = 'Copy Link'; }, 1800);
+    }
+}
+
+async function shareDeliverableFolderLink() {
+    if (!deliverableFolderUrl) return;
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: 'Deliverable Documents — {{ $ticket->ticket_number }}',
+                url: deliverableFolderUrl
+            });
+            return;
+        } catch (e) {
+            // User membatalkan share sheet atau API gagal — fallback ke copy link.
+            if (e && e.name === 'AbortError') return;
+        }
+    }
+
+    await copyDeliverableFolderLink();
+}
 
 // Doc Type dropdown dimuat dari master data (menu Management > Master Ticket
 // Settings > Document Type), bukan hardcode lagi — lihat DeliverableDocumentTypeController.
@@ -9428,10 +9479,36 @@ async function loadDeliverables() {
         const footer = document.getElementById('deliverableFooter');
         if (!json.has_folder) {
             footer.innerHTML = '<span class="text-orange-500">' + (json.folder_message || 'Folder belum siap untuk upload file.') + '</span>';
+        } else if (json.folder_url) {
+            deliverableFolderUrl = json.folder_url;
+            footer.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <a href="${json.folder_url}" target="_blank" rel="noopener"
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 text-white text-[11px] font-semibold rounded-lg transition hover:opacity-90"
+                       style="background-color: var(--primary-color);">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>
+                        Open OneDrive Folder
+                    </a>
+                    <button type="button" onclick="copyDeliverableFolderLink()" id="delivCopyLinkBtn"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 text-[11px] font-semibold rounded-lg transition hover:bg-gray-50">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                        </svg>
+                        <span id="delivCopyLinkLabel">Copy Link</span>
+                    </button>
+                    <button type="button" onclick="shareDeliverableFolderLink()"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 text-[11px] font-semibold rounded-lg transition hover:bg-gray-50">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+                        </svg>
+                        Share
+                    </button>
+                </div>`;
         } else {
-            footer.innerHTML = json.folder_url
-                ? `<a href="${json.folder_url}" target="_blank" rel="noopener" class="text-blue-500 hover:underline">Open OneDrive Folder</a>`
-                : '';
+            deliverableFolderUrl = null;
+            footer.innerHTML = '';
         }
     } catch (e) {
         document.getElementById('deliverableBody').innerHTML =
@@ -9945,9 +10022,7 @@ async function submitEditDeliv() {
     }
 }
 
-document.getElementById('editDelivModal').addEventListener('click', function(e) {
-    if (e.target === this) closeEditDelivModal();
-});
+// Intentionally no backdrop-click-to-close — only the X button closes this modal.
 
 // Tampilkan error di footer modal deliverable (non-blocking)
 function showDelivError(msg) {
@@ -9957,13 +10032,9 @@ function showDelivError(msg) {
     setTimeout(() => { if (el.querySelector('.text-red-600')) el.innerHTML = ''; }, 5000);
 }
 
-// Close deliverable modal on backdrop click
-document.getElementById('deliverableModal').addEventListener('click', function(e) {
-    if (e.target === this) closeDeliverableModal();
-});
-// Intentionally no backdrop-click-to-close on #newDocModal — it should only
-// be dismissed via its own close controls (X / Cancel), never by an
-// accidental click outside while filling the "New Document" form.
+// Intentionally no backdrop-click-to-close on any deliverable modal — they
+// should only be dismissed via their own close controls (X / Cancel), never
+// by an accidental click outside.
 
 // Load badge on page load
 (async () => {
@@ -9979,6 +10050,26 @@ document.getElementById('deliverableModal').addEventListener('click', function(e
             badge.classList.remove('hidden');
         }
     } catch {}
+})();
+
+// ==================== GLOBAL MODAL BODY-SCROLL LOCK ====================
+// Setiap modal di halaman ini di-toggle lewat class "hidden" pada elemen
+// id-nya berakhiran "Modal". Daripada menambal body.style.overflow di tiap
+// fungsi open/close satu-satu, MutationObserver ini mengamati class semua
+// modal sekaligus — begitu ada modal yang tampil, scroll body dikunci; begitu
+// tidak ada modal yang terbuka sama sekali, scroll body dikembalikan.
+(function () {
+    const modals = Array.from(document.querySelectorAll('[id$="Modal"]'));
+    if (!modals.length) return;
+
+    function syncBodyScrollLock() {
+        const anyOpen = modals.some(m => !m.classList.contains('hidden'));
+        document.body.style.overflow = anyOpen ? 'hidden' : '';
+    }
+
+    const observer = new MutationObserver(syncBodyScrollLock);
+    modals.forEach(m => observer.observe(m, { attributes: true, attributeFilter: ['class'] }));
+    syncBodyScrollLock();
 })();
 </script>
 
