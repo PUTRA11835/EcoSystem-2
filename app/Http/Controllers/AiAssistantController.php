@@ -156,6 +156,62 @@ class AiAssistantController extends Controller
         ]);
     }
 
+    /**
+     * Daftar percakapan AI Assistant milik user yang login — dibaca dari
+     * arsip DB (ai_conversations, employee_id = employee ini), BUKAN dari
+     * sessionStorage sisi browser. Inilah yang membuat riwayat tetap tampak
+     * kalau user login dari device/browser lain: sessionStorage cuma
+     * menyimpan "conversation_id mana yang aktif di TAB ini", sedangkan
+     * daftar percakapannya sendiri selalu utuh di server untuk employee_id
+     * yang sama, dari device mana pun.
+     *
+     * Beda dari AiResearchController::conversations() — di sini semua
+     * percakapan SELALU privat (assistant 'internal' tidak pernah dibuat
+     * otomatis dari ticket seperti room 'research' bersama), jadi cukup
+     * filter employee_id, tidak perlu logic TicketTeamAccess sama sekali.
+     */
+    public function conversations(): JsonResponse
+    {
+        $employee = $this->currentEmployee();
+
+        $rows = AiConversation::where('employee_id', $employee->employee_id)
+            ->where('assistant', AiConversation::ASSISTANT_INTERNAL)
+            ->orderByDesc('last_message_at')
+            ->limit(100)
+            ->get(['conversation_id', 'title', 'model_tier', 'last_message_at']);
+
+        return response()->json([
+            'items' => $rows->map(fn (AiConversation $row) => [
+                'id' => $row->conversation_id,
+                'title' => $row->title,
+                'model_tier' => $row->model_tier,
+                'updated_at' => optional($row->last_message_at)->toIso8601String(),
+            ])->all(),
+        ]);
+    }
+
+    /**
+     * Hapus satu percakapan — arsip DB sekaligus konteks di cache.
+     *
+     * POST, bukan DELETE: verb DELETE diblokir edge/WAF di production (lihat
+     * catatan yang sama pada AiResearchController::destroyConversation()).
+     * findOwnedConversation() sudah memastikan cuma pemiliknya yang sampai
+     * ke titik ini — beda dari room BERSAMA AI Research, di sini tidak ada
+     * konsep "tidak boleh dihapus siapa pun" karena semua percakapan memang
+     * privat.
+     */
+    public function destroyConversation(string $conversation): JsonResponse
+    {
+        $employee = $this->currentEmployee();
+        $row = $this->findOwnedConversation($employee, $conversation);
+
+        $row->delete();   // ai_messages ikut terhapus lewat cascade
+
+        app(AiChatService::class)->forgetContext($employee, $conversation);
+
+        return response()->json(['ok' => true]);
+    }
+
     private function currentEmployee(): Employee
     {
         $sessionUser = session('user');

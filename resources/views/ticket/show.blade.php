@@ -487,13 +487,15 @@
                1. ui.ticket.btn-ai-research — role mana yang BOLEH memakai
                   fitur ini sama sekali, admin-only secara default, diatur
                   admin lewat Control Center > Menu Access.
-               2. isLeadOrMember() ATAU EC Administrator — KE TIKET MANA
-                  (cuma yang orang itu benar-benar tangani; admin selalu
-                  lolos lintas-tiket). hasRole() dicek, bukan
-                  $user->role->role_id (primary saja), supaya employee
-                  dengan banyak role tetap kebagian walau EC Administrator
-                  bukan role utamanya. --}}
-        @if($can('ui.ticket.btn-ai-research') && \App\Support\TicketTeamAccess::canAccessAiResearch($user->id, $ticket, $user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value)))
+               2. isLeadOrMember() ATAU role privileged (lihat
+                  TicketTeamAccess::isPrivilegedForAiResearch() — EC
+                  Administrator + role yang bisa approve di Ticket
+                  Validation) — KE TIKET MANA (cuma yang orang itu benar-benar
+                  tangani; role privileged selalu lolos lintas-tiket).
+                  hasRole()/hasAnyRole() dicek, bukan $user->role->role_id
+                  (primary saja), supaya employee dengan banyak role tetap
+                  kebagian walau role privileged-nya bukan role utamanya. --}}
+        @if($can('ui.ticket.btn-ai-research') && \App\Support\TicketTeamAccess::canAccessAiResearch($user->id, $ticket, \App\Support\TicketTeamAccess::isPrivilegedForAiResearch($user)))
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0 p-3">
             <a href="{{ route('ticket.ai-research', $ticket->ticket_id) }}"
                 class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors">

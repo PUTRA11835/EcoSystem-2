@@ -208,6 +208,18 @@ class AiChatService
     }
 
     /**
+     * Buang konteks kerja satu percakapan dari cache.
+     *
+     * Dipanggil saat user menghapus percakapan: tanpa ini arsipnya hilang dari
+     * daftar tapi isinya masih menunggu di disk sampai TTL habis. "Hapus"
+     * harus berarti hapus — sama seperti AiResearchService::forgetContext().
+     */
+    public function forgetContext(Employee $employee, string $conversationId): void
+    {
+        Cache::store(self::CACHE_STORE)->forget($this->cacheKey($employee, $conversationId));
+    }
+
+    /**
      * Reduce one turn's worth of $messages (a user message, possibly followed
      * by several assistant/tool_result round-trips) to the single user text +
      * single assistant reply that the user actually saw, and archive it.
