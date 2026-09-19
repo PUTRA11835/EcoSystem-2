@@ -14,6 +14,19 @@ class Ticket extends Model
 
     protected static ?string $auditModule = 'Ticket';
 
+    /**
+     * Denormalized "last activity" cache columns bumped on nearly every
+     * incoming/outgoing ticket message - pure bookkeeping, not something an
+     * admin reviewing the audit trail needs to see (they cluttered the
+     * activity summary with second-precision timestamp diffs and multiplied
+     * row count without adding audit value).
+     */
+    protected static array $auditIgnore = [
+        'last_message_at',
+        'last_customer_reply_at',
+        'last_agent_reply_at',
+    ];
+
     protected $table = 'ticket';
     protected $primaryKey = 'ticket_id';
 

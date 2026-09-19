@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Services\IpLocationService;
+use App\Support\SessionPayloadDecoder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -10,7 +12,7 @@ use Illuminate\Support\Facades\Log;
 class AdminSessionController extends Controller
 {
     /**
-     * ECI of the protected super-admin account — never force-logoutable,
+     * ECI of the protected super-admin account - never force-logoutable,
      * individually or via "logout all others".
      */
     private const PROTECTED_ECI = 'ECI_ADMIN';
@@ -20,28 +22,9 @@ class AdminSessionController extends Controller
         return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
     }
 
-    /**
-     * Extract the `user` array this app stores via session()->put('user', ...).
-     *
-     * sessions.user_id can't be used for this: the app never calls Laravel's
-     * Auth::login(), so Illuminate\Session\DatabaseSessionHandler resets that
-     * column to NULL on every request (it writes Guard::class->id(), which is
-     * always null here). The real identity only lives inside the payload blob.
-     */
     private function decodeSessionUser(?string $payload): ?array
     {
-        if (!$payload) {
-            return null;
-        }
-
-        $decoded = base64_decode($payload, true);
-        if ($decoded === false) {
-            return null;
-        }
-
-        $data = @unserialize($decoded, ['allowed_classes' => false]);
-
-        return (is_array($data) && is_array($data['user'] ?? null)) ? $data['user'] : null;
+        return SessionPayloadDecoder::decode($payload);
     }
 
     public function index(Request $request)
@@ -75,10 +58,20 @@ class AdminSessionController extends Controller
                     return $s;
                 })
                 // Drop sessions that never completed a login (failed attempts,
-                // or just someone sitting on the login page) — only rows with
+                // or just someone sitting on the login page) - only rows with
                 // a decoded `user` payload represent an actual signed-in user.
                 ->filter(fn ($s) => $s->user_id !== null)
                 ->values();
+
+            // Location, not just a raw IP: resolve once per DISTINCT ip_address
+            // (cached 24h per IP in IpLocationService) rather than once per
+            // session row, since the same employee/office IP often shows up
+            // across several concurrent sessions.
+            $locations = IpLocationService::formatMany($sessions->pluck('ip_address')->all());
+            $sessions  = $sessions->map(function ($s) use ($locations) {
+                $s->location = $locations[$s->ip_address] ?? 'Unknown location';
+                return $s;
+            });
 
             return response()->json([
                 'success' => true,

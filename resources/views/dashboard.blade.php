@@ -1158,6 +1158,12 @@
                             <span class="nav-text text-sm">Login Log</span>
                         </a>
                         @endif
+                        @if($can('control-center.security'))
+                        <a href="{{ route('admin.security-center') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/security-center*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-shield-alt text-xs"></i></span>
+                            <span class="nav-text text-sm">Security Center</span>
+                        </a>
+                        @endif
                         @if($can('control-center.sessions'))
                         <a href="{{ route('admin.sessions') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/sessions*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-users text-xs"></i></span>
@@ -1168,6 +1174,12 @@
                         <a href="{{ route('admin.failed-jobs') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/failed-jobs*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-exclamation-triangle text-xs"></i></span>
                             <span class="nav-text text-sm">Failed Jobs</span>
+                        </a>
+                        @endif
+                        @if($can('control-center.schedule-monitor'))
+                        <a href="{{ route('admin.schedule-monitor') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/schedule-monitor*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-clock text-xs"></i></span>
+                            <span class="nav-text text-sm">Schedule Monitor</span>
                         </a>
                         @endif
                         @if($can('control-center.backup'))

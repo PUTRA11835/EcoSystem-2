@@ -60,12 +60,14 @@ Route::get('/', function () {
 
 Route::prefix('api/auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+    Route::post('/2fa/verify', [AuthController::class, 'verifyTwoFactor'])->middleware('throttle:5,1');
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 });
 
 // Login page
 Route::get('/auth/login', [AuthController::class, 'showLogin'])->name('login');
+Route::get('/auth/2fa/verify', [AuthController::class, 'showTwoFactorChallenge'])->name('2fa.verify');
 
 // ==================== PASSWORD SETUP & RESET (public — tidak perlu auth) ====================
 // Halaman "Cek email Anda" — tampil setelah setup akun baru atau forgot password
@@ -102,7 +104,14 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== AI ASSISTANT ====================
     Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
     Route::post('/ai-assistant/chat', [\App\Http\Controllers\AiAssistantController::class, 'chat'])->name('ai-assistant.chat')->middleware('menu:ai-assistant');
+    // Riwayat percakapan (arsip DB, per-employee — lihat AiAssistantController::
+    // conversations()) — inilah yang membuat history tetap muncul lintas
+    // device/browser selama login sebagai employee yang sama, bukan cuma
+    // tersimpan di sessionStorage device itu saja. Hapus memakai POST, bukan
+    // DELETE: verb DELETE diblokir edge/WAF di production (sama seperti AI Research).
+    Route::get('/ai-assistant/conversations', [\App\Http\Controllers\AiAssistantController::class, 'conversations'])->name('ai-assistant.conversations')->middleware('menu:ai-assistant');
     Route::get('/ai-assistant/conversations/{conversation}', [\App\Http\Controllers\AiAssistantController::class, 'conversation'])->name('ai-assistant.conversation')->middleware('menu:ai-assistant');
+    Route::post('/ai-assistant/conversations/{conversation}/delete', [\App\Http\Controllers\AiAssistantController::class, 'destroyConversation'])->name('ai-assistant.conversation.delete')->middleware('menu:ai-assistant');
 
     // ==================== WORD REPORT GENERATOR ====================
     // Menu slug 'word-report-generator' didaftarkan lewat migration
@@ -225,8 +234,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log')->middleware('menu:control-center.activity-log');
         Route::get('/audit-log', [AuditLogController::class, 'index'])->name('audit-log')->middleware('menu:control-center.audit-log');
         Route::get('/login-log', [LoginLogController::class, 'index'])->name('login-log')->middleware('menu:control-center.login-log');
+        Route::get('/security-center', [\App\Http\Controllers\SecurityCenterController::class, 'index'])->name('security-center')->middleware('menu:control-center.security');
         Route::get('/sessions', [AdminSessionController::class, 'page'])->name('sessions')->middleware('menu:control-center.sessions');
         Route::get('/failed-jobs', [AdminJobController::class, 'page'])->name('failed-jobs')->middleware('menu:control-center.failed-jobs');
+        Route::get('/schedule-monitor', [\App\Http\Controllers\ScheduleMonitorController::class, 'page'])->name('schedule-monitor')->middleware('menu:control-center.schedule-monitor');
         Route::get('/backup', [AdminBackupController::class, 'page'])->name('backup')->middleware('menu:control-center.backup');
         Route::get('/backup/download/{filename}', [AdminBackupController::class, 'downloadBackup'])->name('backup.download');
         Route::get('/export/employees', [AdminBackupController::class, 'exportEmployees'])->name('export.employees');
@@ -266,6 +277,13 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/', [SettingsController::class, 'index'])->name('index');
         Route::post('/preferences', [SettingsController::class, 'updatePreferences'])->name('preferences');
         Route::post('/reset', [SettingsController::class, 'resetPreferences'])->name('reset');
+
+        Route::prefix('2fa')->name('2fa.')->group(function () {
+            Route::post('/enable', [\App\Http\Controllers\TwoFactorController::class, 'enable'])->name('enable');
+            Route::post('/confirm', [\App\Http\Controllers\TwoFactorController::class, 'confirm'])->name('confirm')->middleware('throttle:5,1');
+            Route::post('/disable', [\App\Http\Controllers\TwoFactorController::class, 'disable'])->name('disable')->middleware('throttle:5,1');
+            Route::post('/regenerate-recovery-codes', [\App\Http\Controllers\TwoFactorController::class, 'regenerateRecoveryCodes'])->name('regenerate-recovery-codes')->middleware('throttle:5,1');
+        });
     });
 
     // ==================== DASHBOARD API ====================

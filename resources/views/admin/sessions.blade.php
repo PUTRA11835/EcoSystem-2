@@ -2,7 +2,7 @@
 
 @section('title', 'Active Sessions')
 @section('page-title', 'Active Sessions')
-@section('page-subtitle', 'Manage who is currently logged in — force logout if needed')
+@section('page-subtitle', 'Manage who is currently logged in - force logout if needed')
 
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -13,22 +13,32 @@
     <div class="grid grid-cols-2 gap-4">
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p class="text-xs text-gray-500 mb-1">Active Sessions</p>
-            <p class="text-2xl font-bold text-gray-900" id="statTotal">—</p>
+            <p class="text-2xl font-bold text-gray-900" id="statTotal">-</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p class="text-xs text-gray-500 mb-1">Unique Users</p>
-            <p class="text-2xl font-bold text-blue-600" id="statIdentified">—</p>
+            <p class="text-2xl font-bold text-blue-600" id="statIdentified">-</p>
         </div>
     </div>
 
     <!-- Table Card -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <h2 class="text-sm font-semibold text-gray-700">Sessions</h2>
-            <button id="btnLogoutAll"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition">
-                Force Logout All Others
-            </button>
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 gap-3 flex-wrap">
+            <div class="flex items-center gap-2.5">
+                <h2 class="text-sm font-semibold text-gray-700">Sessions</h2>
+                <span class="text-xs text-gray-400" id="tableInfo"></span>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <div class="relative">
+                    <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+                    <input type="text" id="filterSearch" placeholder="Name, email, IP, location"
+                        class="pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-xs w-56 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                </div>
+                <button id="btnLogoutAll"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition">
+                    Force Logout All Others
+                </button>
+            </div>
         </div>
 
         <!-- Loading -->
@@ -44,7 +54,7 @@
             <svg class="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2h5"/>
             </svg>
-            <p class="text-sm">No active sessions found</p>
+            <p class="text-sm" id="emptyStateText">No active sessions found</p>
         </div>
 
         <!-- Table -->
@@ -52,10 +62,21 @@
             <table class="min-w-full text-sm">
                 <thead class="bg-gray-50 border-b border-gray-100">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                        <th class="p-0 text-left">
+                            <button type="button" onclick="toggleSort('name')" class="flex items-center gap-1 px-4 py-3 hover:bg-gray-100 transition-colors w-full text-left">
+                                <span class="text-xs font-medium text-gray-500 uppercase tracking-wider">User</span>
+                                <span class="sort-icon text-[10px] text-gray-300" data-sort="name">&#9650;</span>
+                            </button>
+                        </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Browser / Device</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Activity</th>
+                        <th class="p-0 text-left">
+                            <button type="button" onclick="toggleSort('last_activity')" class="flex items-center gap-1 px-4 py-3 hover:bg-gray-100 transition-colors w-full text-left">
+                                <span class="text-xs font-medium text-gray-500 uppercase tracking-wider">Last Activity</span>
+                                <span class="sort-icon text-[10px] text-gray-300" data-sort="last_activity">&#9660;</span>
+                            </button>
+                        </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th class="px-4 py-3"></th>
                     </tr>
@@ -93,6 +114,8 @@
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 let sessions = [];
 let selectedSessionId = null;
+let currentSort = { by: 'last_activity', dir: 'desc' };
+let searchTerm = '';
 
 async function loadSessions() {
     try {
@@ -102,11 +125,64 @@ async function loadSessions() {
 
         sessions = json.data;
         renderStats(sessions);
-        renderTable(sessions);
+        renderTable(getFilteredSortedSessions());
     } catch (e) {
         console.error(e);
     }
 }
+
+function getFilteredSortedSessions() {
+    let rows = sessions;
+
+    if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        rows = rows.filter(s => [s.full_name, s.username, s.email, s.eci, s.ip_address, s.location]
+            .some(v => (v || '').toLowerCase().includes(term)));
+    }
+
+    const sorted = [...rows].sort((a, b) => {
+        let av, bv;
+        if (currentSort.by === 'name') {
+            av = (a.full_name || a.username || '').toLowerCase();
+            bv = (b.full_name || b.username || '').toLowerCase();
+        } else {
+            av = a.last_activity_at || '';
+            bv = b.last_activity_at || '';
+        }
+        const cmp = av < bv ? -1 : (av > bv ? 1 : 0);
+        return currentSort.dir === 'asc' ? cmp : -cmp;
+    });
+
+    return sorted;
+}
+
+function toggleSort(column) {
+    if (currentSort.by === column) {
+        currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort = { by: column, dir: 'asc' };
+    }
+    updateSortIndicators();
+    renderTable(getFilteredSortedSessions());
+}
+
+function updateSortIndicators() {
+    document.querySelectorAll('.sort-icon').forEach(el => {
+        if (el.dataset.sort === currentSort.by) {
+            el.innerHTML = currentSort.dir === 'asc' ? '&#9650;' : '&#9660;';
+            el.classList.remove('text-gray-300');
+            el.classList.add('text-red-600');
+        } else {
+            el.classList.remove('text-red-600');
+            el.classList.add('text-gray-300');
+        }
+    });
+}
+
+document.getElementById('filterSearch').addEventListener('input', function () {
+    searchTerm = this.value.trim();
+    renderTable(getFilteredSortedSessions());
+});
 
 function renderStats(data) {
     document.getElementById('statTotal').textContent = data.length;
@@ -115,12 +191,22 @@ function renderStats(data) {
 
 function renderTable(data) {
     document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('tableInfo').textContent = sessions.length ? `${data.length} of ${sessions.length} shown` : '';
 
-    if (!data.length) {
+    if (!sessions.length) {
         document.getElementById('emptyState').classList.remove('hidden');
+        document.getElementById('tableWrapper').classList.add('hidden');
         return;
     }
 
+    if (!data.length) {
+        document.getElementById('emptyStateText').textContent = 'No sessions match your search';
+        document.getElementById('emptyState').classList.remove('hidden');
+        document.getElementById('tableWrapper').classList.add('hidden');
+        return;
+    }
+
+    document.getElementById('emptyState').classList.add('hidden');
     document.getElementById('tableWrapper').classList.remove('hidden');
     const tbody = document.getElementById('sessionTableBody');
     tbody.innerHTML = '';
@@ -140,9 +226,15 @@ function renderTable(data) {
         row.innerHTML = `
             <td class="px-4 py-3">
                 <p class="font-medium text-gray-800">${htmlEsc(name)}${eci}</p>
-                <p class="text-xs text-gray-400">${htmlEsc(s.email || '—')}</p>
+                <p class="text-xs text-gray-400">${htmlEsc(s.email || '-')}</p>
             </td>
-            <td class="px-4 py-3 text-gray-600">${htmlEsc(s.ip_address || '—')}</td>
+            <td class="px-4 py-3 text-gray-600 font-mono text-xs">${htmlEsc(s.ip_address || '-')}</td>
+            <td class="px-4 py-3">
+                <div class="flex items-center gap-1.5 text-xs text-gray-700">
+                    <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
+                    <span>${htmlEsc(s.location || 'Unknown location')}</span>
+                </div>
+            </td>
             <td class="px-4 py-3 text-gray-500 text-xs max-w-[200px] truncate" title="${htmlEsc(s.user_agent || '')}">${agent}</td>
             <td class="px-4 py-3 text-gray-500 text-xs">${htmlEsc(s.last_activity_at)}</td>
             <td class="px-4 py-3">${badge}</td>
@@ -155,7 +247,7 @@ function renderTable(data) {
 }
 
 function parseAgent(ua) {
-    if (!ua) return '—';
+    if (!ua) return '-';
     if (ua.includes('Chrome')) return 'Chrome';
     if (ua.includes('Firefox')) return 'Firefox';
     if (ua.includes('Safari')) return 'Safari';
@@ -171,10 +263,11 @@ function openModal(s) {
     selectedSessionId = s.session_id;
     document.getElementById('modalContent').innerHTML = `
         <div class="grid grid-cols-3 gap-y-2">
-            <span class="text-gray-400 col-span-1">User</span><span class="col-span-2 font-medium">${htmlEsc(s.full_name || s.username || '—')}</span>
-            <span class="text-gray-400 col-span-1">ECI</span><span class="col-span-2">${htmlEsc(s.eci || '—')}</span>
-            <span class="text-gray-400 col-span-1">Email</span><span class="col-span-2">${htmlEsc(s.email || '—')}</span>
-            <span class="text-gray-400 col-span-1">IP</span><span class="col-span-2">${htmlEsc(s.ip_address || '—')}</span>
+            <span class="text-gray-400 col-span-1">User</span><span class="col-span-2 font-medium">${htmlEsc(s.full_name || s.username || '-')}</span>
+            <span class="text-gray-400 col-span-1">ECI</span><span class="col-span-2">${htmlEsc(s.eci || '-')}</span>
+            <span class="text-gray-400 col-span-1">Email</span><span class="col-span-2">${htmlEsc(s.email || '-')}</span>
+            <span class="text-gray-400 col-span-1">IP</span><span class="col-span-2">${htmlEsc(s.ip_address || '-')}</span>
+            <span class="text-gray-400 col-span-1">Location</span><span class="col-span-2">${htmlEsc(s.location || 'Unknown location')}</span>
             <span class="text-gray-400 col-span-1">Last Active</span><span class="col-span-2">${htmlEsc(s.last_activity_at)}</span>
             <span class="text-gray-400 col-span-1">Browser</span><span class="col-span-2 text-xs break-all">${htmlEsc((s.user_agent || '').substring(0,80))}</span>
         </div>
@@ -241,6 +334,7 @@ function showToast(msg, type) {
     setTimeout(() => t.remove(), 3000);
 }
 
+updateSortIndicators();
 loadSessions();
 </script>
 @endsection

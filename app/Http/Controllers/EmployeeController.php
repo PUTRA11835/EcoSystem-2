@@ -1441,6 +1441,16 @@ public function getRoles()
 
             $roleIds = array_unique(array_map('intval', $request->role_ids));
 
+            // Snapshot old roles before the sync — this bypasses Eloquent
+            // (raw query builder delete+insert below), so AuditObserver never
+            // fires; log it explicitly for the Audit Log page and for the
+            // Security Center's privilege-escalation detection job.
+            $oldRoles = DB::table('employee_role_assignment as era')
+                ->join('employee_role as er', 'era.role_id', '=', 'er.id')
+                ->where('era.employee_id', $id)
+                ->select('er.id', 'er.name')
+                ->get();
+
             // Sync pivot table (delete old, insert new)
             DB::table('employee_role_assignment')->where('employee_id', $id)->delete();
 
@@ -1456,6 +1466,17 @@ public function getRoles()
             Cache::forget("perm_slugs_{$id}");
 
             $roles = DB::table('employee_role')->whereIn('id', $roleIds)->select('id', 'name')->get();
+
+            \App\Models\AuditLog::recordAction(
+                module: 'Employee Role',
+                auditableType: \App\Models\Employee::class,
+                auditableId: $id,
+                event: 'updated',
+                recordLabel: $employee->name ?? ('Employee #' . $id),
+                description: 'changed roles for ' . ($employee->name ?? ('Employee #' . $id)),
+                old: ['role_ids' => $oldRoles->pluck('id')->values()->all(), 'role_names' => $oldRoles->pluck('name')->values()->all()],
+                new: ['role_ids' => array_values($roleIds), 'role_names' => $roles->pluck('name')->values()->all()]
+            );
 
             Log::info('=== API: EMPLOYEE ROLES SYNCED SUCCESSFULLY ===', [
                 'employee_id'    => $id,

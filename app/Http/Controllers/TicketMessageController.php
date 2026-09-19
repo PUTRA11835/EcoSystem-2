@@ -11,6 +11,9 @@ use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
+use App\Models\SecurityEvent;
+use App\Services\AttachmentSecurityScanner;
+use App\Services\LoginSecurityService;
 use App\Services\MessageHtmlSanitizerService;
 use App\Services\SlaService;
 use Illuminate\Http\Request;
@@ -270,6 +273,13 @@ class TicketMessageController extends Controller
 
             $uploadedFiles = $request->hasFile('attachments') ? $request->file('attachments') : [];
             $message       = null;
+
+            // Security Center: flag suspicious attachments for review — never
+            // blocks the upload (a ticket can legitimately carry a .sh/.log
+            // file as troubleshooting evidence).
+            foreach ($uploadedFiles as $uploadedFile) {
+                $this->flagSuspiciousAttachment($uploadedFile, $ticketId, $senderId, $sessionUser, $request);
+            }
 
             if ($request->message_type === 'reply') {
                 // Simpan CC baru ke ticket agar reply berikutnya juga pakai CC yang sama
@@ -1315,6 +1325,42 @@ class TicketMessageController extends Controller
         }
 
         return $message;
+    }
+
+    /**
+     * Security Center: log a SecurityEvent + notify admins if an uploaded
+     * attachment looks suspicious (dangerous extension, double extension,
+     * or extension/content-type mismatch). See AttachmentSecurityScanner.
+     */
+    private function flagSuspiciousAttachment(
+        \Illuminate\Http\UploadedFile $file,
+        int $ticketId,
+        int $senderId,
+        array $sessionUser,
+        Request $request
+    ): void {
+        $suspicion = AttachmentSecurityScanner::inspect($file);
+        if (!$suspicion) {
+            return;
+        }
+
+        $event = SecurityEvent::record([
+            'event_type'         => 'suspicious_attachment_upload',
+            'severity'           => 'high',
+            'module'             => 'Upload',
+            'status'             => 'open',
+            'title'              => "Suspicious attachment: {$suspicion['filename']}",
+            'description'        => implode('; ', $suspicion['reasons']) . " - uploaded to ticket #{$ticketId} by " . ($sessionUser['name'] ?? 'unknown') . '.',
+            'target_employee_id' => $senderId,
+            'actor_employee_id'  => $senderId,
+            'actor_name'         => $sessionUser['name'] ?? null,
+            'ip_address'         => $request->ip(),
+            'payload'            => $suspicion + ['ticket_id' => $ticketId],
+        ]);
+
+        if ($event) {
+            app(LoginSecurityService::class)->notifyAdmins($event, "Suspicious attachment \"{$suspicion['filename']}\" uploaded to ticket #{$ticketId}");
+        }
     }
 
     /**

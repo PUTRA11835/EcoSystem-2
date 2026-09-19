@@ -66,7 +66,7 @@
         </div>
         <p class="text-xs text-gray-400 mt-0.5">
             {{ now()->isoFormat('dddd, D MMMM Y') }}
-            @if(!empty($user['position'])) &mdash; {{ $user['position'] }}@endif
+            @if(!empty($user['position'])) - {{ $user['position'] }}@endif
         </p>
     </div>
     <div class="hidden sm:flex items-center gap-3">
@@ -80,6 +80,82 @@
         <span class="text-xs text-gray-400 font-mono" id="dashClock"></span>
     </div>
 </div>
+
+{{-- ── Superadmin System Health & Security Snapshot ────────────────────────────
+     Only ever populated by the controller for EC Administrator - gated on the
+     data being present rather than re-deriving the role check here, so this
+     block can never show for a role the controller didn't compute it for. --}}
+@if(isset($data['security_summary']))
+@php
+    $sec      = $data['security_summary'];
+    $sched    = $data['schedule_summary'];
+    $queue    = $data['queue_summary'];
+    $failedJobs = $data['failed_jobs_count'] ?? 0;
+
+    $secNeedsAttention   = $sec['open_critical'] > 0 || $sec['open_high'] > 0;
+    $schedNeedsAttention = $sched['issues'] > 0;
+    $queueNeedsAttention = $queue['unhealthy'] > 0;
+    $jobsNeedAttention   = $failedJobs > 0;
+
+    $anyIssue = $secNeedsAttention || $schedNeedsAttention || $queueNeedsAttention || $jobsNeedAttention;
+
+    // Same icon-circle-card shape as every KPI card below ($cardBase) - only
+    // the icon's own color shifts between neutral and attention-needed, so
+    // this reads as one more row of the same dashboard, not a separate widget.
+    $iconCls = fn (bool $bad) => $bad ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-400';
+@endphp
+<div>
+    <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fas fa-shield-halved text-red-700"></i> Superadmin Control Panel
+        </p>
+        <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border {{ $anyIssue ? 'text-amber-700 bg-amber-50 border-amber-100' : 'text-emerald-700 bg-emerald-50 border-emerald-100' }}">
+            <span class="w-1.5 h-1.5 rounded-full {{ $anyIssue ? 'bg-amber-500' : 'bg-emerald-500' }}"></span>
+            {{ $anyIssue ? 'Needs attention' : 'All systems normal' }}
+        </span>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+
+        <a href="{{ route('admin.security-center') }}" class="{{ $cardBase }} hover:border-red-300 hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+                <div class="w-9 h-9 rounded-xl {{ $iconCls($secNeedsAttention) }} flex items-center justify-center transition">
+                    <i class="fas fa-triangle-exclamation text-sm"></i>
+                </div>
+                @if($sec['open_critical'] > 0)
+                <span class="text-[10px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded">{{ $sec['open_critical'] }} critical</span>
+                @endif
+            </div>
+            <p class="text-2xl font-bold text-gray-800">{{ $sec['open_total'] }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">Open Security Events</p>
+        </a>
+
+        <a href="{{ route('admin.sessions') }}" class="{{ $cardBase }} hover:border-amber-300 hover:shadow-md">
+            <div class="w-9 h-9 rounded-xl {{ $iconCls($sec['locked_accounts'] > 0) }} flex items-center justify-center mb-3 transition">
+                <i class="fas fa-lock text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-gray-800">{{ $sec['locked_accounts'] }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">Locked Accounts</p>
+        </a>
+
+        <a href="{{ route('admin.schedule-monitor') }}" class="{{ $cardBase }} hover:border-amber-300 hover:shadow-md">
+            <div class="w-9 h-9 rounded-xl {{ $iconCls($schedNeedsAttention || $queueNeedsAttention) }} flex items-center justify-center mb-3 transition">
+                <i class="fas fa-clock text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-gray-800">{{ $sched['issues'] }}<span class="text-sm text-gray-400 font-normal">/{{ $sched['total'] }}</span></p>
+            <p class="text-xs text-gray-400 mt-0.5">Scheduled Tasks Need Attention</p>
+        </a>
+
+        <a href="{{ route('admin.failed-jobs') }}" class="{{ $cardBase }} hover:border-red-300 hover:shadow-md">
+            <div class="w-9 h-9 rounded-xl {{ $iconCls($jobsNeedAttention) }} flex items-center justify-center mb-3 transition">
+                <i class="fas fa-xmark text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-gray-800">{{ $failedJobs }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">Failed Jobs</p>
+        </a>
+
+    </div>
+</div>
+@endif
 
 {{-- ── Row 2: KPI Cards ──────────────────────────────────────────────────────── --}}
 <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -155,7 +231,7 @@
                 {{ $sla['compliance_rate'] }}%
             </p>
         @else
-            <p class="text-2xl font-bold text-gray-400">—</p>
+            <p class="text-2xl font-bold text-gray-400">-</p>
         @endif
         <p class="text-xs text-gray-400 mt-0.5">SLA Compliance</p>
     @if($can('sla.report'))</a>@else</div>@endif
@@ -271,7 +347,7 @@
                         <span class="text-xs text-gray-500 truncate hidden sm:block">{{ Str::limit($t->description ?? '', 42) }}</span>
                     </div>
                     <p class="text-[10px] text-gray-400 mt-0.5">
-                        {{ $t->customer_name ?? '—' }} &middot; {{ $t->pic_name ?? 'Unassigned' }} &middot; {{ \Carbon\Carbon::parse($t->created_at)->diffForHumans() }}
+                        {{ $t->customer_name ?? '-' }} &middot; {{ $t->pic_name ?? 'Unassigned' }} &middot; {{ \Carbon\Carbon::parse($t->created_at)->diffForHumans() }}
                     </p>
                 </div>
                 <div class="flex items-center gap-1.5 flex-shrink-0">
@@ -326,27 +402,7 @@
             @endforeach
         </div>
 
-        @if($can('management'))
-        <div class="mt-4 pt-4 border-t border-gray-100">
-            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">System Health</p>
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-green-500" id="dashDbDot"></span>
-                        <span class="text-xs text-gray-500">Database</span>
-                    </div>
-                    <span class="text-xs font-medium text-gray-500" id="dashDbTxt">Checking...</span>
-                </div>
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-gray-300" id="dashQueueDot"></span>
-                        <span class="text-xs text-gray-500">Queue</span>
-                    </div>
-                    <span class="text-xs font-medium text-gray-500" id="dashQueueTxt">Checking...</span>
-                </div>
-            </div>
-        </div>
-        @endif
+        {{-- System health has its own dedicated panel above (Superadmin Control Panel) - not duplicated here. --}}
     </div>
 
 </div>
@@ -397,21 +453,6 @@
     }
     updateClock();
     setInterval(updateClock, 1000);
-
-    @if($can('management'))
-    fetch('/api/health', { credentials: 'same-origin' })
-        .then(r => r.json())
-        .then(d => {
-            const dbOk = d.checks?.database === 'ok';
-            document.getElementById('dashDbDot').className = 'w-2 h-2 rounded-full ' + (dbOk ? 'bg-green-500' : 'bg-red-500');
-            document.getElementById('dashDbTxt').textContent = dbOk ? 'Connected' : 'Error';
-            const failed  = d.checks?.queue_failed  ?? 0;
-            const pending = d.checks?.queue_pending ?? 0;
-            document.getElementById('dashQueueDot').className = 'w-2 h-2 rounded-full ' + (failed === 0 ? 'bg-green-500' : 'bg-orange-500');
-            document.getElementById('dashQueueTxt').textContent = pending + ' pending' + (failed ? ', ' + failed + ' failed' : '');
-        })
-        .catch(() => {});
-    @endif
 })();
 </script>
 @endpush
