@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
 use App\Exports\CustomerMdExport;
+use App\Exports\LogShiftingExport;
 use App\Exports\MdRecapExport;
 use App\Exports\ResolutionDaysExport;
 use App\Exports\TicketByModuleExport;
@@ -16,6 +17,7 @@ use App\Models\DeliverySupport;
 use App\Models\DeliverySupportActivity;
 use App\Models\ReportingPeriod;
 use App\Models\Ticket;
+use App\Models\TicketMessage;
 use App\Services\PeriodService;
 use App\Support\SessionUser;
 use Carbon\Carbon;
@@ -2673,6 +2675,124 @@ class ReportingController extends Controller
         } catch (\Exception $e) {
             Log::error('logShiftingDetail error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to load SLA message detail. Please try again.'], 500);
+        }
+    }
+
+    // ── Log Shifting export — SLA notes flat, filtered by date(+optional hour) range ──
+    //
+    // "Tanggal" yang dipakai adalah created_at bubble chat itu sendiri (sama seperti
+    // logShiftingDetail), bukan tanggal tiket dibuat. Kalau time_from/time_to kosong,
+    // batasnya jadi awal/akhir hari penuh untuk tanggal tsb — jadi semua jam ikut.
+    private function logShiftingDateRange(Request $request): array
+    {
+        $dateFrom = $request->query('date_from');
+        $dateTo   = $request->query('date_to');
+        $timeFrom = $request->query('time_from');
+        $timeTo   = $request->query('time_to');
+
+        if (!$dateFrom || !$dateTo) {
+            throw new \InvalidArgumentException('Tanggal dari dan sampai wajib diisi.');
+        }
+
+        $from = Carbon::parse($dateFrom . ' ' . ($timeFrom ?: '00:00:00'));
+        $to   = $timeTo
+            ? Carbon::parse($dateTo . ' ' . $timeTo)
+            : Carbon::parse($dateTo)->endOfDay();
+
+        if ($from->gt($to)) {
+            throw new \InvalidArgumentException('Tanggal/jam "dari" tidak boleh setelah "sampai".');
+        }
+
+        return [$from, $to];
+    }
+
+    private function logShiftingNoteRows(Carbon $from, Carbon $to): \Illuminate\Support\Collection
+    {
+        $messages = TicketMessage::whereNotNull('sla_message')
+            ->where('sla_message', '!=', '')
+            ->whereBetween('created_at', [$from, $to])
+            ->with(['ticket:ticket_id,ticket_number,description', 'slaMessageBy.basicData'])
+            ->orderBy('created_at')
+            ->get();
+
+        return $messages->map(function (TicketMessage $msg) {
+            $byName = $msg->slaMessageBy
+                ? trim(($msg->slaMessageBy->basicData->first_name ?? '') . ' ' . ($msg->slaMessageBy->basicData->last_name ?? '')) ?: ($msg->slaMessageBy->eci ?? 'Unknown')
+                : null;
+
+            return [
+                'ticket_id'     => $msg->ticket->ticket_id ?? null,
+                'ticket_number' => $msg->ticket->ticket_number ?? '—',
+                'description'   => $msg->ticket->description ?? '—',
+                'bubble_date'   => $msg->created_at,
+                'sla_message'   => $msg->sla_message,
+                'pic'           => $byName,
+            ];
+        })->values();
+    }
+
+    // ── API: Log Shifting — flat SLA notes for the export/report table ─────
+    public function logShiftingNotes(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.log-shifting')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            [$from, $to] = $this->logShiftingDateRange($request);
+            $rows = $this->logShiftingNoteRows($from, $to);
+
+            return response()->json(['success' => true, 'data' => $rows]);
+
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Exception $e) {
+            Log::error('logShiftingNotes error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load log shifting notes. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Log Shifting — export flat SLA notes to Excel ─────────────────
+    public function exportLogShifting(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.log-shifting')) {
+                abort(403);
+            }
+
+            [$from, $to] = $this->logShiftingDateRange($request);
+            $rows = $this->logShiftingNoteRows($from, $to);
+
+            $generatedBy = trim(($employee->basicData->first_name ?? '') . ' ' . ($employee->basicData->last_name ?? '')) ?: ($employee->eci ?? 'System');
+
+            $meta = [
+                'from'         => $from,
+                'to'           => $to,
+                'generated_by' => $generatedBy,
+                'generated_at' => now()->timezone('Asia/Jakarta'),
+            ];
+
+            $filename = 'Log_Shifting_Export_' . now()->timezone('Asia/Jakarta')->format('dmY_Hi') . '.xlsx';
+
+            return Excel::download(new LogShiftingExport($rows, $meta), $filename);
+
+        } catch (\InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error('exportLogShifting error: ' . $e->getMessage());
+            abort(500, $e->getMessage());
         }
     }
 
