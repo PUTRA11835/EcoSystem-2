@@ -99,13 +99,23 @@ class AppServiceProvider extends ServiceProvider
         // Catatan: Grade TIDAK lagi dipakai di Basic Data — konsepnya pindah ke
         // "Level" pada Employee Qualification (lihat composer di bawah).
         View::composer(
-            ['master.employee.index', 'master.employee.sections.basicdata'],
+            ['master.employee.index', 'master.employee.sections.basicdata', 'master.employee.sections.address', 'master.customer.sections.address'],
             function ($view) {
                 $dropdownCodes = ['position', 'department', 'division', 'personnel_area', 'personnel_subarea', 'employee_group', 'employee_subgroup'];
 
                 // Guard: hindari error bila tabel belum ada (mis. saat migrate awal).
                 $hasDropdownTables = Schema::hasTable('dropdown_config_values');
                 $dd = fn (string $code) => $hasDropdownTables ? DropdownConfig::optionsFor($code) : [];
+
+                // Country untuk tab Address (Employee Detail): admin-editable lewat
+                // Dropdown Settings sama seperti Position/dll, TAPI belum ada admin
+                // yang mengisi config "country" di banyak environment. Fallback ke
+                // ['Indonesia'] menjaga behavior lama (satu-satunya opsi hardcoded)
+                // sampai admin menambah datanya sendiri — dropdown tidak pernah kosong.
+                $countryOptions = $dd('country');
+                if (empty($countryOptions)) {
+                    $countryOptions = ['Indonesia'];
+                }
 
                 // Config yang di-nonaktifkan (is_active=false) bukan cuma dikosongkan
                 // opsinya — seluruh blok field-nya disembunyikan dari form Employee
@@ -139,7 +149,8 @@ class AppServiceProvider extends ServiceProvider
                      ->with('employeeGroupOptions', $dd('employee_group'))
                      ->with('employeeSubgroupOptions', $dd('employee_subgroup'))
                      ->with('dropdownFieldActive', $dropdownFieldActive)
-                     ->with('customerOptions', $customerOptions);
+                     ->with('customerOptions', $customerOptions)
+                     ->with('countryOptions', $countryOptions);
             }
         );
 
