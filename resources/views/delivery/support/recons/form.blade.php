@@ -259,6 +259,7 @@ window.ReconsForm = (function () {
     const BASE_URL   = `/delivery/support/{{ $support->id }}/recons`;
     const RECONS_ID  = @json($isEdit ? $recons->id : null);
     const SAVE_URL   = RECONS_ID ? `${BASE_URL}/${RECONS_ID}/save` : `${BASE_URL}/save`;
+    const TICKET_URL_BASE = '{{ url('/ticket') }}';
 
     const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -512,7 +513,9 @@ window.ReconsForm = (function () {
                                value="${t.ticket_id}" ${selected.has(t.ticket_id) ? 'checked' : ''}
                                onchange="ReconsForm.toggleOne(${t.ticket_id}, this.checked)">
                     </td>
-                    <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">${esc(t.ticket_number || ('#' + t.ticket_id))}</td>
+                    <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
+                        <a href="${TICKET_URL_BASE}/${t.ticket_id}" class="text-blue-600 hover:text-blue-800 hover:underline" onclick="event.stopPropagation()">${esc(t.ticket_number || ('#' + t.ticket_id))}</a>
+                    </td>
                     <td class="px-4 py-3 text-gray-700">
                         ${esc(t.description || '-')}
                         ${t.in_recons && t.eligible_now === false

@@ -132,7 +132,11 @@
                     <tbody class="divide-y divide-gray-100">
                         @forelse($rows as $row)
                         <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">{{ $row['ticket_number'] ?: ('#' . $row['ticket_id']) }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
+                                <a href="{{ route('ticket.show', $row['ticket_id']) }}" class="text-blue-600 hover:text-blue-800 hover:underline">
+                                    {{ $row['ticket_number'] ?: ('#' . $row['ticket_id']) }}
+                                </a>
+                            </td>
                             <td class="px-4 py-3 text-gray-700">{{ $row['description'] ?: '-' }}</td>
                             <td class="px-4 py-3 text-center whitespace-nowrap text-gray-600">{{ $row['start_date_label'] }}</td>
                             <td class="px-4 py-3 text-center whitespace-nowrap text-gray-600">{{ $row['close_date_label'] }}</td>

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Master data tipe dokumen deliverable (mis. IR, RCA, CR Form, ...), dipakai
@@ -28,5 +29,11 @@ class DeliverableDocumentType extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /** Live mandatory/optional config per ticket type — see DeliverableDocumentTypeTicketType. */
+    public function ticketTypeLinks(): HasMany
+    {
+        return $this->hasMany(DeliverableDocumentTypeTicketType::class, 'document_type_id');
     }
 }
