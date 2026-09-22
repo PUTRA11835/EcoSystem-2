@@ -37,7 +37,7 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-12">No</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Document Type</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider" style="min-width:220px;">Required For</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider" style="min-width:220px;">Ticket Type</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">Status</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">Actions</th>
                 </tr>
@@ -79,8 +79,8 @@
                 <label for="typeActive" class="text-sm text-gray-700 cursor-pointer">Active</label>
             </div>
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Required For</label>
-                <p class="text-xs text-gray-400 mb-2">Per ticket type, set whether this document is required. Only applies to tickets created or reclassified after this is saved — existing tickets keep their own checklist as it was set.</p>
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Ticket Type</label>
+                <p class="text-xs text-gray-400 mb-2">Set whether this document is required per ticket type.</p>
                 <div id="typeRequirements" class="space-y-1.5 border border-gray-200 rounded-lg p-3"></div>
             </div>
             <div class="flex gap-3 justify-end pt-2">
