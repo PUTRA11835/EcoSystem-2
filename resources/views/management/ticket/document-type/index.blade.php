@@ -37,12 +37,13 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-12">No</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Document Type</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider" style="min-width:220px;">Required For</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">Status</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">Actions</th>
                 </tr>
             </thead>
             <tbody id="typesTableBody" class="divide-y divide-gray-100">
-                <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
+                <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
             </tbody>
         </table>
     </div>
@@ -51,7 +52,7 @@
 
 <!-- ── Modal: Create / Edit Document Type ─────────────────────────────────── -->
 <div id="typeModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
         <div class="flex justify-between items-center p-6 border-b border-gray-100">
             <h3 id="typeModalTitle" class="text-lg font-bold text-gray-900">Add Document Type</h3>
             <button onclick="closeModal('typeModal')" class="text-gray-400 hover:text-gray-600 transition-colors">
@@ -76,6 +77,11 @@
                 <input type="checkbox" id="typeActive" checked
                     class="w-4 h-4 rounded cursor-pointer accent-red-800">
                 <label for="typeActive" class="text-sm text-gray-700 cursor-pointer">Active</label>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Required For</label>
+                <p class="text-xs text-gray-400 mb-2">Per ticket type, set whether this document is required. Only applies to tickets created or reclassified after this is saved — existing tickets keep their own checklist as it was set.</p>
+                <div id="typeRequirements" class="space-y-1.5 border border-gray-200 rounded-lg p-3"></div>
             </div>
             <div class="flex gap-3 justify-end pt-2">
                 <button type="button" onclick="closeModal('typeModal')" class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
@@ -105,6 +111,9 @@
 
 <script>
 let typesData = [];
+// Enum ticket type tunggal — App\Support\TicketClassification::TYPES — dipakai
+// untuk membangun grid "Required For" di modal edit.
+const TICKET_TYPES = @json($ticketTypes);
 
 // ── Load ─────────────────────────────────────────────────────────────────────
 
@@ -131,7 +140,7 @@ function renderTypes() {
     document.getElementById('typeCount').textContent = filtered.length + ' document type(s)';
 
     if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">${query || status ? 'No document types match your filter.' : 'No document types yet. Click "Add Document Type".'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">${query || status ? 'No document types match your filter.' : 'No document types yet. Click "Add Document Type".'}</td></tr>`;
         return;
     }
 
@@ -140,6 +149,7 @@ function renderTypes() {
             <td class="px-4 py-3 text-gray-400 text-xs">${i + 1}</td>
             <td class="px-4 py-3 font-semibold text-gray-900">${escHtml(t.name)}</td>
             <td class="px-4 py-3 text-gray-500">${escHtml(t.description || '') || '<span class="text-gray-300">—</span>'}</td>
+            <td class="px-4 py-3">${requirementBadges(t.ticket_type_links)}</td>
             <td class="px-4 py-3 text-center">
                 ${t.is_active
                     ? '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700">Active</span>'
@@ -160,7 +170,60 @@ function renderTypes() {
         </tr>`).join('');
 }
 
+// Ringkasan kolom "Required For": satu badge per ticket type yang punya
+// aturan, merah = Mandatory, abu-abu = Optional. Doc type tanpa aturan sama
+// sekali tidak muncul di checklist tiket manapun.
+function requirementBadges(links) {
+    if (!links || links.length === 0) {
+        return '<span class="text-gray-300 text-xs">Not required anywhere</span>';
+    }
+    return links.map(r => {
+        const cls = r.is_mandatory ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-600 border-gray-200';
+        return `<span class="inline-flex items-center px-2 py-0.5 mr-1 mb-1 rounded-md text-[11px] font-semibold border ${cls}">${escHtml(r.ticket_type)} · ${r.is_mandatory ? 'Mandatory' : 'Optional'}</span>`;
+    }).join('');
+}
+
 // ── Create / Edit ──────────────────────────────────────────────────────────────
+
+// Grid "Required For": satu baris per ticket type, tiap baris punya radio
+// Not required/Optional/Mandatory. `existing` = ticket_type_links dari server
+// (kosong untuk create baru, semua default "Not required").
+function renderRequirementGrid(existing) {
+    const byType = {};
+    (existing || []).forEach(r => { byType[r.ticket_type] = r.is_mandatory; });
+
+    document.getElementById('typeRequirements').innerHTML = TICKET_TYPES.map(type => {
+        const has = Object.prototype.hasOwnProperty.call(byType, type);
+        const current = has ? (byType[type] ? 'mandatory' : 'optional') : 'none';
+        const safeType = escHtml(type);
+        const radio = (value, label) => `
+            <label class="inline-flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+                <input type="radio" name="req_${safeType}" value="${value}" data-ticket-type="${safeType}"
+                    class="req-radio w-3.5 h-3.5 accent-red-800 cursor-pointer" ${current === value ? 'checked' : ''}>
+                ${label}
+            </label>`;
+        return `
+            <div class="flex items-center justify-between gap-3 py-1">
+                <span class="text-xs font-medium text-gray-700">${safeType}</span>
+                <div class="flex items-center gap-3">
+                    ${radio('none', 'Not required')}
+                    ${radio('optional', 'Optional')}
+                    ${radio('mandatory', 'Mandatory')}
+                </div>
+            </div>`;
+    }).join('');
+}
+
+// Baca grid balik jadi payload `ticket_type_links` untuk dikirim ke server —
+// baris "Not required" tidak dikirim sama sekali (berarti dihapus/tak ada).
+function readRequirementGrid() {
+    const links = [];
+    document.querySelectorAll('#typeRequirements input.req-radio:checked').forEach(input => {
+        if (input.value === 'none') return;
+        links.push({ ticket_type: input.dataset.ticketType, is_mandatory: input.value === 'mandatory' });
+    });
+    return links;
+}
 
 function openCreateTypeModal() {
     document.getElementById('typeModalTitle').textContent = 'Add Document Type';
@@ -168,6 +231,7 @@ function openCreateTypeModal() {
     document.getElementById('typeName').value = '';
     document.getElementById('typeDescription').value = '';
     document.getElementById('typeActive').checked = true;
+    renderRequirementGrid([]);
     openModal('typeModal');
     setTimeout(() => document.getElementById('typeName').focus(), 100);
 }
@@ -180,6 +244,7 @@ function openEditTypeModal(id) {
     document.getElementById('typeName').value = t.name;
     document.getElementById('typeDescription').value = t.description || '';
     document.getElementById('typeActive').checked = !!t.is_active;
+    renderRequirementGrid(t.ticket_type_links);
     openModal('typeModal');
     setTimeout(() => document.getElementById('typeName').focus(), 100);
 }
@@ -192,8 +257,9 @@ async function submitType(e) {
 
     const payload = {
         name,
-        description: document.getElementById('typeDescription').value.trim() || null,
-        is_active:   document.getElementById('typeActive').checked,
+        description:        document.getElementById('typeDescription').value.trim() || null,
+        is_active:          document.getElementById('typeActive').checked,
+        ticket_type_links:  readRequirementGrid(),
     };
     const url    = id ? `/api/deliverable-document-types/${id}` : '/api/deliverable-document-types';
     const method = id ? 'PUT' : 'POST';
