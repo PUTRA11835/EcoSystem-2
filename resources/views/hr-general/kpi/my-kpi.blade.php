@@ -15,9 +15,14 @@
     $canSeeLeadDetails = ($can ?? fn($p) => false)('general.kpi-evaluation');
     $upwardFeedback = $upwardFeedback ?? collect();
     $upwardEvals = $upwardEvals ?? collect();
-    // Self and Upward assessments are both filled via the same self_* pathway,
-    // so they share one "Self-Assessment" fill-in table.
-    $fillableEvals = $selfEvals->concat($upwardEvals);
+    // Three fixed tabs: Self, Lead (includes the "My Team" evaluate table for
+    // supervisors), Upward (fill-in for raters + the anonymized average
+    // received from subordinates). Self and Upward are both filled via the
+    // same self_* pathway but live in separate tabs now.
+    $isDone = fn($e) => !$e->hasSelfAssessment() && !in_array($e->status, [KpiEvaluation::STATUS_HR_APPROVED]);
+    $selfPending   = $selfEvals->filter($isDone)->values();
+    $upwardPending = $upwardEvals->filter($isDone)->values();
+    $pendingSelfAssessment = $selfPending->concat($upwardPending);
 @endphp
 
 <div class="space-y-5">
@@ -38,7 +43,7 @@
                 <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
                     <i class="fas fa-exclamation-circle text-amber-500"></i>
                     <span class="text-sm font-medium text-amber-800">
-                        {{ $pendingSelfAssessment->count() }} self-assessment{{ $pendingSelfAssessment->count() > 1 ? 's' : '' }} pending
+                        {{ $pendingSelfAssessment->count() }} assessment{{ $pendingSelfAssessment->count() > 1 ? 's' : '' }} pending
                     </span>
                 </div>
             @endif
@@ -83,7 +88,7 @@
         </div>
 
         <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Pending Self-Assess</p>
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Pending Assessments</p>
             <div class="text-3xl font-bold {{ $pendingSelfAssessment->count() > 0 ? 'text-amber-500' : 'text-gray-900' }}">
                 {{ $pendingSelfAssessment->count() }}
             </div>
@@ -102,7 +107,7 @@
         </div>
     </div>
 
-    {{-- ── Tab Strip ────────────────────────────────────────────────────────── --}}
+    {{-- ── Tab Strip — three fixed tabs ─────────────────────────────────────── --}}
     <div class="bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100 flex items-center gap-1.5 flex-wrap">
         <button type="button" data-tab="self" onclick="showKpiTab('self')"
             class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold primary-gradient text-white shadow transition-all">
@@ -112,50 +117,36 @@
             class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
             <i class="fas fa-user-tie mr-1.5"></i> Lead Assessment
         </button>
-        @if($upwardFeedback->isNotEmpty())
         <button type="button" data-tab="upward" onclick="showKpiTab('upward')"
             class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
-            <i class="fas fa-user-secret mr-1.5"></i> Upward Feedback
+            <i class="fas fa-arrow-up mr-1.5"></i> Upward Assessment
         </button>
-        @endif
-        @if($isSupervisor)
-        <button type="button" data-tab="team" onclick="showKpiTab('team')"
-            class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
-            <i class="fas fa-users mr-1.5"></i> My Team
-        </button>
-        @endif
     </div>
 
     {{-- ══════════════════ TAB: SELF-ASSESSMENT ══════════════════ --}}
     <div class="kpi-tab-panel space-y-5" data-tab="self">
 
-        @if($pendingSelfAssessment->count() > 0)
+        @if($selfPending->count() > 0)
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm space-y-3">
             <h3 class="text-sm font-bold text-amber-800 flex items-center gap-2">
                 <i class="fas fa-pencil-alt text-amber-500"></i>
                 Action Required — Unanswered Self-Assessments
             </h3>
             <div class="space-y-2">
-                @foreach($pendingSelfAssessment as $eval)
+                @foreach($selfPending as $eval)
                 <div class="bg-white rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-amber-100 shadow-sm">
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="font-bold text-gray-900 text-sm">{{ $eval->template?->name ?? 'KPI Template' }}</span>
                             <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">Unanswered</span>
-                            @if($eval->isUpwardType())
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">Upward</span>
-                            @endif
                         </div>
                         <p class="text-xs text-gray-500 mt-1">
                             Period: <strong>{{ Carbon::createFromFormat('Y-m', $eval->period_month)->format('F Y') }}</strong>
-                            @if($eval->isUpwardType())
-                                &middot; Evaluating: <strong>{{ $eval->supervisor?->basicData?->full_name ?? 'your supervisor' }}</strong>
-                            @endif
                         </p>
                     </div>
                     <a href="{{ route('general.my-kpi.self-assessment', $eval->id) }}"
                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all shrink-0">
-                        Fill {{ $eval->isUpwardType() ? 'Upward Assessment' : 'Self-Assessment' }} Now
+                        Fill Self-Assessment Now
                     </a>
                 </div>
                 @endforeach
@@ -169,7 +160,7 @@
                 <h3 class="text-sm font-bold text-gray-800">Monthly Self-Assessments</h3>
             </div>
 
-            @if($fillableEvals->count() > 0)
+            @if($selfEvals->count() > 0)
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead class="bg-gray-50 border-b border-gray-100">
@@ -183,7 +174,7 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                        @foreach($fillableEvals->sortByDesc('period_month') as $eval)
+                        @foreach($selfEvals->sortByDesc('period_month') as $eval)
                         @php
                             $done      = $eval->hasSelfAssessment();
                             $approved  = $eval->status === KpiEvaluation::STATUS_HR_APPROVED;
@@ -195,9 +186,6 @@
                             </td>
                             <td class="px-5 py-3.5 text-xs text-gray-700">
                                 {{ $eval->template?->name ?? 'Self-Assessment' }}
-                                @if($eval->isUpwardType())
-                                <span class="ml-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-semibold">Upward</span>
-                                @endif
                             </td>
                             <td class="px-4 py-3.5 text-center text-xs font-bold">
                                 @if($eval->overall_score !== null && $done)
@@ -296,14 +284,15 @@
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
                                     @foreach($eval->details->sortBy('indicator.order_seq') as $detail)
+                                    @php $starMax = $detail->indicator?->rating_max ?: ($eval->template?->scaleMax() ?: 5); @endphp
                                     <tr>
                                         <td class="px-5 py-3 font-semibold text-gray-900 text-xs">{{ $detail->indicator?->name ?? '—' }}</td>
                                         <td class="px-4 py-3 text-center text-xs font-semibold text-indigo-600">{{ $detail->indicator?->weight ?? 0 }}%</td>
                                         <td class="px-4 py-3 text-center">
                                             @if(!is_null($detail->supervisor_score))
                                                 <div class="flex items-center justify-center gap-0.5 text-amber-400 text-xs">
-                                                    @for($s = 1; $s <= 5; $s++)
-                                                        <span>{{ $s <= ($detail->star_rating ?? round($detail->supervisor_score / 20)) ? '★' : '☆' }}</span>
+                                                    @for($s = 1; $s <= $starMax; $s++)
+                                                        <span>{{ $s <= ($detail->star_rating ?? round($detail->supervisor_score / 100 * $starMax)) ? '★' : '☆' }}</span>
                                                     @endfor
                                                 </div>
                                                 <span class="text-[11px] text-gray-500">{{ number_format($detail->supervisor_score, 1) }}</span>
@@ -352,52 +341,8 @@
             </div>
             @endif
         </div>
-    </div>
 
-    {{-- ══════════════════ TAB: UPWARD FEEDBACK (anonymous) ══════════════════ --}}
-    @if($upwardFeedback->isNotEmpty())
-    <div class="kpi-tab-panel space-y-5 hidden" data-tab="upward">
-        <div class="bg-slate-800 text-white rounded-2xl p-4 shadow-sm flex items-start gap-3">
-            <i class="fas fa-user-secret text-lg mt-0.5 shrink-0 text-slate-300"></i>
-            <div>
-                <p class="text-xs font-bold uppercase tracking-wider text-slate-200">Anonymous Feedback</p>
-                <p class="text-xs text-slate-300 mt-1">
-                    This is feedback from your team, reviewed by HR. Only the average score is shown — individual
-                    responses and rater identities are never revealed, so this can't be used to guess who said what.
-                </p>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div class="p-5 border-b border-gray-100 flex items-center gap-2">
-                <i class="fas fa-chart-simple text-slate-400"></i>
-                <h3 class="text-sm font-bold text-gray-800">Upward Assessment — Average Scores</h3>
-            </div>
-            <div class="divide-y divide-gray-100">
-                @foreach($upwardFeedback as $fb)
-                <div class="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="font-bold text-gray-900 text-sm">{{ $fb->template?->name ?? 'Upward Assessment' }}</span>
-                            <span class="text-xs text-gray-400">&middot;</span>
-                            <span class="text-xs text-gray-500">{{ Carbon::createFromFormat('Y-m', $fb->period_month)->format('F Y') }}</span>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-0.5">
-                            Based on {{ $fb->rater_count }} rater{{ $fb->rater_count > 1 ? 's' : '' }} &middot;
-                            published {{ $fb->published_at?->format('d M Y') }}
-                        </p>
-                    </div>
-                    <span class="text-2xl font-bold text-slate-700">{{ number_format($fb->average_score, 1) }}<span class="text-sm text-gray-400"> / 100</span></span>
-                </div>
-                @endforeach
-            </div>
-        </div>
-    </div>
-    @endif
-
-    {{-- ══════════════════ TAB: MY TEAM (leads only) ══════════════════ --}}
-    @if($isSupervisor)
-    <div class="kpi-tab-panel space-y-5 hidden" data-tab="team">
+        @if($isSupervisor)
         <div class="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
             <div class="p-5 border-b border-indigo-50 bg-indigo-50/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
@@ -405,15 +350,9 @@
                         <span class="w-7 h-7 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs">
                             <i class="fas fa-users"></i>
                         </span>
-                        My Team — Lead Assessments — {{ Carbon::createFromFormat('Y-m', $selectedPeriod ?? $currentPeriod)->format('F Y') }}
+                        My Team — {{ Carbon::createFromFormat('Y-m', $selectedPeriod ?? $currentPeriod)->format('F Y') }}
                     </h3>
-                    <p class="text-xs text-gray-500 mt-0.5">
-                        Score and comment on your direct reports using the assigned lead-assessment template.
-                    </p>
-                </div>
-                <div class="flex items-center gap-2 text-xs font-semibold text-indigo-700 bg-white px-3.5 py-1.5 rounded-xl border border-indigo-100 shadow-sm">
-                    <i class="fas fa-user-check text-indigo-500"></i>
-                    <span>Direct Lead Role</span>
+                    <p class="text-xs text-gray-500 mt-0.5">Score your direct reports' lead assessment.</p>
                 </div>
             </div>
 
@@ -425,7 +364,7 @@
                             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Team Member</th>
                             <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Position</th>
                             <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Template</th>
-                            <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Lead Review</th>
+                            <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                             <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Score</th>
                             <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">Action</th>
                         </tr>
@@ -465,7 +404,7 @@
                             <td class="px-4 py-3.5 text-center">
                                 <a href="{{ route('general.kpi-evaluation.review', $tEval->id) }}"
                                    class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all {{ $tSupDone ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100' : 'primary-gradient text-white hover:opacity-90' }}">
-                                    {{ $tSupDone ? ($tIsApproved ? 'View' : 'Edit Review') : 'Evaluate & Comment' }}
+                                    {{ $tSupDone ? ($tIsApproved ? 'View' : 'Edit Review') : 'Evaluate' }}
                                 </a>
                             </td>
                         </tr>
@@ -480,8 +419,117 @@
                 </table>
             </div>
         </div>
+        @endif
     </div>
-    @endif
+
+    {{-- ══════════════════ TAB: UPWARD ASSESSMENT ══════════════════ --}}
+    <div class="kpi-tab-panel space-y-5 hidden" data-tab="upward">
+
+        {{-- Fill-in: rate my own supervisor --}}
+        @if($upwardPending->count() > 0)
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm space-y-3">
+            <h3 class="text-sm font-bold text-amber-800 flex items-center gap-2">
+                <i class="fas fa-pencil-alt text-amber-500"></i>
+                Action Required — Rate Your Supervisor
+            </h3>
+            <div class="space-y-2">
+                @foreach($upwardPending as $eval)
+                <div class="bg-white rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-amber-100 shadow-sm">
+                    <div>
+                        <span class="font-bold text-gray-900 text-sm">{{ $eval->template?->name ?? 'Upward Assessment' }}</span>
+                        <p class="text-xs text-gray-500 mt-1">
+                            Period: <strong>{{ Carbon::createFromFormat('Y-m', $eval->period_month)->format('F Y') }}</strong>
+                            &middot; Evaluating: <strong>{{ $eval->supervisor?->basicData?->full_name ?? 'your supervisor' }}</strong>
+                        </p>
+                    </div>
+                    <a href="{{ route('general.my-kpi.self-assessment', $eval->id) }}"
+                       class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all shrink-0">
+                        Fill Now
+                    </a>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        @if($upwardEvals->isNotEmpty())
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="p-5 border-b border-gray-100 flex items-center gap-2">
+                <i class="fas fa-list-check text-amber-400"></i>
+                <h3 class="text-sm font-bold text-gray-800">My Upward Submissions</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Period</th>
+                            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Evaluating</th>
+                            <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        @foreach($upwardEvals->sortByDesc('period_month') as $eval)
+                        @php $done = $eval->hasSelfAssessment(); @endphp
+                        <tr class="hover:bg-gray-50/70 transition-colors">
+                            <td class="px-5 py-3.5 font-semibold text-gray-900 text-xs">
+                                {{ Carbon::createFromFormat('Y-m', $eval->period_month)->format('M Y') }}
+                            </td>
+                            <td class="px-5 py-3.5 text-xs text-gray-700">{{ $eval->supervisor?->basicData?->full_name ?? '—' }}</td>
+                            <td class="px-4 py-3.5 text-center">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold {{ $done ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                                    {{ $done ? 'Submitted' : 'Pending' }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3.5 text-center">
+                                <a href="{{ route('general.my-kpi.self-assessment', $eval->id) }}"
+                                   class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all {{ $done ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100' : 'primary-gradient text-white hover:opacity-90' }}">
+                                    {{ $done ? 'View Details' : 'Fill Now' }}
+                                </a>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @endif
+
+        {{-- Feedback received: anonymized average from subordinates, HR-approved only --}}
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="p-5 border-b border-gray-100 flex items-center gap-2">
+                <i class="fas fa-chart-simple text-slate-400"></i>
+                <div>
+                    <h3 class="text-sm font-bold text-gray-800">Feedback From My Team</h3>
+                    <p class="text-[11px] text-gray-400 mt-0.5">Anonymous. Only the HR-approved average is shown — never individual scores.</p>
+                </div>
+            </div>
+            @if($upwardFeedback->isNotEmpty())
+            <div class="divide-y divide-gray-100">
+                @foreach($upwardFeedback as $fb)
+                <div class="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-bold text-gray-900 text-sm">{{ $fb->template?->name ?? 'Upward Assessment' }}</span>
+                            <span class="text-xs text-gray-400">&middot;</span>
+                            <span class="text-xs text-gray-500">{{ Carbon::createFromFormat('Y-m', $fb->period_month)->format('F Y') }}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-0.5">
+                            Based on {{ $fb->rater_count }} rater{{ $fb->rater_count > 1 ? 's' : '' }} &middot;
+                            published {{ $fb->published_at?->format('d M Y') }}
+                        </p>
+                    </div>
+                    <span class="text-2xl font-bold text-slate-700">{{ number_format($fb->average_score, 1) }}<span class="text-sm text-gray-400"> / 100</span></span>
+                </div>
+                @endforeach
+            </div>
+            @else
+            <div class="text-center py-12">
+                <p class="text-xs text-gray-400">No feedback published yet.</p>
+            </div>
+            @endif
+        </div>
+    </div>
 
 </div>
 

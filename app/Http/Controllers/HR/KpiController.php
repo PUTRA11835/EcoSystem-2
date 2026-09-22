@@ -554,7 +554,8 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         // Validate scores array
         $request->validate([
             'scores'          => 'required|array',
-            'scores.*.rating' => 'nullable|numeric|min:0|max:10',
+            'scores.*.rating' => 'nullable|numeric|min:0|max:100',
+            'scores.*.actual' => 'nullable|string|max:255',
             'scores.*.score'  => 'nullable|numeric|min:0|max:100',
             'scores.*.notes'  => 'nullable|string|max:500',
             'general_notes'   => 'nullable|string|max:2000',
@@ -578,10 +579,10 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
                     continue;
                 }
 
-                $max = $detail->indicator?->effectiveMax() ?: $scaleMax;
+                $max = $detail->indicator?->rating_max ?: $scaleMax;
 
                 if (isset($data['rating']) && (int) $data['rating'] > 0) {
-                    $detail->star_rating      = (int) $data['rating'];
+                    $detail->star_rating      = min($max, (int) $data['rating']);
                     $detail->supervisor_score = round($detail->star_rating / $max * 100, 2);
                 } elseif (isset($data['score']) && $data['score'] !== '') {
                     $detail->supervisor_score = (float) $data['score'];
@@ -590,8 +591,10 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
                     $detail->supervisor_score = null;
                 }
 
-                if (isset($data['actual'])) {
-                    $detail->actual_achievement = $data['actual'];
+                if (array_key_exists('actual', $data)) {
+                    $detail->actual_achievement = ($data['actual'] !== null && trim($data['actual']) !== '')
+                        ? trim($data['actual'])
+                        : null;
                 }
 
                 $detail->supervisor_notes    = $data['notes'] ?? null;

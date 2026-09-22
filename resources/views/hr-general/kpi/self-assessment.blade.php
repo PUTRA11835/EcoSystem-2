@@ -44,6 +44,18 @@
 
     {{-- ── Guidelines & Locked Warning ───────────────────────────────────── --}}
     <div class="space-y-3">
+        @if($isUpward)
+        <div class="bg-indigo-700 text-white rounded-2xl p-4 shadow-sm flex items-start gap-3">
+            <i class="fas fa-arrow-up text-lg mt-0.5 shrink-0 text-indigo-200"></i>
+            <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-indigo-100">Upward Assessment — You Are Scoring Your Supervisor</p>
+                <p class="text-xs text-indigo-100 mt-1">
+                    Every rating and note below is about
+                    <strong>{{ $supBd?->full_name ?? 'your supervisor' }}</strong>, not about you. This is not a self-assessment of your own performance.
+                </p>
+            </div>
+        </div>
+        @endif
         @if($evaluation->is_anonymous)
         <div class="bg-slate-800 text-white rounded-2xl p-4 shadow-sm flex items-start gap-3">
             <i class="fas fa-user-secret text-lg mt-0.5 shrink-0 text-slate-300"></i>
@@ -57,7 +69,9 @@
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm flex items-start gap-3">
             <i class="fas fa-lock text-amber-600 text-lg mt-0.5 shrink-0"></i>
             <div>
-                <h4 class="text-xs font-bold text-amber-900 uppercase tracking-wider">Penilaian mandiri sudah dikirim dan dikunci oleh sistem</h4>
+                <h4 class="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                    {{ $isUpward ? 'Penilaian atasan (upward) sudah dikirim dan dikunci oleh sistem' : 'Penilaian mandiri sudah dikirim dan dikunci oleh sistem' }}
+                </h4>
                 <p class="text-xs text-amber-800 mt-1 leading-relaxed">
                     Anda dapat melihat kembali jawaban Anda di bawah ini, namun data <strong>tidak dapat diubah lagi</strong>.
                 </p>
@@ -68,9 +82,15 @@
             <i class="fas fa-exclamation-triangle text-amber-600 text-lg mt-0.5 shrink-0"></i>
             <div>
                 <h4 class="text-xs font-bold text-amber-900 uppercase tracking-wider">Penting — Konfirmasi Pengiriman & Kunci Evaluasi</h4>
+                @if($isUpward)
+                <p class="text-xs text-amber-800 mt-1 leading-relaxed">
+                    Setelah dikirim, penilaian atasan (upward assessment) untuk <strong>{{ $supBd?->full_name ?? 'supervisor Anda' }}</strong> ini akan <strong>terkunci secara permanen dan tidak dapat diubah kembali</strong>. Skor Anda akan digabung dengan penilai lain dan hanya rata-ratanya yang akan ditampilkan ke atasan setelah disetujui HR. Mohon periksa kembali rating bintang dan catatan Anda secara teliti.
+                </p>
+                @else
                 <p class="text-xs text-amber-800 mt-1 leading-relaxed">
                     Setelah dikirim, evaluasi mandiri (self-assessment) ini akan <strong>terkunci secara permanen dan tidak dapat diubah kembali</strong> untuk diproses dalam penilaian atasan. Mohon periksa kembali rating bintang dan catatan pencapaian Anda secara teliti.
                 </p>
+                @endif
             </div>
         </div>
         @endif
@@ -78,9 +98,15 @@
         <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
             <i class="fas fa-info-circle text-blue-500 mt-0.5 shrink-0"></i>
             <div>
-                <p class="text-xs font-bold text-blue-800">Petunjuk Pengisian Evaluasi Mandiri (Self-Assessment)</p>
+                <p class="text-xs font-bold text-blue-800">
+                    {{ $isUpward ? 'Petunjuk Pengisian Penilaian Atasan (Upward Assessment)' : 'Petunjuk Pengisian Evaluasi Mandiri (Self-Assessment)' }}
+                </p>
                 <ul class="text-[11px] text-blue-700 mt-1 space-y-0.5 list-disc list-inside">
+                    @if($isUpward)
+                    <li>Beri rating bintang untuk <strong>{{ $supBd?->full_name ?? 'atasan Anda' }}</strong> pada tiap indikator <strong>sesuai skala pada tabel "Skala Penilaian" di atas</strong></li>
+                    @else
                     <li>Beri rating bintang pada tiap indikator <strong>sesuai skala pada tabel "Skala Penilaian" di atas</strong></li>
+                    @endif
                     <li>Isi kolom realisasi (actual) dan catatan bila perlu — sifatnya penjelas, tidak menambah skor</li>
                     <li>Skor indikator = (bintang &divide; skala maksimum) &times; bobot. Indikator yang belum diisi ditandai <span class="font-bold text-amber-700">Amber</span></li>
                 </ul>
@@ -147,7 +173,7 @@
                                 <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase w-10">NO</th>
                                 <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase">INDIKATOR KPI</th>
                                 <th class="text-center px-3 py-3 font-semibold text-gray-500 uppercase w-16">BOBOT</th>
-                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-36">REALISASI (ACTUAL)</th>
+                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-72 min-w-[18rem]">REALISASI (ACTUAL)</th>
                                 <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-48">RATING</th>
                                 <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-28">WEIGHTED SCORE</th>
                             </tr>
@@ -157,7 +183,7 @@
                             @php
                                 $ind = $detail->indicator;
                                 $isPara = $ind && $ind->isParagraph();
-                                $max = $ind?->effectiveMax() ?: $scaleMax;
+                                $max = $ind?->rating_max ?: $scaleMax;
                                 $weight = $ind?->weight ?? 0;
                                 $currentRating = $detail->star_rating ?? ($detail->self_achievement ? min($max, max(1, (int) round($detail->self_achievement / 100 * $max))) : null);
                                 $isUnfilled = !$isPara && is_null($currentRating);
@@ -194,11 +220,10 @@
                                     {{ rtrim(rtrim(number_format($weight, 2), '0'), '.') }}%
                                 </td>
                                 <td class="px-4 py-4 align-top text-center">
-                                    <input type="text" name="achievements[{{ $detail->id }}][actual]"
-                                        value="{{ old("achievements.{$detail->id}.actual", $detail->actual_achievement ?? $detail->self_achievement) }}"
+                                    <textarea name="achievements[{{ $detail->id }}][actual]" rows="3" maxlength="255"
                                         {{ $locked ? 'readonly' : '' }}
-                                        placeholder="Realisasi..."
-                                        class="w-full px-2.5 py-1.5 text-xs text-center border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 {{ $locked ? 'bg-gray-50 text-gray-500' : '' }}">
+                                        placeholder="Tuliskan realisasi..."
+                                        class="w-full min-h-[4.5rem] px-3 py-2 text-sm text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $locked ? 'bg-gray-50 text-gray-600' : 'bg-white' }}">{{ old("achievements.{$detail->id}.actual", $detail->actual_achievement) }}</textarea>
                                 </td>
                                 <td class="px-4 py-4 align-top text-center">
                                     <input type="hidden" name="achievements[{{ $detail->id }}][rating]" id="rating_val_{{ $detail->id }}" value="{{ $currentRating ?? '' }}">
@@ -245,7 +270,13 @@
             <div class="p-5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                 <p class="text-xs text-gray-400">
                     <i class="fas fa-lock mr-1"></i>
-                    {{ $locked ? 'This self-assessment is locked. You are viewing a read-only copy.' : 'Self-assessment details will be submitted to your supervisor & HR.' }}
+                    @if($locked)
+                        {{ $isUpward ? 'This upward assessment is locked. You are viewing a read-only copy.' : 'This self-assessment is locked. You are viewing a read-only copy.' }}
+                    @else
+                        {{ $isUpward
+                            ? 'This score is about ' . ($supBd?->full_name ?? 'your supervisor') . '. HR reviews it and only shares the averaged, anonymous result with them.'
+                            : 'Self-assessment details will be submitted to your supervisor & HR.' }}
+                    @endif
                 </p>
                 <div class="flex items-center gap-3">
                     <a href="{{ route('general.my-kpi.index') }}"
@@ -256,7 +287,7 @@
                     <button type="submit" id="submitSelfAssessBtn"
                         class="inline-flex items-center gap-2 px-6 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all">
                         <i class="fas fa-paper-plane text-xs"></i>
-                        Kirim Self-Assessment
+                        {{ $isUpward ? 'Kirim Upward Assessment' : 'Kirim Self-Assessment' }}
                     </button>
                     @endunless
                 </div>
@@ -273,9 +304,13 @@
             <i class="fas fa-exclamation-triangle"></i>
         </div>
         <div class="space-y-1.5">
-            <h3 class="text-base font-bold text-gray-900">Konfirmasi Kirim Self-Assessment</h3>
+            <h3 class="text-base font-bold text-gray-900">{{ $isUpward ? 'Konfirmasi Kirim Upward Assessment' : 'Konfirmasi Kirim Self-Assessment' }}</h3>
             <p class="text-xs text-gray-500 leading-relaxed px-2">
-                Apakah Anda yakin ingin mengirim evaluasi mandiri ini? Setelah dikirim, data Anda akan <strong class="text-amber-800">terkunci secara permanen</strong> dan tidak dapat diubah kembali.
+                @if($isUpward)
+                    Apakah Anda yakin ingin mengirim penilaian ini untuk <strong>{{ $supBd?->full_name ?? 'atasan Anda' }}</strong>? Setelah dikirim, data akan <strong class="text-amber-800">terkunci secara permanen</strong> dan tidak dapat diubah kembali.
+                @else
+                    Apakah Anda yakin ingin mengirim evaluasi mandiri ini? Setelah dikirim, data Anda akan <strong class="text-amber-800">terkunci secara permanen</strong> dan tidak dapat diubah kembali.
+                @endif
             </p>
         </div>
         <div class="flex items-center justify-center gap-3 pt-2">
@@ -349,6 +384,8 @@ function submitSelfAssessment(e) {
 async function executeSubmitSelfAssessment() {
     closeConfirmSubmitModal();
 
+    const isUpward = {{ $isUpward ? 'true' : 'false' }};
+    const submitLabel = isUpward ? 'Kirim Upward Assessment' : 'Kirim Self-Assessment';
     const btn = document.getElementById('submitSelfAssessBtn');
     btn.disabled = true; btn.innerHTML = `<i class="fas fa-circle-notch fa-spin text-xs"></i> Submitting...`;
 
@@ -360,15 +397,15 @@ async function executeSubmitSelfAssessment() {
         });
         const data = await res.json();
         if (data.success) {
-            showToast(data.message || 'Self-assessment submitted successfully!', 'success');
+            showToast(data.message || (isUpward ? 'Upward assessment submitted successfully!' : 'Self-assessment submitted successfully!'), 'success');
             setTimeout(() => { window.location.href = '{{ route("general.my-kpi.index") }}'; }, 1000);
         } else {
-            showToast(data.message || 'Failed to submit self-assessment.', 'error');
-            btn.disabled = false; btn.innerHTML = `<i class="fas fa-paper-plane text-xs"></i> Kirim Self-Assessment`;
+            showToast(data.message || (isUpward ? 'Failed to submit upward assessment.' : 'Failed to submit self-assessment.'), 'error');
+            btn.disabled = false; btn.innerHTML = `<i class="fas fa-paper-plane text-xs"></i> ${submitLabel}`;
         }
     } catch (err) {
         showToast('An error occurred. Please try again.', 'error');
-        btn.disabled = false; btn.innerHTML = `<i class="fas fa-paper-plane text-xs"></i> Kirim Self-Assessment`;
+        btn.disabled = false; btn.innerHTML = `<i class="fas fa-paper-plane text-xs"></i> ${submitLabel}`;
     }
 }
 </script>
