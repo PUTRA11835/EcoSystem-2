@@ -20,6 +20,7 @@
     $vPositions = collect(old('target_positions', $template->target_positions ?? []))->map(fn($v) => (string) $v)->all();
     $vEmployees = collect(old('target_employees', $template->target_employees ?? []))->map(fn($v) => (string) $v)->all();
     $vProjects  = collect(old('target_projects', $template->target_projects ?? []))->map(fn($v) => (string) $v)->all();
+    $vSubjects  = collect(old('subject_employees', $template->subject_employees ?? []))->map(fn($v) => (string) $v)->all();
     $vDivisor   = old('score_divisor', $template->score_divisor ?? 5);
 
     // Option pools for the criteria builder, keyed by criterion type.
@@ -35,6 +36,11 @@
     foreach ($vPositions as $id) { $preChips[] = ['position', $id, $id]; }
     foreach ($vEmployees as $id) { $preChips[] = ['employee', $id, optional(collect($targetPools['employee'])->firstWhere('id', $id))['name'] ?? ('Employee #' . $id)]; }
     foreach ($vProjects as $id)  { $preChips[] = ['project', $id, optional(collect($targetPools['project'])->firstWhere('id', $id))['name'] ?? ('Project #' . $id)]; }
+
+    // Pre-selected chips for the "for who / who fills" counterpart picker
+    // (employee-only, since a counterpart is always a specific person or two).
+    $preSubjectChips = [];
+    foreach ($vSubjects as $id) { $preSubjectChips[] = [$id, optional(collect($targetPools['employee'])->firstWhere('id', $id))['name'] ?? ('Employee #' . $id)]; }
 
     $oldIndicators = old('indicators');
     $rows = $oldIndicators
@@ -65,7 +71,7 @@
                 {{ $isEdit ? 'Edit KPI Template' : 'New KPI Template' }}
             </h1>
             <p class="text-xs text-gray-500 mt-1">
-                Define the indicators (weights must total 100%) and choose who this template is offered to — by role, position, employee, or project.
+                Set the indicators, audience, and assessment type.
             </p>
         </div>
         <a href="{{ route('general.kpi-evaluation.templates.index') }}"
@@ -99,12 +105,12 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-1.5">Assessment Type <span class="text-red-500">*</span></label>
-                        <select name="target_type" id="targetTypeSelect" required onchange="toggleAnonymousVisibility()"
+                        <select name="target_type" id="targetTypeSelect" required onchange="toggleAnonymousVisibility(); updateAudienceCopy();"
                             class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300">
-                            <option value="self" {{ $vType === 'self' ? 'selected' : '' }}>Self-Assessment (Evaluasi Mandiri)</option>
-                            <option value="supervisor" {{ $vType === 'supervisor' ? 'selected' : '' }}>Lead Assessment (Penilaian Atasan)</option>
+                            <option value="self" {{ $vType === 'self' ? 'selected' : '' }}>Self-Assessment</option>
+                            <option value="supervisor" {{ $vType === 'supervisor' ? 'selected' : '' }}>Lead Assessment</option>
                             <option value="peer" {{ $vType === 'peer' ? 'selected' : '' }}>Peer Assessment</option>
-                            <option value="upward" {{ $vType === 'upward' ? 'selected' : '' }}>Upward Assessment (Bawahan ke Atasan)</option>
+                            <option value="upward" {{ $vType === 'upward' ? 'selected' : '' }}>Upward Assessment</option>
                         </select>
                     </div>
                     <div>
@@ -117,6 +123,10 @@
                         </select>
                     </div>
                 </div>
+                {{-- Who fills it vs. who it's about — flips per assessment type, so this
+                     box always states it explicitly instead of leaving it implied. --}}
+                <div id="flowDirectionBox" class="p-3.5 rounded-xl border flex items-start gap-3"></div>
+
                 <div id="anonymousToggleWrap" class="hidden">
                     <label class="flex items-start gap-3 p-3.5 rounded-xl border border-gray-200 bg-gray-50/60 cursor-pointer hover:bg-gray-50 transition-all">
                         <input type="hidden" name="is_anonymous" value="0">
@@ -125,9 +135,7 @@
                         <span>
                             <span class="block text-xs font-bold text-gray-800">Anonymous evaluation</span>
                             <span class="block text-[11px] text-gray-500 mt-0.5">
-                                Individual rater identities and scores are never shown to the person being evaluated. HR reviews each
-                                submission, then publishes the <strong>average score</strong> — the only thing they ever see — so no one
-                                can guess who gave which rating.
+                                Raters stay hidden. HR reviews submissions and publishes only the average score.
                             </span>
                         </span>
                     </label>
@@ -143,10 +151,9 @@
 
         {{-- ── Audience targeting — flexible criteria builder ─────────────────── --}}
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <h3 class="text-sm font-bold text-gray-800">Who is this template for?</h3>
-            <p class="text-xs text-gray-400 mt-0.5 mb-4">
-                Tick any mix of criteria — by role, position, employee, or project. An employee is offered this
-                template if they match <strong>any one</strong> of them. Leave empty to offer it to everyone.
+            <h3 class="text-sm font-bold text-gray-800" id="audienceHeading">Who is this template for?</h3>
+            <p class="text-xs text-gray-400 mt-0.5 mb-4" id="audienceSubcopy">
+                Match by role, position, employee, or project. Leave empty for everyone.
             </p>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="tgtBuilder">
@@ -176,7 +183,10 @@
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-xs font-semibold text-gray-700">Selected <span id="tgtCount" class="text-gray-400 font-normal"></span></span>
-                        <button type="button" id="tgtClear" onclick="tgtClearAll()" class="text-[11px] text-red-500 font-medium hover:underline hidden">Clear all</button>
+                        <div class="flex items-center gap-3">
+                            <button type="button" onclick="tgtSelectAllVisible()" class="text-[11px] text-indigo-600 font-medium hover:underline">Select all</button>
+                            <button type="button" id="tgtClear" onclick="tgtClearAll()" class="text-[11px] text-red-500 font-medium hover:underline hidden">Clear all</button>
+                        </div>
                     </div>
                     <div id="tgtChosen" class="border border-gray-200 rounded-xl bg-white max-h-64 overflow-y-auto p-2 space-y-1.5"></div>
                     <p id="tgtEmpty" class="text-[11px] text-gray-400 mt-2">No criteria — offered to <strong>everyone</strong>.</p>
@@ -187,9 +197,49 @@
             <div id="tgtInputs"></div>
         </div>
 
+        {{-- ── Counterpart picker — "who fills" (Lead/Peer) or "for who" (Upward) ── --}}
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100" id="subjectPanel">
+            <h3 class="text-sm font-bold text-gray-800" id="subjectHeading">Who fills this?</h3>
+            <p class="text-xs text-gray-400 mt-0.5 mb-4" id="subjectSubcopy"></p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="border border-gray-200 rounded-xl overflow-hidden">
+                    <div class="p-3 bg-gray-50 border-b border-gray-200">
+                        <div class="relative">
+                            <input type="text" id="subSearch" autocomplete="off" placeholder="Search employees…"
+                                oninput="subRenderList()"
+                                class="w-full pl-11 pr-3 py-3.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-amber-400">
+                            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        </div>
+                    </div>
+                    <div id="subList" class="bg-gray-50/40 max-h-72 overflow-y-auto p-1.5 space-y-0.5"></div>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-gray-700">Selected <span id="subCount" class="text-gray-400 font-normal"></span></span>
+                        <div class="flex items-center gap-3">
+                            <button type="button" onclick="subSelectAllVisible()" class="text-[11px] text-amber-700 font-medium hover:underline">Select all</button>
+                            <button type="button" id="subClear" onclick="subClearAll()" class="text-[11px] text-red-500 font-medium hover:underline hidden">Clear all</button>
+                        </div>
+                    </div>
+                    <div id="subChosen" class="border border-gray-200 rounded-xl bg-white max-h-64 overflow-y-auto p-2 space-y-1.5"></div>
+                    <p id="subEmpty" class="text-[11px] text-gray-400 mt-2">
+                        None picked — falls back to each employee's direct supervisor.
+                    </p>
+                    <p id="subOverlapWarning" class="text-[11px] text-red-600 mt-2 hidden">
+                        <i class="fas fa-triangle-exclamation mr-1"></i> Same employee can't be on both sides.
+                    </p>
+                </div>
+            </div>
+
+            <div id="subInputs"></div>
+        </div>
+
         <script>
             window.__kpiPools  = @json($targetPools);
             window.__kpiChips0 = @json($preChips);
+            window.__kpiSubjectChips0 = @json($preSubjectChips);
         </script>
 
         {{-- ── Scoring Scale (SKALA PENILAIAN) ───────────────────────────────── --}}
@@ -205,11 +255,14 @@
                     <span class="text-[10px] text-gray-400">Weighted Score = Score ÷ divisor × Bobot. Auto-synced to the number of scale rows below.</span>
                 </div>
             </div>
-            <p class="text-xs text-gray-400 mb-3">
-                Define what each rating value means, from <strong>1 (lowest)</strong> at the top to the highest value at the bottom. This table is shown
-                to evaluators on the self-assessment and review screens. The score divisor above always matches the <strong>number of rows</strong> here —
-                so a 5-row scale (1 through 5) gives a divisor of 5.
+            <p class="text-xs text-gray-400 mb-2">
+                Define each rating value, lowest to highest. Employees rate with one star per scale row.
             </p>
+            <div class="flex flex-wrap items-center gap-2 mb-3 text-xs text-gray-500">
+                <span>Rating preview:</span>
+                <span id="starPreview" class="text-amber-400 text-base tracking-wider break-all"></span>
+                <span id="starPreviewCount" class="font-semibold text-gray-700"></span>
+            </div>
 
             <div class="hidden sm:grid grid-cols-12 gap-2 px-1 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                 <div class="col-span-1 text-center">Value</div>
@@ -270,21 +323,22 @@
                     KPI Indicators <span class="text-red-500">*</span>
                     <span class="text-gray-400 font-normal ml-1 text-xs">(scored rows must sum to 100%)</span>
                 </h3>
-                <span id="weightSumDisplay" class="text-xs font-bold text-gray-400">Total: 0%</span>
+                <div class="flex items-center gap-3">
+                    <span id="indicatorCountDisplay" class="text-xs font-bold text-indigo-600">0 indicators</span>
+                    <span id="weightSumDisplay" class="text-xs font-bold text-gray-400">Total: 0%</span>
+                </div>
             </div>
             <p class="text-[11px] text-gray-400 mb-3">
-                Each <strong>Rating</strong> row is scored on the scale above:
-                <span class="font-mono">indicator score = (stars &divide; scale max) &times; weight</span>.
-                A <strong>Paragraph</strong> row just collects text — no weight, not scored.
-                Every indicator shares the same <strong>Scale max</strong> — it always equals the template's score divisor (<span id="templateScaleHint">{{ $vDivisor ?: 5 }}</span>), so ratings stay consistent across the whole template.
+                <strong>Rating</strong> rows are scored against the scale above. <strong>Paragraph</strong> rows just collect text — no weight.
             </p>
 
             {{-- Column headers --}}
             <div class="hidden sm:grid grid-cols-12 gap-2 px-1 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                <div class="col-span-4">Indicator name</div>
+                <div class="col-span-1 text-center">No</div>
+                <div class="col-span-4">Indicator name / question</div>
                 <div class="col-span-2">Answer type</div>
                 <div class="col-span-2 text-center">Weight (%)</div>
-                <div class="col-span-3 text-center">Scale max</div>
+                <div class="col-span-2 text-center">Scale max</div>
                 <div class="col-span-1"></div>
             </div>
 
@@ -292,10 +346,13 @@
                 @foreach($rows as $r)
                 @php $isPara = ($r->answer_type ?? 'rating') === 'paragraph'; @endphp
                 <div class="indicator-row grid grid-cols-12 gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
-                    <div class="col-span-12 sm:col-span-4">
-                        <input type="text" name="indicators[__I__][name]" value="{{ $r->name ?? '' }}" required
-                            placeholder="Indicator name *"
-                            class="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400">
+                    <div class="col-span-2 sm:col-span-1 flex sm:justify-center">
+                        <span class="indicator-no inline-flex w-7 h-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 text-xs font-bold">{{ $loop->iteration }}</span>
+                    </div>
+                    <div class="col-span-10 sm:col-span-4">
+                        <textarea name="indicators[__I__][name]" required rows="2"
+                            placeholder="Indicator name / question *"
+                            class="indicator-name-input w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y">{{ $r->name ?? '' }}</textarea>
                     </div>
                     <div class="col-span-6 sm:col-span-2">
                         <select name="indicators[__I__][answer_type]" onchange="toggleIndicatorType(this)"
@@ -310,11 +367,11 @@
                             class="weight-input w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 text-center font-bold {{ $isPara ? 'bg-gray-100 text-gray-400' : '' }}"
                             oninput="updateWeightSum()">
                     </div>
-                    <div class="col-span-4 sm:col-span-3">
+                    <div class="col-span-9 sm:col-span-2">
                         <input type="number" value="{{ $vDivisor ?: 5 }}" readonly tabindex="-1"
                             class="rating-max-input w-full px-2.5 py-2 text-xs text-center border border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed">
                     </div>
-                    <div class="col-span-2 sm:col-span-1 flex items-center justify-center">
+                    <div class="col-span-3 sm:col-span-1 flex items-center justify-center">
                         <button type="button" title="Remove indicator"
                             onclick="this.closest('.indicator-row').remove(); reindexRows(); updateWeightSum();"
                             class="w-7 h-7 flex items-center justify-center bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-200 transition-all">
@@ -349,12 +406,23 @@
 </div>
 
 <script>
-// Rows are re-indexed on every add/remove so indicators[] stays a clean 0..n array.
+// Employee → their direct supervisor (leader), from master data. Drives the
+// cross-filtering between the audience and counterpart pickers below: Lead
+// narrows the reviewer pool to leads of the picked employees, Upward narrows
+// the rater pool to subordinates of the picked subject, Peer narrows the
+// reviewer pool to colleagues sharing the same leader.
+const EMP_LEADER = {};
+(window.__kpiPools?.employee || []).forEach(o => { EMP_LEADER[o.id] = o.leader_id || null; });
+
+// Rows are re-indexed on every add/remove so indicators[] stays a clean 0..n
+// array, and the "No" badge always reflects the row's current position.
 function reindexRows() {
     document.querySelectorAll('#indicatorList .indicator-row').forEach((row, i) => {
         row.querySelectorAll('[name]').forEach(el => {
             el.name = el.name.replace(/indicators\[[^\]]*\]/, `indicators[${i}]`);
         });
+        const noEl = row.querySelector('.indicator-no');
+        if (noEl) noEl.textContent = i + 1;
     });
 }
 
@@ -363,6 +431,7 @@ function addIndicatorRow() {
     const clone = tpl ? tpl.cloneNode(true) : null;
     if (!clone) return;
     clone.querySelectorAll('input:not(.rating-max-input)').forEach(el => { el.value = ''; el.disabled = false; el.classList.remove('bg-gray-100', 'text-gray-400'); });
+    clone.querySelectorAll('textarea').forEach(el => { el.value = ''; });
     clone.querySelectorAll('.rating-max-input').forEach(el => el.classList.remove('opacity-50'));
     const sel = clone.querySelector('.answer-type'); if (sel) sel.value = 'rating';
     clone.querySelectorAll('.unit-dd-menu').forEach(m => m.classList.add('hidden'));
@@ -370,7 +439,7 @@ function addIndicatorRow() {
     reindexRows();
     updateWeightSum();
     syncScoreDivisor();
-    clone.querySelector('input')?.focus();
+    clone.querySelector('.indicator-name-input')?.focus();
 }
 
 // Paragraph indicators carry no weight / unit / target — grey those out.
@@ -426,6 +495,12 @@ function syncScoreDivisor() {
     });
     const hint = document.getElementById('templateScaleHint');
     if (hint) hint.textContent = divisor;
+
+    // Live preview: one star per scale row (5 rows = 5 stars, 7 = 7, ...).
+    const preview = document.getElementById('starPreview');
+    if (preview) preview.textContent = '★'.repeat(divisor);
+    const previewCount = document.getElementById('starPreviewCount');
+    if (previewCount) previewCount.textContent = `${divisor} star${divisor > 1 ? 's' : ''}`;
 }
 
 function updateWeightSum() {
@@ -437,6 +512,12 @@ function updateWeightSum() {
     const el = document.getElementById('weightSumDisplay');
     el.textContent = `Total: ${total.toFixed(2)}%`;
     el.className = `text-xs font-bold ${Math.abs(total - 100) < 0.01 ? 'text-green-600' : (total > 100 ? 'text-red-600' : 'text-amber-600')}`;
+
+    const countEl = document.getElementById('indicatorCountDisplay');
+    if (countEl) {
+        const n = document.querySelectorAll('#indicatorList .indicator-row').length;
+        countEl.textContent = `${n} indicator${n === 1 ? '' : 's'}`;
+    }
 }
 
 function filterBox(boxId, q) {
@@ -567,28 +648,51 @@ document.addEventListener('click', function (e) {
         $count.textContent = n ? `(${n})` : '';
         $empty.classList.toggle('hidden', n > 0);
         $clear.classList.toggle('hidden', n === 0);
+        window.subRefreshOverlap?.();
+        window.subRenderList?.(); // re-filter Lead/Peer counterpart options as the audience changes
     }
 
-    // Left-hand list: checkboxes for the current type, filtered by search.
+    // Left-hand list: checkboxes for the current type, filtered by search —
+    // plus, for Upward templates, narrowed to subordinates of whoever is
+    // picked as the subject ("for who") in the counterpart panel below.
     window.tgtRenderList = function () {
         const type = currentType;
         const q = ($search.value || '').trim().toLowerCase();
-        const pool = POOLS[type] || [];
+        let pool = POOLS[type] || [];
+
+        let filterNote = '';
+        if (type === 'employee' && document.getElementById('targetTypeSelect')?.value === 'upward') {
+            const subjectIds = window.subGetIds ? window.subGetIds() : [];
+            if (subjectIds.length) {
+                const subjectSet = new Set(subjectIds);
+                pool = pool.filter(o => o.leader_id && subjectSet.has(o.leader_id));
+                filterNote = `<p class="px-2 py-2 text-[10px] text-amber-700 bg-amber-50 border-b border-amber-100">Showing only employees who report to the selected subject.</p>`;
+            }
+        }
+
         const hits = pool.filter(o =>
             !q || (o.name || '').toLowerCase().includes(q) || (o.meta || '').toLowerCase().includes(q)
         ).slice(0, 200);
 
         if (!hits.length) {
-            $list.innerHTML = `<p class="px-2 py-3 text-[11px] text-gray-400">${pool.length ? 'No match' : 'Nothing to choose'}</p>`;
+            $list.innerHTML = filterNote + `<p class="px-2 py-3 text-[11px] text-gray-400">${pool.length ? 'No match' : 'Nothing to choose'}</p>`;
             return;
         }
 
-        $list.innerHTML = hits.map(o => {
+        // Once a leader is used to derive the counterpart (Lead/Peer/Upward),
+        // flag employees with no leader on file — informational only, picking
+        // them is still allowed, the counterpart just needs to be set by hand.
+        const evalType = document.getElementById('targetTypeSelect')?.value;
+        const leaderMatters = type === 'employee' && evalType !== 'self';
+
+        $list.innerHTML = filterNote + hits.map(o => {
             const checked = selected.has(key(type, o.id)) ? 'checked' : '';
+            const noLeader = leaderMatters && !o.leader_id;
             return `<label class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white cursor-pointer text-xs">
                 <input type="checkbox" class="tgt-cb rounded text-indigo-600" data-id="${esc(o.id)}" data-label="${esc(o.name)}" ${checked}>
                 <span class="font-medium text-gray-800">${esc(o.name)}</span>
                 ${o.meta ? `<span class="text-gray-400">${esc(o.meta)}</span>` : ''}
+                ${noLeader ? `<i class="fas fa-triangle-exclamation text-amber-500 ml-auto" title="No leader on file"></i>` : ''}
             </label>`;
         }).join('');
 
@@ -607,6 +711,32 @@ document.addEventListener('click', function (e) {
         renderChosen();
         tgtRenderList();
     };
+
+    // Checks every entry currently matching the search box for the active
+    // type tab (or the whole pool when the search is empty) — lets HR pick
+    // "everyone" in a role/position/project/employee list in one click.
+    // Respects the Upward subordinate filter when it's active.
+    window.tgtSelectAllVisible = function () {
+        const type = currentType;
+        const q = ($search.value || '').trim().toLowerCase();
+        let pool = POOLS[type] || [];
+        if (type === 'employee' && document.getElementById('targetTypeSelect')?.value === 'upward') {
+            const subjectIds = window.subGetIds ? window.subGetIds() : [];
+            if (subjectIds.length) {
+                const subjectSet = new Set(subjectIds);
+                pool = pool.filter(o => o.leader_id && subjectSet.has(o.leader_id));
+            }
+        }
+        const hits = pool.filter(o => !q || (o.name || '').toLowerCase().includes(q) || (o.meta || '').toLowerCase().includes(q));
+        hits.forEach(o => selected.set(key(type, o.id), { type, id: o.id, label: o.name }));
+        renderChosen();
+        tgtRenderList();
+    };
+
+    // Exposed so the counterpart picker below can warn/refuse overlap with
+    // explicitly-picked audience employees (role/position/project overlap is
+    // caught server-side, where employee membership in those pools is known).
+    window.tgtGetEmployeeIds = () => [...selected.values()].filter(s => s.type === 'employee').map(s => s.id);
 
     // Seed from edit mode / validation bounce
     (window.__kpiChips0 || []).forEach(([type, id, label]) => {
@@ -627,6 +757,273 @@ function toggleAnonymousVisibility() {
     if (!show) chk.checked = false;
 }
 toggleAnonymousVisibility();
+
+// The employees picked below always land in the same DB column regardless of
+// type — only the meaning of "who does what" changes per assessment type.
+// This keeps the picker's heading, helper copy, and a flow-direction note in
+// sync with the selected type so template authors never have to guess it.
+const AUDIENCE_COPY = {
+    self: {
+        heading: 'Who fills this out?',
+        sub: 'Match by role, position, employee, or project. Leave empty for everyone.',
+        flow: {
+            cls: 'border-purple-200 bg-purple-50',
+            icon: 'fa-user text-purple-500',
+            html: 'Each matched employee assesses <strong>themselves</strong>.',
+        },
+    },
+    supervisor: {
+        heading: 'Who gets evaluated?',
+        sub: 'Match by role, position, employee, or project. Leave empty for everyone.',
+        flow: {
+            cls: 'border-indigo-200 bg-indigo-50',
+            icon: 'fa-user-tie text-indigo-500',
+            html: 'Each matched employee is scored by their <strong>direct supervisor</strong>.',
+        },
+    },
+    peer: {
+        heading: 'Who gets evaluated?',
+        sub: 'Match by role, position, employee, or project. Leave empty for everyone.',
+        flow: {
+            cls: 'border-cyan-200 bg-cyan-50',
+            icon: 'fa-user-group text-cyan-600',
+            html: 'Set the peer reviewer below. Without one, this falls back to the direct supervisor, same as Lead.',
+        },
+    },
+    upward: {
+        heading: 'Who does the rating?',
+        sub: 'Match by role, position, employee, or project — these are the raters, not the person being scored.',
+        flow: {
+            cls: 'border-amber-200 bg-amber-50',
+            icon: 'fa-arrow-up text-amber-500',
+            html: 'Each matched employee rates <strong>their own supervisor</strong>. HR reviews all raters and publishes only the average.',
+        },
+    },
+};
+
+const SUBJECT_COPY = {
+    supervisor: { heading: 'Reviewer (optional)', sub: 'Pick specific reviewer(s) instead of the direct supervisor.' },
+    peer:       { heading: 'Peer reviewer', sub: 'Pick who reviews the audience above. Leave empty to fall back to the direct supervisor.' },
+    upward:     { heading: 'Who is being rated (optional)', sub: 'Pick specific subject(s) instead of each rater\'s direct supervisor.' },
+};
+
+function updateAudienceCopy() {
+    const type = document.getElementById('targetTypeSelect').value;
+    const copy = AUDIENCE_COPY[type] || AUDIENCE_COPY.supervisor;
+
+    const heading = document.getElementById('audienceHeading');
+    const sub     = document.getElementById('audienceSubcopy');
+    if (heading) heading.textContent = copy.heading;
+    if (sub) sub.innerHTML = copy.sub;
+
+    const box = document.getElementById('flowDirectionBox');
+    if (box) {
+        box.className = 'p-3.5 rounded-xl border flex items-start gap-3 ' + copy.flow.cls;
+        box.innerHTML = `<i class="fas ${copy.flow.icon} text-base mt-0.5 shrink-0"></i>
+            <span class="text-xs text-gray-700 leading-relaxed">${copy.flow.html}</span>`;
+    }
+
+    // Counterpart picker only makes sense once there's someone other than
+    // the matched employee involved — Self never shows it.
+    const panel = document.getElementById('subjectPanel');
+    if (panel) {
+        const show = type !== 'self';
+        panel.classList.toggle('hidden', !show);
+        if (show) {
+            const sc = SUBJECT_COPY[type] || SUBJECT_COPY.supervisor;
+            document.getElementById('subjectHeading').textContent = sc.heading;
+            document.getElementById('subjectSubcopy').textContent = sc.sub;
+        }
+    }
+
+    // Cross-filter rules (Lead → leads, Peer → colleagues, Upward →
+    // subordinates) depend on the assessment type, so both lists must
+    // re-render whenever it changes.
+    window.tgtRenderList?.();
+    window.subRenderList?.();
+}
+updateAudienceCopy();
+
+// ── Counterpart picker: employee-only multi-select, mirrors the audience
+//    builder above but simpler (one pool, no type tabs). "For who cannot
+//    choose the same who fill" is enforced two ways: a live warning here
+//    plus a hard block on submit (the deeper role/position/project overlap
+//    is still caught server-side, since it needs each employee's actual
+//    role/position/project membership). ─────────────────────────────────────
+(function () {
+    const POOL = (window.__kpiPools || {}).employee || [];
+    const subSelected = new Map(); // id -> label
+
+    const $search = document.getElementById('subSearch');
+    const $list   = document.getElementById('subList');
+    const $chosen = document.getElementById('subChosen');
+    const $inputs = document.getElementById('subInputs');
+    const $empty  = document.getElementById('subEmpty');
+    const $count  = document.getElementById('subCount');
+    const $clear  = document.getElementById('subClear');
+    const $warn   = document.getElementById('subOverlapWarning');
+    if (!$search) return;
+
+    const esc = s => (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    function overlapIds() {
+        const audienceIds = new Set((window.tgtGetEmployeeIds ? window.tgtGetEmployeeIds() : []));
+        return [...subSelected.keys()].filter(id => audienceIds.has(id));
+    }
+
+    window.subRefreshOverlap = function () {
+        const bad = new Set(overlapIds());
+        $warn.classList.toggle('hidden', bad.size === 0);
+        $chosen.querySelectorAll('[data-sub-id]').forEach(chip => {
+            chip.classList.toggle('ring-2', bad.has(chip.dataset.subId));
+            chip.classList.toggle('ring-red-400', bad.has(chip.dataset.subId));
+        });
+    };
+
+    function renderChosen() {
+        $chosen.innerHTML = '';
+        $inputs.innerHTML = '';
+
+        subSelected.forEach((label, id) => {
+            const chip = document.createElement('div');
+            chip.dataset.subId = id;
+            chip.className = 'flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-[11px] font-medium bg-amber-100 text-amber-800';
+            chip.innerHTML = `<span class="truncate">${esc(label)}</span>
+                <button type="button" class="shrink-0 w-4 h-4 flex items-center justify-center rounded hover:bg-black/10" aria-label="Remove">&times;</button>`;
+            chip.querySelector('button').onclick = () => { subSelected.delete(id); renderChosen(); subRenderList(); };
+            $chosen.appendChild(chip);
+
+            const inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'subject_employees[]';
+            inp.value = id;
+            $inputs.appendChild(inp);
+        });
+
+        const n = subSelected.size;
+        $count.textContent = n ? `(${n})` : '';
+        $empty.classList.toggle('hidden', n > 0);
+        $clear.classList.toggle('hidden', n === 0);
+        window.subRefreshOverlap();
+        window.tgtRenderList?.(); // re-filter Upward's rater options as the subject changes
+    }
+
+    // Filtered per assessment type once the audience has explicit employee
+    // picks: Lead and Upward narrow to their direct leads (Upward's "who is
+    // being rated" is, by definition, the leader of the raters picked as the
+    // audience), Peer narrows to colleagues sharing the same leader. An empty
+    // audience — or an audience that resolved to zero leaders on file —
+    // leaves the full pool available so HR can still assign one by hand.
+    function filteredPool() {
+        const type = document.getElementById('targetTypeSelect')?.value;
+        const audienceIds = window.tgtGetEmployeeIds ? window.tgtGetEmployeeIds() : [];
+        if (!audienceIds.length) return { pool: POOL, note: '', noLeaderFound: false };
+
+        if (type === 'supervisor' || type === 'upward') {
+            const leaderIds = new Set(audienceIds.map(id => EMP_LEADER[id]).filter(Boolean));
+            if (!leaderIds.size) {
+                return { pool: POOL, note: '', noLeaderFound: true };
+            }
+            const label = type === 'upward' ? 'raters' : 'employees';
+            return {
+                pool: POOL.filter(o => leaderIds.has(o.id)),
+                note: `<p class="px-2 py-2 text-[10px] text-amber-700 bg-amber-50 border-b border-amber-100">Showing only the direct leads of the selected ${label}.</p>`,
+                noLeaderFound: false,
+            };
+        }
+
+        if (type === 'peer') {
+            const leaderIds = new Set(audienceIds.map(id => EMP_LEADER[id]).filter(Boolean));
+            if (!leaderIds.size) {
+                return { pool: POOL, note: '', noLeaderFound: true };
+            }
+            const audienceSet = new Set(audienceIds);
+            return {
+                pool: POOL.filter(o => !audienceSet.has(o.id) && EMP_LEADER[o.id] && leaderIds.has(EMP_LEADER[o.id])),
+                note: `<p class="px-2 py-2 text-[10px] text-cyan-700 bg-cyan-50 border-b border-cyan-100">Showing only colleagues who share the same leader as the selected employees.</p>`,
+                noLeaderFound: false,
+            };
+        }
+
+        return { pool: POOL, note: '', noLeaderFound: false };
+    }
+
+    window.subGetIds = () => [...subSelected.keys()];
+
+    function renderSubRow(o) {
+        const checked = subSelected.has(o.id) ? 'checked' : '';
+        return `<label class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white cursor-pointer text-xs">
+            <input type="checkbox" class="sub-cb rounded text-amber-600" data-id="${esc(o.id)}" data-label="${esc(o.name)}" ${checked}>
+            <span class="font-medium text-gray-800">${esc(o.name)}</span>
+            ${o.meta ? `<span class="text-gray-400">${esc(o.meta)}</span>` : ''}
+        </label>`;
+    }
+
+    function wireSubCheckboxes() {
+        $list.querySelectorAll('.sub-cb').forEach(cb => {
+            cb.addEventListener('change', () => {
+                if (cb.checked) subSelected.set(cb.dataset.id, cb.dataset.label);
+                else subSelected.delete(cb.dataset.id);
+                renderChosen();
+            });
+        });
+    }
+
+    window.subRenderList = function () {
+        const q = ($search.value || '').trim().toLowerCase();
+        const { pool, note, noLeaderFound } = filteredPool();
+
+        if (noLeaderFound) {
+            $list.innerHTML = `<p class="px-3 py-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg m-1.5 flex items-start gap-2">
+                <i class="fas fa-triangle-exclamation mt-0.5 shrink-0"></i>
+                <span>There's no lead position on file for the employee(s) picked above. Pick a counterpart manually from the full list below.</span>
+            </p>` + pool.map(renderSubRow).join('');
+            wireSubCheckboxes();
+            return;
+        }
+
+        const hits = pool.filter(o => !q || (o.name || '').toLowerCase().includes(q) || (o.meta || '').toLowerCase().includes(q)).slice(0, 200);
+
+        if (!hits.length) {
+            $list.innerHTML = note + `<p class="px-2 py-3 text-[11px] text-gray-400">${pool.length ? 'No match' : 'Nothing to choose'}</p>`;
+            return;
+        }
+
+        $list.innerHTML = note + hits.map(renderSubRow).join('');
+        wireSubCheckboxes();
+    };
+
+    window.subClearAll = function () {
+        subSelected.clear();
+        renderChosen();
+        subRenderList();
+    };
+
+    window.subSelectAllVisible = function () {
+        const q = ($search.value || '').trim().toLowerCase();
+        const { pool } = filteredPool();
+        const hits = pool.filter(o => !q || (o.name || '').toLowerCase().includes(q) || (o.meta || '').toLowerCase().includes(q));
+        hits.forEach(o => subSelected.set(o.id, o.name));
+        renderChosen();
+        subRenderList();
+    };
+
+    (window.__kpiSubjectChips0 || []).forEach(([id, label]) => {
+        subSelected.set(String(id), label || String(id));
+    });
+    renderChosen();
+    subRenderList();
+})();
+
+document.getElementById('templateForm').addEventListener('submit', function (e) {
+    const audienceIds = new Set(window.tgtGetEmployeeIds ? window.tgtGetEmployeeIds() : []);
+    const subjectInputs = document.querySelectorAll('input[name="subject_employees[]"]');
+    const overlap = [...subjectInputs].some(inp => audienceIds.has(inp.value));
+    if (overlap) {
+        e.preventDefault();
+        showToast('An employee can\'t be picked as both the audience and the counterpart. Remove the overlapping name from one side.', 'error');
+    }
+});
 
 reindexRows();
 reindexScales();

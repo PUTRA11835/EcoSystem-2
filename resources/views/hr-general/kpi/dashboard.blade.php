@@ -419,8 +419,10 @@
                             // direct supervisor, else none. Read-only here.
                             $supName = $reportsToMap[$emp->employee_id]['name'] ?? null;
                             $supSrc  = $reportsToMap[$emp->employee_id]['source'] ?? null;
-                            $selfN = $empEvals->filter(fn($e) => ($e->template?->target_type ?? 'supervisor') === 'self')->count();
-                            $leadN = $empEvals->count() - $selfN;
+                            $selfN   = $empEvals->filter(fn($e) => ($e->template?->target_type ?? 'supervisor') === 'self')->count();
+                            $upwardN = $empEvals->filter(fn($e) => ($e->template?->target_type ?? 'supervisor') === 'upward')->count();
+                            $peerN   = $empEvals->filter(fn($e) => ($e->template?->target_type ?? 'supervisor') === 'peer')->count();
+                            $leadN   = $empEvals->count() - $selfN - $upwardN - $peerN;
                             $doneCount = $empEvals->whereIn('status', $doneStatuses)->count();
                             $allDone = $empEvals->isNotEmpty() && $doneCount === $empEvals->count();
                         @endphp
@@ -471,6 +473,8 @@
                                 <span class="font-semibold text-gray-800">{{ $empEvals->count() }} template{{ $empEvals->count() > 1 ? 's' : '' }}</span>
                                 @if($selfN)<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700">Self ×{{ $selfN }}</span>@endif
                                 @if($leadN)<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">Lead ×{{ $leadN }}</span>@endif
+                                @if($upwardN)<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">Upward ×{{ $upwardN }}</span>@endif
+                                @if($peerN)<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700">Peer ×{{ $peerN }}</span>@endif
                             </td>
                             <td class="px-4 py-3.5 text-center text-xs text-gray-500" colspan="2">{{ $doneCount }} / {{ $empEvals->count() }} done</td>
                             <td class="px-4 py-3.5 text-center">
@@ -485,7 +489,20 @@
                         {{-- Detail rows — one per assigned template (hidden until expanded) --}}
                         @foreach($empEvals as $eval)
                         @php
-                            $isSelf = ($eval->template?->target_type ?? 'supervisor') === 'self';
+                            $ttype = $eval->template?->target_type ?? 'supervisor';
+                            $isSelf = $ttype === 'self';
+                            $badgeLabel = match ($ttype) {
+                                'self'   => 'Self',
+                                'upward' => 'Upward',
+                                'peer'   => 'Peer',
+                                default  => 'Lead',
+                            };
+                            $badgeClass = match ($ttype) {
+                                'self'   => 'bg-purple-100 text-purple-700',
+                                'upward' => 'bg-amber-100 text-amber-700',
+                                'peer'   => 'bg-cyan-100 text-cyan-700',
+                                default  => 'bg-indigo-100 text-indigo-700',
+                            };
                             $selfScore = ($eval->hasSelfAssessment() && $eval->details->isNotEmpty())
                                 ? $eval->details->whereNotNull('self_achievement')->avg('self_achievement') : null;
                             $spvScore = ($eval->overall_score !== null && !$isSelf)
@@ -500,7 +517,7 @@
                             <td class="px-4 py-2.5 text-[11px] text-gray-500">{{ $supName ?? '—' }}</td>
                             <td class="px-4 py-2.5 text-xs">
                                 <span class="font-medium text-gray-800">{{ $eval->template?->name ?? '—' }}</span>
-                                <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold {{ $isSelf ? 'bg-purple-100 text-purple-700' : 'bg-indigo-100 text-indigo-700' }}">{{ $isSelf ? 'Self' : 'Lead' }}</span>
+                                <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold {{ $badgeClass }}">{{ $badgeLabel }}</span>
                             </td>
                             <td class="px-4 py-2.5 text-center font-bold text-xs">
                                 @if($selfScore !== null)<span class="text-gray-900">{{ number_format($selfScore, 1) }}</span>
@@ -515,11 +532,17 @@
                             <td class="px-4 py-2.5 text-center">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border {{ $statusBadges[$eval->status] ?? 'bg-gray-100 text-gray-600 border-gray-200' }}">{{ $eval->status_label }}</span>
                             </td>
+                            @php
+                                // Review page is always read-only for self AND upward rows
+                                // (both are filled via the self-assessment pathway, never
+                                // scored by HR there) — only lead/peer show "Continue".
+                                $isHrReadOnly = $isSelf || $ttype === 'upward';
+                            @endphp
                             <td class="px-4 py-2.5 text-center">
                                 <div class="flex items-center justify-center gap-1.5">
                                     <a href="{{ route('general.kpi-evaluation.review', $eval->id) }}"
-                                       class="inline-flex items-center px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all {{ (!$isSelf && $eval->status === 'draft') ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100' }}">
-                                        {{ $isSelf ? 'View' : ($eval->status === 'draft' ? 'Continue' : ($eval->status === 'hr_approved' ? 'View' : 'Review')) }}
+                                       class="inline-flex items-center px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all {{ (!$isHrReadOnly && $eval->status === 'draft') ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100' }}">
+                                        {{ $isHrReadOnly ? 'View' : ($eval->status === 'draft' ? 'Continue' : ($eval->status === 'hr_approved' ? 'View' : 'Review')) }}
                                     </a>
                                     @if($canCreate && in_array($eval->status, ['draft', 'hr_rejected']))
                                     <button onclick="event.stopPropagation(); deleteEval({{ $eval->id }})"

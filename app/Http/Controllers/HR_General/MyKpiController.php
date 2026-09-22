@@ -235,7 +235,9 @@ class MyKpiController extends Controller
         }
 
         $request->validate([
-            'achievements' => 'required|array',
+            'achievements'          => 'required|array',
+            'achievements.*.actual' => 'nullable|string|max:255',
+            'achievements.*.notes'  => 'nullable|string|max:2000',
         ]);
 
         $scaleMax = $evaluation->template?->scaleMax() ?: 5;
@@ -256,18 +258,21 @@ class MyKpiController extends Controller
                     continue;
                 }
 
-                $max = $detail->indicator?->effectiveMax() ?: $scaleMax;
+                $max = $detail->indicator?->rating_max ?: $scaleMax;
 
                 if (isset($data['rating']) && (int)$data['rating'] > 0) {
-                    $detail->star_rating = (int) $data['rating'];
+                    // Clamp to the template's scale so a tampered request can't exceed it.
+                    $detail->star_rating = min($max, (int) $data['rating']);
                     $detail->self_achievement = round($detail->star_rating / $max * 100, 2);
                 } elseif (isset($data['achievement']) && $data['achievement'] !== '') {
                     $detail->self_achievement = (float) $data['achievement'];
                     $detail->star_rating = min($max, max(1, (int) round($detail->self_achievement / 100 * $max)));
                 }
 
-                if (isset($data['actual'])) {
-                    $detail->actual_achievement = $data['actual'];
+                if (array_key_exists('actual', $data)) {
+                    $detail->actual_achievement = ($data['actual'] !== null && trim($data['actual']) !== '')
+                        ? trim($data['actual'])
+                        : null;
                 }
 
                 $detail->self_notes        = $data['notes'] ?? null;

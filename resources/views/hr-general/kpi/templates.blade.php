@@ -41,9 +41,7 @@
                     Assessment Templates
                 </h1>
                 <p class="text-xs text-gray-500 mt-1">
-                    Separate templates power the two tracks: <strong>Self-Assessment</strong> (filled by the
-                    employee) and <strong>Lead Assessment</strong> (filled by the direct manager). Each template
-                    carries its own scoring scale; indicator weights must sum to 100%.
+                    Pick an audience and an assessment type. Indicator weights must total 100%.
                 </p>
             </div>
             @if($canCreate)
@@ -239,7 +237,9 @@
                                 @endif
                             </div>
                         </td>
-                        <td class="px-4 py-3.5 text-center align-top text-xs font-semibold text-gray-600">1&ndash;{{ $scaleMax }}</td>
+                        <td class="px-4 py-3.5 text-center align-top text-xs font-semibold text-gray-600" title="{{ $scaleMax }}-star rating">
+                            1&ndash;{{ $scaleMax }} <i class="fas fa-star text-amber-400 text-[10px]"></i>
+                        </td>
                         <td class="px-4 py-3.5 text-center align-top text-xs text-gray-600">{{ $tmpl->indicators->count() }}</td>
                         <td class="px-4 py-3.5 text-center align-top text-xs font-bold {{ $weightOk ? 'text-green-600' : 'text-red-600' }}">
                             {{ rtrim(rtrim(number_format($tmpl->total_weight, 2), '0'), '.') }}%
