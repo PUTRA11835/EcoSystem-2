@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -150,6 +151,17 @@ class ProfileController extends Controller
             Log::info('ProfileController: password changed successfully', [
                 'auth_user_id' => $authUser->id,
             ]);
+
+            AuditLog::recordAction(
+                module: 'Security',
+                auditableType: 'AuthUser',
+                auditableId: $authUser->id,
+                event: 'updated',
+                recordLabel: $sessionUser['name'] ?? $authUser->email ?? "Auth User #{$authUser->id}",
+                description: 'changed their own password',
+                old: null,
+                new: null,
+            );
 
             return response()->json([
                 'success' => true,

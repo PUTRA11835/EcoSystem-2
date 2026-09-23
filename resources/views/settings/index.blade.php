@@ -234,7 +234,7 @@
                 <div class="px-8 py-5 flex items-center justify-between bg-gray-50/60">
                     <div>
                         <p class="text-sm font-semibold text-gray-800">Enable notifications</p>
-                        <p class="text-xs text-gray-400 mt-0.5">Master switch — controls all notification types</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Master switch - controls all notification types</p>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-8">
                         <input type="checkbox" id="notificationsEnabled" class="sr-only peer" {{ $preferences['notifications_enabled'] ? 'checked' : '' }}>
@@ -349,20 +349,68 @@
                 </div>
 
                 {{-- 2FA --}}
-                <div class="px-8 py-5 flex items-center justify-between">
+                <div class="px-8 py-6">
                     <div class="flex items-start gap-8">
                         <div class="w-48 flex-shrink-0">
                             <p class="text-sm font-medium text-gray-800">Two-factor authentication</p>
-                            <p class="text-xs text-gray-400 mt-0.5">Add an extra layer of security to your account</p>
+                            <p class="text-xs text-gray-400 mt-1 leading-relaxed">Add an extra layer of security to your account</p>
                         </div>
-                        <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
-                            <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Not configured
-                        </span>
+                        <div class="flex-1 max-w-sm">
+
+                            {{-- Disabled state --}}
+                            <div id="twoFactorDisabledState" class="{{ $twoFactorEnabled ? 'hidden' : '' }}">
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full mb-3">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Not configured
+                                </span>
+                                <div>
+                                    <button type="button" onclick="startEnable2fa()" id="enable2faBtn"
+                                        class="px-4 py-2 text-xs font-semibold text-white bg-gray-800 hover:bg-gray-900 rounded-lg transition">
+                                        Enable 2FA
+                                    </button>
+                                </div>
+
+                                {{-- Enrollment panel, hidden until "Enable 2FA" is clicked --}}
+                                <div id="enroll2faPanel" class="hidden mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+                                    <p class="text-xs text-gray-600">Scan this QR code with Google Authenticator, Authy, or a similar app.</p>
+                                    <div id="qrCodeContainer" class="bg-white p-3 rounded-lg border border-gray-200 inline-block"></div>
+                                    <div>
+                                        <p class="text-[11px] text-gray-400 mb-1">Or enter this key manually:</p>
+                                        <code id="manualKey" class="text-xs bg-white px-2 py-1 rounded border border-gray-200 break-all"></code>
+                                    </div>
+                                    <input type="text" id="confirm2faCode" maxlength="6" inputmode="numeric" placeholder="Enter 6-digit code"
+                                        class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300 transition tracking-widest text-center font-semibold">
+                                    <div class="flex gap-2">
+                                        <button type="button" onclick="confirm2fa()" id="confirm2faBtn"
+                                            class="px-4 py-2 text-xs font-semibold text-white bg-red-700 hover:bg-red-800 rounded-lg transition">
+                                            Confirm
+                                        </button>
+                                        <button type="button" onclick="cancelEnroll2fa()"
+                                            class="px-4 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- Enabled state --}}
+                            <div id="twoFactorEnabledState" class="{{ $twoFactorEnabled ? '' : 'hidden' }}">
+                                <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2.5 py-1 rounded-full mb-3">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Enabled
+                                </span>
+                                <div class="flex gap-2 flex-wrap">
+                                    <button type="button" onclick="promptRegenerateRecoveryCodes()"
+                                        class="px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                                        Regenerate recovery codes
+                                    </button>
+                                    <button type="button" onclick="promptDisable2fa()"
+                                        class="px-3 py-2 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition">
+                                        Disable
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
                     </div>
-                    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-8">
-                        <input type="checkbox" id="twoFactorAuth" class="sr-only peer">
-                        <div class="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-[17px] after:w-[17px] after:transition-all peer-checked:bg-red-700"></div>
-                    </label>
                 </div>
 
                 {{-- Active Session --}}
@@ -519,6 +567,50 @@
 
     </div>{{-- end content --}}
 </div>{{-- end page --}}
+
+{{-- Recovery codes modal - shown once right after enabling 2FA, or after regenerating --}}
+<div id="recoveryCodesModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <h3 class="text-sm font-semibold text-gray-900 mb-2">Save your recovery codes</h3>
+        <p class="text-xs text-gray-500 mb-4">Each code can be used once if you lose access to your authenticator app. Store them somewhere safe - they won't be shown again.</p>
+        <div id="recoveryCodesList" class="grid grid-cols-2 gap-2 mb-4 font-mono text-xs bg-gray-50 border border-gray-200 rounded-lg p-3"></div>
+        <label class="flex items-center gap-2 text-xs text-gray-600 mb-4 cursor-pointer">
+            <input type="checkbox" id="recoveryCodesAck" class="rounded border-gray-300 text-red-700 focus:ring-red-400">
+            I've saved these recovery codes somewhere safe
+        </label>
+        <button type="button" id="closeRecoveryCodesBtn" onclick="closeRecoveryCodesModal()" disabled
+            class="w-full px-4 py-2 text-xs font-semibold text-white bg-gray-800 hover:bg-gray-900 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+            Done
+        </button>
+    </div>
+</div>
+
+{{-- Password-confirm modal - reused by Disable 2FA and Regenerate recovery codes --}}
+<div id="passwordConfirmModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
+        <h3 class="text-sm font-semibold text-gray-900 mb-1" id="passwordConfirmTitle">Confirm your password</h3>
+        <p class="text-xs text-gray-500 mb-4" id="passwordConfirmSubtitle"></p>
+        <div class="relative mb-4">
+            <input type="password" id="passwordConfirmInput"
+                class="w-full px-3 py-2.5 pr-9 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300 focus:bg-white transition"
+                placeholder="Current password">
+            <button type="button" onclick="togglePassword('passwordConfirmInput',this)"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
+                <i class="fas fa-eye text-xs eye-icon"></i>
+            </button>
+        </div>
+        <div class="flex gap-2">
+            <button type="button" id="passwordConfirmSubmitBtn" onclick="submitPasswordConfirm()"
+                class="flex-1 px-4 py-2 text-xs font-semibold text-white bg-red-700 hover:bg-red-800 rounded-lg transition">
+                Confirm
+            </button>
+            <button type="button" onclick="closePasswordConfirmModal()"
+                class="px-4 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
 
 <style>
 .se-btn { display:flex; align-items:center; }
@@ -746,12 +838,185 @@ _loadSounds();
 
 function _csrf(){ return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''; }
 
+// ── Two-factor authentication ───────────────────────────────────────────────
+async function startEnable2fa() {
+    const btn = document.getElementById('enable2faBtn');
+    btn.disabled = true;
+    try {
+        const r = await fetch('/settings/2fa/enable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': _csrf() },
+        });
+        const d = await r.json();
+        if (!d.success) {
+            showNotification(d.message || 'Failed to start enrollment.', 'error');
+            btn.disabled = false;
+            return;
+        }
+
+        document.getElementById('qrCodeContainer').innerHTML = d.data.qr_svg;
+        document.getElementById('manualKey').textContent = d.data.secret;
+        document.getElementById('enroll2faPanel').classList.remove('hidden');
+        btn.classList.add('hidden');
+    } catch (e) {
+        showNotification('Failed to start enrollment.', 'error');
+        btn.disabled = false;
+    }
+}
+
+async function confirm2fa() {
+    const codeEl = document.getElementById('confirm2faCode');
+    const code = codeEl.value.trim();
+    if (!code) { showNotification('Enter the 6-digit code from your app.', 'warning'); return; }
+
+    const btn = document.getElementById('confirm2faBtn');
+    btn.disabled = true;
+    try {
+        const r = await fetch('/settings/2fa/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': _csrf() },
+            body: JSON.stringify({ code }),
+        });
+        const d = await r.json();
+        if (!d.success) {
+            showNotification(d.message || 'Invalid code.', 'error');
+            btn.disabled = false;
+            return;
+        }
+
+        document.getElementById('twoFactorDisabledState').classList.add('hidden');
+        document.getElementById('twoFactorEnabledState').classList.remove('hidden');
+        codeEl.value = '';
+        showRecoveryCodesModal(d.data.recovery_codes);
+        showNotification('Two-factor authentication enabled!', 'success');
+    } catch (e) {
+        showNotification('Failed to confirm code.', 'error');
+        btn.disabled = false;
+    }
+}
+
+function cancelEnroll2fa() {
+    document.getElementById('enroll2faPanel').classList.add('hidden');
+    document.getElementById('confirm2faCode').value = '';
+    const btn = document.getElementById('enable2faBtn');
+    btn.classList.remove('hidden');
+    btn.disabled = false;
+    // The unconfirmed secret set by /enable stays server-side - it's inert
+    // (2FA isn't "enabled" until /confirm succeeds) and gets overwritten by
+    // the next /enable call, so no separate "cancel" endpoint is needed.
+}
+
+async function promptDisable2fa() {
+    const ok = await showConfirm('Disabling 2FA removes this extra layer of protection from your account. Continue?', 'Disable two-factor authentication?', 'danger');
+    if (!ok) return;
+
+    askPasswordConfirm('Confirm your password', 'Enter your current password to disable two-factor authentication.', async (password) => {
+        try {
+            const r = await fetch('/settings/2fa/disable', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': _csrf() },
+                body: JSON.stringify({ password }),
+            });
+            const d = await r.json();
+            if (!d.success) { showNotification(d.message || 'Failed to disable.', 'error'); return; }
+
+            document.getElementById('twoFactorEnabledState').classList.add('hidden');
+            document.getElementById('twoFactorDisabledState').classList.remove('hidden');
+            document.getElementById('enroll2faPanel').classList.add('hidden');
+            document.getElementById('enable2faBtn').classList.remove('hidden');
+            document.getElementById('enable2faBtn').disabled = false;
+            showNotification('Two-factor authentication disabled.', 'success');
+        } catch (e) {
+            showNotification('Failed to disable 2FA.', 'error');
+        }
+    });
+}
+
+async function promptRegenerateRecoveryCodes() {
+    const ok = await showConfirm('This replaces your existing recovery codes - old codes will stop working. Continue?', 'Regenerate recovery codes?', 'primary');
+    if (!ok) return;
+
+    askPasswordConfirm('Confirm your password', 'Enter your current password to regenerate your recovery codes.', async (password) => {
+        try {
+            const r = await fetch('/settings/2fa/regenerate-recovery-codes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': _csrf() },
+                body: JSON.stringify({ password }),
+            });
+            const d = await r.json();
+            if (!d.success) { showNotification(d.message || 'Failed to regenerate.', 'error'); return; }
+            showRecoveryCodesModal(d.data.recovery_codes);
+        } catch (e) {
+            showNotification('Failed to regenerate recovery codes.', 'error');
+        }
+    });
+}
+
+function showRecoveryCodesModal(codes) {
+    document.getElementById('recoveryCodesList').innerHTML = codes.map(c => `<div>${c}</div>`).join('');
+    document.getElementById('recoveryCodesAck').checked = false;
+    document.getElementById('closeRecoveryCodesBtn').disabled = true;
+    document.getElementById('recoveryCodesModal').classList.remove('hidden');
+}
+
+function closeRecoveryCodesModal() {
+    document.getElementById('recoveryCodesModal').classList.add('hidden');
+}
+
+document.getElementById('recoveryCodesAck')?.addEventListener('change', function () {
+    document.getElementById('closeRecoveryCodesBtn').disabled = !this.checked;
+});
+
+// ── Shared password-confirm modal (Disable 2FA / Regenerate recovery codes) ──
+let _passwordConfirmCallback = null;
+
+function askPasswordConfirm(title, subtitle, callback) {
+    document.getElementById('passwordConfirmTitle').textContent = title;
+    document.getElementById('passwordConfirmSubtitle').textContent = subtitle;
+    document.getElementById('passwordConfirmInput').value = '';
+    _passwordConfirmCallback = callback;
+    document.getElementById('passwordConfirmModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('passwordConfirmInput').focus(), 50);
+}
+
+function closePasswordConfirmModal() {
+    document.getElementById('passwordConfirmModal').classList.add('hidden');
+    _passwordConfirmCallback = null;
+}
+
+async function submitPasswordConfirm() {
+    const password = document.getElementById('passwordConfirmInput').value;
+    if (!password) { showNotification('Please enter your password.', 'warning'); return; }
+
+    const callback = _passwordConfirmCallback;
+    closePasswordConfirmModal();
+    if (callback) await callback(password);
+}
+
+@if(session('force_2fa_setup'))
+    // Deferred to window 'load': this inline script runs at the point
+    // @yield('content') sits in dashboard.blade.php, which is BEFORE that
+    // layout's own <script> block defines showNotification()/showToast()
+    // further down the page. Calling it synchronously here throws a
+    // ReferenceError that aborts the rest of this IIFE - including the
+    // `window.xxx = xxx` export block below - breaking every button on
+    // this page, not just this notification.
+    window.addEventListener('load', function () {
+        switchTab('security');
+        showNotification('Two-factor authentication is required for your role. Please enable it below to continue.', 'warning');
+    });
+@endif
+
 // ── Expose ────────────────────────────────────────────────────────────────────
 window.switchTab=switchTab; window.selectTheme=selectTheme; window.selectColor=selectColor;
 window.selectSidebarStyle=selectSidebarStyle; window.selectFontSize=selectFontSize;
 window.saveSettings=saveSettings; window.resetSettings=resetSettings;
 window.changePassword=changePassword; window.togglePassword=togglePassword;
 window.selectSound=selectSound; window.previewSound=previewSound; window._soundDDToggle=_soundDDToggle;
+window.startEnable2fa=startEnable2fa; window.confirm2fa=confirm2fa; window.cancelEnroll2fa=cancelEnroll2fa;
+window.promptDisable2fa=promptDisable2fa; window.promptRegenerateRecoveryCodes=promptRegenerateRecoveryCodes;
+window.closeRecoveryCodesModal=closeRecoveryCodesModal; window.closePasswordConfirmModal=closePasswordConfirmModal;
+window.submitPasswordConfirm=submitPasswordConfirm;
 })();
 </script>
 @endsection

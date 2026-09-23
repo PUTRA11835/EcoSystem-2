@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Http\Controllers\AuthController;
+use App\Services\TwoFactorAuthService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -113,6 +114,17 @@ class CheckAuthToken
                 ->first();
 
             if (!$authUser || empty($authUser->employee_id)) {
+                return false;
+            }
+
+            // 2FA-enabled accounts never get restored via this cookie — a
+            // stolen/replayed remember-me cookie must not grant a full
+            // session for up to REMEMBER_DAYS with zero second-factor check.
+            // (AuthController::finalizeEmployeeLogin() already refuses to
+            // *issue* this cookie for a 2FA account in the first place; this
+            // is the defense-in-depth half — it also protects a cookie that
+            // was issued before 2FA was enabled on the account.)
+            if (TwoFactorAuthService::isEnabled($authUser)) {
                 return false;
             }
 

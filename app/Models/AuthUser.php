@@ -39,6 +39,8 @@ class AuthUser extends Authenticatable
         'password',
         'remember_token',
         'cp_token',           // jangan ekspos token di response JSON
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     protected $casts = [

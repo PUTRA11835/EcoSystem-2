@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeFamily;
 use Illuminate\Http\Request;
@@ -362,6 +363,14 @@ class EmployeeFamilyController extends Controller
                 return $familyData;
             });
 
+            // ::insert() is a bulk query-builder write, not Eloquent create() -
+            // it never fires model events, so the Auditable trait on
+            // EmployeeFamily (which covers every other write path on this
+            // model) silently sees nothing here. Kept as insert() rather than
+            // switched to a create() loop to avoid changing its behavior
+            // (insert() tolerates any real column, create() would throw
+            // MassAssignmentException for anything outside $fillable) -
+            // logged explicitly instead, one summary row for the whole batch.
             EmployeeFamily::insert($families->toArray());
 
             DB::commit();
@@ -370,6 +379,17 @@ class EmployeeFamilyController extends Controller
                 'employee_id' => $employeeId,
                 'count' => $families->count()
             ]);
+
+            AuditLog::recordAction(
+                module: 'Employee',
+                auditableType: 'EmployeeFamily',
+                auditableId: (int) $employeeId,
+                event: 'created',
+                recordLabel: "Employee #{$employeeId}",
+                description: "bulk-imported {$families->count()} family member(s) for Employee #{$employeeId}",
+                old: null,
+                new: ['count' => $families->count(), 'names' => $families->pluck('name')->values()->all()],
+            );
 
             return response()->json([
                 'success' => true,
