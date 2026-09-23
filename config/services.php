@@ -103,6 +103,20 @@ return [
 
         'timeout' => (int) env('TEAMS_SYNC_TIMEOUT', 15),
 
+        // Masa berlaku tautan lampiran yang dikirim ke group chat tiket, dalam
+        // HARI. 0 = tanpa batas, dan itu default-nya (keputusan 23 Sep 2026).
+        //
+        // Kenapa tanpa batas jadi default: gambar lampiran ikut ditampilkan
+        // langsung di dalam pesan grup. Tautan yang kedaluwarsa tidak sekadar
+        // "tidak bisa diklik" — gambarnya PECAH permanen di riwayat chat, dan
+        // riwayat itu yang dibaca orang saat menelusuri tiket lama.
+        //
+        // Yang dibayar: tanda tangan URL adalah kapabilitas, bukan izin — siapa
+        // pun yang memegang tautannya bisa membuka lampirannya tanpa akun
+        // EcoSystem. Diisi angka > 0 kalau suatu saat itu dianggap terlalu
+        // longgar; tidak perlu ubah kode, cukup `.env` + `optimize:clear`.
+        'attachment_link_days' => (int) env('TEAMS_ATTACHMENT_LINK_DAYS', 0),
+
         // Akun pemilik connection Teams di Power Automate. Dua perannya, dan
         // keduanya muncul BERSAMAAN begitu chat dibuat lewat Graph:
         //

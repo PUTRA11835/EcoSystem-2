@@ -52,7 +52,7 @@
     "actions": [
         {
             "type": "Action.OpenUrl",
-            "title": "Assign / Ambil Tiket",
+            "title": "Buka di EcoSystem",
             "url": "@{triggerBody()?['ticket']?['url']}"
         }
     ]

@@ -10,6 +10,7 @@ use App\Services\PowerAutomateService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 
 /**
  * Internal note EcoSystem -> group chat Teams, lewat antrean + flow 7.
@@ -111,12 +112,110 @@ class TeamsOutboxService
             'ticket_id'         => $message->ticket_id,
             'chat_id'           => $chat->chat_id,
             'ticket_message_id' => $message->id,
-            'payload'           => $this->wrap($this->meetingText($message, $meeting), $message, $chat),
+            // Blok `card` membuat flow 7 mengambil cabang "Post card"; jalur note
+            // yang tidak membawanya tetap lewat "Post message" (keputusan meeting
+            // 18 Sep 2026 — jadwal meeting perlu tampil menonjol dan punya tombol
+            // gabung, sementara note justru hidup dari quote-reply).
+            //
+            // `message_html` hasil wrap() tetap ikut: cadangan kalau kartunya
+            // ditolak konektor, dan membuat payload meeting tetap sebentuk dengan
+            // payload note.
+            'payload'           => $this->wrap($this->meetingText($message, $meeting), $message, $chat)
+                + ['card' => $this->meetingCard($message, $meeting)],
         ]);
     }
 
     /**
-     * Teks pengumuman meeting.
+     * Adaptive Card pengumuman meeting, sudah dalam bentuk JSON string.
+     *
+     * String, bukan array: field *Adaptive Card* pada aksi Teams menerima teks
+     * JSON, jadi designer cukup menempelkan satu ekspresi
+     * `triggerBody()?['card']` tanpa perlu `string()` atau `json()`.
+     *
+     * Tautan meeting jadi TOMBOL, bukan baris teks — itu inti permintaannya:
+     * URL mentah di badan pesan panjang dan tidak terbaca.
+     */
+    private function meetingCard(TicketMessage $message, array $meeting): string
+    {
+        $facts = [];
+
+        if ($when = $this->meetingWhen($meeting)) {
+            $facts[] = ['title' => 'Waktu', 'value' => $when . ' WIB'];
+        }
+
+        if ($message->sender_name) {
+            $facts[] = ['title' => 'Oleh', 'value' => (string) $message->sender_name];
+        }
+
+        $body = [
+            [
+                'type'   => 'TextBlock',
+                'text'   => 'Meeting dijadwalkan',
+                'weight' => 'Bolder',
+                'size'   => 'Medium',
+            ],
+        ];
+
+        if ($facts !== []) {
+            $body[] = ['type' => 'FactSet', 'facts' => $facts];
+        }
+
+        if (!empty($meeting['notes'])) {
+            $body[] = [
+                'type' => 'TextBlock',
+                'text' => trim((string) $meeting['notes']),
+                'wrap' => true,
+            ];
+        }
+
+        $card = [
+            'type'    => 'AdaptiveCard',
+            '$schema' => 'http://adaptivecards.io/schemas/adaptive-card.json',
+            'version' => '1.4',
+            'body'    => $body,
+        ];
+
+        if (!empty($meeting['link'])) {
+            $card['actions'] = [[
+                'type'  => 'Action.OpenUrl',
+                'title' => 'Gabung Meeting',
+                'url'   => (string) $meeting['link'],
+            ]];
+        }
+
+        return json_encode($card, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Rentang waktu meeting dalam zona waktu aplikasi, atau null kalau jadwalnya
+     * tidak diketahui. Dipakai kartu maupun teks cadangannya.
+     */
+    private function meetingWhen(array $meeting): ?string
+    {
+        $start = $meeting['start'] ?? null;
+
+        if (!$start) {
+            return null;
+        }
+
+        $tz = config('app.timezone');
+        $s  = Carbon::parse($start)->setTimezone($tz);
+        $when = $s->format('D, d M Y H:i');
+
+        if ($end = ($meeting['end'] ?? null)) {
+            $e = Carbon::parse($end)->setTimezone($tz);
+            // Tanggal tidak diulang kalau meetingnya selesai di hari yang sama.
+            $when .= '–' . $e->format($e->isSameDay($s) ? 'H:i' : 'D, d M Y H:i');
+        }
+
+        return $when;
+    }
+
+    /**
+     * Teks pengumuman meeting — sejak 18 Sep 2026 hanya CADANGAN: yang tampil di
+     * grup adalah {@see meetingCard()}. Tetap dikirim di `message_html` supaya
+     * payload meeting sebentuk dengan payload note, dan supaya ada yang bisa
+     * diposting kalau kartunya suatu saat ditolak konektor.
      *
      * Jam ditampilkan dalam zona waktu aplikasi, bukan UTC: yang membacanya orang
      * di grup, dan "14:00" yang ternyata UTC adalah jenis kesalahan yang baru
@@ -124,21 +223,7 @@ class TeamsOutboxService
      */
     private function meetingText(TicketMessage $message, array $meeting): string
     {
-        $tz    = config('app.timezone');
-        $start = $meeting['start'] ?? null;
-        $end   = $meeting['end'] ?? null;
-
-        $when = null;
-        if ($start) {
-            $s    = Carbon::parse($start)->setTimezone($tz);
-            $when = $s->format('D, d M Y H:i');
-
-            if ($end) {
-                $e = Carbon::parse($end)->setTimezone($tz);
-                // Tanggal tidak diulang kalau meetingnya selesai di hari yang sama.
-                $when .= '–' . $e->format($e->isSameDay($s) ? 'H:i' : 'D, d M Y H:i');
-            }
-        }
+        $when = $this->meetingWhen($meeting);
 
         $lines = array_filter([
             'Meeting dijadwalkan · EcoSystem',
@@ -195,33 +280,158 @@ class TeamsOutboxService
      */
     private function buildPayload(TicketMessage $message, TicketTeamsChat $chat): array
     {
-        $body = trim((string) ($message->message ?: strip_tags((string) $message->message_html)));
-
-        $attachments = DB::table('ticket_attachment')
-            ->where('message_id', $message->id)
-            ->where('is_inline', false)
-            ->count();
-
-        if ($attachments > 0) {
-            // Tidak ada byte yang dikirim ke Teams pada fase ini (design §9) —
-            // cukup beri tahu bahwa lampirannya ada di tiket.
-            $body .= "\n\n({$attachments} lampiran — lihat tiket)";
-        }
-
+        // html_entity_decode WAJIB. Kolom `message` menyimpan hasil strip_tags,
+        // dan strip_tags TIDAK menyentuh entitas: note berisi "->" tersimpan
+        // sebagai "-&gt;". Tanpa decode, e() di wrap() meng-escape "&"-nya lagi
+        // dan yang sampai di Teams jadi "-&amp;gt;". Terbukti 23 Sep 2026.
+        $body = trim(html_entity_decode(
+            (string) ($message->message ?: strip_tags((string) $message->message_html)),
+            ENT_QUOTES | ENT_HTML5
+        ));
         $text = ($message->sender_name ?: 'EcoSystem') . " · EcoSystem\n" . $body;
 
-        return $this->wrap($text, $message, $chat);
+        $links = $this->attachmentLinks($message);
+
+        return $this->wrap(
+            $text,
+            $message,
+            $chat,
+            $this->attachmentHtml($links),
+            $this->attachmentText($links)
+        );
     }
 
     /**
-     * Bungkus teks jadi payload flow 7, lengkap dengan baris tautan tiket.
+     * Lampiran satu note, lengkap dengan tautan bertanda tangan yang bisa dibuka
+     * dari Teams TANPA login EcoSystem.
+     *
+     * Sebelum 23 Sep 2026 yang dikirim hanya penanda "(2 lampiran — lihat
+     * tiket)"; sejak itu lampirannya benar-benar ikut. Byte-nya tetap TIDAK
+     * dikirim ke Teams — yang dikirim tautan ke proxy EcoSystem, cerminan dari
+     * arah masuk yang juga menyimpan berkas Teams sebagai tautan, bukan salinan.
+     *
+     * Gambar inline ikut (keputusan 23 Sep 2026). Konsekuensinya note dengan
+     * banyak tangkapan layar jadi banyak gambar di grup — itu memang yang
+     * diinginkan: yang dilihat orang di grup sama dengan yang dilihat di tiket.
+     *
+     * Lampiran yang tidak bisa dilayani proxy (mis. tautan luar) dilewati
+     * daripada mengirim tautan yang pasti gagal dibuka.
+     *
+     * @return list<array{name:string,url:string,is_image:bool}>
+     */
+    private function attachmentLinks(TicketMessage $message): array
+    {
+        $rows = DB::table('ticket_attachment')
+            ->where('message_id', $message->id)
+            ->orderBy('id')
+            ->get(['id', 'file_name', 'link_title', 'file_path', 'mime_type', 'attachment_type',
+                   'graph_message_id', 'graph_attachment_id']);
+
+        $days = max(0, (int) config('services.teams_sync.attachment_link_days', 0));
+        $out  = [];
+
+        foreach ($rows as $row) {
+            // Hanya yang benar-benar bisa dilayani AttachmentController.
+            $servable = $row->file_path
+                || ($row->graph_message_id && $row->graph_attachment_id);
+
+            if (!$servable) {
+                continue;
+            }
+
+            $out[] = [
+                'name'     => (string) ($row->file_name ?: $row->link_title ?: 'Lampiran'),
+                'url'      => $days > 0
+                    ? URL::temporarySignedRoute('attachments.teams', now()->addDays($days), ['id' => $row->id])
+                    : URL::signedRoute('attachments.teams', ['id' => $row->id]),
+                'is_image' => $row->attachment_type === 'image'
+                    || str_starts_with((string) $row->mime_type, 'image/'),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Blok HTML lampiran: gambar ditampilkan langsung, sisanya jadi tautan.
+     *
+     * Gambar dibungkus `<a>` supaya diklik membuka versi penuhnya — di grup ia
+     * tampil kecil, dan tangkapan layar error justru perlu dizoom.
+     *
+     * **Apakah Teams merender `<img>` ber-URL eksternal di pesan chat belum
+     * terbukti** (23 Sep 2026): konektor kadang membuangnya. Kalau ternyata
+     * dibuang, tautan berkasnya tetap ada di `message`, dan jalur penggantinya
+     * adalah mengirim note bergambar sebagai Adaptive Card lewat cabang yang
+     * sudah ada di flow 7 — lihat docs/teams-sync-parity-design.md §6.
+     *
+     * @param  list<array{name:string,url:string,is_image:bool}>  $links
+     */
+    private function attachmentHtml(array $links): string
+    {
+        $parts = [];
+
+        foreach ($links as $link) {
+            $line = '';
+
+            // Gambar tampil langsung di badan pesan. TERBUKTI DIRENDER Teams
+            // (uji 23 Sep 2026), dengan satu syarat yang mahal dipelajari:
+            // JANGAN dibungkus <a href>. Percobaan pertama memakai
+            // <a href><img></a> dan Teams membuang SELURUH bloknya — bukan
+            // menampilkan gambar rusak, hilang sama sekali. Tanpa anchor, <img>
+            // lolos. Karena itu "klik untuk membuka penuh" diwakili baris URL di
+            // bawah, bukan dengan membungkus gambarnya.
+            if ($link['is_image']) {
+                $line .= '<img src="' . e($link['url']) . '" alt="' . e($link['name'])
+                    . '" width="400" style="max-width:400px"><br>';
+            }
+
+            // URL TELANJANG, bukan <a href> — lihat catatan di atas. Teams
+            // mengubahnya sendiri jadi tautan yang bisa diklik. Nama berkas ikut
+            // supaya orang tahu apa yang akan dibuka sebelum mengkliknya, dan
+            // baris ini juga yang menjadi jalan membuka gambar ukuran penuh.
+            $line .= e($link['name']) . ': ' . e($link['url']);
+
+            $parts[] = $line;
+        }
+
+        return implode('<br>', $parts);
+    }
+
+    /**
+     * Versi teks polos daftar lampiran — cadangan kalau field Message suatu saat
+     * berhenti diperlakukan sebagai HTML, dan isi kolom `note.text` di payload.
+     *
+     * @param  list<array{name:string,url:string,is_image:bool}>  $links
+     */
+    private function attachmentText(array $links): string
+    {
+        return implode("\n", array_map(
+            static fn ($l) => $l['name'] . ' → ' . $l['url'],
+            $links
+        ));
+    }
+
+    /**
+     * Bungkus teks jadi payload flow 7.
      *
      * Dipakai KEDUA jalur (internal note dan pengumuman meeting) supaya bentuk
      * payloadnya tidak pernah menyimpang satu sama lain — flow 7 hanya tahu satu
      * bentuk, dan bentuk itu didefinisikan di sini saja.
+     *
+     * **Tidak ada baris "nomor tiket → tautan" di badan pesan** (keputusan
+     * meeting 18 Sep 2026). Pesan ini diposting di dalam group chat tiket yang
+     * bersangkutan, jadi nomornya hanya mengulang nama grup, dan tautannya
+     * tampil sebagai URL mentah yang panjang. Blok `ticket` di payload TETAP
+     * membawa `number` dan `url` — keduanya dipakai pagar staging dan berguna
+     * kalau suatu saat flow ingin menampilkannya sendiri.
      */
-    private function wrap(string $text, TicketMessage $message, TicketTeamsChat $chat): array
-    {
+    private function wrap(
+        string $text,
+        TicketMessage $message,
+        TicketTeamsChat $chat,
+        string $htmlExtra = '',
+        string $textExtra = ''
+    ): array {
         $ticket = DB::table('ticket')
             ->where('ticket_id', $message->ticket_id)
             ->first(['ticket_number', 'description', 'submitted_by_email', 'submitted_by_name']);
@@ -229,10 +439,20 @@ class TeamsOutboxService
         $number = $ticket->ticket_number ?? (string) $message->ticket_id;
         $url    = rtrim((string) config('app.url'), '/') . '/tickets/' . $message->ticket_id;
 
-        // Isi tanpa baris tautan — dipakai di blok `note` supaya konsumen payload
-        // yang ingin teksnya saja tidak perlu memotong baris terakhir sendiri.
+        // Dua tambahan terpisah, bukan satu: badan note DI-ESCAPE (teks ketikan
+        // manusia), sedangkan blok lampiran adalah HTML yang memang harus lolos
+        // apa adanya. Menggabungkannya lebih dulu akan membuat <img> ikut
+        // ter-escape dan tampil sebagai teks mentah.
         $body = rtrim($text);
-        $text = $body . "\n\n" . $number . ' → ' . $url;
+        $html = nl2br(e($body), false);
+
+        if ($htmlExtra !== '') {
+            $html .= '<br><br>' . $htmlExtra;
+        }
+
+        if ($textExtra !== '') {
+            $body = rtrim($body . "\n\n" . $textExtra);
+        }
 
         return [
             'chat'    => ['id' => $chat->chat_id],
@@ -243,7 +463,7 @@ class TeamsOutboxService
             //
             // Nama penulis dan isi note di-escape: keduanya teks yang diketik
             // manusia, dan tanda < atau & di dalamnya akan merusak HTML-nya.
-            'message_html' => nl2br(e($text), false),
+            'message_html' => $html,
             'ticket'  => [
                 'id'      => (int) $message->ticket_id,
                 'number'  => $number,
@@ -264,7 +484,7 @@ class TeamsOutboxService
                 'author' => $message->sender_name,
                 'text'   => $body,
             ],
-            'message' => $text,
+            'message' => $body,
         ];
     }
 

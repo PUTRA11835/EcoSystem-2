@@ -5,16 +5,17 @@ Panduan konsep, konfigurasi `.env`, dan troubleshooting ada di
 [../power-automate-integration.md](../power-automate-integration.md) — berkas ini
 khusus soal cara meng-import dan mengonfigurasi flow-nya.
 
-## Keadaan saat ini — 9 September 2026
+## Keadaan saat ini — 18 September 2026
 
 | Flow | Bentuk | Status |
 |---|---|---|
 | 1. `EcoSystem - Email Greeting` | balas greeting di thread email yang sama | **Terbukti jalan** end-to-end |
 | 2. `EcoSystem - Ticket Validated` | buat channel tiket + kartu + tarik anggota + mention lead modul | **ARSIP** — pernah terbukti jalan, tidak lagi dipanggil EcoSystem |
-| 3. `EcoSystem - Open Ticket Reminder` | reminder berulang selama tiket Open | **Belum dikonfigurasi** |
+| 3. `EcoSystem - Open Ticket Reminder` | reminder berulang selama tiket Open | Dibuat & diuji |
 | 4. `EcoSystem - Ticket Member Added` | PIC/member baru ditarik ke channel tiketnya + kartu | **ARSIP** — pernah terbukti jalan (8 Sep 2026), tidak lagi dipanggil EcoSystem |
-| 5. `EcoSystem - Ticket Validated (Group Chat)` | buat **group chat** per tiket + kartu + mention lead modul | **Belum dibuat** (9 Sep 2026) |
-| 6. `EcoSystem - Ticket Member Added (Group Chat)` | PIC/member baru ditambahkan ke **group chat** tiketnya + kartu | **Belum dibuat** (9 Sep 2026) |
+| 5. `EcoSystem - Ticket Validated (Group Chat)` | buat **group chat** per tiket + kartu + mention lead modul | Dibuat & diuji; kartu sudah versi tombol tunggal |
+| 6. `EcoSystem - Ticket Member Added (Group Chat)` | PIC/member baru ditambahkan ke **group chat** tiketnya + **di-@mention** | Dibuat & diuji; sudah *Post message* + token mention |
+| 7. `EcoSystem - Teams Post Message (Internal Note)` | internal note (pesan) & jadwal meeting (kartu) → group chat tiket | Dibuat & diuji; Condition kartu sudah terpasang |
 
 **Hasil meeting 9 September 2026: wadah tiket kembali ke bentuk group chat per
 tiket**, bentuk yang selama ini sudah biasa dibuat manual oleh tim support, dan
@@ -22,6 +23,29 @@ consultant yang di-assign ditambahkan ke group chat itu. Flow 5 & 6 di atas
 adalah bentuk itu, dibuat sebagai **flow baru** supaya flow 2 & 4 tidak perlu
 dibongkar. Panduan membuat keduanya dari nol ada di bagian *Konfigurasi flow 5*
 dan *Konfigurasi flow 6* di bawah.
+
+**Perubahan 18 September 2026 (hasil meeting).** Semua flow sudah dibuat dan
+diuji; catatan meeting menyangkut **bentuk** pesan yang mendarat di grup, bukan
+alurnya. Empat penyesuaian, semuanya kecil di designer:
+
+| # | Catatan meeting | Yang berubah di designer | Yang berubah di EcoSystem |
+|---|---|---|---|
+| 1 | Tombol *Buka di EcoSystem* cukup satu di kartu **Tiket baru** | tempel ulang kartu flow 5 | judul tombol di `cards/flow-5-…json` |
+| 2 | Penambahan PIC/member cukup **pesan**, tanpa kartu dan tanpa tombol; orangnya langsung di-@mention | flow 6: *Post card* → **Post message** + aksi *Get an @mention token* | payload flow 6 kini membawa `message_html` dan `mention_html` |
+| 3 | Pesan ke Teams tanpa nomor tiket dan tanpa tautan tiket | — | `TeamsOutboxService::wrap()` tidak lagi menambah baris `nomor → url` |
+| 4 | Jadwal meeting dikirim sebagai **kartu**, bukan pesan | flow 7: Condition baru + cabang *Post card* | `queueMeeting()` merakit Adaptive Card di `card` |
+
+Catatan 3 berlaku untuk **isi pesan** saja — blok `ticket` di payload tetap
+membawa `number` dan `url`, karena pagar staging membacanya dan bersifat
+fail-closed. Alasan menghapusnya dari badan pesan: pesannya diposting di dalam
+group chat tiket itu sendiri, jadi nomornya mengulang nama grup dan tautannya
+tampil sebagai URL mentah yang panjang.
+
+Catatan 4 **tidak** mengubah flow 7 jadi *Post card* seluruhnya. Flow itu dipakai
+dua jalur — internal note dan meeting — dan note sengaja tetap berupa pesan
+supaya bisa di-quote-reply (kartu tidak bisa). Yang dipasang adalah Condition:
+payload membawa `card` → *Post card*, selain itu → *Post message* seperti
+sebelumnya. Lihat *Konfigurasi flow 7* langkah 3.
 
 **Tambahan 11 September 2026:** peserta group chat kini juga memuat **tim
 Delivery Support tiket** — Delivery Owner, Support Manager, CO PM, dan Support
@@ -62,7 +86,9 @@ Sisi EcoSystem aman dalam keadaan mati: keempat titik pemanggilan
 `approve()` — di luar transaksi, dibungkus `try/catch`, dan dikirim setelah
 response — sehingga tidak mungkin mengganggu validasi tiket harian.
 
-**Yang masih terbuka:** flow 3, 5, dan 6 belum dibuat di designer. Soal
+**Penyesuaian designer hasil meeting 18 Sep 2026 sudah dikerjakan seluruhnya
+(21 Sep 2026)**, di flow 5, 6, dan 7 — sisi EcoSystem-nya sudah menyesuaikan
+lebih dulu. Yang tersisa hanyalah uji ujung-ke-ujung tiap bentuk pesan. Soal
 visibilitas channel (bab terakhir) otomatis gugur di bentuk group chat — grup
 hanya terlihat oleh pesertanya — dan digantikan satu batasan baru: maksimal 20
 peserta per chat.
@@ -1046,6 +1072,13 @@ belum di-assign ke delivery support mana pun.
 Salin kartunya dari berkas JSON itu, **bukan** dari chat atau dokumen: apostrof
 di dalam ekspresi kartu rawan berubah melengkung dan Power Automate menolaknya.
 
+> **Satu tombol saja (18 Sep 2026).** Kartu ini punya tepat satu
+> `Action.OpenUrl` berjudul **Buka di EcoSystem** menuju `ticket.url` —
+> sebelumnya judulnya *Assign / Ambil Tiket*. Aturannya: tombol boleh lebih dari
+> satu hanya kalau URL-nya memang berbeda; kalau tujuannya sama, cukup satu.
+> Kalau kartu di designer Anda masih memuat dua tombol ke URL yang sama, tempel
+> ulang isi berkas JSON-nya.
+
 ### 6. Apply to each `lead_emails` — kumpulkan token mention
 
 | Field | Isi |
@@ -1152,7 +1185,7 @@ lewat aksi *List*, cocokkan namanya, lalu masukkan orangnya.
 |---|---|---|
 | cari wadah | **List channels** → cocokkan `displayName` == `channel.name` | **List chats** → cocokkan `topic` == `chat.topic` |
 | masukkan orang | **Add a member to a team** | **Add a user to a chat** (Conversation ID) |
-| kartu | Post card → Channel | Post card → Group chat |
+| pengumuman | Post card → Channel | **Post message** → Group chat (sejak 18 Sep 2026) |
 
 Aksi **Add a user to a chat** (`AddMemberToChat`) dan **List chats** (`GetChats`)
 dua-duanya ada di konektor Microsoft Teams kelas **Standard** — jalur ini tidak
@@ -1263,22 +1296,111 @@ Tanpa penyerap ini, orang yang **sudah** jadi peserta grup membuat aksi 6 gagal,
 seluruh run ditandai Failed, dan kartunya tidak terkirim. Kasus "sudah anggota"
 ini yang paling sering terjadi di lapangan.
 
-### 8. Microsoft Teams → **Post card in a chat or channel**
+### 7b. Microsoft Teams → **Get an @mention token for a user**
 
 | Field | Isi |
 |---|---|
-| Post as | **Flow bot** |
+| User | `triggerBody()?['person']?['email']` |
+
+Menandai orang yang baru masuk, bukan sekadar menyebut namanya: tanpa mention,
+pesannya tenggelam di antara percakapan grup dan yang bersangkutan tidak dapat
+notifikasi. Aksi yang sama dipakai flow 5 untuk lead modul.
+
+Emailnya dijamin layak: `PowerAutomateService::employeeContact()` mengembalikan
+`null` — dan flow tidak dipanggil sama sekali — kalau orangnya tidak punya Email
+(Work) atau alamatnya masuk `POWER_AUTOMATE_TEAMS_EXCLUDE_MEMBERS`.
+
+> **Kalau akun itu tetap tidak ditemukan Teams, run berakhir Failed dan pesannya
+> tidak terkirim.** Kalau ini pernah terjadi, pasang **Compose** penyerap
+> sesudahnya (pola yang sama dengan langkah 7) dan ganti isi *Message* ke
+> `triggerBody()?['message_html']` — bentuk berdiri sendiri yang tidak butuh
+> token mention.
+
+### 8. Microsoft Teams → **Post message in a chat or channel**
+
+**Diubah 18 September 2026: pesan, bukan kartu.** Catatan meeting: untuk sekadar
+"si A jadi PIC", Adaptive Card terasa berlebihan, dan tombol *Buka di EcoSystem*
+di dalamnya hanya menduplikasi tombol yang sudah ada di kartu Tiket baru pada
+grup yang sama. Kalau flow Anda sudah terlanjur memakai *Post card*, **hapus
+aksi itu** dan ganti dengan aksi di bawah — bukan tambahkan.
+
+Sebelum aksi ini, sisipkan satu aksi **Microsoft Teams → Get an @mention token
+for a user** (lihat langkah 7b) supaya orangnya langsung tertag.
+
+| Field | Isi |
+|---|---|
+| Post as | **User** |
 | Post in | **Group chat** |
-| Chat | **Enter custom value** → `first(body('Filter_array'))?['id']` |
-| Adaptive Card | isi [`cards/flow-4-ticket-member-added-kartu-anggota-baru.json`](cards/flow-4-ticket-member-added-kartu-anggota-baru.json) |
+| Group chat | **Enter custom value** → `first(body('Filter_array'))?['id']` |
+| Message | token @mention, **satu spasi**, lalu `triggerBody()?['mention_html']` |
 
-Kartunya dipakai ulang dari flow 4 — isinya (nama orang, perannya, nomor tiket)
-tidak berbeda antara channel dan group chat.
+**Cara mengisi *Message* (dua chip, bukan satu ekspresi).** Klik di kotak
+*Message*-nya langsung — **jangan** menempelkan `@{body(...)} @{triggerBody()...}`
+ke kotak **expression (fx)**: kotak fx hanya menerima satu ekspresi telanjang dan
+menolak sintaks `@{...}` dengan pesan *"This expression has a problem"*.
 
-Field *Chat* harus lewat **Enter custom value**: daftar dropdown-nya berisi chat
-yang sudah ada saat designer dibuka, bukan hasil *Filter array* saat run.
+1. Tab **Dynamic content** → output aksi *Get an @mention token for a user*
+   (biasanya bernama **Mention token**) → klik untuk menyisipkan.
+2. Ketik **satu spasi**.
+3. Tab **Expression** → `triggerBody()?['mention_html']` → **Add**.
 
-Berbeda dari channel, kartu di group chat **memang memberi notifikasi** ke semua
+Hasilnya dua chip ungu berdampingan.
+
+Alternatifnya satu ekspresi `concat` di kotak fx — **bentuk yang dipakai sekarang
+dan terbukti diterima designer (18 Sep 2026)**:
+
+```
+concat(outputs('Get_an_@mention_token_for_a_user')?['body/atMention'], ' ', triggerBody()?['mention_html'])
+```
+
+Tiga hal yang membuat bentuk ini sering gagal di percobaan pertama:
+
+* **Jangan tempel `@{...}` ke kotak fx.** Kotak itu menerima ekspresi telanjang;
+  sintaks `@{...}` adalah bentuk untuk kotak teks, dan designer menolaknya dengan
+  *"This expression has a problem"*.
+* **Dua ekspresi tidak bisa ditulis berdampingan** dipisah spasi — satu kotak fx
+  = satu ekspresi. Itulah gunanya `concat`.
+* **Token mention diambil lewat `outputs(...)?['body/atMention']`**, bukan
+  `body('...')` begitu saja. Jalur `body/atMention` ini yang diisikan designer
+  sendiri kalau tokennya disisipkan lewat tab **Dynamic content** — cara paling
+  aman untuk mendapatkannya, sekaligus menjamin nama aksinya tertulis persis
+  (designer bisa menamainya `..._1` kalau sudah ada aksi serupa).
+
+Apostrofnya harus lurus (`'`), bukan melengkung (catatan lapangan 4).
+
+**`Post as: User`, bukan Flow bot** — dipakai sejak aksinya jadi *Post message*
+(18 Sep 2026), konsisten dengan flow 7 yang juga memposting atas nama akun
+koneksi `EC Support`. Syaratnya sudah otomatis terpenuhi: akun koneksi flow 6
+memang harus sama dengan flow 5, dan flow 5 yang membuat grupnya — jadi ia
+anggota grup itu dan berhak memposting ke sana.
+
+Field *Group chat* harus lewat **Enter custom value**: daftar dropdown-nya berisi
+chat yang sudah ada saat designer dibuka, bukan hasil *Filter array* saat run.
+
+Payload menyediakan **dua bentuk** teks; pilih salah satu sesuai ada-tidaknya
+token mention:
+
+| Field payload | Dipakai kalau | Isi |
+|---|---|---|
+| `mention_html` | ada token @mention di depannya *(dipakai sekarang)* | `ditambahkan sebagai PIC di tiket ini oleh Tio Pramudya.` |
+| `message_html` | tanpa mention, pesan berdiri sendiri | `PIC baru di tiket ini: Rani Kusuma`<br>`Ditambahkan oleh: Tio Pramudya` |
+
+`mention_html` sengaja **tidak** diawali nama: token mention sudah tampil sebagai
+nama orangnya, jadi hasil akhirnya menyambung —
+**@Rani Kusuma** ditambahkan sebagai PIC di tiket ini oleh Tio Pramudya.
+
+Keduanya versi HTML (field *Message* diperlakukan sebagai HTML, jadi `\n`
+diabaikan dan pesan dua baris jadi gepeng). `message`/`mention_text` teks polos
+ikut sebagai cadangan. Dirakit `PowerAutomateService::memberAddedText()` dan
+`memberAddedMentionText()`.
+
+Tanpa nomor tiket dan tanpa tautan — pesannya diposting di dalam group chat tiket
+yang bersangkutan, jadi keduanya hanya mengulang konteks yang sudah jelas.
+
+Kartu [`cards/flow-4-ticket-member-added-kartu-anggota-baru.json`](cards/flow-4-ticket-member-added-kartu-anggota-baru.json)
+kini **hanya milik flow 4 (arsip)** dan tidak lagi dipakai flow 6.
+
+Berbeda dari channel, pesan di group chat **memang memberi notifikasi** ke semua
 pesertanya, jadi aksi *Get an @mention token* tambahan tidak diperlukan di sini.
 
 ### 9. Save → salin URL trigger → pasang di `.env` → **Turn on**
@@ -1415,8 +1537,12 @@ membuat grupnya dan menyimpan id-nya.
 ```
 Trigger (When an HTTP request is received)
 └─ Condition "Cek Secret Ecosystem"
-     └─ True: Post message in a chat or channel
+     └─ True: Condition "Payload bawa kartu?"
+                ├─ True  : Post card in a chat or channel     (jadwal meeting)
+                └─ False : Post message in a chat or channel  (internal note)
 ```
+
+Condition kedua ditambahkan **18 September 2026** — lihat langkah 3b.
 
 ### 1. Trigger
 
@@ -1473,6 +1599,56 @@ versi ber-`<br>` (sudah di-escape) supaya designer tidak perlu ekspresi
 `replace()` yang rapuh. Payload tetap membawa `message` versi teks polos sebagai
 cadangan kalau suatu saat field itu berubah perilaku.
 
+**Sejak 18 September 2026 pesannya tidak lagi diakhiri baris `nomor → tautan`.**
+Tidak ada yang perlu diubah di designer — barisnya dirakit di EcoSystem dan kini
+tidak dirakit lagi.
+
+### 3b. Condition — Payload bawa kartu? *(ditambahkan 18 September 2026)*
+
+Flow ini melayani **dua** jalur: internal note (pesan) dan pengumuman jadwal
+meeting (kartu, keputusan meeting 18 Sep 2026). Yang membedakan keduanya adalah
+ada-tidaknya blok `card` di payload.
+
+**Kenapa tidak mengganti *Post message* jadi *Post card* saja?** Karena note ikut
+lewat flow ini, dan note sengaja berbentuk pesan: kartu tidak bisa di-quote-reply
+dan tampil buruk di HP, padahal diskusi tiket justru hidup dari balas-membalas.
+Mengganti aksinya akan mengubah bentuk note juga — bertentangan dengan catatan 3
+dari meeting yang sama.
+
+Bungkus aksi *Post message* langkah 3 ke dalam Condition baru, di dalam cabang
+**True** dari "Cek Secret Ecosystem":
+
+| Sisi | Isi |
+|---|---|
+| Kiri (Expression) | `empty(triggerBody()?['card'])` |
+| Operator | **is equal to** |
+| Kanan | `true` |
+
+* Cabang **If yes** → aksi *Post message* dari langkah 3 (pindahkan ke sini).
+* Cabang **If no** → aksi baru **Microsoft Teams → Post card in a chat or
+  channel**:
+
+| Field | Isi |
+|---|---|
+| Post as | **User** |
+| Post in | **Group chat** |
+| Chat | **Enter custom value** → `triggerBody()?['chat']?['id']` |
+| Adaptive Card | Expression: `triggerBody()?['card']` |
+
+**`Post as: User`, sama dengan cabang pesan** (diverifikasi di designer 18 Sep
+2026 — aksi *Post card* menyediakan pilihan ini). Kartu meeting jadi tampil atas
+nama akun koneksi `EC Support`, bukan Flow bot, sehingga kedua cabang flow 7
+tampil dari pengirim yang sama di grup.
+
+> **Kanan Condition harus boolean, bukan teks.** Isi `true` lewat **fx**, jangan
+> mengetiknya sebagai teks biasa di kotak kanan: perbandingan string lawan
+> boolean selalu menghasilkan False, sehingga **seluruh internal note** ikut masuk
+> cabang *Post card* dengan Adaptive Card kosong dan run-nya gagal.
+
+Kartunya **tidak** ditempel di designer: EcoSystem merakitnya dan mengirimkannya
+sebagai teks JSON di `card` (lihat `TeamsOutboxService::meetingCard()`), sehingga
+mengubah tampilan kartu meeting cukup dari sisi kode tanpa menyentuh flow.
+
 ### 4. Save → salin URL trigger → `.env`
 
 ```dotenv
@@ -1481,17 +1657,39 @@ POWER_AUTOMATE_FLOW_TEAMS_POST_MESSAGE=<HTTP POST URL flow 7>
 
 ### 5. Bentuk payload yang dikirim EcoSystem
 
+Internal note — tanpa `card`, jadi masuk cabang *Post message*:
+
 ```json
 {
   "event": "teams_post_message",
   "chat":    { "id": "19:…@thread.v2" },
-  "message_html": "Tio Pramudya · EcoSystem<br>\nService sudah up.<br>\n<br>\n26090199 → https://me.eclectic.co.id/tickets/1378",
-  "message": "Tio Pramudya · EcoSystem\nService sudah up.\n\n26090199 → …",
+  "message_html": "Tio Pramudya · EcoSystem<br>\nService sudah up.",
+  "message": "Tio Pramudya · EcoSystem\nService sudah up.",
   "ticket":  { "id": 1378, "number": "26090199", "subject": "…", "url": "…",
                "submitted_by": { "name": "…", "email": "…" } },
   "note":    { "id": 11500, "author": "Tio Pramudya", "text": "Service sudah up." }
 }
 ```
+
+Jadwal meeting — membawa `card`, jadi masuk cabang *Post card*. Isi `card` adalah
+Adaptive Card **dalam bentuk teks JSON** supaya field *Adaptive Card* cukup diisi
+satu ekspresi:
+
+```json
+{
+  "event": "teams_post_message",
+  "chat":    { "id": "19:…@thread.v2" },
+  "card": "{\"type\":\"AdaptiveCard\",\"version\":\"1.4\",\"body\":[{\"type\":\"TextBlock\",\"text\":\"Meeting dijadwalkan\",\"weight\":\"Bolder\",\"size\":\"Medium\"},{\"type\":\"FactSet\",\"facts\":[{\"title\":\"Waktu\",\"value\":\"Thu, 18 Sep 2026 14:00–15:00 WIB\"},{\"title\":\"Oleh\",\"value\":\"Tio Pramudya\"}]}],\"actions\":[{\"type\":\"Action.OpenUrl\",\"title\":\"Gabung Meeting\",\"url\":\"https://teams.microsoft.com/l/meetup-join/…\"}]}",
+  "message_html": "Meeting dijadwalkan · EcoSystem<br>…",
+  "ticket":  { "id": 1378, "number": "26090199", "subject": "…", "url": "…",
+               "submitted_by": { "name": "…", "email": "…" } },
+  "note":    { "id": 11501, "author": "Tio Pramudya", "text": "…" }
+}
+```
+
+Tautan meeting jadi **tombol** *Gabung Meeting*, bukan baris teks — itu inti
+catatan 4: URL mentah di badan pesan panjang dan tidak terbaca. `message_html`
+tetap ikut sebagai cadangan kalau kartunya ditolak konektor.
 
 `ticket.submitted_by.email` ikut karena pagar staging
 `POWER_AUTOMATE_ALLOWED_SUBMITTERS` bersifat fail-closed — lihat bagian 7.0.

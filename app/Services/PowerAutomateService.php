@@ -523,6 +523,8 @@ class PowerAutomateService
     public function ticketMemberPayload(Ticket $ticket, array $person, string $role, array $actor = []): array
     {
         $ticketPayload = $this->ticketPayload($ticket);
+        $text          = $this->memberAddedText($person, $role, $actor);
+        $afterMention  = $this->memberAddedMentionText($role, $actor);
 
         return [
             'ticket'  => $ticketPayload,
@@ -543,7 +545,71 @@ class PowerAutomateService
                 'name'  => $actor['name'] ?? null,
                 'email' => $actor['email'] ?? null,
             ],
+            // Pesan jadi, dirakit di sini supaya designer cukup menempelkan satu
+            // ekspresi. Keputusan meeting 18 Sep 2026: penambahan PIC/member
+            // cukup berupa PESAN, bukan Adaptive Card — kartu terasa berlebihan
+            // untuk satu baris informasi dan tombolnya menduplikasi kartu tiket
+            // yang sudah ada di grup yang sama.
+            //
+            // `message_html` yang dipakai flow (field Message konektor Teams
+            // diperlakukan sebagai HTML, "\n" di dalamnya diabaikan); `message`
+            // teks polos ikut sebagai cadangan.
+            'message'      => $text,
+            'message_html' => nl2br(e($text), false),
+            // Varian untuk dipasang SESUDAH token @mention, supaya orang yang
+            // baru masuk langsung tertag dan dapat notifikasi — bukan sekadar
+            // disebut namanya. Sengaja tidak diawali nama: token mention sudah
+            // tampil sebagai nama orangnya, jadi kalimatnya menyambung.
+            'mention_html' => e($afterMention),
+            'mention_text' => $afterMention,
         ];
+    }
+
+    /**
+     * Teks pengumuman PIC/member baru untuk group chat tiket.
+     *
+     * Tanpa nomor tiket dan tanpa tautan tiket: pesan ini diposting DI DALAM
+     * group chat tiket yang bersangkutan, jadi keduanya hanya mengulang konteks
+     * yang sudah jelas — dan tautan mentah tampil sebagai URL panjang yang
+     * mengotori percakapan (keputusan meeting 18 Sep 2026).
+     *
+     * @param  array{employee_id:?int,name:?string,email:?string}  $person
+     * @param  'member'|'pic'  $role
+     * @param  array<string,mixed>  $actor
+     */
+    private function memberAddedText(array $person, string $role, array $actor): string
+    {
+        $label = $role === 'pic' ? 'PIC' : 'Member';
+        $name  = $person['name'] ?? $person['email'] ?? '-';
+
+        $lines = array_filter([
+            $label . ' baru di tiket ini: ' . $name,
+            !empty($actor['name']) ? 'Ditambahkan oleh: ' . $actor['name'] : null,
+        ], static fn ($l) => $l !== null);
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Lanjutan kalimat yang dipasang SESUDAH token @mention di flow 6.
+     *
+     * Token mention tampil sebagai nama orangnya, jadi kalimat ini dimulai dari
+     * predikat: hasil akhirnya "Rani Kusuma ditambahkan sebagai PIC di tiket ini
+     * oleh Tio Pramudya."
+     *
+     * @param  'member'|'pic'  $role
+     * @param  array<string,mixed>  $actor
+     */
+    private function memberAddedMentionText(string $role, array $actor): string
+    {
+        $label = $role === 'pic' ? 'PIC' : 'member';
+        $text  = 'ditambahkan sebagai ' . $label . ' di tiket ini';
+
+        if (!empty($actor['name'])) {
+            $text .= ' oleh ' . $actor['name'];
+        }
+
+        return $text . '.';
     }
 
     /**

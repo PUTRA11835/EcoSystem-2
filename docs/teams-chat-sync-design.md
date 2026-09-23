@@ -1,6 +1,11 @@
 # Rancangan: sinkronisasi chat Teams ↔ internal note
 
 > Status: **LANGKAH 0–5 SELESAI (17 September 2026), kedua arah terbukti jalan.**
+> **Revisi bentuk pesan 18 September 2026** (hasil meeting): baris penutup
+> `nomor → tautan` dihapus dari semua pesan keluar, dan jadwal meeting kini
+> dikirim sebagai Adaptive Card. Keduanya ada di §8. Daftar lengkap catatan
+> meeting itu — termasuk yang menyangkut flow 5 & 6 — ada di
+> [power-automate/README.md](power-automate/README.md#keadaan-saat-ini--18-september-2026).
 > Dibuat 16 September 2026. **Direvisi 17 September 2026** dengan hasil spike
 > langkah 0 (lihat §12): tiga asumsi terbukti salah sehingga §3, §5, §6, §7, dan §9
 > dikoreksi. Bagian yang berubah karena spike diberi penanda tanggal di tempatnya
@@ -359,14 +364,19 @@ Kolom `sender_name` sudah ada dan sudah `fillable` — tidak ada perubahan skema
    `topic`. Flow 5 & 6 bisa dipensiunkan setelah ini terbukti.
 3. Retry dengan backoff, maksimal N kali → `failed` + `last_error` terisi.
 
-Bentuk pesan di Teams (teks, bukan Adaptive Card — supaya enak dibaca di HP):
+Bentuk pesan di Teams (teks, bukan Adaptive Card — supaya enak dibaca di HP dan
+bisa di-quote-reply):
 
 ```
 Budi Santoso · EcoSystem
 Sudah dicek di server QAS, service-nya sudah up.
-
-26090214 → https://me.eclectic.co.id/tickets/1234
 ```
+
+**Revisi 18 September 2026:** baris penutup `26090214 → https://…` dihapus.
+Pesannya diposting di dalam group chat tiket itu sendiri, jadi nomornya hanya
+mengulang nama grup, dan tautannya tampil sebagai URL mentah yang panjang. Blok
+`ticket` di payload **tetap** membawa `number` dan `url` — pagar staging
+`POWER_AUTOMATE_ALLOWED_SUBMITTERS` membacanya dan bersifat fail-closed.
 
 **Yang TIDAK dikirim ke Teams:** balasan email ke customer, pesan masuk dari
 customer, pesan sistem/SLA, dan internal note yang berasal dari Teams
@@ -387,18 +397,36 @@ untuk semua pesan sistem lain sekaligus — itu bukan yang diminta.
 Dijalankan untuk **kedua cabang**: yang menentukan perlu-tidaknya tim diberi tahu
 adalah adanya jadwal meeting, bukan berhasil-tidaknya undangan email ke customer.
 
-Bentuknya pengumuman untuk TIM, bukan salinan undangan customer:
+Bentuknya pengumuman untuk TIM, bukan salinan undangan customer.
+
+**Revisi 18 September 2026: berbentuk Adaptive Card, bukan pesan teks.** Ini satu-
+satunya jalur keluar yang memakai kartu, dan alasannya khas jalur ini: jadwal
+meeting perlu menonjol di antara percakapan, dan tautan meeting jauh lebih enak
+sebagai tombol daripada sebagai URL mentah sepanjang dua baris. Internal note
+tetap berupa pesan — kartu tidak bisa di-quote-reply.
 
 ```
-Meeting dijadwalkan · EcoSystem
-Oleh: Putra Palampang Tarung
-
-Waktu: Fri, 18 Sep 2026 14:00–15:00 WIB
-Link: https://teams.microsoft.com/l/meetup-join/…
-Catatan: Bahas root cause error posting GR di MIGO.
-
-26090200 → https://me.eclectic.co.id/tickets/1379
+┌────────────────────────────────────────┐
+│ Meeting dijadwalkan                    │
+│                                        │
+│ Waktu   Fri, 18 Sep 2026 14:00–15:00…  │
+│ Oleh    Putra Palampang Tarung         │
+│                                        │
+│ Bahas root cause error posting GR di   │
+│ MIGO.                                  │
+│                                        │
+│          [ Gabung Meeting ]            │
+└────────────────────────────────────────┘
 ```
+
+Kartunya dirakit `TeamsOutboxService::meetingCard()` dan dikirim sebagai teks
+JSON di `payload['card']`; flow 7 memilih cabang *Post card* justru karena blok
+itu ada (lihat README flow 7 langkah 3b). Merakitnya di EcoSystem, bukan
+menempelkannya di designer, berarti perubahan tampilan kartu tidak menuntut orang
+membuka Power Automate.
+
+`message_html` versi teks (`meetingText()`) tetap ikut di payload sebagai cadangan
+dan supaya payload meeting sebentuk dengan payload note.
 
 Jam ditampilkan dalam zona waktu aplikasi, bukan UTC — yang membacanya orang di
 grup, dan "14:00" yang ternyata UTC adalah kesalahan yang baru ketahuan saat ada
@@ -462,6 +490,12 @@ adalah pekerjaan terpisah dan butuh permission baru — di luar scope ini.
 > **Diperbarui 17 Sep 2026 — fase gambar SUDAH dikerjakan.**
 > Bagian di bawah ini menjelaskan rencana fase pertama (teks saja); yang benar-
 > benar berjalan sekarang ada di subbagian **9b**.
+>
+> **Diperbarui lagi 23 Sep 2026 — arah KELUAR tidak lagi "teks saja".** Lampiran
+> internal note kini ikut ke group chat sebagai tautan bertanda tangan, dan
+> gambarnya ditampilkan langsung di badan pesan. Byte-nya tetap tidak dikirim ke
+> Teams; yang dikirim tautan ke proxy EcoSystem. Rinciannya di
+> [teams-sync-parity-design.md §6a](teams-sync-parity-design.md).
 
 Fase pertama: **teks saja.**
 
@@ -654,6 +688,12 @@ berjalan persis seperti sebelumnya.
 ---
 
 ## 13. Di luar scope (sengaja)
+
+> **Sebagian daftar ini dicabut 23 September 2026.** Edit/hapus dua arah dan
+> lampiran arah keluar kini punya rancangannya sendiri di
+> [teams-sync-parity-design.md](teams-sync-parity-design.md) — belum dikerjakan,
+> tapi sudah dipetakan lengkap dengan batas platformnya. Reply-thread tetap di
+> luar scope, dan alasannya ada di §8 dokumen itu.
 
 - Sinkron **edit** dan **unsend** dua arah.
 - Menarik riwayat chat sebelum fitur menyala.

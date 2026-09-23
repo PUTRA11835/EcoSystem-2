@@ -27,6 +27,46 @@ class AttachmentController extends Controller
             abort(401, 'Authentication required. Please log in to access this resource.');
         }
 
+        return $this->streamAttachment($id, $sessionUser);
+    }
+
+    /**
+     * Varian TANPA login, dilindungi tanda tangan URL, untuk group chat Teams.
+     *
+     * Route: GET /teams/attachments/{id}  (middleware `signed`)
+     *
+     * Kenapa ada jalur kedua: lampiran internal note ikut dikirim ke group chat
+     * tiket sebagai tautan, dan yang membukanya adalah klien Teams milik orang
+     * yang tidak punya sesi EcoSystem. Memakai {@see show()} apa adanya berujung
+     * layar login — persis masalah yang dulu bikin tautan SharePoint mentah
+     * ditolak (lihat `streamSharePointFile()`).
+     *
+     * **Tanda tangan URL adalah kapabilitas, bukan izin.** Siapa pun yang
+     * memegang tautannya bisa membuka berkasnya tanpa akun. Itu konsekuensi yang
+     * diterima secara sadar (keputusan 23 Sep 2026) supaya gambar tetap tampil di
+     * riwayat chat; masa berlakunya diatur `TEAMS_ATTACHMENT_LINK_DAYS` dan
+     * default-nya tanpa batas. Karena itu aksesnya DICATAT — satu-satunya jejak
+     * yang tersisa kalau tautannya bocor.
+     */
+    public function showForTeams(int $id)
+    {
+        Log::info('AttachmentController: akses lewat tautan Teams bertanda tangan', [
+            'attachment_id' => $id,
+            'ip'            => request()->ip(),
+        ]);
+
+        return $this->streamAttachment($id, ['name' => 'Teams (tautan bertanda tangan)']);
+    }
+
+    /**
+     * Isi sesungguhnya {@see show()} — dipisah supaya jalur bertanda tangan
+     * memakai logika streaming yang SAMA, bukan salinannya. Perbedaan kedua
+     * jalur hanya pada cara menentukan siapa yang boleh mengakses.
+     *
+     * @param  array<string,mixed>  $sessionUser  pengakses, untuk baris log
+     */
+    private function streamAttachment(int $id, array $sessionUser)
+    {
         $attachment = TicketAttachment::findOrFail($id);
 
         // File lokal (internal note / ticket non-email / record lama) → stream dari disk
