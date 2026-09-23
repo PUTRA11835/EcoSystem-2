@@ -10,18 +10,14 @@
 <div class="space-y-6">
 
     <!-- Stats Row -->
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-2 gap-4">
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p class="text-xs text-gray-500 mb-1">Active Sessions</p>
             <p class="text-2xl font-bold text-gray-900" id="statTotal">—</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <p class="text-xs text-gray-500 mb-1">Identified Users</p>
+            <p class="text-xs text-gray-500 mb-1">Unique Users</p>
             <p class="text-2xl font-bold text-blue-600" id="statIdentified">—</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <p class="text-xs text-gray-500 mb-1">Anonymous Sessions</p>
-            <p class="text-2xl font-bold text-gray-400" id="statAnon">—</p>
         </div>
     </div>
 
@@ -114,8 +110,7 @@ async function loadSessions() {
 
 function renderStats(data) {
     document.getElementById('statTotal').textContent = data.length;
-    document.getElementById('statIdentified').textContent = data.filter(s => s.user_id).length;
-    document.getElementById('statAnon').textContent = data.filter(s => !s.user_id).length;
+    document.getElementById('statIdentified').textContent = new Set(data.map(s => s.user_id)).size;
 }
 
 function renderTable(data) {

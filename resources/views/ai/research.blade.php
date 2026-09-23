@@ -165,6 +165,15 @@
             </button>
         </div>
 
+        <div class="px-3 pt-2.5 pb-2 border-b border-gray-100">
+            <div class="relative">
+                <i class="fas fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-300"></i>
+                <input type="text" id="airHistorySearch" placeholder="Search rooms…" autocomplete="off"
+                       oninput="airRenderHistory(airFilteredHistory())"
+                       class="w-full pl-7 pr-2.5 py-1.5 rounded-lg border border-gray-200 text-[11px] text-gray-700 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300">
+            </div>
+        </div>
+
         <div id="airHistoryList" class="flex-1 overflow-y-auto air-scroll px-2 py-2 space-y-1">
             <p class="px-2 py-6 text-center text-[11px] text-gray-400">Loading…</p>
         </div>
@@ -1192,9 +1201,11 @@ function airAppendUser(text, files) {
 
     // Lampiran DULU, teks/prompt di bawahnya — sama seperti composer
     // claude.ai. Gambar tampil utuh sebagai thumbnail; file lain sebagai
-    // chip nama.
+    // chip nama. justify-start (bukan justify-end) — bubble-nya sendiri sudah
+    // rata kanan (flex justify-end di bawah), thumbnail di DALAM bubble harus
+    // rata kiri seperti alur baca normal, bukan menempel ke sudut kanan.
     const thumbs = images.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end">
+        <div class="flex flex-wrap gap-1.5 justify-start">
             ${images.map(f => `
                 <img src="${airPreviewUrl(f)}" alt="${airEsc(f.name)}" title="${airEsc(f.name)}"
                      class="air-thumb w-28 h-28 border border-white/25"
@@ -1202,7 +1213,7 @@ function airAppendUser(text, files) {
         </div>`;
 
     const chips = others.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end ${images.length ? 'mt-2' : ''}">
+        <div class="flex flex-wrap gap-1.5 justify-start ${images.length ? 'mt-2' : ''}">
             ${others.map(f => `
                 <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/15 border border-white/20">
                     <i class="fas ${airFileIcon(f.name)} text-[10px]"></i>
@@ -1852,6 +1863,8 @@ function airNewChat() {
    tapi melanjutkannya dengan pertanyaan tentang gambar butuh unggah ulang.
    ────────────────────────────────────────────────────────────────────── */
 
+let airHistoryItems = [];
+
 async function airLoadHistory() {
     const box = document.getElementById('airHistoryList');
 
@@ -1859,17 +1872,33 @@ async function airLoadHistory() {
         const res = await fetch(AIR_LIST_ENDPOINT, { headers: { 'Accept': 'application/json' } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
 
-        airRenderHistory((await res.json()).items || []);
+        airHistoryItems = (await res.json()).items || [];
+        airRenderHistory(airFilteredHistory());
     } catch {
         box.innerHTML = '<p class="px-2 py-6 text-center text-[11px] text-gray-400">Could not load history.</p>';
     }
 }
 
+/* Pencarian murni di klien: 100 item terakhir sudah dimuat sekali lewat
+   airLoadHistory(), jadi mengetik di kotak cari tidak perlu roundtrip baru —
+   cukup saring ulang array yang sudah ada lalu render lagi. */
+function airFilteredHistory() {
+    const q = (document.getElementById('airHistorySearch')?.value || '').trim().toLowerCase();
+    if (!q) return airHistoryItems;
+
+    return airHistoryItems.filter(item => (item.title || '').toLowerCase().includes(q));
+}
+
 function airRenderHistory(items) {
     const box = document.getElementById('airHistoryList');
 
-    if (items.length === 0) {
+    if (airHistoryItems.length === 0) {
         box.innerHTML = '<p class="px-2 py-6 text-center text-[11px] text-gray-400">No saved conversations yet.</p>';
+        return;
+    }
+
+    if (items.length === 0) {
+        box.innerHTML = '<p class="px-2 py-6 text-center text-[11px] text-gray-400">No rooms match your search.</p>';
         return;
     }
 
@@ -1881,10 +1910,15 @@ function airRenderHistory(items) {
                 <span class="block text-[11px] font-semibold text-gray-700 truncate">${airEsc(item.title)}</span>
                 <span class="block text-[10px] text-gray-400 mt-0.5">${airEsc(airHistoryDate(item.updated_at))}</span>
             </button>
+            ${item.deletable ? `
             <button type="button" onclick="airDeleteConversation('${airEsc(item.id)}', ${airAttr(item.title)})" title="Delete"
                     class="w-6 h-6 mt-2 mr-1.5 shrink-0 inline-flex items-center justify-center rounded-lg text-gray-300 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-gray-600 transition-all">
                 <i class="fas fa-trash text-[9px]"></i>
-            </button>
+            </button>` : `
+            <span title="Rooms from ticket validation / Ask AI Research can't be deleted"
+                  class="w-6 h-6 mt-2 mr-1.5 shrink-0 inline-flex items-center justify-center rounded-lg text-gray-300 opacity-0 group-hover:opacity-100 transition-all">
+                <i class="fas fa-lock text-[9px]"></i>
+            </span>`}
         </div>`).join('');
 
     airMarkActive(airConversationId);
@@ -1927,12 +1961,23 @@ function airMarkActive(id) {
  * belum sempat diarsipkan (belum ada jawaban) wajar tidak ditemukan, dan
  * memunculkan toast error untuk itu hanya membingungkan.
  *
+ * autorun = permintaan EKSPLISIT dari pemanggil (cuma DOMContentLoaded, lewat
+ * ?autorun=1 dari AiResearchController::openForTicket()) untuk memicu
+ * airTriggerInitial() kalau riwayatnya ternyata masih fresh — dipakai apa
+ * adanya untuk room PRIVAT (ticket_id null), yang tidak punya penjaga dobel-
+ * klaim di server, jadi HARUS lewat jalur sekali-pakai ini saja.
+ *
+ * Room BERSAMA (data.shared dari server) beda: claimInitialReply() di server
+ * sudah menjaga dari dua trigger yang menang bareng, jadi room itu AMAN
+ * dipicu dari mana pun ia dibuka selagi masih fresh — termasuk klik langsung
+ * di sidebar History (lihat baris pemanggil di bawah), bukan cuma lewat
+ * ?autorun=1. Itu sebabnya pemicunya diputuskan DI SINI, satu tempat untuk
+ * kedua jenis room, bukan diulang di tiap pemanggil.
+ *
  * Return value: true kalau riwayatnya persis SATU pesan user tanpa jawaban
- * apa pun — bentuk yang cuma terjadi tepat setelah AiResearchController::
- * openForTicket() menyeed konteks tiket dan belum ada giliran chat sungguhan.
- * Dipakai DOMContentLoaded untuk memutuskan boleh-tidaknya airTriggerInitial().
+ * apa pun (dipertahankan untuk pemanggil yang cuma perlu tahu status itu).
  */
-async function airOpenConversation(id, silent = false) {
+async function airOpenConversation(id, silent = false, autorun = false) {
     try {
         const res = await fetch(AIR_CONV_ENDPOINT.replace('__ID__', encodeURIComponent(id)),
             { headers: { 'Accept': 'application/json' } });
@@ -1964,7 +2009,7 @@ async function airOpenConversation(id, silent = false) {
                 if (i === cut) airAppendMemoryDivider();
 
                 m.role === 'user'
-                    ? airAppendUserStored(m.content, m.attachments, m.at, data.id)
+                    ? airAppendUserStored(m.content, m.attachments, m.at, data.id, m.sender_name)
                     : airAppendAssistantStored(m.content, m.sources, m.at);
             });
         }
@@ -1973,7 +2018,10 @@ async function airOpenConversation(id, silent = false) {
         airCloseHistoryDrawer();
         document.getElementById('airInput').focus();
 
-        return messages.length === 1 && messages[0].role === 'user';
+        const isFreshSeed = messages.length === 1 && messages[0].role === 'user';
+        if (isFreshSeed && (autorun || data.shared)) airTriggerInitial();
+
+        return isFreshSeed;
     } catch {
         if (!silent) showToast('Could not open that conversation.', 'error');
         return false;
@@ -2029,8 +2077,12 @@ const AIR_TICKET_CONTEXT_PREFIX = '📋 Konteks tiket (otomatis';
  * pun); kalau file aslinya kebetulan masih ada di cache browser (dikirim
  * dari browser/device yang sama, lihat airCacheAttachmentFile()), badge-nya
  * ditingkatkan jadi thumbnail sungguhan secara asinkron begitu ketemu.
+ *
+ * senderName cuma terisi untuk room BERSAMA satu tiket (lihat
+ * AiResearchController::conversation() — ai_messages.sender_employee_id) —
+ * di room privat cuma ada satu orang, jadi tidak ada gunanya dilabeli.
  */
-function airAppendUserStored(text, attachmentCount, at, conversationId) {
+function airAppendUserStored(text, attachmentCount, at, conversationId, senderName) {
     if (text && text.startsWith(AIR_TICKET_CONTEXT_PREFIX)) {
         airAppendTicketContextCard(text, at);
         return;
@@ -2038,8 +2090,12 @@ function airAppendUserStored(text, attachmentCount, at, conversationId) {
 
     const noteId = attachmentCount > 0 ? 'airAtt' + (++airAttachSeq) : null;
 
+    const senderLabel = senderName
+        ? `<p class="text-[10px] text-gray-400 mb-1 text-right">${airEsc(senderName)}</p>`
+        : '';
+
     const note = attachmentCount > 0 ? `
-        <div id="${noteId}" class="flex items-center gap-1.5 justify-end text-[10px] text-white/70">
+        <div id="${noteId}" class="flex items-center gap-1.5 justify-start text-[10px] text-white/70">
             <i class="fas fa-paperclip text-[9px]"></i>
             ${attachmentCount} attachment${attachmentCount > 1 ? 's' : ''} (not kept in history)
         </div>` : '';
@@ -2051,6 +2107,7 @@ function airAppendUserStored(text, attachmentCount, at, conversationId) {
     document.getElementById('airMessages').insertAdjacentHTML('beforeend', `
         <div class="flex justify-end gap-3">
             <div class="max-w-[85%] sm:max-w-[70%]">
+                ${senderLabel}
                 <div class="bg-indigo-600 text-white text-sm rounded-2xl rounded-br-md px-4 py-2.5">
                     ${note}${body}
                 </div>
@@ -2106,7 +2163,7 @@ async function airUpgradeStoredAttachments(noteId, conversationId, text, count) 
     const others = files.filter(f => !airIsImage(f));
 
     const thumbs = images.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end">
+        <div class="flex flex-wrap gap-1.5 justify-start">
             ${images.map(f => `
                 <img src="${airPreviewUrl(f)}" alt="${airEsc(f.name)}" title="${airEsc(f.name)}"
                      class="air-thumb w-28 h-28 border border-white/25"
@@ -2114,7 +2171,7 @@ async function airUpgradeStoredAttachments(noteId, conversationId, text, count) 
         </div>`;
 
     const chips = others.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end ${images.length ? 'mt-2' : ''}">
+        <div class="flex flex-wrap gap-1.5 justify-start ${images.length ? 'mt-2' : ''}">
             ${others.map(f => `
                 <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/15 border border-white/20">
                     <i class="fas ${airFileIcon(f.name)} text-[10px]"></i>
@@ -2179,10 +2236,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // autorun=1 → percakapan ini baru saja dibuat oleh openForTicket() dan
-    // belum pernah dijawab; begitu riwayatnya terbukti benar cuma satu pesan
-    // user (lihat airOpenConversation()), picu SATU jawaban otomatis. Dibuang
-    // dari URL segera supaya refresh atau membagikan link ini tidak memicu
-    // panggilan berbayar kedua.
+    // belum pernah dijawab; diteruskan ke airOpenConversation(), yang memicu
+    // SATU jawaban otomatis kalau riwayatnya terbukti benar cuma satu pesan
+    // user (keputusan lengkapnya ada di sana, sekaligus dipakai room BERSAMA
+    // yang dibuka lewat sidebar History). Dibuang dari URL segera supaya
+    // refresh atau membagikan link ini tidak memicu panggilan berbayar kedua
+    // untuk room PRIVAT (room bersama sudah dijaga terpisah oleh
+    // claimInitialReply() di server).
     const autorun = urlParams.get('autorun') === '1';
     if (autorun) {
         const url = new URL(window.location.href);
@@ -2195,9 +2255,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // (belum ada jawaban) memang belum diarsipkan.
     const saved = sessionStorage.getItem(AIR_CONVERSATION_STORAGE_KEY);
     if (saved) {
-        airOpenConversation(saved, true).then(isFreshSeed => {
-            if (autorun && isFreshSeed) airTriggerInitial();
-        });
+        airOpenConversation(saved, true, autorun);
     }
 
     // Paste didengarkan di level dokumen supaya screenshot bisa ditempel

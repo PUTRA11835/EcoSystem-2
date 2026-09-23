@@ -42,10 +42,6 @@ class AiSettingsController extends Controller
                 static fn ($key) => AiModelSettings::catalogFor($key),
                 array_combine(array_keys($assistants), array_keys($assistants))
             ),
-            'requiresWebByAssistant' => array_map(
-                static fn ($key) => AiModelSettings::requiresServerTools($key),
-                array_combine(array_keys($assistants), array_keys($assistants))
-            ),
         ]);
     }
 

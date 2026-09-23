@@ -73,7 +73,12 @@ class AdminSessionController extends Controller
 
                     unset($s->payload);
                     return $s;
-                });
+                })
+                // Drop sessions that never completed a login (failed attempts,
+                // or just someone sitting on the login page) — only rows with
+                // a decoded `user` payload represent an actual signed-in user.
+                ->filter(fn ($s) => $s->user_id !== null)
+                ->values();
 
             return response()->json([
                 'success' => true,

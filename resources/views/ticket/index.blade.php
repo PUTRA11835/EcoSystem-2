@@ -177,6 +177,10 @@
                 Showing <span class="font-semibold text-gray-600" id="currentRangeStart">1</span>&ndash;<span class="font-semibold text-gray-600" id="currentRangeEnd">20</span>
                 <span class="text-gray-300 mx-1">of</span>
                 <span class="font-semibold text-gray-700" id="totalItems">0</span> tickets
+                <button onclick="resetFilters()" title="Reset all filters and sorting"
+                    class="inline-flex items-center gap-1 ml-3 px-2.5 py-1 bg-white border border-gray-200 text-gray-600 text-[11px] font-semibold rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all">
+                    <i class="fas fa-rotate-left text-[10px]"></i>Reset Filter
+                </button>
             </p>
             <div class="flex items-center gap-1">
                 <button onclick="previousPage()" id="btnPrevPage" disabled

@@ -50,6 +50,21 @@ class TableAccess
         'api_refresh_tokens',
     ];
 
+    /**
+     * SENGAJA cuma tiga kata ini, bukan tempat menambahkan needle PII lain
+     * (mis. "salary") — dibuktikan lewat tinker saat audit skema ini: begitu
+     * "salary" ditambahkan ke sini, stripSecrets() membuang kolom itu dari
+     * SEMUA baris tanpa syarat, TERMASUK untuk employee dengan permission
+     * eksplisit (employee.section.contract.view) yang seharusnya berhak
+     * melihatnya lewat gerbang SENSITIVE_TABLES di bawah — needle ini jadi
+     * meniadakan izin yang baru saja diberikan, bukan menambah lapisan.
+     * password/token/secret aman berada di sini karena tidak ada permission
+     * apa pun yang seharusnya membuat NILAI itu (bukan keberadaan barisnya)
+     * layak dikembalikan ke model — beda kategori dari data bisnis seperti
+     * gaji, yang harus MUNCUL begitu tabelnya berwenang, bukan selalu hilang.
+     * Proteksi kolom sejenis salary ada di tingkat tabel (SENSITIVE_TABLES),
+     * bukan di sini.
+     */
     private const SECRET_COLUMN_NEEDLES = ['password', 'token', 'secret'];
 
     /**
@@ -71,6 +86,30 @@ class TableAccess
             'self_permission' => 'my-profile.section.identification.view',
             'permission' => 'employee.section.identification.view',
         ],
+        // Ditambahkan setelah audit skema — employee_contract.salary adalah data
+        // gaji personal persis seperti employee_payment, tapi belum pernah masuk
+        // daftar ini sama sekali (celah nyata, bukan cuma kandidat "borderline").
+        'employee_contract' => [
+            'self_field' => 'employee_id',
+            'self_permission' => 'my-profile.section.contract.view',
+            'permission' => 'employee.section.contract.view',
+        ],
+        // Data pribadi anggota keluarga (nama, tanggal lahir, dll) — orangnya
+        // sendiri tidak pernah memberi izin ke AI ini, jadi diperlakukan sama
+        // seperti data pribadi karyawan yang lain.
+        'employee_family' => [
+            'self_field' => 'employee_id',
+            'self_permission' => 'my-profile.section.family.view',
+            'permission' => 'employee.section.family.view',
+        ],
+        // Metadata saja (nama berkas/tipe dokumen) — tool ini tidak pernah
+        // membaca isi berkasnya — tapi nama berkas bisa menyingkap isi dokumen
+        // (mis. "KTP_...pdf", "Surat_Sakit_...pdf"), jadi tetap digerbang.
+        'employee_attachment' => [
+            'self_field' => 'employee_id',
+            'self_permission' => 'my-profile.section.attachment.view',
+            'permission' => 'employee.section.attachment.view',
+        ],
         'customer_bank' => [
             'self_field' => null,
             'self_permission' => null,
@@ -86,6 +125,19 @@ class TableAccess
             'self_permission' => null,
             'permission' => 'customer.section.identification.view',
         ],
+        // Catatan bebas teks tentang perubahan data customer — isinya bisa apa
+        // saja tergantung siapa yang menulis, sama seperti customer_credential
+        // butuh gerbang eksplisit ketimbang dibiarkan terbuka.
+        'customer_history' => [
+            'self_field' => null,
+            'self_permission' => null,
+            'permission' => 'customer.section.history.view',
+        ],
+        'customer_attachment' => [
+            'self_field' => null,
+            'self_permission' => null,
+            'permission' => 'customer.section.attachment.view',
+        ],
         'login_activity' => [
             'self_field' => null,
             'self_permission' => null,
@@ -97,6 +149,20 @@ class TableAccess
             'permission' => 'control-center.login-log',
         ],
     ];
+
+    // employee_history (action/description/performed_by/performed_at) SENGAJA
+    // TIDAK dimasukkan ke SENSITIVE_TABLES di atas, beda dari tiga item
+    // "borderline" lain yang sudah diputuskan (family/attachment/
+    // customer_history). Alasannya: kebijakan ini menggerbang tiap tabel
+    // dengan slug permission yang SAMA dengan yang menggerbang halaman
+    // manusia untuk data itu (lihat docs/ai-assistant-sensitive-data-policy.md)
+    // — tapi employee_history tidak punya halaman sama sekali (nol pemakaian
+    // EmployeeHistory model di luar dirinya sendiri, dicek lewat pencarian
+    // kode). Menempelkan slug yang kedengarannya cocok tapi sebenarnya tidak
+    // menggerbang apa pun akan melanggar prinsip "akses AI = akses UI" itu
+    // sendiri, bukan menegakkannya. Kalau tabel ini nanti benar-benar dipakai
+    // UI, gerbangnya harus dibuat bersamaan dengan halamannya, lalu
+    // didaftarkan di SENSITIVE_TABLES.
 
     /**
      * @return array<int, string>

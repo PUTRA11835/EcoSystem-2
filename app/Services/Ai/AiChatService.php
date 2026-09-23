@@ -153,7 +153,7 @@ class AiChatService
                 break;
             }
 
-            $messages[] = ['role' => 'user', 'content' => $this->runTools($employee, $toolUseBlocks)];
+            $messages[] = ['role' => 'user', 'content' => $this->runTools($employee, $conversationId, $toolUseBlocks)];
         }
 
         Cache::store(self::CACHE_STORE)->put($cacheKey, [
@@ -367,14 +367,19 @@ class AiChatService
      * @param array<int, array{id: string, name: string, input: array<string, mixed>}> $toolUseBlocks
      * @return array<int, array<string, mixed>>
      */
-    private function runTools(Employee $employee, array $toolUseBlocks): array
+    private function runTools(Employee $employee, string $conversationId, array $toolUseBlocks): array
     {
         $results = [];
 
         foreach ($toolUseBlocks as $call) {
             $tool = $this->tools[$call['name']] ?? null;
+            $table = is_string($call['input']['table'] ?? null) ? $call['input']['table'] : null;
 
             if (!$tool) {
+                // Model asked for a tool name that doesn't exist — worth a trace
+                // on its own (could be a confused model, or a probe trying names
+                // that aren't wired up).
+                $this->logToolCall($employee, $conversationId, $call['name'], $table, 'unknown_tool');
                 $results[] = [
                     'type' => 'tool_result',
                     'tool_use_id' => $call['id'],
@@ -386,6 +391,14 @@ class AiChatService
 
             try {
                 $data = $tool->run($employee, $call['input']);
+                $this->logToolCall(
+                    $employee,
+                    $conversationId,
+                    $call['name'],
+                    $table,
+                    isset($data['error']) ? 'denied' : 'ok',
+                    strlen(json_encode($data)),
+                );
                 $results[] = [
                     'type' => 'tool_result',
                     'tool_use_id' => $call['id'],
@@ -393,6 +406,7 @@ class AiChatService
                 ];
             } catch (Throwable $e) {
                 report($e);
+                $this->logToolCall($employee, $conversationId, $call['name'], $table, 'exception');
                 $results[] = [
                     'type' => 'tool_result',
                     'tool_use_id' => $call['id'],
@@ -403,6 +417,43 @@ class AiChatService
         }
 
         return $results;
+    }
+
+    /**
+     * Trace of WHICH table/tool the assistant actually read from, per call —
+     * the piece that was missing before: AuditLog::logAiPrompt() (called by
+     * the controller) only records the employee's question text, never what
+     * the tool loop did to answer it. Without this, a question that
+     * successfully pulled sensitive data leaves no record of which table was
+     * read, only that a question was asked.
+     *
+     * Deliberately NOT the row content — logging actual query results would
+     * turn this log into a second copy of whatever sensitive data it's meant
+     * to help audit. `response_bytes` is a size signal (e.g. "this pulled a
+     * lot") without reproducing what was pulled.
+     *
+     * 'denied' covers TableAccess::authorizeQuery() refusals AND ordinary
+     * validation errors (unknown column, bad filter) — both already come back
+     * as {'error': ...} from the tool, and distinguishing them further isn't
+     * worth a second status value for what this log exists to answer: did
+     * this table get read, and if not, why.
+     */
+    private function logToolCall(
+        Employee $employee,
+        string $conversationId,
+        string $toolName,
+        ?string $table,
+        string $status,
+        ?int $responseBytes = null,
+    ): void {
+        Log::info('AI assistant tool call', array_filter([
+            'employee_id' => $employee->employee_id,
+            'conversation_id' => $conversationId,
+            'tool' => $toolName,
+            'table' => $table,
+            'status' => $status,
+            'response_bytes' => $responseBytes,
+        ], static fn ($value) => null !== $value));
     }
 
     /**
