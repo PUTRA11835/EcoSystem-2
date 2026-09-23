@@ -1,15 +1,134 @@
 @extends('dashboard')
 @section('title', 'Log Shifting')
 @section('page-title', 'Log Shifting')
-@section('page-subtitle', 'Summary of SLA messages per ticket')
+@section('page-subtitle', 'Export SLA notes per shift & ringkasan tiket')
 
 @section('content')
+
+{{-- ============================================================ --}}
+{{-- Export Log Shifting: flat per-SLA-note, filtered by date(+optional hour) range --}}
+{{-- ============================================================ --}}
 <div class="bg-white rounded-xl p-6 shadow-sm">
+
+    <div class="flex items-start gap-3 mb-5 pb-4 border-b-2 border-gray-100">
+        <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-800 shrink-0">
+            <i class="fas fa-file-export"></i>
+        </div>
+        <div>
+            <h2 class="text-2xl font-bold text-gray-900">Export Log Shifting</h2>
+            <p class="text-sm text-gray-500 mt-0.5">Rekap SLA note antar-shift dalam rentang tanggal &amp; jam tertentu — siap diexport ke Excel sebagai laporan.</p>
+        </div>
+    </div>
+
+    {{-- Quick date presets --}}
+    <div class="flex flex-wrap items-center gap-2 mb-4">
+        <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mr-1">Cepat:</span>
+        <button type="button" onclick="lsnPreset('today')" class="lsn-preset-btn">Hari Ini</button>
+        <button type="button" onclick="lsnPreset('yesterday')" class="lsn-preset-btn">Kemarin</button>
+        <button type="button" onclick="lsnPreset('7d')" class="lsn-preset-btn">7 Hari Terakhir</button>
+        <button type="button" onclick="lsnPreset('month')" class="lsn-preset-btn">Bulan Ini</button>
+    </div>
+
+    {{-- Filter bar --}}
+    <div class="flex flex-wrap items-end gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+        <div>
+            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Dari Tanggal <span class="text-red-500">*</span></label>
+            <div class="flex items-center gap-1">
+                <input type="date" id="lsnDateFrom" oninput="lsnClearMsg()"
+                    class="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                <button type="button" onclick="lsnClearField('lsnDateFrom')" class="lsn-clear-btn" title="Reset Dari Tanggal" aria-label="Reset Dari Tanggal">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+        <div>
+            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Jam <span class="normal-case text-gray-400">(opsional)</span></label>
+            <div class="flex items-center gap-1">
+                <input type="time" id="lsnTimeFrom" oninput="lsnClearMsg()"
+                    class="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                <button type="button" onclick="lsnClearField('lsnTimeFrom')" class="lsn-clear-btn" title="Reset Jam Dari" aria-label="Reset Jam Dari">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+        <div class="hidden sm:flex items-center justify-center pb-2.5 text-gray-300">
+            <i class="fas fa-arrow-right"></i>
+        </div>
+        <div>
+            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sampai Tanggal <span class="text-red-500">*</span></label>
+            <div class="flex items-center gap-1">
+                <input type="date" id="lsnDateTo" oninput="lsnClearMsg()"
+                    class="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                <button type="button" onclick="lsnClearField('lsnDateTo')" class="lsn-clear-btn" title="Reset Sampai Tanggal" aria-label="Reset Sampai Tanggal">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+        <div>
+            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Jam <span class="normal-case text-gray-400">(opsional)</span></label>
+            <div class="flex items-center gap-1">
+                <input type="time" id="lsnTimeTo" oninput="lsnClearMsg()"
+                    class="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                <button type="button" onclick="lsnClearField('lsnTimeTo')" class="lsn-clear-btn" title="Reset Jam Sampai" aria-label="Reset Jam Sampai">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex gap-2 ml-auto">
+            <button type="button" id="lsnResetAllBtn" onclick="lsnResetAll()"
+                class="px-3 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-semibold rounded-md hover:bg-gray-100 transition-colors" title="Reset semua field sekaligus">
+                <i class="fas fa-rotate-left mr-1.5"></i>Reset Semua
+            </button>
+            <button type="button" id="lsnSearchBtn" onclick="lsLoadNotes()"
+                class="px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-md hover:bg-red-900 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                <i class="fas fa-search mr-1.5"></i>Tampilkan
+            </button>
+            <button type="button" id="lsnExportBtn" onclick="lsExportNotes()"
+                class="px-4 py-2 bg-white border border-red-800 text-red-800 text-sm font-semibold rounded-md hover:bg-red-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                <i class="fas fa-file-excel mr-1.5"></i>Export Excel
+            </button>
+        </div>
+    </div>
+
+    <div id="lsnMsg" class="hidden mt-3 text-sm text-red-600 flex items-center gap-1.5">
+        <i class="fas fa-circle-exclamation"></i><span id="lsnMsgText"></span>
+    </div>
+
+    {{-- Result summary --}}
+    <div id="lsnSummary" class="mt-5 mb-3 text-sm text-gray-500">
+        Pilih rentang tanggal lalu klik <strong>Tampilkan</strong> untuk memuat SLA note. Klik salah satu baris hasil untuk membuka tiketnya di tab baru.
+    </div>
+
+    {{-- Table --}}
+    <div class="overflow-x-auto border border-gray-200 rounded-xl">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th class="ls-th text-left">No Tiket</th>
+                    <th class="ls-th text-left">Deskripsi</th>
+                    <th class="ls-th text-left">Tanggal</th>
+                    <th class="ls-th text-left">Jam</th>
+                    <th class="ls-th text-left">SLA Note</th>
+                    <th class="ls-th text-left">PIC</th>
+                </tr>
+            </thead>
+            <tbody id="lsnTableBody">
+                <tr><td colspan="6" class="text-center py-10 text-gray-400 text-sm">Belum ada data — pilih rentang tanggal di atas.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{{-- ============================================================ --}}
+{{-- Ringkasan per tiket (fitur lama): daftar tiket yang pernah punya SLA note --}}
+{{-- ============================================================ --}}
+<div class="bg-white rounded-xl p-6 shadow-sm mt-6">
 
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-gray-100">
         <div>
-            <h2 class="text-2xl font-bold text-gray-900">Log Shifting</h2>
-            <p class="text-sm text-gray-500 mt-0.5">Tickets that have an SLA message attached to one of their chat bubbles</p>
+            <h2 class="text-2xl font-bold text-gray-900">Ringkasan per Tiket</h2>
+            <p class="text-sm text-gray-500 mt-0.5">Semua tiket yang pernah punya SLA message. Klik baris untuk lihat seluruh catatannya (tanpa filter tanggal).</p>
         </div>
     </div>
 
@@ -165,6 +284,20 @@
 }
 .ls-td-desc { white-space: normal; max-width: 420px; }
 .ls-td-msg { white-space: pre-wrap; max-width: 380px; }
+
+.lsn-preset-btn {
+    padding: 0.35rem 0.9rem; border-radius: 9999px; font-size: 12px; font-weight: 600;
+    border: 1px solid #e5e7eb; color: #4b5563; background: #fff; cursor: pointer;
+    transition: all .15s;
+}
+.lsn-preset-btn:hover { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+
+.lsn-clear-btn {
+    width: 30px; height: 38px; display: flex; align-items: center; justify-content: center;
+    border: 1px solid #e5e7eb; border-radius: 0.375rem; background: #fff; color: #9ca3af;
+    font-size: 11px; cursor: pointer; transition: all .15s; flex-shrink: 0;
+}
+.lsn-clear-btn:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
 </style>
 @endpush
 
@@ -385,6 +518,157 @@ function closeLsDetailModal() {
 
 function escHtml(str) {
     return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Export Log Shifting: flat SLA notes filtered by date(+optional hour) range ──
+
+function lsnPad(n) { return String(n).padStart(2, '0'); }
+function lsnFmtDate(d) { return `${d.getFullYear()}-${lsnPad(d.getMonth() + 1)}-${lsnPad(d.getDate())}`; }
+
+function lsnPreset(kind) {
+    const today = new Date();
+    let from, to;
+
+    if (kind === 'today') {
+        from = to = lsnFmtDate(today);
+    } else if (kind === 'yesterday') {
+        const y = new Date(today); y.setDate(y.getDate() - 1);
+        from = to = lsnFmtDate(y);
+    } else if (kind === '7d') {
+        const s = new Date(today); s.setDate(s.getDate() - 6);
+        from = lsnFmtDate(s); to = lsnFmtDate(today);
+    } else if (kind === 'month') {
+        from = lsnFmtDate(new Date(today.getFullYear(), today.getMonth(), 1));
+        to   = lsnFmtDate(today);
+    } else {
+        return;
+    }
+
+    document.getElementById('lsnDateFrom').value = from;
+    document.getElementById('lsnDateTo').value   = to;
+    document.getElementById('lsnTimeFrom').value = '';
+    document.getElementById('lsnTimeTo').value   = '';
+    lsLoadNotes();
+}
+
+function lsnClearMsg() {
+    document.getElementById('lsnMsg').classList.add('hidden');
+}
+
+// Reset satu field saja (kalender atau jam) — independen, tidak menyentuh field lain.
+function lsnClearField(id) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+    lsnClearMsg();
+}
+
+// Reset semua field sekaligus, untuk yang mau mulai dari kosong lagi.
+function lsnResetAll() {
+    ['lsnDateFrom', 'lsnTimeFrom', 'lsnDateTo', 'lsnTimeTo'].forEach(id => {
+        document.getElementById(id).value = '';
+    });
+    lsnClearMsg();
+}
+
+function lsnShowMsg(text) {
+    document.getElementById('lsnMsgText').textContent = text;
+    document.getElementById('lsnMsg').classList.remove('hidden');
+}
+
+function lsnBuildQuery() {
+    const dateFrom = document.getElementById('lsnDateFrom').value;
+    const dateTo   = document.getElementById('lsnDateTo').value;
+    const timeFrom = document.getElementById('lsnTimeFrom').value;
+    const timeTo   = document.getElementById('lsnTimeTo').value;
+
+    if (!dateFrom || !dateTo) {
+        lsnShowMsg('Tanggal dari dan sampai wajib diisi.');
+        return null;
+    }
+    if (dateFrom > dateTo || (dateFrom === dateTo && timeFrom && timeTo && timeFrom > timeTo)) {
+        lsnShowMsg('Tanggal/jam "dari" tidak boleh setelah "sampai".');
+        return null;
+    }
+    lsnClearMsg();
+
+    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+    if (timeFrom) params.set('time_from', timeFrom);
+    if (timeTo)   params.set('time_to', timeTo);
+    return { params, dateFrom, dateTo, timeFrom, timeTo };
+}
+
+function lsnRangeLabel(q) {
+    const fromStr = `${q.dateFrom.split('-').reverse().join('/')}${q.timeFrom ? ' ' + q.timeFrom : ' 00:00'}`;
+    const toStr   = `${q.dateTo.split('-').reverse().join('/')}${q.timeTo ? ' ' + q.timeTo : ' 23:59'}`;
+    return `${fromStr} — ${toStr}`;
+}
+
+async function lsLoadNotes() {
+    const q = lsnBuildQuery();
+    if (!q) return;
+
+    const body       = document.getElementById('lsnTableBody');
+    const summary     = document.getElementById('lsnSummary');
+    const searchBtn   = document.getElementById('lsnSearchBtn');
+
+    searchBtn.disabled = true;
+    searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i>Memuat...';
+    body.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400 text-sm">Loading...</td></tr>`;
+
+    try {
+        const res = await fetch(`/api/reporting/log-shifting/notes?${q.params.toString()}`, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || 'Failed to load data');
+
+        const rows = json.data || [];
+        renderLsNotes(rows);
+        summary.innerHTML = rows.length
+            ? `<strong class="text-gray-900">${rows.length}</strong> SLA note ditemukan &middot; Periode <strong class="text-gray-900">${escHtml(lsnRangeLabel(q))}</strong> WIB`
+            : `Tidak ada SLA note pada periode <strong class="text-gray-900">${escHtml(lsnRangeLabel(q))}</strong> WIB.`;
+    } catch (e) {
+        console.error(e);
+        lsnShowMsg(e.message);
+        summary.textContent = 'Gagal memuat data.';
+        body.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-red-500 text-sm">
+            <i class="fas fa-exclamation-circle text-xl block mb-2"></i>${escHtml(e.message)}
+        </td></tr>`;
+    } finally {
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = '<i class="fas fa-search mr-1.5"></i>Tampilkan';
+    }
+}
+
+function renderLsNotes(rows) {
+    const body = document.getElementById('lsnTableBody');
+
+    if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400 text-sm">Tidak ada SLA note pada rentang tanggal/jam ini.</td></tr>`;
+        return;
+    }
+
+    body.innerHTML = rows.map(r => {
+        const bubble = r.bubble_date ? new Date(r.bubble_date) : null;
+        const dateStr = bubble ? bubble.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+        const timeStr = bubble ? bubble.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' WIB' : '—';
+        return `
+        <tr class="cursor-pointer hover:bg-gray-50" title="Klik untuk membuka tiket di tab baru" onclick="window.open('/ticket/${r.ticket_id}', '_blank')">
+            <td class="ls-td text-sm font-semibold text-gray-700">${escHtml(r.ticket_number || '—')}</td>
+            <td class="ls-td ls-td-desc text-sm text-gray-700">${escHtml(r.description || '—')}</td>
+            <td class="ls-td text-xs text-gray-500">${dateStr}</td>
+            <td class="ls-td text-xs text-gray-500">${timeStr}</td>
+            <td class="ls-td ls-td-msg text-sm text-gray-700">${escHtml(r.sla_message || '—')}</td>
+            <td class="ls-td text-sm text-gray-700">${r.pic ? escHtml(r.pic) : '<span class="text-gray-300 italic">Unknown</span>'}</td>
+        </tr>`;
+    }).join('');
+}
+
+function lsExportNotes() {
+    const q = lsnBuildQuery();
+    if (!q) return;
+    window.location.href = `/reporting/log-shifting/export?${q.params.toString()}`;
 }
 </script>
 @endpush

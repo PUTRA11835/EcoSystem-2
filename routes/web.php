@@ -153,6 +153,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/export-excel',     [\App\Http\Controllers\ReportingController::class, 'exportExcel'])->name('reporting.export');
     Route::get('/reporting/md-recap',         [\App\Http\Controllers\ReportingController::class, 'mdRecapIndex'])->name('reporting.md-recap')->middleware('menu:reporting.md-recap');
     Route::get('/reporting/md-recap/export',           [\App\Http\Controllers\ReportingController::class, 'exportMdRecap'])->name('reporting.md-recap.export');
+    Route::get('/reporting/md-recap/export-summary',   [\App\Http\Controllers\ReportingController::class, 'exportMdRecapSummary'])->name('reporting.md-recap.export-summary');
     Route::get('/reporting/resolution-days/export',    [\App\Http\Controllers\ReportingController::class, 'exportResolutionDays'])->name('reporting.resolution-days.export');
     Route::get('/reporting/collection-outlook',        [\App\Http\Controllers\ReportingController::class, 'collectionOutlookIndex'])->name('reporting.collection-outlook')->middleware('menu:reporting.collection-outlook');
     Route::get('/reporting/collection-outlook/export', [\App\Http\Controllers\ReportingController::class, 'exportCollectionOutlook'])->name('reporting.collection-outlook.export')->middleware('menu:reporting.collection-outlook');
@@ -161,6 +162,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/ticketing-overview',        [\App\Http\Controllers\ReportingController::class, 'ticketingOverviewIndex'])->name('reporting.ticketing-overview')->middleware('menu:reporting.ticketing-overview');
     Route::get('/reporting/ticket-by-module',           [\App\Http\Controllers\ReportingController::class, 'ticketByModuleIndex'])->name('reporting.ticket-by-module')->middleware('menu:reporting.ticket-by-module');
     Route::get('/reporting/log-shifting',               [\App\Http\Controllers\ReportingController::class, 'logShiftingIndex'])->name('reporting.log-shifting')->middleware('menu:reporting.log-shifting');
+    Route::get('/reporting/log-shifting/export',        [\App\Http\Controllers\ReportingController::class, 'exportLogShifting'])->name('reporting.log-shifting.export')->middleware('menu:reporting.log-shifting');
     Route::get('/reporting/ticket-by-module/export',    [\App\Http\Controllers\ReportingController::class, 'exportTicketByModule'])->name('reporting.ticket-by-module.export')->middleware('menu:reporting.ticket-by-module');
     Route::get('/reporting/resolution-days',             [\App\Http\Controllers\ReportingController::class, 'resolutionDaysIndex'])->name('reporting.resolution-days')->middleware('menu:reporting.resolution-days');
     Route::get('/reporting/consultant-assignment',        [\App\Http\Controllers\ReportingController::class, 'consultantAssignmentIndex'])->name('reporting.consultant-assignment')->middleware('menu:reporting.consultant-assignment');
