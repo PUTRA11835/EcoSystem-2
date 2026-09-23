@@ -26,15 +26,15 @@
                 </div>
                 <div class="grid grid-cols-3 gap-2 mb-1">
                     <div class="bg-gray-50 rounded-xl p-3 text-center">
-                        <p class="text-lg font-bold text-gray-800" id="logTotal">—</p>
+                        <p class="text-lg font-bold text-gray-800" id="logTotal">-</p>
                         <p class="text-xs text-gray-400 mt-0.5">Total</p>
                     </div>
                     <div class="bg-green-50 rounded-xl p-3 text-center">
-                        <p class="text-lg font-bold text-green-600" id="logSuccess">—</p>
+                        <p class="text-lg font-bold text-green-600" id="logSuccess">-</p>
                         <p class="text-xs text-gray-400 mt-0.5">Success</p>
                     </div>
                     <div class="bg-red-50 rounded-xl p-3 text-center">
-                        <p class="text-lg font-bold text-red-500" id="logFailed">—</p>
+                        <p class="text-lg font-bold text-red-500" id="logFailed">-</p>
                         <p class="text-xs text-gray-400 mt-0.5">Failed</p>
                     </div>
                 </div>
@@ -43,6 +43,41 @@
                 <a href="{{ route('admin.activity-log') }}"
                    class="block w-full text-center px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition">
                     Open Activity Log
+                </a>
+            </div>
+        </div>
+
+        <!-- Security Center Card -->
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+            <div class="p-5 flex-1">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                        <i class="fas fa-shield-halved text-red-600 text-base"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800">Security Center</h3>
+                        <p class="text-xs text-gray-400">Threats, lockouts & suspicious activity</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 mb-1">
+                    <div class="bg-gray-50 rounded-xl p-3 text-center">
+                        <p class="text-lg font-bold text-gray-800" id="secOpen">-</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Open</p>
+                    </div>
+                    <div class="bg-red-50 rounded-xl p-3 text-center">
+                        <p class="text-lg font-bold text-red-600" id="secCriticalHigh">-</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Critical/High</p>
+                    </div>
+                    <div class="bg-orange-50 rounded-xl p-3 text-center">
+                        <p class="text-lg font-bold text-orange-600" id="secLocked">-</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Locked</p>
+                    </div>
+                </div>
+            </div>
+            <div class="px-5 pb-5">
+                <a href="{{ route('admin.security-center') }}"
+                   class="block w-full text-center px-4 py-2.5 rounded-xl bg-red-700 text-white text-sm font-medium hover:bg-red-800 transition">
+                    Open Security Center
                 </a>
             </div>
         </div>
@@ -61,15 +96,15 @@
                 </div>
                 <div class="grid grid-cols-3 gap-2 mb-1">
                     <div class="bg-gray-50 rounded-xl p-3 text-center">
-                        <p class="text-lg font-bold text-gray-800" id="sessTotal">—</p>
+                        <p class="text-lg font-bold text-gray-800" id="sessTotal">-</p>
                         <p class="text-xs text-gray-400 mt-0.5">Active</p>
                     </div>
                     <div class="bg-blue-50 rounded-xl p-3 text-center">
-                        <p class="text-lg font-bold text-blue-600" id="sessIdentified">—</p>
+                        <p class="text-lg font-bold text-blue-600" id="sessIdentified">-</p>
                         <p class="text-xs text-gray-400 mt-0.5">Logged In</p>
                     </div>
                     <div class="bg-gray-50 rounded-xl p-3 text-center">
-                        <p class="text-lg font-bold text-gray-400" id="sessAnon">—</p>
+                        <p class="text-lg font-bold text-gray-400" id="sessAnon">-</p>
                         <p class="text-xs text-gray-400 mt-0.5">Guest</p>
                     </div>
                 </div>
@@ -105,8 +140,8 @@
                     <div id="jobsError" class="hidden col-span-2 bg-red-50 rounded-xl p-4 flex items-center gap-3">
                         <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
                         <div>
-                            <p class="text-sm font-semibold text-red-700" id="jobsCount">— Failed Jobs</p>
-                            <p class="text-xs text-gray-400" id="jobsNewest">—</p>
+                            <p class="text-sm font-semibold text-red-700" id="jobsCount">- Failed Jobs</p>
+                            <p class="text-xs text-gray-400" id="jobsNewest">-</p>
                         </div>
                     </div>
                     <div id="jobsLoading" class="col-span-2 bg-gray-50 rounded-xl p-4 flex items-center gap-3">
@@ -122,6 +157,50 @@
                 <a href="{{ route('admin.failed-jobs') }}"
                    class="block w-full text-center px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition">
                     Open Failed Jobs
+                </a>
+            </div>
+        </div>
+
+        <!-- Schedule Monitor Card -->
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+            <div class="p-5 flex-1">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                        <i class="fas fa-clock text-amber-600 text-base"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800">Schedule Monitor</h3>
+                        <p class="text-xs text-gray-400">Cron/scheduled task health</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-1">
+                    <div id="scheduleHealthy" class="hidden col-span-2 bg-green-50 rounded-xl p-4 flex items-center gap-3">
+                        <i class="fas fa-check-circle text-green-500 text-xl"></i>
+                        <div>
+                            <p class="text-sm font-semibold text-green-700">All Tasks Healthy</p>
+                            <p class="text-xs text-gray-400" id="scheduleTotal">-</p>
+                        </div>
+                    </div>
+                    <div id="scheduleError" class="hidden col-span-2 bg-red-50 rounded-xl p-4 flex items-center gap-3">
+                        <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
+                        <div>
+                            <p class="text-sm font-semibold text-red-700" id="scheduleIssues">-</p>
+                            <p class="text-xs text-gray-400" id="scheduleTotal2">-</p>
+                        </div>
+                    </div>
+                    <div id="scheduleLoading" class="col-span-2 bg-gray-50 rounded-xl p-4 flex items-center gap-3">
+                        <svg class="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <p class="text-sm text-gray-400">Checking schedule...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="px-5 pb-5">
+                <a href="{{ route('admin.schedule-monitor') }}"
+                   class="block w-full text-center px-4 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition">
+                    Open Schedule Monitor
                 </a>
             </div>
         </div>
@@ -278,9 +357,24 @@
 <script>
 async function loadAll() {
     loadActivityStats();
+    loadSecurityStats();
     loadSessionStats();
     loadJobStats();
+    loadScheduleStats();
     loadHealth();
+}
+
+async function loadSecurityStats() {
+    try {
+        const res  = await fetch('/api/admin/security-events?per_page=1&status=', { credentials: 'same-origin' });
+        const json = await res.json();
+        if (!json.success) return;
+
+        const stats = json.stats ?? {};
+        document.getElementById('secOpen').textContent         = stats.open ?? '-';
+        document.getElementById('secCriticalHigh').textContent = stats.critical_high ?? '-';
+        document.getElementById('secLocked').textContent       = stats.locked_accounts ?? '-';
+    } catch (e) {}
 }
 
 async function loadActivityStats() {
@@ -290,9 +384,9 @@ async function loadActivityStats() {
         if (!json.success) return;
 
         const stats = json.stats ?? {};
-        document.getElementById('logTotal').textContent   = json.meta?.total ?? '—';
-        document.getElementById('logSuccess').textContent = stats.success ?? '—';
-        document.getElementById('logFailed').textContent  = stats.failed  ?? '—';
+        document.getElementById('logTotal').textContent   = json.meta?.total ?? '-';
+        document.getElementById('logSuccess').textContent = stats.success ?? '-';
+        document.getElementById('logFailed').textContent  = stats.failed  ?? '-';
     } catch (e) {}
 }
 
@@ -324,10 +418,34 @@ async function loadJobStats() {
         } else {
             document.getElementById('jobsError').classList.remove('hidden');
             document.getElementById('jobsCount').textContent  = `${total} Failed Job${total > 1 ? 's' : ''}`;
-            document.getElementById('jobsNewest').textContent = `Latest: ${json.data?.[0]?.failed_at ?? '—'}`;
+            document.getElementById('jobsNewest').textContent = `Latest: ${json.data?.[0]?.failed_at ?? '-'}`;
         }
     } catch (e) {
         document.getElementById('jobsLoading').classList.add('hidden');
+    }
+}
+
+async function loadScheduleStats() {
+    try {
+        const res  = await fetch('/api/admin/schedule-monitor', { credentials: 'same-origin' });
+        const json = await res.json();
+
+        document.getElementById('scheduleLoading').classList.add('hidden');
+
+        if (!json.success) return;
+
+        const { total, stale, failing, issues } = json.summary;
+
+        if (issues === 0) {
+            document.getElementById('scheduleHealthy').classList.remove('hidden');
+            document.getElementById('scheduleTotal').textContent = `${total} task${total > 1 ? 's' : ''} on schedule`;
+        } else {
+            document.getElementById('scheduleError').classList.remove('hidden');
+            document.getElementById('scheduleIssues').textContent = `${issues} task${issues > 1 ? 's' : ''} need attention`;
+            document.getElementById('scheduleTotal2').textContent = `${failing} failing, ${stale} stale or never run`;
+        }
+    } catch (e) {
+        document.getElementById('scheduleLoading').classList.add('hidden');
     }
 }
 

@@ -52,6 +52,32 @@ class DashboardController extends Controller
 
             // ── EC Administrator dashboard data ───────────────────────────────
             if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::EC_ADMINISTRATOR->value) {
+                // System health & security snapshot - the part of this dashboard
+                // that is unique to the superadmin role, not shared with any
+                // other dashboard variant below. Reuses the exact same services
+                // Control Center's own pages are built on, so the numbers here
+                // never drift from what a click-through to Control Center shows.
+                $dashboardData['security_summary'] = [
+                    'open_total'      => DB::table('security_events')->where('status', 'open')->count(),
+                    'open_critical'   => DB::table('security_events')->where('status', 'open')->where('severity', 'critical')->count(),
+                    'open_high'       => DB::table('security_events')->where('status', 'open')->where('severity', 'high')->count(),
+                    'locked_accounts' => DB::table('auth_users')->where('locked_until', '>', now())->count(),
+                ];
+
+                $scheduleStatus = \App\Services\ScheduleMonitorService::getStatusData();
+                $dashboardData['schedule_summary'] = [
+                    'total'  => count($scheduleStatus),
+                    'issues' => count(array_filter($scheduleStatus, fn ($e) => $e['is_stale'] || $e['status'] === 'failed')),
+                ];
+
+                $queueHealth = \App\Services\ScheduleMonitorService::getQueueHealth();
+                $dashboardData['queue_summary'] = [
+                    'total'     => count($queueHealth),
+                    'unhealthy' => count(array_filter($queueHealth, fn ($q) => !$q['is_healthy'])),
+                ];
+
+                $dashboardData['failed_jobs_count'] = DB::table('failed_jobs')->count();
+
                 $base = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden');
 
                 $dashboardData['ticket_stats'] = [

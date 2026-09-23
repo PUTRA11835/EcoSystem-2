@@ -353,7 +353,7 @@
                 background:linear-gradient(135deg, #1A0000, #6B0000);
                 padding:1.25rem 1.5rem;
             }
-            /* The panel carries inline height:100vh/overflow:hidden — beat it with
+            /* The panel carries inline height:100vh/overflow:hidden - beat it with
                !important so the whole form (incl. submit) can scroll into view on
                short screens (phone landscape / on-screen keyboard). */
             #login-panel { width:100%; height:auto !important; min-height:calc(100vh - 62px); overflow:visible !important; }
@@ -458,7 +458,7 @@
         <div style="width:26px;height:1px;border-radius:9999px;background:rgba(255,255,255,.05);animation:shimmerLine 8s ease-in-out infinite;animation-delay:-1s;"></div>
     </div>
 
-    {{-- Glass pills — bottom-right cluster --}}
+    {{-- Glass pills - bottom-right cluster --}}
     <div style="position:absolute;bottom:-18px;right:-45px;pointer-events:none;">
         <div style="position:absolute;width:300px;height:74px;border-radius:9999px;
                     background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);
@@ -790,6 +790,10 @@
                     setTimeout(() => {
                         window.location.href = '/verify-email' + (data.email ? '?email=' + encodeURIComponent(data.email) : '');
                     }, 1200);
+                    return;
+                }
+                if (data.requires_2fa) {
+                    window.location.href = '/auth/2fa/verify?token=' + encodeURIComponent(data.two_factor_token);
                     return;
                 }
                 localStorage.setItem('api_token', data.data.token);

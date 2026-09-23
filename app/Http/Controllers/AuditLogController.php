@@ -43,7 +43,7 @@ class AuditLogController extends Controller
         $dateFrom = $request->input('date_from', '');
         $dateTo   = $request->input('date_to', '');
 
-        $query = AuditLog::query()->orderByDesc('id');
+        $query = AuditLog::query();
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -70,6 +70,20 @@ class AuditLogController extends Controller
             $query->whereDate('created_at', '<=', $dateTo);
         }
 
+        // Allowlisted sort columns only - never pass the request value straight into orderBy().
+        $sortColumns = [
+            'actor_name' => 'actor_name',
+            'module'     => 'module',
+            'event'      => 'event',
+            'time'       => 'created_at',
+        ];
+        $sortBy  = $sortColumns[$request->input('sort_by')] ?? 'id';
+        $sortDir = $request->input('sort_dir') === 'asc' ? 'asc' : 'desc';
+        $query->orderBy($sortBy, $sortDir);
+        if ($sortBy !== 'id') {
+            $query->orderByDesc('id'); // stable tie-break
+        }
+
         $records = $query->paginate($perPage);
 
         $items = collect($records->items())->map(function (AuditLog $row) {
@@ -77,6 +91,7 @@ class AuditLogController extends Controller
                 'id'             => $row->id,
                 'module'         => $row->module,
                 'auditable_type' => $row->auditable_type,
+                'auditable_label' => $this->humanizeClassName($row->auditable_type),
                 'auditable_id'   => $row->auditable_id,
                 'record_label'   => $row->record_label ?? '-',
                 'description'    => $row->description ?? '-',
@@ -132,5 +147,17 @@ class AuditLogController extends Controller
             ->pluck('module');
 
         return response()->json(['success' => true, 'data' => $modules]);
+    }
+
+    /** "DeliveryProjectRisk" -> "Delivery Project Risk", matching AuditObserver's own humanizer. */
+    private function humanizeClassName(?string $auditableType): string
+    {
+        if (!$auditableType) {
+            return '-';
+        }
+
+        $basename = class_basename($auditableType);
+
+        return trim(preg_replace('/(?<!^)[A-Z]/', ' $0', $basename));
     }
 }

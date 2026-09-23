@@ -59,7 +59,12 @@ class GetTicketsTool implements AiTool
             $note = "The current user doesn't have permission to view all organization tickets — showing their own assigned tickets instead.";
         }
 
-        $query = Ticket::query()->with(['ticketLead:employee_id,employee_id']);
+        // Ticket yang di-hide (Ticket::is_hidden) tidak boleh pernah terhitung
+        // di sini — assignedTicketIds() sendiri SENGAJA tidak menyaring
+        // status/deleted/hidden (lihat docblock-nya di Ticket model), jadi
+        // gerbangnya wajib di sini.
+        $query = Ticket::query()->with(['ticketLead:employee_id,employee_id'])
+            ->whereNull('is_hidden');
 
         if ('mine' === $scope) {
             $query->whereIn('ticket_id', Ticket::assignedTicketIds($employee->employee_id));

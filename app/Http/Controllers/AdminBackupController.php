@@ -275,6 +275,17 @@ class AdminBackupController extends Controller
             'by'    => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
 
+        \App\Models\AuditLog::recordAction(
+            module: 'Export',
+            auditableType: 'employee_export',
+            auditableId: 0,
+            event: 'exported',
+            recordLabel: $filename,
+            description: 'exported employee data (' . $rows->count() . ' rows)',
+            old: null,
+            new: ['row_count' => $rows->count(), 'filename' => $filename]
+        );
+
         return response()->stream($callback, 200, $headers);
     }
 
@@ -348,6 +359,17 @@ class AdminBackupController extends Controller
             'count' => $rows->count(),
             'by'    => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
+
+        \App\Models\AuditLog::recordAction(
+            module: 'Export',
+            auditableType: 'ticket_export',
+            auditableId: 0,
+            event: 'exported',
+            recordLabel: $filename,
+            description: 'exported ticket data (' . $rows->count() . ' rows)',
+            old: null,
+            new: ['row_count' => $rows->count(), 'filename' => $filename, 'year' => $year, 'month' => $month]
+        );
 
         return response()->stream($callback, 200, $headers);
     }
@@ -430,6 +452,17 @@ class AdminBackupController extends Controller
             'count' => $rows->count(),
             'by'    => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
+
+        \App\Models\AuditLog::recordAction(
+            module: 'Export',
+            auditableType: 'customer_export',
+            auditableId: 0,
+            event: 'exported',
+            recordLabel: $filename,
+            description: 'exported customer data (' . $rows->count() . ' rows)',
+            old: null,
+            new: ['row_count' => $rows->count(), 'filename' => $filename]
+        );
 
         return response()->stream($callback, 200, $headers);
     }
@@ -948,6 +981,17 @@ class AdminBackupController extends Controller
             'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
 
+        \App\Models\AuditLog::recordAction(
+            module: 'Import',
+            auditableType: 'employee_import',
+            auditableId: 0,
+            event: 'imported',
+            recordLabel: $request->file('file')->getClientOriginalName(),
+            description: "imported employee data ({$imported} added, {$updated} updated, " . count($errors) . ' errors)',
+            old: null,
+            new: ['imported' => $imported, 'updated' => $updated, 'error_count' => count($errors)],
+        );
+
         return response()->json([
             'success'  => true,
             'message'  => "Import selesai: {$imported} ditambahkan, {$updated} diperbarui" . (count($errors) ? ', ' . count($errors) . ' error' : ''),
@@ -1316,6 +1360,17 @@ class AdminBackupController extends Controller
             'imported' => $imported, 'updated' => $updated, 'errors' => count($errors),
             'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
+
+        \App\Models\AuditLog::recordAction(
+            module: 'Import',
+            auditableType: 'customer_import',
+            auditableId: 0,
+            event: 'imported',
+            recordLabel: $request->file('file')->getClientOriginalName(),
+            description: "imported customer data ({$imported} added, {$updated} updated, " . count($errors) . ' errors)',
+            old: null,
+            new: ['imported' => $imported, 'updated' => $updated, 'error_count' => count($errors)],
+        );
 
         return response()->json([
             'success'  => true,
@@ -1979,6 +2034,17 @@ class AdminBackupController extends Controller
             'by'      => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
 
+        \App\Models\AuditLog::recordAction(
+            module: 'Import',
+            auditableType: 'ticket_import',
+            auditableId: 0,
+            event: 'imported',
+            recordLabel: $request->file('file')->getClientOriginalName(),
+            description: "imported ticket data ({$created} created, {$updated} updated, {$skipped} skipped, " . count($errors) . ' errors)',
+            old: null,
+            new: ['created' => $created, 'updated' => $updated, 'skipped' => $skipped, 'error_count' => count($errors)],
+        );
+
         return response()->json([
             'success'  => true,
             'message'  => "Import complete: {$created} created, {$updated} updated" . ($skipped ? ", {$skipped} skipped" : '') . (count($errors) ? ', ' . count($errors) . ' error(s)' : ''),
@@ -2112,6 +2178,17 @@ class AdminBackupController extends Controller
             'errors'        => count($errors),
             'by'            => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
+
+        \App\Models\AuditLog::recordAction(
+            module: 'Import',
+            auditableType: 'ticket_member_import',
+            auditableId: 0,
+            event: 'imported',
+            recordLabel: $request->file('file')->getClientOriginalName(),
+            description: "imported ticket member data ({$leadsSet} leads set, {$membersAdded} members added, {$skipped} skipped, " . count($errors) . ' errors)',
+            old: null,
+            new: ['leads_set' => $leadsSet, 'members_added' => $membersAdded, 'skipped' => $skipped, 'error_count' => count($errors)],
+        );
 
         return response()->json([
             'success'       => true,
@@ -2410,6 +2487,17 @@ class AdminBackupController extends Controller
             'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
 
+        \App\Models\AuditLog::recordAction(
+            module: 'Import',
+            auditableType: 'resolution_days_import',
+            auditableId: 0,
+            event: 'imported',
+            recordLabel: $request->file('file')->getClientOriginalName(),
+            description: "imported resolution days data ({$imported} added, {$updated} updated, " . count($errors) . ' errors)',
+            old: null,
+            new: ['imported' => $imported, 'updated' => $updated, 'error_count' => count($errors)],
+        );
+
         return response()->json([
             'success'  => true,
             'message'  => "Import selesai: {$imported} ditambahkan, {$updated} diperbarui" . (count($errors) ? ', ' . count($errors) . ' error' : ''),
@@ -2681,6 +2769,17 @@ class AdminBackupController extends Controller
             'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
 
+        \App\Models\AuditLog::recordAction(
+            module: 'Import',
+            auditableType: 'timesheet_import',
+            auditableId: 0,
+            event: 'imported',
+            recordLabel: $request->file('file')->getClientOriginalName(),
+            description: "imported timesheet data ({$imported} added, {$skipped} skipped, " . count($errors) . ' errors)',
+            old: null,
+            new: ['imported' => $imported, 'skipped' => $skipped, 'error_count' => count($errors)],
+        );
+
         return response()->json([
             'success'  => true,
             'message'  => "Import selesai: {$imported} ditambahkan" . ($skipped ? ", {$skipped} dilewati" : '') . (count($errors) ? ', ' . count($errors) . ' peringatan' : ''),
@@ -2875,6 +2974,17 @@ class AdminBackupController extends Controller
             'imported' => $imported, 'skipped' => $skipped, 'errors' => count($errors),
             'by'       => session('user.eci') ?? session('user.name') ?? 'head',
         ]);
+
+        \App\Models\AuditLog::recordAction(
+            module: 'Import',
+            auditableType: 'timesheet_import',
+            auditableId: 0,
+            event: 'imported',
+            recordLabel: $request->file('file')->getClientOriginalName(),
+            description: "imported timesheet data via Head endpoint ({$imported} added, {$skipped} skipped, " . count($errors) . ' errors)',
+            old: null,
+            new: ['imported' => $imported, 'skipped' => $skipped, 'error_count' => count($errors)],
+        );
 
         return response()->json([
             'success'  => true,
@@ -3260,6 +3370,17 @@ class AdminBackupController extends Controller
             'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
 
+        \App\Models\AuditLog::recordAction(
+            module: 'Import',
+            auditableType: 'delivery_support_import',
+            auditableId: 0,
+            event: 'imported',
+            recordLabel: $request->file('file')->getClientOriginalName(),
+            description: "imported delivery support data ({$imported} added, {$skipped} skipped, " . count($errors) . ' errors)',
+            old: null,
+            new: ['imported' => $imported, 'skipped' => $skipped, 'error_count' => count($errors)],
+        );
+
         return response()->json([
             'success'  => true,
             'message'  => "Import selesai: {$imported} delivery support ditambahkan" . ($skipped ? ", {$skipped} dilewati" : ''),
@@ -3487,6 +3608,17 @@ class AdminBackupController extends Controller
             'imported' => $imported, 'updated' => $updated, 'skipped' => $skipped,
             'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
+
+        \App\Models\AuditLog::recordAction(
+            module: 'Import',
+            auditableType: 'employee_qualification_import',
+            auditableId: 0,
+            event: 'imported',
+            recordLabel: $request->file('file')->getClientOriginalName(),
+            description: "imported employee qualification data ({$imported} added, {$updated} updated, {$skipped} skipped, " . count($errors) . ' errors)',
+            old: null,
+            new: ['imported' => $imported, 'updated' => $updated, 'skipped' => $skipped, 'error_count' => count($errors)],
+        );
 
         return response()->json([
             'success'  => true,
@@ -3743,6 +3875,17 @@ class AdminBackupController extends Controller
             'imported' => $imported, 'updated' => $updated, 'skipped' => $skipped,
             'by'       => session('user.eci') ?? session('user.name') ?? 'admin',
         ]);
+
+        \App\Models\AuditLog::recordAction(
+            module: 'Import',
+            auditableType: 'customer_contact_import',
+            auditableId: 0,
+            event: 'imported',
+            recordLabel: $request->file('file')->getClientOriginalName(),
+            description: "imported customer contact data ({$imported} added, {$updated} updated, {$skipped} skipped, " . count($errors) . ' errors)',
+            old: null,
+            new: ['imported' => $imported, 'updated' => $updated, 'skipped' => $skipped, 'error_count' => count($errors)],
+        );
 
         return response()->json([
             'success'  => true,

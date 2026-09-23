@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Enums\RoleId;
 use App\Models\Employee;
 use App\Models\ModuleLead;
 use App\Models\Ticket;
@@ -197,15 +198,51 @@ final class TicketTeamAccess
 
     /**
      * Siapa boleh pakai AI Research untuk tiket ini: Ticket Lead/member tiket
-     * ini, ATAU EC Administrator. Dipakai bareng oleh AiResearchController::
-     * openForTicket() (gerbang endpoint) dan ticket/show.blade.php (tampil/
-     * sembunyi tombol) — satu tempat supaya kedua sisi tidak bisa diam-diam
-     * melenceng kalau aturan admin-bypass ini berubah nanti. $isAdmin dihitung
-     * oleh caller sendiri (Employee/SessionUser punya hasRole() masing-masing,
-     * tidak ada tipe yang sama-sama dipakai keduanya untuk digenggam di sini).
+     * ini, ATAU salah satu role "privileged" (lihat isPrivilegedForAiResearch()
+     * — EC Administrator + role yang sama-sama bisa approve di Ticket
+     * Validation). Dipakai bareng oleh AiResearchController::openForTicket()
+     * dan assertCanAccessConversation() (gerbang endpoint) dan
+     * ticket/show.blade.php (tampil/sembunyi tombol) — satu tempat supaya
+     * ketiganya tidak bisa diam-diam melenceng kalau aturan bypass ini
+     * berubah nanti. $isPrivileged dihitung oleh caller lewat
+     * isPrivilegedForAiResearch() sendiri (Employee/SessionUser punya
+     * hasRole()/hasAnyRole() masing-masing, tidak ada tipe yang sama-sama
+     * dipakai semua caller untuk digenggam di sini).
      */
-    public static function canAccessAiResearch(?int $employeeId, Ticket $ticket, bool $isAdmin): bool
+    public static function canAccessAiResearch(?int $employeeId, Ticket $ticket, bool $isPrivileged): bool
     {
-        return $isAdmin || self::isLeadOrMember($employeeId, $ticket);
+        return $isPrivileged || self::isLeadOrMember($employeeId, $ticket);
+    }
+
+    /**
+     * Role yang otomatis lolos gerbang AI Research untuk SEMUA tiket,
+     * terlepas dari status lead/member-nya di tiket itu:
+     *   - EC Administrator (sudah begitu sejak awal), DITAMBAH
+     *   - RoleId::STAGING_GROUP — Delivery Support Head, Delivery Helpdesk,
+     *     Delivery RPMO Head, Delivery Support Manager (MO Support): persis
+     *     role yang bisa approve di Ticket Validation.
+     *
+     * Alasan grup kedua: merekalah yang men-trigger pembuatan room BERSAMA
+     * ini lewat approve() (lihat StagingTicketController::
+     * createSharedAiResearchRoom()) — tidak masuk akal kalau justru mereka
+     * sendiri tidak bisa membuka lagi room yang baru saja mereka buat, hanya
+     * karena kebetulan bukan Ticket Lead/member tiket itu.
+     *
+     * hasAnyRole() dicek (bukan $employee->role->role_id / primary role
+     * saja) supaya employee dengan banyak role tetap kebagian akses walau
+     * role privileged itu bukan role utamanya.
+     *
+     * Parameter sengaja TIDAK diketik Employee — dua caller-nya pakai tipe
+     * berbeda yang sama-sama punya hasRole(int):bool/hasAnyRole(array):bool
+     * (Employee di controller, SessionUser di Blade), lihat catatan di
+     * canAccessAiResearch() di atas. Duck typing di sini, bukan interface
+     * baru yang memaksa kedua kelas itu saling terikat cuma demi satu method.
+     *
+     * @param Employee|\App\Support\SessionUser $actor
+     */
+    public static function isPrivilegedForAiResearch($actor): bool
+    {
+        return $actor->hasRole(RoleId::EC_ADMINISTRATOR->value)
+            || $actor->hasAnyRole(RoleId::STAGING_GROUP);
     }
 }
