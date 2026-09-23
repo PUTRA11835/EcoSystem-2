@@ -363,6 +363,18 @@ Route::middleware(['web'])->group(function () {
         Route::patch('/{contactId}/toggle-view-all', [CustomerContactController::class, 'toggleViewAllTickets'])->middleware('customer.section:contact');
     });
 
+    // Customer Contact Groups — shared ticket visibility between Member-level contacts
+    Route::prefix('customers/{customerId}/contact-groups')->group(function () {
+        Route::get('/', [CustomerContactController::class, 'groups']);
+        Route::post('/', [CustomerContactController::class, 'createGroup'])->middleware('customer.section:contact');
+        Route::put('/{groupId}', [CustomerContactController::class, 'renameGroup'])->middleware('customer.section:contact');
+        Route::delete('/{groupId}', [CustomerContactController::class, 'deleteGroup'])->middleware('customer.section:contact');
+        Route::post('/{groupId}/delete', [CustomerContactController::class, 'deleteGroup'])->middleware('customer.section:contact');
+        Route::post('/{groupId}/members', [CustomerContactController::class, 'addGroupMember'])->middleware('customer.section:contact');
+        Route::delete('/{groupId}/members/{contactId}', [CustomerContactController::class, 'removeGroupMember'])->middleware('customer.section:contact');
+        Route::post('/{groupId}/members/{contactId}/delete', [CustomerContactController::class, 'removeGroupMember'])->middleware('customer.section:contact');
+    });
+
     // Customer Identification endpoints
     Route::prefix('customers/{customerId}/identifications')->group(function () {
         Route::get('/', [CustomerIdentificationController::class, 'index']);
