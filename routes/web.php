@@ -693,6 +693,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             Route::get('/bank',           [\App\Http\Controllers\ManagementEmployeeController::class, 'bank'])         ->middleware('menu:management.employee.bank')           ->name('bank.index');
             Route::get('/payment',        [\App\Http\Controllers\ManagementEmployeeController::class, 'payment'])      ->middleware('menu:management.employee.payment')        ->name('payment.index');
             Route::get('/attachment',     [\App\Http\Controllers\ManagementEmployeeController::class, 'attachment'])   ->middleware('menu:management.employee.attachment')     ->name('attachment.index');
+            Route::get('/dropdown-settings', [\App\Http\Controllers\ManagementEmployeeController::class, 'dropdownSettings'])->middleware('menu:management.employee.dropdown-settings')->name('dropdown-settings.index');
         });
     });
 

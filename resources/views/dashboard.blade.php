@@ -1404,6 +1404,12 @@
                                     <span class="nav-text text-xs">Attachment</span>
                                 </a>
                                 @endif
+                                @if($can('management.employee.dropdown-settings'))
+                                <a href="{{ route('management.employee.dropdown-settings.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/dropdown-settings*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-list-ul text-xs"></i></span>
+                                    <span class="nav-text text-xs">Dropdown Settings</span>
+                                </a>
+                                @endif
                             </div>
                         </div>
                         @endif

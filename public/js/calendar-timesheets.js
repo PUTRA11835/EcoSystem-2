@@ -1839,7 +1839,10 @@ function renderTimesheetRows() {
             }
             var tim   = tsTimeRange(ts);
             var nam   = escapeHtml(ts.employee_name || '-');
-            var tkt   = ts.ticket_number ? ('#' + escapeHtml(ts.ticket_number)) : (ts.ticket_id ? ('#' + ts.ticket_id) : '-');
+            var tktLabel = ts.ticket_number ? ('#' + escapeHtml(ts.ticket_number)) : (ts.ticket_id ? ('#' + ts.ticket_id) : '-');
+            var tkt   = ts.ticket_id
+                ? '<a href="/ticket/' + ts.ticket_id + '" onclick="event.stopPropagation()" class="hover:underline hover:text-purple-900">' + tktLabel + '</a>'
+                : tktLabel;
             var tdesc = escapeHtml(ts.ticket_description || '-');
             var cust  = escapeHtml(ts.customer_name || '-');
             var typeCell = '-';
