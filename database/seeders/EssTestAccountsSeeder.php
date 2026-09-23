@@ -7,6 +7,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
 
+/**
+ * ESS test accounts — one file for everything test-account related:
+ * employee + basic data + login + role grants, plus any fixed relationships
+ * between them needed for demo flows (e.g. Siti Rahma's supervisor, so an
+ * Upward KPI assessment has someone to fill it against).
+ */
 class EssTestAccountsSeeder extends Seeder
 {
     /**
@@ -90,6 +96,8 @@ class EssTestAccountsSeeder extends Seeder
                 'title'      => 'Ms.',
                 'position'   => 'Staff',
                 'roles'      => [$ecUserRoleId, $systemRoleId],
+                // So she has someone to rate in an Upward KPI assessment demo.
+                'direct_supervision_eci' => 'ECI_ADMIN',
             ],
             [
                 'eci'        => 'ESS002',
@@ -147,28 +155,42 @@ class EssTestAccountsSeeder extends Seeder
                 );
             }
 
+            // Direct supervisor, resolved by eci if requested — done here
+            // rather than as a separate seeder so the whole ESS test-account
+            // setup lives in one file.
+            $directSupervisionId = null;
+            if (!empty($acc['direct_supervision_eci'])) {
+                $directSupervisionId = DB::table('employee')
+                    ->where('eci', $acc['direct_supervision_eci'])
+                    ->value('employee_id');
+                if (!$directSupervisionId) {
+                    $this->command?->warn("direct_supervision_eci '{$acc['direct_supervision_eci']}' for {$acc['eci']} not found — skipped.");
+                }
+            }
+
             // Upsert basic data
             DB::table('employee_basic_data')->updateOrInsert(
                 ['employee_id' => $employeeId],
-                [
-                    'title'          => $acc['title'],
-                    'nick_name'      => $acc['nick_name'],
-                    'gender'         => $acc['gender'],
-                    'first_name'     => $acc['first_name'],
-                    'last_name'      => $acc['last_name'],
-                    'search_term_1'  => mb_strtoupper($acc['first_name']),
-                    'search_term_2'  => mb_strtoupper($acc['last_name']),
-                    'marital_status' => 'Single',
-                    'birth_date'     => '1995-01-01',
-                    'birth_place'    => 'Jakarta',
-                    'position'       => $acc['position'],
-                    'division'       => 'Human Capital',
-                    'home_base'      => 'Jakarta',
-                    'block'          => false,
-                    'deletion_flag'  => false,
-                    'created_at'     => $now,
-                    'updated_at'     => $now,
-                ]
+                array_filter([
+                    'title'              => $acc['title'],
+                    'nick_name'          => $acc['nick_name'],
+                    'gender'             => $acc['gender'],
+                    'first_name'         => $acc['first_name'],
+                    'last_name'          => $acc['last_name'],
+                    'search_term_1'      => mb_strtoupper($acc['first_name']),
+                    'search_term_2'      => mb_strtoupper($acc['last_name']),
+                    'marital_status'     => 'Single',
+                    'birth_date'         => '1995-01-01',
+                    'birth_place'        => 'Jakarta',
+                    'position'           => $acc['position'],
+                    'division'           => 'Human Capital',
+                    'home_base'          => 'Jakarta',
+                    'block'              => false,
+                    'deletion_flag'      => false,
+                    'direct_supervision' => $directSupervisionId ? (string) $directSupervisionId : null,
+                    'created_at'         => $now,
+                    'updated_at'         => $now,
+                ], fn ($v) => $v !== null)
             );
 
             // Upsert auth_users account

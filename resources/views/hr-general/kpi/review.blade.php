@@ -1,6 +1,6 @@
 @extends('dashboard')
 
-@section('title', 'KPI Evaluation Review — ' . ($evaluation->employee?->basicData?->full_name ?? 'Employee'))
+@section('title', 'KPI Evaluation Review — ' . ($evaluation->isUpwardType() ? ($evaluation->supervisor?->basicData?->full_name ?? 'Employee') : ($evaluation->employee?->basicData?->full_name ?? 'Employee')))
 @section('page-title', 'KPI Review')
 
 @section('content')
@@ -15,6 +15,24 @@
     $isApproved = $evaluation->status === \App\Models\KpiEvaluation::STATUS_HR_APPROVED;
     $isUpward = $evaluation->isUpwardType();
     $isSelf = (int)($user['id'] ?? 0) === (int)$evaluation->employee_id && empty($user['is_admin']);
+    // Who scores whom — upward reverses the usual meaning of the two
+    // relations (the rater is employee_id, the subject being scored is
+    // supervisor_id); self/lead/peer all keep employee_id as the subject.
+    $ttype = $evaluation->template?->target_type ?? 'supervisor';
+    $badgeLabel = match ($ttype) {
+        'self'   => 'Self',
+        'upward' => 'Upward',
+        'peer'   => 'Peer',
+        default  => 'Lead',
+    };
+    $badgeClass = match ($ttype) {
+        'self'   => 'bg-purple-100 text-purple-700 border-purple-200',
+        'upward' => 'bg-amber-100 text-amber-700 border-amber-200',
+        'peer'   => 'bg-cyan-100 text-cyan-700 border-cyan-200',
+        default  => 'bg-indigo-100 text-indigo-700 border-indigo-200',
+    };
+    $raterName   = $isUpward ? ($bd?->full_name ?? $emp?->eci ?? '—') : ($supBd?->full_name ?? ($ttype === 'peer' ? 'A peer' : 'Supervisor'));
+    $subjectName = $isUpward ? ($supBd?->full_name ?? 'their supervisor') : ($bd?->full_name ?? $emp?->eci ?? '—');
     // Upward rows are filled by the rater via the self-assessment pathway
     // (My KPI), never here — this page is HR's read-only review + approval.
     $isReadOnly = $isApproved || $isSelf || $isUpward;
@@ -32,9 +50,13 @@
         <div>
             <h1 class="text-xl font-bold text-gray-900">
                 {{ $isReadOnly ? 'KPI Evaluation Detail' : ($evaluation->status === 'draft' ? 'Continue KPI Draft' : 'KPI Supervisor Review') }}
+                <span class="text-indigo-700">— {{ $subjectName }}</span>
             </h1>
             <p class="text-xs text-gray-500 mt-0.5">
                 {{ $isReadOnly ? 'Review scorecard and final approval status.' : 'Continue evaluation for the selected period and assign scores.' }}
+                @if($isUpward)
+                    Scoring <strong>{{ $subjectName }}</strong>, submitted by {{ $raterName }}.
+                @endif
             </p>
         </div>
         <div class="flex items-center gap-2">
@@ -93,14 +115,29 @@
             <span class="text-xs text-gray-400 font-medium block mb-1">TEMPLATE KPI</span>
             <div class="flex flex-wrap items-center gap-2">
                 <span class="font-bold text-indigo-700 text-sm">{{ $evaluation->template?->name ?? '—' }}</span>
-                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-600 border border-indigo-100">
-                    Evaluator Role: {{ $evaluation->template?->target_type_label ?? 'Penilaian Atasan' }}
+                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border {{ $badgeClass }}">
+                    {{ $badgeLabel }} &middot; {{ $evaluation->template?->target_type_label ?? 'Penilaian Atasan' }}
                 </span>
             </div>
             @if($evaluation->template?->description)
             <p class="text-xs text-gray-500 mt-1 italic">{{ $evaluation->template->description }}</p>
             @endif
         </div>
+
+        @unless($evaluation->isSelfType())
+        <div class="pt-3 border-t border-gray-100">
+            <span class="text-xs text-gray-400 font-medium block mb-1">SCORING</span>
+            <p class="text-xs text-gray-700">
+                <i class="fas fa-arrow-right-long text-gray-400 mr-1"></i>
+                <strong class="text-gray-900">{{ $raterName }}</strong>
+                {{ $isUpward ? 'is rating' : 'scores' }}
+                <strong class="text-indigo-700">{{ $subjectName }}</strong>
+                @if($isUpward)
+                    <span class="text-gray-400">— this evaluation's score is about {{ $subjectName }}, not {{ $raterName }}</span>
+                @endif
+            </p>
+        </div>
+        @endunless
     </div>
 
     {{-- ── Anonymous evaluation notice ──────────────────────────────────────── --}}
@@ -174,41 +211,6 @@
         @endif
     </div>
     @endif
-
-    {{-- ── Section 2: Analisa Timesheet Widget (Screenshot 3) ──────────────── --}}
-    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
-        <div class="flex items-center justify-between">
-            <div>
-                <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
-                    <i class="fas fa-clock text-blue-500"></i> Analisa Timesheet
-                </h3>
-                <p class="text-xs text-gray-400 mt-0.5">Basis data KPI dari aktivitas timesheet pegawai pada periode {{ $periodLabel }}.</p>
-            </div>
-            <button type="button" onclick="showToast('Analisa AI sedang memproses data timesheet...', 'info')"
-                class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-sm hover:bg-slate-800 transition-all">
-                <i class="fas fa-wand-magic-sparkles text-xs"></i> Analisa AI
-            </button>
-        </div>
-
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div class="bg-gray-50/70 rounded-xl p-4 border border-gray-200/60">
-                <span class="text-xs font-medium text-gray-500 block">Total Jam</span>
-                <span class="text-2xl font-bold text-blue-600 mt-1 block">168,00</span>
-            </div>
-            <div class="bg-gray-50/70 rounded-xl p-4 border border-gray-200/60">
-                <span class="text-xs font-medium text-gray-500 block">Lembur</span>
-                <span class="text-2xl font-bold text-indigo-600 mt-1 block">12,00</span>
-            </div>
-            <div class="bg-gray-50/70 rounded-xl p-4 border border-gray-200/60">
-                <span class="text-xs font-medium text-gray-500 block">Hari Kerja Tercatat</span>
-                <span class="text-2xl font-bold text-gray-800 mt-1 block">21</span>
-            </div>
-            <div class="bg-gray-50/70 rounded-xl p-4 border border-gray-200/60">
-                <span class="text-xs font-medium text-gray-500 block">Rata-rata Jam / Hari</span>
-                <span class="text-2xl font-bold text-emerald-600 mt-1 block">8,00</span>
-            </div>
-        </div>
-    </div>
 
     {{-- ── Scoring Scale reference (read-only) ───────────────────────────────── --}}
     @if($scaleRows->isNotEmpty())
@@ -287,7 +289,7 @@
                         <i class="fas fa-star-half-alt text-yellow-500"></i> Formulir Pengisian Skor Indikator
                     </h3>
                     <span class="text-xs text-gray-400">
-                        Select <strong>1–5 stars</strong> for rating. Unfilled indicators are highlighted in <span class="text-amber-600 font-bold">amber</span>.
+                        Select <strong>1–{{ $scaleMax }} stars</strong> for rating. Unfilled indicators are highlighted in <span class="text-amber-600 font-bold">amber</span>.
                     </span>
                 </div>
 
@@ -298,7 +300,7 @@
                                 <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase w-10">NO</th>
                                 <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase">INDIKATOR KPI</th>
                                 <th class="text-center px-3 py-3 font-semibold text-gray-500 uppercase w-16">BOBOT</th>
-                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-36">REALISASI (ACTUAL)</th>
+                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-72 min-w-[18rem]">REALISASI (ACTUAL)</th>
                                 <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-48">RATING</th>
                                 <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-28">WEIGHTED SCORE</th>
                             </tr>
@@ -308,7 +310,7 @@
                             @php
                                 $ind = $detail->indicator;
                                 $isPara = $ind && $ind->isParagraph();
-                                $max = $ind?->effectiveMax() ?: $scaleMax;
+                                $max = $ind?->rating_max ?: $scaleMax;
                                 $weight = $ind?->weight ?? 0;
                                 // Upward rows are filled via self_* fields (rater's own input);
                                 // every other type via supervisor_* fields.
@@ -352,11 +354,10 @@
                                     {{ rtrim(rtrim(number_format($weight, 2), '0'), '.') }}%
                                 </td>
                                 <td class="px-4 py-4 align-top text-center">
-                                    <input type="text" name="scores[{{ $detail->id }}][actual]"
-                                        value="{{ old("scores.{$detail->id}.actual", $detail->actual_achievement ?? $detail->self_achievement) }}"
+                                    <textarea name="scores[{{ $detail->id }}][actual]" rows="3" maxlength="255"
                                         {{ $isReadOnly ? 'readonly' : '' }}
-                                        placeholder="Realisasi..."
-                                        class="w-full px-2.5 py-1.5 text-xs text-center border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400">
+                                        placeholder="Tuliskan realisasi..."
+                                        class="w-full min-h-[4.5rem] px-3 py-2 text-sm text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $isReadOnly ? 'bg-gray-50 text-gray-600' : 'bg-white' }}">{{ old("scores.{$detail->id}.actual", $detail->actual_achievement) }}</textarea>
                                 </td>
                                 <td class="px-4 py-4 align-top text-center">
                                     <input type="hidden" name="scores[{{ $detail->id }}][rating]" id="rating_val_{{ $detail->id }}" value="{{ $currentRating ?? '' }}">

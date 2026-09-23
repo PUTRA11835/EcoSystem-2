@@ -1,10 +1,17 @@
 <?php
 
-namespace Database\Seeders;
+namespace Database\Seeders\LeavePermit;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Leave & Permit master types (Cuti Tahunan, Cuti Sakit, Cuti Menikah, etc.).
+ *
+ * This is reference/config data, not demo data — the module has no type
+ * options to offer without it. Safe and expected to run on every install,
+ * including production.
+ */
 class LeavePermitTypeSeeder extends Seeder
 {
     /**

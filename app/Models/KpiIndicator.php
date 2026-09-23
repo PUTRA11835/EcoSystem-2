@@ -43,9 +43,10 @@ class KpiIndicator extends Model
         if ($this->rating_max) {
             return (int) $this->rating_max;
         }
-        return (int) ($this->relationLoaded('template') && $this->template
-            ? $this->template->scaleMax()
-            : 5);
+        // Lazy-loads the template when it isn't eager-loaded, so the star
+        // count always follows the template's scoring scale (5, 7, ...) —
+        // never a hardcoded 5.
+        return (int) ($this->template?->scaleMax() ?: 5);
     }
 
     // ── Relationships ────────────────────────────────────────────────────────
