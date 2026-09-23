@@ -615,6 +615,8 @@ Route::middleware(['web'])->group(function () {
         Route::get('/diagram-report/ticket-by-cr-per-month', [\App\Http\Controllers\ReportingController::class, 'diagramTicketByCrPerMonth']);
         Route::get('/diagram-report/ticket-closed-per-month', [\App\Http\Controllers\ReportingController::class, 'diagramTicketClosedPerMonth']);
         Route::get('/log-shifting', [\App\Http\Controllers\ReportingController::class, 'logShifting']);
+        // Harus di atas /log-shifting/{ticketId} supaya "notes" tidak ketangkap sebagai ticketId.
+        Route::get('/log-shifting/notes', [\App\Http\Controllers\ReportingController::class, 'logShiftingNotes']);
         Route::get('/log-shifting/{ticketId}', [\App\Http\Controllers\ReportingController::class, 'logShiftingDetail']);
         Route::get('/resolution-days', [\App\Http\Controllers\ReportingController::class, 'resolutionDays']);
         // Consultant Assignment — daftar consultant yang tergabung di Delivery Project.
