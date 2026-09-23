@@ -6,6 +6,7 @@ use App\Enums\RoleId;
 use App\Exports\CustomerMdExport;
 use App\Exports\LogShiftingExport;
 use App\Exports\MdRecapExport;
+use App\Exports\MdRecapSummaryExport;
 use App\Exports\ResolutionDaysExport;
 use App\Exports\TicketByModuleExport;
 use App\Exports\TimesheetReportExport;
@@ -601,6 +602,94 @@ class ReportingController extends Controller
 
         } catch (\Exception $e) {
             Log::error('exportMdRecap error');
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // ── Web: MD Recap export (Summary — no Delivery breakdown) ─────────────
+
+    /**
+     * Same filters/access as exportMdRecap(), but grouped by employee + mode
+     * only (no Delivery column/join): one name with two modes stays two rows,
+     * one name with a single mode is merged into one row with the summed
+     * mandays. Added alongside exportMdRecap() as a separate endpoint/export
+     * class so the existing "with Delivery" export stays untouched.
+     */
+    public function exportMdRecapSummary(Request $request)
+    {
+        try {
+            $sessionUser   = session('user');
+            $currentRoleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+            $allowed        = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
+
+            if (empty(array_intersect($currentRoleIds, $allowed))) {
+                abort(403, 'Access denied. Only Admins and Head of Support can export the MD recap.');
+            }
+
+            $filterName  = trim($request->input('name', ''));
+            $filterMode  = trim($request->input('mode', ''));
+            $filterMonth = (int) $request->input('month', 0);
+            $filterYear  = (int) $request->input('year',  0);
+
+            $query = DB::table('timesheets')
+                ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
+                ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
+                ->where('timesheets.status', 'approved')
+                ->whereNull('timesheets.deleted_at');
+
+            if ($filterMonth && $filterYear) {
+                $range = ReportingPeriod::dateRange($filterYear, $filterMonth);
+                $query->whereBetween('timesheets.date', [
+                    $range['start']->format('Y-m-d'),
+                    $range['end']->format('Y-m-d'),
+                ]);
+            } elseif ($filterMonth) {
+                $query->whereMonth('timesheets.date', $filterMonth);
+            } elseif ($filterYear) {
+                $query->whereYear('timesheets.date', $filterYear);
+            }
+            if ($filterName !== '') {
+                $query->whereRaw(
+                    "LOWER(TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,'')))) LIKE ?",
+                    ['%' . strtolower($filterName) . '%']
+                );
+            }
+            if ($filterMode !== '') {
+                $query->whereRaw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END = ?", [$filterMode]);
+            }
+
+            $rows = $query
+                ->select(
+                    DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
+                    DB::raw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END as mode"),
+                    DB::raw('COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0) as mandays')
+                )
+                ->orderByRaw('employee_name')
+                ->orderBy('timesheets.date')
+                ->get();
+
+            // Aggregate: same employee + same mode → one merged row (no Delivery
+            // split). Different modes for the same person stay on separate rows.
+            $exportRows = $rows
+                ->groupBy(fn($r) => trim($r->employee_name) . '||' . $r->mode)
+                ->map(fn($group) => [
+                    'name'     => trim($group->first()->employee_name),
+                    'mode'     => $group->first()->mode,
+                    'entries'  => $group->count(),
+                    'mandays'  => round((float) $group->sum(fn($r) => (float) $r->mandays), 2),
+                ])
+                ->sortBy([['name', 'asc'], ['mode', 'asc']])
+                ->values();
+
+            $periodSuffix = ($filterMonth && $filterYear)
+                ? '_' . $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT)
+                : '_' . now()->format('Y-m-d');
+            $filename = 'MD_Recap_Summary_Export' . $periodSuffix . '.xlsx';
+
+            return Excel::download(new MdRecapSummaryExport(collect($exportRows)), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportMdRecapSummary error');
             abort(500, $e->getMessage());
         }
     }
