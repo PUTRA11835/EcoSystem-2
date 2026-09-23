@@ -342,8 +342,18 @@ class StagingTicketService
                     'is_read_by_agent'    => false,
                 ]);
 
-            } elseif ($staging->channel === 'web' && !empty($staging->body)) {
-                // Staging dari web form (Jarvies) → buat pesan pertama customer.
+            } elseif (!empty($staging->body)) {
+                // Web form (Jarvies) content — Quill body yang disimpan JARVIES saat submit.
+                // BUKAN hanya untuk channel==='web': JARVIES men-tag staging ini 'web' di
+                // awal, tapi linkStagingToEmail() (StagingTicketController) bisa
+                // menimpanya jadi 'email' begitu berhasil menemukan pesannya di Graph —
+                // meski fetch BODY-nya (panggilan Graph terpisah) gagal/timeout dan
+                // email_body_html tetap kosong. Tanpa fallback ini, kombinasi
+                // channel==='email' + email_body_html kosong bikin staging tidak pernah
+                // dapat pesan pertama sama sekali walau body aslinya ada. Fallback ke
+                // body kapan pun tersedia (bukan cuma saat channel==='web') menutup celah
+                // itu tanpa mengubah jalur channel==='email' yang sudah benar (cabang if
+                // di atas tetap menang duluan kalau email_body_html memang terisi).
                 // Cek anti-duplikat: jika sudah ada message dari email (misal OAuth), skip
                 $alreadyFromEmail = TicketMessage::where('ticket_id', $ticket->ticket_id)
                     ->where('channel', 'email')

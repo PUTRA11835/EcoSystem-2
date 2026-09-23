@@ -832,24 +832,19 @@ class TicketController extends Controller
         if ($request->filled('description')) {
             $query->where('description', 'like', '%' . $request->description . '%');
         }
-        // Date range — cocokkan start_date, fallback ke created_at
+        // Date range — cocokkan created_at, sama persis dengan applyTicketListFilters()
+        // (filter list di layar) supaya jumlah tiket yang di-export selalu sinkron dengan
+        // yang tampil di layar untuk filter yang sama. Sebelumnya di sini menyaring by
+        // start_date — kolom itu artinya "kapan Ticket Lead pertama kali di-assign", BUKAN
+        // kapan tiket dibuat (lihat assignTicketLead(), start_date di-set now() cuma saat
+        // first assign) — jadi tiket yang sempat unassigned lama bisa lolos filter di layar
+        // (created_at-nya masih dalam rentang) tapi hilang dari export (start_date sudah
+        // melenceng ke bulan lain).
         if ($request->filled('date_from')) {
-            $dateFrom = $request->date_from;
-            $query->where(function ($q) use ($dateFrom) {
-                $q->whereDate('start_date', '>=', $dateFrom)
-                  ->orWhere(function ($q2) use ($dateFrom) {
-                      $q2->whereNull('start_date')->whereDate('created_at', '>=', $dateFrom);
-                  });
-            });
+            $query->where('created_at', '>=', \Carbon\Carbon::parse($request->input('date_from') . ' 00:00:00', 'Asia/Jakarta'));
         }
         if ($request->filled('date_to')) {
-            $dateTo = $request->date_to;
-            $query->where(function ($q) use ($dateTo) {
-                $q->whereDate('start_date', '<=', $dateTo)
-                  ->orWhere(function ($q2) use ($dateTo) {
-                      $q2->whereNull('start_date')->whereDate('created_at', '<=', $dateTo);
-                  });
-            });
+            $query->where('created_at', '<=', \Carbon\Carbon::parse($request->input('date_to') . ' 23:59:59', 'Asia/Jakarta'));
         }
         // Customer — filter kolom di ticket/index.blade.php sekarang mengirim customer_id
         // (bukan nama) sejak dropdown-nya diisi dari /api/tickets/filter-options.
