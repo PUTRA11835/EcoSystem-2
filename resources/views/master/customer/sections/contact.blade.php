@@ -348,11 +348,31 @@
         <div class="p-6 border-b border-gray-200 flex gap-2">
             <input type="text" id="newGroupName" placeholder="New group name, e.g. Finance Team"
                 class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
-            <button onclick="createGroup()" class="px-4 py-2.5 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all whitespace-nowrap">+ New Group</button>
+            <button onclick="createGroup()" class="px-4 py-2.5 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all whitespace-nowrap">New Group</button>
         </div>
 
         <div id="groupsListContainer" class="p-6 space-y-4 overflow-y-auto flex-1">
             <p class="text-sm text-gray-400 text-center py-8">Loading groups...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Group Confirmation Modal -->
+<div id="confirmDeleteGroupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Delete Group</h3>
+            <p class="text-sm text-gray-600 text-center mb-1">Members will simply be ungrouped — their contact records are not affected.</p>
+            <p class="text-sm font-semibold text-gray-900 text-center mb-6" id="deleteGroupInfo"></p>
+            <div class="flex gap-3">
+                <button onclick="closeConfirmDeleteGroup()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                <button onclick="confirmDeleteGroup()" class="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Delete</button>
+            </div>
         </div>
     </div>
 </div>
@@ -366,6 +386,7 @@
     let deleteContactId = null;
     let isEditMode = false;
     let groupsData = [];
+    let deleteGroupId = null;
 
     function escapeHtmlLocal(str) {
         const div = document.createElement('div');
@@ -1149,11 +1170,23 @@
         }
     }
 
-    async function deleteGroupConfirm(groupId) {
+    function deleteGroupConfirm(groupId) {
         const group = groupsData.find(g => parseInt(g.group_id) === parseInt(groupId));
-        if (!confirm(`Delete group "${group?.name || ''}"? Members will simply be ungrouped — their contact records are not affected.`)) {
-            return;
-        }
+        deleteGroupId = groupId;
+        document.getElementById('deleteGroupInfo').textContent = group?.name || 'this group';
+        document.getElementById('confirmDeleteGroupModal').classList.remove('hidden');
+        document.getElementById('confirmDeleteGroupModal').classList.add('flex');
+    }
+
+    function closeConfirmDeleteGroup() {
+        document.getElementById('confirmDeleteGroupModal').classList.add('hidden');
+        document.getElementById('confirmDeleteGroupModal').classList.remove('flex');
+        deleteGroupId = null;
+    }
+
+    async function confirmDeleteGroup() {
+        if (!deleteGroupId) return;
+        const groupId = deleteGroupId;
 
         try {
             const response = await fetch(`/api/customers/{{ $customerId }}/contact-groups/${groupId}`, {
@@ -1166,6 +1199,7 @@
                 credentials: 'same-origin'
             });
             const data = await response.json();
+            closeConfirmDeleteGroup();
             if (data.success) {
                 showNotification('Group deleted successfully', 'success');
                 await loadGroups();
@@ -1175,6 +1209,7 @@
             }
         } catch (error) {
             console.error('❌ Error deleting group:', error);
+            closeConfirmDeleteGroup();
             showNotification('An error occurred while deleting the group', 'error');
         }
     }
@@ -1264,6 +1299,8 @@
     window.closeGroupsModal = closeGroupsModal;
     window.createGroup = createGroup;
     window.deleteGroupConfirm = deleteGroupConfirm;
+    window.closeConfirmDeleteGroup = closeConfirmDeleteGroup;
+    window.confirmDeleteGroup = confirmDeleteGroup;
     window.addMemberFromSelect = addMemberFromSelect;
     window.addMemberToGroup = addMemberToGroup;
     window.removeMemberFromGroup = removeMemberFromGroup;
@@ -1280,6 +1317,7 @@
             if (!document.getElementById('confirmDeleteContactModal').classList.contains('hidden')) closeConfirmDeleteContact();
             if (!document.getElementById('grantLoginModal').classList.contains('hidden')) closeGrantLoginModal();
             if (!document.getElementById('revokeLoginModal').classList.contains('hidden')) closeRevokeLoginModal();
+            if (!document.getElementById('confirmDeleteGroupModal').classList.contains('hidden')) { closeConfirmDeleteGroup(); return; }
             if (!document.getElementById('contactGroupsModal').classList.contains('hidden')) closeGroupsModal();
         }
     });
