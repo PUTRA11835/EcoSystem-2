@@ -664,7 +664,7 @@
                 // dikonfigurasi per-role via Manajemen → Roles/Permissions.
                 $canEditAdditionalInfo = $can('ui.ticket.edit-additional-info');
                 $ddBtnCls      = 'custom-dd-btn w-full flex items-center justify-between gap-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white hover:border-gray-400 transition-all';
-                $roValCls      = 'text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 w-full block';
+                $roValCls      = 'text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 w-full block truncate';
                 $statusLabels  = ['open'=>'Open','inprocess'=>'Inprocess','waiting_on_customer'=>'Waiting on Customer','waiting_on_3rd_party'=>'Waiting on 3rd Party','waiting_to_confirmation'=>'Waiting to Confirmation','hold'=>'Hold','cancelled'=>'Cancelled','closed'=>'Closed'];
             @endphp
             <div id="propertiesPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
@@ -984,7 +984,7 @@
                     <i id="additionalInfoChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
                 </div>
             </div>
-            <div id="additionalInfoPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
+            <div id="additionalInfoPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100 min-w-0 overflow-hidden">
                 {{-- Contact Name --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Contact Name</label>
@@ -993,7 +993,7 @@
                            placeholder="Enter contact name..."
                            class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
                     @else
-                    <span class="{{ $roValCls }}">{{ $ticket->name ?: ($ticket->submitted_by_name ?? '—') }}</span>
+                    <span class="{{ $roValCls }}" title="{{ strip_tags($ticket->name ?: ($ticket->submitted_by_name ?? '—')) }}">{{ $ticket->name ?: ($ticket->submitted_by_name ?? '—') }}</span>
                     @endif
                 </div>
                 {{-- Phone Number --}}
@@ -1004,14 +1004,14 @@
                            placeholder="Enter phone number..."
                            class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
                     @else
-                    <span class="{{ $roValCls }}">{{ $ticket->no_hp ?? '—' }}</span>
+                    <span class="{{ $roValCls }}" title="{{ strip_tags($ticket->no_hp ?? '—') }}">{{ $ticket->no_hp ?? '—' }}</span>
                     @endif
                 </div>
                 @if($ticket->submitted_by_email)
                 {{-- Contact Email (always read-only) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Contact Email</label>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->submitted_by_email }}</p>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 truncate" title="{{ $ticket->submitted_by_email }}">{{ $ticket->submitted_by_email }}</p>
                 </div>
                 @endif
                 {{-- Module — tiket boleh menyentuh lebih dari satu (Ticket::modules());
@@ -1022,7 +1022,7 @@
                     @if($canEditAdditionalInfo)
                     <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Select module(s)">
                         <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs hover:border-gray-300 transition-all text-left">
-                            <span class="custom-dd-label text-gray-500">Select module(s)</span>
+                            <span class="custom-dd-label text-gray-500 truncate min-w-0">Select module(s)</span>
                             <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>
                         <input type="hidden" name="module_ids" id="additionalInfoModuleIds" value="{{ $ticket->modules->pluck('id')->implode(',') }}">
@@ -1039,7 +1039,7 @@
                     <p class="text-[11px] text-gray-400 mt-1">Nilai lama (patokan): {{ $ticket->module }}</p>
                     @endif
                     @else
-                    <span class="{{ $roValCls }}">{{ $ticket->modules->pluck('name')->implode(', ') ?: '—' }}</span>
+                    <span class="{{ $roValCls }}" title="{{ strip_tags($ticket->modules->pluck('name')->implode(', ') ?: '—') }}">{{ $ticket->modules->pluck('name')->implode(', ') ?: '—' }}</span>
                     @endif
                 </div>
                 {{-- Client --}}
@@ -1050,7 +1050,7 @@
                            placeholder="Enter client name..."
                            class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
                     @else
-                    <span class="{{ $roValCls }}">{{ $ticket->client ?? '—' }}</span>
+                    <span class="{{ $roValCls }}" title="{{ strip_tags($ticket->client ?? '—') }}">{{ $ticket->client ?? '—' }}</span>
                     @endif
                 </div>
             </div>
@@ -2147,7 +2147,7 @@
 {{-- PIC: Customer Mandays Modal --}}
 @if(isset($isPicCustomerMandays) && $isPicCustomerMandays)
 <div id="picMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+    <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
                 <h3 class="text-lg font-bold text-gray-900">Customer Mandays Proposal</h3>
@@ -2167,9 +2167,10 @@
                     <label class="block text-xs font-semibold text-gray-600 mb-1">
                         Proposal Title <span class="text-red-400">*</span>
                     </label>
-                    <input id="picMandaysDescription" type="text" maxlength="255"
+                    <textarea id="picMandaysDescription" rows="3" maxlength="255"
+                        oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
                         placeholder="e.g. Propose Mandays 1 / Additional MD for New FM"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus">
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus resize-y break-words"></textarea>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">
@@ -2438,7 +2439,7 @@
 {{-- Helpdesk: Customer Mandays Review Modal --}}
 @if(isset($isHelpdesk) && $isHelpdesk)
 <div id="hdMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+    <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
                 <h3 class="text-lg font-bold text-gray-900">Review Mandays Proposal</h3>
@@ -2466,9 +2467,10 @@
                     @if($hdCanEditDesc)
                     <div>
                         <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</label>
-                        <input type="text" id="hdDescriptionInput" maxlength="255"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-800"
-                            placeholder="Proposal description...">
+                        <textarea id="hdDescriptionInput" rows="3" maxlength="255"
+                            oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-800 resize-y break-words"
+                            placeholder="Proposal description..."></textarea>
                     </div>
                     @endif
                     @if($hdCanEditNotes)
@@ -2521,7 +2523,7 @@
 {{-- Mandays: Version List Modal (shared: PIC / Helpdesk / Head)  --}}
 {{-- ============================================================ --}}
 <div id="mandaysVersionListModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col" style="max-height:85vh;">
+    <div class="bg-white rounded-xl w-full max-w-6xl shadow-2xl flex flex-col" style="max-height:90vh;">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
                 <h3 class="text-base font-bold text-gray-900">Mandays Proposal</h3>
@@ -2543,16 +2545,16 @@
                 <p class="text-sm font-semibold text-gray-600">No proposals yet</p>
                 <p class="text-xs text-gray-400 mt-0.5">PIC has not submitted any mandays for this ticket.</p>
             </div>
-            <div id="mandaysVersionListWrap" class="hidden overflow-x-auto">
-                <table class="w-full text-xs border-collapse">
+            <div id="mandaysVersionListWrap" class="hidden">
+                <table class="w-full text-xs border-collapse table-fixed">
                     <thead>
                         <tr class="bg-gray-50">
-                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-16">Ver.</th>
-                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 whitespace-nowrap" style="min-width:180px;">Description</th>
-                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 whitespace-nowrap" style="min-width:140px;">Notes</th>
-                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-32">Status</th>
-                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-20">Total MD</th>
-                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-36">Last Updated</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap" style="width:64px;">Ver.</th>
+                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 " style="width:32%;">Description</th>
+                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 " style="width:24%;">Notes</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 " style="width:128px;">Status</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 " style="width:90px;">Total MD</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 " style="width:140px;">Last Updated</th>
                         </tr>
                     </thead>
                     <tbody id="mandaysVersionListBody"></tbody>
@@ -2578,7 +2580,7 @@
 {{-- Mandays: Version Detail Modal (read-only view per version)   --}}
 {{-- ============================================================ --}}
 <div id="mandaysVersionDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+    <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
                 <h3 class="text-lg font-bold text-gray-900">Mandays Proposal — <span id="mvdVersionLabel">Version —</span></h3>
@@ -2601,11 +2603,11 @@
                 <div class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div class="bg-gray-50 rounded-lg px-4 py-3">
                         <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</p>
-                        <p id="mvdDescription" class="text-xs text-gray-800">—</p>
+                        <p id="mvdDescription" class="text-xs text-gray-800 whitespace-pre-line break-words">—</p>
                     </div>
                     <div class="bg-gray-50 rounded-lg px-4 py-3">
                         <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Notes</p>
-                        <p id="mvdNotes" class="text-xs text-gray-800 whitespace-pre-line">—</p>
+                        <p id="mvdNotes" class="text-xs text-gray-800 whitespace-pre-line break-words">—</p>
                     </div>
                 </div>
                 {{-- Cancel/rejection info if any --}}
@@ -6894,18 +6896,18 @@
             const badgeClass  = MANDAYS_STATUS_BADGE[v.status]  || 'bg-gray-100 text-gray-600';
             const statusLabel = MANDAYS_STATUS_LABELS[v.status] || v.status;
             const desc = v.description
-                ? escHtml(v.description)
+                ? `<span class="whitespace-pre-line break-words">${escHtml(v.description)}</span>`
                 : '<span class="text-gray-300">&mdash;</span>';
             const note = v.proposal_notes
-                ? `<span class="text-gray-500" title="${escHtml(v.proposal_notes)}">${escHtml(v.proposal_notes.substring(0, 40))}${v.proposal_notes.length > 40 ? '&hellip;' : ''}</span>`
+                ? `<span class="text-gray-500 whitespace-pre-line break-words">${escHtml(v.proposal_notes)}</span>`
                 : '<span class="text-gray-300">&mdash;</span>';
             const lastUpdate = v.last_update
                 ? new Date(v.last_update).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false })
                 : '&mdash;';
             html += `<tr class="hover:bg-gray-50 cursor-pointer transition-colors" onclick="openMandaysVersionDetail(${v.id})">
                 <td class="px-3 py-2.5 border border-gray-100 text-center font-bold text-gray-700 whitespace-nowrap">v${v.version}</td>
-                <td class="px-3 py-2.5 border border-gray-100 text-gray-800 whitespace-nowrap">${desc}</td>
-                <td class="px-3 py-2.5 border border-gray-100 whitespace-nowrap">${note}</td>
+                <td class="px-3 py-2.5 border border-gray-100 text-gray-800 align-top break-words">${desc}</td>
+                <td class="px-3 py-2.5 border border-gray-100 align-top break-words">${note}</td>
                 <td class="px-3 py-2.5 border border-gray-100 text-center whitespace-nowrap">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${badgeClass}">${statusLabel}</span>
                 </td>
@@ -7189,7 +7191,7 @@
             // Populate description & notes fields
             const descInput  = document.getElementById('picMandaysDescription');
             const notesInput = document.getElementById('picMandaysNotes');
-            if (descInput)  { descInput.value  = picDraftData?.description    || ''; descInput.readOnly  = picReadOnly; }
+            if (descInput)  { descInput.value  = picDraftData?.description    || ''; descInput.readOnly  = picReadOnly; descInput.style.height='auto'; descInput.style.height=descInput.scrollHeight+'px'; }
             if (notesInput) { notesInput.value = picDraftData?.proposal_notes || ''; notesInput.readOnly = picReadOnly; }
             const descWrap = document.getElementById('picDescNotesWrap');
             if (descWrap) descWrap.querySelectorAll('input,textarea').forEach(el => {
@@ -7900,7 +7902,7 @@
                 if (isEditable) {
                     metaWrap.classList.remove('hidden');
                     const descEl = document.getElementById('hdDescriptionInput');
-                    if (descEl) descEl.value = proposal.description || '';
+                    if (descEl) { descEl.value = proposal.description || ''; descEl.style.height='auto'; descEl.style.height=descEl.scrollHeight+'px'; }
                     const notesEl = document.getElementById('hdProposalNotesInput');
                     if (notesEl) notesEl.value = proposal.proposal_notes || '';
                 } else {
@@ -9170,6 +9172,31 @@ async function _loadLogShiftingData() {
             </div>
         </div>
 
+        {{-- Document checklist — mandatory/optional per ticket type, dan status
+             kelengkapannya (lihat App\Support\DeliverableDocumentRequirements).
+             Disembunyikan bila ticket type ini tidak punya aturan. --}}
+        <div id="delivChecklist" class="hidden px-6 py-3 border-b border-gray-100 shrink-0">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    Document Checklist — {{ $ticket->ticket_type }}
+                </span>
+                <span id="delivChecklistBadge" class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold"></span>
+            </div>
+            <div class="overflow-hidden border border-gray-200 rounded-lg">
+                <table class="w-full text-xs border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200">
+                            <th class="px-3 py-1.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Doc Type</th>
+                            <th class="px-3 py-1.5 text-center font-semibold text-gray-500 uppercase tracking-wide w-20">Mandatory</th>
+                            <th class="px-3 py-1.5 text-center font-semibold text-gray-500 uppercase tracking-wide w-20">Optional</th>
+                            <th class="px-3 py-1.5 text-center font-semibold text-gray-500 uppercase tracking-wide w-16">Ok</th>
+                        </tr>
+                    </thead>
+                    <tbody id="delivChecklistItems" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+        </div>
+
         {{-- Bulk action bar (muncul saat ≥1 dokumen terpilih) --}}
         <div id="delivBulkBar" class="hidden items-center justify-between gap-3 px-6 py-2.5 bg-indigo-50 border-b border-indigo-100 shrink-0">
             <div class="flex items-center gap-3 text-xs">
@@ -9368,6 +9395,9 @@ async function _loadLogShiftingData() {
 // ==================== DELIVERABLE JS ====================
 const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+// Aturan doc type mandatory/optional untuk ticket type ini — null bila ticket
+// type-nya tidak punya aturan (lihat App\Support\DeliverableDocumentRequirements).
+const DELIV_REQUIREMENTS = @json(\App\Support\DeliverableDocumentRequirements::forTicket($ticket));
 let deliverableData = [];
 let deliverableFolderUrl = null;
 
@@ -9477,6 +9507,7 @@ async function loadDeliverables() {
         if (!json.success) throw new Error(json.message);
         deliverableData = json.data ?? [];
         renderDeliverableTable(deliverableData);
+        renderDeliverableChecklist(deliverableData);
 
         // Update badge
         const badge = document.getElementById('delivBadgeCount');
@@ -9607,6 +9638,59 @@ function renderDeliverableTable(data) {
     const selectAll = document.getElementById('delivSelectAll');
     if (selectAll) selectAll.disabled = validIds.size === 0;
     updateDelivBulkBar();
+}
+
+/**
+ * Checklist tabel "Doc Type | Mandatory | Optional | Ok" di atas tabel
+ * dokumen, plus badge Complete/Incomplete. Sebuah requirement dianggap
+ * terpenuhi (kolom "Ok") bila ada minimal satu dokumen dengan doc_type yang
+ * sama (case-insensitive) — cocok dengan cara dropdown "New Document"
+ * mengisi doc_type dari master data. `req.mandatory` menentukan requirement
+ * ini masuk kolom Mandatory atau Optional (persis format tabel aturan yang
+ * diminta: satu baris per doc type, kolom Mandatory/Optional saling
+ * eksklusif, kolom Ok menandai kelengkapan).
+ */
+function renderDeliverableChecklist(data) {
+    const section = document.getElementById('delivChecklist');
+    if (!DELIV_REQUIREMENTS || DELIV_REQUIREMENTS.length === 0) {
+        section.classList.add('hidden');
+        return;
+    }
+
+    const uploadedTypes = new Set((data || []).map(d => (d.doc_type || '').trim().toUpperCase()));
+    const mark = (on, cls) => on
+        ? `<svg class="w-3.5 h-3.5 mx-auto ${cls}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>`
+        : '';
+
+    let mandatoryTotal = 0;
+    let mandatoryDone  = 0;
+
+    const rows = DELIV_REQUIREMENTS.map(req => {
+        const ok = uploadedTypes.has(req.doc_type.trim().toUpperCase());
+        if (req.mandatory) {
+            mandatoryTotal++;
+            if (ok) mandatoryDone++;
+        }
+
+        return `<tr class="${!ok && req.mandatory ? 'bg-red-50/40' : ''}">
+            <td class="px-3 py-1.5 font-medium text-gray-700">${escHtmlD(req.doc_type)}</td>
+            <td class="px-3 py-1.5 text-center">${mark(req.mandatory, 'text-gray-500')}</td>
+            <td class="px-3 py-1.5 text-center">${mark(!req.mandatory, 'text-gray-400')}</td>
+            <td class="px-3 py-1.5 text-center">${mark(ok, ok ? 'text-green-600' : 'text-gray-300')}</td>
+        </tr>`;
+    });
+
+    document.getElementById('delivChecklistItems').innerHTML = rows.join('');
+
+    const badge = document.getElementById('delivChecklistBadge');
+    const isComplete = mandatoryDone === mandatoryTotal;
+    badge.className = 'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold '
+        + (isComplete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800');
+    badge.textContent = isComplete
+        ? 'Complete'
+        : `Incomplete — ${mandatoryDone}/${mandatoryTotal} mandatory`;
+
+    section.classList.remove('hidden');
 }
 
 // ── Bulk selection (Send/Delete beberapa dokumen sekaligus) ─────────────────

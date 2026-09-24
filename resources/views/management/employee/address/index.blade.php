@@ -17,7 +17,7 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Type</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Address</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">City</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Province</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Region</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase"></th>
                 </tr>
             </thead>
@@ -38,7 +38,7 @@
         await Promise.all(employees.map(async e => {
             const id = e.employee_id ?? e.id;
             try {
-                const res = await fetch(`/api/employees/${id}/address`, { credentials: 'same-origin' });
+                const res = await fetch(`/api/employees/${id}/addresses`, { credentials: 'same-origin' });
                 const d = await res.json();
                 (d.data ?? []).forEach(a => rows.push({ ...a, _emp: e }));
             } catch(err) {}
@@ -58,7 +58,7 @@
                 <td class="px-4 py-3 text-gray-600">${r.address_type ?? '-'}</td>
                 <td class="px-4 py-3 text-gray-600 max-w-xs truncate">${r.street ?? '-'}</td>
                 <td class="px-4 py-3 text-gray-600">${r.city ?? '-'}</td>
-                <td class="px-4 py-3 text-gray-600">${r.province ?? '-'}</td>
+                <td class="px-4 py-3 text-gray-600">${r.region ?? '-'}</td>
                 <td class="px-4 py-3 text-center"><a href="/master/employee/${r._emp?.employee_id ?? r._emp?.id}" class="text-xs text-red-700 hover:underline">Detail →</a></td>
             </tr>`).join('');
     }

@@ -41,7 +41,12 @@
             <button onclick="exportRecap()"
                 class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
                 <i class="fas fa-file-excel text-green-600 text-sm"></i>
-                Export MD Recap
+                Export MD Recap (Detailed)
+            </button>
+            <button onclick="exportRecapSummary()"
+                class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+                <i class="fas fa-file-excel text-green-600 text-sm"></i>
+                Export MD Recap (Summary)
             </button>
             <button onclick="exportResolutionDays()"
                 class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
@@ -483,6 +488,18 @@ function exportRecap() {
     if (name) params.append('name', name);
     if (mode) params.append('mode', mode);
     window.location.href = `/reporting/md-recap/export?${params.toString()}`;
+}
+
+// Same filters as exportRecap(), but hits the Summary endpoint: no Delivery
+// column, rows merged by employee + mode only (matches the pre-Delivery
+// export shape).
+function exportRecapSummary() {
+    const params = _getPeriodParams();
+    const name = document.getElementById('colFilterRecapName')?.value.trim();
+    const mode = document.getElementById('colFilterRecapMode')?.value;
+    if (name) params.append('name', name);
+    if (mode) params.append('mode', mode);
+    window.location.href = `/reporting/md-recap/export-summary?${params.toString()}`;
 }
 
 function exportResolutionDays() {
