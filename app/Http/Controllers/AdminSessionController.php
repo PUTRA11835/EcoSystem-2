@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
 use App\Services\IpLocationService;
+use App\Services\LoginSecurityService;
 use App\Support\SessionPayloadDecoder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,12 +12,6 @@ use Illuminate\Support\Facades\Log;
 
 class AdminSessionController extends Controller
 {
-    /**
-     * ECI of the protected super-admin account - never force-logoutable,
-     * individually or via "logout all others".
-     */
-    private const PROTECTED_ECI = 'ECI_ADMIN';
-
     private function assertAdmin(): bool
     {
         return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
@@ -52,7 +47,7 @@ class AdminSessionController extends Controller
                     $s->full_name     = $user['name'] ?? null;
                     $s->last_activity_at = date('Y-m-d H:i:s', $s->last_activity);
                     $s->is_current    = ($s->session_id === session()->getId());
-                    $s->is_protected  = ($s->eci === self::PROTECTED_ECI);
+                    $s->is_protected  = ($s->eci === LoginSecurityService::PROTECTED_ECI);
 
                     unset($s->payload);
                     return $s;
@@ -100,7 +95,7 @@ class AdminSessionController extends Controller
         $payload = DB::table('sessions')->where('id', $sessionId)->value('payload');
         $user    = $this->decodeSessionUser($payload);
 
-        if (($user['eci'] ?? null) === self::PROTECTED_ECI) {
+        if (($user['eci'] ?? null) === LoginSecurityService::PROTECTED_ECI) {
             return response()->json(['success' => false, 'message' => 'This account is protected and cannot be force-logged-out'], 422);
         }
 
@@ -146,7 +141,7 @@ class AdminSessionController extends Controller
                     $user = $this->decodeSessionUser($s->payload);
 
                     // Only drop identified (logged-in) sessions, and never the protected admin.
-                    return $user !== null && ($user['eci'] ?? null) !== self::PROTECTED_ECI;
+                    return $user !== null && ($user['eci'] ?? null) !== LoginSecurityService::PROTECTED_ECI;
                 })
                 ->pluck('id');
 

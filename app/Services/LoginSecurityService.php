@@ -6,6 +6,7 @@ use App\Enums\RoleId;
 use App\Models\LoginActivity;
 use App\Models\Notification;
 use App\Models\SecurityEvent;
+use App\Support\SessionPayloadDecoder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +20,12 @@ use Illuminate\Support\Facades\Log;
  */
 class LoginSecurityService
 {
+    /**
+     * The account force-logout/kill-session logic in this class and in
+     * AdminSessionController must never touch, regardless of who requests it.
+     */
+    public const PROTECTED_ECI = 'ECI_ADMIN';
+
     public function isIpBlocked(string $ip): bool
     {
         return DB::table('blocked_ips')
@@ -202,6 +209,37 @@ class LoginSecurityService
         if ($event) {
             $this->notifyAdmins($event, $notifyPreview);
         }
+    }
+
+    /**
+     * Force-logout every active session belonging to an employee. Decodes
+     * sessions.payload (via SessionPayloadDecoder) rather than querying
+     * sessions.user_id, since this app never calls Auth::login() - that
+     * column is always reset to null by DatabaseSessionHandler here.
+     *
+     * Shared by SecurityCenterController's manual "force logout account"
+     * dashboard action and EmployeeBasicData's model event (automatic kill
+     * when an employee is blocked or deletion-flagged) - one implementation
+     * instead of a 3rd copy of the same query (AdminSessionController::
+     * destroyAll() has a near-identical one for "logout everyone but me").
+     */
+    public function killSessionsForEmployee(int $employeeId): int
+    {
+        $candidates = DB::table('sessions')->select('id', 'payload')->get();
+
+        $deletableIds = $candidates
+            ->filter(function ($s) use ($employeeId) {
+                $user = SessionPayloadDecoder::decode($s->payload);
+
+                if (!$user || ($user['eci'] ?? null) === self::PROTECTED_ECI) {
+                    return false;
+                }
+
+                return (int) ($user['id'] ?? 0) === $employeeId;
+            })
+            ->pluck('id');
+
+        return DB::table('sessions')->whereIn('id', $deletableIds)->delete();
     }
 
     /**

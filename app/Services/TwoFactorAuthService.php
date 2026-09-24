@@ -8,6 +8,7 @@ use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -165,6 +166,68 @@ class TwoFactorAuthService
             'remember'     => (bool) ($payload['remember'] ?? false),
             'jti'          => (string) ($payload['jti'] ?? ''),
         ];
+    }
+
+    /**
+     * Verifies a 6-digit TOTP code or a recovery code for a given
+     * auth_users.id, with the same replay protection + recovery-code
+     * single-use locking as the login-time verify flow (extracted from
+     * AuthController::verifyTwoFactor() so step-up re-auth - a fresh code
+     * required mid-session for a handful of dangerous admin actions - can
+     * reuse the identical orchestration instead of a second, drifting copy
+     * of security-critical replay-protection code).
+     *
+     * @return array{verified: bool, used_recovery_code: bool}
+     */
+    public static function verifyForAuthUser(int $authUserId, string $code): array
+    {
+        $authUser = DB::table('auth_users')->where('id', $authUserId)->first();
+
+        if (!$authUser) {
+            return ['verified' => false, 'used_recovery_code' => false];
+        }
+
+        $code             = strtoupper(trim($code));
+        $verified         = false;
+        $usedRecoveryCode = false;
+
+        if (preg_match('/^\d{6}$/', $code)) {
+            $secret = self::decryptSecret($authUser->two_factor_secret);
+
+            if ($secret) {
+                DB::transaction(function () use ($authUserId, $secret, $code, &$verified) {
+                    $row    = DB::table('auth_users')->where('id', $authUserId)->lockForUpdate()->first();
+                    $result = self::verifyCode($secret, $code, $row->two_factor_last_used_at);
+
+                    if ($result['valid']) {
+                        DB::table('auth_users')->where('id', $authUserId)->update([
+                            'two_factor_last_used_at' => $result['timestamp'],
+                        ]);
+                        $verified = true;
+                    }
+                });
+            }
+        } else {
+            // Recovery code - a read-modify-write on a JSON array, so this
+            // needs row locking, unlike the flat-overwrite patterns used
+            // elsewhere in this app (blocked_ips, locked_until).
+            DB::transaction(function () use ($authUserId, $code, &$verified, &$usedRecoveryCode) {
+                $row         = DB::table('auth_users')->where('id', $authUserId)->lockForUpdate()->first();
+                $hashedCodes = $row->two_factor_recovery_codes ? json_decode($row->two_factor_recovery_codes, true) : [];
+
+                $remaining = self::findAndConsumeRecoveryCode($hashedCodes ?? [], $code);
+
+                if ($remaining !== null) {
+                    DB::table('auth_users')->where('id', $authUserId)->update([
+                        'two_factor_recovery_codes' => json_encode($remaining),
+                    ]);
+                    $verified         = true;
+                    $usedRecoveryCode = true;
+                }
+            });
+        }
+
+        return ['verified' => $verified, 'used_recovery_code' => $usedRecoveryCode];
     }
 
     public static function isEnabled(object $authUser): bool

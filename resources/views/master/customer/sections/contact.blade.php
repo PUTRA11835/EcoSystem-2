@@ -1189,8 +1189,8 @@
         const groupId = deleteGroupId;
 
         try {
-            const response = await fetch(`/api/customers/{{ $customerId }}/contact-groups/${groupId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/customers/{{ $customerId }}/contact-groups/${groupId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -1253,8 +1253,8 @@
 
     async function removeMemberFromGroup(groupId, contactId) {
         try {
-            const response = await fetch(`/api/customers/{{ $customerId }}/contact-groups/${groupId}/members/${contactId}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/customers/{{ $customerId }}/contact-groups/${groupId}/members/${contactId}/delete`, {
+                method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',

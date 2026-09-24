@@ -80,17 +80,7 @@ class DashboardController extends Controller
 
                 $base = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden');
 
-                $dashboardData['ticket_stats'] = [
-                    'total'                   => (clone $base)->count(),
-                    'open'                    => (clone $base)->where('status', 'open')->count(),
-                    'inprocess'               => (clone $base)->where('status', 'inprocess')->count(),
-                    'waiting_on_customer'     => (clone $base)->where('status', 'waiting_on_customer')->count(),
-                    'waiting_on_3rd_party'    => (clone $base)->where('status', 'waiting_on_3rd_party')->count(),
-                    'waiting_to_confirmation' => (clone $base)->where('status', 'waiting_to_confirmation')->count(),
-                    'hold'                    => (clone $base)->where('status', 'hold')->count(),
-                    'cancelled'               => (clone $base)->where('status', 'cancelled')->count(),
-                    'closed'                  => (clone $base)->where('status', 'closed')->count(),
-                ];
+                $dashboardData['ticket_stats'] = $this->buildTicketStatusStats($base);
 
                 // Ticket trend last 30 days
                 $start30 = now()->subDays(29)->format('Y-m-d');
@@ -171,17 +161,7 @@ class DashboardController extends Controller
             if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::EC_USER->value) {
                 $base = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden');
 
-                $dashboardData['ticket_stats'] = [
-                    'total'                   => (clone $base)->count(),
-                    'open'                    => (clone $base)->where('status', 'open')->count(),
-                    'inprocess'               => (clone $base)->where('status', 'inprocess')->count(),
-                    'waiting_on_customer'     => (clone $base)->where('status', 'waiting_on_customer')->count(),
-                    'waiting_on_3rd_party'    => (clone $base)->where('status', 'waiting_on_3rd_party')->count(),
-                    'waiting_to_confirmation' => (clone $base)->where('status', 'waiting_to_confirmation')->count(),
-                    'hold'                    => (clone $base)->where('status', 'hold')->count(),
-                    'cancelled'               => (clone $base)->where('status', 'cancelled')->count(),
-                    'closed'                  => (clone $base)->where('status', 'closed')->count(),
-                ];
+                $dashboardData['ticket_stats'] = $this->buildTicketStatusStats($base);
 
                 $start30 = now()->subDays(29)->format('Y-m-d');
                 $byDay   = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden')
@@ -250,17 +230,7 @@ class DashboardController extends Controller
             if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::DELIVERY_SUPPORT_HEAD->value) {
                 $base = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden');
 
-                $dashboardData['ticket_stats'] = [
-                    'total'                   => (clone $base)->count(),
-                    'open'                    => (clone $base)->where('status', 'open')->count(),
-                    'inprocess'               => (clone $base)->where('status', 'inprocess')->count(),
-                    'waiting_on_customer'     => (clone $base)->where('status', 'waiting_on_customer')->count(),
-                    'waiting_on_3rd_party'    => (clone $base)->where('status', 'waiting_on_3rd_party')->count(),
-                    'waiting_to_confirmation' => (clone $base)->where('status', 'waiting_to_confirmation')->count(),
-                    'hold'                    => (clone $base)->where('status', 'hold')->count(),
-                    'cancelled'               => (clone $base)->where('status', 'cancelled')->count(),
-                    'closed'                  => (clone $base)->where('status', 'closed')->count(),
-                ];
+                $dashboardData['ticket_stats'] = $this->buildTicketStatusStats($base);
 
                 // Chart: all tickets by created_at (actual submission date) in last 30 days
                 $start30 = now()->subDays(29)->format('Y-m-d');
@@ -339,17 +309,7 @@ class DashboardController extends Controller
             if (($user['type'] ?? '') === 'employee' && ($user['role']['id'] ?? 0) === RoleId::DELIVERY_HELPDESK->value) {
                 $base = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden');
 
-                $dashboardData['ticket_stats'] = [
-                    'total'                   => (clone $base)->count(),
-                    'open'                    => (clone $base)->where('status', 'open')->count(),
-                    'inprocess'               => (clone $base)->where('status', 'inprocess')->count(),
-                    'waiting_on_customer'     => (clone $base)->where('status', 'waiting_on_customer')->count(),
-                    'waiting_on_3rd_party'    => (clone $base)->where('status', 'waiting_on_3rd_party')->count(),
-                    'waiting_to_confirmation' => (clone $base)->where('status', 'waiting_to_confirmation')->count(),
-                    'hold'                    => (clone $base)->where('status', 'hold')->count(),
-                    'cancelled'               => (clone $base)->where('status', 'cancelled')->count(),
-                    'closed'                  => (clone $base)->where('status', 'closed')->count(),
-                ];
+                $dashboardData['ticket_stats'] = $this->buildTicketStatusStats($base);
 
                 // Unassigned active tickets
                 $dashboardData['unassigned_count'] = (clone $base)
@@ -491,17 +451,7 @@ class DashboardController extends Controller
                           ->orWhereNull('ticket_lead_id');
                     });
 
-                $dashboardData['ticket_stats'] = [
-                    'total'                   => (clone $base)->count(),
-                    'open'                    => (clone $base)->where('status', 'open')->count(),
-                    'inprocess'               => (clone $base)->where('status', 'inprocess')->count(),
-                    'waiting_on_customer'     => (clone $base)->where('status', 'waiting_on_customer')->count(),
-                    'waiting_on_3rd_party'    => (clone $base)->where('status', 'waiting_on_3rd_party')->count(),
-                    'waiting_to_confirmation' => (clone $base)->where('status', 'waiting_to_confirmation')->count(),
-                    'hold'                    => (clone $base)->where('status', 'hold')->count(),
-                    'cancelled'               => (clone $base)->where('status', 'cancelled')->count(),
-                    'closed'                  => (clone $base)->where('status', 'closed')->count(),
-                ];
+                $dashboardData['ticket_stats'] = $this->buildTicketStatusStats($base);
 
                 $dashboardData['unassigned_count'] = (clone $base)
                     ->whereNull('ticket_lead_id')
@@ -645,17 +595,7 @@ class DashboardController extends Controller
                 $base      = DB::table('ticket')->whereNull('deleted_at')->whereNull('is_hidden')->whereIn('ticket_id', $ticketIds);
                 $activeIds = (clone $base)->whereNotIn('status', ['closed', 'cancelled'])->pluck('ticket_id');
 
-                $dashboardData['ticket_stats'] = [
-                    'total'                   => (clone $base)->count(),
-                    'open'                    => (clone $base)->where('status', 'open')->count(),
-                    'inprocess'               => (clone $base)->where('status', 'inprocess')->count(),
-                    'waiting_on_customer'     => (clone $base)->where('status', 'waiting_on_customer')->count(),
-                    'waiting_on_3rd_party'    => (clone $base)->where('status', 'waiting_on_3rd_party')->count(),
-                    'waiting_to_confirmation' => (clone $base)->where('status', 'waiting_to_confirmation')->count(),
-                    'hold'                    => (clone $base)->where('status', 'hold')->count(),
-                    'cancelled'               => (clone $base)->where('status', 'cancelled')->count(),
-                    'closed'                  => (clone $base)->where('status', 'closed')->count(),
-                ];
+                $dashboardData['ticket_stats'] = $this->buildTicketStatusStats($base);
 
                 $dashboardData['as_pic_count']    = $picIds->count();
                 $dashboardData['active_count']    = $activeIds->count();
@@ -767,5 +707,26 @@ class DashboardController extends Controller
               ->whereNull('deleted_at')
               ->whereNull('is_hidden');
         });
+    }
+
+    /**
+     * Satu query GROUP BY, dipakai di 6 varian dashboard di bawah, menggantikan 9
+     * ->count() terpisah per varian (status open/inprocess/waiting_on_customer/dst)
+     * yang sebelumnya jalan setiap dashboard dibuka.
+     */
+    private function buildTicketStatusStats($base): array
+    {
+        $rows = (clone $base)
+            ->select('status', DB::raw('count(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $statuses = ['open', 'inprocess', 'waiting_on_customer', 'waiting_on_3rd_party', 'waiting_to_confirmation', 'hold', 'cancelled', 'closed'];
+        $stats = ['total' => (int) $rows->sum()];
+        foreach ($statuses as $status) {
+            $stats[$status] = (int) ($rows[$status] ?? 0);
+        }
+
+        return $stats;
     }
 }

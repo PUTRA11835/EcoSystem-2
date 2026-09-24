@@ -1036,45 +1036,14 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $code             = trim((string) $request->input('code'));
-        $verified         = false;
-        $usedRecoveryCode = false;
-
-        if (preg_match('/^\d{6}$/', $code)) {
-            $secret = TwoFactorAuthService::decryptSecret($authUser->two_factor_secret);
-
-            if ($secret) {
-                DB::transaction(function () use ($authUserId, $secret, $code, &$verified) {
-                    $row    = DB::table('auth_users')->where('id', $authUserId)->lockForUpdate()->first();
-                    $result = TwoFactorAuthService::verifyCode($secret, $code, $row->two_factor_last_used_at);
-
-                    if ($result['valid']) {
-                        DB::table('auth_users')->where('id', $authUserId)->update([
-                            'two_factor_last_used_at' => $result['timestamp'],
-                        ]);
-                        $verified = true;
-                    }
-                });
-            }
-        } else {
-            // Recovery code — a read-modify-write on a JSON array, so this
-            // needs row locking, unlike the flat-overwrite patterns used
-            // elsewhere in this app (blocked_ips, locked_until).
-            DB::transaction(function () use ($authUserId, $code, &$verified, &$usedRecoveryCode) {
-                $row         = DB::table('auth_users')->where('id', $authUserId)->lockForUpdate()->first();
-                $hashedCodes = $row->two_factor_recovery_codes ? json_decode($row->two_factor_recovery_codes, true) : [];
-
-                $remaining = TwoFactorAuthService::findAndConsumeRecoveryCode($hashedCodes ?? [], $code);
-
-                if ($remaining !== null) {
-                    DB::table('auth_users')->where('id', $authUserId)->update([
-                        'two_factor_recovery_codes' => json_encode($remaining),
-                    ]);
-                    $verified         = true;
-                    $usedRecoveryCode = true;
-                }
-            });
-        }
+        // Recovery codes are always generated in uppercase (see
+        // TwoFactorAuthService::generateRecoveryCodes) and password_verify()
+        // is case-sensitive - normalization happens inside verifyForAuthUser()
+        // itself now, so a manually-typed lowercase code still matches even
+        // though the recovery-mode input visually renders it uppercase via CSS.
+        $result           = TwoFactorAuthService::verifyForAuthUser($authUserId, (string) $request->input('code'));
+        $verified         = $result['verified'];
+        $usedRecoveryCode = $result['used_recovery_code'];
 
         if (!$verified) {
             $attempts = TwoFactorAuthService::recordFailedChallenge($authUserId);
