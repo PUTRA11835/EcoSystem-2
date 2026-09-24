@@ -27,10 +27,12 @@
         <span class="flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold primary-gradient text-white shadow">
             <i class="fas fa-layer-group mr-1.5"></i> Assessment Templates
         </span>
+        @if($can('general.kpi-evaluation.teams'))
         <a href="{{ route('general.kpi-evaluation.teams') }}"
            class="flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
             <i class="fas fa-sitemap mr-1.5"></i> Lead &amp; Project
         </a>
+        @endif
     </div>
 
     {{-- ── Header ──────────────────────────────────────────────────────────── --}}
@@ -90,14 +92,14 @@
             <div class="flex items-center gap-2">
                 <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
                     <span>All Templates</span>
-                    <span id="templateCountBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[rgba(var(--primary-rgb),0.15)] text-[var(--primary-color)]">
+                    <span id="templateCountBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-(--primary-color)/15 text-(--primary-color)">
                         {{ $templates->count() }}
                     </span>
                 </h3>
                 <p class="text-xs text-gray-400">Use the <i class="fas fa-filter text-[10px]"></i> icons in the header to filter.</p>
             </div>
             <button type="button" id="hfResetBtn" onclick="resetHF()"
-                class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 bg-[rgba(var(--primary-rgb),0.15)] hover:bg-[rgba(var(--primary-rgb),0.25)] text-[var(--primary-color)] text-xs font-semibold rounded-lg transition-all">
+                class="hidden items-center gap-1.5 px-3 py-1.5 bg-(--primary-color)/15 hover:bg-(--primary-color)/25 text-(--primary-color) text-xs font-semibold rounded-lg transition-all">
                 <i class="fas fa-rotate-left text-[10px]"></i> Reset Filters
             </button>
         </div>
@@ -116,7 +118,7 @@
                         <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider w-10">No</th>
 
                         {{-- Template + search --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-[260px]">
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-65">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Template</span>
                                 <button type="button" onclick="toggleHF(event,'hfSearch')" id="hfSearchBtn"
@@ -124,11 +126,11 @@
                                     <i class="fas fa-filter text-[10px]"></i>
                                 </button>
                             </div>
-                            <div id="hfSearch" class="hf-pop hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 p-2.5 z-50 min-w-[240px] normal-case" onclick="event.stopPropagation()">
+                            <div id="hfSearch" class="hf-pop hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 p-2.5 z-50 min-w-60 normal-case" onclick="event.stopPropagation()">
                                 <div class="relative">
                                     <input type="text" id="hfSearchInput" placeholder="Search name, description, indicator..."
                                         oninput="setHF('fSearch', this.value)"
-                                        class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#00c5a2] font-normal">
+                                        class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-(--primary-color) font-normal">
                                     <div class="absolute inset-y-0 left-0 flex items-center pl-2 text-gray-400 pointer-events-none">
                                         <i class="fas fa-search text-[10px]"></i>
                                     </div>
@@ -137,7 +139,7 @@
                         </th>
 
                         {{-- Type --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-[130px]">
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-32.5">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Type</span>
                                 <button type="button" onclick="toggleHF(event,'hfType')" id="hfTypeBtn"
@@ -145,7 +147,7 @@
                                     <i class="fas fa-filter text-[10px]"></i>
                                 </button>
                             </div>
-                            <div id="hfType" class="hf-pop hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-[170px] normal-case font-normal" onclick="event.stopPropagation()">
+                            <div id="hfType" class="hf-pop hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-42.5 normal-case font-normal" onclick="event.stopPropagation()">
                                 @foreach(['' => 'All types', 'self' => 'Self-Assessment', 'lead' => 'Lead Assessment', 'peer' => 'Peer Assessment', 'upward' => 'Upward Assessment'] as $v => $l)
                                 <button type="button" onclick="setHF('fType','{{ $v }}')" class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">{{ $l }}</button>
                                 @endforeach
@@ -157,7 +159,7 @@
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Weight</th>
 
                         {{-- Period --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-[120px]">
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-30">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Period</span>
                                 <button type="button" onclick="toggleHF(event,'hfPeriod')" id="hfPeriodBtn"
@@ -165,7 +167,7 @@
                                     <i class="fas fa-filter text-[10px]"></i>
                                 </button>
                             </div>
-                            <div id="hfPeriod" class="hf-pop hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-[150px] normal-case font-normal" onclick="event.stopPropagation()">
+                            <div id="hfPeriod" class="hf-pop hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-37.5 normal-case font-normal" onclick="event.stopPropagation()">
                                 @foreach(['' => 'All periods', 'monthly' => 'Monthly', 'quarterly' => 'Quarterly', 'annual' => 'Annual'] as $v => $l)
                                 <button type="button" onclick="setHF('fPeriod','{{ $v }}')" class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">{{ $l }}</button>
                                 @endforeach
@@ -173,7 +175,7 @@
                         </th>
 
                         {{-- Status --}}
-                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-[120px]">
+                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-30">
                             <div class="flex items-center justify-center gap-1.5">
                                 <span>Status</span>
                                 <button type="button" onclick="toggleHF(event,'hfStatus')" id="hfStatusBtn"
@@ -181,14 +183,14 @@
                                     <i class="fas fa-filter text-[10px]"></i>
                                 </button>
                             </div>
-                            <div id="hfStatus" class="hf-pop hidden absolute top-full right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-[150px] text-left normal-case font-normal" onclick="event.stopPropagation()">
+                            <div id="hfStatus" class="hf-pop hidden absolute top-full right-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-37.5 text-left normal-case font-normal" onclick="event.stopPropagation()">
                                 @foreach(['' => 'All status', 'active' => 'Active', 'inactive' => 'Inactive'] as $v => $l)
                                 <button type="button" onclick="setHF('fStatus','{{ $v }}')" class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">{{ $l }}</button>
                                 @endforeach
                             </div>
                         </th>
 
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[130px]">Last Updated</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-32.5">Last Updated</th>
 
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">
                             Action
@@ -303,7 +305,7 @@
                 <i class="fas fa-search"></i>
             </div>
             <p class="text-gray-700 text-sm font-bold">No matching KPI templates found</p>
-            <button type="button" onclick="resetHF()" class="mt-3.5 inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-semibold bg-[rgba(var(--primary-rgb),0.15)] text-[var(--primary-color)] hover:bg-[rgba(var(--primary-rgb),0.25)] transition-all">Reset filters</button>
+            <button type="button" onclick="resetHF()" class="mt-3.5 inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-semibold bg-(--primary-color)/15 text-(--primary-color) hover:bg-(--primary-color)/25 transition-all">Reset filters</button>
         </div>
         @else
         <div class="py-16 text-center">
@@ -396,11 +398,13 @@ function filterTemplates() {
     document.getElementById('noTemplateMatch')?.classList.toggle('hidden', visible > 0);
 
     const active = q || type || period || status;
-    document.getElementById('hfResetBtn')?.classList.toggle('hidden', !active);
+    const resetBtn = document.getElementById('hfResetBtn');
+    resetBtn?.classList.toggle('hidden', !active);
+    resetBtn?.classList.toggle('inline-flex', !!active);
     document.getElementById('hfActionLbl')?.classList.toggle('hidden', !!active);
     ['hfSearchBtn','hfTypeBtn','hfPeriodBtn','hfStatusBtn'].forEach(id => {
         const map = { hfSearchBtn: q, hfTypeBtn: type, hfPeriodBtn: period, hfStatusBtn: status };
-        document.getElementById(id)?.classList.toggle('text-[var(--primary-color)]', !!map[id]);
+        document.getElementById(id)?.classList.toggle('text-(--primary-color)', !!map[id]);
     });
 }
 document.addEventListener('DOMContentLoaded', filterTemplates);

@@ -28,10 +28,12 @@
             <i class="fas fa-layer-group mr-1.5"></i> Assessment Templates
         </a>
         @endif
+        @if($can('general.kpi-evaluation.teams'))
         <a href="{{ route('general.kpi-evaluation.teams') }}"
            class="flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
             <i class="fas fa-sitemap mr-1.5"></i> Lead &amp; Project
         </a>
+        @endif
     </div>
 
     {{-- ── Header ──────────────────────────────────────────────────────────── --}}

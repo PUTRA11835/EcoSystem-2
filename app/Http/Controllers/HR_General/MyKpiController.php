@@ -156,6 +156,10 @@ class MyKpiController extends Controller
         $hasAnySubordinate =\App\Models\EmployeeBasicData::where('direct_supervision', $employeeId)->where('employee_id', '!=', $employeeId)->exists();
         $hasAnySupervisedEval = KpiEvaluation::where('supervisor_id', $employeeId)->where('employee_id', '!=', $employeeId)->exists();
 
+        // System administrator (EC Administrator role): sees every My KPI tab.
+        $isSystemAdmin = !empty($user['is_admin'])
+            || \App\Models\Employee::find($employeeId)?->roles()->where('employee_role.id', \App\Support\MenuRegistrar::adminRoleId())->exists();
+
         $isSupervisor = $subordinates->isNotEmpty() || $assignedEvaluations->isNotEmpty() || $hasAnySubordinate || $hasAnySupervisedEval;
         $activeTemplates = $isSupervisor ? \App\Models\KpiTemplate::where('is_active', true)->get() : collect([]);
 
@@ -178,6 +182,7 @@ class MyKpiController extends Controller
             'assignedEvaluations',
             'reviewHistory',
             'isSupervisor',
+            'isSystemAdmin',
             'activeTemplates'
         ));
     }

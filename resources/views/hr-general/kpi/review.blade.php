@@ -307,7 +307,7 @@
                                 <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase w-10">NO</th>
                                 <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase">INDIKATOR KPI</th>
                                 <th class="text-center px-3 py-3 font-semibold text-gray-500 uppercase w-16">BOBOT</th>
-                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-72 min-w-[18rem]">REALISASI (ACTUAL)</th>
+                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-72 min-w-72">REALISASI (ACTUAL)</th>
                                 <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-48">RATING</th>
                                 <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-28">WEIGHTED SCORE</th>
                             </tr>
@@ -365,7 +365,7 @@
                                     <textarea name="scores[{{ $detail->id }}][actual]" rows="3" maxlength="255"
                                         {{ $isReadOnly ? 'readonly' : '' }}
                                         placeholder="Tuliskan realisasi..."
-                                        class="w-full min-h-[4.5rem] px-3 py-2 text-sm text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $isReadOnly ? 'bg-gray-50 text-gray-600' : 'bg-white' }}">{{ old("scores.{$detail->id}.actual", $detail->actual_achievement) }}</textarea>
+                                        class="w-full min-h-18 px-3 py-2 text-sm text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $isReadOnly ? 'bg-gray-50 text-gray-600' : 'bg-white' }}">{{ old("scores.{$detail->id}.actual", $detail->actual_achievement) }}</textarea>
                                 </td>
                                 <td class="px-4 py-4 align-top text-center">
                                     <input type="hidden" name="scores[{{ $detail->id }}][rating]" id="rating_val_{{ $detail->id }}" class="rating-val" value="{{ $currentRating ?? '' }}">
