@@ -211,7 +211,7 @@
 </div>
 
 <!-- UA Tooltip Modal -->
-<div id="uaModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+<div id="uaModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-5">
         <div class="flex items-center justify-between mb-3">
             <h4 class="text-sm font-semibold text-gray-900">Full User-Agent</h4>

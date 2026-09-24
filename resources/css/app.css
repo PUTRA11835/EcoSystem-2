@@ -10,3 +10,20 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+/* Tailwind v4 emits display utilities in alphabetical order inside
+   `@layer utilities`, so on an element carrying both `hidden` and a
+   later-alphabetical display utility (inline, inline-block, inline-flex,
+   inline-grid, table) at the same variant, the other utility wins the
+   cascade and the element stays visible even though JS toggles `hidden`.
+   This rule lives outside any `@layer`, so per the CSS cascade-layers spec
+   it always outranks anything in `@layer utilities` regardless of source
+   order — without touching the (unaffected, still-working) responsive
+   pattern `hidden md:flex` etc., since that uses different class names. */
+.hidden.inline,
+.hidden.inline-block,
+.hidden.inline-flex,
+.hidden.inline-grid,
+.hidden.table {
+    display: none;
+}

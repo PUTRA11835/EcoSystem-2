@@ -207,7 +207,7 @@
 </div>
 
 <!-- Ticket Detail Modal - Chat Style -->
-<div id="ticketDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-hidden">
+<div id="ticketDetailModal" class="hidden fixed inset-0 bg-black/50 z-50 overflow-hidden">
     <div class="h-full flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl">
             <!-- Modal Header -->

@@ -882,6 +882,8 @@ class EmployeeController extends Controller
                 'created_on' => now(),
                 'block' => false,
                 'deletion_flag' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
 
             Log::info('Employee basic data created', [
@@ -1157,6 +1159,7 @@ class EmployeeController extends Controller
                         'employee_type' => \App\Models\EmployeeBasicData::deriveEmployeeType($request->home_base),
                         'last_changed_by' => $currentUserECI,  // ✅ Gunakan ECI
                         'last_changed_on' => now(),
+                        'updated_at' => now(),
                     ]
                 );
 

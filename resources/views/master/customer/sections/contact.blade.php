@@ -250,7 +250,7 @@
 </div>
 
 
-<div id="confirmDeleteContactModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmDeleteContactModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
@@ -270,7 +270,7 @@
 </div>
 
 <!-- Revoke Login Modal -->
-<div id="revokeLoginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="revokeLoginModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
             <h3 class="text-lg font-bold text-gray-900">Revoke Jarvies Access</h3>
@@ -300,7 +300,7 @@
 </div>
 
 <!-- Grant Login Modal -->
-<div id="grantLoginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="grantLoginModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
             <h3 class="text-lg font-bold text-gray-900">Grant Jarvies Access</h3>
@@ -331,7 +331,7 @@
 </div>
 
 <!-- Contact Groups Modal -->
-<div id="contactGroupsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="contactGroupsModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-2xl w-full shadow-2xl max-h-[85vh] flex flex-col">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
             <div>
@@ -358,7 +358,7 @@
 </div>
 
 <!-- Delete Group Confirmation Modal -->
-<div id="confirmDeleteGroupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+<div id="confirmDeleteGroupModal" class="hidden fixed inset-0 bg-black/50 z-[60] items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">

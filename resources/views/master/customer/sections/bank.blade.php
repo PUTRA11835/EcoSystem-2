@@ -145,7 +145,7 @@
 </div>
 
 <!-- Delete Confirmation Modal -->
-<div id="confirmDeleteBankModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmDeleteBankModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">

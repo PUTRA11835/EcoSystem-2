@@ -240,7 +240,7 @@
 </div>
 
 {{-- Detail modal --}}
-<div id="lsDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="lsDetailModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] shadow-2xl overflow-hidden flex flex-col">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <div>
