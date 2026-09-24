@@ -28,10 +28,12 @@
             <i class="fas fa-layer-group mr-1.5"></i> Assessment Templates
         </a>
         @endif
+        @if($can('general.kpi-evaluation.teams'))
         <a href="{{ route('general.kpi-evaluation.teams') }}"
            class="flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
             <i class="fas fa-sitemap mr-1.5"></i> Lead &amp; Project
         </a>
+        @endif
     </div>
 
     {{-- ── Header ──────────────────────────────────────────────────────────── --}}
@@ -51,17 +53,11 @@
 
             {{-- Controls flush right on desktop --}}
             <div class="flex flex-wrap items-center justify-start md:justify-end gap-2.5 w-full md:w-auto">
-                {{-- Month + assessment-type picker form (auto-submits on change) --}}
+                {{-- Month picker form (auto-submits on change) --}}
                 <form method="GET" action="{{ route('general.kpi-evaluation.index') }}" class="flex items-center gap-2">
                     <input type="month" name="period" value="{{ $periodMonth }}"
                         class="px-3.5 py-2 text-xs font-semibold border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300 focus:border-red-400 bg-gray-50/50 hover:bg-white transition-colors cursor-pointer shadow-sm"
                         onchange="this.form.submit()">
-                    <select name="type" onchange="this.form.submit()"
-                        class="px-3 py-2 text-xs font-semibold border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300 bg-gray-50/50 hover:bg-white transition-colors cursor-pointer shadow-sm">
-                        <option value="" {{ ($typeFilter ?? '') === '' ? 'selected' : '' }}>All Types</option>
-                        <option value="self" {{ ($typeFilter ?? '') === 'self' ? 'selected' : '' }}>Self-Assessment</option>
-                        <option value="lead" {{ ($typeFilter ?? '') === 'lead' ? 'selected' : '' }}>Lead Assessment</option>
-                    </select>
                 </form>
 
                 {{-- Active employees badge --}}
@@ -109,7 +105,7 @@
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
                     <i class="fas fa-chart-line text-indigo-400"></i>
-                    Average KPI Score Trend
+                    Average KPI Score Trend <span class="text-[11px] font-normal text-gray-400">by assessment type</span>
                 </h3>
                 <div class="flex items-center gap-1" id="trendTabs">
                     @foreach(['monthly' => 'Monthly', 'annual' => 'Annual'] as $key => $label)
@@ -182,9 +178,12 @@
             <input type="hidden" name="search" id="headerSearchInput" value="{{ $search ?? '' }}">
             <input type="hidden" name="position" id="headerPositionInput" value="{{ $positionFilter ?? '' }}">
             <input type="hidden" name="supervisor" id="headerSupervisorInput" value="{{ $supervisorId ?? '' }}">
-            <input type="hidden" name="template_id" id="headerTemplateInput" value="{{ $templateId ?? '' }}">
+            {{-- template_ids[] / types[] are (re)built by applyTemplateFilter() --}}
+            <span id="headerTemplateInputs">
+                @foreach(($templateIds ?? []) as $tid)<input type="hidden" name="template_ids[]" value="{{ $tid }}">@endforeach
+                @foreach(($typeFilters ?? []) as $tf)<input type="hidden" name="types[]" value="{{ $tf }}">@endforeach
+            </span>
             <input type="hidden" name="status" id="headerStatusInput" value="{{ $statusFilter ?? '' }}">
-            <input type="hidden" name="type" value="{{ $typeFilter ?? '' }}">
         </form>
 
         {{-- Table view — per-column filter icons open a popover that floats
@@ -304,33 +303,53 @@
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Template</span>
                                 <button type="button" data-hf-btn onclick="toggleHF(event, 'templateFilterBox')"
-                                    class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($templateId) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
+                                    class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ (!empty($templateIds) || !empty($typeFilters)) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
                                     title="Filter Template">
                                     <i class="fas fa-filter text-[10px]"></i>
-                                    @if(!empty($templateId))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
+                                    @if(!empty($templateIds) || !empty($typeFilters))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
-                            {{-- Floating Template Popover --}}
-                            <div id="templateFilterBox" class="header-filter-popover hidden w-60 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
+                            {{-- Floating Template Popover — multi-select by assessment-type badge and/or template --}}
+                            @php
+                                $typeChips = [
+                                    'self'   => ['Self',   'bg-purple-100 text-purple-700', 'peer-checked:ring-purple-400'],
+                                    'lead'   => ['Lead',   'bg-indigo-100 text-indigo-700', 'peer-checked:ring-indigo-400'],
+                                    'upward' => ['Upward', 'bg-amber-100 text-amber-700',   'peer-checked:ring-amber-400'],
+                                    'peer'   => ['Peer',   'bg-cyan-100 text-cyan-700',     'peer-checked:ring-cyan-400'],
+                                ];
+                            @endphp
+                            <div id="templateFilterBox" class="header-filter-popover hidden w-72 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
                                 <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
                                     <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Template</span>
-                                    @if(!empty($templateId))
-                                    <button type="button" onclick="onTemplateHeaderFilterChange('')" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
-                                    @endif
+                                    <button type="button" onclick="clearTemplateFilter()" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
                                 </div>
-                                <div class="py-1 max-h-64 overflow-y-auto">
-                                    <button type="button" onclick="onTemplateHeaderFilterChange('')"
-                                        class="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors {{ empty($templateId) ? 'text-(--primary-color) font-semibold bg-(--primary-color)/5' : 'text-gray-700' }}">
-                                        <span class="truncate">All Templates</span>
-                                        @if(empty($templateId))<i class="fas fa-check text-[10px] shrink-0"></i>@endif
-                                    </button>
+                                <div class="px-3 pt-2.5">
+                                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">By type</p>
+                                    <div class="flex flex-wrap gap-1.5">
+                                        @foreach($typeChips as $key => [$label, $cls, $ringCls])
+                                        <label class="cursor-pointer">
+                                            <input type="checkbox" class="tf-type peer hidden" value="{{ $key }}" {{ in_array($key, $typeFilters ?? [], true) ? 'checked' : '' }}>
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold opacity-50 peer-checked:opacity-100 peer-checked:ring-2 transition-all {{ $cls }} {{ $ringCls }}">{{ $label }}</span>
+                                        </label>
+                                        @endforeach
+                                    </div>
+                                </div>
+                                <div class="px-3 pt-3">
+                                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">By template</p>
+                                </div>
+                                <div class="pb-1 max-h-52 overflow-y-auto">
                                     @foreach($activeTemplates as $tmpl)
-                                        <button type="button" onclick="onTemplateHeaderFilterChange('{{ $tmpl->id }}')"
-                                            class="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors {{ (string)($templateId ?? '') === (string)$tmpl->id ? 'text-(--primary-color) font-semibold bg-(--primary-color)/5' : 'text-gray-700' }}">
-                                            <span class="truncate">{{ $tmpl->name }}</span>
-                                            @if((string)($templateId ?? '') === (string)$tmpl->id)<i class="fas fa-check text-[10px] shrink-0"></i>@endif
-                                        </button>
+                                    @php $tKey = match ($tmpl->target_type ?? 'supervisor') { 'self' => 'self', 'upward' => 'upward', 'peer' => 'peer', default => 'lead' }; @endphp
+                                    <label class="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50 cursor-pointer">
+                                        <input type="checkbox" class="tf-tpl rounded text-indigo-600" value="{{ $tmpl->id }}" {{ in_array((int) $tmpl->id, $templateIds ?? [], true) ? 'checked' : '' }}>
+                                        <span class="truncate flex-1 text-gray-700">{{ $tmpl->name }}</span>
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold {{ $typeChips[$tKey][1] }}">{{ $typeChips[$tKey][0] }}</span>
+                                    </label>
                                     @endforeach
+                                </div>
+                                <div class="p-2.5 border-t border-gray-100 flex justify-end">
+                                    <button type="button" onclick="applyTemplateFilter()"
+                                        class="px-4 py-1.5 primary-gradient text-white text-xs font-bold rounded-lg shadow hover:opacity-90 transition-all">Apply</button>
                                 </div>
                             </div>
                         </th>
@@ -522,32 +541,22 @@
                             <td class="px-4 py-2.5 text-center font-bold text-xs">
                                 @if($selfScore !== null)<span class="text-gray-900">{{ number_format($selfScore, 1) }}</span>
                                 @elseif($eval->hasSelfAssessment())<span class="text-purple-600 font-medium">Submitted</span>
-                                @else<span class="text-gray-300">{{ $isSelf ? '—' : 'n/a' }}</span>@endif
+                                @else<span class="text-gray-300">—</span>@endif
                             </td>
                             <td class="px-4 py-2.5 text-center font-bold text-xs">
                                 @if($spvScore !== null)<span class="text-gray-900">{{ number_format($spvScore, 1) }}</span>
                                 @elseif($eval->hasSupervisorReview())<span class="text-indigo-600 font-medium">Reviewed</span>
-                                @else<span class="text-gray-300">{{ $isSelf ? 'n/a' : '—' }}</span>@endif
+                                @else<span class="text-gray-300">—</span>@endif
                             </td>
                             <td class="px-4 py-2.5 text-center">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border {{ $statusBadges[$eval->status] ?? 'bg-gray-100 text-gray-600 border-gray-200' }}">{{ $eval->status_label }}</span>
                             </td>
-                            @php
-                                // Review page is always read-only for self AND upward rows
-                                // (both are filled via the self-assessment pathway, never
-                                // scored by HR there) — only lead/peer show "Continue".
-                                $isHrReadOnly = $isSelf || $ttype === 'upward';
-                            @endphp
                             <td class="px-4 py-2.5 text-center">
                                 <div class="flex items-center justify-center gap-1.5">
                                     <a href="{{ route('general.kpi-evaluation.review', $eval->id) }}"
-                                       class="inline-flex items-center px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all {{ (!$isHrReadOnly && $eval->status === 'draft') ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100' }}">
-                                        {{ $isHrReadOnly ? 'View' : ($eval->status === 'draft' ? 'Continue' : ($eval->status === 'hr_approved' ? 'View' : 'Review')) }}
+                                       class="inline-flex items-center px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-all">
+                                        View
                                     </a>
-                                    @if($canCreate && in_array($eval->status, ['draft', 'hr_rejected']))
-                                    <button onclick="event.stopPropagation(); deleteEval({{ $eval->id }})"
-                                        class="px-2 py-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 border border-red-200 text-[11px] font-semibold transition-all"><i class="fas fa-trash text-[9px]"></i></button>
-                                    @endif
                                 </div>
                             </td>
                         </tr>
@@ -672,6 +681,38 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 // Chart initialization
+// One line + dot series per assessment kind.
+const TREND_SERIES = [
+    { key: 'self',   label: 'Self',   color: '#7C3AED' },
+    { key: 'lead',   label: 'Lead',   color: '#F59E0B' },
+    { key: 'upward', label: 'Upward', color: '#0EA5E9' },
+    { key: 'peer',   label: 'Peer',   color: '#10B981' },
+];
+function buildTrendData(data) {
+    return {
+        labels: data.map(d => d.label),
+        datasets: TREND_SERIES.map(s => ({
+            label: s.label,
+            data: data.map(d => d[s.key]),
+            borderColor: s.color,
+            backgroundColor: s.color,
+            borderWidth: 2.5,
+            pointBackgroundColor: s.color,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            tension: 0.4,
+            spanGaps: true,
+        }))
+    };
+}
+function trendOptions() {
+    return {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } } } },
+        scales: { y: { min: 0, max: 100 }, x: { grid: { display: false } } }
+    };
+}
+
 const trendDataMonthly = @json($monthlyTrend);
 const deptData         = @json($scoreByDept);
 
@@ -707,29 +748,6 @@ deptChart = new Chart(deptCtx, {
     }
 });
 
-function buildTrendData(data) {
-    return {
-        labels: data.map(d => d.label),
-        datasets: [{
-            label: 'Avg KPI Score',
-            data: data.map(d => d.avg_score),
-            borderColor: '#7C3AED',
-            backgroundColor: 'rgba(124,58,237,0.08)',
-            borderWidth: 2.5,
-            pointBackgroundColor: '#7C3AED',
-            tension: 0.4,
-            fill: true,
-        }]
-    };
-}
-function trendOptions() {
-    return {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { y: { min: 0, max: 100 }, x: { grid: { display: false } } }
-    };
-}
-
 async function switchTrend(type) {
     document.querySelectorAll('#trendTabs button').forEach(btn => {
         btn.className = 'px-3 py-1 text-xs font-medium rounded-lg transition-all bg-gray-100 text-gray-600 hover:bg-gray-200';
@@ -744,7 +762,7 @@ async function switchTrend(type) {
         const data = await res.json();
         if (data && data.trend && trendChart) {
             trendChart.data.labels = data.trend.map(d => d.label);
-            trendChart.data.datasets[0].data = data.trend.map(d => d.avg_score);
+            TREND_SERIES.forEach((s, i) => { trendChart.data.datasets[i].data = data.trend.map(d => d[s.key]); });
             trendChart.update();
         }
     } catch (e) {
@@ -823,11 +841,23 @@ function onSupervisorSearchEnter(val) {
     document.getElementById('tableFilterForm')?.submit();
 }
 
-function onTemplateHeaderFilterChange(val) {
-    const el = document.getElementById('headerTemplateInput');
-    if (el) el.value = val;
+// Template filter is multi-select: any ticked type badge and/or template.
+function applyTemplateFilter() {
+    const box = document.getElementById('headerTemplateInputs');
+    box.innerHTML = '';
+    document.querySelectorAll('#templateFilterBox .tf-type:checked').forEach(c => {
+        box.insertAdjacentHTML('beforeend', `<input type="hidden" name="types[]" value="${c.value}">`);
+    });
+    document.querySelectorAll('#templateFilterBox .tf-tpl:checked').forEach(c => {
+        box.insertAdjacentHTML('beforeend', `<input type="hidden" name="template_ids[]" value="${c.value}">`);
+    });
     document.getElementById('tableFilterForm')?.submit();
 }
+function clearTemplateFilter() {
+    document.querySelectorAll('#templateFilterBox input[type=checkbox]').forEach(c => c.checked = false);
+    applyTemplateFilter();
+}
+
 
 function onStatusHeaderFilterChange(val) {
     const el = document.getElementById('headerStatusInput');
@@ -945,16 +975,6 @@ async function resyncAssignments(btn) {
         showToast('Sync failed.', 'error');
         btn.disabled = false; btn.innerHTML = original;
     }
-}
-
-async function deleteEval(id) {
-    if (!await showConfirm('Delete this evaluation?', 'Delete Evaluation', 'danger', { okText: 'Delete' })) return;
-    const res  = await fetch(`/general/kpi-evaluation/${id}/delete`, {
-        method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-    });
-    const data = await res.json();
-    showToast(data.message, data.success ? 'success' : 'error');
-    if (data.success) setTimeout(() => location.reload(), 800);
 }
 </script>
 @php

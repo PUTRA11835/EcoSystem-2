@@ -27,7 +27,7 @@ class KpiAssignments
      */
     public static function syncPeriod(string $periodMonth, ?int $actorId = null, bool $prune = true): array
     {
-        $templates = KpiTemplate::where('is_active', true)->with('indicators')->get();
+        $templates = KpiTemplate::where('is_active', true)->startedBy($periodMonth)->with('indicators')->get();
 
         if ($templates->isEmpty() && !$prune) {
             return ['created' => 0, 'removed' => 0];
@@ -102,7 +102,7 @@ class KpiAssignments
         $created = 0;
         $removed = 0;
 
-        DB::transaction(function () use ($desired, $existingKeys, $periodMonth, $actorId, $tplIndicators, $prune, &$created, &$removed) {
+        DB::transaction(function () use ($desired, $existingKeys, $periodMonth, $actorId, $tplIndicators, $templatesById, $prune, &$created, &$removed) {
             // ── create the missing ones ──────────────────────────────────────
             foreach ($desired as $key => [$empId, $tplId, $supId, $isAnon]) {
                 if (isset($existingKeys[$key])) {
@@ -116,7 +116,7 @@ class KpiAssignments
                     'status'        => KpiEvaluation::STATUS_DRAFT,
                     'is_anonymous'  => $isAnon,
                     'created_by'    => $actorId,
-                ]);
+                ] + self::deadlineColumns($templatesById->get($tplId), $periodMonth));
 
                 $rows = array_map(fn ($iid) => [
                     'evaluation_id' => $eval->id,
@@ -152,6 +152,21 @@ class KpiAssignments
     }
 
     /**
+     * Deadline column for a new evaluation, from the template's deadline
+     * settings. Self and upward rows are filled by the employee (self_deadline);
+     * lead and peer rows by the reviewer (supervisor_deadline).
+     */
+    private static function deadlineColumns(?KpiTemplate $tpl, string $periodMonth): array
+    {
+        $deadline = $tpl?->deadlineFor($periodMonth);
+        if (!$deadline) {
+            return [];
+        }
+        $column = in_array($tpl->target_type, ['self', 'upward'], true) ? 'self_deadline' : 'supervisor_deadline';
+        return [$column => $deadline->toDateString()];
+    }
+
+    /**
      * Lightweight, create-only sync for a single employee — so "My KPI" never
      * lags behind template targeting even before HR opens the dashboard.
      */
@@ -162,7 +177,7 @@ class KpiAssignments
             return 0;
         }
 
-        $templates = KpiTemplate::where('is_active', true)->with('indicators')->get();
+        $templates = KpiTemplate::where('is_active', true)->startedBy($periodMonth)->with('indicators')->get();
         if ($templates->isEmpty()) {
             return 0;
         }
@@ -214,7 +229,7 @@ class KpiAssignments
                     'status'        => KpiEvaluation::STATUS_DRAFT,
                     'is_anonymous'  => (bool) $tpl->is_anonymous,
                     'created_by'    => $actorId,
-                ]);
+                ] + self::deadlineColumns($tpl, $periodMonth));
                 $rows = $tpl->indicators->map(fn ($ind) => [
                     'evaluation_id' => $eval->id,
                     'indicator_id'  => $ind->id,

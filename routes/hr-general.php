@@ -958,7 +958,9 @@ Route::prefix('general')
                 // .direct_supervision → none); it can only be changed from
                 // master employee data. See KpiController::resolveReportsTo().
                 // -------------------------------------------------------------
-                Route::get('/teams', [\App\Http\Controllers\HR\KpiController::class, 'teams'])->name('teams');
+                Route::get('/teams', [\App\Http\Controllers\HR\KpiController::class, 'teams'])
+                    ->name('teams')
+                    ->middleware('menu:general.kpi-evaluation.teams');
 
                 // -------------------------------------------------------------
                 // ASSESSMENT TEMPLATES — rendered as a tab inside this page.

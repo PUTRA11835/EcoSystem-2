@@ -107,8 +107,9 @@
                     @else
                     <li>Beri rating bintang pada tiap indikator <strong>sesuai skala pada tabel "Skala Penilaian" di atas</strong></li>
                     @endif
-                    <li>Isi kolom realisasi (actual) dan catatan bila perlu — sifatnya penjelas, tidak menambah skor</li>
+                    <li>Isi kolom realisasi (actual) dan catatan bila perlu (opsional) — sifatnya penjelas, tidak menambah skor</li>
                     <li>Skor indikator = (bintang &divide; skala maksimum) &times; bobot. Indikator yang belum diisi ditandai <span class="font-bold text-amber-700">Amber</span></li>
+                    <li>Tombol kirim baru aktif setelah semua rating dan jawaban uraian terisi (realisasi opsional)</li>
                 </ul>
             </div>
         </div>
@@ -123,24 +124,31 @@
             <span class="text-[11px] text-amber-700">Weighted Score = Score &divide; {{ $scaleMax }} &times; Bobot</span>
         </div>
         <div class="overflow-x-auto">
-            <table class="w-full text-xs">
+            <table class="w-full text-xs table-fixed min-w-200 text-center">
+                <colgroup>
+                    <col style="width:8%">
+                    <col style="width:16%">
+                    <col style="width:28%">
+                    <col style="width:16%">
+                    <col style="width:32%">
+                </colgroup>
                 <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase">
                     <tr>
-                        <th class="text-center px-3 py-2 font-semibold w-14">Skala</th>
-                        <th class="text-left px-3 py-2 font-semibold">Kategori</th>
-                        <th class="text-left px-3 py-2 font-semibold">Definisi</th>
-                        <th class="text-left px-3 py-2 font-semibold w-28">Achievement</th>
-                        <th class="text-left px-3 py-2 font-semibold">Keterangan</th>
+                        <th class="px-4 py-2.5 font-semibold">Skala</th>
+                        <th class="px-4 py-2.5 font-semibold">Kategori</th>
+                        <th class="px-4 py-2.5 font-semibold">Definisi</th>
+                        <th class="px-4 py-2.5 font-semibold">Achievement</th>
+                        <th class="px-4 py-2.5 font-semibold">Keterangan</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($scaleRows as $sc)
                     <tr>
-                        <td class="px-3 py-2 text-center font-bold text-indigo-700">{{ $sc->scale_value }}</td>
-                        <td class="px-3 py-2 font-semibold text-gray-800">{{ $sc->category }}</td>
-                        <td class="px-3 py-2 text-gray-600">{{ $sc->definition }}</td>
-                        <td class="px-3 py-2 text-gray-600">{{ $sc->achievement_label }}</td>
-                        <td class="px-3 py-2 text-gray-500">{{ $sc->description }}</td>
+                        <td class="px-4 py-2.5 font-bold text-indigo-700">{{ $sc->scale_value }}</td>
+                        <td class="px-4 py-2.5 font-semibold text-gray-800">{{ $sc->category }}</td>
+                        <td class="px-4 py-2.5 text-gray-600">{{ $sc->definition }}</td>
+                        <td class="px-4 py-2.5 text-gray-600">{{ $sc->achievement_label }}</td>
+                        <td class="px-4 py-2.5 text-gray-500">{{ $sc->description }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -167,15 +175,22 @@
             {{-- Table --}}
             <div class="px-6">
                 <div class="overflow-x-auto border border-gray-100 rounded-xl">
-                    <table class="w-full text-xs">
+                    {{-- Fixed 50 / 50 split: NO + INDIKATOR KPI = 50%, BOBOT + REALISASI + RATING = 50% --}}
+                    <table class="w-full text-xs table-fixed min-w-200">
+                        <colgroup>
+                            <col style="width:5%">
+                            <col style="width:45%">
+                            <col style="width:8%">
+                            <col style="width:26%">
+                            <col style="width:16%">
+                        </colgroup>
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
-                                <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase w-10">NO</th>
+                                <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase">NO</th>
                                 <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase">INDIKATOR KPI</th>
-                                <th class="text-center px-3 py-3 font-semibold text-gray-500 uppercase w-16">BOBOT</th>
-                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-72 min-w-[18rem]">REALISASI (ACTUAL)</th>
-                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-48">RATING</th>
-                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-28">WEIGHTED SCORE</th>
+                                <th class="text-center px-3 py-3 font-semibold text-gray-500 uppercase">BOBOT</th>
+                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase">REALISASI (ACTUAL)</th>
+                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase">RATING</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
@@ -188,7 +203,7 @@
                                 $currentRating = $detail->star_rating ?? ($detail->self_achievement ? min($max, max(1, (int) round($detail->self_achievement / 100 * $max))) : null);
                                 $isUnfilled = !$isPara && is_null($currentRating);
                             @endphp
-                            <tr class="hover:bg-gray-50/50 transition-colors {{ $isUnfilled ? 'bg-amber-50/20' : '' }}">
+                            <tr class="ind-row hover:bg-gray-50/50 transition-colors {{ $isUnfilled ? 'bg-amber-50/20' : '' }}">
                                 <td class="px-4 py-4 font-bold text-gray-400 align-top">{{ $i + 1 }}</td>
                                 <td class="px-4 py-4 align-top space-y-2 {{ $isPara ? '' : '' }}" @if($isPara) colspan="1" @endif>
                                     <div>
@@ -204,7 +219,8 @@
                                     <textarea name="achievements[{{ $detail->id }}][notes]" rows="3"
                                         {{ $locked ? 'readonly' : '' }}
                                         placeholder="Tuliskan jawaban Anda..."
-                                        class="w-full px-3 py-2 text-[11px] border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $locked ? 'bg-gray-50 text-gray-500' : 'bg-white' }}">{{ old("achievements.{$detail->id}.notes", $detail->self_notes) }}</textarea>
+                                        oninput="updateSubmitState()"
+                                        class="req-field w-full px-3 py-2 text-[11px] border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $locked ? 'bg-gray-50 text-gray-500' : 'bg-white' }}">{{ old("achievements.{$detail->id}.notes", $detail->self_notes) }}</textarea>
                                     @else
                                     <input type="text" name="achievements[{{ $detail->id }}][notes]"
                                         value="{{ old("achievements.{$detail->id}.notes", $detail->self_notes) }}"
@@ -214,7 +230,7 @@
                                     @endif
                                 </td>
                                 @if($isPara)
-                                <td colspan="4" class="px-4 py-4 align-top text-center text-[11px] text-gray-300 italic">Jawaban uraian — tidak diberi skor</td>
+                                <td colspan="3" class="px-4 py-4 align-top text-center text-[11px] text-gray-300 italic">Jawaban uraian — tidak diberi skor</td>
                                 @else
                                 <td class="px-3 py-4 align-top text-center font-bold text-indigo-700">
                                     {{ rtrim(rtrim(number_format($weight, 2), '0'), '.') }}%
@@ -223,10 +239,10 @@
                                     <textarea name="achievements[{{ $detail->id }}][actual]" rows="3" maxlength="255"
                                         {{ $locked ? 'readonly' : '' }}
                                         placeholder="Tuliskan realisasi..."
-                                        class="w-full min-h-[4.5rem] px-3 py-2 text-sm text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $locked ? 'bg-gray-50 text-gray-600' : 'bg-white' }}">{{ old("achievements.{$detail->id}.actual", $detail->actual_achievement) }}</textarea>
+                                        class="w-full min-h-18 px-3 py-2 text-sm text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $locked ? 'bg-gray-50 text-gray-600' : 'bg-white' }}">{{ old("achievements.{$detail->id}.actual", $detail->actual_achievement) }}</textarea>
                                 </td>
                                 <td class="px-4 py-4 align-top text-center">
-                                    <input type="hidden" name="achievements[{{ $detail->id }}][rating]" id="rating_val_{{ $detail->id }}" value="{{ $currentRating ?? '' }}">
+                                    <input type="hidden" name="achievements[{{ $detail->id }}][rating]" id="rating_val_{{ $detail->id }}" class="rating-val" data-weight="{{ $weight }}" data-max="{{ $max }}" value="{{ $currentRating ?? '' }}">
 
                                     <div id="stars_{{ $detail->id }}" class="flex items-center justify-center gap-1 my-1 flex-wrap">
                                         @for($star = 1; $star <= $max; $star++)
@@ -242,11 +258,6 @@
                                     <span id="rating_badge_{{ $detail->id }}" class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full transition-all
                                         {{ $isUnfilled ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-gray-100 text-gray-700' }}">
                                         {{ $currentRating ? "{$currentRating}/{$max}" : 'Pilih (Belum Diisi)' }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-4 align-top text-center font-bold text-sm">
-                                    <span id="weighted_score_{{ $detail->id }}" class="weighted-cell text-gray-800">
-                                        {{ !is_null($detail->weighted_score) ? number_format($detail->weighted_score, 2) : '0.00' }}
                                     </span>
                                 </td>
                                 @endif
@@ -284,8 +295,11 @@
                         {{ $locked ? 'Back to My KPI' : 'Cancel' }}
                     </a>
                     @unless($locked)
-                    <button type="submit" id="submitSelfAssessBtn"
-                        class="inline-flex items-center gap-2 px-6 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all">
+                    <span id="incompleteHint" class="hidden text-[11px] font-semibold text-amber-700">
+                        <i class="fas fa-circle-exclamation mr-1"></i><span id="incompleteCount"></span> belum diisi
+                    </span>
+                    <button type="submit" id="submitSelfAssessBtn" disabled
+                        class="inline-flex items-center gap-2 px-6 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40">
                         <i class="fas fa-paper-plane text-xs"></i>
                         {{ $isUpward ? 'Kirim Upward Assessment' : 'Kirim Self-Assessment' }}
                     </button>
@@ -344,23 +358,43 @@ function setStarRating(detailId, star, weight, max) {
         badge.className = 'inline-block text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100';
     }
 
-    const score100 = star / max * 100;
-    const weighted = (weight * score100) / 100;
-    const cell = document.getElementById(`weighted_score_${detailId}`);
-    if (cell) cell.textContent = weighted.toFixed(2);
-
     recalcTotalScore();
+    updateSubmitState();
 }
 
+// Final score = sum of (stars ÷ scale max × weight) over every rated indicator.
 function recalcTotalScore() {
     let total = 0;
-    document.querySelectorAll('.weighted-cell').forEach(cell => {
-        const v = parseFloat(cell.textContent);
-        if (!isNaN(v)) total += v;
+    document.querySelectorAll('.rating-val').forEach(inp => {
+        const stars = parseFloat(inp.value);
+        if (isNaN(stars)) return;
+        total += stars / parseFloat(inp.dataset.max) * parseFloat(inp.dataset.weight);
     });
     const display = document.getElementById('finalScoreDisplay');
     if (display) display.textContent = total.toFixed(2);
 }
+
+// Submit stays disabled until every indicator is complete: rating picked (scale
+// rows) or the uraian answer filled (paragraph rows). Realisasi is optional. The counter is
+// per indicator (question), not per field, so 30 questions never reads as 58.
+// Realisasi and catatan (notes) remain optional.
+function updateSubmitState() {
+    const btn = document.getElementById('submitSelfAssessBtn');
+    if (!btn) return;
+    let missing = 0;
+    document.querySelectorAll('tr.ind-row').forEach(tr => {
+        const ratingMissing = [...tr.querySelectorAll('.rating-val')].some(i => i.value === '');
+        const textMissing   = [...tr.querySelectorAll('.req-field')].some(el => el.value.trim() === '');
+        if (ratingMissing || textMissing) missing++;
+    });
+    btn.disabled = missing > 0;
+    const hint = document.getElementById('incompleteHint');
+    if (hint) {
+        hint.classList.toggle('hidden', missing === 0);
+        document.getElementById('incompleteCount').textContent = `${missing} indikator`;
+    }
+}
+document.addEventListener('DOMContentLoaded', updateSubmitState);
 
 // The modal wrapper stays 'flex' only while visible — kept off the static
 // class list (and toggled in lockstep with 'hidden' here) so the two never
@@ -378,6 +412,8 @@ function closeConfirmSubmitModal() {
 
 function submitSelfAssessment(e) {
     e.preventDefault();
+    updateSubmitState();
+    if (document.getElementById('submitSelfAssessBtn')?.disabled) return;
     openConfirmSubmitModal();
 }
 

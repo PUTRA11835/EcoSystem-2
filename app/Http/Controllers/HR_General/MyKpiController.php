@@ -110,12 +110,16 @@ class MyKpiController extends Controller
         for ($i = 5; $i >= 0; $i--) {
             $period = Carbon::now()->subMonths($i)->format('Y-m');
             $eval   = $evaluations->firstWhere('period_month', $period);
+            $selfEval = $selfEvals->first(fn($e) => $e->period_month === $period && $e->hasSelfAssessment());
+            $leadEval = $leadEvals->first(fn($e) => $e->period_month === $period && $e->hasSupervisorReview());
             $scoreTrend[] = [
                 'period'    => $period,
                 'label'     => Carbon::createFromFormat('Y-m', $period)->format('M Y'),
                 'score'     => ($eval && $eval->status === KpiEvaluation::STATUS_HR_APPROVED)
                                 ? $eval->overall_score
                                 : null,
+                'self'      => $selfEval?->overall_score !== null ? (float) $selfEval->overall_score : null,
+                'lead'      => $leadEval?->overall_score !== null ? (float) $leadEval->overall_score : null,
                 'status'    => $eval?->status ?? 'none',
             ];
         }
@@ -138,8 +142,23 @@ class MyKpiController extends Controller
             ->where('period_month', $targetPeriod)
             ->get();
 
-        $hasAnySubordinate = \App\Models\EmployeeBasicData::where('direct_supervision', $employeeId)->where('employee_id', '!=', $employeeId)->exists();
+        // Everything this user has already scored as a lead, across all periods —
+        // feeds the "My Review History" table (grouped by month in the view).
+        $reviewHistory = KpiEvaluation::with(['employee.basicData', 'template'])
+            ->where('supervisor_id', $employeeId)
+            ->where('employee_id', '!=', $employeeId)
+            ->whereNotNull('reviewed_at')
+            ->orderByDesc('period_month')
+            ->get()
+            ->filter(fn($e) => $e->isLeadType())
+            ->values();
+
+        $hasAnySubordinate =\App\Models\EmployeeBasicData::where('direct_supervision', $employeeId)->where('employee_id', '!=', $employeeId)->exists();
         $hasAnySupervisedEval = KpiEvaluation::where('supervisor_id', $employeeId)->where('employee_id', '!=', $employeeId)->exists();
+
+        // System administrator (EC Administrator role): sees every My KPI tab.
+        $isSystemAdmin = !empty($user['is_admin'])
+            || \App\Models\Employee::find($employeeId)?->roles()->where('employee_role.id', \App\Support\MenuRegistrar::adminRoleId())->exists();
 
         $isSupervisor = $subordinates->isNotEmpty() || $assignedEvaluations->isNotEmpty() || $hasAnySubordinate || $hasAnySupervisedEval;
         $activeTemplates = $isSupervisor ? \App\Models\KpiTemplate::where('is_active', true)->get() : collect([]);
@@ -161,7 +180,9 @@ class MyKpiController extends Controller
             'scoreTrend',
             'subordinates',
             'assignedEvaluations',
+            'reviewHistory',
             'isSupervisor',
+            'isSystemAdmin',
             'activeTemplates'
         ));
     }
