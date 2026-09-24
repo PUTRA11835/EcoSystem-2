@@ -11,6 +11,16 @@
  */
 return [
     'commands' => [
+        // Not a real task - see App\Console\Commands\ScheduleHeartbeat. Tightest
+        // threshold on the page: it runs every minute and does nothing, so
+        // there is no legitimate reason for it to ever be more than a couple
+        // minutes stale.
+        'scheduler-heartbeat' => [
+            'label'               => 'Scheduler Heartbeat',
+            'command'             => 'schedule-monitor:heartbeat',
+            'frequency_label'     => 'Every minute',
+            'stale_after_minutes' => 3,
+        ],
         'email-process-inbox' => [
             'label'               => 'Process Incoming Email',
             'command'             => 'email:process-inbox',
@@ -53,6 +63,18 @@ return [
             'frequency_label'     => 'Every 5 minutes',
             'stale_after_minutes' => 15,
         ],
+        'security-prune-logs' => [
+            'label'               => 'Prune Security/Audit Logs',
+            'command'             => 'security:prune-logs --apply',
+            'frequency_label'     => 'Daily at 04:00',
+            'stale_after_minutes' => 1560, // 26h grace, same as other daily jobs
+        ],
+        'check-integration-health' => [
+            'label'               => 'Integration Credential Health (MS Graph/AI)',
+            'command'             => 'schedule-monitor:check-integration-health',
+            'frequency_label'     => 'Every 6 hours',
+            'stale_after_minutes' => 400, // ~6h40m grace
+        ],
     ],
 
     // Admin alerting - reuses the same Notification/WebPush pipeline Security
@@ -76,6 +98,36 @@ return [
             'label'               => 'Default Queue (email, notifications, SLA events)',
             'max_pending'         => 200,
             'max_oldest_minutes'  => 30,
+        ],
+    ],
+
+    /**
+     * Server disk capacity - total/used/free plus a content breakdown, shown
+     * on the Schedule Monitor page and alerted on the same threshold-crossing
+     * pattern as everything else here (see ScheduleMonitorService::
+     * checkDiskUsageAlerts()).
+     *
+     * 'check_path' resolves WHICH filesystem/mount to measure - disk_free_space()
+     * reports stats for the mount point the given path lives on, not the path
+     * itself, so base_path() correctly reflects the app's actual disk even if
+     * storage/ is symlinked elsewhere.
+     */
+    'disk_usage' => [
+        'check_path'       => base_path(),
+        'warning_percent'  => 80,
+        'critical_percent' => 90,
+
+        // Directories worth breaking out individually - everything else falls
+        // under the implicit "rest of check_path" the UI computes as
+        // used_bytes minus the sum of these (plus the database row below).
+        // Only actual data grows unbounded here; app code/vendor doesn't.
+        'breakdown' => [
+            'ticket_attachments'   => ['label' => 'Ticket Attachments',    'path' => storage_path('app/public/ticket-attachments')],
+            'ticket_inline_images' => ['label' => 'Ticket Inline Images',  'path' => storage_path('app/public/ticket-inline-images')],
+            'employee_attachments' => ['label' => 'Employee Attachments', 'path' => storage_path('app/public/employee_attachments')],
+            'staging_attachments'  => ['label' => 'Staging Attachments',  'path' => storage_path('app/public/staging_attachments')],
+            'database_backups'     => ['label' => 'Database Backups',     'path' => storage_path('app/private/backups')],
+            'logs'                 => ['label' => 'Application Logs',     'path' => storage_path('logs')],
         ],
     ],
 ];

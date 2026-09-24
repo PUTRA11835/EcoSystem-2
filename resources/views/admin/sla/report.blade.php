@@ -1116,6 +1116,11 @@ document.addEventListener('keydown', function(e) {
 
 updateSortButtons();
 loadReport();
-setInterval(loadReport, 60000);
+// Skip refetch (dataset penuh tiap tick) selagi tab di-background, sinkron ulang
+// segera begitu tab aktif lagi.
+setInterval(() => { if (!document.hidden) loadReport(); }, 60000);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadReport();
+});
 </script>
 @endsection

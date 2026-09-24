@@ -2102,7 +2102,18 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             return;
         }
 
+        await submitChangeRoleRequest(employeeId, checked, null);
+    }
+
+    // Split out so a role sync that turns out to grant EC Administrator can be
+    // retried once with a step-up 2FA code, without the caller having to know
+    // in advance whether that gate applies (only the backend knows the
+    // employee's *current* roles at the moment of the request).
+    async function submitChangeRoleRequest(employeeId, roleIds, twoFactorCode) {
         try {
+            const body = { role_ids: roleIds };
+            if (twoFactorCode) body.two_factor_code = twoFactorCode;
+
             const response = await fetch(`/api/employees/${employeeId}/change-role`, {
                 method: 'PATCH',
                 headers: {
@@ -2112,7 +2123,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
                 credentials: 'same-origin',
-                body: JSON.stringify({ role_ids: checked }),
+                body: JSON.stringify(body),
             });
 
             let data;
@@ -2128,9 +2139,17 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 showNotification(`Role updated successfully: ${names}`, 'success');
                 closeChangeRoleModal();
                 fetchEmployees();
-            } else {
-                showApiErrors(data, 'Failed to update role');
+                return;
             }
+
+            if (response.status === 428 && data.requires_step_up && !twoFactorCode) {
+                const code = await showPrompt('This grants Administrator access. Enter your 2FA code to confirm.', 'Verify Identity', { placeholder: '6-digit code or recovery code', maxLength: 20 });
+                if (code === null) return;
+                await submitChangeRoleRequest(employeeId, roleIds, code);
+                return;
+            }
+
+            showApiErrors(data, 'Failed to update role');
         } catch (error) {
             showNotification('Network error — please check your connection and try again', 'error');
         }

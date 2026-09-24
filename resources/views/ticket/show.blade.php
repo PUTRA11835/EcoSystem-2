@@ -4341,26 +4341,37 @@
     })();
 
     // ==================== AUTO POLLING: reload pesan & cek email baru ====================
+    async function messagePollTick() {
+        // Jika tiket dari email, proses inbox dulu
+        if (ticketChannel === 'email') {
+            try {
+                await fetch('/api/email/process-inbox', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    credentials: 'same-origin'
+                });
+            } catch (_) {}
+        }
+        // Selalu reload pesan (bisa ada balasan dari agent lain juga)
+        await loadMessages();
+    }
+
     function startMessagePolling() {
-        setInterval(async function () {
-            // Jika tiket dari email, proses inbox dulu
-            if (ticketChannel === 'email') {
-                try {
-                    await fetch('/api/email/process-inbox', {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-                        },
-                        credentials: 'same-origin'
-                    });
-                } catch (_) {}
-            }
-            // Selalu reload pesan (bisa ada balasan dari agent lain juga)
-            await loadMessages();
-        }, 15000); // setiap 15 detik
+        // Skip kerja polling selagi tab di-background/minimize — untuk tiket email,
+        // tick ini manggil Microsoft Graph (bukan cuma DB lokal) tiap 15 detik; kalau
+        // staff buka banyak tab tiket, biaya itu berlipat tanpa ada yang melihat
+        // hasilnya. Begitu tab aktif lagi, sinkron ulang segera (bukan nunggu interval
+        // berikutnya) supaya pesan tidak basi. Pola sama seperti startEmailPolling()
+        // di staging/index.blade.php.
+        setInterval(() => { if (!document.hidden) messagePollTick(); }, 15000); // setiap 15 detik
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) messagePollTick();
+        });
     }
 
     // ==================== MESSAGES ====================

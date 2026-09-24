@@ -773,6 +773,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/schedule-monitor', [\App\Http\Controllers\ScheduleMonitorController::class, 'index']);
         Route::get('/schedule-monitor/runs', [\App\Http\Controllers\ScheduleMonitorController::class, 'getRuns']);
         Route::get('/schedule-monitor/queue-health', [\App\Http\Controllers\ScheduleMonitorController::class, 'queueHealth']);
+        Route::get('/schedule-monitor/disk-usage', [\App\Http\Controllers\ScheduleMonitorController::class, 'diskUsage']);
     });
 
     // ── SLA ────────────────────────────────────────────────────────────────

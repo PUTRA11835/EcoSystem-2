@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="user-data" content='@json(session("user"))'>
     <title>@yield('title', 'Dashboard') - EcoSystem</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    @vite(['resources/css/app.css'])
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -629,18 +629,6 @@
         }
     </style>
     
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '{{ $primaryColor }}',
-                        'primary-dark': 'rgb({{ $primaryDarkRgb }})',
-                    }
-                }
-            }
-        }
-    </script>
     <style>
         #toast-container {
             position: fixed; top: 1.5rem; right: 1.5rem; z-index: 9999;
@@ -1886,6 +1874,10 @@
     {{-- Global confirm modal — replaces browser native confirm() everywhere.
          Usage: if (await showConfirm('msg', 'title', 'danger')) { ... } --}}
     @include('partials.confirm-modal')
+
+    {{-- Global text-prompt modal — replaces browser native prompt() everywhere.
+         Usage: const v = await showPrompt('msg', 'title', {placeholder, maxLength}) --}}
+    @include('partials.prompt-modal')
 
     @stack('scripts')
 

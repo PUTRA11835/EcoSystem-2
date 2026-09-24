@@ -302,7 +302,7 @@ HTML;
             function () {
                 // Gunakan config() agar berfungsi saat config:cache di production
                 $tenantId = config('services.microsoft_graph.tenant_id');
-                $response = Http::asForm()->post(
+                $response = Http::asForm()->timeout(10)->post(
                     "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
                     [
                         'grant_type'    => 'client_credentials',

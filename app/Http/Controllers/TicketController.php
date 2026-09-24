@@ -581,7 +581,9 @@ class TicketController extends Controller
             $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
             // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
-            $canReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            // Reuse $employee dari cek 'All Tickets' di atas kalau sudah di-load — hindari Employee::find() dua kali.
+            $employee ??= Employee::find($sessionUser['id']);
+            $canReadFeature = (bool) $employee?->hasPermission('ticket.read');
             $readAtMap = $canReadFeature
                 ? DB::table('ticket_reads')
                     ->where('employee_id', $sessionUser['id'])
@@ -4076,11 +4078,15 @@ class TicketController extends Controller
                 ->orderBy('delivery_support.created_at', 'desc')
                 ->get();
 
-            // Count tickets per support
+            // Count tickets per support — 1 query groupBy, bukan 1 query per baris support
+            $ticketCounts = DB::table('delivery_support_activities')
+                ->whereIn('delivery_support_id', $supports->pluck('id'))
+                ->select('delivery_support_id', DB::raw('count(*) as total'))
+                ->groupBy('delivery_support_id')
+                ->pluck('total', 'delivery_support_id');
+
             foreach ($supports as $support) {
-                $support->ticket_count = DB::table('delivery_support_activities')
-                    ->where('delivery_support_id', $support->id)
-                    ->count();
+                $support->ticket_count = (int) ($ticketCounts[$support->id] ?? 0);
             }
 
             return response()->json([

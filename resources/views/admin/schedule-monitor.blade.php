@@ -13,6 +13,15 @@
 
 <div class="space-y-6">
 
+    <!-- Scheduler Heartbeat -->
+    <div id="heartbeatBanner" class="hidden rounded-xl border p-4 flex items-start gap-3">
+        <svg id="heartbeatIcon" class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"></svg>
+        <div class="min-w-0">
+            <p id="heartbeatTitle" class="text-sm font-semibold"></p>
+            <p id="heartbeatDetail" class="text-xs mt-0.5"></p>
+        </div>
+    </div>
+
     <!-- Stats Row -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
@@ -40,10 +49,16 @@
                 <h3 class="text-sm font-semibold text-gray-800">Scheduled Tasks</h3>
                 <span class="text-xs text-gray-400" id="lastUpdated"></span>
             </div>
-            <label class="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
-                <input type="checkbox" id="autoRefreshToggle" checked class="rounded border-gray-300 text-amber-600 focus:ring-amber-400">
-                Auto-refresh
-            </label>
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+                    <input type="checkbox" id="issuesOnlyToggle" class="rounded border-gray-300 text-red-700 focus:ring-red-400">
+                    Issues only
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+                    <input type="checkbox" id="autoRefreshToggle" checked class="rounded border-gray-300 text-amber-600 focus:ring-amber-400">
+                    Auto-refresh
+                </label>
+            </div>
         </div>
         <div id="taskCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-5">
             <div class="col-span-full text-center text-sm text-gray-400 py-8">Loading…</div>
@@ -60,6 +75,19 @@
         </div>
         <div id="queueCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-5">
             <div class="col-span-full text-center text-sm text-gray-400 py-8">Loading…</div>
+        </div>
+    </div>
+
+    <!-- Disk Usage -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2.5">
+                <h3 class="text-sm font-semibold text-gray-800">Disk Usage</h3>
+                <span class="text-xs text-gray-400" id="diskCheckPath"></span>
+            </div>
+        </div>
+        <div id="diskUsageBody" class="p-5">
+            <div class="text-center text-sm text-gray-400 py-8">Loading…</div>
         </div>
     </div>
 
@@ -232,53 +260,112 @@ const STATUS_META = {
     never_run: { label: 'Never Run', badge: 'bg-gray-100 text-gray-500' },
 };
 
+let lastTaskData = [];
+
+// Failing first, then stale/never-run, then healthy - so whatever needs
+// attention is visible without scrolling instead of sitting wherever it
+// happens to fall in config('schedule_monitor.commands') declaration order.
+function taskPriority(task) {
+    if (task.status === 'failed') return 0;
+    if (task.is_stale) return 1;
+    return 2;
+}
+
+function renderTaskCards() {
+    const cards = document.getElementById('taskCards');
+    const issuesOnly = document.getElementById('issuesOnlyToggle').checked;
+
+    const rows = lastTaskData
+        .filter(task => !issuesOnly || task.status === 'failed' || task.is_stale)
+        .sort((a, b) => taskPriority(a) - taskPriority(b));
+
+    if (!lastTaskData.length) {
+        cards.innerHTML = '<div class="col-span-full text-center text-sm text-gray-400 py-8">No scheduled tasks configured</div>';
+        return;
+    }
+    if (!rows.length) {
+        cards.innerHTML = '<div class="col-span-full text-center text-sm text-gray-400 py-8">No issues - every task is healthy</div>';
+        return;
+    }
+
+    cards.innerHTML = rows.map(task => {
+        const meta = STATUS_META[task.status] || STATUS_META.never_run;
+        const borderClass = task.status === 'failed' ? 'border-red-200' : (task.is_stale ? 'border-orange-200' : 'border-gray-200');
+        const lastActivity = task.last_finished_at || task.last_started_at || 'Never';
+
+        return `<div class="border ${borderClass} rounded-xl p-4">
+            <div class="flex items-start justify-between gap-2 mb-2">
+                <div>
+                    <p class="text-sm font-semibold text-gray-900">${escHtml(task.label)}</p>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">${escHtml(task.command)}</p>
+                </div>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${meta.badge}">${meta.label}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs text-gray-500 mt-3">
+                <div>
+                    <p class="text-gray-400">Frequency</p>
+                    <p class="text-gray-700 font-medium">${escHtml(task.frequency_label)}</p>
+                </div>
+                <div>
+                    <p class="text-gray-400">Last Activity</p>
+                    <p class="text-gray-700 font-medium">${escHtml(lastActivity)}</p>
+                </div>
+            </div>
+            ${task.is_stale ? `<div class="mt-3 px-2.5 py-1.5 bg-orange-50 text-orange-700 text-xs rounded-lg flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                Overdue for its schedule
+            </div>` : ''}
+            ${task.consecutive_failures > 0 ? `<div class="mt-2 text-xs text-red-600 flex items-center justify-between gap-2">
+                <span>${task.consecutive_failures} consecutive failure${task.consecutive_failures > 1 ? 's' : ''}</span>
+                ${task.last_error ? `<button type="button" onclick="showError(this)" class="text-blue-600 hover:underline flex-shrink-0" data-error="${escAttr(task.last_error)}" data-label="${escAttr(task.label)}">View error</button>` : ''}
+            </div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function renderHeartbeat(heartbeat) {
+    const banner = document.getElementById('heartbeatBanner');
+    if (!heartbeat) { banner.classList.add('hidden'); return; }
+
+    const alive = !heartbeat.is_stale;
+    const lastTick = heartbeat.last_finished_at || heartbeat.last_started_at;
+
+    banner.className = `rounded-xl border p-4 flex items-start gap-3 ${alive ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`;
+
+    const icon = document.getElementById('heartbeatIcon');
+    icon.className = `w-5 h-5 flex-shrink-0 mt-0.5 ${alive ? 'text-green-600' : 'text-red-600'}`;
+    icon.innerHTML = alive
+        ? '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />'
+        : '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />';
+
+    document.getElementById('heartbeatTitle').className = `text-sm font-semibold ${alive ? 'text-green-800' : 'text-red-800'}`;
+    document.getElementById('heartbeatTitle').textContent = alive
+        ? `Scheduler is alive - last tick ${lastTick}`
+        : (lastTick ? `Scheduler has not ticked since ${lastTick}` : 'Scheduler has never ticked');
+
+    document.getElementById('heartbeatDetail').className = `text-xs mt-0.5 ${alive ? 'text-green-700' : 'text-red-700'}`;
+    document.getElementById('heartbeatDetail').textContent = alive
+        ? "This confirms something is actually calling `php artisan schedule:run` every minute - any task below showing Never Run or Stale is that task's own issue, not the trigger."
+        : 'The process that is supposed to call `php artisan schedule:run` every minute is not running (or never was) - every task below going stale or Never Run is a symptom of this, not of 7 separate bugs. Check the server\'s crontab / process supervisor.';
+
+    banner.classList.remove('hidden');
+}
+
 async function loadTaskStatus() {
     try {
         const res  = await fetch('/api/admin/schedule-monitor', { credentials: 'same-origin' });
         const json = await res.json();
         if (!json.success) return;
 
+        renderHeartbeat(json.heartbeat);
+
         document.getElementById('statTotal').textContent   = json.summary.total;
         document.getElementById('statHealthy').textContent = json.summary.total - json.summary.issues;
         document.getElementById('statStale').textContent   = json.summary.stale;
         document.getElementById('statFailing').textContent = json.summary.failing;
 
-        const cards = document.getElementById('taskCards');
-        if (!json.data.length) {
-            cards.innerHTML = '<div class="col-span-full text-center text-sm text-gray-400 py-8">No scheduled tasks configured</div>';
-            return;
-        }
-
-        cards.innerHTML = json.data.map(task => {
-            const meta = STATUS_META[task.status] || STATUS_META.never_run;
-            const borderClass = task.status === 'failed' ? 'border-red-200' : (task.is_stale ? 'border-orange-200' : 'border-gray-200');
-            const lastActivity = task.last_finished_at || task.last_started_at || 'Never';
-
-            return `<div class="border ${borderClass} rounded-xl p-4">
-                <div class="flex items-start justify-between gap-2 mb-2">
-                    <div>
-                        <p class="text-sm font-semibold text-gray-900">${escHtml(task.label)}</p>
-                        <p class="text-xs text-gray-400 font-mono mt-0.5">${escHtml(task.command)}</p>
-                    </div>
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${meta.badge}">${meta.label}</span>
-                </div>
-                <div class="grid grid-cols-2 gap-2 text-xs text-gray-500 mt-3">
-                    <div>
-                        <p class="text-gray-400">Frequency</p>
-                        <p class="text-gray-700 font-medium">${escHtml(task.frequency_label)}</p>
-                    </div>
-                    <div>
-                        <p class="text-gray-400">Last Activity</p>
-                        <p class="text-gray-700 font-medium">${escHtml(lastActivity)}</p>
-                    </div>
-                </div>
-                ${task.is_stale ? `<div class="mt-3 px-2.5 py-1.5 bg-orange-50 text-orange-700 text-xs rounded-lg flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                    Overdue for its schedule
-                </div>` : ''}
-                ${task.consecutive_failures > 0 ? `<div class="mt-2 text-xs text-red-600">${task.consecutive_failures} consecutive failure${task.consecutive_failures > 1 ? 's' : ''}</div>` : ''}
-            </div>`;
-        }).join('');
+        lastTaskData = json.data;
+        renderTaskCards();
     } catch (e) {
         console.error('loadTaskStatus error:', e);
     }
@@ -297,7 +384,10 @@ async function loadQueueHealth() {
             return;
         }
 
-        cards.innerHTML = json.data.map(q => {
+        // Backlogged queues first - same "what needs attention" ordering as the Scheduled Tasks cards above.
+        const rows = [...json.data].sort((a, b) => (a.is_healthy === b.is_healthy) ? 0 : (a.is_healthy ? 1 : -1));
+
+        cards.innerHTML = rows.map(q => {
             const borderClass = q.is_healthy ? 'border-gray-200' : 'border-red-200';
             const badge = q.is_healthy
                 ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap bg-green-100 text-green-700">Healthy</span>'
@@ -326,6 +416,75 @@ async function loadQueueHealth() {
         }).join('');
     } catch (e) {
         console.error('loadQueueHealth error:', e);
+    }
+}
+
+// ─── Disk usage ─────────────────────────────────────────────────────────────────
+function formatBytes(bytes) {
+    if (bytes === null || bytes === undefined) return 'unknown';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let value = bytes, i = 0;
+    while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; }
+    return `${value.toFixed(1)} ${units[i]}`;
+}
+
+const DISK_STATUS_META = {
+    ok:       { label: 'OK',       barClass: 'bg-green-500',  badgeClass: 'bg-green-100 text-green-700' },
+    warning:  { label: 'Warning',  barClass: 'bg-amber-500',  badgeClass: 'bg-amber-100 text-amber-700' },
+    critical: { label: 'Critical', barClass: 'bg-red-500',    badgeClass: 'bg-red-100 text-red-700' },
+    unknown:  { label: 'Unknown',  barClass: 'bg-gray-300',   badgeClass: 'bg-gray-100 text-gray-500' },
+};
+
+async function loadDiskUsage() {
+    try {
+        const res  = await fetch('/api/admin/schedule-monitor/disk-usage', { credentials: 'same-origin' });
+        const json = await res.json();
+        if (!json.success) return;
+
+        const { space, breakdown } = json;
+        const body = document.getElementById('diskUsageBody');
+        document.getElementById('diskCheckPath').textContent = space.check_path || '';
+
+        if (!space.available) {
+            body.innerHTML = '<div class="text-center text-sm text-red-500 py-8">Could not read disk space for this path.</div>';
+            return;
+        }
+
+        const meta = DISK_STATUS_META[space.status] || DISK_STATUS_META.unknown;
+
+        const accounted = breakdown.reduce((sum, b) => sum + b.size_bytes, 0);
+        const other = Math.max(0, space.used_bytes - accounted);
+        const rows = [...breakdown, { key: 'other', label: 'Other (OS, Docker layers, other apps on this host)', size_bytes: other, exists: true }]
+            .filter(b => b.exists)
+            .sort((a, b) => b.size_bytes - a.size_bytes);
+        const maxRow = Math.max(1, ...rows.map(r => r.size_bytes));
+
+        body.innerHTML = `
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-sm text-gray-700">
+                    <span class="font-semibold text-gray-900">${formatBytes(space.used_bytes)}</span> used of
+                    <span class="font-semibold text-gray-900">${formatBytes(space.total_bytes)}</span>
+                    <span class="text-gray-400">(${formatBytes(space.free_bytes)} free)</span>
+                </div>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${meta.badgeClass}">${meta.label} - ${space.used_percent}%</span>
+            </div>
+            <div class="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden mb-5">
+                <div class="h-full ${meta.barClass} rounded-full transition-all" style="width:${Math.min(100, space.used_percent)}%"></div>
+            </div>
+            <p class="text-xs font-semibold text-gray-500 mb-2">Breakdown</p>
+            <div class="space-y-2">
+                ${rows.map(r => `
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-600 w-48 truncate flex-shrink-0" title="${escHtml(r.label)}">${escHtml(r.label)}</span>
+                        <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="h-full bg-gray-400 rounded-full" style="width:${(r.size_bytes / maxRow * 100).toFixed(1)}%"></div>
+                        </div>
+                        <span class="text-xs text-gray-700 font-medium w-20 text-right flex-shrink-0">${formatBytes(r.size_bytes)}</span>
+                    </div>
+                `).join('')}
+            </div>`;
+    } catch (e) {
+        console.error('loadDiskUsage error:', e);
     }
 }
 
@@ -531,6 +690,7 @@ function stampLastUpdated() {
 function refreshAll() {
     loadTaskStatus();
     loadQueueHealth();
+    loadDiskUsage();
     loadRuns(currentPage);
     stampLastUpdated();
 }
@@ -539,12 +699,17 @@ function setupAutoRefresh() {
     const toggle = document.getElementById('autoRefreshToggle');
     const start = () => {
         stop();
-        autoRefreshTimer = setInterval(refreshAll, 30000);
+        // Skip fan-out 4 fetch (task status, queue health, disk usage, runs) selagi
+        // tab di-background; sinkron ulang segera begitu tab aktif lagi.
+        autoRefreshTimer = setInterval(() => { if (!document.hidden) refreshAll(); }, 30000);
     };
     const stop = () => {
         if (autoRefreshTimer) clearInterval(autoRefreshTimer);
         autoRefreshTimer = null;
     };
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && autoRefreshTimer) refreshAll();
+    });
     toggle.addEventListener('change', () => toggle.checked ? start() : stop());
     if (toggle.checked) start();
 }
@@ -558,8 +723,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     updateSortIndicators();
     loadTaskFilterOptions();
+    document.getElementById('issuesOnlyToggle').addEventListener('change', renderTaskCards);
     loadTaskStatus();
     loadQueueHealth();
+    loadDiskUsage();
     loadRuns(1);
     stampLastUpdated();
     setupAutoRefresh();
