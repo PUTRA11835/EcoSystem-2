@@ -239,7 +239,7 @@
                                     <textarea name="achievements[{{ $detail->id }}][actual]" rows="3" maxlength="255"
                                         {{ $locked ? 'readonly' : '' }}
                                         placeholder="Tuliskan realisasi..."
-                                        class="w-full min-h-[4.5rem] px-3 py-2 text-sm text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $locked ? 'bg-gray-50 text-gray-600' : 'bg-white' }}">{{ old("achievements.{$detail->id}.actual", $detail->actual_achievement) }}</textarea>
+                                        class="w-full min-h-18 px-3 py-2 text-sm text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $locked ? 'bg-gray-50 text-gray-600' : 'bg-white' }}">{{ old("achievements.{$detail->id}.actual", $detail->actual_achievement) }}</textarea>
                                 </td>
                                 <td class="px-4 py-4 align-top text-center">
                                     <input type="hidden" name="achievements[{{ $detail->id }}][rating]" id="rating_val_{{ $detail->id }}" class="rating-val" data-weight="{{ $weight }}" data-max="{{ $max }}" value="{{ $currentRating ?? '' }}">

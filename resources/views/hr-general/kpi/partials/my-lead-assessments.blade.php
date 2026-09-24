@@ -8,7 +8,7 @@
     </div>
 
     <div class="divide-y divide-gray-100">
-        @foreach($leadEvals->filter(fn($e) => !empty($e->supervisor_id))->sortByDesc('period_month') as $eval)
+        @forelse(($leadOnlyEvals ?? $leadEvals)->filter(fn($e) => !empty($e->supervisor_id))->sortByDesc('period_month') as $eval)
         @php
             $reviewed = $eval->hasSupervisorReview();
             $approved = $eval->status === \App\Models\KpiEvaluation::STATUS_HR_APPROVED;
@@ -102,6 +102,8 @@
                 <p class="text-xs text-gray-400 italic">Your lead has not submitted this assessment yet.</p>
             @endif
         </div>
-        @endforeach
+        @empty
+        <div class="text-center py-10"><p class="text-xs text-gray-400">No lead assessments yet.</p></div>
+        @endforelse
     </div>
 </div>

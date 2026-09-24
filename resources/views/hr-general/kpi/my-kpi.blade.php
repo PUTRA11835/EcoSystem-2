@@ -10,9 +10,22 @@
     $user = session('user');
     $empName = $user['name'] ?? 'Employee';
     $isSupervisor = !empty($isSupervisor);
+    // System administrators (EC Administrator) always see every tab.
+    $isSystemAdmin = !empty($isSystemAdmin);
+    $canTab = fn($t) => $isSystemAdmin || ($can ?? fn($p) => true)('general.my-kpi.tab-' . $t);
+    // Lead-type rows include peer templates; peers get their own tab.
+    $isPeerEval    = fn($e) => ($e->template?->target_type ?? '') === 'peer';
+    $leadOnlyEvals = $leadEvals->reject($isPeerEval)->values();
+    $peerReceived  = $leadEvals->filter($isPeerEval)->values();
+    $peerAssigned  = collect($assignedEvaluations ?? [])->filter($isPeerEval)->values();
     // "Has a leader": at least one of my lead-type evaluations is assigned to someone to review it.
-    $hasLeader = $leadEvals->contains(fn($e) => !empty($e->supervisor_id));
-    $showLeadTab = $isSupervisor || $hasLeader;
+    $hasLeader = $leadOnlyEvals->contains(fn($e) => !empty($e->supervisor_id));
+    $showSelfTab   = $canTab('self');
+    $showLeadTab   = $canTab('lead') && ($isSystemAdmin || $isSupervisor || $hasLeader);
+    $showPeerTab   = $canTab('peer') && ($isSystemAdmin || $peerReceived->isNotEmpty() || $peerAssigned->isNotEmpty());
+    $showUpwardTab = $canTab('upward');
+    $firstTab = collect(['self' => $showSelfTab, 'lead' => $showLeadTab, 'peer' => $showPeerTab, 'upward' => $showUpwardTab])
+        ->filter()->keys()->first() ?? 'self';
     // Only HR / KPI-Evaluation users see the per-indicator breakdown of a lead
     // assessment. A regular employee sees just the overall score and comment.
     $canSeeLeadDetails = ($can ?? fn($p) => false)('general.kpi-evaluation');
@@ -125,26 +138,37 @@
         </div>
     </div>
 
-    {{-- ── Tab Strip — three fixed tabs ─────────────────────────────────────── --}}
+    {{-- ── Tab Strip — visibility follows Menu Access (my-kpi tab-*) and the user's data ── --}}
     <div class="bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100 flex items-center gap-1.5 flex-wrap">
+        @if($showSelfTab)
         <button type="button" data-tab="self" onclick="showKpiTab('self')"
-            class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold primary-gradient text-white shadow transition-all">
+            class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
             <i class="fas fa-pen-to-square mr-1.5"></i> Self-Assessment
         </button>
+        @endif
         @if($showLeadTab)
         <button type="button" data-tab="lead" onclick="showKpiTab('lead')"
             class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
             <i class="fas fa-user-tie mr-1.5"></i> Lead Assessment
         </button>
         @endif
+        @if($showPeerTab)
+        <button type="button" data-tab="peer" onclick="showKpiTab('peer')"
+            class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
+            <i class="fas fa-user-group mr-1.5"></i> My Team (Peer)
+        </button>
+        @endif
+        @if($showUpwardTab)
         <button type="button" data-tab="upward" onclick="showKpiTab('upward')"
             class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
             <i class="fas fa-arrow-up mr-1.5"></i> Upward Assessment
         </button>
+        @endif
     </div>
 
     {{-- ══════════════════ TAB: SELF-ASSESSMENT ══════════════════ --}}
-    <div class="kpi-tab-panel space-y-5" data-tab="self">
+    @if($showSelfTab)
+    <div class="kpi-tab-panel space-y-5 hidden" data-tab="self">
 
         @if($selfPending->count() > 0)
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm space-y-3">
@@ -249,14 +273,16 @@
         </div>
     </div>
 
+    @endif
+
     {{-- ══════════════════ TAB: LEAD ASSESSMENT ══════════════════ --}}
     @if($showLeadTab)
     <div class="kpi-tab-panel space-y-5 hidden" data-tab="lead">
-        @if($hasLeader)
+        @if($hasLeader || $isSystemAdmin)
         @include('hr-general.kpi.partials.my-lead-assessments')
         @endif
 
-        @if($isSupervisor)
+        @if($isSupervisor || $isSystemAdmin)
         <div class="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
             <div class="p-5 border-b border-indigo-50 bg-indigo-50/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
@@ -286,7 +312,7 @@
                     <tbody class="divide-y divide-gray-100">
                         @php
                             $teamEvals = ($assignedEvaluations ?? collect())
-                                ->filter(fn($e) => $e->isLeadType())
+                                ->filter(fn($e) => $e->isLeadType() && !$isPeerEval($e))
                                 ->values();
                         @endphp
                         @forelse($teamEvals as $tEval)
@@ -336,7 +362,7 @@
 
         {{-- History of assessments this lead has already filled: one row per
              month, click to expand that month's assessments; paginated. --}}
-        @php $historyByMonth = ($reviewHistory ?? collect())->groupBy('period_month'); @endphp
+        @php $historyByMonth = ($reviewHistory ?? collect())->reject($isPeerEval)->groupBy('period_month'); @endphp
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="p-5 border-b border-gray-100 flex items-center gap-2">
                 <i class="fas fa-clock-rotate-left text-indigo-400"></i>
@@ -417,7 +443,99 @@
     </div>
     @endif
 
+    {{-- ══════════════════ TAB: PEER ASSESSMENT (My Team — peer) ══════════════════ --}}
+    @if($showPeerTab)
+    <div class="kpi-tab-panel space-y-5 hidden" data-tab="peer">
+        <div class="bg-white rounded-2xl shadow-sm border border-cyan-100 overflow-hidden">
+            <div class="p-5 border-b border-cyan-50 bg-cyan-50/30">
+                <h3 class="text-sm font-bold text-gray-900 flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-xl bg-cyan-600 text-white flex items-center justify-center text-xs"><i class="fas fa-user-group"></i></span>
+                    My Team (Peer) — {{ Carbon::createFromFormat('Y-m', $selectedPeriod ?? $currentPeriod)->format('F Y') }}
+                </h3>
+                <p class="text-xs text-gray-500 mt-0.5">Peer assessments you are asked to score this period.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Colleague</th>
+                            <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Template</th>
+                            <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Score</th>
+                            <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        @forelse($peerAssigned as $pEval)
+                        @php
+                            $pDone = $pEval->hasSupervisorReview();
+                            $pApproved = $pEval->status === KpiEvaluation::STATUS_HR_APPROVED;
+                        @endphp
+                        <tr class="hover:bg-cyan-50/20 transition-colors">
+                            <td class="px-5 py-3.5">
+                                <p class="font-semibold text-gray-900 text-sm">{{ $pEval->employee?->basicData?->full_name ?? $pEval->employee?->eci }}</p>
+                                <p class="text-xs text-cyan-600 font-mono">{{ $pEval->employee?->eci }}</p>
+                            </td>
+                            <td class="px-4 py-3.5 text-xs font-medium text-cyan-700">{{ $pEval->template?->name ?? '—' }}</td>
+                            <td class="px-4 py-3.5 text-center">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold {{ $pApproved ? 'bg-emerald-100 text-emerald-800' : ($pDone ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800') }}">
+                                    {{ $pApproved ? 'Approved' : ($pDone ? 'Reviewed' : 'To Evaluate') }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3.5 text-center font-bold text-sm">{{ $pEval->overall_score ? number_format($pEval->overall_score, 1) : '—' }}</td>
+                            <td class="px-4 py-3.5 text-center">
+                                <a href="{{ route('general.kpi-evaluation.review', $pEval->id) }}"
+                                   class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all {{ $pDone ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100' : 'primary-gradient text-white hover:opacity-90' }}">
+                                    {{ $pDone ? ($pApproved ? 'View' : 'Edit Review') : 'Evaluate' }}
+                                </a>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr><td colspan="5" class="py-8 text-center text-gray-400 text-xs">No peer assessments assigned to you this period.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="p-5 border-b border-gray-100 flex items-center gap-2">
+                <i class="fas fa-user-group text-cyan-500"></i>
+                <h3 class="text-sm font-bold text-gray-800">Peer Assessments About Me</h3>
+            </div>
+            @if($peerReceived->isNotEmpty())
+            <div class="divide-y divide-gray-100">
+                @foreach($peerReceived->sortByDesc('period_month') as $pr)
+                @php $prReviewed = $pr->hasSupervisorReview(); @endphp
+                <div class="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-bold text-gray-900 text-sm">{{ $pr->template?->name ?? 'Peer Assessment' }}</span>
+                            <span class="text-xs text-gray-400">&middot;</span>
+                            <span class="text-xs text-gray-500">{{ Carbon::createFromFormat('Y-m', $pr->period_month)->format('F Y') }}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-0.5">
+                            Reviewer: {{ $pr->is_anonymous ? 'Anonymous' : ($pr->supervisor?->basicData?->full_name ?? 'Assigned') }}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        @if($prReviewed)<span class="text-2xl font-bold text-cyan-700">{{ number_format($pr->overall_score ?? 0, 1) }}</span>@endif
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold {{ $prReviewed ? 'bg-cyan-100 text-cyan-800' : 'bg-amber-100 text-amber-800' }}">
+                            {{ $prReviewed ? 'Reviewed' : 'Awaiting Review' }}
+                        </span>
+                    </div>
+                </div>
+                @endforeach
+            </div>
+            @else
+            <div class="text-center py-10"><p class="text-xs text-gray-400">No peer assessments about you yet.</p></div>
+            @endif
+        </div>
+    </div>
+    @endif
+
     {{-- ══════════════════ TAB: UPWARD ASSESSMENT ══════════════════ --}}
+    @if($showUpwardTab)
     <div class="kpi-tab-panel space-y-5 hidden" data-tab="upward">
 
         {{-- Fill-in: rate my own supervisor --}}
@@ -525,6 +643,7 @@
             @endif
         </div>
     </div>
+    @endif
 
 </div>
 
@@ -543,7 +662,8 @@ function showKpiTab(key) {
 }
 (function () {
     const initial = new URLSearchParams(location.search).get('tab');
-    if (initial && document.querySelector(`.kpi-tab-panel[data-tab="${initial}"]`)) showKpiTab(initial);
+    const ok = t => t && document.querySelector(`.kpi-tab-panel[data-tab="${t}"]`);
+    showKpiTab(ok(initial) ? initial : '{{ $firstTab }}');
 })();
 
 // ── My Review History: expand a month + client-side pagination ──────────────
