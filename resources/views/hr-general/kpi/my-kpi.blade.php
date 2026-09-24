@@ -10,6 +10,9 @@
     $user = session('user');
     $empName = $user['name'] ?? 'Employee';
     $isSupervisor = !empty($isSupervisor);
+    // "Has a leader": at least one of my lead-type evaluations is assigned to someone to review it.
+    $hasLeader = $leadEvals->contains(fn($e) => !empty($e->supervisor_id));
+    $showLeadTab = $isSupervisor || $hasLeader;
     // Only HR / KPI-Evaluation users see the per-indicator breakdown of a lead
     // assessment. A regular employee sees just the overall score and comment.
     $canSeeLeadDetails = ($can ?? fn($p) => false)('general.kpi-evaluation');
@@ -23,6 +26,9 @@
     $selfPending   = $selfEvals->filter($isDone)->values();
     $upwardPending = $upwardEvals->filter($isDone)->values();
     $pendingSelfAssessment = $selfPending->concat($upwardPending);
+    // Per-source averages over every submitted score, same basis as the trend chart.
+    $selfAvgScore = $selfEvals->filter(fn($e) => $e->hasSelfAssessment() && $e->overall_score !== null)->avg('overall_score');
+    $leadAvgScore = $leadEvals->filter(fn($e) => $e->hasSupervisorReview() && $e->overall_score !== null)->avg('overall_score');
 @endphp
 
 <div class="space-y-5">
@@ -52,14 +58,14 @@
 
     {{-- ── Summary Cards ────────────────────────────────────────────────────── --}}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 col-span-2 lg:col-span-1">
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 col-span-2 lg:col-span-1 flex flex-col items-center justify-center text-center">
             <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Current Period</p>
             @if($currentEval && $currentEval->status === KpiEvaluation::STATUS_HR_APPROVED)
-                <div class="flex items-end gap-2">
+                <div class="flex items-end justify-center gap-2">
                     <span class="text-4xl font-bold text-gray-900">{{ number_format($currentEval->overall_score, 1) }}</span>
                     <span class="text-lg text-gray-400 mb-1">/ 100</span>
                 </div>
-                <p class="text-xs text-emerald-600 mt-1 flex items-center gap-1 font-semibold">
+                <p class="text-xs text-emerald-600 mt-1 flex items-center justify-center gap-1 font-semibold">
                     <i class="fas fa-check-circle"></i> HR Approved
                 </p>
             @elseif($currentEval)
@@ -75,19 +81,31 @@
             @endif
         </div>
 
-        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
             <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Avg Score</p>
             <div class="text-3xl font-bold text-gray-900">{{ $avgScore ? number_format($avgScore, 1) : '—' }}</div>
             <p class="text-xs text-gray-400 mt-1">Approved evaluations</p>
+            <div class="mt-3 pt-3 border-t border-gray-100 space-y-1.5 w-full max-w-36">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="flex items-center gap-1.5 text-gray-500"><span class="w-2 h-2 rounded-full" style="background:#7C3AED"></span>Self</span>
+                    <span class="font-bold text-gray-900">{{ $selfAvgScore !== null ? number_format($selfAvgScore, 1) : '—' }}</span>
+                </div>
+                @if($leadEvals->isNotEmpty())
+                <div class="flex items-center justify-between text-xs">
+                    <span class="flex items-center gap-1.5 text-gray-500"><span class="w-2 h-2 rounded-full" style="background:#F59E0B"></span>Lead</span>
+                    <span class="font-bold text-gray-900">{{ $leadAvgScore !== null ? number_format($leadAvgScore, 1) : '—' }}</span>
+                </div>
+                @endif
+            </div>
         </div>
 
-        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
             <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Total Evals</p>
             <div class="text-3xl font-bold text-gray-900">{{ $evaluations->count() }}</div>
             <p class="text-xs text-gray-400 mt-1">Self + Lead, all periods</p>
         </div>
 
-        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
             <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Pending Assessments</p>
             <div class="text-3xl font-bold {{ $pendingSelfAssessment->count() > 0 ? 'text-amber-500' : 'text-gray-900' }}">
                 {{ $pendingSelfAssessment->count() }}
@@ -113,10 +131,12 @@
             class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold primary-gradient text-white shadow transition-all">
             <i class="fas fa-pen-to-square mr-1.5"></i> Self-Assessment
         </button>
+        @if($showLeadTab)
         <button type="button" data-tab="lead" onclick="showKpiTab('lead')"
             class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
             <i class="fas fa-user-tie mr-1.5"></i> Lead Assessment
         </button>
+        @endif
         <button type="button" data-tab="upward" onclick="showKpiTab('upward')"
             class="kpi-tab-btn flex-1 sm:flex-none text-center px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-all">
             <i class="fas fa-arrow-up mr-1.5"></i> Upward Assessment
@@ -230,117 +250,11 @@
     </div>
 
     {{-- ══════════════════ TAB: LEAD ASSESSMENT ══════════════════ --}}
+    @if($showLeadTab)
     <div class="kpi-tab-panel space-y-5 hidden" data-tab="lead">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div class="p-5 border-b border-gray-100 flex items-center gap-2">
-                <i class="fas fa-user-tie text-indigo-400"></i>
-                <h3 class="text-sm font-bold text-gray-800">Assessments From My Lead</h3>
-            </div>
-
-            @if($leadEvals->count() > 0)
-            <div class="divide-y divide-gray-100">
-                @foreach($leadEvals->sortByDesc('period_month') as $eval)
-                @php
-                    $reviewed = $eval->hasSupervisorReview();
-                    $approved = $eval->status === KpiEvaluation::STATUS_HR_APPROVED;
-                @endphp
-                <div class="p-5 space-y-3">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div>
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <span class="font-bold text-gray-900 text-sm">{{ $eval->template?->name ?? 'Lead Assessment' }}</span>
-                                <span class="text-xs text-gray-400">·</span>
-                                <span class="text-xs text-gray-500">{{ Carbon::createFromFormat('Y-m', $eval->period_month)->format('F Y') }}</span>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-0.5">
-                                Lead: {{ $eval->supervisor?->basicData?->full_name ?? 'Assigned' }}
-                            </p>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            @if($reviewed)
-                                <span class="text-2xl font-bold {{ $approved ? 'text-emerald-600' : 'text-indigo-600' }}">
-                                    {{ number_format($eval->overall_score ?? 0, 1) }}
-                                </span>
-                            @endif
-                            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold
-                                {{ $approved ? 'bg-emerald-100 text-emerald-800' : ($reviewed ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800') }}">
-                                {{ $approved ? 'Approved' : ($reviewed ? 'Reviewed by Lead' : 'Awaiting Lead Review') }}
-                            </span>
-                        </div>
-                    </div>
-
-                    @if($reviewed)
-                        @if($canSeeLeadDetails)
-                        {{-- HR / KPI-Evaluation users: full per-indicator breakdown --}}
-                        <div class="overflow-x-auto border border-gray-100 rounded-xl">
-                            <table class="w-full text-sm">
-                                <thead class="bg-gray-50/80">
-                                    <tr>
-                                        <th class="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Indicator</th>
-                                        <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">Weight</th>
-                                        <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider w-36">Lead Rating</th>
-                                        <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Lead Notes</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-50">
-                                    @foreach($eval->details->sortBy('indicator.order_seq') as $detail)
-                                    @php $starMax = $detail->indicator?->rating_max ?: ($eval->template?->scaleMax() ?: 5); @endphp
-                                    <tr>
-                                        <td class="px-5 py-3 font-semibold text-gray-900 text-xs">{{ $detail->indicator?->name ?? '—' }}</td>
-                                        <td class="px-4 py-3 text-center text-xs font-semibold text-indigo-600">{{ $detail->indicator?->weight ?? 0 }}%</td>
-                                        <td class="px-4 py-3 text-center">
-                                            @if(!is_null($detail->supervisor_score))
-                                                <div class="flex items-center justify-center gap-0.5 text-amber-400 text-xs">
-                                                    @for($s = 1; $s <= $starMax; $s++)
-                                                        <span>{{ $s <= ($detail->star_rating ?? round($detail->supervisor_score / 100 * $starMax)) ? '★' : '☆' }}</span>
-                                                    @endfor
-                                                </div>
-                                                <span class="text-[11px] text-gray-500">{{ number_format($detail->supervisor_score, 1) }}</span>
-                                            @else
-                                                <span class="text-gray-300 text-xs">—</span>
-                                            @endif
-                                        </td>
-                                        <td class="px-4 py-3 text-xs text-gray-600 italic">{{ $detail->supervisor_notes ?: '—' }}</td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                        @else
-                        {{-- Regular employee: score + overall note only, no indicator detail --}}
-                        <div class="flex items-center gap-4 p-4 bg-gray-50 border border-gray-100 rounded-xl">
-                            <div class="text-center">
-                                <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Overall Score</p>
-                                <p class="text-2xl font-bold text-gray-900">{{ number_format($eval->overall_score ?? 0, 1) }}<span class="text-sm text-gray-400"> / 100</span></p>
-                            </div>
-                        </div>
-                        @endif
-
-                    @if($eval->general_notes)
-                    <div class="p-4 bg-indigo-50/60 border border-indigo-100 rounded-xl">
-                        <p class="text-xs font-bold text-indigo-800 mb-0.5"><i class="fas fa-comment-alt mr-1"></i> Note from Lead</p>
-                        <p class="text-xs text-indigo-900">{{ $eval->general_notes }}</p>
-                    </div>
-                    @endif
-
-                    @if($eval->hr_notes && $approved)
-                    <div class="p-4 bg-blue-50/70 border border-blue-100 rounded-xl">
-                        <p class="text-xs font-bold text-blue-800 mb-0.5"><i class="fas fa-comment-alt mr-1"></i> HR Notes</p>
-                        <p class="text-xs text-blue-900">{{ $eval->hr_notes }}</p>
-                    </div>
-                    @endif
-                    @else
-                    <p class="text-xs text-gray-400 italic">Your lead has not submitted this assessment yet.</p>
-                    @endif
-                </div>
-                @endforeach
-            </div>
-            @else
-            <div class="text-center py-12">
-                <p class="text-xs text-gray-400">No lead-assessment templates have been assigned to you yet.</p>
-            </div>
-            @endif
-        </div>
+        @if($hasLeader)
+        @include('hr-general.kpi.partials.my-lead-assessments')
+        @endif
 
         @if($isSupervisor)
         <div class="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
@@ -419,8 +333,89 @@
                 </table>
             </div>
         </div>
+
+        {{-- History of assessments this lead has already filled: one row per
+             month, click to expand that month's assessments; paginated. --}}
+        @php $historyByMonth = ($reviewHistory ?? collect())->groupBy('period_month'); @endphp
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="p-5 border-b border-gray-100 flex items-center gap-2">
+                <i class="fas fa-clock-rotate-left text-indigo-400"></i>
+                <div>
+                    <h3 class="text-sm font-bold text-gray-800">My Review History</h3>
+                    <p class="text-[11px] text-gray-400 mt-0.5">Lead assessments you have already submitted. Click a month to see its assessments.</p>
+                </div>
+            </div>
+            @if($historyByMonth->isNotEmpty())
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                        <th class="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Month</th>
+                        <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Assessments</th>
+                        <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Score</th>
+                        <th class="w-10"></th>
+                    </tr>
+                </thead>
+                @foreach($historyByMonth as $month => $items)
+                @php $scored = $items->whereNotNull('overall_score'); @endphp
+                <tbody class="rh-block border-b border-gray-100">
+                    <tr class="rh-month cursor-pointer hover:bg-indigo-50/40 transition-colors" onclick="toggleRh(this)">
+                        <td class="px-5 py-3 text-xs font-bold text-gray-900">{{ Carbon::createFromFormat('Y-m', $month)->format('F Y') }}</td>
+                        <td class="px-4 py-3 text-center text-xs text-gray-600">{{ $items->count() }}</td>
+                        <td class="px-4 py-3 text-center text-xs font-bold text-gray-900">{{ $scored->isNotEmpty() ? number_format($scored->avg('overall_score'), 1) : '—' }}</td>
+                        <td class="px-4 py-3 text-center"><i class="fas fa-chevron-down text-[10px] text-gray-400 transition-transform rh-chev"></i></td>
+                    </tr>
+                    <tr class="rh-detail hidden">
+                        <td colspan="4" class="p-0 bg-gray-50/50">
+                            <div class="overflow-x-auto">
+                            <table class="w-full text-xs">
+                                <thead>
+                                    <tr class="text-[10px] uppercase tracking-wider text-gray-400">
+                                        <th class="text-left px-5 py-2 font-semibold">Team Member</th>
+                                        <th class="text-left px-4 py-2 font-semibold">Template</th>
+                                        <th class="text-center px-4 py-2 font-semibold">Reviewed On</th>
+                                        <th class="text-center px-4 py-2 font-semibold">Status</th>
+                                        <th class="text-center px-4 py-2 font-semibold">Score</th>
+                                        <th class="text-center px-4 py-2 font-semibold">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    @foreach($items as $h)
+                                    @php $hApproved = $h->status === KpiEvaluation::STATUS_HR_APPROVED; @endphp
+                                    <tr>
+                                        <td class="px-5 py-2.5">
+                                            <p class="font-semibold text-gray-900">{{ $h->employee?->basicData?->full_name ?? $h->employee?->eci }}</p>
+                                            <p class="text-[11px] text-indigo-500 font-mono">{{ $h->employee?->eci }}</p>
+                                        </td>
+                                        <td class="px-4 py-2.5 font-medium text-indigo-600">{{ $h->template?->name ?? '—' }}</td>
+                                        <td class="px-4 py-2.5 text-center text-gray-500">{{ $h->reviewed_at?->format('d M Y') ?? '—' }}</td>
+                                        <td class="px-4 py-2.5 text-center">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $hApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-100 text-indigo-800' }}">{{ $hApproved ? 'Approved' : 'Reviewed' }}</span>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-center font-bold text-gray-900">{{ $h->overall_score !== null ? number_format($h->overall_score, 1) : '—' }}</td>
+                                        <td class="px-4 py-2.5 text-center">
+                                            <a href="{{ route('general.kpi-evaluation.review', $h->id) }}"
+                                               class="inline-flex items-center px-3 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all">{{ $hApproved ? 'View' : 'Edit Review' }}</a>
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+                @endforeach
+            </table>
+            <div id="rhPager" class="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-3 text-xs text-gray-500"></div>
+            @else
+            <div class="text-center py-10">
+                <p class="text-xs text-gray-400">You haven't submitted any lead assessments yet.</p>
+            </div>
+            @endif
+        </div>
         @endif
     </div>
+    @endif
 
     {{-- ══════════════════ TAB: UPWARD ASSESSMENT ══════════════════ --}}
     <div class="kpi-tab-panel space-y-5 hidden" data-tab="upward">
@@ -551,28 +546,67 @@ function showKpiTab(key) {
     if (initial && document.querySelector(`.kpi-tab-panel[data-tab="${initial}"]`)) showKpiTab(initial);
 })();
 
+// ── My Review History: expand a month + client-side pagination ──────────────
+function toggleRh(row) {
+    const detail = row.nextElementSibling;
+    const open = detail.classList.toggle('hidden') === false;
+    row.querySelector('.rh-chev').style.transform = open ? 'rotate(180deg)' : '';
+}
+(function () {
+    const blocks = [...document.querySelectorAll('.rh-block')];
+    const pager = document.getElementById('rhPager');
+    if (!pager) return;
+    const PER_PAGE = 6;
+    const pages = Math.max(1, Math.ceil(blocks.length / PER_PAGE));
+    let page = 1;
+    function render() {
+        blocks.forEach((b, i) => b.classList.toggle('hidden', Math.floor(i / PER_PAGE) + 1 !== page));
+        const from = (page - 1) * PER_PAGE + 1, to = Math.min(page * PER_PAGE, blocks.length);
+        const btn = 'w-8 h-8 rounded-lg border flex items-center justify-center text-xs font-semibold transition-all ';
+        let nums = '';
+        for (let p = 1; p <= pages; p++) {
+            nums += `<button type="button" data-p="${p}" class="${btn}${p === page ? 'primary-gradient text-white border-transparent shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}">${p}</button>`;
+        }
+        pager.innerHTML = `<span>Showing ${from}–${to} of ${blocks.length} months</span>
+            <div class="flex items-center gap-1.5">
+                <button type="button" data-p="${page - 1}" ${page === 1 ? 'disabled' : ''} class="${btn}border-gray-200 bg-white text-gray-500 disabled:opacity-40 disabled:cursor-not-allowed"><i class="fas fa-chevron-left text-[10px]"></i></button>
+                ${nums}
+                <button type="button" data-p="${page + 1}" ${page === pages ? 'disabled' : ''} class="${btn}border-gray-200 bg-white text-gray-500 disabled:opacity-40 disabled:cursor-not-allowed"><i class="fas fa-chevron-right text-[10px]"></i></button>
+            </div>`;
+        pager.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => { page = +b.dataset.p; render(); });
+    }
+    render();
+})();
+
 const trendData = @json($scoreTrend);
 const ctx = document.getElementById('scoreTrendChart');
+const trendSeries = (label, key, color) => ({
+    label,
+    data: trendData.map(d => d[key]),
+    borderColor: color,
+    backgroundColor: color,
+    borderWidth: 2.5,
+    pointBackgroundColor: color,
+    pointRadius: 5,
+    pointHoverRadius: 7,
+    tension: 0.4,
+    spanGaps: true,
+});
+// Self dot always; Lead dot only when the employee has a lead assessment.
+const datasets = [trendSeries('Self Assessment', 'self', '#7C3AED')];
+@if($leadEvals->isNotEmpty())
+datasets.push(trendSeries('Lead Assessment', 'lead', '#F59E0B'));
+@endif
 if (ctx) {
     new Chart(ctx, {
         type: 'line',
         data: {
             labels: trendData.map(d => d.label),
-            datasets: [{
-                label: 'KPI Score',
-                data: trendData.map(d => d.score),
-                borderColor: '#7C3AED',
-                backgroundColor: 'rgba(124,58,237,0.08)',
-                borderWidth: 2.5,
-                pointBackgroundColor: '#7C3AED',
-                tension: 0.4,
-                fill: true,
-                spanGaps: true,
-            }]
+            datasets: datasets
         },
         options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: { legend: { display: datasets.length > 1, position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } } } },
             scales: { y: { min: 0, max: 100 }, x: { grid: { display: false } } }
         }
     });

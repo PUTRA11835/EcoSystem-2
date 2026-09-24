@@ -100,6 +100,35 @@ class KpiTemplateController extends Controller
         ));
     }
 
+    /**
+     * Deadline columns from the form. Only the parts that matter for the chosen
+     * period type are kept, so switching type never leaves stale month/year behind.
+     */
+    private function deadlineFields(Request $request): array
+    {
+        $day = $request->filled('deadline_day') ? (int) $request->deadline_day : null;
+        if (!$day) {
+            return ['deadline_day' => null, 'deadline_month' => null, 'deadline_year' => null];
+        }
+        $type = $request->period_type;
+        return [
+            'deadline_day'   => $day,
+            'deadline_month' => in_array($type, ['quarterly', 'annual'], true) && $request->filled('deadline_month') ? (int) $request->deadline_month : null,
+            'deadline_year'  => $type === 'annual' && $request->filled('deadline_year') ? (int) $request->deadline_year : null,
+        ];
+    }
+
+    private function applyDeadlineToOpenEvaluations(KpiTemplate $template, string $periodMonth): void
+    {
+        $deadline = $template->deadlineFor($periodMonth);
+        $column   = in_array($template->target_type, ['self', 'upward'], true) ? 'self_deadline' : 'supervisor_deadline';
+
+        KpiEvaluation::where('template_id', $template->id)
+            ->where('period_month', $periodMonth)
+            ->where('status', '!=', KpiEvaluation::STATUS_HR_APPROVED)
+            ->update([$column => $deadline?->toDateString()]);
+    }
+
     /** Roles, positions, employees and projects offered as targeting options on the form. */
     private function formOptions(): array
     {
@@ -147,6 +176,9 @@ class KpiTemplateController extends Controller
             'description'         => 'nullable|string',
             'role_id'             => 'nullable|integer|exists:employee_role,id',
             'period_type'         => 'required|in:monthly,quarterly,annual',
+            'deadline_day'        => 'nullable|integer|min:1|max:31',
+            'deadline_month'      => 'nullable|integer|min:1|max:12',
+            'deadline_year'       => 'nullable|integer|min:2000|max:2100',
             'target_type'         => 'nullable|in:self,supervisor,peer,upward',
             'is_anonymous'        => 'nullable|boolean',
             'target_roles'        => 'nullable|array',
@@ -194,6 +226,7 @@ class KpiTemplateController extends Controller
                 'description'      => $request->description,
                 'role_id'         => $request->role_id,
                 'period_type'     => $request->period_type,
+                ...$this->deadlineFields($request),
                 'target_type'     => $targetType,
                 'is_anonymous'    => $request->boolean('is_anonymous'),
                 'target_roles'    => $this->cleanList($request->input('target_roles', [])),
@@ -251,6 +284,9 @@ class KpiTemplateController extends Controller
             'description'         => 'nullable|string',
             'role_id'             => 'nullable|integer|exists:employee_role,id',
             'period_type'         => 'required|in:monthly,quarterly,annual',
+            'deadline_day'        => 'nullable|integer|min:1|max:31',
+            'deadline_month'      => 'nullable|integer|min:1|max:12',
+            'deadline_year'       => 'nullable|integer|min:2000|max:2100',
             'target_type'         => 'nullable|in:self,supervisor,peer,upward',
             'is_anonymous'        => 'nullable|boolean',
             'target_roles'        => 'nullable|array',
@@ -298,6 +334,7 @@ class KpiTemplateController extends Controller
                 'description'      => $request->description,
                 'role_id'         => $request->role_id,
                 'period_type'     => $request->period_type,
+                ...$this->deadlineFields($request),
                 'target_type'     => $targetType,
                 'is_anonymous'    => $request->boolean('is_anonymous'),
                 'target_roles'    => $this->cleanList($request->input('target_roles', [])),
@@ -338,6 +375,13 @@ class KpiTemplateController extends Controller
                 }
                 KpiEvaluationDetail::insertOrIgnore($rows);
             }
+
+            // Indicators/scales were replaced above; make sure "last changed"
+            // moves even when the template's own columns were untouched.
+            $template->touch();
+
+            // Push the (possibly changed) deadline onto this period's open evaluations.
+            $this->applyDeadlineToOpenEvaluations($template->fresh(), Carbon::now()->format('Y-m'));
 
             DB::commit();
 

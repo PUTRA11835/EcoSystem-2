@@ -221,24 +221,31 @@
             <span class="text-[11px] text-amber-700">Weighted Score = Score &divide; {{ $scaleMax }} &times; Bobot</span>
         </div>
         <div class="overflow-x-auto">
-            <table class="w-full text-xs">
+            <table class="w-full text-xs table-fixed min-w-200 text-center">
+                <colgroup>
+                    <col style="width:8%">
+                    <col style="width:16%">
+                    <col style="width:28%">
+                    <col style="width:16%">
+                    <col style="width:32%">
+                </colgroup>
                 <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase">
                     <tr>
-                        <th class="text-center px-3 py-2 font-semibold w-14">Skala</th>
-                        <th class="text-left px-3 py-2 font-semibold">Kategori</th>
-                        <th class="text-left px-3 py-2 font-semibold">Definisi</th>
-                        <th class="text-left px-3 py-2 font-semibold w-28">Achievement</th>
-                        <th class="text-left px-3 py-2 font-semibold">Keterangan</th>
+                        <th class="px-4 py-2.5 font-semibold">Skala</th>
+                        <th class="px-4 py-2.5 font-semibold">Kategori</th>
+                        <th class="px-4 py-2.5 font-semibold">Definisi</th>
+                        <th class="px-4 py-2.5 font-semibold">Achievement</th>
+                        <th class="px-4 py-2.5 font-semibold">Keterangan</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($scaleRows as $sc)
                     <tr>
-                        <td class="px-3 py-2 text-center font-bold text-indigo-700">{{ $sc->scale_value }}</td>
-                        <td class="px-3 py-2 font-semibold text-gray-800">{{ $sc->category }}</td>
-                        <td class="px-3 py-2 text-gray-600">{{ $sc->definition }}</td>
-                        <td class="px-3 py-2 text-gray-600">{{ $sc->achievement_label }}</td>
-                        <td class="px-3 py-2 text-gray-500">{{ $sc->description }}</td>
+                        <td class="px-4 py-2.5 font-bold text-indigo-700">{{ $sc->scale_value }}</td>
+                        <td class="px-4 py-2.5 font-semibold text-gray-800">{{ $sc->category }}</td>
+                        <td class="px-4 py-2.5 text-gray-600">{{ $sc->definition }}</td>
+                        <td class="px-4 py-2.5 text-gray-600">{{ $sc->achievement_label }}</td>
+                        <td class="px-4 py-2.5 text-gray-500">{{ $sc->description }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -319,7 +326,7 @@
                                 $currentRating = $detail->star_rating ?? ($scoreVal ? min($max, max(1, (int) round($scoreVal / 100 * $max))) : null);
                                 $isUnfilled = !$isPara && is_null($currentRating);
                             @endphp
-                            <tr class="indicator-tr hover:bg-gray-50/50 transition-colors {{ $isUnfilled ? 'bg-amber-50/20' : '' }}" data-weight="{{ $weight }}">
+                            <tr class="indicator-tr ind-row hover:bg-gray-50/50 transition-colors {{ $isUnfilled ? 'bg-amber-50/20' : '' }}" data-weight="{{ $weight }}">
                                 <td class="px-4 py-4 font-bold text-gray-400 align-top">{{ $i + 1 }}</td>
                                 <td class="px-4 py-4 align-top space-y-2">
                                     <div>
@@ -335,7 +342,8 @@
                                     <textarea name="scores[{{ $detail->id }}][notes]" rows="3"
                                         {{ $isReadOnly ? 'readonly' : '' }}
                                         placeholder="Catatan / tanggapan atas jawaban karyawan..."
-                                        class="w-full px-3 py-2 text-[11px] border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y bg-white">{{ old("scores.{$detail->id}.notes", $notesVal) }}</textarea>
+                                        oninput="updateReviewSubmitState()"
+                                        class="req-field w-full px-3 py-2 text-[11px] border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y bg-white">{{ old("scores.{$detail->id}.notes", $notesVal) }}</textarea>
                                     @if(!$isUpward && $detail->self_notes)
                                     <p class="text-[11px] text-gray-500 mt-1"><span class="font-semibold text-gray-600">Jawaban karyawan:</span> {{ $detail->self_notes }}</p>
                                     @endif
@@ -360,7 +368,7 @@
                                         class="w-full min-h-[4.5rem] px-3 py-2 text-sm text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $isReadOnly ? 'bg-gray-50 text-gray-600' : 'bg-white' }}">{{ old("scores.{$detail->id}.actual", $detail->actual_achievement) }}</textarea>
                                 </td>
                                 <td class="px-4 py-4 align-top text-center">
-                                    <input type="hidden" name="scores[{{ $detail->id }}][rating]" id="rating_val_{{ $detail->id }}" value="{{ $currentRating ?? '' }}">
+                                    <input type="hidden" name="scores[{{ $detail->id }}][rating]" id="rating_val_{{ $detail->id }}" class="rating-val" value="{{ $currentRating ?? '' }}">
 
                                     <div id="stars_{{ $detail->id }}" class="flex items-center justify-center gap-1 my-1 flex-wrap">
                                         @for($star = 1; $star <= $max; $star++)
@@ -417,8 +425,11 @@
                         class="px-5 py-2 bg-white text-indigo-600 border border-indigo-200 text-xs font-bold rounded-xl shadow-sm hover:bg-indigo-50 transition-all">
                         Simpan Draft
                     </button>
-                    <button type="submit" name="action" value="submit" onclick="window._kpiReviewAction='submit'"
-                        class="px-6 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all">
+                    <span id="reviewIncompleteHint" class="hidden text-[11px] font-semibold text-amber-700">
+                        <i class="fas fa-circle-exclamation mr-1"></i><span id="reviewIncompleteCount"></span> belum diisi
+                    </span>
+                    <button type="submit" name="action" value="submit" id="submitReviewBtn" disabled onclick="window._kpiReviewAction='submit'"
+                        class="px-6 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40">
                         <i class="fas fa-paper-plane text-xs mr-1"></i> Kirim Ke HR
                     </button>
                 </div>
@@ -497,7 +508,29 @@ function setStarRating(detailId, star, weight, max) {
     if (cell) cell.textContent = weighted.toFixed(2);
 
     recalcTotalScore();
+    updateReviewSubmitState();
 }
+
+// "Kirim Ke HR" stays disabled until every indicator is complete (rating picked for
+// scale rows, uraian filled for paragraph rows; realisasi is optional). Counted per indicator, updated live as the
+// reviewer fills in. "Simpan Draft" is always available.
+function updateReviewSubmitState() {
+    const btn = document.getElementById('submitReviewBtn');
+    if (!btn) return;
+    let missing = 0;
+    document.querySelectorAll('tr.ind-row').forEach(tr => {
+        const ratingMissing = [...tr.querySelectorAll('.rating-val')].some(i => i.value === '');
+        const textMissing   = [...tr.querySelectorAll('.req-field')].some(el => el.value.trim() === '');
+        if (ratingMissing || textMissing) missing++;
+    });
+    btn.disabled = missing > 0;
+    const hint = document.getElementById('reviewIncompleteHint');
+    if (hint) {
+        hint.classList.toggle('hidden', missing === 0);
+        document.getElementById('reviewIncompleteCount').textContent = `${missing} indikator`;
+    }
+}
+document.addEventListener('DOMContentLoaded', updateReviewSubmitState);
 
 function recalcTotalScore() {
     let total = 0;
@@ -528,6 +561,7 @@ function submitKpiReview(e) {
     _kpiReviewForm = e.target;
     // "Kirim Ke HR" needs an explicit confirmation; "Simpan Draft" saves silently.
     if (window._kpiReviewAction === 'submit') {
+        if (document.getElementById('submitReviewBtn')?.disabled) return;
         showKpiModal('reviewConfirmModal');
         return;
     }

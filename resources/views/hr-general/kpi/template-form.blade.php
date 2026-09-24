@@ -22,6 +22,9 @@
     $vProjects  = collect(old('target_projects', $template->target_projects ?? []))->map(fn($v) => (string) $v)->all();
     $vSubjects  = collect(old('subject_employees', $template->subject_employees ?? []))->map(fn($v) => (string) $v)->all();
     $vDivisor   = old('score_divisor', $template->score_divisor ?? 5);
+    $vDlDay     = old('deadline_day', $template->deadline_day);
+    $vDlMonth   = old('deadline_month', $template->deadline_month);
+    $vDlYear    = old('deadline_year', $template->deadline_year ?: now()->year);
 
     // Option pools for the criteria builder, keyed by criterion type.
     $targetPools = [
@@ -102,7 +105,7 @@
                         class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300 focus:border-red-400"
                         placeholder="e.g. Engineering Staff Monthly KPI">
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-1.5">Assessment Type <span class="text-red-500">*</span></label>
                         <select name="target_type" id="targetTypeSelect" required onchange="toggleAnonymousVisibility(); updateAudienceCopy();"
@@ -115,14 +118,46 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-1.5">Period Type <span class="text-red-500">*</span></label>
-                        <select name="period_type" required
+                        <select name="period_type" id="periodTypeSelect" required onchange="updateDeadlineFields()"
                             class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300">
                             <option value="monthly" {{ $vPeriod === 'monthly' ? 'selected' : '' }}>Monthly</option>
                             <option value="quarterly" {{ $vPeriod === 'quarterly' ? 'selected' : '' }}>Quarterly</option>
                             <option value="annual" {{ $vPeriod === 'annual' ? 'selected' : '' }}>Annual</option>
                         </select>
                     </div>
+                    {{-- Deadline — the pickers shown depend on the period type:
+                         monthly = date, quarterly = month + date, annual = date + month + year. --}}
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">
+                            Deadline <span class="text-gray-400 font-normal" id="deadlineHint"></span>
+                        </label>
+                        <div class="flex gap-1.5">
+                            <select name="deadline_day" id="dlDay" class="min-w-0 flex-1 px-2.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300">
+                                <option value="">Date</option>
+                                @for($d = 1; $d <= 31; $d++)
+                                <option value="{{ $d }}" {{ (int) $vDlDay === $d ? 'selected' : '' }}>{{ $d }}</option>
+                                @endfor
+                            </select>
+                            <select name="deadline_month" id="dlMonth" class="min-w-0 flex-[1.4] px-2.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300">
+                                <option value="">Month</option>
+                                @foreach(range(1, 12) as $m)
+                                <option value="{{ $m }}" {{ (int) $vDlMonth === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::create(2000, $m, 1)->format('F') }}</option>
+                                @endforeach
+                            </select>
+                            <select name="deadline_year" id="dlYear" class="min-w-0 flex-1 px-2.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300">
+                                @foreach(range(now()->year - 1, now()->year + 5) as $y)
+                                <option value="{{ $y }}" {{ (int) $vDlYear === $y ? 'selected' : '' }}>{{ $y }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
                 </div>
+                @if($isEdit && $template->updated_at)
+                <p class="text-[11px] text-gray-400 -mt-2">
+                    <i class="fas fa-clock-rotate-left mr-1"></i>
+                    Last changed {{ $template->updated_at->format('d M Y, H:i') }} ({{ $template->updated_at->diffForHumans() }})
+                </p>
+                @endif
                 {{-- Who fills it vs. who it's about — flips per assessment type, so this
                      box always states it explicitly instead of leaving it implied. --}}
                 <div id="flowDirectionBox" class="p-3.5 rounded-xl border flex items-start gap-3"></div>
@@ -326,11 +361,20 @@
                 <div class="flex items-center gap-3">
                     <span id="indicatorCountDisplay" class="text-xs font-bold text-indigo-600">0 indicators</span>
                     <span id="weightSumDisplay" class="text-xs font-bold text-gray-400">Total: 0%</span>
+                    <button type="button" onclick="autoDistributeWeights(true)"
+                        class="px-2.5 py-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all">
+                        <i class="fas fa-equals text-[9px] mr-1"></i>Split evenly
+                    </button>
                 </div>
             </div>
             <p class="text-[11px] text-gray-400 mb-3">
                 <strong>Rating</strong> rows are scored against the scale above. <strong>Paragraph</strong> rows just collect text — no weight.
+                Weights are split evenly (100% ÷ number of rating rows) until you edit one by hand.
             </p>
+            <div id="weightWarning" class="hidden mb-3 p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-800 items-start gap-2">
+                <i class="fas fa-triangle-exclamation mt-0.5 shrink-0"></i>
+                <span id="weightWarningText"></span>
+            </div>
 
             {{-- Column headers --}}
             <div class="hidden sm:grid grid-cols-12 gap-2 px-1 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
@@ -365,7 +409,7 @@
                         <input type="number" name="indicators[__I__][weight]" value="{{ $r->weight ?? '' }}"
                             placeholder="Weight %" min="0" max="100" step="0.01" {{ $isPara ? 'disabled' : '' }}
                             class="weight-input w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 text-center font-bold {{ $isPara ? 'bg-gray-100 text-gray-400' : '' }}"
-                            oninput="updateWeightSum()">
+                            oninput="weightsManual = true; updateWeightSum()">
                     </div>
                     <div class="col-span-9 sm:col-span-2">
                         <input type="number" value="{{ $vDivisor ?: 5 }}" readonly tabindex="-1"
@@ -373,7 +417,7 @@
                     </div>
                     <div class="col-span-3 sm:col-span-1 flex items-center justify-center">
                         <button type="button" title="Remove indicator"
-                            onclick="this.closest('.indicator-row').remove(); reindexRows(); updateWeightSum();"
+                            onclick="this.closest('.indicator-row').remove(); reindexRows(); autoDistributeWeights();"
                             class="w-7 h-7 flex items-center justify-center bg-red-50 text-red-500 rounded-lg hover:bg-red-100 border border-red-200 transition-all">
                             <i class="fas fa-trash text-[11px]"></i>
                         </button>
@@ -437,7 +481,7 @@ function addIndicatorRow() {
     clone.querySelectorAll('.unit-dd-menu').forEach(m => m.classList.add('hidden'));
     document.getElementById('indicatorList').appendChild(clone);
     reindexRows();
-    updateWeightSum();
+    autoDistributeWeights();
     syncScoreDivisor();
     clone.querySelector('.indicator-name-input')?.focus();
 }
@@ -455,6 +499,29 @@ function toggleIndicatorType(sel) {
     row.querySelectorAll('.rating-max-input').forEach(el => {
         el.classList.toggle('opacity-50', para);
     });
+    autoDistributeWeights();
+}
+
+// Splits 100% evenly across the rating (non-paragraph) rows; the last row
+// absorbs the rounding remainder so the total is exactly 100. Runs on
+// add / remove / type change unless the user has typed a weight by hand
+// (then only the "Split evenly" button, force=true, overrides them).
+let weightsManual = false;
+function autoDistributeWeights(force = false) {
+    if (force) weightsManual = false;
+    if (!weightsManual) {
+        const inputs = [...document.querySelectorAll('#indicatorList .weight-input')].filter(i => !i.disabled);
+        const n = inputs.length;
+        if (n) {
+            const base = Math.floor(10000 / n) / 100;
+            let used = 0;
+            inputs.forEach((inp, idx) => {
+                const v = idx === n - 1 ? +(100 - used).toFixed(2) : base;
+                inp.value = v;
+                used += v;
+            });
+        }
+    }
     updateWeightSum();
 }
 
@@ -512,6 +579,19 @@ function updateWeightSum() {
     const el = document.getElementById('weightSumDisplay');
     el.textContent = `Total: ${total.toFixed(2)}%`;
     el.className = `text-xs font-bold ${Math.abs(total - 100) < 0.01 ? 'text-green-600' : (total > 100 ? 'text-red-600' : 'text-amber-600')}`;
+
+    const warn = document.getElementById('weightWarning');
+    if (warn) {
+        const bad = Math.abs(total - 100) >= 0.01;
+        warn.classList.toggle('hidden', !bad);
+        warn.classList.toggle('flex', bad);
+        if (bad) {
+            const diff = Math.abs(100 - total).toFixed(2);
+            document.getElementById('weightWarningText').innerHTML =
+                `Weights total <strong>${total.toFixed(2)}%</strong>, not 100%. ` +
+                (total > 100 ? `Reduce by ${diff}%` : `Add ${diff}% more`) + ' before saving.';
+        }
+    }
 
     const countEl = document.getElementById('indicatorCountDisplay');
     if (countEl) {
@@ -745,6 +825,21 @@ document.addEventListener('click', function (e) {
     renderChosen();
     tgtRenderList();
 })();
+
+// Deadline pickers follow the period type. Hidden pickers are disabled so
+// they aren't submitted (the server also drops parts that don't apply).
+function updateDeadlineFields() {
+    const type = document.getElementById('periodTypeSelect').value;
+    const show = { dlDay: true, dlMonth: type !== 'monthly', dlYear: type === 'annual' };
+    Object.entries(show).forEach(([id, on]) => {
+        const el = document.getElementById(id);
+        el.classList.toggle('hidden', !on);
+        el.disabled = !on;
+    });
+    document.getElementById('deadlineHint').textContent =
+        type === 'monthly' ? '(day of each month)' : type === 'quarterly' ? '(month & date)' : '(date, month & year)';
+}
+updateDeadlineFields();
 
 // Anonymous evaluation only makes sense when raters are distinct from the
 // subject and identity should be shielded — Peer and Upward assessments.
@@ -1027,6 +1122,12 @@ document.getElementById('templateForm').addEventListener('submit', function (e) 
 
 reindexRows();
 reindexScales();
+// A stored template keeps its weights; only fill in evenly when none are set yet.
+(function () {
+    const inputs = [...document.querySelectorAll('#indicatorList .weight-input')].filter(i => !i.disabled);
+    if (inputs.length && inputs.every(i => i.value === '')) autoDistributeWeights();
+    else weightsManual = true;
+})();
 updateWeightSum();
 syncScoreDivisor();
 </script>
