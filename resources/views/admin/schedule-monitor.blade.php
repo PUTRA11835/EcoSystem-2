@@ -196,7 +196,7 @@
 </div>
 
 <!-- Error Modal -->
-<div id="errorModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+<div id="errorModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col">
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
             <h4 class="text-sm font-semibold text-gray-900" id="errorModalTitle">Error Detail</h4>

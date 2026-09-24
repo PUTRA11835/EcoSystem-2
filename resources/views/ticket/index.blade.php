@@ -602,7 +602,7 @@
 
 <!-- Create Ticket Modal -->
 @if($can('ui.ticket.btn-create'))
-<div id="createTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+<div id="createTicketModal" class="hidden fixed inset-0 bg-black/50 z-50 overflow-y-auto">
     <div class="min-h-full flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
             <div class="flex items-center justify-between px-6 py-5 border-b border-gray-200">
@@ -3111,7 +3111,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 {{-- ══════════════════════════════════════════════════════════════════════════
      TICKET ACTIVITY LOG MODAL
 ══════════════════════════════════════════════════════════════════════════ --}}
-<div id="activityLogModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[9990] flex items-center justify-center p-4">
+<div id="activityLogModal" class="hidden fixed inset-0 bg-black/50 z-[9990] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
 
         {{-- Header --}}
@@ -3154,7 +3154,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 </div>
 
 {{-- Activity Log Form Modal --}}
-<div id="alFormModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[9995] flex items-center justify-center p-4">
+<div id="alFormModal" class="hidden fixed inset-0 bg-black/50 z-[9995] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <h3 id="alFormTitle" class="text-sm font-bold text-gray-900">Add Activity</h3>
@@ -3444,7 +3444,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 {{-- ══════════════════════════════════════════════════════════════════════════
      LOG SHIFTING MODAL (single ticket — same data as Reporting > Log Shifting)
 ══════════════════════════════════════════════════════════════════════════ --}}
-<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[9990] flex items-center justify-center p-4">
+<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black/50 z-[9990] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <div>

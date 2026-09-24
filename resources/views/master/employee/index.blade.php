@@ -63,7 +63,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                              class here would have) — see the comment on that rule. --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky top-0 left-0 bg-gray-50" style="min-width:100px;">
                             <button type="button" id="empFilterBtn" onclick="toggleEmpFilter(event)"
-                                class="w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                class="w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">ECI</span>
                                 <svg id="empFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
@@ -84,7 +84,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                              for this cell comes from the nth-child(2) CSS rule (see note on ECI). --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50" style="min-width:200px;left:100px;">
                             <button type="button" id="fullNameFilterBtn" onclick="toggleFullNameFilter(event)"
-                                class="w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                class="w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Full Name</span>
                                 <svg id="fullNameFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
@@ -106,7 +106,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                              instead of being cut off / overlapping the row below it. --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterPosition" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Position</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -131,7 +131,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                  usual ">7 items" auto-detect threshold runs and would otherwise
                                  never add the search box at all. --}}
                             <div class="custom-dd relative w-full" id="ddFilterModules" data-multi="true" data-fixed="true" data-searchable="true" data-search-placeholder="Search module..." data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Module</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -149,7 +149,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         {{-- EMPLOYEE GROUP: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style="min-width:130px;">
                             <div class="custom-dd relative w-full" id="ddFilterEmployeeGroup" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Employee Group</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -168,7 +168,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         {{-- DIVISION: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterDivision" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Division</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -189,7 +189,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                              Position/Division rather than a bespoke free-text-only search. --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style="min-width:220px;">
                             <div class="custom-dd relative w-full" id="ddFilterDepartment" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Department</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -208,7 +208,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         {{-- HOME BASE: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterHomeBase" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Home Base</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -225,7 +225,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                             </div>
                         </th>
                         {{-- SINCE DATE: no filter --}}
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Since Date</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Since Date</th>
                         {{-- Remaining Employee Information columns (from the "Organizational Data" section
                              of the employee record) — everything except `block` and `deletion_flag` (those
                              only drive the Status column, moved to just before Actions below), and except
@@ -234,7 +234,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         {{-- PERSONNEL AREA: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterPersonnelArea" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Personnel Area</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -253,7 +253,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         {{-- PERSONNEL SUBAREA: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterPersonnelSubarea" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Personnel Subarea</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -269,11 +269,11 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </th>
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Employee Subgroup</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Employee Subgroup</th>
                         {{-- EMPLOYEE TYPE: column filter dropdown (fixed set: Internal / External) --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterEmployeeType" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Employee Type</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -288,15 +288,15 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </th>
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Authorization Group</th>
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Current Assignment</th>
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Direct Supervision</th>
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Manager</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Authorization Group</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Current Assignment</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Direct Supervision</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Manager</th>
                         {{-- STATUS: column filter dropdown (single-select) — moved to right before
                              Actions, per request. --}}
-                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style="min-width:170px;">
                             <div class="custom-dd relative w-full" id="ddFilterStatus" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Status</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -312,7 +312,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                             </div>
                         </th>
                         {{-- ACTIONS: no filter --}}
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Actions</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Actions</th>
                     </tr>
                 </thead>
                 {{-- `uppercase` here is CSS-only (text-transform) — display formatting, the
@@ -329,7 +329,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 </div>
 
 <!-- Modal Create/Edit Employee dengan 3 Sections -->
-<div id="employeeModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="employeeModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         <!-- Modal Header -->
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
@@ -679,7 +679,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 </div>
 
 <!-- Modal Change Password -->
-<div id="changePasswordModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="changePasswordModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
             <div>
@@ -731,7 +731,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
      ECI doubles as the login username (see AuthController::login, auth_users.username).
      Requires: re-type the new ECI + the acting admin's own password, and force-logs-out
      the affected employee's existing sessions once changed. -->
-<div id="changeEciModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="changeEciModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
             <div>
@@ -788,7 +788,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 </div>
 
 <!-- Modal Change Role (multi-select via checkboxes) -->
-<div id="changeRoleModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="changeRoleModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
         <!-- Header -->
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
@@ -841,7 +841,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 </div>
 
 <!-- Modal Konfirmasi Delete -->
-<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
@@ -1177,36 +1177,36 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
             return `
             <tr class="employee-row" onclick="navigateToDetail(${emp.id}, event)">
-                <td class="px-4 py-3.5 text-sm" style="min-width:100px;"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
-                <td class="px-4 py-3.5 text-sm text-gray-600" style="min-width:200px;">${fullName}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.position || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${(emp.modules && emp.modules.length) ? emp.modules.join(', ') : '-'}</td>
-                <td class="px-4 py-3.5 text-sm">${renderEmployeeGroup(emp.employee_group)}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.division || '-'}</td>
+                <td class="px-3 py-2 text-sm" style="min-width:100px;"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
+                <td class="px-3 py-2 text-sm text-gray-600" style="min-width:200px;">${fullName}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.position || '-'}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${(emp.modules && emp.modules.length) ? emp.modules.join(', ') : '-'}</td>
+                <td class="px-3 py-2 text-sm">${renderEmployeeGroup(emp.employee_group)}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.division || '-'}</td>
                 {{-- Kolom Department membaca eb.department. Sebelumnya keliru
                      merender employee_subgroup sehingga selalu tampil "-". --}}
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.department || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.home_base || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.since_date || '-'}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.department || '-'}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.home_base || '-'}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.since_date || '-'}</td>
                 {{-- Remaining Employee Information columns — everything from the employee
                      record except `block` and `deletion_flag` (those only drive the Status
                      column, moved below to sit right before Actions), and except
                      Title/Nick Name/Gender/Religion/Marital Status/Birth Date/Birth Place
                      (not needed in this table per request). --}}
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.personnel_area || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.personnel_subarea || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.employee_subgroup || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.employee_type || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.authorization_group || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.current_assignment || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.direct_supervision || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.manager || '-'}</td>
-                <td class="px-4 py-3.5 text-sm">
-                    <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full ${statusInfo.class}">
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.personnel_area || '-'}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.personnel_subarea || '-'}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.employee_subgroup || '-'}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.employee_type || '-'}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.authorization_group || '-'}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.current_assignment || '-'}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.direct_supervision || '-'}</td>
+                <td class="px-3 py-2 text-sm text-gray-600">${emp.manager || '-'}</td>
+                <td class="px-3 py-2 text-sm" style="min-width:170px;">
+                    <span class="inline-block whitespace-nowrap px-3 py-1 text-xs font-semibold rounded-full ${statusInfo.class}">
                         ${statusInfo.label}
                     </span>
                 </td>
-                <td class="px-4 py-3.5 text-sm">
+                <td class="px-3 py-2 text-sm">
                     ${canEmployeeAction ? `<div class="action-buttons" onclick="event.stopPropagation()">
                         <button onclick="openEmpMenu(event, ${emp.id})" class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 transition-all">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4">

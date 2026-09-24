@@ -122,8 +122,10 @@ const canRejectStaging  = {{ $can('staging.reject')  ? 'true' : 'false' }};
             <tbody id="stagingTableBody" class="divide-y divide-gray-100 bg-white">
                 <tr>
                     <td colspan="8" class="px-6 py-12 text-center text-gray-400">
-                        <i class="fas fa-spinner fa-spin text-2xl mb-2 block"></i>
-                        Loading data...
+                        <svg class="animate-spin w-5 h-5 mx-auto text-red-400" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                        </svg>
                     </td>
                 </tr>
             </tbody>
@@ -151,7 +153,10 @@ const canRejectStaging  = {{ $can('staging.reject')  ? 'true' : 'false' }};
         {{-- Body (scrollable) --}}
         <div class="overflow-y-auto flex-1 p-7" id="modalBody">
             <div class="flex items-center justify-center py-12 text-gray-400">
-                <i class="fas fa-spinner fa-spin text-2xl mr-2"></i> Loading...
+                <svg class="animate-spin w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                </svg>
             </div>
         </div>
 
@@ -292,7 +297,10 @@ async function loadStagingTickets(page = 1) {
 
     const tbody = document.getElementById('stagingTableBody');
     tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-12 text-center text-gray-400">
-        <i class="fas fa-spinner fa-spin text-2xl mb-2 block"></i>Loading...</td></tr>`;
+        <svg class="animate-spin w-5 h-5 mx-auto text-red-400" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg></td></tr>`;
 
     try {
         const opts = {
@@ -426,7 +434,10 @@ async function openModal(id) {
     document.getElementById('modalStatusBadge').innerHTML  = '';
     document.getElementById('modalBody').innerHTML =
         `<div class="flex items-center justify-center py-12 text-gray-400">
-            <i class="fas fa-spinner fa-spin text-2xl mr-2"></i> Loading...
+            <svg class="animate-spin w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+            </svg>
         </div>`;
     document.getElementById('modalFooter').innerHTML = '';
 
@@ -1795,8 +1806,7 @@ async function fetchEmailInbox(silent = false) {
     const btn    = document.getElementById('btnRefresh');
     const status = document.getElementById('fetchEmailStatus');
 
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> Refreshing…'; }
-    if (status) { status.textContent = 'Refreshing...'; }
+    if (btn) { btn.disabled = true; btn.innerHTML = '<svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>'; }
 
     const ts = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 

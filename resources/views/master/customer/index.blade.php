@@ -117,7 +117,7 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
 </div>
 
 <!-- SIMPLIFIED Modal Create Business Partner - Only Essential Fields -->
-<div id="customerModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="customerModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         <!-- Modal Header -->
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
@@ -373,7 +373,7 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
 </div>
 
 <!-- Modal Konfirmasi Delete -->
-<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
@@ -392,7 +392,7 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
 </div>
 
 {{-- New customer group modal --}}
-<div id="newGroupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+<div id="newGroupModal" class="hidden fixed inset-0 bg-black/50 z-[60] items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <h3 class="text-lg font-bold text-gray-900 mb-1">New Customer Group</h3>

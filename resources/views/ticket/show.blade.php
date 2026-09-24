@@ -43,7 +43,7 @@
 <div class="flex flex-col h-full">
     {{-- Back to Tickets --}}
     <div class="px-4 pt-4 pb-2">
-        <a href="{{ route('ticket.index') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 transition-all text-sm">
+        <a href="{{ route('ticket.index') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-white/80 hover:bg-white/10 transition-all text-sm">
             <i class="fas fa-arrow-left text-xs"></i>
             <span class="font-medium">Back to Tickets</span>
         </a>
@@ -52,7 +52,7 @@
     {{-- Filter Tabs --}}
     @if($can('room-chat.tab-all-ticket') || $can('room-chat.tab-my-ticket'))
     <div class="px-4 pb-3">
-        <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
+        <div class="flex bg-white/10 rounded-lg p-0.5 gap-0.5">
             @if($can('room-chat.tab-all-ticket'))
             <button id="sidebarTabAll" onclick="switchSidebarView('all')"
                 class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-white" style="background:rgba(255,255,255,0.2)">
@@ -73,10 +73,10 @@
     <div class="px-4 pb-3">
         <div class="relative">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <i class="fas fa-search text-white text-opacity-40 text-xs"></i>
+                <i class="fas fa-search text-white/40 text-xs"></i>
             </div>
             <input type="text" id="sidebarSearch" placeholder="Search tickets..."
-                class="w-full pl-9 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-sm text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:bg-white focus:bg-opacity-15 transition-all"
+                class="w-full pl-9 pr-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/50 focus:outline-none focus:bg-white/15 transition-all"
                 onkeyup="filterSidebarTickets()">
         </div>
     </div>
@@ -89,8 +89,8 @@
     {{-- Sidebar Loading --}}
     <div id="sidebarLoading" class="flex-1 flex items-center justify-center">
         <div class="text-center">
-            <i class="fas fa-spinner fa-spin text-white text-opacity-50 text-lg mb-2"></i>
-            <p class="text-white text-opacity-50 text-xs">Loading...</p>
+            <i class="fas fa-spinner fa-spin text-white/50 text-lg mb-2"></i>
+            <p class="text-white/50 text-xs">Loading...</p>
         </div>
     </div>
 </div>
@@ -2088,7 +2088,7 @@
 
 {{-- Assign to Delivery Support Modal --}}
 @if($canAssignDelivery)
-<div id="assignSupportModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="assignSupportModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="px-6 py-4 border-b border-gray-200">
             <div class="flex items-center justify-between">
@@ -2119,7 +2119,7 @@
 </div>
 
 {{-- Success Confirmation Modal --}}
-<div id="assignSuccessModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
+<div id="assignSuccessModal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="p-6 text-center">
             <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -2146,7 +2146,7 @@
 
 {{-- PIC: Customer Mandays Modal --}}
 @if(isset($isPicCustomerMandays) && $isPicCustomerMandays)
-<div id="picMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="picMandaysModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -2223,7 +2223,7 @@
 
 {{-- PIC: Resolution Days Modal --}}
 @if(isset($isPicResolutionDays) && $isPicResolutionDays)
-<div id="picResolutionModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="picResolutionModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -2285,7 +2285,7 @@
 
 {{-- Assign Ticket Lead Modal (Admin / Helpdesk / Delivery Support Head, atau Ticket Lead tiket ini / Module Lead) --}}
 @if($canAssignTicketLead)
-<div id="assignTicketLeadModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="assignTicketLeadModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center px-5 py-4 border-b border-gray-200">
             <h3 class="text-base font-bold text-gray-900">Assign Ticket Lead</h3>
@@ -2316,7 +2316,7 @@
 @endif
 
 {{-- ── Send Status Modal ───────────────────────────────────────────────── --}}
-<div id="sendStatusModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
+<div id="sendStatusModal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-xs shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100">
             <div>
@@ -2400,7 +2400,7 @@
 </div>
 
 {{-- ── Confirm Send Modal (review To/Cc/message/status before sending) ──── --}}
-<div id="confirmSendModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="confirmSendModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
             <div>
@@ -2438,7 +2438,7 @@
 
 {{-- Helpdesk: Customer Mandays Review Modal --}}
 @if(isset($isHelpdesk) && $isHelpdesk)
-<div id="hdMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="hdMandaysModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -2522,7 +2522,7 @@
 {{-- ============================================================ --}}
 {{-- Mandays: Version List Modal (shared: PIC / Helpdesk / Head)  --}}
 {{-- ============================================================ --}}
-<div id="mandaysVersionListModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="mandaysVersionListModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-6xl shadow-2xl flex flex-col" style="max-height:90vh;">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -2579,7 +2579,7 @@
 {{-- ============================================================ --}}
 {{-- Mandays: Version Detail Modal (read-only view per version)   --}}
 {{-- ============================================================ --}}
-<div id="mandaysVersionDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
+<div id="mandaysVersionDetailModal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -2661,7 +2661,7 @@
 
 {{-- Delivery Support Head: Resolution Days Modal --}}
 @if(isset($isHead) && $isHead)
-<div id="headResolutionModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="headResolutionModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -2721,7 +2721,7 @@
 
 {{-- Delivery Support Head: Customer Mandays View-Only Modal --}}
 @if(isset($isHead) && $isHead)
-<div id="headCustomerMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="headCustomerMandaysModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -2769,7 +2769,7 @@
 
 {{-- ===== MEETING MODAL ===== --}}
 @if($can('ticket.meeting'))
-<div id="meetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+<div id="meetingModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
     <div id="meetingModalCard" class="bg-white rounded-2xl shadow-2xl w-full max-w-md sm:w-auto sm:max-w-[95vw] my-auto max-h-[92vh] flex flex-col">
         {{-- Header --}}
         <div id="meetingModalHeader" class="flex items-center justify-between px-6 py-4 rounded-t-2xl">
@@ -2955,7 +2955,7 @@
 
 {{-- ===== CONFIRM MEETING MODAL — review sebelum undangan benar-benar dikirim ===== --}}
 @if($can('ticket.meeting'))
-<div id="confirmMeetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="confirmMeetingModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
             <div>
@@ -8705,7 +8705,7 @@
 
 @if($canViewCredential ?? false)
 {{-- Customer Credential Modal --}}
-<div id="credentialModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="credentialModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl" onclick="event.stopPropagation()">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-2">

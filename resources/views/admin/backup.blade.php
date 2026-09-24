@@ -760,7 +760,7 @@
 </div>
 
 {{-- ── Import Error Detail Modal ── --}}
-<div id="errorModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black bg-opacity-40">
+<div id="errorModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/40">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4">
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
             <h3 class="text-sm font-semibold text-gray-800">Import Errors</h3>

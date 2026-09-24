@@ -2193,22 +2193,28 @@ class TicketController extends Controller
                 ->orderBy('ticket_confirmation.created_at', 'desc')
                 ->get();
 
-            // Decode member_ids for each confirmation
+            // Decode member_ids for each confirmation, then bulk-load ALL member
+            // names in one query instead of one query per confirmation row (was
+            // N+1 — each pending confirmation triggered its own employee lookup).
             foreach ($confirmations as $confirmation) {
                 $confirmation->member_ids = json_decode($confirmation->member_ids, true) ?? [];
-                
-                // Get member names
-                if (!empty($confirmation->member_ids)) {
-                    $members = DB::table('employee')
-                        ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-                        ->whereIn('employee.employee_id', $confirmation->member_ids)
-                        ->pluck('employee_basic_data.first_name')
-                        ->toArray();
-                    
-                    $confirmation->member_names = $members;
-                } else {
-                    $confirmation->member_names = [];
-                }
+            }
+
+            $allMemberIds = collect($confirmations)->flatMap(fn($c) => $c->member_ids)->unique()->values();
+
+            $memberNameMap = $allMemberIds->isEmpty()
+                ? collect()
+                : DB::table('employee')
+                    ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+                    ->whereIn('employee.employee_id', $allMemberIds)
+                    ->pluck('employee_basic_data.first_name', 'employee.employee_id');
+
+            foreach ($confirmations as $confirmation) {
+                $confirmation->member_names = collect($confirmation->member_ids)
+                    ->map(fn($id) => $memberNameMap->get($id))
+                    ->filter()
+                    ->values()
+                    ->toArray();
             }
 
             return response()->json([
@@ -3265,18 +3271,25 @@ class TicketController extends Controller
                 ->orderBy('member_change_requests.created_at', 'desc')
                 ->get();
 
-            // Decode member_ids and get names
+            // Decode member_ids and get names — bulk-load in one query instead
+            // of one query per pending change request (was N+1).
             foreach ($memberChanges as $change) {
                 $change->member_ids = json_decode($change->member_ids, true) ?? [];
-                
+            }
+
+            $allMemberIds = collect($memberChanges)->flatMap(fn($c) => $c->member_ids)->unique()->values();
+
+            $memberNameMap = $allMemberIds->isEmpty()
+                ? collect()
+                : DB::table('employee')
+                    ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+                    ->whereIn('employee.employee_id', $allMemberIds)
+                    ->pluck('employee_basic_data.first_name', 'employee.employee_id');
+
+            foreach ($memberChanges as $change) {
                 if (!empty($change->member_ids)) {
-                    $members = DB::table('employee')
-                        ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-                        ->whereIn('employee.employee_id', $change->member_ids)
-                        ->pluck('employee_basic_data.first_name')
-                        ->toArray();
-                    
-                    $change->member_names = implode(', ', $members);
+                    $names = collect($change->member_ids)->map(fn($id) => $memberNameMap->get($id))->filter();
+                    $change->member_names = $names->isEmpty() ? 'None' : $names->implode(', ');
                 } else {
                     $change->member_names = 'None';
                 }

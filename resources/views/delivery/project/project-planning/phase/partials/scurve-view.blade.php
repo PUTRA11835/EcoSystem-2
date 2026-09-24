@@ -11,7 +11,7 @@
             </div>
             <div class="flex items-center space-x-2 w-full sm:w-auto">
                 <button onclick="refreshSCurve()" 
-                        class="flex-1 sm:flex-initial inline-flex items-center justify-center px-3 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white text-sm font-medium rounded-lg transition">
+                        class="flex-1 sm:flex-initial inline-flex items-center justify-center px-3 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-lg transition">
                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                     </svg>
@@ -19,17 +19,17 @@
                 </button>
                 
                 <!-- View Mode Toggle -->
-                <div class="flex-1 sm:flex-initial inline-flex rounded-lg shadow-sm bg-white bg-opacity-20 p-1" role="group">
+                <div class="flex-1 sm:flex-initial inline-flex rounded-lg shadow-sm bg-white/20 p-1" role="group">
                     <button type="button" 
                             data-mode="cumulative"
                             onclick="switchSCurveMode('cumulative')"
-                            class="scurve-mode-toggle flex-1 sm:flex-initial px-3 py-1.5 text-xs font-semibold text-white bg-white bg-opacity-30 rounded-md transition">
+                            class="scurve-mode-toggle flex-1 sm:flex-initial px-3 py-1.5 text-xs font-semibold text-white bg-white/30 rounded-md transition">
                         Cumulative
                     </button>
                     <button type="button"
                             data-mode="weekly"
                             onclick="switchSCurveMode('weekly')"
-                            class="scurve-mode-toggle flex-1 sm:flex-initial px-3 py-1.5 text-xs font-semibold text-white hover:bg-white hover:bg-opacity-20 rounded-md transition">
+                            class="scurve-mode-toggle flex-1 sm:flex-initial px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20 rounded-md transition">
                         Weekly
                     </button>
                 </div>
@@ -114,14 +114,14 @@
             <div class="col-span-2 sm:col-span-1 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-shadow">
                 <div class="flex items-center justify-between mb-2">
                     <div class="text-2xl sm:text-3xl font-bold text-white" id="scurveOverallProgress">0%</div>
-                    <div class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                    <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                         <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
                         </svg>
                     </div>
                 </div>
                 <div class="text-xs font-semibold text-white uppercase tracking-wide">Overall Progress</div>
-                <div class="mt-2 bg-white bg-opacity-20 rounded-full h-2">
+                <div class="mt-2 bg-white/20 rounded-full h-2">
                     <div id="scurveOverallProgressBar" class="bg-white h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
                 </div>
             </div>
@@ -784,11 +784,11 @@
         currentMode = mode;
         
         document.querySelectorAll('.scurve-mode-toggle').forEach(function(btn) {
-            btn.classList.remove('bg-white', 'bg-opacity-30', 'hover:bg-white', 'hover:bg-opacity-20');
+            btn.classList.remove('bg-white/30', 'hover:bg-white/20');
             if (btn.dataset.mode === mode) {
-                btn.classList.add('bg-white', 'bg-opacity-30');
+                btn.classList.add('bg-white/30');
             } else {
-                btn.classList.add('hover:bg-white', 'hover:bg-opacity-20');
+                btn.classList.add('hover:bg-white/20');
             }
         });
         
