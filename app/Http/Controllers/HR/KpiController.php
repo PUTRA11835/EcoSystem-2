@@ -62,9 +62,11 @@ class KpiController extends Controller
         $projectId      = $request->query('project_id', '');
         $positionFilter = $request->query('position', '');
         $roleId         = $request->query('role_id', '');
-        $templateId     = $request->query('template_id', '');
+        // Multi-select: template_ids[] (legacy single template_id still honoured)
+        // and types[] (self | lead | upward | peer, matching the row badges).
+        $templateIds    = array_values(array_filter(array_map('intval', (array) ($request->query('template_ids') ?? $request->query('template_id', [])))));
+        $typeFilters    = array_values(array_intersect((array) $request->query('types', []), ['self', 'lead', 'upward', 'peer']));
         $supervisorId   = $request->query('supervisor', $request->query('supervisor_id', ''));
-        $typeFilter     = $request->query('type', ''); // '' | self | lead
 
         // Scope determination (Supervisor defaults to 'my_team')
         if ($filterType === 'my_team' || $request->query('scope') === 'my_team') {
@@ -108,7 +110,7 @@ class KpiController extends Controller
             ->get();
 
         // ── Active templates ─────────────────────────────────────────────────
-        $activeTemplates = KpiTemplate::where('is_active', true)->withCount('indicators')->get();
+        $activeTemplates = KpiTemplate::where('is_active', true)->startedBy($periodMonth)->withCount('indicators')->get();
 
         // ── Active employees query for coverage table (with multi-filter support) ──
         $empQuery = Employee::with(['basicData', 'deliveryProjects', 'kpiEvaluations', 'roles'])
@@ -159,14 +161,15 @@ class KpiController extends Controller
             });
         }
 
-        // Filter by Template
-        if ($templateId) {
-            $empQuery->whereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)->where('template_id', $templateId));
+        // Filter by Template (any of the picked templates)
+        if ($templateIds) {
+            $empQuery->whereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)->whereIn('template_id', $templateIds));
         }
 
-        // Filter by Assessment Type (self = Evaluasi Mandiri, lead = Penilaian Atasan)
-        if ($typeFilter === 'self' || $typeFilter === 'lead') {
-            $targetTypes = $typeFilter === 'self' ? ['self'] : ['supervisor', 'peer'];
+        // Filter by assessment type badge (any of the picked types)
+        if ($typeFilters) {
+            $typeMap = ['self' => 'self', 'lead' => 'supervisor', 'upward' => 'upward', 'peer' => 'peer'];
+            $targetTypes = array_map(fn($t) => $typeMap[$t], $typeFilters);
             $empQuery->whereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)
                 ->whereHas('template', fn($t) => $t->whereIn('target_type', $targetTypes)));
         }
@@ -221,7 +224,7 @@ class KpiController extends Controller
         $reportsToMap = $this->resolveReportsTo(collect($activeEmployees->items()));
 
         $hasActiveFilters = $search !== '' || $positionFilter !== '' || $statusFilter !== ''
-            || $supervisorId !== '' || $templateId !== '' || $typeFilter !== '';
+            || $supervisorId !== '' || !empty($templateIds) || !empty($typeFilters);
 
         // ── All active employees for bulk assignment checklist modal ─────────
         $allActiveEmployees = Employee::with('basicData')
@@ -278,9 +281,9 @@ class KpiController extends Controller
             'projectId',
             'positionFilter',
             'roleId',
-            'templateId',
+            'templateIds',
             'supervisorId',
-            'typeFilter',
+            'typeFilters',
             'perPage',
             'projects',
             'positions',
@@ -1084,31 +1087,59 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         $trend = [];
         for ($i = $months - 1; $i >= 0; $i--) {
             $period = Carbon::now()->subMonths($i)->format('Y-m');
-            $evals  = KpiEvaluation::with('details')
+            $evals  = KpiEvaluation::with(['details', 'template'])
                 ->where('period_month', $period)
                 ->get();
 
-            $scores = [];
-            foreach ($evals as $e) {
-                $sc = $e->overall_score;
-                if ($sc === null && $e->details->isNotEmpty()) {
-                    $sc = $e->details->whereNotNull('supervisor_score')->avg('supervisor_score')
-                        ?? $e->details->whereNotNull('self_achievement')->avg('self_achievement');
-                }
-                if ($sc !== null) {
-                    $scores[] = (float) $sc;
-                }
-            }
-
-            $avg = count($scores) > 0 ? (array_sum($scores) / count($scores)) : null;
-
-            $trend[] = [
-                'period'    => $period,
-                'label'     => Carbon::createFromFormat('Y-m', $period)->format('M Y'),
-                'avg_score' => $avg ? round((float) $avg, 1) : null,
-            ];
+            $trend[] = ['period' => $period, 'label' => Carbon::createFromFormat('Y-m', $period)->format('M Y')]
+                + $this->trendPoint($evals);
         }
         return $trend;
+    }
+
+    /**
+     * Average score for a set of evaluations: overall (as before) plus one
+     * average per assessment kind — self, lead, upward, peer — counting only
+     * evaluations whose filler has actually submitted (self/upward rows by the
+     * employee, lead/peer rows by the reviewer).
+     */
+    private function trendPoint($evals): array
+    {
+        $all = [];
+        $byKind = ['self' => [], 'lead' => [], 'upward' => [], 'peer' => []];
+
+        foreach ($evals as $e) {
+            $sc = $e->overall_score;
+            if ($sc === null && $e->details->isNotEmpty()) {
+                $sc = $e->details->whereNotNull('supervisor_score')->avg('supervisor_score')
+                    ?? $e->details->whereNotNull('self_achievement')->avg('self_achievement');
+            }
+            if ($sc === null) {
+                continue;
+            }
+            $all[] = (float) $sc;
+
+            $kind = match ($e->template?->target_type ?? 'supervisor') {
+                'self'   => 'self',
+                'upward' => 'upward',
+                'peer'   => 'peer',
+                default  => 'lead',
+            };
+            $submitted = in_array($kind, ['self', 'upward'], true) ? $e->hasSelfAssessment() : $e->hasSupervisorReview();
+            if ($submitted) {
+                $byKind[$kind][] = (float) $sc;
+            }
+        }
+
+        $avg = fn(array $v) => $v ? round(array_sum($v) / count($v), 1) : null;
+
+        return [
+            'avg_score' => $avg($all),
+            'self'      => $avg($byKind['self']),
+            'lead'      => $avg($byKind['lead']),
+            'upward'    => $avg($byKind['upward']),
+            'peer'      => $avg($byKind['peer']),
+        ];
     }
 
     private function getStatusCounts(string $periodMonth): array
@@ -1127,24 +1158,11 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
             $data = [];
             for ($y = 4; $y >= 0; $y--) {
                 $year  = Carbon::now()->subYears($y)->year;
-                $evals = KpiEvaluation::with('details')
+                $evals = KpiEvaluation::with(['details', 'template'])
                     ->where('period_month', 'like', "{$year}-%")
                     ->get();
 
-                $scores = [];
-                foreach ($evals as $e) {
-                    $sc = $e->overall_score;
-                    if ($sc === null && $e->details->isNotEmpty()) {
-                        $sc = $e->details->whereNotNull('supervisor_score')->avg('supervisor_score')
-                            ?? $e->details->whereNotNull('self_achievement')->avg('self_achievement');
-                    }
-                    if ($sc !== null) {
-                        $scores[] = (float) $sc;
-                    }
-                }
-
-                $avg = count($scores) > 0 ? (array_sum($scores) / count($scores)) : null;
-                $data[] = ['label' => (string) $year, 'avg_score' => $avg ? round((float) $avg, 1) : null];
+                $data[] = ['label' => (string) $year] + $this->trendPoint($evals);
             }
             return $data;
         }

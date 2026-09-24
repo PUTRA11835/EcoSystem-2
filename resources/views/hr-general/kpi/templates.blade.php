@@ -9,8 +9,11 @@
     $canCreate = $canCreate ?? ($canManage ?? false);
     $canEdit   = $canEdit   ?? ($canManage ?? false);
     $canDelete = $canDelete ?? ($canManage ?? false);
-    $selfCount = $templates->filter(fn($t) => ($t->target_type ?? 'supervisor') === 'self')->count();
-    $leadCount = $templates->count() - $selfCount;
+    $countType = fn($type) => $templates->filter(fn($t) => ($t->target_type ?? 'supervisor') === $type)->count();
+    $selfCount   = $countType('self');
+    $peerCount   = $countType('peer');
+    $upwardCount = $countType('upward');
+    $leadCount   = $templates->count() - $selfCount - $peerCount - $upwardCount;
 @endphp
 
 <div class="space-y-5">
@@ -54,7 +57,7 @@
     </div>
 
     {{-- ── Summary --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
             <div class="text-3xl font-bold text-gray-900">{{ $templates->count() }}</div>
             <div class="text-xs text-gray-500 mt-1">Total Templates</div>
@@ -66,6 +69,14 @@
         <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
             <div class="text-3xl font-bold text-indigo-600">{{ $leadCount }}</div>
             <div class="text-xs text-gray-500 mt-1">Lead Assessment</div>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+            <div class="text-3xl font-bold text-cyan-600">{{ $peerCount }}</div>
+            <div class="text-xs text-gray-500 mt-1">Peer Assessment</div>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+            <div class="text-3xl font-bold text-amber-500">{{ $upwardCount }}</div>
+            <div class="text-xs text-gray-500 mt-1">Upward Assessment</div>
         </div>
         <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
             <div class="text-3xl font-bold text-green-600">{{ $templates->where('is_active', true)->count() }}</div>
@@ -135,7 +146,7 @@
                                 </button>
                             </div>
                             <div id="hfType" class="hf-pop hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 min-w-[170px] normal-case font-normal" onclick="event.stopPropagation()">
-                                @foreach(['' => 'All types', 'self' => 'Self-Assessment', 'lead' => 'Lead Assessment', 'upward' => 'Upward Assessment'] as $v => $l)
+                                @foreach(['' => 'All types', 'self' => 'Self-Assessment', 'lead' => 'Lead Assessment', 'peer' => 'Peer Assessment', 'upward' => 'Upward Assessment'] as $v => $l)
                                 <button type="button" onclick="setHF('fType','{{ $v }}')" class="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">{{ $l }}</button>
                                 @endforeach
                             </div>
@@ -177,6 +188,8 @@
                             </div>
                         </th>
 
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[130px]">Last Updated</th>
+
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">
                             Action
                         </th>
@@ -188,6 +201,7 @@
                         $ttype = match ($tmpl->target_type ?? 'supervisor') {
                             'self'   => 'self',
                             'upward' => 'upward',
+                            'peer'   => 'peer',
                             default  => 'lead',
                         };
                         $scaleMax = $tmpl->score_divisor ?: ($tmpl->relationLoaded('scoringScales') && $tmpl->scoringScales->isNotEmpty() ? $tmpl->scoringScales->max('scale_value') : 5);
@@ -227,8 +241,8 @@
                         <td class="px-4 py-3.5 align-top">
                             <div class="flex items-center gap-1.5 flex-wrap">
                                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold
-                                    {{ $ttype === 'self' ? 'bg-purple-100 text-purple-700' : ($ttype === 'upward' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700') }}">
-                                    {{ $ttype === 'self' ? 'Self' : ($ttype === 'upward' ? 'Upward' : 'Lead') }}
+                                    {{ ['self' => 'bg-purple-100 text-purple-700', 'upward' => 'bg-amber-100 text-amber-700', 'peer' => 'bg-cyan-100 text-cyan-700'][$ttype] ?? 'bg-indigo-100 text-indigo-700' }}">
+                                    {{ ['self' => 'Self', 'upward' => 'Upward', 'peer' => 'Peer'][$ttype] ?? 'Lead' }}
                                 </span>
                                 @if($tmpl->is_anonymous)
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600" title="Rater identities are hidden from the subject">
@@ -244,11 +258,20 @@
                         <td class="px-4 py-3.5 text-center align-top text-xs font-bold {{ $weightOk ? 'text-green-600' : 'text-red-600' }}">
                             {{ rtrim(rtrim(number_format($tmpl->total_weight, 2), '0'), '.') }}%
                         </td>
-                        <td class="px-4 py-3.5 align-top text-xs text-gray-600">{{ $tmpl->period_type_label }}</td>
+                        <td class="px-4 py-3.5 align-top text-xs text-gray-600">
+                            {{ $tmpl->period_type_label }}
+                            @if($tmpl->deadline_day)
+                            <p class="text-[11px] text-gray-400 mt-0.5">Due {{ $tmpl->deadline_label }}</p>
+                            @endif
+                        </td>
                         <td class="px-4 py-3.5 text-center align-top">
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold {{ $tmpl->is_active ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200' }}">
                                 {{ $tmpl->is_active ? 'Active' : 'Inactive' }}
                             </span>
+                        </td>
+                        <td class="px-4 py-3.5 align-top text-xs text-gray-600" title="{{ $tmpl->updated_at?->format('d M Y H:i') }}">
+                            {{ $tmpl->updated_at?->format('d M Y') ?? '—' }}
+                            <p class="text-[11px] text-gray-400 mt-0.5">{{ $tmpl->updated_at?->format('H:i') }} &middot; {{ $tmpl->updated_at?->diffForHumans() }}</p>
                         </td>
                         <td class="px-4 py-3.5 text-center align-top">
                             <div class="flex items-center justify-center gap-1.5">
