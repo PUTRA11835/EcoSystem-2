@@ -565,7 +565,17 @@ class AiResearchController extends Controller
                         $shared->whereHas('ticket', function ($ticketQuery) use ($employee) {
                             $ticketQuery->where('ticket_lead_id', $employee->employee_id)
                                 ->orWhereHas('members', function ($memberQuery) use ($employee) {
-                                    $memberQuery->wherePivot('employee_id', $employee->employee_id);
+                                    // wherePivot() cuma valid dipanggil LANGSUNG di atas relation
+                                    // (lihat TicketTeamAccess::isLeadOrMember()) — di dalam closure
+                                    // whereHas() ini, $memberQuery cuma Eloquent\Builder biasa tanpa
+                                    // method itu, jadi jatuh ke magic "dynamic where" Laravel dan
+                                    // menghasilkan `where pivot = 'employee_id'` (kolom 'pivot' yang
+                                    // tidak ada) alih-alih menyaring tabel pivot ticket_member —
+                                    // SQLSTATE 42S22 di setiap panggilan endpoint ini untuk employee
+                                    // non-privileged. where() ke kolom pivot eksplisit sudah benar di
+                                    // sini karena getRelationExistenceQuery() BelongsToMany sudah
+                                    // JOIN ticket_member ke query ini.
+                                    $memberQuery->where('ticket_member.employee_id', $employee->employee_id);
                                 });
                         });
                     }

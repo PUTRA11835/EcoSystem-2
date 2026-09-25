@@ -23,6 +23,15 @@ class AuthController extends Controller
     /** Durasi remember-me dalam hari */
     private const REMEMBER_DAYS = 1;
 
+    /**
+     * Cookie device-trust 2FA: memungkinkan login berikutnya di device yang
+     * sama skip prompt kode OTP (password tetap wajib dicek) selama belum
+     * melewati window (lihat TwoFactorAuthService::trustWindowMinutes()).
+     * Terpisah dari REMEMBER_COOKIE — remember-me tetap dimatikan total untuk
+     * akun ber-2FA.
+     */
+    public const TWO_FACTOR_TRUST_COOKIE = 'ecosystem_2fa_trust';
+
     // =========================================================================
     // HELPER: Bangun session data dari employee_id
     // =========================================================================
@@ -822,6 +831,18 @@ class AuthController extends Controller
                 // employee who already passed every other gate can reach here.
                 // No session/cookie/DB mutation happens yet if 2FA is required.
                 if (TwoFactorAuthService::isEnabled($authUser)) {
+                    // Device-trust grace period: this device already completed a
+                    // fresh TOTP/recovery-code check within the window, so — the
+                    // password above already passed — skip the OTP prompt this time.
+                    if (TwoFactorAuthService::isTrusted($authUser, $request->cookie(self::TWO_FACTOR_TRUST_COOKIE))) {
+                        Log::channel('daily')->info('=== LOGIN 2FA SKIPPED (trusted device within window) ===', [
+                            'request_id'   => $requestId,
+                            'auth_user_id' => $authUser->id,
+                        ]);
+
+                        return $this->finalizeEmployeeLogin($authUser, $sessionData, $remember, $request, $requestId);
+                    }
+
                     $twoFactorToken = TwoFactorAuthService::issueChallengeToken($authUser->id, $remember);
 
                     Log::channel('daily')->info('=== LOGIN REQUIRES 2FA ===', [
@@ -893,8 +914,14 @@ class AuthController extends Controller
      * Takes the full $authUser row (not just $sessionData) — the DB writes
      * below key off auth_users.id, which is NOT $sessionData['userData']['id']
      * (that key holds employee_id, a different value).
+     *
+     * $justVerified2fa: true only when this call follows a fresh TOTP/recovery
+     * code check (verifyTwoFactor()) — issues the device-trust cookie so the
+     * next login on this device can skip the OTP prompt for a while. Never
+     * true for the trusted-device skip path itself or for non-2FA accounts,
+     * so the trust window only ever resets on an actual code verification.
      */
-    private function finalizeEmployeeLogin(object $authUser, array $sessionData, bool $remember, Request $request, string $requestId)
+    private function finalizeEmployeeLogin(object $authUser, array $sessionData, bool $remember, Request $request, string $requestId, bool $justVerified2fa = false)
     {
         $token    = $sessionData['token'];
         $userData = $sessionData['userData'];
@@ -933,6 +960,25 @@ class AuthController extends Controller
         }
 
         DB::table('auth_users')->where('id', $authUser->id)->update($rememberUpdates);
+
+        // ── 2FA device-trust cookie ──────────────────────────────────────
+        // Only issued right after a fresh OTP/recovery-code verification —
+        // resets the grace-period window. A login that skipped the prompt
+        // via an already-valid trust cookie leaves it untouched (fixed
+        // expiry from the last real verification, not a sliding window).
+        if ($justVerified2fa) {
+            $trustToken = TwoFactorAuthService::issueTrustToken($authUser->id);
+
+            $responseCookies[] = cookie(
+                self::TWO_FACTOR_TRUST_COOKIE,
+                $trustToken,
+                TwoFactorAuthService::trustWindowMinutes(),
+                '/',
+                null,
+                config('session.secure'),
+                true // httpOnly
+            );
+        }
 
         $request->session()->put('auth_token', $token);
         $request->session()->put('user', $userData);
@@ -1105,7 +1151,7 @@ class AuthController extends Controller
             ], 403);
         }
 
-        return $this->finalizeEmployeeLogin($authUser, $sessionData, $challenge['remember'], $request, $requestId);
+        return $this->finalizeEmployeeLogin($authUser, $sessionData, $challenge['remember'], $request, $requestId, justVerified2fa: true);
     }
 
     /**

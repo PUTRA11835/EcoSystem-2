@@ -235,6 +235,62 @@ class TwoFactorAuthService
         return !empty($authUser->two_factor_secret) && !empty($authUser->two_factor_confirmed_at);
     }
 
+    // ── Device trust: short re-verification grace period ────────────────────
+    // Password is still checked on every login. This only lets a login that
+    // just proved the password skip the OTP prompt, for a fixed window after
+    // the last time this device actually completed a TOTP/recovery-code
+    // check — mirrors how most sites' 2FA behaves (not the same as
+    // remember-me, which skips the password check entirely and is why that
+    // stays disabled for 2FA accounts; see AuthController::finalizeEmployeeLogin).
+    // The window is intentionally NOT extended by a skip - only a fresh code
+    // verification resets it - so a stolen trust cookie has a hard ceiling.
+
+    /**
+     * Call only right after a fresh TOTP/recovery-code verification succeeds.
+     * Stores a hash (same convention as remember_token) and returns the raw
+     * token for the caller to set as an HttpOnly cookie.
+     */
+    public static function issueTrustToken(int $authUserId): string
+    {
+        $rawToken = Str::random(60);
+        $minutes  = (int) config('session.lifetime', 120);
+
+        DB::table('auth_users')->where('id', $authUserId)->update([
+            'two_factor_trusted_token'      => hash('sha256', $rawToken),
+            'two_factor_trusted_expires_at' => now()->addMinutes($minutes),
+        ]);
+
+        return $rawToken;
+    }
+
+    /** @return int minutes the trust cookie should live for (mirrors issueTrustToken's window) */
+    public static function trustWindowMinutes(): int
+    {
+        return (int) config('session.lifetime', 120);
+    }
+
+    public static function isTrusted(object $authUser, ?string $rawToken): bool
+    {
+        if (!$rawToken || empty($authUser->two_factor_trusted_token) || empty($authUser->two_factor_trusted_expires_at)) {
+            return false;
+        }
+
+        if (now()->greaterThan($authUser->two_factor_trusted_expires_at)) {
+            return false;
+        }
+
+        return hash_equals($authUser->two_factor_trusted_token, hash('sha256', $rawToken));
+    }
+
+    /** Invalidates any standing device trust — call on 2FA disable/re-enroll. */
+    public static function clearTrust(int $authUserId): void
+    {
+        DB::table('auth_users')->where('id', $authUserId)->update([
+            'two_factor_trusted_token'      => null,
+            'two_factor_trusted_expires_at' => null,
+        ]);
+    }
+
     public static function encryptSecret(string $secret): string
     {
         return Crypt::encryptString($secret);

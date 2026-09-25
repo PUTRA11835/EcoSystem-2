@@ -315,6 +315,6 @@
 </div>
 
 @push('scripts')
-<script src="/js/calendar-events.js"></script>
+<script src="/js/calendar-events.js?v={{ filemtime(public_path('js/calendar-events.js')) }}"></script>
 @endpush
 @endsection

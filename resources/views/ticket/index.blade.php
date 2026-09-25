@@ -3012,13 +3012,15 @@
 </div>
 @endif
 
-{{-- Load custom-dd component (sama dengan Employee/Customer Management).
+{{-- Load custom-dd component (sama dengan Employee/Customer Management) —
+     minified build (~63% smaller after gzip); regenerate via `npm run
+     minify:js` whenever public/js/custom-dropdown.js changes.
      filemtime cache buster supaya production auto-invalidate setiap deploy. --}}
 @php
-$customDdPath = public_path('js/custom-dropdown.js');
+$customDdPath = public_path('js/custom-dropdown.min.js');
 $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 @endphp
-<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
+<script src="/js/custom-dropdown.min.js?v={{ $customDdVer }}"></script>
 
 {{-- Ticket row context menu --}}
 <div id="ticketContextMenu"
