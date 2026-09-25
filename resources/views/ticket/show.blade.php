@@ -354,7 +354,7 @@
 
                 <div class="relative">
                     <div class="bg-white border border-gray-300 rounded-lg">
-                        <div id="replyResizeHandle" class="reply-resize-handle" title="Tarik untuk mengubah ukuran editor"></div>
+                        <div id="replyResizeHandle" class="reply-resize-handle" title="Drag to resize the editor"></div>
                         <div id="quillEditor" style="min-height: 80px;"></div>
                     </div>
                     {{-- @mention autocomplete dropdown — fixed so it's never clipped by overflow parents --}}
@@ -376,7 +376,7 @@
                     </button>
                     @if($can('ticket.meeting'))
                     <button id="meetingBtn" onclick="openMeetingPanel()"
-                        {{ $inMeeting ? 'title=\'Meeting sedang berjalan — klik untuk menjadwalkan meeting baru\'' : '' }}
+                        {{ $inMeeting ? 'title=\'Meeting in progress — click to schedule a new meeting\'' : '' }}
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -1776,6 +1776,9 @@
     margin: 2px !important;
 }
 
+/* Editor Body Text di modal Send & Set Status (deliverable): lebih tinggi dari editor chat. */
+#sendStatusBodyEditor .ql-editor { min-height: 180px; max-height: 320px; }
+
 /* Channel badge pada pesan */
 .msg-channel-badge {
     display: inline-flex; align-items: center; gap: 3px;
@@ -2343,15 +2346,23 @@
 
 {{-- ── Send Status Modal ───────────────────────────────────────────────── --}}
 <div id="sendStatusModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-xs shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
+    <div id="sendStatusPanel" class="bg-white rounded-xl w-full max-w-xs shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100">
             <div>
                 <h3 class="text-sm font-bold text-gray-900">Send &amp; Set Status</h3>
-                <p id="sendStatusSubtitle" class="text-[11px] text-gray-400 mt-0.5">Pilih status setelah reply dikirim</p>
+                <p id="sendStatusSubtitle" class="text-[11px] text-gray-400 mt-0.5">Choose the status after the reply is sent</p>
             </div>
             <button onclick="closeSendStatusModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
+        </div>
+        {{-- Body text email — hanya untuk pengiriman deliverable; rich text seperti chat reply.
+             Tidak disimpan di database. --}}
+        <div id="sendStatusBodyWrap" class="hidden px-5 pt-4">
+            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Body Text <span class="font-normal text-gray-400">(optional — shown above the documents)</span></label>
+            <div class="border border-gray-200 rounded-lg bg-white">
+                <div id="sendStatusBodyEditor"></div>
+            </div>
         </div>
         <div class="px-4 py-4 flex flex-col gap-2">
             {{-- Inprocess --}}
@@ -2362,7 +2373,7 @@
                 </span>
                 <div class="text-left">
                     <div class="text-xs font-bold text-yellow-800 group-hover:text-white">Inprocess</div>
-                    <div class="text-[10px] text-yellow-600 group-hover:text-yellow-100">Helpdesk sedang mengerjakan</div>
+                    <div class="text-[10px] text-yellow-600 group-hover:text-yellow-100">Helpdesk is working on it</div>
                 </div>
                 <svg class="ml-auto w-4 h-4 text-yellow-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -2375,7 +2386,7 @@
                 </span>
                 <div class="text-left">
                     <div class="text-xs font-bold text-amber-800 group-hover:text-white">Waiting on Customer</div>
-                    <div class="text-[10px] text-amber-600 group-hover:text-amber-100">Menunggu balasan customer</div>
+                    <div class="text-[10px] text-amber-600 group-hover:text-amber-100">Waiting for customer's reply</div>
                 </div>
                 <svg class="ml-auto w-4 h-4 text-amber-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -2388,7 +2399,7 @@
                 </span>
                 <div class="text-left">
                     <div class="text-xs font-bold text-teal-800 group-hover:text-white">Waiting to Confirmation</div>
-                    <div class="text-[10px] text-teal-600 group-hover:text-teal-100">Menunggu konfirmasi customer</div>
+                    <div class="text-[10px] text-teal-600 group-hover:text-teal-100">Waiting for customer's confirmation</div>
                 </div>
                 <svg class="ml-auto w-4 h-4 text-teal-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -2401,7 +2412,7 @@
                 </span>
                 <div class="text-left">
                     <div class="text-xs font-bold text-indigo-800 group-hover:text-white">Waiting on 3rd Party</div>
-                    <div class="text-[10px] text-indigo-600 group-hover:text-indigo-100">Diteruskan ke SAP / pihak ketiga</div>
+                    <div class="text-[10px] text-indigo-600 group-hover:text-indigo-100">Forwarded to SAP / third party</div>
                 </div>
                 <svg class="ml-auto w-4 h-4 text-indigo-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -2414,7 +2425,7 @@
                 </span>
                 <div class="text-left">
                     <div class="text-xs font-bold text-orange-800 group-hover:text-white">Hold</div>
-                    <div class="text-[10px] text-orange-600 group-hover:text-orange-100">Ticket ditahan sementara</div>
+                    <div class="text-[10px] text-orange-600 group-hover:text-orange-100">Ticket temporarily on hold</div>
                 </div>
                 <svg class="ml-auto w-4 h-4 text-orange-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -2426,12 +2437,12 @@
 </div>
 
 {{-- ── Confirm Send Modal (review To/Cc/message/status before sending) ──── --}}
-<div id="confirmSendModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="confirmSendModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
             <div>
-                <h3 class="text-sm font-bold text-gray-900">Konfirmasi Kirim</h3>
-                <p class="text-[11px] text-gray-400 mt-0.5">Periksa kembali sebelum mengirim</p>
+                <h3 class="text-sm font-bold text-gray-900">Confirm Send</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">Review before sending</p>
             </div>
             <button onclick="closeConfirmSendModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
@@ -2447,7 +2458,7 @@
                 <p id="confirmSendCc" class="text-xs text-gray-800 break-words">-</p>
             </div>
             <div>
-                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Pesan</span>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Message</span>
                 <div id="confirmSendMessage" class="text-xs text-gray-800 border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto bg-gray-50"></div>
             </div>
             <div>
@@ -2456,8 +2467,8 @@
             </div>
         </div>
         <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 flex-shrink-0">
-            <button onclick="closeConfirmSendModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">Edit</button>
-            <button onclick="finalizeSend()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Kirim</button>
+            <button onclick="closeConfirmSendModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">Cancel</button>
+            <button onclick="finalizeSend()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Send</button>
         </div>
     </div>
 </div>
@@ -3365,7 +3376,7 @@
             input.classList.add('recipient-invalid');
             setTimeout(() => input.classList.remove('recipient-invalid'), 1500);
             if (!viaBlur) {
-                showNotification('Alamat email tidak valid: ' + invalid.join(', '), 'error');
+                showNotification('Invalid email address: ' + invalid.join(', '), 'error');
             }
         } else {
             input.value = '';
@@ -3798,6 +3809,7 @@
                         [{ 'background': ['#fff59d', '#ffcc80', '#a5d6a7', '#90caf9', '#f48fb1', false] }],
                         ['blockquote'],
                         [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'align': ['', 'center', 'right'] }],
                         [{ 'header': [1, 2, 3, false] }],
                         ['link', 'image'],
                         ['clean']
@@ -3925,6 +3937,14 @@
             });
             const header = toolbar.querySelector('.ql-header');
             if (header) header.setAttribute('title', 'Heading');
+            const alignPickerChat = toolbar.querySelector('.ql-align');
+            if (alignPickerChat) {
+                alignPickerChat.setAttribute('title', 'Paragraph Alignment');
+                const alignLbl = { '': 'Align Left', 'center': 'Align Center', 'right': 'Align Right' };
+                alignPickerChat.querySelectorAll('.ql-picker-item').forEach(item => {
+                    item.setAttribute('title', alignLbl[item.getAttribute('data-value') || ''] || 'Align');
+                });
+            }
             const colorPicker = toolbar.querySelector('.ql-color');
             if (colorPicker) colorPicker.setAttribute('title', 'Text Color');
             const bgPicker = toolbar.querySelector('.ql-background');
@@ -4696,7 +4716,7 @@
             if (i % 2 === 1) return part; // tag utuh — jangan disentuh
             return part.replace(
                 /(^|[^\w/&#])#[ \t]?(\d{6,10})(?!\d)/g,
-                (m, pre, num) => `${pre}<a href="/ticket/ref/${num}" target="_blank" rel="noopener noreferrer" style="${_linkStyle}" title="Buka tiket #${num}">#${num}</a>`
+                (m, pre, num) => `${pre}<a href="/ticket/ref/${num}" target="_blank" rel="noopener noreferrer" style="${_linkStyle}" title="Open ticket #${num}">#${num}</a>`
             );
         }).join('');
     }
@@ -4823,7 +4843,7 @@
 
     function slaMsgBtn(msg) {
         const hasSla = !!(msg.sla_message && msg.sla_message.trim());
-        const tip    = hasSla ? escHtml(msg.sla_message) : 'Tambah pesan SLA';
+        const tip    = hasSla ? escHtml(msg.sla_message) : 'Add SLA message';
         return `<button class="sla-open-btn${hasSla ? ' has-sla' : ''}"
                         title="${tip}"
                         onclick="openSlaModal(${msg.id}, this)"
@@ -4855,7 +4875,7 @@
         const val = document.getElementById('slaMsgTextarea').value.trim();
         const btn = document.getElementById('slaSaveBtn');
         btn.disabled = true;
-        btn.textContent = 'Menyimpan...';
+        btn.textContent = 'Saving...';
         try {
             const res = await fetch(`/api/tickets/${ticketId}/messages/${_slaCurrentMsgId}/sla-message`, {
                 method: 'PATCH',
@@ -4868,14 +4888,14 @@
             if (res.ok && _slaCurrentTrigger) {
                 _slaCurrentTrigger.dataset.slaVal = val;
                 _slaCurrentTrigger.classList.toggle('has-sla', val.length > 0);
-                _slaCurrentTrigger.title = val.length > 0 ? val : 'Tambah pesan SLA';
+                _slaCurrentTrigger.title = val.length > 0 ? val : 'Add SLA message';
             }
             closeSlaModal();
         } catch (err) {
             console.error('Failed to save SLA message', err);
         } finally {
             btn.disabled = false;
-            btn.textContent = 'Simpan';
+            btn.textContent = 'Save';
         }
     }
 
@@ -5349,7 +5369,10 @@
                 .replace(/^(\s*<p[^>]*>\s*(<br\s*\/?>)?\s*<\/p>\s*)+/i, '')
                 .replace(/(\s*<p[^>]*>\s*(<br\s*\/?>)?\s*<\/p>\s*)+$/i, '');
         } while (html !== prev);
-        return html.trim();
+        // Quill menandai alignment lewat class (ql-align-*) yang tidak ada CSS-nya di
+        // email → ubah ke inline style agar rata kanan/tengah ikut sampai ke customer.
+        return html.trim()
+            .replace(/\sclass="ql-align-(center|right|justify)"/g, ' style="text-align:$1"');
     }
 
     // ── Send Status Modal ─────────────────────────────────────────────────────
@@ -5364,10 +5387,66 @@
         if (el) el.textContent = text;
     }
 
+    // Kolom Body Text (rich text) hanya muncul saat mengirim deliverable; modal juga
+    // dilebarkan agar nyaman mengetik. Editor Quill dibuat lazy saat pertama dibutuhkan.
+    let deliverableBodyQuill = null;
+
+    function ensureDeliverableBodyQuill() {
+        if (deliverableBodyQuill || !window.Quill) return deliverableBodyQuill;
+        deliverableBodyQuill = new Quill('#sendStatusBodyEditor', {
+            theme: 'snow',
+            placeholder: 'Type the message that appears above the documents...',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                    [{ 'align': ['', 'center', 'right'] }],
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['link', 'clean'],
+                ],
+            },
+        });
+        // Tooltip picker rata paragraf (kiri / tengah / kanan).
+        const alignPicker = document.querySelector('#sendStatusBodyWrap .ql-align');
+        if (alignPicker) alignPicker.setAttribute('title', 'Paragraph Alignment');
+        const alignLabels = { '': 'Align Left', 'center': 'Align Center', 'right': 'Align Right' };
+        document.querySelectorAll('#sendStatusBodyWrap .ql-align .ql-picker-item').forEach(item => {
+            item.setAttribute('title', alignLabels[item.getAttribute('data-value') || ''] || 'Align');
+        });
+        return deliverableBodyQuill;
+    }
+
+    function setStatusModalBodyText(show) {
+        const wrap  = document.getElementById('sendStatusBodyWrap');
+        const panel = document.getElementById('sendStatusPanel');
+        if (wrap)  wrap.classList.toggle('hidden', !show);
+        if (panel) {
+            panel.classList.toggle('max-w-xs', !show);
+            panel.classList.toggle('max-w-2xl', show);
+        }
+        if (show) {
+            const q = ensureDeliverableBodyQuill();
+            if (q) q.setContents([]);
+        }
+    }
+
+    // HTML body text, atau '' bila editor kosong.
+    function readDeliverableBodyHtml() {
+        // Baca langsung dari elemen editor (bukan dari state instance) agar selalu
+        // memakai apa yang benar-benar diketik user di modal.
+        const root = document.querySelector('#sendStatusBodyEditor .ql-editor');
+        if (!root || (root.textContent || '').trim() === '' && !root.querySelector('img')) return '';
+        // Quill menandai alignment lewat class (ql-align-*) yang tidak ada CSS-nya di
+        // bubble/email → ubah ke inline style agar rata kanan/tengah tetap terlihat.
+        return trimQuillHtml(root.innerHTML)
+            .replace(/\sclass="ql-align-(center|right|justify)"/g, ' style="text-align:$1"');
+    }
+
     function openSendStatusModal(messageType) {
         _statusModalMode = 'reply';
         _pendingSendType = messageType;
-        setStatusModalSubtitle('Pilih status setelah reply dikirim');
+        setStatusModalBodyText(false);
+        setStatusModalSubtitle('Choose the status after the reply is sent');
         // Reset ke default inprocess setiap kali modal dibuka
         const defaultRadio = document.querySelector('input[name="sendStatus"][value="inprocess"]');
         if (defaultRadio) defaultRadio.checked = true;
@@ -5379,14 +5458,16 @@
     function openDeliverableStatusModal(id) {
         _statusModalMode      = 'deliverable';
         _pendingDeliverableId = id;
-        setStatusModalSubtitle('Pilih status tiket sebelum dokumen dikirim');
+        setStatusModalSubtitle('Choose the ticket status before the documents are sent');
+        setStatusModalBodyText(true);
         document.getElementById('sendStatusModal').classList.remove('hidden');
     }
 
     // Bulk send: status dipilih sekali, lalu dipakai untuk semua dokumen terpilih.
     function openDeliverableBulkStatusModal() {
         _statusModalMode = 'deliverable-bulk';
-        setStatusModalSubtitle('Pilih status tiket sebelum dokumen dikirim');
+        setStatusModalSubtitle('Choose the ticket status before the documents are sent');
+        setStatusModalBodyText(true);
         document.getElementById('sendStatusModal').classList.remove('hidden');
     }
 
@@ -5397,21 +5478,33 @@
         _statusModalMode      = 'reply';
     }
 
+    // Kirim deliverable yang menunggu konfirmasi ({mode, ids, status, bodyText}).
+    let _pendingDeliverableSend = null;
+
+    // Pratinjau isi yang akan dikirim: body text di atas, lalu Doc Type + File per dokumen.
+    function deliverablePreviewHtml(ids, bodyHtml) {
+        const docs = ids.map(id => deliverableData.find(d => d.id === id)).filter(Boolean);
+        const list = docs.map(d => `<div class="mt-2"><span class="text-gray-500">Doc Type:</span> <strong>${escHtmlD(d.doc_type)}</strong><br>`
+            + `<span class="text-gray-500">File:</span> ${escHtmlD(d.file_name || '-')}</div>`).join('');
+        return '<strong>Deliverable Document</strong>'
+            + (bodyHtml ? `<div class="mt-1.5">${bodyHtml}</div>` : '')
+            + list;
+    }
+
     function confirmSendWithStatus(chosenStatus) {
+        const status = chosenStatus || 'inprocess';
+        if (_statusModalMode === 'deliverable' || _statusModalMode === 'deliverable-bulk') {
+            // Body text dibaca sebelum modal ditutup; hanya diteruskan ke request, tidak disimpan.
+            const bodyText = readDeliverableBodyHtml();
+            const ids = _statusModalMode === 'deliverable' ? [_pendingDeliverableId] : [..._selectedDelivIds];
+            _pendingDeliverableSend = { mode: _statusModalMode, ids, status, bodyText };
+            document.getElementById('sendStatusModal').classList.add('hidden');
+            // Konfirmasi dulu (To/Cc, isi, status) supaya user sadar chat akan terkirim ke customer.
+            openConfirmSendModal(status, { messageHtml: deliverablePreviewHtml(ids, bodyText) });
+            return;
+        }
         document.getElementById('sendStatusModal').classList.add('hidden');
-        if (_statusModalMode === 'deliverable') {
-            const id = _pendingDeliverableId;
-            _pendingDeliverableId = null;
-            _statusModalMode      = 'reply';
-            _doSendDeliverable(id, chosenStatus || 'inprocess');
-            return;
-        }
-        if (_statusModalMode === 'deliverable-bulk') {
-            _statusModalMode = 'reply';
-            _doBulkSendDeliverables(chosenStatus || 'inprocess');
-            return;
-        }
-        openConfirmSendModal(chosenStatus || 'inprocess');
+        openConfirmSendModal(status);
     }
 
     // Intentionally no backdrop-click-to-close — only the X button closes this modal.
@@ -5419,7 +5512,7 @@
     // ── Confirm Send Modal ────────────────────────────────────────────────────
     let _pendingChosenStatus = null;
 
-    function openConfirmSendModal(chosenStatus) {
+    function openConfirmSendModal(chosenStatus, opts) {
         _pendingChosenStatus = chosenStatus;
 
         // Pastikan input TO/CC yang belum ter-commit ikut ditampilkan.
@@ -5439,7 +5532,9 @@
 
         document.getElementById('confirmSendTo').textContent = toEmails.length ? toEmails.join(', ') : '-';
         document.getElementById('confirmSendCc').textContent = ccEmails.length ? ccEmails.join(', ') : '-';
-        document.getElementById('confirmSendMessage').innerHTML = trimQuillHtml(quillEditor.root.innerHTML) || '<span class="text-gray-400">(kosong)</span>';
+        document.getElementById('confirmSendMessage').innerHTML = (opts && opts.messageHtml)
+            || trimQuillHtml(quillEditor.root.innerHTML)
+            || '<span class="text-gray-400">(empty)</span>';
 
         const badge = document.getElementById('confirmSendStatusBadge');
         badge.className = `sb-badge sb-status-${chosenStatus}`;
@@ -5448,14 +5543,28 @@
         document.getElementById('confirmSendModal').classList.remove('hidden');
     }
 
+    // Cancel/X pada konfirmasi → kembali ke modal "Send & Set Status" (reply maupun
+    // deliverable). State (mode, tipe kirim, body text di editor) sengaja dipertahankan;
+    // modal status yang menutup dirinya sendiri lewat X-nya.
     function closeConfirmSendModal() {
         document.getElementById('confirmSendModal').classList.add('hidden');
-        _pendingSendType = null;
-        _pendingChosenStatus = null;
+        _pendingDeliverableSend = null;
+        _pendingChosenStatus    = null;
+        document.getElementById('sendStatusModal').classList.remove('hidden');
     }
 
     async function finalizeSend() {
         document.getElementById('confirmSendModal').classList.add('hidden');
+        if (_pendingDeliverableSend) {
+            const p = _pendingDeliverableSend;
+            _pendingDeliverableSend  = null;
+            _pendingDeliverableId    = null;
+            _statusModalMode         = 'reply';
+            _pendingChosenStatus     = null;
+            if (p.mode === 'deliverable') await _doSendDeliverable(p.ids[0], p.status, p.bodyText);
+            else                          await _doBulkSendDeliverables(p.status, p.bodyText);
+            return;
+        }
         await _doSendReply(_pendingSendType, _pendingChosenStatus);
         _pendingSendType = null;
         _pendingChosenStatus = null;
@@ -6592,7 +6701,7 @@
     });
 
     async function hideTicket() {
-        if (!await showConfirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.', 'Hide Ticket', 'danger')) return;
+        if (!await showConfirm('Hide this ticket? It will no longer appear in the main list.', 'Hide Ticket', 'danger')) return;
         try {
             const res = await fetch(`/api/tickets/${ticketId}/hide`, {
                 method: 'PATCH',
@@ -6604,18 +6713,18 @@
             });
             const data = await res.json();
             if (data.success) {
-                showNotification('Tiket berhasil disembunyikan.', 'success');
+                showNotification('Ticket hidden successfully.', 'success');
                 setTimeout(() => window.location.reload(), 800);
             } else {
-                showNotification(data.message || 'Gagal menyembunyikan tiket.', 'error');
+                showNotification(data.message || 'Failed to hide the ticket.', 'error');
             }
         } catch (e) {
-            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+            showNotification('An error occurred. Please try again.', 'error');
         }
     }
 
     async function unhideTicket() {
-        if (!await showConfirm('Tampilkan kembali tiket ini? Tiket akan muncul di daftar utama.', 'Unhide Ticket', 'primary')) return;
+        if (!await showConfirm('Unhide this ticket? It will appear in the main list again.', 'Unhide Ticket', 'primary')) return;
         try {
             const res = await fetch(`/api/tickets/${ticketId}/unhide`, {
                 method: 'PATCH',
@@ -6627,13 +6736,13 @@
             });
             const data = await res.json();
             if (data.success) {
-                showNotification('Tiket berhasil ditampilkan kembali.', 'success');
+                showNotification('Ticket unhidden successfully.', 'success');
                 setTimeout(() => window.location.reload(), 800);
             } else {
-                showNotification(data.message || 'Gagal menampilkan tiket.', 'error');
+                showNotification(data.message || 'Failed to unhide the ticket.', 'error');
             }
         } catch (e) {
-            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+            showNotification('An error occurred. Please try again.', 'error');
         }
     }
 
@@ -7404,7 +7513,7 @@
             return;
         }
         if (payload.details.length === 0) {
-            showNotification('Isi minimal satu nilai mandays sebelum menyimpan.', 'warning');
+            showNotification('Enter at least one mandays value before saving.', 'warning');
             return;
         }
         const btn = document.getElementById('picBtnSaveDraft');
@@ -8780,8 +8889,8 @@
                     </svg>
                 </div>
                 <div>
-                    <h3 class="text-sm font-bold text-gray-900">Pesan SLA</h3>
-                    <p class="text-xs text-gray-400 leading-none mt-0.5">Pesan ini akan tampil di laporan SLA menggantikan pesan asli</p>
+                    <h3 class="text-sm font-bold text-gray-900">SLA Message</h3>
+                    <p class="text-xs text-gray-400 leading-none mt-0.5">This message will appear in the SLA report in place of the original message</p>
                 </div>
             </div>
             <button onclick="closeSlaModal()" class="text-gray-400 hover:text-gray-600 transition p-1 rounded-lg hover:bg-gray-100">
@@ -8793,19 +8902,19 @@
         <div class="px-6 py-4">
             <textarea id="slaMsgTextarea"
                       rows="4"
-                      placeholder="Tulis pesan SLA di sini..."
+                      placeholder="Write the SLA message here..."
                       class="w-full text-sm text-gray-700 border border-gray-200 rounded-xl px-3 py-2.5 resize-none outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition font-inherit placeholder-gray-300"
                       onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))submitSlaMessage()"></textarea>
-            <p class="text-xs text-gray-400 mt-1.5">Ctrl+Enter untuk simpan</p>
+            <p class="text-xs text-gray-400 mt-1.5">Ctrl+Enter to save</p>
         </div>
         <div class="flex gap-2 justify-end px-6 pb-5">
             <button onclick="closeSlaModal()"
                     class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium">
-                Batal
+                Cancel
             </button>
             <button id="slaSaveBtn" onclick="submitSlaMessage()"
                     class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                Simpan
+                Save
             </button>
         </div>
     </div>
@@ -8944,7 +9053,7 @@ async function _loadSlaLogData() {
         const json = await res.json();
         if (!json.success || !json.data) {
             document.getElementById('slaLogContent').innerHTML =
-                '<p class="text-center text-gray-400 text-sm p-8">Tidak ada data SLA untuk tiket ini.</p>';
+                '<p class="text-center text-gray-400 text-sm p-8">No SLA data for this ticket.</p>';
             return;
         }
 
@@ -8987,7 +9096,7 @@ async function _loadSlaLogData() {
         const events = d.events || [];
         if (!events.length) {
             document.getElementById('slaLogContent').innerHTML =
-                '<p class="text-center text-gray-400 text-sm p-8">Belum ada event SLA tercatat.</p>';
+                '<p class="text-center text-gray-400 text-sm p-8">No SLA events recorded yet.</p>';
             return;
         }
 
@@ -9050,7 +9159,7 @@ async function _loadSlaLogData() {
             </div>`;
     } catch (e) {
         document.getElementById('slaLogContent').innerHTML =
-            '<p class="text-center text-red-400 text-sm p-8">Gagal memuat data SLA.</p>';
+            '<p class="text-center text-red-400 text-sm p-8">Failed to load SLA data.</p>';
     }
 }
 </script>
@@ -9268,7 +9377,7 @@ async function _loadLogShiftingData() {
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Upload Date</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Time</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style="min-width:90px">Doc Type</th>
-                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide" style="min-width:200px">Body Text</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide" style="min-width:200px">Description</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide" style="min-width:160px">File Name</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Action</th>
@@ -9288,55 +9397,30 @@ async function _loadLogShiftingData() {
 
 {{-- ==================== NEW DOCUMENT MODAL ==================== --}}
 <div id="newDocModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-            <h3 class="text-sm font-bold text-gray-900">New Document</h3>
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
+            <h3 class="text-sm font-bold text-gray-900">New Documents</h3>
             <button onclick="closeNewDocModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
-        <div class="px-5 py-4 space-y-4">
-            {{-- Doc Type --}}
-            <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">Doc Type <span class="text-red-500">*</span></label>
-                <select id="ndDocType" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 focus:outline-none">
-                    <option value="" selected disabled hidden>Select Type</option>
-                </select>
-            </div>
-            {{-- Body Text --}}
-            <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">Body Text</label>
-                <textarea id="ndBodyText" rows="3" placeholder="Short description..."
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-red-400 focus:outline-none"></textarea>
-            </div>
-            {{-- File --}}
-            <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">File</label>
-                <div class="flex items-center gap-2">
-                    <label class="flex-1 min-w-0 cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
-                        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                        </svg>
-                        <span id="ndFileName" class="text-xs text-gray-400 truncate flex-1 min-w-0">Choose file...</span>
-                        <input type="file" id="ndFile" class="hidden" onchange="updateFileName()">
-                    </label>
-                    <button onclick="document.getElementById('ndFile').value=''; document.getElementById('ndFileName').textContent='Choose file...'"
-                        class="px-2 py-2 text-gray-400 hover:text-red-500 transition" title="Clear">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
+        <div class="px-5 py-4 overflow-y-auto flex-1">
+            {{-- Satu baris per dokumen: Doc Type, File, Description (internal) --}}
+            <div id="ndRows" class="space-y-3"></div>
+            <button type="button" onclick="addNewDocRow()"
+                class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 border border-red-200 rounded-lg hover:bg-red-50 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Add Document
+            </button>
             {{-- Error --}}
-            <p id="ndError" class="hidden text-xs text-red-600 font-medium"></p>
+            <p id="ndError" class="hidden mt-3 text-xs text-red-600 font-medium"></p>
         </div>
-        <div class="px-5 pb-5 flex gap-2">
+        <div class="px-5 pb-5 pt-2 flex gap-2 shrink-0">
             <button onclick="submitNewDoc()" id="ndSubmitBtn"
                 class="flex-1 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold py-2.5 rounded-lg transition">
-                Save Document
+                Save Documents
             </button>
             <button onclick="closeNewDocModal()"
                 class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
@@ -9350,7 +9434,7 @@ async function _loadLogShiftingData() {
 <div id="editDelivModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-            <h3 class="text-sm font-bold text-gray-900">Edit Body Text</h3>
+            <h3 class="text-sm font-bold text-gray-900">Edit Description</h3>
             <button onclick="closeEditDelivModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -9360,8 +9444,8 @@ async function _loadLogShiftingData() {
         <div class="px-5 py-4 space-y-4">
             <input type="hidden" id="edDelivId">
             <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">Body Text</label>
-                <textarea id="edBodyText" rows="5" placeholder="Short description..."
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">Description <span class="font-normal text-gray-400">(internal — not sent to customer)</span></label>
+                <textarea id="edDescription" rows="5" placeholder="Internal note for this file..."
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-red-400 focus:outline-none"></textarea>
             </div>
             <p id="edError" class="hidden text-xs text-red-600 font-medium"></p>
@@ -9504,7 +9588,7 @@ async function delivParseJson(res) {
     } catch (_) {
         let msg;
         if (res.status === 413) {
-            msg = 'File terlalu besar untuk server. Kecilkan ukuran file atau hubungi admin untuk menaikkan batas upload.';
+            msg = 'File is too large for the server. Reduce the file size or contact an admin to raise the upload limit.';
         } else if (res.status === 419) {
             msg = 'Sesi kedaluwarsa. Muat ulang halaman lalu coba lagi.';
         } else if (res.status >= 500) {
@@ -9651,7 +9735,7 @@ function renderDeliverableTable(data) {
                 <span class="inline-block bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">${escHtmlD(d.doc_type)}</span>
             </td>
             <td class="px-3 py-2 text-gray-700 max-w-[220px]">
-                <span class="line-clamp-2">${d.body_text ? escHtmlD(d.body_text) : '<span class="text-gray-300">—</span>'}</span>
+                <span class="line-clamp-2">${d.description ? escHtmlD(d.description) : '<span class="text-gray-300">—</span>'}</span>
             </td>
             <td class="px-3 py-2">${fileCell}</td>
             <td class="px-3 py-2 whitespace-nowrap">
@@ -9816,50 +9900,11 @@ function bulkSendDeliverables() {
     openDeliverableBulkStatusModal();
 }
 
-async function _doBulkSendDeliverables(chosenStatus) {
+async function _doBulkSendDeliverables(chosenStatus, bodyText) {
     const ids = [..._selectedDelivIds];
     if (ids.length === 0) return;
-
-    if (typeof commitToInput === 'function') commitToInput();
-    if (typeof commitCcInput === 'function') commitCcInput();
-    const toList     = (typeof toEmails !== 'undefined' && Array.isArray(toEmails)) ? toEmails : [];
-    const ccListSend = (typeof ccEmails !== 'undefined' && Array.isArray(ccEmails)) ? ccEmails : [];
-
-    const overlay = document.getElementById('deliverableLoadingOverlay');
-    if (overlay) overlay.classList.remove('hidden');
-
-    let ok = 0, emailFail = 0, hardFail = 0, lastErr = '';
-    for (const id of ids) {
-        try {
-            const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
-                method: 'PATCH',
-                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({ ticket_status: chosenStatus || null, to_emails: toList, cc_emails: ccListSend }),
-            });
-            const json = await delivParseJson(res);
-            if (!json.success) throw new Error(json.message);
-            if (json.email_failed) emailFail++; else ok++;
-        } catch (e) { hardFail++; lastErr = e.message; }
-    }
-
+    await _doSendDeliverables(ids, chosenStatus, bodyText);
     _selectedDelivIds.clear();
-    if (chosenStatus && typeof updateStatusUI === 'function') updateStatusUI(chosenStatus);
-    await loadDeliverables();
-    if (typeof loadMessages === 'function') { try { await loadMessages(); } catch (_) {} }
-    if (overlay) overlay.classList.add('hidden');
-
-    if (hardFail === 0 && emailFail === 0) {
-        showToast(`${ok} document${ok > 1 ? 's' : ''} sent to customer.`, 'success');
-    } else if (hardFail === ids.length) {
-        showToast('Failed to send documents: ' + lastErr, 'error');
-    } else {
-        const parts = [];
-        if (ok)        parts.push(`${ok} sent`);
-        if (emailFail) parts.push(`${emailFail} saved but email failed`);
-        if (hardFail)  parts.push(`${hardFail} failed`);
-        showToast(parts.join(', ') + '.', 'error');
-    }
 }
 
 function escHtmlD(s) {
@@ -9872,7 +9917,6 @@ function escHtmlD(s) {
 // perlu fetch ulang tiap kali modal dibuka.
 async function loadDeliverableDocTypes() {
     if (deliverableDocTypesLoaded) return;
-    const select = document.getElementById('ndDocType');
     try {
         const res  = await fetch('/api/deliverable-document-types?is_active=1', { credentials: 'same-origin' });
         const json = await res.json();
@@ -9881,31 +9925,120 @@ async function loadDeliverableDocTypes() {
         deliverableDocTypes = [];
     }
     deliverableDocTypesLoaded = true;
+}
 
-    // Placeholder tetap "selected disabled hidden" — hanya tampil sebagai label
-    // default, tidak bisa dipilih ulang dari daftar begitu tipe asli ada.
-    select.innerHTML = '<option value="" selected disabled hidden>Select Type</option>'
+// Baris dokumen di modal "New Documents". Tiap baris punya Doc Type, File, dan
+// Description (catatan internal — tidak dikirim ke customer).
+function ndDocTypeOptions() {
+    return '<option value="" selected disabled hidden>Select Type</option>'
         + deliverableDocTypes.map(t => `<option value="${escHtmlD(t.name)}">${escHtmlD(t.name)}</option>`).join('');
 }
 
+function addNewDocRow() {
+    const row = document.createElement('div');
+    row.className = 'nd-row border border-gray-200 rounded-xl p-3 bg-gray-50/50';
+    row.innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-12 gap-x-3 gap-y-2.5 items-end">
+            <div class="sm:col-span-4">
+                <label class="text-[11px] font-semibold text-gray-600 mb-1 block">Doc Type <span class="text-red-500">*</span></label>
+                <select class="nd-type w-full px-2.5 py-2 border border-gray-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-red-400 focus:outline-none">${ndDocTypeOptions()}</select>
+            </div>
+            <div class="sm:col-span-7">
+                <label class="text-[11px] font-semibold text-gray-600 mb-1 block">File</label>
+                <label class="nd-file-box cursor-pointer flex items-center gap-2 px-2.5 py-2 border border-dashed border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition">
+                    <input type="file" class="nd-file hidden" onchange="updateNewDocRowFile(this)">
+                    <svg class="nd-file-icon w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                    </svg>
+                    <span class="nd-file-name text-xs text-gray-400 truncate flex-1 min-w-0">Choose file...</span>
+                    <button type="button" onclick="clearNewDocRowFile(this, event)" title="Remove file"
+                        class="nd-file-clear hidden shrink-0 text-gray-400 hover:text-red-500 transition">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </label>
+            </div>
+            <div class="sm:col-span-1 flex sm:justify-end">
+                <button type="button" onclick="removeNewDocRow(this)" title="Remove row"
+                    class="nd-remove px-2 py-2 text-gray-400 hover:text-red-500 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+            </div>
+            <div class="sm:col-span-12">
+                <label class="text-[11px] font-semibold text-gray-600 mb-1 block">Description <span class="font-normal text-gray-400">(internal — not sent to customer)</span></label>
+                <textarea rows="2" maxlength="1000" placeholder="Internal note for this file..."
+                    class="nd-desc w-full px-2.5 py-2 border border-gray-300 rounded-lg text-xs resize-none bg-white focus:ring-2 focus:ring-red-400 focus:outline-none"></textarea>
+            </div>
+        </div>
+        <p class="nd-row-status hidden mt-2 text-[11px] font-medium"></p>`;
+    document.getElementById('ndRows').appendChild(row);
+    refreshNewDocRemoveButtons();
+}
+
+function removeNewDocRow(btn) {
+    btn.closest('.nd-row')?.remove();
+    refreshNewDocRemoveButtons();
+}
+
+// Minimal satu baris selalu ada — tombol hapus disembunyikan bila tinggal satu.
+function refreshNewDocRemoveButtons() {
+    const rows = document.querySelectorAll('#ndRows .nd-row');
+    rows.forEach(r => r.querySelector('.nd-remove').classList.toggle('invisible', rows.length === 1));
+}
+
+// File terpilih → kotak berubah dari garis putus-putus abu-abu menjadi border hijau
+// solid dengan ikon centang dan nama file tebal, supaya jelas beda dengan yang kosong.
+function updateNewDocRowFile(input) {
+    const f    = input.files[0];
+    const box  = input.closest('.nd-file-box');
+    const name = box.querySelector('.nd-file-name');
+    const icon = box.querySelector('.nd-file-icon');
+    name.textContent = f ? f.name : 'Choose file...';
+    name.title       = f ? f.name : '';
+    name.classList.toggle('text-gray-400', !f);
+    name.classList.toggle('text-green-800', !!f);
+    name.classList.toggle('font-semibold', !!f);
+    icon.classList.toggle('text-gray-400', !f);
+    icon.classList.toggle('text-green-600', !!f);
+    icon.innerHTML = f
+        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>'
+        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>';
+    box.classList.toggle('border-dashed', !f);
+    box.classList.toggle('border-gray-300', !f);
+    box.classList.toggle('bg-white', !f);
+    box.classList.toggle('border-green-500', !!f);
+    box.classList.toggle('bg-green-50', !!f);
+    box.querySelector('.nd-file-clear').classList.toggle('hidden', !f);
+}
+
+function clearNewDocRowFile(btn, ev) {
+    ev.preventDefault();   // jangan buka dialog pilih file (tombol ada di dalam <label>)
+    ev.stopPropagation();
+    const input = btn.closest('.nd-file-box').querySelector('.nd-file');
+    input.value = '';
+    updateNewDocRowFile(input);
+}
+
+function refreshNewDocTypeOptions() {
+    document.querySelectorAll('#ndRows .nd-type').forEach(sel => {
+        const current = sel.value;
+        sel.innerHTML = ndDocTypeOptions();
+        if (current) sel.value = current;
+    });
+}
+
 function openNewDocModal() {
-    document.getElementById('ndDocType').value = '';
-    document.getElementById('ndBodyText').value = '';
-    document.getElementById('ndFile').value = '';
-    document.getElementById('ndFileName').textContent = 'Choose file...';
+    document.getElementById('ndRows').innerHTML = '';
+    addNewDocRow();
     document.getElementById('ndError').classList.add('hidden');
     document.getElementById('ndSubmitBtn').disabled = false;
+    document.getElementById('ndSubmitBtn').textContent = 'Save Documents';
     document.getElementById('newDocModal').classList.remove('hidden');
-    loadDeliverableDocTypes();
+    // Opsi Doc Type dimuat sekali lalu dicache; isi ulang baris setelah termuat.
+    loadDeliverableDocTypes().then(refreshNewDocTypeOptions);
 }
 
 function closeNewDocModal() {
     document.getElementById('newDocModal').classList.add('hidden');
-}
-
-function updateFileName() {
-    const f = document.getElementById('ndFile').files[0];
-    document.getElementById('ndFileName').textContent = f ? f.name : 'Choose file...';
 }
 
 // Upload file langsung ke Graph dalam potongan (chunked), bypass server Laravel
@@ -9947,79 +10080,112 @@ async function _deliverableUploadChunked(uploadUrl, file, onProgress) {
     return itemId;
 }
 
-async function submitNewDoc() {
-    const docType  = document.getElementById('ndDocType').value.trim();
-    const bodyText = document.getElementById('ndBodyText').value.trim();
-    const file     = document.getElementById('ndFile').files[0];
-    const errEl    = document.getElementById('ndError');
+// Upload + simpan satu baris dokumen. Mengembalikan tanpa error bila sukses.
+async function _saveNewDocRow(rowEl, submitBtn, label) {
+    const docType     = rowEl.querySelector('.nd-type').value.trim();
+    const description = rowEl.querySelector('.nd-desc').value.trim();
+    const file        = rowEl.querySelector('.nd-file').files[0];
 
+    let onedriveItemId = null;
+
+    if (file) {
+        // Step 1: minta upload session (tidak membawa byte file — request kecil).
+        submitBtn.textContent = `${label} Preparing upload…`;
+        const sessionRes  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/upload-session`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ file_name: file.name }),
+        });
+        const sessionJson = await delivParseJson(sessionRes);
+        if (!sessionJson.success) throw new Error(sessionJson.message);
+
+        // Step 2: upload file langsung ke OneDrive (chunked).
+        onedriveItemId = await _deliverableUploadChunked(sessionJson.upload_url, file, pct => {
+            submitBtn.textContent = `${label} Uploading… ${pct}%`;
+        });
+        if (!onedriveItemId) throw new Error('Upload completed but no item ID returned.');
+    }
+
+    // Step 3: simpan metadata dokumen (server buat share link kalau ada file).
+    submitBtn.textContent = `${label} Saving…`;
+    const body = { doc_type: docType };
+    if (description) body.description = description;
+    if (onedriveItemId) {
+        body.onedrive_item_id = onedriveItemId;
+        body.file_name        = file.name;
+    }
+
+    const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
+    });
+    const json = await delivParseJson(res);
+    if (!json.success) throw new Error(json.message);
+}
+
+async function submitNewDoc() {
+    const rows  = [...document.querySelectorAll('#ndRows .nd-row')];
+    const errEl = document.getElementById('ndError');
     errEl.classList.add('hidden');
 
-    if (!docType) { errEl.textContent = 'Please select a Doc Type.'; errEl.classList.remove('hidden'); return; }
-
-    // Cegah upload melebihi batas sebelum request dikirim, agar tidak berakhir
-    // dengan halaman error HTML dari server (penyebab "Unexpected token '<'").
-    if (file && file.size > DELIV_MAX_FILE_BYTES) {
-        const mb = (file.size / 1024 / 1024).toFixed(1);
-        errEl.textContent = `File terlalu besar (${mb} MB). Maksimal 100 MB.`;
+    // Validasi semua baris dulu sebelum ada yang diupload.
+    const invalid = [];
+    rows.forEach((row, i) => {
+        const statusEl = row.querySelector('.nd-row-status');
+        statusEl.classList.add('hidden');
+        const file = row.querySelector('.nd-file').files[0];
+        const problem = !row.querySelector('.nd-type').value.trim() ? 'Please select a Doc Type.'
+            : (file && file.size > DELIV_MAX_FILE_BYTES)
+                ? `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum 100 MB.`
+                : null;
+        if (problem) {
+            statusEl.textContent = problem;
+            statusEl.className = 'nd-row-status mt-2 text-[11px] font-medium text-red-600';
+            invalid.push(i + 1);
+        }
+    });
+    if (invalid.length) {
+        errEl.textContent = `Please fix row ${invalid.join(', ')} before saving.`;
         errEl.classList.remove('hidden');
         return;
     }
 
     const submitBtn = document.getElementById('ndSubmitBtn');
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Saving…';
 
+    // Simpan berurutan; baris yang sudah berhasil dihapus dari modal supaya bila ada
+    // yang gagal, "Save" ulang tidak menggandakan dokumen yang sudah tersimpan.
+    let saved = 0;
     try {
-        let onedriveItemId = null;
-
-        if (file) {
-            // Step 1: minta upload session (tidak membawa byte file — request kecil).
-            submitBtn.textContent = 'Preparing upload…';
-            const sessionRes  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/upload-session`, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({ file_name: file.name }),
-            });
-            const sessionJson = await delivParseJson(sessionRes);
-            if (!sessionJson.success) throw new Error(sessionJson.message);
-
-            // Step 2: upload file langsung ke OneDrive (chunked).
-            onedriveItemId = await _deliverableUploadChunked(sessionJson.upload_url, file, pct => {
-                submitBtn.textContent = `Uploading… ${pct}%`;
-            });
-            if (!onedriveItemId) throw new Error('Upload completed but no item ID returned.');
+        for (let i = 0; i < rows.length; i++) {
+            const label = rows.length > 1 ? `(${i + 1}/${rows.length})` : '';
+            try {
+                await _saveNewDocRow(rows[i], submitBtn, label);
+            } catch (e) {
+                const statusEl = rows[i].querySelector('.nd-row-status');
+                statusEl.textContent = 'Error: ' + e.message;
+                statusEl.className = 'nd-row-status mt-2 text-[11px] font-medium text-red-600';
+                errEl.textContent = saved > 0
+                    ? `${saved} of ${rows.length} saved. Row ${i + 1} failed — fix it and save again.`
+                    : `Row ${i + 1} failed: ${e.message}`;
+                errEl.classList.remove('hidden');
+                showToast('Upload failed: ' + e.message, 'error');
+                return;
+            }
+            rows[i].remove();
+            saved++;
         }
-
-        // Step 3: simpan metadata dokumen (server buat share link kalau ada file).
-        submitBtn.textContent = 'Saving…';
-        const body = { doc_type: docType };
-        if (bodyText) body.body_text = bodyText;
-        if (onedriveItemId) {
-            body.onedrive_item_id = onedriveItemId;
-            body.file_name        = file.name;
-        }
-
-        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: JSON.stringify(body),
-        });
-        const json = await delivParseJson(res);
-        if (!json.success) throw new Error(json.message);
 
         closeNewDocModal();
-        await loadDeliverables();
-        showToast('Document saved successfully.', 'success');
-    } catch (e) {
-        errEl.textContent = 'Error: ' + e.message;
-        errEl.classList.remove('hidden');
-        showToast('Upload failed: ' + e.message, 'error');
+        showToast(`${saved} document${saved > 1 ? 's' : ''} saved successfully.`, 'success');
     } finally {
+        if (saved > 0) await loadDeliverables();
+        refreshNewDocRemoveButtons();
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Save Document';
+        submitBtn.textContent = 'Save Documents';
     }
 }
 
@@ -10030,7 +10196,13 @@ function sendDeliverable(id) {
 }
 
 // Pengiriman sebenarnya, dipanggil oleh confirmSendWithStatus setelah status dipilih.
-async function _doSendDeliverable(id, chosenStatus) {
+function _doSendDeliverable(id, chosenStatus, bodyText) {
+    return _doSendDeliverables([id], chosenStatus, bodyText);
+}
+
+// Kirim satu atau beberapa dokumen sekaligus → SATU bubble chat / SATU email.
+// `bodyText` hanya diteruskan ke email/bubble, tidak disimpan di database.
+async function _doSendDeliverables(ids, chosenStatus, bodyText) {
     // Ambil To/Cc dari kolom composer reply (sama seperti kirim pesan biasa) agar dokumen
     // dikirim ke alamat yang diisi user, BUKAN email ticket default. Commit dulu input yang
     // belum ter-Enter supaya nilai terakhir yang diketik ikut terkirim.
@@ -10042,8 +10214,8 @@ async function _doSendDeliverable(id, chosenStatus) {
     const overlay = document.getElementById('deliverableLoadingOverlay');
     if (overlay) overlay.classList.remove('hidden');
     try {
-        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
-            method: 'PATCH',
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/send`, {
+            method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': CSRF,
                 'Accept': 'application/json',
@@ -10051,6 +10223,8 @@ async function _doSendDeliverable(id, chosenStatus) {
             },
             credentials: 'same-origin',
             body: JSON.stringify({
+                ids,
+                body_text: bodyText || null,
                 ticket_status: chosenStatus || null,
                 to_emails: toList,
                 cc_emails: ccListSend,
@@ -10063,11 +10237,12 @@ async function _doSendDeliverable(id, chosenStatus) {
         await loadDeliverables();
         // Muat ulang chat agar bubble deliverable + status email (termasuk "Tidak terkirim") ikut update.
         if (typeof loadMessages === 'function') { try { await loadMessages(); } catch (_) {} }
+        const n = ids.length;
         if (json.email_failed) {
             // Dokumen tersimpan & masuk chat, tapi EMAIL ke customer gagal → peringatan, bukan sukses.
             showToast(json.email_error || 'Document saved, but the email to the customer could not be delivered.', 'error');
         } else {
-            showToast('Document sent to customer.', 'success');
+            showToast(`${n} document${n > 1 ? 's' : ''} sent to customer.`, 'success');
         }
     } catch (e) {
         showDelivError(e.message);
@@ -10098,12 +10273,12 @@ async function deleteDeliverable(id) {
     }
 }
 
-// ── Edit body text ─────────────────────────────────────────────────
+// ── Edit description ─────────────────────────────────────────────────
 function editDeliverable(id) {
     const d = deliverableData.find(x => x.id === id);
     if (!d) return;
     document.getElementById('edDelivId').value = id;
-    document.getElementById('edBodyText').value = d.body_text ?? '';
+    document.getElementById('edDescription').value = d.description ?? '';
     document.getElementById('edError').classList.add('hidden');
     const btn = document.getElementById('edSubmitBtn');
     btn.disabled = false;
@@ -10117,7 +10292,7 @@ function closeEditDelivModal() {
 
 async function submitEditDeliv() {
     const id        = parseInt(document.getElementById('edDelivId').value);
-    const bodyText  = document.getElementById('edBodyText').value.trim();
+    const description = document.getElementById('edDescription').value.trim();
     const errEl     = document.getElementById('edError');
     const submitBtn = document.getElementById('edSubmitBtn');
 
@@ -10134,7 +10309,7 @@ async function submitEditDeliv() {
                 'Content-Type': 'application/json',
             },
             credentials: 'same-origin',
-            body: JSON.stringify({ body_text: bodyText }),
+            body: JSON.stringify({ description }),
         });
         const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
@@ -10144,7 +10319,7 @@ async function submitEditDeliv() {
         renderDeliverableTable(deliverableData);
 
         closeEditDelivModal();
-        showToast('Body text updated.', 'success');
+        showToast('Description updated.', 'success');
     } catch (e) {
         errEl.textContent = 'Error: ' + e.message;
         errEl.classList.remove('hidden');
