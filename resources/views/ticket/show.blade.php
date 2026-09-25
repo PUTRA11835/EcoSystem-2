@@ -1753,6 +1753,29 @@
     font-family: inherit;
 }
 
+/* Opsi "hapus warna/highlight": swatch default Quill (tanpa data-value) —
+   putih dengan coretan diagonal merah + tooltip. */
+.ql-toolbar .ql-color-picker .ql-picker-item:not([data-value]) {
+    background-color: #ffffff !important;
+    background-image: linear-gradient(to top right, transparent calc(50% - 1px), #dc2626 calc(50% - 1px), #dc2626 calc(50% + 1px), transparent calc(50% + 1px));
+    border: 1px solid #d1d5db;
+}
+.ql-toolbar .ql-background .ql-picker-item:not([data-value])::after { content: none; }
+/* Quill melebarkan panel warna untuk 7 kolom (152px); highlight hanya 6 swatch
+   (5 warna + hapus) → 6 × 20px + padding, supaya tidak ada kolom kosong. */
+.ql-toolbar.ql-snow .ql-background.ql-picker .ql-picker-options {
+    box-sizing: content-box !important;
+    width: 120px !important;   /* 6 × (16px swatch + 2×2px margin) */
+    min-width: 0 !important;
+    padding: 3px 5px !important;
+}
+.ql-toolbar.ql-snow .ql-color-picker .ql-picker-item {
+    box-sizing: border-box !important;
+    width: 16px !important;
+    height: 16px !important;
+    margin: 2px !important;
+}
+
 /* Channel badge pada pesan */
 .msg-channel-badge {
     display: inline-flex; align-items: center; gap: 3px;
@@ -2059,9 +2082,9 @@
    Toolbar & ikon Quill memakai warna terang/stroke gelap bawaan → dipetakan
    ke permukaan gelap + ikon terang. */
 .ql-toolbar.ql-snow { background: #1f2937 !important; border-bottom-color: #374151 !important; }
-.ql-snow .ql-stroke        { stroke: #cbd5e1 !important; }
-.ql-snow .ql-fill,
-.ql-snow .ql-stroke.ql-fill { fill: #cbd5e1 !important; }
+.ql-snow .ql-stroke:not(.ql-color-label)        { stroke: #cbd5e1 !important; }
+.ql-snow .ql-fill:not(.ql-color-label),
+.ql-snow .ql-stroke.ql-fill:not(.ql-color-label) { fill: #cbd5e1 !important; }
 .ql-snow .ql-picker-label  { color: #cbd5e1 !important; }
 .ql-snow .ql-picker-label .ql-stroke { stroke: #cbd5e1 !important; }
 .ql-snow.ql-toolbar button:hover,
@@ -2083,6 +2106,9 @@
 .ql-snow .ql-tooltip input[type=text] { background: #374151 !important; border-color: #4b5563 !important; color: #f9fafb !important; }
 .ql-snow .ql-tooltip a { color: #60a5fa !important; }
 .ql-editor.ql-blank::before { color: #6b7280 !important; }
+/* Picker warna teks/highlight: biarkan garis warna terpilih (inline style Quill)
+   tampil, dan beri swatch border terang agar terlihat di panel gelap. */
+.ql-snow .ql-color-picker .ql-picker-item { border: 1px solid #4b5563; }
 @endif
 </style>
 
@@ -3768,6 +3794,8 @@
                 toolbar: {
                     container: [
                         ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'color': ['#dc2626', '#ea580c', '#16a34a', '#2563eb', '#7c3aed', '#6b7280', false] }],
+                        [{ 'background': ['#fff59d', '#ffcc80', '#a5d6a7', '#90caf9', '#f48fb1', false] }],
                         ['blockquote'],
                         [{ 'list': 'ordered'}, { 'list': 'bullet' }],
                         [{ 'header': [1, 2, 3, false] }],
@@ -3827,12 +3855,16 @@
 
         // Saat teks disalin dari bubble lain (mis. internal note kuning) lalu ditempel,
         // browser ikut menyalin background bubble. Buang background agar warna latar
-        // bubble asal tidak terbawa — TAPI pertahankan warna teks (color) agar teks
-        // berwarna yang sengaja disalin tetap ikut.
+        // bubble asal tidak terbawa. Warna teks (color) dari platform lain juga dibuang
+        // (kecuali warna chip @mention) — sumber seperti Word/web/Slack sering membawa
+        // abu-abu, sehingga teks hasil paste terlihat pudar di input chat.
         quillEditor.clipboard.addMatcher(Node.ELEMENT_NODE, function (node, delta) {
             delta.ops.forEach(op => {
                 if (op.attributes) {
                     delete op.attributes.background;
+                    if (!MENTION_COLORS.includes(op.attributes.color)) {
+                        delete op.attributes.color;
+                    }
                 }
             });
             return delta;
@@ -3893,6 +3925,17 @@
             });
             const header = toolbar.querySelector('.ql-header');
             if (header) header.setAttribute('title', 'Heading');
+            const colorPicker = toolbar.querySelector('.ql-color');
+            if (colorPicker) colorPicker.setAttribute('title', 'Text Color');
+            const bgPicker = toolbar.querySelector('.ql-background');
+            if (bgPicker) bgPicker.setAttribute('title', 'Highlight');
+            // Tooltip per swatch; swatch tanpa data-value = hapus warna.
+            [[colorPicker, 'Text color', 'Remove text color'], [bgPicker, 'Highlight', 'Remove highlight']].forEach(([picker, label, removeLabel]) => {
+                if (!picker) return;
+                picker.querySelectorAll('.ql-picker-item').forEach(item => {
+                    item.setAttribute('title', item.hasAttribute('data-value') ? label : removeLabel);
+                });
+            });
 
             // Inject attachment button into toolbar
             const attachGroup = document.createElement('span');
@@ -9631,9 +9674,9 @@ function renderDeliverableTable(data) {
 
 /**
  * Checklist tabel "Doc Type | Mandatory | Optional | Ok" di atas tabel
- * dokumen, plus badge Complete/Incomplete. Sebuah requirement dianggap
- * terpenuhi (kolom "Ok") bila ada minimal satu dokumen dengan doc_type yang
- * sama (case-insensitive) — cocok dengan cara dropdown "New Document"
+ * dokumen, plus badge Complete/Incomplete. Kolom "Ok" menampilkan JUMLAH
+ * dokumen dengan doc_type yang sama (case-insensitive); requirement dianggap
+ * terpenuhi bila jumlahnya minimal satu — cocok dengan cara dropdown "New Document"
  * mengisi doc_type dari master data. `req.mandatory` menentukan requirement
  * ini masuk kolom Mandatory atau Optional (persis format tabel aturan yang
  * diminta: satu baris per doc type, kolom Mandatory/Optional saling
@@ -9646,7 +9689,11 @@ function renderDeliverableChecklist(data) {
         return;
     }
 
-    const uploadedTypes = new Set((data || []).map(d => (d.doc_type || '').trim().toUpperCase()));
+    const uploadedCounts = {};
+    (data || []).forEach(d => {
+        const key = (d.doc_type || '').trim().toUpperCase();
+        uploadedCounts[key] = (uploadedCounts[key] || 0) + 1;
+    });
     const mark = (on, cls) => on
         ? `<svg class="w-3.5 h-3.5 mx-auto ${cls}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>`
         : '';
@@ -9655,7 +9702,8 @@ function renderDeliverableChecklist(data) {
     let mandatoryDone  = 0;
 
     const rows = DELIV_REQUIREMENTS.map(req => {
-        const ok = uploadedTypes.has(req.doc_type.trim().toUpperCase());
+        const count = uploadedCounts[req.doc_type.trim().toUpperCase()] || 0;
+        const ok = count > 0;
         if (req.mandatory) {
             mandatoryTotal++;
             if (ok) mandatoryDone++;
@@ -9665,7 +9713,7 @@ function renderDeliverableChecklist(data) {
             <td class="px-3 py-1.5 font-medium text-gray-700">${escHtmlD(req.doc_type)}</td>
             <td class="px-3 py-1.5 text-center">${mark(req.mandatory, 'text-gray-500')}</td>
             <td class="px-3 py-1.5 text-center">${mark(!req.mandatory, 'text-gray-400')}</td>
-            <td class="px-3 py-1.5 text-center">${mark(ok, ok ? 'text-green-600' : 'text-gray-300')}</td>
+            <td class="px-3 py-1.5 text-center font-semibold ${ok ? 'text-green-600' : 'text-gray-300'}">${count}</td>
         </tr>`;
     });
 
