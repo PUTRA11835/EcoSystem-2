@@ -6,20 +6,18 @@ use App\Models\DeliverableDocumentTypeTicketType;
 use App\Models\Ticket;
 
 /**
- * Snapshots the live deliverable-document config
+ * Copies the live deliverable-document config
  * (deliverable_document_type_ticket_types) into a ticket's own
- * ticket_deliverable_requirements rows, at the moment its ticket_type is set
- * or changed — see Ticket::booted(). Deliberately a one-time copy: running
- * this again later (e.g. after an admin edits the config) does NOT touch
- * tickets that already have a snapshot for their current ticket_type, so an
- * existing ticket's checklist never silently changes under it.
+ * ticket_deliverable_requirements rows when its ticket_type is set or changed
+ * (see Ticket::booted()), and again via syncIfStale() whenever the config has
+ * drifted from that copy (see DeliverableDocumentRequirements::forTicket()).
  */
 final class TicketDeliverableRequirementSync
 {
     /**
      * Replace the ticket's snapshot with the current config for its
-     * ticket_type. Call only when the type was just set/changed (or to
-     * backfill a legacy ticket that has none yet) — never on every save.
+     * ticket_type. Call when the type was just set/changed, or from
+     * syncIfStale() when the config has changed.
      */
     public static function sync(Ticket $ticket): void
     {
@@ -51,6 +49,35 @@ final class TicketDeliverableRequirementSync
     public static function syncIfMissing(Ticket $ticket): void
     {
         if ($ticket->deliverableRequirements()->doesntExist()) {
+            self::sync($ticket);
+        }
+    }
+
+    /**
+     * Re-sync when the ticket's snapshot no longer matches the live config
+     * (e.g. an admin added/changed a Document Type rule after the ticket was
+     * created), so Settings changes show up in the checklist.
+     */
+    public static function syncIfStale(Ticket $ticket): void
+    {
+        if (!$ticket->ticket_type) {
+            return;
+        }
+
+        $signature = fn ($rows) => $rows
+            ->map(fn ($r) => $r['doc_type'] . ':' . (int) $r['is_mandatory'])
+            ->sort()->values()->all();
+
+        $live = DeliverableDocumentTypeTicketType::where('ticket_type', $ticket->ticket_type)
+            ->whereHas('documentType', fn ($q) => $q->active())
+            ->with('documentType')
+            ->get()
+            ->map(fn ($row) => ['doc_type' => $row->documentType->name, 'is_mandatory' => $row->is_mandatory]);
+
+        $snapshot = $ticket->deliverableRequirements()->get(['doc_type', 'is_mandatory'])
+            ->map(fn ($row) => ['doc_type' => $row->doc_type, 'is_mandatory' => $row->is_mandatory]);
+
+        if ($signature($live) !== $signature($snapshot)) {
             self::sync($ticket);
         }
     }
