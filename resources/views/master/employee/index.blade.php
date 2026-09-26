@@ -225,7 +225,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                             </div>
                         </th>
                         {{-- SINCE DATE: no filter --}}
-                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Since Date</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Since Date</th>
                         {{-- Remaining Employee Information columns (from the "Organizational Data" section
                              of the employee record) — everything except `block` and `deletion_flag` (those
                              only drive the Status column, moved to just before Actions below), and except
@@ -269,7 +269,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </th>
-                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Employee Subgroup</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Employee Subgroup</th>
                         {{-- EMPLOYEE TYPE: column filter dropdown (fixed set: Internal / External) --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterEmployeeType" data-multi="true" data-fixed="true" data-onchange="applyFilters">
@@ -288,10 +288,10 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </th>
-                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Authorization Group</th>
-                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Current Assignment</th>
-                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Direct Supervision</th>
-                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Manager</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Authorization Group</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Current Assignment</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Direct Supervision</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Manager</th>
                         {{-- STATUS: column filter dropdown (single-select) — moved to right before
                              Actions, per request. --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style="min-width:170px;">
@@ -312,7 +312,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                             </div>
                         </th>
                         {{-- ACTIONS: no filter --}}
-                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Actions</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Actions</th>
                     </tr>
                 </thead>
                 {{-- `uppercase` here is CSS-only (text-transform) — display formatting, the
@@ -1177,36 +1177,36 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
             return `
             <tr class="employee-row" onclick="navigateToDetail(${emp.id}, event)">
-                <td class="px-3 py-2 text-sm" style="min-width:100px;"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
-                <td class="px-3 py-2 text-sm text-gray-600" style="min-width:200px;">${fullName}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.position || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${(emp.modules && emp.modules.length) ? emp.modules.join(', ') : '-'}</td>
-                <td class="px-3 py-2 text-sm">${renderEmployeeGroup(emp.employee_group)}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.division || '-'}</td>
+                <td class="px-3 py-2 text-xs" style="min-width:100px;"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
+                <td class="px-3 py-2 text-xs text-gray-600" style="min-width:200px;">${fullName}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.position || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${(emp.modules && emp.modules.length) ? emp.modules.join(', ') : '-'}</td>
+                <td class="px-3 py-2 text-xs">${renderEmployeeGroup(emp.employee_group)}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.division || '-'}</td>
                 {{-- Kolom Department membaca eb.department. Sebelumnya keliru
                      merender employee_subgroup sehingga selalu tampil "-". --}}
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.department || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.home_base || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.since_date || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.department || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.home_base || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.since_date || '-'}</td>
                 {{-- Remaining Employee Information columns — everything from the employee
                      record except `block` and `deletion_flag` (those only drive the Status
                      column, moved below to sit right before Actions), and except
                      Title/Nick Name/Gender/Religion/Marital Status/Birth Date/Birth Place
                      (not needed in this table per request). --}}
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.personnel_area || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.personnel_subarea || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.employee_subgroup || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.employee_type || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.authorization_group || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.current_assignment || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.direct_supervision || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${emp.manager || '-'}</td>
-                <td class="px-3 py-2 text-sm" style="min-width:170px;">
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.personnel_area || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.personnel_subarea || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.employee_subgroup || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.employee_type || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.authorization_group || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.current_assignment || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.direct_supervision || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.manager || '-'}</td>
+                <td class="px-3 py-2 text-xs" style="min-width:170px;">
                     <span class="inline-block whitespace-nowrap px-3 py-1 text-xs font-semibold rounded-full ${statusInfo.class}">
                         ${statusInfo.label}
                     </span>
                 </td>
-                <td class="px-3 py-2 text-sm">
+                <td class="px-3 py-2 text-xs">
                     ${canEmployeeAction ? `<div class="action-buttons" onclick="event.stopPropagation()">
                         <button onclick="openEmpMenu(event, ${emp.id})" class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 transition-all">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4">
@@ -2220,15 +2220,19 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             setCustomDropdownValue('filterStatus', restored.status);
         }
 
+        // Module filter options & employee list tidak saling bergantung, jadi
+        // jalankan paralel (bukan await berurutan) supaya tabel tidak menunggu
+        // /api/modules selesai dulu sebelum mulai fetch /api/employees.
+        const moduleFilterPromise = loadModuleFilterOptions();
+        fetchEmployees(getCurrentFilters(), currentPage);
+
         // Module: item panel-nya baru ada setelah fetch /api/modules selesai,
         // jadi visual checked-state-nya baru bisa di-sync ulang sesudah ini.
-        await loadModuleFilterOptions();
+        await moduleFilterPromise;
         if (restored && restored.modules) {
             const ddModules = document.getElementById('ddFilterModules');
             if (ddModules && typeof _syncMultiVisualState === 'function') _syncMultiVisualState(ddModules);
         }
-
-        fetchEmployees(getCurrentFilters(), currentPage);
 
         // Teleport menu ke body agar tidak ter-clip oleh overflow-x-hidden pada <main>
         const menu = document.getElementById('floatingEmpMenu');

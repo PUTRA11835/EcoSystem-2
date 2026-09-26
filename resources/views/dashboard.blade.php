@@ -7,9 +7,34 @@
     <meta name="user-data" content='@json(session("user"))'>
     <title>@yield('title', 'Dashboard') - EcoSystem</title>
     @vite(['resources/css/app.css'])
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
+    {{-- Google Fonts is non-critical (page renders fine with the fallback font
+         for a moment) — loading it as a blocking <link rel="stylesheet"> delays
+         first paint on every page. Preload + swap the `rel` on load lets the
+         browser fetch it in parallel with everything else without blocking
+         rendering; the <noscript> fallback covers browsers/crawlers with JS
+         disabled. `display=optional` (not `swap`) because the base stylesheet
+         applies Inter via a `*` selector — swapping it in after first paint
+         would reflow every element on the page and show up as layout shift;
+         optional only uses Inter when it's already cached (e.g. a repeat
+         visit), otherwise it sticks with the fallback for that load.
+
+         Font Awesome is self-hosted from public/vendor/fontawesome (mirrored
+         from cdnjs 6.4.0) instead of the CDN: the upstream CSS ships
+         `font-display:block` on every @font-face, which hides all icons for
+         up to 3s on a slow connection (Lighthouse "Font display" audit) and
+         can't be overridden from a <link> tag — only by owning the CSS file.
+         Patched to `font-display:swap` in the local copy. Being same-origin
+         also drops one third-party connection + DNS/TLS round trip. --}}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=optional" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" as="style" href="{{ asset('vendor/fontawesome/css/all.min.css') }}" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=optional">
+        <link rel="stylesheet" href="{{ asset('vendor/fontawesome/css/all.min.css') }}">
+    </noscript>
+
     @php
         $preferences = session('user_preferences', [
             'theme' => 'light',

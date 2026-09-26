@@ -1,5 +1,10 @@
 /**
  * Custom dropdown component — notification-style panels.
+ *
+ * A minified copy (custom-dropdown.min.js) is used by pages that opt into it —
+ * run `npm run minify:js` after editing this file to regenerate it, otherwise
+ * those pages keep serving the old, now-mismatched behavior.
+ *
  * Usage: add class `custom-dd` to a wrapper div with:
  *   data-onchange="myFunction"  (optional — called after selection)
  *   data-fixed="true"           (optional — use fixed positioning, needed inside overflow:auto modals)

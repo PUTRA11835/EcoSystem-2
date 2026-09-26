@@ -1953,11 +1953,13 @@ document.addEventListener('click', function (e) {
 
 
 </script>
-{{-- Load custom-dd component (sama dengan halaman admin lain). filemtime
-     cache buster supaya production auto-invalidate setiap deploy. --}}
+{{-- Load custom-dd component (sama dengan halaman admin lain) — minified
+     build (~63% smaller after gzip); regenerate via `npm run minify:js`
+     whenever public/js/custom-dropdown.js changes.
+     filemtime cache buster supaya production auto-invalidate setiap deploy. --}}
 @php
-    $customDdPath = public_path('js/custom-dropdown.js');
+    $customDdPath = public_path('js/custom-dropdown.min.js');
     $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 @endphp
-<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
+<script src="/js/custom-dropdown.min.js?v={{ $customDdVer }}"></script>
 @endpush
