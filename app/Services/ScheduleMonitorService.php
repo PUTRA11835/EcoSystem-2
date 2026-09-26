@@ -281,6 +281,218 @@ class ScheduleMonitorService
         return $sent;
     }
 
+    /**
+     * Live total/used/free for the disk backing config('schedule_monitor.
+     * disk_usage.check_path') - a single disk_free_space()/disk_total_space()
+     * syscall pair, cheap enough to call on every page load and every alert
+     * sweep with no caching needed (unlike getDiskBreakdown() below).
+     */
+    public static function getDiskSpace(): array
+    {
+        $checkPath = config('schedule_monitor.disk_usage.check_path', base_path());
+        $total = @disk_total_space($checkPath);
+        $free  = @disk_free_space($checkPath);
+
+        if ($total === false || $free === false) {
+            return [
+                'check_path'   => $checkPath,
+                'available'    => false,
+                'total_bytes'  => null,
+                'used_bytes'   => null,
+                'free_bytes'   => null,
+                'used_percent' => null,
+                'status'       => 'unknown',
+            ];
+        }
+
+        $used = (int) $total - (int) $free;
+        $usedPercent = $total > 0 ? round(($used / $total) * 100, 1) : 0.0;
+
+        $critical = (float) config('schedule_monitor.disk_usage.critical_percent', 90);
+        $warning  = (float) config('schedule_monitor.disk_usage.warning_percent', 80);
+        $status   = $usedPercent >= $critical ? 'critical' : ($usedPercent >= $warning ? 'warning' : 'ok');
+
+        return [
+            'check_path'   => $checkPath,
+            'available'    => true,
+            'total_bytes'  => (int) $total,
+            'used_bytes'   => $used,
+            'free_bytes'   => (int) $free,
+            'used_percent' => $usedPercent,
+            'status'       => $status,
+        ];
+    }
+
+    /**
+     * Content breakdown for config('schedule_monitor.disk_usage.breakdown')
+     * plus the database's own data+index size. Recursive directory walks are
+     * not cheap on a folder with years of ticket attachments, so this is
+     * cached - the Schedule Monitor page auto-refreshes every 30s and this
+     * data doesn't meaningfully change that often.
+     */
+    public static function getDiskBreakdown(): array
+    {
+        return Cache::remember('schedule_monitor_disk_breakdown', now()->addMinutes(30), function () {
+            $items = [];
+            $storageItemizedTotal = 0;
+
+            foreach (config('schedule_monitor.disk_usage.breakdown', []) as $key => $meta) {
+                $path   = $meta['path'] ?? null;
+                $exists = $path && is_dir($path);
+                $size   = $exists ? self::directorySize($path) : 0;
+
+                $items[] = [
+                    'key'        => $key,
+                    'label'      => $meta['label'] ?? $key,
+                    'size_bytes' => $size,
+                    'exists'     => $exists,
+                ];
+
+                $storageItemizedTotal += $size;
+            }
+
+            $connection = config('database.default');
+            $database   = config("database.connections.{$connection}.database");
+
+            $items[] = [
+                'key'        => 'database',
+                'label'      => "Database ({$database})",
+                'size_bytes' => self::databaseSize($database),
+                'exists'     => true,
+            ];
+
+            // Everything else under storage/ not individually itemized above -
+            // framework cache/sessions/compiled views, htmlpurifier cache, the
+            // legacy storage/app/backups/ path from the old manual-Navicat
+            // era, etc. Real and worth seeing, just not important enough to
+            // name one by one in config.
+            $storagePath  = storage_path();
+            $storageTotal = is_dir($storagePath) ? self::directorySize($storagePath) : 0;
+
+            $items[] = [
+                'key'        => 'storage_other',
+                'label'      => 'Other Storage (cache, sessions, compiled views, misc)',
+                'size_bytes' => max(0, $storageTotal - $storageItemizedTotal),
+                'exists'     => true,
+            ];
+
+            // This app's own code footprint - vendor, node_modules, .git,
+            // source - everything under the app root EXCEPT storage/, which
+            // is entirely accounted for above. Answers "how big is EcoSystem
+            // itself" as its own line, separate from the data it holds -
+            // this is what "Other" on the page used to silently swallow.
+            $appPath  = base_path();
+            $appTotal = is_dir($appPath) ? self::directorySize($appPath) : 0;
+
+            $items[] = [
+                'key'        => 'application_code',
+                'label'      => 'Application Code (vendor, git, source)',
+                'size_bytes' => max(0, $appTotal - $storageTotal),
+                'exists'     => true,
+            ];
+
+            usort($items, fn ($a, $b) => $b['size_bytes'] <=> $a['size_bytes']);
+
+            return $items;
+        });
+    }
+
+    /** Sums file sizes recursively; an unreadable subdirectory (permissions) reports what was summed so far rather than failing the whole breakdown. */
+    private static function directorySize(string $path): int
+    {
+        $size = 0;
+
+        try {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::LEAVES_ONLY,
+                \RecursiveIteratorIterator::CATCH_GET_CHILD
+            );
+
+            foreach ($iterator as $file) {
+                if ($file->isFile()) {
+                    $size += $file->getSize();
+                }
+            }
+        } catch (Throwable $e) {
+            // Best-effort - partial total beats no total.
+        }
+
+        return $size;
+    }
+
+    private static function databaseSize(?string $database): int
+    {
+        if (!$database) {
+            return 0;
+        }
+
+        $row = DB::selectOne(
+            'SELECT SUM(data_length + index_length) AS bytes FROM information_schema.tables WHERE table_schema = ?',
+            [$database]
+        );
+
+        return (int) ($row->bytes ?? 0);
+    }
+
+    /**
+     * Periodic sweep counterpart to checkStaleness()/checkQueueHealthAlerts()
+     * - alerts once per severity per episode (Cache::add is atomic "alert only
+     * if not already flagged"). 'warning' and 'critical' use separate keys so
+     * an escalation from warning to critical still gets its own fresh alert
+     * even though warning already fired for this episode.
+     *
+     * @return int number of new alerts sent
+     */
+    public static function checkDiskUsageAlerts(): int
+    {
+        $disk = self::getDiskSpace();
+
+        if (!$disk['available']) {
+            return 0;
+        }
+
+        if ($disk['status'] === 'ok') {
+            Cache::forget('schedule_monitor_disk_alerted_warning');
+            Cache::forget('schedule_monitor_disk_alerted_critical');
+            return 0;
+        }
+
+        $cacheKey = "schedule_monitor_disk_alerted_{$disk['status']}";
+        if (!Cache::add($cacheKey, true, now()->addHours(24))) {
+            return 0; // already alerted for this ongoing episode at this severity
+        }
+
+        self::notifyAdmins(sprintf(
+            'Disk usage on %s is at %s%% (%s used of %s) - status: %s.',
+            $disk['check_path'],
+            $disk['used_percent'],
+            self::formatBytes($disk['used_bytes']),
+            self::formatBytes($disk['total_bytes']),
+            strtoupper($disk['status'])
+        ));
+
+        return 1;
+    }
+
+    private static function formatBytes(?int $bytes): string
+    {
+        if ($bytes === null) {
+            return 'unknown';
+        }
+
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $value = (float) $bytes;
+        $i = 0;
+
+        while ($value >= 1024 && $i < count($units) - 1) {
+            $value /= 1024;
+            $i++;
+        }
+
+        return round($value, 1) . ' ' . $units[$i];
+    }
+
     /** Same shape as LoginSecurityService::notifyAdmins() - every EC Administrator gets an in-app + push notification. */
     private static function notifyAdmins(string $preview): void
     {
@@ -316,8 +528,12 @@ class ScheduleMonitorService
             'command'               => $meta['command'] ?? null,
             'frequency_label'       => $meta['frequency_label'] ?? 'Unknown',
             'status'                => $row->last_status ?? 'never_run',
-            'last_started_at'       => $row->last_started_at ?? null,
-            'last_finished_at'      => $row->last_finished_at ?? null,
+            // WIB-formatted for display, matching getRuns()'s "d M Y H:i" + "
+            // WIB" convention below - previously returned the raw DB
+            // datetime string, which read inconsistently next to the
+            // formatted Recent Failures & Skips table on the same page.
+            'last_started_at'       => self::formatWib($row->last_started_at ?? null),
+            'last_finished_at'      => self::formatWib($row->last_finished_at ?? null),
             'last_duration_ms'      => $row->last_duration_ms ?? null,
             'last_exit_code'        => $row->last_exit_code ?? null,
             'last_error'            => $row->last_error ?? null,
@@ -325,5 +541,14 @@ class ScheduleMonitorService
             'total_runs'            => $row->total_runs ?? 0,
             'is_stale'              => $isStale,
         ];
+    }
+
+    private static function formatWib(?string $datetime): ?string
+    {
+        if (!$datetime) {
+            return null;
+        }
+
+        return \Carbon\Carbon::parse($datetime)->setTimezone('Asia/Jakarta')->format('d M Y H:i') . ' WIB';
     }
 }

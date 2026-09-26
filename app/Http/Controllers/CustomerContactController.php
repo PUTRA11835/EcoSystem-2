@@ -25,6 +25,8 @@ class CustomerContactController extends Controller
 
             $contacts = DB::table('customer_contact as cc')
                 ->leftJoin('auth_users as au', 'au.contact_id', '=', 'cc.contact_id')
+                ->leftJoin('customer_contact_group_members as gm', 'gm.contact_id', '=', 'cc.contact_id')
+                ->leftJoin('customer_contact_groups as g', 'g.group_id', '=', 'gm.group_id')
                 ->where('cc.customer_id', $customerId)
                 ->orderBy('cc.contact_id', 'desc')
                 ->select(
@@ -58,7 +60,9 @@ class CustomerContactController extends Controller
                     'au.is_active as login_active',
                     'au.is_already_cp as login_setup_done',
                     'au.can_view_all_tickets',
-                    'au.last_login_at'
+                    'au.last_login_at',
+                    'g.group_id',
+                    'g.name as group_name'
                 )
                 ->get();
 
@@ -556,19 +560,304 @@ class CustomerContactController extends Controller
             ->where('contact_id', $contactId)
             ->update(['can_view_all_tickets' => $newValue, 'updated_at' => now()]);
 
+        // Admin sees every company ticket already, so a contact group would be
+        // redundant for them — and grouping is only meant for Member-level
+        // contacts. Promoting to Admin drops them out of whatever group they're in.
+        $removedFromGroup = false;
+        if ($newValue) {
+            $removedFromGroup = DB::table('customer_contact_group_members')
+                ->where('contact_id', $contactId)
+                ->delete() > 0;
+        }
+
         Log::info('=== API: TOGGLE CAN_VIEW_ALL_TICKETS ===', [
-            'customer_id' => $customerId,
-            'contact_id'  => $contactId,
-            'new_value'   => $newValue,
+            'customer_id'        => $customerId,
+            'contact_id'         => $contactId,
+            'new_value'          => $newValue,
+            'removed_from_group' => $removedFromGroup,
         ]);
+
+        $message = $newValue
+            ? 'This contact can now view all company tickets.'
+            : 'This contact can now only view tickets they submitted.';
+        if ($removedFromGroup) {
+            $message .= ' They were also removed from their contact group.';
+        }
 
         return response()->json([
             'success'              => true,
             'can_view_all_tickets' => $newValue,
-            'message'              => $newValue
-                ? 'This contact can now view all company tickets.'
-                : 'This contact can now only view tickets they submitted.',
+            'removed_from_group'   => $removedFromGroup,
+            'message'              => $message,
         ]);
+    }
+
+    /**
+     * List all contact groups for a customer, with their members.
+     */
+    public function groups($customerId)
+    {
+        $groups = DB::table('customer_contact_groups')
+            ->where('customer_id', $customerId)
+            ->orderBy('name')
+            ->get();
+
+        $memberRows = DB::table('customer_contact_group_members as gm')
+            ->join('customer_contact as cc', 'cc.contact_id', '=', 'gm.contact_id')
+            ->whereIn('gm.group_id', $groups->pluck('group_id'))
+            ->select('gm.group_id', 'gm.contact_id', 'cc.full_name', 'cc.email_work')
+            ->get()
+            ->groupBy('group_id');
+
+        $data = $groups->map(function ($group) use ($memberRows) {
+            $group->members = ($memberRows->get($group->group_id) ?? collect())->values();
+            return $group;
+        });
+
+        return response()->json(['success' => true, 'data' => $data]);
+    }
+
+    /**
+     * Create a new contact group for a customer.
+     */
+    public function createGroup(Request $request, $customerId)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $customerExists = DB::table('customer')->where('customer_id', $customerId)->exists();
+        if (!$customerExists) {
+            return response()->json(['success' => false, 'message' => 'Customer not found'], 404);
+        }
+
+        $groupId = DB::table('customer_contact_groups')->insertGetId([
+            'customer_id' => $customerId,
+            'name'        => $request->name,
+            'created_at'  => now(),
+            'updated_at'  => now(),
+        ]);
+
+        AuditLog::recordAction(
+            module: 'Customer',
+            auditableType: 'CustomerContactGroup',
+            auditableId: $groupId,
+            event: 'created',
+            recordLabel: $request->name,
+            description: "created Contact Group: {$request->name} — Customer #{$customerId}",
+            old: null,
+            new: ['group_id' => $groupId, 'customer_id' => $customerId, 'name' => $request->name],
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contact group created successfully',
+            'data'    => ['group_id' => $groupId],
+        ], 201);
+    }
+
+    /**
+     * Rename a contact group.
+     */
+    public function renameGroup(Request $request, $customerId, $groupId)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $group = DB::table('customer_contact_groups')
+            ->where('customer_id', $customerId)
+            ->where('group_id', $groupId)
+            ->first();
+
+        if (!$group) {
+            return response()->json(['success' => false, 'message' => 'Group not found'], 404);
+        }
+
+        DB::table('customer_contact_groups')
+            ->where('group_id', $groupId)
+            ->update(['name' => $request->name, 'updated_at' => now()]);
+
+        AuditLog::recordAction(
+            module: 'Customer',
+            auditableType: 'CustomerContactGroup',
+            auditableId: $groupId,
+            event: 'updated',
+            recordLabel: $request->name,
+            description: "renamed Contact Group #{$groupId} to: {$request->name} — Customer #{$customerId}",
+            old: ['name' => $group->name],
+            new: ['name' => $request->name],
+        );
+
+        return response()->json(['success' => true, 'message' => 'Contact group renamed successfully']);
+    }
+
+    /**
+     * Delete a contact group. Members are simply detached (their own
+     * contact/login records are untouched), not deleted.
+     */
+    public function deleteGroup($customerId, $groupId)
+    {
+        $group = DB::table('customer_contact_groups')
+            ->where('customer_id', $customerId)
+            ->where('group_id', $groupId)
+            ->first();
+
+        if (!$group) {
+            return response()->json(['success' => false, 'message' => 'Group not found'], 404);
+        }
+
+        DB::table('customer_contact_groups')->where('group_id', $groupId)->delete();
+
+        AuditLog::recordAction(
+            module: 'Customer',
+            auditableType: 'CustomerContactGroup',
+            auditableId: $groupId,
+            event: 'deleted',
+            recordLabel: $group->name,
+            description: "deleted Contact Group: {$group->name} — Customer #{$customerId}",
+            old: (array) $group,
+            new: null,
+        );
+
+        return response()->json(['success' => true, 'message' => 'Contact group deleted successfully']);
+    }
+
+    /**
+     * Add a contact to a group.
+     * Rejected if the contact belongs to a different customer, is an Admin
+     * (can_view_all_tickets = true — Admin already sees everything company-wide,
+     * so grouping would be meaningless for them), or already belongs to a group.
+     */
+    public function addGroupMember(Request $request, $customerId, $groupId)
+    {
+        $validator = Validator::make($request->all(), [
+            'contact_id' => 'required|integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $group = DB::table('customer_contact_groups')
+            ->where('customer_id', $customerId)
+            ->where('group_id', $groupId)
+            ->first();
+
+        if (!$group) {
+            return response()->json(['success' => false, 'message' => 'Group not found'], 404);
+        }
+
+        $contactId = $request->contact_id;
+
+        $contact = DB::table('customer_contact')
+            ->where('customer_id', $customerId)
+            ->where('contact_id', $contactId)
+            ->first();
+
+        if (!$contact) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Contact not found for this customer',
+            ], 404);
+        }
+
+        $authUser = DB::table('auth_users')->where('contact_id', $contactId)->first();
+        if ($authUser && (bool) $authUser->can_view_all_tickets) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Admin contacts already see every company ticket and cannot be added to a group.',
+            ], 422);
+        }
+
+        $existingGroupId = DB::table('customer_contact_group_members')
+            ->where('contact_id', $contactId)
+            ->value('group_id');
+
+        if ($existingGroupId) {
+            return response()->json([
+                'success' => false,
+                'message' => $existingGroupId == $groupId
+                    ? 'This contact is already in this group.'
+                    : 'This contact already belongs to another group. Remove them from it first.',
+            ], 422);
+        }
+
+        DB::table('customer_contact_group_members')->insert([
+            'group_id'   => $groupId,
+            'contact_id' => $contactId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        AuditLog::recordAction(
+            module: 'Customer',
+            auditableType: 'CustomerContactGroup',
+            auditableId: $groupId,
+            event: 'updated',
+            recordLabel: $group->name,
+            description: "added {$contact->full_name} to Contact Group: {$group->name} — Customer #{$customerId}",
+            old: null,
+            new: ['contact_id' => $contactId, 'full_name' => $contact->full_name],
+        );
+
+        return response()->json(['success' => true, 'message' => 'Contact added to group successfully']);
+    }
+
+    /**
+     * Remove a contact from a group.
+     */
+    public function removeGroupMember($customerId, $groupId, $contactId)
+    {
+        $group = DB::table('customer_contact_groups')
+            ->where('customer_id', $customerId)
+            ->where('group_id', $groupId)
+            ->first();
+
+        if (!$group) {
+            return response()->json(['success' => false, 'message' => 'Group not found'], 404);
+        }
+
+        $deleted = DB::table('customer_contact_group_members')
+            ->where('group_id', $groupId)
+            ->where('contact_id', $contactId)
+            ->delete();
+
+        if ($deleted === 0) {
+            return response()->json(['success' => false, 'message' => 'This contact is not in the group'], 404);
+        }
+
+        $contact = DB::table('customer_contact')->where('contact_id', $contactId)->first();
+
+        AuditLog::recordAction(
+            module: 'Customer',
+            auditableType: 'CustomerContactGroup',
+            auditableId: $groupId,
+            event: 'updated',
+            recordLabel: $group->name,
+            description: 'removed ' . ($contact->full_name ?? "Contact #{$contactId}") . " from Contact Group: {$group->name} — Customer #{$customerId}",
+            old: ['contact_id' => $contactId],
+            new: null,
+        );
+
+        return response()->json(['success' => true, 'message' => 'Contact removed from group successfully']);
     }
 
     /**

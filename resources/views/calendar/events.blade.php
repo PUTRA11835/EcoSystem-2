@@ -127,7 +127,7 @@
 </div>
 
 <!-- Event Details Modal -->
-<div id="eventDetailsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+<div id="eventDetailsModal" class="hidden fixed inset-0 bg-black/50 z-50 overflow-y-auto">
     <div class="min-h-screen px-4 py-8 flex items-center justify-center">
         <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
             <div id="detailsHeader" class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-t-2xl flex items-center justify-between">
@@ -175,7 +175,7 @@
 </div>
 
 <!-- Create/Edit Event Modal -->
-<div id="eventModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="eventModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
 
         <!-- Header -->
@@ -315,6 +315,6 @@
 </div>
 
 @push('scripts')
-<script src="/js/calendar-events.js"></script>
+<script src="/js/calendar-events.js?v={{ filemtime(public_path('js/calendar-events.js')) }}"></script>
 @endpush
 @endsection

@@ -3,16 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Http\Controllers\Concerns\RequiresStepUpAuth;
 use App\Models\SecurityEvent;
 use App\Services\IpLocationService;
-use App\Support\SessionPayloadDecoder;
+use App\Services\LoginSecurityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SecurityCenterController extends Controller
 {
-    /** Same account this app protects from force-logout everywhere else. */
-    private const PROTECTED_ECI = 'ECI_ADMIN';
+    use RequiresStepUpAuth;
 
     private function assertAdmin(): ?array
     {
@@ -359,6 +359,10 @@ class SecurityCenterController extends Controller
             return response()->json(['success' => false, 'message' => 'auth_user_id is required.'], 422);
         }
 
+        if ($stepUpFailure = $this->verifyStepUpOrFail($request)) {
+            return $stepUpFailure;
+        }
+
         DB::table('auth_users')->where('id', $authUserId)->update(['locked_until' => null]);
 
         SecurityEvent::query()
@@ -417,6 +421,10 @@ class SecurityCenterController extends Controller
 
         $ip = trim((string) $request->input('ip_address'));
 
+        if ($stepUpFailure = $this->verifyStepUpOrFail($request)) {
+            return $stepUpFailure;
+        }
+
         DB::table('blocked_ips')->where('ip_address', $ip)->delete();
 
         return response()->json(['success' => true, 'message' => "IP {$ip} unblocked."]);
@@ -424,7 +432,6 @@ class SecurityCenterController extends Controller
 
     /**
      * Admin-only: force-logout every active session belonging to an employee.
-     * Reuses the same session.payload decode primitive as AdminSessionController.
      */
     public function forceLogoutAccount(Request $request)
     {
@@ -440,21 +447,7 @@ class SecurityCenterController extends Controller
             return response()->json(['success' => false, 'message' => 'employee_id is required.'], 422);
         }
 
-        $candidates = DB::table('sessions')->select('id', 'payload')->get();
-
-        $deletableIds = $candidates
-            ->filter(function ($s) use ($employeeId) {
-                $user = SessionPayloadDecoder::decode($s->payload);
-
-                if (!$user || ($user['eci'] ?? null) === self::PROTECTED_ECI) {
-                    return false;
-                }
-
-                return (int) ($user['id'] ?? 0) === $employeeId;
-            })
-            ->pluck('id');
-
-        $count = DB::table('sessions')->whereIn('id', $deletableIds)->delete();
+        $count = app(LoginSecurityService::class)->killSessionsForEmployee($employeeId);
 
         return response()->json([
             'success' => true,

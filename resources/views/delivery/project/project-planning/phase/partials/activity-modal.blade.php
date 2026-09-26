@@ -1,5 +1,5 @@
 {{-- ✅ SUPER FIXED ACTIVITY MODAL - Better Error Handling --}}
-<div id="activityModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="activityModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg md:max-w-2xl lg:max-w-4xl flex flex-col max-h-[90vh]">
             <form id="activityForm" onsubmit="saveActivity(event)" class="flex flex-col flex-1 min-h-0">
                 {{-- Header --}}
@@ -276,7 +276,7 @@
 
 {{-- Confirm Remove Member Modal --}}
 <div id="activityMemberDeleteModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4">
-    <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeRemoveMemberModal()"></div>
+    <div class="fixed inset-0 bg-black/50" onclick="closeRemoveMemberModal()"></div>
     <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-sm">
         <div class="px-6 py-5">
             <div class="flex items-start gap-3">

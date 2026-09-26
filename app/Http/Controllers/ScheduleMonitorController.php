@@ -38,6 +38,20 @@ class ScheduleMonitorController extends Controller
         ]);
     }
 
+    /** Admin-only: live disk space (total/used/free) plus a content breakdown. */
+    public function diskUsage(Request $request)
+    {
+        if (!$this->assertAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        return response()->json([
+            'success'   => true,
+            'space'     => ScheduleMonitorService::getDiskSpace(),
+            'breakdown' => ScheduleMonitorService::getDiskBreakdown(),
+        ]);
+    }
+
     /** Admin-only: live status of every known scheduled task. */
     public function index(Request $request)
     {
@@ -47,9 +61,24 @@ class ScheduleMonitorController extends Controller
 
         $data = ScheduleMonitorService::getStatusData();
 
+        // Pulled out of the regular task list - it's not a real task, it's
+        // proof-of-life for the trigger itself (see ScheduleHeartbeat), and
+        // showing it twice (banner + a card indistinguishable from the 7
+        // real ones) would just be confusing. Keeping it out of $data also
+        // keeps "Known Tasks" honestly at 7, not 8.
+        $heartbeat = null;
+        $data = array_values(array_filter($data, function ($entry) use (&$heartbeat) {
+            if ($entry['task_name'] === 'scheduler-heartbeat') {
+                $heartbeat = $entry;
+                return false;
+            }
+            return true;
+        }));
+
         return response()->json([
-            'success' => true,
-            'data'    => $data,
+            'success'   => true,
+            'data'      => $data,
+            'heartbeat' => $heartbeat,
             'summary' => [
                 'total'   => count($data),
                 // "stale" and "failed" can overlap (a task that failed a while

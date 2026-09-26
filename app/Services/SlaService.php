@@ -696,9 +696,9 @@ class SlaService
      *
      * Safe to call multiple times; skips if the SLA is already finalised (met/breached).
      */
-    public function syncPolicy(Ticket $ticket, ?int $deliverySupportId = null): void
+    public function syncPolicy(Ticket $ticket, ?int $deliverySupportId = null, ?TicketSla $preloadedSla = null): void
     {
-        $sla = TicketSla::where('ticket_id', $ticket->ticket_id)->first();
+        $sla = $preloadedSla ?? TicketSla::where('ticket_id', $ticket->ticket_id)->first();
 
         if (!$sla) {
             // SLA record never created — try attaching now (delivery support is now known)
@@ -926,10 +926,18 @@ class SlaService
             ->get();
 
         if ($missing->isNotEmpty()) {
+            // Batch-load staging records for all missing tickets in one query
+            // instead of one StagingTicket lookup per ticket (ticket_id is
+            // unique on staging_tickets, so this is behaviourally identical
+            // to the old per-ticket ->where(...)->first()).
+            $stagingByTicketId = StagingTicket::whereIn('ticket_id', $missing->pluck('ticket_id'))
+                ->get()
+                ->keyBy('ticket_id');
+
             $newIds = [];
             foreach ($missing as $ticket) {
                 try {
-                    $staging = StagingTicket::where('ticket_id', $ticket->ticket_id)->first();
+                    $staging = $stagingByTicketId->get($ticket->ticket_id);
                     $this->attachToTicket($ticket, $staging);
                     $newIds[] = $ticket->ticket_id;
                 } catch (\Throwable $e) {
@@ -965,12 +973,29 @@ class SlaService
             ->with('ticket')
             ->get();
 
+        // Batch-load delivery_support_id for tickets that unambiguously have
+        // exactly one delivery_support_activities row, so syncPolicy() (which
+        // already accepts a pre-resolved $deliverySupportId) can skip its own
+        // per-ticket lookup below — this was the dominant query cost here,
+        // since every SLA report load re-scans every ticket still without a
+        // policy. Tickets with zero or more than one row are left out of the
+        // map entirely so syncPolicy() falls back to its own lookup for them,
+        // leaving that (rare, ambiguous) case byte-for-byte unchanged.
+        $ticketIds = $slas->pluck('ticket_id')->filter();
+        $deliverySupportByTicketId = \Illuminate\Support\Facades\DB::table('delivery_support_activities')
+            ->whereIn('ticket_id', $ticketIds)
+            ->select('ticket_id', 'delivery_support_id')
+            ->get()
+            ->groupBy('ticket_id')
+            ->filter(fn($rows) => $rows->count() === 1)
+            ->map(fn($rows) => $rows->first()->delivery_support_id);
+
         foreach ($slas as $sla) {
             if (!$sla->ticket) {
                 continue;
             }
             try {
-                $this->syncPolicy($sla->ticket);
+                $this->syncPolicy($sla->ticket, $deliverySupportByTicketId->get($sla->ticket_id), $sla);
             } catch (\Throwable $e) {
                 Log::warning('SlaService@syncMissingPolicies: failed', [
                     'ticket_id' => $sla->ticket_id,

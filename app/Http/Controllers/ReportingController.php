@@ -1771,22 +1771,25 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($seriesLabels, 0);
             }
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $otherLabel, $noModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $seriesLabel = $typeMap[$ticket->ticket_type] ?? $otherLabel;
+                ->get();
 
-                        $moduleName = $ticket->module_name;
-                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $noModuleLabel;
+            foreach ($ticketsForCount as $ticket) {
+                $seriesLabel = $typeMap[$ticket->ticket_type] ?? $otherLabel;
 
-                        $counts[$label][$seriesLabel]++;
-                    }
-                });
+                $moduleName = $ticket->module_name;
+                $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $noModuleLabel;
+
+                $counts[$label][$seriesLabel]++;
+            }
 
             // Modules with zero tickets across all four categories are hidden entirely.
             $labels = array_values(array_filter($labels, fn ($label) => array_sum($counts[$label]) > 0));
@@ -1856,22 +1859,25 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($months, 0);
             }
 
-            Ticket::whereNull('deleted_at')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('ticket_type', array_keys($typeMap))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_type', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $typeMap) {
-                    foreach ($tickets as $ticket) {
-                        $label = $typeMap[$ticket->ticket_type] ?? null;
-                        if (!$label) continue;
-                        $ym = $ticket->created_at->format('Y-m');
-                        if (isset($counts[$label][$ym])) {
-                            $counts[$label][$ym]++;
-                        }
-                    }
-                });
+                ->get();
+
+            foreach ($ticketsForCount as $ticket) {
+                $label = $typeMap[$ticket->ticket_type] ?? null;
+                if (!$label) continue;
+                $ym = $ticket->created_at->format('Y-m');
+                if (isset($counts[$label][$ym])) {
+                    $counts[$label][$ym]++;
+                }
+            }
 
             $monthLabels = array_map(fn ($ym) => Carbon::createFromFormat('Y-m', $ym)->format('M Y'), $months);
 
@@ -1947,24 +1953,27 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($seriesLabels, 0);
             }
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('ticket_type', array_keys($typeMap))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $allModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $seriesLabel = $typeMap[$ticket->ticket_type] ?? null;
-                        if (!$seriesLabel) continue;
+                ->get();
 
-                        $moduleName = $ticket->module_name;
-                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+            foreach ($ticketsForCount as $ticket) {
+                $seriesLabel = $typeMap[$ticket->ticket_type] ?? null;
+                if (!$seriesLabel) continue;
 
-                        $counts[$label][$seriesLabel]++;
-                    }
-                });
+                $moduleName = $ticket->module_name;
+                $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+
+                $counts[$label][$seriesLabel]++;
+            }
 
             // Modules with zero tickets across all three ticket_type values are hidden.
             $labels = array_values(array_filter($labels, fn ($label) => array_sum($counts[$label]) > 0));
@@ -2032,24 +2041,27 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($columns, 0);
             }
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('ticket_type', array_keys($typeMap))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $allModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $rowLabel = $typeMap[$ticket->ticket_type] ?? null;
-                        if (!$rowLabel) continue;
+                ->get();
 
-                        $moduleName = $ticket->module_name;
-                        $column     = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+            foreach ($ticketsForCount as $ticket) {
+                $rowLabel = $typeMap[$ticket->ticket_type] ?? null;
+                if (!$rowLabel) continue;
 
-                        $counts[$rowLabel][$column]++;
-                    }
-                });
+                $moduleName = $ticket->module_name;
+                $column     = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+
+                $counts[$rowLabel][$column]++;
+            }
 
             // Columns (modules) with zero tickets across all three rows are hidden.
             $columns = array_values(array_filter($columns, function ($column) use ($rowLabels, $counts) {
@@ -2113,19 +2125,22 @@ class ReportingController extends Controller
 
             $counts = array_fill_keys($labels, 0);
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $allModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $moduleName = $ticket->module_name;
-                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
-                        $counts[$label]++;
-                    }
-                });
+                ->get();
+
+            foreach ($ticketsForCount as $ticket) {
+                $moduleName = $ticket->module_name;
+                $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+                $counts[$label]++;
+            }
 
             // Modules with zero tickets are hidden entirely.
             $labels = array_values(array_filter($labels, fn ($label) => $counts[$label] > 0));
@@ -2244,19 +2259,22 @@ class ReportingController extends Controller
                 'Open'  => ['Non CR' => 0, 'Request CR' => 0],
             ];
 
-            Ticket::whereNull('deleted_at')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('status', array_merge($closeStatuses, $openStatuses))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'status', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $closeStatuses) {
-                    foreach ($tickets as $ticket) {
-                        $group  = $ticket->ticket_type === 'Change Request' ? 'Request CR' : 'Non CR';
-                        $series = in_array($ticket->status, $closeStatuses, true) ? 'Close' : 'Open';
-                        $counts[$series][$group]++;
-                    }
-                });
+                ->get();
+
+            foreach ($ticketsForCount as $ticket) {
+                $group  = $ticket->ticket_type === 'Change Request' ? 'Request CR' : 'Non CR';
+                $series = in_array($ticket->status, $closeStatuses, true) ? 'Close' : 'Open';
+                $counts[$series][$group]++;
+            }
 
             $series = [
                 'Close' => [$counts['Close']['Non CR'], $counts['Close']['Request CR']],
@@ -2552,7 +2570,16 @@ class ReportingController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
             }
 
-            $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
+            // select() dibatasi ke kolom yang benar-benar dipakai di response bawah — tabel
+            // `ticket` punya puluhan kolom (SLA, mandays, confirmation, dst) yang kalau ikut
+            // ter-hydrate untuk SETIAP tiket (endpoint ini load seluruh tabel, tanpa filter
+            // tanggal/pagination) jadi biaya memori & waktu terbesar di endpoint ini.
+            $tickets = Ticket::select(['ticket_id', 'ticket_number', 'description', 'status', 'module_id', 'module', 'ticket_lead_id', 'created_at'])
+                ->with([
+                    'ticketLead:employee_id',
+                    'ticketLead.basicData:employee_id,nick_name,first_name',
+                    'moduleMaster:id,name',
+                ])
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->orderByDesc('created_at')
@@ -2602,7 +2629,12 @@ class ReportingController extends Controller
                 abort(403, 'Access denied.');
             }
 
-            $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
+            $tickets = Ticket::select(['ticket_id', 'ticket_number', 'description', 'status', 'module_id', 'module', 'ticket_lead_id', 'created_at'])
+                ->with([
+                    'ticketLead:employee_id',
+                    'ticketLead.basicData:employee_id,nick_name,first_name',
+                    'moduleMaster:id,name',
+                ])
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->orderByDesc('created_at')

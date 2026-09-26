@@ -23,6 +23,7 @@ class DeliverySupportPhaseController extends Controller
     {
         try {
             $phases = DeliverySupportPhase::where('delivery_support_id', $support->id)
+                ->withCount('activities')
                 ->orderBy('order_sequence')
                 ->get()
                 ->map(function ($phase) {
@@ -39,7 +40,7 @@ class DeliverySupportPhaseController extends Controller
                         'is_resolution_phase' => $phase->is_resolution_phase,
                         'is_visible' => $phase->is_visible,
                         'is_optional' => $phase->is_optional,
-                        'activities_count' => $phase->activities()->count(),
+                        'activities_count' => $phase->activities_count,
                     ];
                 });
 

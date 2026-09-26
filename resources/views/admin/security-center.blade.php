@@ -245,6 +245,37 @@
 
 </div>
 
+<div id="blockIpModal" class="hidden fixed inset-0 bg-black/50 z-[9990] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4">
+        <div class="px-6 pt-6 pb-3">
+            <div class="flex items-start gap-3">
+                <div class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-red-100">
+                    <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">Block IP Address</h3>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">IP Address</label>
+                    <input id="blockIpModalIp" type="text" placeholder="e.g. 203.0.113.5"
+                        class="w-full mb-3 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-200">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Reason (optional)</label>
+                    <input id="blockIpModalReason" type="text" placeholder="Why is this IP being blocked?"
+                        class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-200">
+                </div>
+            </div>
+        </div>
+        <div class="px-6 pb-5 pt-2 flex gap-2 justify-end">
+            <button id="blockIpModalCancelBtn" type="button"
+                class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium">
+                Cancel
+            </button>
+            <button id="blockIpModalOkBtn" type="button"
+                class="px-4 py-2 text-sm font-semibold text-white bg-red-700 hover:bg-red-800 rounded-lg transition">
+                Block IP
+            </button>
+        </div>
+    </div>
+</div>
+
 @php
     $customDdPath = public_path('js/custom-dropdown.js');
     $customDdVer  = file_exists($customDdPath) ? filemtime($customDdPath) : time();
@@ -331,6 +362,10 @@ const RECOMMENDED_ACTIONS = {
     privilege_escalation: 'Confirm this role change was intentional and authorized before resolving.',
     mass_export: 'Confirm the export was expected. If not, treat as possible data exfiltration.',
     anomalous_login: 'Confirm with the employee this was really them (e.g. travel). If not, force-logout and reset credentials.',
+    two_factor_bypass_attempt: 'Repeated failed 2FA attempts locked this account. The password is already known to whoever tried this — confirm with the employee and consider a password reset before unlocking.',
+    two_factor_recovery_code_used: 'Employee likely lost access to their authenticator device. Confirm with them and help them re-enroll 2FA if needed.',
+    step_up_verification_failed: 'Repeated failed step-up attempts locked this account mid-session. Could be a hijacked session without the physical 2FA device — confirm with the employee before unlocking.',
+    integration_credential_unhealthy: 'Check the event detail for which integration (MS Graph/Anthropic/OpenAI) and the failure reason. Rotate or renew the credential if expired/revoked.',
 };
 
 function recommendedAction(eventType) {
@@ -415,45 +450,98 @@ async function loadTable(page = 1) {
 }
 
 // ─── Row actions ──────────────────────────────────────────────────────────────
+function showToast(msg, type) {
+    const t = document.createElement('div');
+    t.className = `fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
+
 async function resolveEvent(id) {
-    if (!confirm('Mark this event as resolved?')) return;
+    if (!await showConfirm('Mark this event as resolved?', 'Resolve Event', 'primary')) return;
     const data = await postJson(`/api/admin/security-events/${id}/resolve`, {});
-    if (!data.success) { alert(data.message || 'Failed'); return; }
+    if (!data.success) { showToast(data.message || 'Failed', 'error'); return; }
+    showToast('Event resolved', 'success');
     loadStats(); loadTable(currentPage);
 }
 
 async function unlockAccount(authUserId) {
-    if (!confirm('Unlock this account now?')) return;
-    const data = await postJson('/api/admin/security-events/unlock-account', { auth_user_id: authUserId });
-    if (!data.success) { alert(data.message || 'Failed'); return; }
+    if (!await showConfirm('Unlock this account now?', 'Unlock Account', 'primary')) return;
+    const code = await showPrompt('Enter your 2FA code to confirm this action.', 'Verify Identity', { placeholder: '6-digit code or recovery code', maxLength: 20 });
+    if (code === null) return;
+    const data = await postJson('/api/admin/security-events/unlock-account', { auth_user_id: authUserId, two_factor_code: code });
+    if (!data.success) { showToast(data.message || 'Failed', 'error'); return; }
+    showToast('Account unlocked', 'success');
     loadStats(); loadTable(currentPage);
 }
 
 async function forceLogout(employeeId) {
-    if (!confirm('Force-logout every active session for this account?')) return;
+    if (!await showConfirm('Force-logout every active session for this account?', 'Force Logout', 'danger')) return;
     const data = await postJson('/api/admin/security-events/force-logout', { employee_id: employeeId });
-    if (!data.success) { alert(data.message || 'Failed'); return; }
-    alert(data.message);
+    if (!data.success) { showToast(data.message || 'Failed', 'error'); return; }
+    showToast(data.message, 'success');
 }
 
 async function blockIp(ip) {
-    const reason = prompt(`Block IP ${ip}. Optional reason:`, '');
-    if (reason === null) return;
-    const data = await postJson('/api/admin/security-events/block-ip', { ip_address: ip, reason });
-    if (!data.success) { alert(data.message || 'Failed'); return; }
-    loadStats(); loadBlockedIps();
+    openBlockIpModal(ip);
 }
 
 function promptBlockIp() {
-    const ip = prompt('IP address to block:');
-    if (!ip) return;
-    blockIp(ip.trim());
+    openBlockIpModal();
+}
+
+function openBlockIpModal(prefilledIp) {
+    const modal       = document.getElementById('blockIpModal');
+    const ipInput      = document.getElementById('blockIpModalIp');
+    const reasonInput = document.getElementById('blockIpModalReason');
+    const okBtn        = document.getElementById('blockIpModalOkBtn');
+    const cancelBtn    = document.getElementById('blockIpModalCancelBtn');
+
+    ipInput.value      = prefilledIp || '';
+    ipInput.readOnly   = !!prefilledIp;
+    ipInput.classList.toggle('bg-gray-50', !!prefilledIp);
+    reasonInput.value = '';
+
+    modal.classList.remove('hidden');
+    (prefilledIp ? reasonInput : ipInput).focus();
+
+    function cleanup() {
+        modal.classList.add('hidden');
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        modal.removeEventListener('click', onBackdrop);
+        document.removeEventListener('keydown', onKey);
+    }
+    async function onOk() {
+        const ip = ipInput.value.trim();
+        if (!ip) { ipInput.focus(); return; }
+        cleanup();
+        const data = await postJson('/api/admin/security-events/block-ip', { ip_address: ip, reason: reasonInput.value.trim() });
+        if (!data.success) { showToast(data.message || 'Failed', 'error'); return; }
+        showToast('IP blocked', 'success');
+        loadStats(); loadBlockedIps();
+    }
+    function onCancel()    { cleanup(); }
+    function onBackdrop(e) { if (e.target === modal) onCancel(); }
+    function onKey(e) {
+        if (e.key === 'Escape') onCancel();
+        if (e.key === 'Enter')  onOk();
+    }
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    modal.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
 }
 
 async function unblockIp(ip) {
-    if (!confirm(`Unblock IP ${ip}?`)) return;
-    const data = await postJson('/api/admin/security-events/unblock-ip', { ip_address: ip });
-    if (!data.success) { alert(data.message || 'Failed'); return; }
+    if (!await showConfirm(`Unblock IP ${ip}?`, 'Unblock IP', 'primary')) return;
+    const code = await showPrompt('Enter your 2FA code to confirm this action.', 'Verify Identity', { placeholder: '6-digit code or recovery code', maxLength: 20 });
+    if (code === null) return;
+    const data = await postJson('/api/admin/security-events/unblock-ip', { ip_address: ip, two_factor_code: code });
+    if (!data.success) { showToast(data.message || 'Failed', 'error'); return; }
+    showToast('IP unblocked', 'success');
     loadStats(); loadBlockedIps();
 }
 
@@ -595,12 +683,17 @@ function setupAutoRefresh() {
     const toggle = document.getElementById('autoRefreshToggle');
     const start = () => {
         stop();
-        autoRefreshTimer = setInterval(refreshAll, 30000);
+        // Skip fan-out 4 fetch (stats, table, blocked IPs, top offenders) selagi tab
+        // di-background; sinkron ulang segera begitu tab aktif lagi.
+        autoRefreshTimer = setInterval(() => { if (!document.hidden) refreshAll(); }, 30000);
     };
     const stop = () => {
         if (autoRefreshTimer) clearInterval(autoRefreshTimer);
         autoRefreshTimer = null;
     };
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && autoRefreshTimer) refreshAll();
+    });
     toggle.addEventListener('change', () => toggle.checked ? start() : stop());
     if (toggle.checked) start();
 }

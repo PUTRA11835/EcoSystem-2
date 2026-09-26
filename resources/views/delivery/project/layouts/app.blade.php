@@ -89,7 +89,7 @@
             </aside>
 
             <!-- ========== SIDEBAR OVERLAY (MOBILE ONLY) ========== -->
-            <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden lg:hidden transition-opacity duration-300"></div>
+            <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden transition-opacity duration-300"></div>
 
             <!-- ========== KONTEN UTAMA ========== -->
             <div id="main-content" class="flex-1 flex flex-col transition-all duration-300 ease-in-out lg:ml-64">

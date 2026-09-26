@@ -581,7 +581,9 @@ class TicketController extends Controller
             $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
             // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
-            $canReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            // Reuse $employee dari cek 'All Tickets' di atas kalau sudah di-load — hindari Employee::find() dua kali.
+            $employee ??= Employee::find($sessionUser['id']);
+            $canReadFeature = (bool) $employee?->hasPermission('ticket.read');
             $readAtMap = $canReadFeature
                 ? DB::table('ticket_reads')
                     ->where('employee_id', $sessionUser['id'])
@@ -832,24 +834,19 @@ class TicketController extends Controller
         if ($request->filled('description')) {
             $query->where('description', 'like', '%' . $request->description . '%');
         }
-        // Date range — cocokkan start_date, fallback ke created_at
+        // Date range — cocokkan created_at, sama persis dengan applyTicketListFilters()
+        // (filter list di layar) supaya jumlah tiket yang di-export selalu sinkron dengan
+        // yang tampil di layar untuk filter yang sama. Sebelumnya di sini menyaring by
+        // start_date — kolom itu artinya "kapan Ticket Lead pertama kali di-assign", BUKAN
+        // kapan tiket dibuat (lihat assignTicketLead(), start_date di-set now() cuma saat
+        // first assign) — jadi tiket yang sempat unassigned lama bisa lolos filter di layar
+        // (created_at-nya masih dalam rentang) tapi hilang dari export (start_date sudah
+        // melenceng ke bulan lain).
         if ($request->filled('date_from')) {
-            $dateFrom = $request->date_from;
-            $query->where(function ($q) use ($dateFrom) {
-                $q->whereDate('start_date', '>=', $dateFrom)
-                  ->orWhere(function ($q2) use ($dateFrom) {
-                      $q2->whereNull('start_date')->whereDate('created_at', '>=', $dateFrom);
-                  });
-            });
+            $query->where('created_at', '>=', \Carbon\Carbon::parse($request->input('date_from') . ' 00:00:00', 'Asia/Jakarta'));
         }
         if ($request->filled('date_to')) {
-            $dateTo = $request->date_to;
-            $query->where(function ($q) use ($dateTo) {
-                $q->whereDate('start_date', '<=', $dateTo)
-                  ->orWhere(function ($q2) use ($dateTo) {
-                      $q2->whereNull('start_date')->whereDate('created_at', '<=', $dateTo);
-                  });
-            });
+            $query->where('created_at', '<=', \Carbon\Carbon::parse($request->input('date_to') . ' 23:59:59', 'Asia/Jakarta'));
         }
         // Customer — filter kolom di ticket/index.blade.php sekarang mengirim customer_id
         // (bukan nama) sejak dropdown-nya diisi dari /api/tickets/filter-options.
@@ -2196,22 +2193,28 @@ class TicketController extends Controller
                 ->orderBy('ticket_confirmation.created_at', 'desc')
                 ->get();
 
-            // Decode member_ids for each confirmation
+            // Decode member_ids for each confirmation, then bulk-load ALL member
+            // names in one query instead of one query per confirmation row (was
+            // N+1 — each pending confirmation triggered its own employee lookup).
             foreach ($confirmations as $confirmation) {
                 $confirmation->member_ids = json_decode($confirmation->member_ids, true) ?? [];
-                
-                // Get member names
-                if (!empty($confirmation->member_ids)) {
-                    $members = DB::table('employee')
-                        ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-                        ->whereIn('employee.employee_id', $confirmation->member_ids)
-                        ->pluck('employee_basic_data.first_name')
-                        ->toArray();
-                    
-                    $confirmation->member_names = $members;
-                } else {
-                    $confirmation->member_names = [];
-                }
+            }
+
+            $allMemberIds = collect($confirmations)->flatMap(fn($c) => $c->member_ids)->unique()->values();
+
+            $memberNameMap = $allMemberIds->isEmpty()
+                ? collect()
+                : DB::table('employee')
+                    ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+                    ->whereIn('employee.employee_id', $allMemberIds)
+                    ->pluck('employee_basic_data.first_name', 'employee.employee_id');
+
+            foreach ($confirmations as $confirmation) {
+                $confirmation->member_names = collect($confirmation->member_ids)
+                    ->map(fn($id) => $memberNameMap->get($id))
+                    ->filter()
+                    ->values()
+                    ->toArray();
             }
 
             return response()->json([
@@ -3268,18 +3271,25 @@ class TicketController extends Controller
                 ->orderBy('member_change_requests.created_at', 'desc')
                 ->get();
 
-            // Decode member_ids and get names
+            // Decode member_ids and get names — bulk-load in one query instead
+            // of one query per pending change request (was N+1).
             foreach ($memberChanges as $change) {
                 $change->member_ids = json_decode($change->member_ids, true) ?? [];
-                
+            }
+
+            $allMemberIds = collect($memberChanges)->flatMap(fn($c) => $c->member_ids)->unique()->values();
+
+            $memberNameMap = $allMemberIds->isEmpty()
+                ? collect()
+                : DB::table('employee')
+                    ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+                    ->whereIn('employee.employee_id', $allMemberIds)
+                    ->pluck('employee_basic_data.first_name', 'employee.employee_id');
+
+            foreach ($memberChanges as $change) {
                 if (!empty($change->member_ids)) {
-                    $members = DB::table('employee')
-                        ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-                        ->whereIn('employee.employee_id', $change->member_ids)
-                        ->pluck('employee_basic_data.first_name')
-                        ->toArray();
-                    
-                    $change->member_names = implode(', ', $members);
+                    $names = collect($change->member_ids)->map(fn($id) => $memberNameMap->get($id))->filter();
+                    $change->member_names = $names->isEmpty() ? 'None' : $names->implode(', ');
                 } else {
                     $change->member_names = 'None';
                 }
@@ -4081,11 +4091,15 @@ class TicketController extends Controller
                 ->orderBy('delivery_support.created_at', 'desc')
                 ->get();
 
-            // Count tickets per support
+            // Count tickets per support — 1 query groupBy, bukan 1 query per baris support
+            $ticketCounts = DB::table('delivery_support_activities')
+                ->whereIn('delivery_support_id', $supports->pluck('id'))
+                ->select('delivery_support_id', DB::raw('count(*) as total'))
+                ->groupBy('delivery_support_id')
+                ->pluck('total', 'delivery_support_id');
+
             foreach ($supports as $support) {
-                $support->ticket_count = DB::table('delivery_support_activities')
-                    ->where('delivery_support_id', $support->id)
-                    ->count();
+                $support->ticket_count = (int) ($ticketCounts[$support->id] ?? 0);
             }
 
             return response()->json([
