@@ -13,12 +13,16 @@ class KpiTemplate extends Model
         'name',
         'description',
         'period_type',
+        'deadline_day',
+        'deadline_month',
+        'deadline_year',
         'target_type',
         'is_anonymous',
         'target_roles',
         'target_positions',
         'target_employees',
         'target_projects',
+        'subject_employees',
         'score_divisor',
         'is_active',
         'created_by',
@@ -26,14 +30,82 @@ class KpiTemplate extends Model
     ];
 
     protected $casts = [
-        'is_active'         => 'boolean',
-        'is_anonymous'      => 'boolean',
-        'target_roles'      => 'array',
-        'target_positions'  => 'array',
-        'target_employees'  => 'array',
-        'target_projects'   => 'array',
-        'score_divisor'     => 'integer',
+        'is_active'          => 'boolean',
+        'is_anonymous'       => 'boolean',
+        'target_roles'       => 'array',
+        'target_positions'   => 'array',
+        'target_employees'   => 'array',
+        'target_projects'    => 'array',
+        'subject_employees'  => 'array',
+        'score_divisor'      => 'integer',
     ];
+
+    /**
+     * Templates that already existed by the end of the given "Y-m" period. A
+     * template starts applying in the month it was created, so browsing an
+     * earlier month never shows (or generates evaluations for) a template that
+     * didn't exist yet.
+     */
+    public function scopeStartedBy($query, string $periodMonth)
+    {
+        return $query->where('created_at', '<=', \Carbon\Carbon::createFromFormat('Y-m', $periodMonth)->endOfMonth());
+    }
+
+    /**
+     * The fill-in deadline this template implies for a "Y-m" period, or null
+     * when none is set. monthly: that day of the period's month; quarterly:
+     * the chosen month/day of the period's year; annual: the exact date. Days
+     * past the end of a short month are clamped (31 → 28/30).
+     */
+    public function deadlineFor(string $periodMonth): ?\Carbon\Carbon
+    {
+        if (!$this->deadline_day) {
+            return null;
+        }
+        $period = \Carbon\Carbon::createFromFormat('Y-m', $periodMonth);
+
+        [$year, $month] = match ($this->period_type) {
+            'quarterly' => $this->deadline_month ? [$period->year, (int) $this->deadline_month] : [null, null],
+            'annual'    => ($this->deadline_month && $this->deadline_year) ? [(int) $this->deadline_year, (int) $this->deadline_month] : [null, null],
+            default     => [$period->year, $period->month],
+        };
+        if (!$year) {
+            return null;
+        }
+
+        $first = \Carbon\Carbon::create($year, $month, 1)->startOfDay();
+        return $first->copy()->day(min((int) $this->deadline_day, $first->daysInMonth));
+    }
+
+    /** Human label for the deadline, matching what the form collects per period type. */
+    public function getDeadlineLabelAttribute(): ?string
+    {
+        if (!$this->deadline_day) {
+            return null;
+        }
+        $month = $this->deadline_month ? \Carbon\Carbon::create(2000, (int) $this->deadline_month, 1)->format('F') : null;
+
+        return match ($this->period_type) {
+            'quarterly' => $month ? "{$month} {$this->deadline_day}" : null,
+            'annual'    => ($month && $this->deadline_year) ? "{$this->deadline_day} {$month} {$this->deadline_year}" : null,
+            default     => "day {$this->deadline_day} of each month",
+        };
+    }
+
+    /**
+     * Whether this template pins its counterpart ("for who" on Upward, "who
+     * fills" on Lead/Peer) to an explicit employee list rather than
+     * auto-deriving it from each matched employee's direct supervisor.
+     */
+    public function hasExplicitSubjects(): bool
+    {
+        return !empty($this->subject_employees);
+    }
+
+    public function subjectEmployeeIds(): array
+    {
+        return array_values(array_unique(array_map('intval', $this->subject_employees ?? [])));
+    }
 
     /**
      * Whether this template is offered to a given employee. Targeting is a set

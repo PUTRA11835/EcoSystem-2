@@ -110,12 +110,16 @@ class MyKpiController extends Controller
         for ($i = 5; $i >= 0; $i--) {
             $period = Carbon::now()->subMonths($i)->format('Y-m');
             $eval   = $evaluations->firstWhere('period_month', $period);
+            $selfEval = $selfEvals->first(fn($e) => $e->period_month === $period && $e->hasSelfAssessment());
+            $leadEval = $leadEvals->first(fn($e) => $e->period_month === $period && $e->hasSupervisorReview());
             $scoreTrend[] = [
                 'period'    => $period,
                 'label'     => Carbon::createFromFormat('Y-m', $period)->format('M Y'),
                 'score'     => ($eval && $eval->status === KpiEvaluation::STATUS_HR_APPROVED)
                                 ? $eval->overall_score
                                 : null,
+                'self'      => $selfEval?->overall_score !== null ? (float) $selfEval->overall_score : null,
+                'lead'      => $leadEval?->overall_score !== null ? (float) $leadEval->overall_score : null,
                 'status'    => $eval?->status ?? 'none',
             ];
         }
@@ -138,8 +142,23 @@ class MyKpiController extends Controller
             ->where('period_month', $targetPeriod)
             ->get();
 
-        $hasAnySubordinate = \App\Models\EmployeeBasicData::where('direct_supervision', $employeeId)->where('employee_id', '!=', $employeeId)->exists();
+        // Everything this user has already scored as a lead, across all periods —
+        // feeds the "My Review History" table (grouped by month in the view).
+        $reviewHistory = KpiEvaluation::with(['employee.basicData', 'template'])
+            ->where('supervisor_id', $employeeId)
+            ->where('employee_id', '!=', $employeeId)
+            ->whereNotNull('reviewed_at')
+            ->orderByDesc('period_month')
+            ->get()
+            ->filter(fn($e) => $e->isLeadType())
+            ->values();
+
+        $hasAnySubordinate =\App\Models\EmployeeBasicData::where('direct_supervision', $employeeId)->where('employee_id', '!=', $employeeId)->exists();
         $hasAnySupervisedEval = KpiEvaluation::where('supervisor_id', $employeeId)->where('employee_id', '!=', $employeeId)->exists();
+
+        // System administrator (EC Administrator role): sees every My KPI tab.
+        $isSystemAdmin = !empty($user['is_admin'])
+            || \App\Models\Employee::find($employeeId)?->roles()->where('employee_role.id', \App\Support\MenuRegistrar::adminRoleId())->exists();
 
         $isSupervisor = $subordinates->isNotEmpty() || $assignedEvaluations->isNotEmpty() || $hasAnySubordinate || $hasAnySupervisedEval;
         $activeTemplates = $isSupervisor ? \App\Models\KpiTemplate::where('is_active', true)->get() : collect([]);
@@ -161,7 +180,9 @@ class MyKpiController extends Controller
             'scoreTrend',
             'subordinates',
             'assignedEvaluations',
+            'reviewHistory',
             'isSupervisor',
+            'isSystemAdmin',
             'activeTemplates'
         ));
     }
@@ -235,7 +256,9 @@ class MyKpiController extends Controller
         }
 
         $request->validate([
-            'achievements' => 'required|array',
+            'achievements'          => 'required|array',
+            'achievements.*.actual' => 'nullable|string|max:255',
+            'achievements.*.notes'  => 'nullable|string|max:2000',
         ]);
 
         $scaleMax = $evaluation->template?->scaleMax() ?: 5;
@@ -256,18 +279,21 @@ class MyKpiController extends Controller
                     continue;
                 }
 
-                $max = $detail->indicator?->effectiveMax() ?: $scaleMax;
+                $max = $detail->indicator?->rating_max ?: $scaleMax;
 
                 if (isset($data['rating']) && (int)$data['rating'] > 0) {
-                    $detail->star_rating = (int) $data['rating'];
+                    // Clamp to the template's scale so a tampered request can't exceed it.
+                    $detail->star_rating = min($max, (int) $data['rating']);
                     $detail->self_achievement = round($detail->star_rating / $max * 100, 2);
                 } elseif (isset($data['achievement']) && $data['achievement'] !== '') {
                     $detail->self_achievement = (float) $data['achievement'];
                     $detail->star_rating = min($max, max(1, (int) round($detail->self_achievement / 100 * $max)));
                 }
 
-                if (isset($data['actual'])) {
-                    $detail->actual_achievement = $data['actual'];
+                if (array_key_exists('actual', $data)) {
+                    $detail->actual_achievement = ($data['actual'] !== null && trim($data['actual']) !== '')
+                        ? trim($data['actual'])
+                        : null;
                 }
 
                 $detail->self_notes        = $data['notes'] ?? null;

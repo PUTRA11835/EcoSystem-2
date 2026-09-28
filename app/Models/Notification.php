@@ -87,6 +87,10 @@ class Notification extends Model
             'ticket_internal_note'         => $from . ' added an internal note',
             'ticket_reply'                 => $from . ' replied to a ticket',
             'mention'                      => $from . ' mentioned you',
+            'leave_permit_submitted'       => $from . ' submitted a Leave/Permit request for approval',
+            'leave_permit_approved'        => 'Your Leave/Permit request was approved',
+            'leave_permit_rejected'        => 'Your Leave/Permit request was rejected',
+            'leave_permit_revision'        => 'Revision requested for your Leave/Permit request',
             default                        => $from . ' sent you a notification',
         };
     }

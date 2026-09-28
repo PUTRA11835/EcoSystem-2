@@ -7,6 +7,8 @@ use App\Models\DeliveryProject;
 use App\Models\Employee;
 use App\Models\EmployeeBasicData;
 use App\Models\EmployeeRole;
+use App\Models\KpiEvaluation;
+use App\Models\KpiEvaluationDetail;
 use App\Models\KpiIndicator;
 use App\Models\KpiScoringScale;
 use App\Models\KpiTemplate;
@@ -98,6 +100,35 @@ class KpiTemplateController extends Controller
         ));
     }
 
+    /**
+     * Deadline columns from the form. Only the parts that matter for the chosen
+     * period type are kept, so switching type never leaves stale month/year behind.
+     */
+    private function deadlineFields(Request $request): array
+    {
+        $day = $request->filled('deadline_day') ? (int) $request->deadline_day : null;
+        if (!$day) {
+            return ['deadline_day' => null, 'deadline_month' => null, 'deadline_year' => null];
+        }
+        $type = $request->period_type;
+        return [
+            'deadline_day'   => $day,
+            'deadline_month' => in_array($type, ['quarterly', 'annual'], true) && $request->filled('deadline_month') ? (int) $request->deadline_month : null,
+            'deadline_year'  => $type === 'annual' && $request->filled('deadline_year') ? (int) $request->deadline_year : null,
+        ];
+    }
+
+    private function applyDeadlineToOpenEvaluations(KpiTemplate $template, string $periodMonth): void
+    {
+        $deadline = $template->deadlineFor($periodMonth);
+        $column   = in_array($template->target_type, ['self', 'upward'], true) ? 'self_deadline' : 'supervisor_deadline';
+
+        KpiEvaluation::where('template_id', $template->id)
+            ->where('period_month', $periodMonth)
+            ->where('status', '!=', KpiEvaluation::STATUS_HR_APPROVED)
+            ->update([$column => $deadline?->toDateString()]);
+    }
+
     /** Roles, positions, employees and projects offered as targeting options on the form. */
     private function formOptions(): array
     {
@@ -114,9 +145,12 @@ class KpiTemplateController extends Controller
             ->where('is_active', true)
             ->get()
             ->map(fn ($e) => [
-                'id'    => (string) $e->employee_id,
-                'name'  => $e->basicData?->full_name ?: $e->eci,
-                'meta'  => trim(($e->eci ?? '') . ' · ' . ($e->basicData?->position ?? ''), ' ·'),
+                'id'        => (string) $e->employee_id,
+                'name'      => $e->basicData?->full_name ?: $e->eci,
+                'meta'      => trim(($e->eci ?? '') . ' · ' . ($e->basicData?->position ?? ''), ' ·'),
+                // Direct supervisor from master data — lets the form cross-filter
+                // the "who fills" / "for who" pickers by reporting line.
+                'leader_id' => $e->basicData?->direct_supervision ? (string) $e->basicData->direct_supervision : null,
             ])
             ->sortBy('name')
             ->values();
@@ -142,6 +176,9 @@ class KpiTemplateController extends Controller
             'description'         => 'nullable|string',
             'role_id'             => 'nullable|integer|exists:employee_role,id',
             'period_type'         => 'required|in:monthly,quarterly,annual',
+            'deadline_day'        => 'nullable|integer|min:1|max:31',
+            'deadline_month'      => 'nullable|integer|min:1|max:12',
+            'deadline_year'       => 'nullable|integer|min:2000|max:2100',
             'target_type'         => 'nullable|in:self,supervisor,peer,upward',
             'is_anonymous'        => 'nullable|boolean',
             'target_roles'        => 'nullable|array',
@@ -152,6 +189,8 @@ class KpiTemplateController extends Controller
             'target_employees.*'  => 'integer',
             'target_projects'     => 'nullable|array',
             'target_projects.*'   => 'integer',
+            'subject_employees'   => 'nullable|array',
+            'subject_employees.*' => 'integer',
             'score_divisor'       => 'nullable|integer|min:1|max:100',
             'indicators'                => 'required|array|min:1',
             'indicators.*.name'         => 'required|string|max:300',
@@ -170,21 +209,32 @@ class KpiTemplateController extends Controller
             return redirect()->back()->withInput()->with('error', $msg);
         }
 
+        if ($msg = $this->subjectOverlapError($request)) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return redirect()->back()->withInput()->with('error', $msg);
+        }
+
         DB::beginTransaction();
         try {
             $user = session('user');
+            $targetType = $request->target_type ?? 'supervisor';
 
             $template = KpiTemplate::create([
                 'name'             => $request->name,
                 'description'      => $request->description,
                 'role_id'         => $request->role_id,
                 'period_type'     => $request->period_type,
-                'target_type'     => $request->target_type ?? 'supervisor',
+                ...$this->deadlineFields($request),
+                'target_type'     => $targetType,
                 'is_anonymous'    => $request->boolean('is_anonymous'),
                 'target_roles'    => $this->cleanList($request->input('target_roles', [])),
                 'target_positions'=> $this->cleanList($request->input('target_positions', [])),
                 'target_employees'=> $this->cleanList($request->input('target_employees', [])),
                 'target_projects' => $this->cleanList($request->input('target_projects', [])),
+                // Not applicable to Self — the filler and subject are always the same person.
+                'subject_employees'=> $targetType === 'self' ? null : $this->cleanList($request->input('subject_employees', [])),
                 'score_divisor'   => $this->resolveDivisor($request),
                 'is_active'       => true,
                 'created_by'      => $user['id'] ?? null,
@@ -234,6 +284,9 @@ class KpiTemplateController extends Controller
             'description'         => 'nullable|string',
             'role_id'             => 'nullable|integer|exists:employee_role,id',
             'period_type'         => 'required|in:monthly,quarterly,annual',
+            'deadline_day'        => 'nullable|integer|min:1|max:31',
+            'deadline_month'      => 'nullable|integer|min:1|max:12',
+            'deadline_year'       => 'nullable|integer|min:2000|max:2100',
             'target_type'         => 'nullable|in:self,supervisor,peer,upward',
             'is_anonymous'        => 'nullable|boolean',
             'target_roles'        => 'nullable|array',
@@ -244,6 +297,8 @@ class KpiTemplateController extends Controller
             'target_employees.*'  => 'integer',
             'target_projects'     => 'nullable|array',
             'target_projects.*'   => 'integer',
+            'subject_employees'   => 'nullable|array',
+            'subject_employees.*' => 'integer',
             'score_divisor'       => 'nullable|integer|min:1|max:100',
             'indicators'                => 'required|array|min:1',
             'indicators.*.name'         => 'required|string|max:300',
@@ -262,31 +317,71 @@ class KpiTemplateController extends Controller
             return redirect()->back()->withInput()->with('error', $msg);
         }
 
+        if ($msg = $this->subjectOverlapError($request)) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return redirect()->back()->withInput()->with('error', $msg);
+        }
+
         DB::beginTransaction();
         try {
             $user = session('user');
+            $targetType = $request->target_type ?? $template->target_type ?? 'supervisor';
 
             $template->update([
                 'name'             => $request->name,
                 'description'      => $request->description,
                 'role_id'         => $request->role_id,
                 'period_type'     => $request->period_type,
-                'target_type'     => $request->target_type ?? $template->target_type ?? 'supervisor',
+                ...$this->deadlineFields($request),
+                'target_type'     => $targetType,
                 'is_anonymous'    => $request->boolean('is_anonymous'),
                 'target_roles'    => $this->cleanList($request->input('target_roles', [])),
                 'target_positions'=> $this->cleanList($request->input('target_positions', [])),
                 'target_employees'=> $this->cleanList($request->input('target_employees', [])),
                 'target_projects' => $this->cleanList($request->input('target_projects', [])),
+                'subject_employees'=> $targetType === 'self' ? null : $this->cleanList($request->input('subject_employees', [])),
                 'score_divisor'   => $this->resolveDivisor($request),
                 'updated_by'      => $user['id'] ?? null,
             ]);
 
-            // Replace indicators + scale rows wholesale (avoids complex diffing)
+            // Replace indicators + scale rows wholesale (avoids complex diffing).
+            // Indicators get brand-new IDs on every save; the FK cascade on
+            // kpi_evaluation_details.indicator_id wipes any detail rows tied to
+            // the old indicator IDs for every evaluation already using this
+            // template — so those rows must be recreated below, or the
+            // employee's fill form / HR's review both render an empty table.
             $template->indicators()->delete();
             $this->syncIndicators($template, $request);
 
             $template->scoringScales()->delete();
             $this->syncScales($template, $request);
+
+            $freshIndicatorIds = $template->indicators()->pluck('id');
+            $evalIds = KpiEvaluation::where('template_id', $template->id)->pluck('id');
+            if ($evalIds->isNotEmpty() && $freshIndicatorIds->isNotEmpty()) {
+                $rows = [];
+                $now = now();
+                foreach ($evalIds as $evalId) {
+                    foreach ($freshIndicatorIds as $indId) {
+                        $rows[] = [
+                            'evaluation_id' => $evalId,
+                            'indicator_id'  => $indId,
+                            'created_at'    => $now,
+                            'updated_at'    => $now,
+                        ];
+                    }
+                }
+                KpiEvaluationDetail::insertOrIgnore($rows);
+            }
+
+            // Indicators/scales were replaced above; make sure "last changed"
+            // moves even when the template's own columns were untouched.
+            $template->touch();
+
+            // Push the (possibly changed) deadline onto this period's open evaluations.
+            $this->applyDeadlineToOpenEvaluations($template->fresh(), Carbon::now()->format('Y-m'));
 
             DB::commit();
 
@@ -403,6 +498,54 @@ class KpiTemplateController extends Controller
             $shown = rtrim(rtrim(number_format($total, 2), '0'), '.');
             return "Scored indicator weights must sum to 100%. Current total: {$shown}%";
         }
+        return null;
+    }
+
+    /**
+     * Guards against an employee being their own counterpart: reject if any
+     * "for who"/"who fills" (subject_employees) pick also matches the
+     * template's own audience targeting (explicit employee id, or a role /
+     * position / project the subject also belongs to).
+     */
+    private function subjectOverlapError(Request $request): ?string
+    {
+        if (($request->input('target_type') ?: 'supervisor') === 'self') {
+            return null; // subject_employees is discarded for Self regardless
+        }
+
+        $subjectIds = array_map('intval', $this->cleanList($request->input('subject_employees', [])) ?? []);
+        if (empty($subjectIds)) {
+            return null;
+        }
+
+        $explicitAudience = array_map('intval', $this->cleanList($request->input('target_employees', [])) ?? []);
+        $directHit = array_intersect($subjectIds, $explicitAudience);
+        if ($directHit) {
+            $names = Employee::with('basicData')->whereIn('employee_id', $directHit)->get()
+                ->map(fn ($e) => $e->basicData?->full_name ?: $e->eci)->implode(', ');
+            return "An employee can't be both a filler and the subject of the same template: {$names}.";
+        }
+
+        // Also check the dynamic pools (role/position/project) the audience
+        // resolves to, since a subject could match one of those without
+        // being explicitly listed.
+        $probe = new KpiTemplate([
+            'target_roles'     => $this->cleanList($request->input('target_roles', [])),
+            'target_positions' => $this->cleanList($request->input('target_positions', [])),
+            'target_employees' => $this->cleanList($request->input('target_employees', [])),
+            'target_projects'  => $this->cleanList($request->input('target_projects', [])),
+        ]);
+
+        $subjects = Employee::with(['basicData', 'roles', 'deliveryProjects'])
+            ->whereIn('employee_id', $subjectIds)
+            ->get();
+
+        $hits = $subjects->filter(fn ($e) => $probe->appliesTo($e));
+        if ($hits->isNotEmpty()) {
+            $names = $hits->map(fn ($e) => $e->basicData?->full_name ?: $e->eci)->implode(', ');
+            return "An employee can't be both a filler and the subject of the same template: {$names}. Narrow the audience criteria or remove them from the subject list.";
+        }
+
         return null;
     }
 

@@ -62,7 +62,7 @@
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
             <h3 class="font-bold text-xs uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <i class="fas fa-pie-chart text-red-600"></i> My Quota Breakdown (<span id="txtUserQuotaYear">{{ $cYear }}</span>)
+                <i class="fas fa-pie-chart primary-text"></i> My Quota Breakdown (<span id="txtUserQuotaYear">{{ $cYear }}</span>)
             </h3>
         </div>
         <div class="overflow-x-auto">
@@ -91,7 +91,7 @@
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-5 py-3.5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 class="font-bold text-xs uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <i class="fas fa-history text-red-600"></i> My Application History Log
+                <i class="fas fa-history primary-text"></i> My Application History Log
             </h3>
             <div class="flex items-center gap-2">
                 <select id="filterMyStatus" class="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-red-500" onchange="loadMyApplications()">
@@ -189,7 +189,7 @@
                             <td class="px-4 py-3 text-right font-medium text-gray-700">${item.is_event_based ? '-' : item.allocated_quota}</td>
                             <td class="px-4 py-3 text-right font-medium text-green-600">${item.used_quota}</td>
                             <td class="px-4 py-3 text-right font-medium text-yellow-600">${item.pending_quota}</td>
-                            <td class="px-5 py-3 text-right font-bold ${remDisplay > 0 || item.is_event_based ? 'text-red-700' : 'text-gray-400'}">${remDisplay}</td>
+                            <td class="px-5 py-3 text-right font-bold ${remDisplay > 0 || item.is_event_based ? 'primary-text' : 'text-gray-400'}">${remDisplay}</td>
                         </tr>
                     `;
                 });
@@ -247,11 +247,11 @@
                                 <td class="px-5 py-3 font-bold text-gray-900">${app.application_no}</td>
                                 <td class="px-4 py-3 font-medium">${app.type_name}</td>
                                 <td class="px-4 py-3 text-gray-600">${app.start_date} to ${app.end_date}</td>
-                                <td class="px-4 py-3 text-center font-bold text-red-700">${app.total_days}</td>
+                                <td class="px-4 py-3 text-center font-bold primary-text">${app.total_days}</td>
                                 <td class="px-4 py-3 text-gray-600 truncate max-w-xs">${app.reason}</td>
                                 <td class="px-4 py-3 text-center">${renderStatusBadge(app.status)}</td>
                                 <td class="px-5 py-3 text-right">
-                                    <button onclick='openReviewModal(${JSON.stringify(app)})' class="text-red-700 hover:text-red-900 font-semibold text-xs">
+                                    <button onclick='openReviewModal(${JSON.stringify(app)})' class="primary-text hover:opacity-75 font-semibold text-xs">
                                         View Details
                                     </button>
                                     ${(app.status === 'revision' || app.status === 'pending') ? `
