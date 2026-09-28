@@ -1181,6 +1181,15 @@ class MandaysController extends Controller
         $approvedAdditionalMap = collect($approvedDetails)->keyBy('employee_id');
         $details = $proposal->details()->with('employee.basicData')->get();
 
+        // Sum consumed mandays for every consultant on this proposal in one
+        // query instead of one Timesheet::sum() per consultant.
+        $consumedMap = Timesheet::where('ticket_id', $ticket->ticket_id)
+            ->whereIn('employee_id', $details->pluck('employee_id'))
+            ->whereIn('status', ['draft', 'submitted', 'approved'])
+            ->groupBy('employee_id')
+            ->selectRaw('employee_id, SUM(md_consumed) as total')
+            ->pluck('total', 'employee_id');
+
         $warnings = [];
         foreach ($details as $detail) {
             $incoming            = $approvedAdditionalMap->get($detail->employee_id);
@@ -1188,10 +1197,7 @@ class MandaysController extends Controller
             $approvedAdditional  = (float) ($incoming['approved_additional'] ?? $detail->approved_additional ?? 0);
             $quota = round($approvedMandays + $approvedAdditional, 2);
 
-            $consumed = (float) Timesheet::where('ticket_id', $ticket->ticket_id)
-                ->where('employee_id', $detail->employee_id)
-                ->whereIn('status', ['draft', 'submitted', 'approved'])
-                ->sum('md_consumed');
+            $consumed = (float) ($consumedMap->get($detail->employee_id) ?? 0);
 
             $remaining = round($quota - $consumed, 2);
             if ($remaining < 0) {

@@ -622,7 +622,7 @@
 </div>{{-- end page --}}
 
 {{-- Recovery codes modal - shown once right after enabling 2FA, or after regenerating --}}
-<div id="recoveryCodesModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+<div id="recoveryCodesModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
         <h3 class="text-sm font-semibold text-gray-900 mb-2">Save your recovery codes</h3>
         <p class="text-xs text-gray-500 mb-4">Each code can be used once if you lose access to your authenticator app. Store them somewhere safe - they won't be shown again.</p>
@@ -639,7 +639,7 @@
 </div>
 
 {{-- Password-confirm modal - reused by Disable 2FA and Regenerate recovery codes --}}
-<div id="passwordConfirmModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+<div id="passwordConfirmModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6">
         <h3 class="text-sm font-semibold text-gray-900 mb-1" id="passwordConfirmTitle">Confirm your password</h3>
         <p class="text-xs text-gray-500 mb-4" id="passwordConfirmSubtitle"></p>

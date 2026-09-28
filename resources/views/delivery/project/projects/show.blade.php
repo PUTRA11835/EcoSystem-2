@@ -1410,7 +1410,7 @@
     <div class="primary-gradient text-white rounded-lg shadow-2xl px-6 py-4 flex items-center space-x-4">
         <span id="selectionCount" class="font-semibold">0 selected</span>
         <div class="h-6 w-px bg-white opacity-40"></div>
-        <button onclick="handleBulkEdit()" class="flex items-center space-x-2 px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-md transition">
+        <button onclick="handleBulkEdit()" class="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-md transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
@@ -1976,7 +1976,7 @@
 
 {{-- Add / Edit Cost Modal --}}
 <div id="costModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PlanCost.closeModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PlanCost.closeModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-lg">
 
@@ -2111,7 +2111,7 @@
 
 {{-- Delete Cost Confirm Modal --}}
 <div id="costDeleteModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PlanCost.closeDeleteModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PlanCost.closeDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div class="p-6 text-center">
@@ -2141,7 +2141,7 @@
 
 {{-- Delete Expense Confirm Modal (pengganti native confirm()) --}}
 <div id="expenseDeleteModal" class="fixed inset-0 z-[55] hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PlanCost.closeExpenseDeleteModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PlanCost.closeExpenseDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div class="p-6 text-center">
@@ -2170,7 +2170,7 @@
 
 {{-- Edit Expense Modal --}}
 <div id="expenseEditModal" class="fixed inset-0 z-[55] hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PlanCost.closeExpenseEditModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PlanCost.closeExpenseEditModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:90vh;">
 
@@ -2259,7 +2259,7 @@
 {{-- CONTRACT WINDOW WARNING MODAL (pengganti native alert)        --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="contractWarningModal" class="fixed inset-0 z-[60] hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeContractWarningModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="closeContractWarningModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:85vh;">
             <div class="px-6 py-4 border-b border-gray-200 flex items-center gap-3 flex-shrink-0">
@@ -2290,7 +2290,7 @@
 {{-- PLAN COST — ACTUAL DETAIL MODAL                               --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="actualDetailModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PlanCost.closeActualDetailModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PlanCost.closeActualDetailModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col" style="max-height:90vh;">
 
@@ -2445,7 +2445,7 @@
 {{-- TERM OF PAYMENT (TOP) PLAN — ADD / EDIT MODAL                  --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="paymentTermModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PaymentTermPlan.closeModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PaymentTermPlan.closeModal()"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
         <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
 
@@ -2578,7 +2578,7 @@
 {{-- TERM OF PAYMENT (TOP) PLAN — DELETE CONFIRMATION MODAL         --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="paymentTermDeleteModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="PaymentTermPlan.closeDeleteModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PaymentTermPlan.closeDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div class="p-6 text-center">
@@ -2609,7 +2609,7 @@
 {{-- RISK REGISTER — DELETE CONFIRMATION MODAL                      --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="riskDeleteModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="RiskRegister.closeDeleteModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="RiskRegister.closeDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div class="p-6 text-center">
@@ -2637,7 +2637,7 @@
 </div>
 
 <div id="riskModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="RiskRegister.closeModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="RiskRegister.closeModal()"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
         <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
 
@@ -2815,7 +2815,7 @@
 {{-- RISK REGISTER — DASHBOARD MODAL                               --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="riskDashboardModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="RiskRegister.closeDashboard()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="RiskRegister.closeDashboard()"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
         <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
 
@@ -3854,7 +3854,7 @@
 
 {{-- Team Modal --}}
 <div id="teamModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('teamModal')"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="closeModal('teamModal')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
             <div class="p-6 border-b border-gray-200">
@@ -4031,7 +4031,7 @@
 
 {{-- Edit Team Member Modal --}}
 <div id="editTeamModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('editTeamModal')"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="closeModal('editTeamModal')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
             <div class="p-6 border-b border-gray-200 flex items-center justify-between">
@@ -4125,7 +4125,7 @@
 
 {{-- Role Edit Modal --}}
 <div id="roleModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('roleModal')"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="closeModal('roleModal')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-lg shadow-xl max-w-md w-full">
             <div class="p-6 border-b border-gray-200">
@@ -4161,7 +4161,7 @@
 
 {{-- Upload Document Modal --}}
 <div id="documentModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('documentModal')"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="closeModal('documentModal')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="inline-block bg-white rounded-lg text-left overflow-hidden shadow-xl w-full max-w-lg">
             {{-- Header --}}
@@ -4281,7 +4281,7 @@
 {{-- ISSUE LOG — DELETE CONFIRMATION MODAL                          --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="issueDeleteModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="IssueLog.closeDeleteModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="IssueLog.closeDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div class="p-6 text-center">
@@ -4312,7 +4312,7 @@
 {{-- ISSUE LOG — ADD / EDIT MODAL                                   --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="issueModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="IssueLog.closeModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="IssueLog.closeModal()"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
         <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
 
@@ -4479,7 +4479,7 @@
 {{-- WRICEF LOG — DELETE CONFIRMATION MODAL                         --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="wricefDeleteModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="WricefLog.closeDeleteModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="WricefLog.closeDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div class="p-6 text-center">
@@ -4519,7 +4519,7 @@
     $wricefCompany = $project->client->basicData->name_1 ?? '—';
 @endphp
 <div id="wricefModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="WricefLog.closeModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="WricefLog.closeModal()"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
         <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
 
@@ -4814,7 +4814,7 @@
 {{-- STAKEHOLDER REGISTER — DELETE CONFIRMATION MODAL               --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="stakeholderDeleteModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="StakeholderRegister.closeDeleteModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="StakeholderRegister.closeDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div class="p-6 text-center">
@@ -4853,7 +4853,7 @@
     $stakeholderPeople = $projectPeople ?? collect();
 @endphp
 <div id="stakeholderModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="StakeholderRegister.closeModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="StakeholderRegister.closeModal()"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
         <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
 
@@ -5126,7 +5126,7 @@
 
 {{-- Edit Document Modal --}}
 <div id="editDocumentModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('editDocumentModal')"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="closeModal('editDocumentModal')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="inline-block bg-white rounded-lg text-left overflow-hidden shadow-xl w-full max-w-lg">
             {{-- Header --}}
@@ -5223,7 +5223,7 @@
 {{-- No OneDrive Folder Warning Modal --}}
 <div id="noFolderWarningModal" class="hidden fixed inset-0 z-[60] overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeNoFolderWarning()"></div>
+        <div class="fixed inset-0 bg-gray-500/75 transition-opacity" onclick="closeNoFolderWarning()"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-sm w-full z-10 overflow-hidden">
             <div class="p-6">
                 <div class="flex items-start gap-4">
@@ -5260,7 +5260,7 @@
 {{-- Delete Folder Confirmation Modal --}}
 <div id="deleteFolderConfirmModal" class="hidden fixed inset-0 z-[60] overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeDeleteFolderModal()"></div>
+        <div class="fixed inset-0 bg-gray-500/75 transition-opacity" onclick="closeDeleteFolderModal()"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-sm w-full z-10 overflow-hidden">
             <div class="p-6">
                 <div class="flex items-start gap-4">
@@ -5297,7 +5297,7 @@
 {{-- OneDrive Folder Modal --}}
 <div id="oneDriveModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeOneDriveModal()"></div>
+        <div class="fixed inset-0 bg-gray-500/75 transition-opacity" onclick="closeOneDriveModal()"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full z-10 overflow-hidden">
 
             {{-- State 1: Generate form --}}
@@ -5432,7 +5432,7 @@
 
 {{-- Delete Confirmation Modal --}}
 <div id="deleteModal" class="fixed inset-0 z-[9998] hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 z-[9998]" onclick="closeModal('deleteModal')"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50 z-[9998]" onclick="closeModal('deleteModal')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
         <div class="modal-content bg-white rounded-lg shadow-xl max-w-md w-full relative">
             <div class="p-6">
@@ -5458,7 +5458,7 @@
 {{-- data-lock-exempt: satu-satunya modal yang harus tetap aktif saat project
      closed — dari sinilah project di-Reopen. --}}
 <div id="projectStateModal" data-lock-exempt class="fixed inset-0 z-[9998] hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 z-[9998]" onclick="closeModal('projectStateModal')"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50 z-[9998]" onclick="closeModal('projectStateModal')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
         <div class="modal-content bg-white rounded-lg shadow-xl max-w-md w-full relative">
             <div class="p-6">

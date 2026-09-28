@@ -198,7 +198,7 @@
 </style>
 
 {{-- New customer group modal --}}
-<div id="newGroupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+<div id="newGroupModal" class="hidden fixed inset-0 bg-black/50 z-[60] items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <h3 class="text-lg font-bold text-gray-900 mb-1">New Customer Group</h3>

@@ -27,7 +27,7 @@
 </div>
 
 <!-- Upload Template Modal -->
-<div id="reportTemplateModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="reportTemplateModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
             <h3 class="text-lg font-bold text-gray-900">Upload Report Template</h3>

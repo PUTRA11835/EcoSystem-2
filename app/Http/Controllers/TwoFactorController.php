@@ -62,6 +62,10 @@ class TwoFactorController extends Controller
             'two_factor_last_used_at'   => null,
         ]);
 
+        // A new secret is being enrolled — any device-trust cookie issued
+        // against the old secret's verification must not carry over.
+        TwoFactorAuthService::clearTrust($authUser->id);
+
         $accountLabel = $authUser->email ?: $authUser->username;
 
         AuditLog::recordAction(
@@ -170,6 +174,8 @@ class TwoFactorController extends Controller
             'two_factor_confirmed_at'   => null,
             'two_factor_last_used_at'   => null,
         ]);
+
+        TwoFactorAuthService::clearTrust($authUser->id);
 
         AuditLog::recordAction(
             module: 'Security',

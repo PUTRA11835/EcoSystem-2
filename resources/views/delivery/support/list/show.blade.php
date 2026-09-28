@@ -735,7 +735,7 @@
 {{-- ============================================================================ --}}
 <div id="deliverableModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeDeliverableModal()"></div>
+        <div class="fixed inset-0 bg-gray-500/75 transition-opacity" onclick="closeDeliverableModal()"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full z-10 overflow-hidden">
 
             {{-- Header --}}
@@ -817,7 +817,7 @@
 {{-- Support Information Modal --}}
 <div id="modal-support-info" class="hidden fixed inset-0 z-50 overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeEditModal('support-info')"></div>
+        <div class="fixed inset-0 bg-gray-500/75 transition-opacity" onclick="closeEditModal('support-info')"></div>
         <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full sm:max-w-2xl">
             <form id="form-support-info" onsubmit="saveSection(event, 'support-info')">
                 <div class="primary-gradient px-4 sm:px-6 py-3 sm:py-4">
@@ -987,7 +987,7 @@
 {{-- Approval Information Modal --}}
 <div id="modal-approval-info" class="hidden fixed inset-0 z-50 overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeEditModal('approval-info')"></div>
+        <div class="fixed inset-0 bg-gray-500/75 transition-opacity" onclick="closeEditModal('approval-info')"></div>
         <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full sm:max-w-lg">
             <form id="form-approval-info" onsubmit="saveSection(event, 'approval-info')">
                 <div class="primary-gradient px-4 sm:px-6 py-3 sm:py-4">
@@ -1033,7 +1033,7 @@
 {{-- Team Information Modal --}}
 <div id="modal-team-info" class="hidden fixed inset-0 z-50 overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeEditModal('team-info')"></div>
+        <div class="fixed inset-0 bg-gray-500/75 transition-opacity" onclick="closeEditModal('team-info')"></div>
         <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full sm:max-w-lg">
             <form id="form-team-info" onsubmit="saveSection(event, 'team-info')">
                 <div class="primary-gradient px-4 sm:px-6 py-3 sm:py-4">
@@ -2130,7 +2130,7 @@ document.addEventListener('DOMContentLoaded', loadSlaPolicies);
 {{-- Customer PIC Modal --}}
 <div id="customerPicModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen px-4">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeCustomerPicModal()"></div>
+        <div class="fixed inset-0 bg-gray-500/75 transition-opacity" onclick="closeCustomerPicModal()"></div>
         <div class="relative bg-white rounded-xl shadow-xl w-full max-w-lg z-10">
             <div class="flex items-center justify-between px-6 py-4 bg-gray-800 rounded-t-xl">
                 <h3 class="text-lg font-semibold text-white">Manage Customer PIC</h3>

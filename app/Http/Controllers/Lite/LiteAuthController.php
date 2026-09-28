@@ -271,9 +271,11 @@ class LiteAuthController extends Controller
     /**
      * Completes a Lite login after a 2FA challenge. Same contract as
      * AuthController::verifyTwoFactor() (accepts a 6-digit TOTP code or an
-     * "XXXX-XXXX" recovery code), reusing the same TwoFactorAuthService —
-     * duplicated here rather than shared across controllers because the two
-     * finalize tails differ (no remember-me in Lite).
+     * "XXXX-XXXX" recovery code). The code-verification step itself is
+     * shared via TwoFactorAuthService::verifyForAuthUser() (used by both
+     * controllers); only the post-verification "finalize tail" stays
+     * duplicated here, since that part genuinely differs (no remember-me,
+     * Lite token issuance instead of a web session).
      * POST /api/lite/auth/2fa/verify
      */
     public function verifyTwoFactor(Request $request)
@@ -321,42 +323,13 @@ class LiteAuthController extends Controller
             ], 403);
         }
 
-        $code             = trim((string) $request->input('code'));
-        $verified         = false;
-        $usedRecoveryCode = false;
-
-        if (preg_match('/^\d{6}$/', $code)) {
-            $secret = TwoFactorAuthService::decryptSecret($authUser->two_factor_secret);
-
-            if ($secret) {
-                DB::transaction(function () use ($authUserId, $secret, $code, &$verified) {
-                    $row    = DB::table('auth_users')->where('id', $authUserId)->lockForUpdate()->first();
-                    $result = TwoFactorAuthService::verifyCode($secret, $code, $row->two_factor_last_used_at);
-
-                    if ($result['valid']) {
-                        DB::table('auth_users')->where('id', $authUserId)->update([
-                            'two_factor_last_used_at' => $result['timestamp'],
-                        ]);
-                        $verified = true;
-                    }
-                });
-            }
-        } else {
-            DB::transaction(function () use ($authUserId, $code, &$verified, &$usedRecoveryCode) {
-                $row         = DB::table('auth_users')->where('id', $authUserId)->lockForUpdate()->first();
-                $hashedCodes = $row->two_factor_recovery_codes ? json_decode($row->two_factor_recovery_codes, true) : [];
-
-                $remaining = TwoFactorAuthService::findAndConsumeRecoveryCode($hashedCodes ?? [], $code);
-
-                if ($remaining !== null) {
-                    DB::table('auth_users')->where('id', $authUserId)->update([
-                        'two_factor_recovery_codes' => json_encode($remaining),
-                    ]);
-                    $verified         = true;
-                    $usedRecoveryCode = true;
-                }
-            });
-        }
+        // Recovery codes are always generated in uppercase (see
+        // TwoFactorAuthService::generateRecoveryCodes) and password_verify()
+        // is case-sensitive - normalization happens inside verifyForAuthUser()
+        // itself now, so a manually-typed lowercase code still matches.
+        $result           = TwoFactorAuthService::verifyForAuthUser($authUserId, (string) $request->input('code'));
+        $verified         = $result['verified'];
+        $usedRecoveryCode = $result['used_recovery_code'];
 
         if (!$verified) {
             $attempts = TwoFactorAuthService::recordFailedChallenge($authUserId);

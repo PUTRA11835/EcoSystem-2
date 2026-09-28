@@ -520,6 +520,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/deliverables/upload-session', [\App\Http\Controllers\TicketDeliverableController::class, 'createUploadSession']);
         Route::post('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'store']);
         Route::patch('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'update']);
+        Route::post('/{id}/deliverables/send', [\App\Http\Controllers\TicketDeliverableController::class, 'sendBatch']);
         Route::patch('/{id}/deliverables/{delivId}/send', [\App\Http\Controllers\TicketDeliverableController::class, 'send']);
         Route::delete('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'destroy']);
         Route::post('/{id}/deliverables/{delivId}/delete', [\App\Http\Controllers\TicketDeliverableController::class, 'destroy']);
@@ -784,6 +785,7 @@ Route::middleware(['web'])->group(function () {
         Route::get('/schedule-monitor', [\App\Http\Controllers\ScheduleMonitorController::class, 'index']);
         Route::get('/schedule-monitor/runs', [\App\Http\Controllers\ScheduleMonitorController::class, 'getRuns']);
         Route::get('/schedule-monitor/queue-health', [\App\Http\Controllers\ScheduleMonitorController::class, 'queueHealth']);
+        Route::get('/schedule-monitor/disk-usage', [\App\Http\Controllers\ScheduleMonitorController::class, 'diskUsage']);
     });
 
     // ── SLA ────────────────────────────────────────────────────────────────

@@ -280,8 +280,8 @@
                 <p class="text-sm font-semibold text-gray-800">Agent Workload</p>
                 <p class="text-xs text-gray-400 mt-0.5">Active tickets per agent</p>
             </div>
-            @if($can('master.employee'))
-            <a href="{{ route('master.employee.index') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">All →</a>
+            @if($can('ticket.consultant-workload'))
+            <a href="{{ route('ticket.consultant-workload') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">All →</a>
             @endif
         </div>
         @if($teamLoad->isEmpty())

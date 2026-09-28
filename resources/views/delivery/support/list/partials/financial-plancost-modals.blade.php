@@ -2,7 +2,7 @@
 {{-- PLAN COST — ADD / EDIT COST ITEM MODAL                         --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="costModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="SupportPlanCost.closeModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPlanCost.closeModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-lg">
             <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -114,7 +114,7 @@
 
 {{-- Delete Cost Confirm Modal --}}
 <div id="costDeleteModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="SupportPlanCost.closeDeleteModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPlanCost.closeDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div class="p-6 text-center">
@@ -144,7 +144,7 @@
 
 {{-- Delete Expense Confirm Modal --}}
 <div id="expenseDeleteModal" class="fixed inset-0 z-[55] hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="SupportPlanCost.closeExpenseDeleteModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPlanCost.closeExpenseDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div class="p-6 text-center">
@@ -173,7 +173,7 @@
 
 {{-- Edit Expense Modal --}}
 <div id="expenseEditModal" class="fixed inset-0 z-[55] hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="SupportPlanCost.closeExpenseEditModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPlanCost.closeExpenseEditModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:90vh;">
             <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
@@ -250,7 +250,7 @@
 
 {{-- PLAN COST — ACTUAL DETAIL MODAL --}}
 <div id="actualDetailModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="SupportPlanCost.closeActualDetailModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPlanCost.closeActualDetailModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col" style="max-height:90vh;">
             <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
@@ -371,7 +371,7 @@
 {{-- TERM OF PAYMENT (TOP) — ADD / EDIT MODAL                       --}}
 {{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="paymentTermModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="SupportPaymentTermPlan.closeModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPaymentTermPlan.closeModal()"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
         <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
@@ -478,7 +478,7 @@
 
 {{-- TERM OF PAYMENT (TOP) — DELETE CONFIRMATION MODAL --}}
 <div id="paymentTermDeleteModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="SupportPaymentTermPlan.closeDeleteModal()"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPaymentTermPlan.closeDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div class="p-6 text-center">

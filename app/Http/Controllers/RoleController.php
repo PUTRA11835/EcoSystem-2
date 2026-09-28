@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
+use App\Http\Controllers\Concerns\RequiresStepUpAuth;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeRole;
@@ -11,6 +13,8 @@ use Illuminate\Support\Facades\Cache;
 
 class RoleController extends Controller
 {
+    use RequiresStepUpAuth;
+
     // ── Page ────────────────────────────────────────────────────────────────────
 
     public function page()
@@ -179,7 +183,20 @@ class RoleController extends Controller
             'role_ids.*' => 'integer|exists:employee_role,id',
         ]);
 
-        $before = $employee->roles()->pluck('name')->values()->all();
+        $before    = $employee->roles()->pluck('name')->values()->all();
+        $beforeIds = $employee->roles()->pluck('id')->all();
+
+        // Same step-up gate as EmployeeController::changeRole() - this method
+        // is another way to grant EC Administrator (syncWithoutDetaching only
+        // adds, never removes, so any 1 in role_ids not already held is a
+        // grant). Not currently wired to any UI, but it's a live API route
+        // that reaches the identical risk, so it needs the identical gate.
+        $grantingAdmin = in_array(RoleId::EC_ADMINISTRATOR->value, array_map('intval', $request->role_ids), true)
+            && !in_array(RoleId::EC_ADMINISTRATOR->value, $beforeIds, true);
+
+        if ($grantingAdmin && ($stepUpFailure = $this->verifyStepUpOrFail($request))) {
+            return $stepUpFailure;
+        }
 
         $employee->roles()->syncWithoutDetaching($request->role_ids);
 
@@ -215,7 +232,19 @@ class RoleController extends Controller
             'role_ids.*' => 'integer|exists:employee_role,id',
         ]);
 
-        $before = $employee->roles()->pluck('name')->values()->all();
+        $before    = $employee->roles()->pluck('name')->values()->all();
+        $beforeIds = $employee->roles()->pluck('id')->all();
+
+        // Same step-up gate as EmployeeController::changeRole()/assignRoles()
+        // above - sync() replaces the whole role set, so this can grant EC
+        // Administrator just as easily as it can revoke it. Only the grant
+        // direction is dangerous enough to need a fresh code.
+        $grantingAdmin = in_array(RoleId::EC_ADMINISTRATOR->value, array_map('intval', $request->role_ids), true)
+            && !in_array(RoleId::EC_ADMINISTRATOR->value, $beforeIds, true);
+
+        if ($grantingAdmin && ($stepUpFailure = $this->verifyStepUpOrFail($request))) {
+            return $stepUpFailure;
+        }
 
         $employee->roles()->sync($request->role_ids);
 

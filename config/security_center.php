@@ -231,6 +231,33 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Retention (audit_logs / security_events / login_activity)
+    |--------------------------------------------------------------------------
+    |
+    | These tables grow unbounded with no existing pruning. `retention_days`
+    | below 1 disables pruning for that table entirely ("keep forever") -
+    | same convention as config('services.ai.retention_days'). See
+    | App\Console\Commands\PruneSecurityLogs.
+    |
+    */
+    'retention' => [
+        'audit_logs' => [
+            'retention_days' => env('AUDIT_LOG_RETENTION_DAYS', 365),
+        ],
+        'security_events' => [
+            'retention_days'  => env('SECURITY_EVENT_RETENTION_DAYS', 180),
+            // Never delete an event that's still open/unresolved, regardless
+            // of age - an old but unactioned alert should stay visible, not
+            // silently disappear from the dashboard.
+            'skip_unresolved' => true,
+        ],
+        'login_activity' => [
+            'retention_days' => env('LOGIN_ACTIVITY_RETENTION_DAYS', 180),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Two-factor authentication (TOTP)
     |--------------------------------------------------------------------------
     */

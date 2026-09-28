@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Enums\RoleId;
 use App\Exports\EmployeeExport;
+use App\Http\Controllers\Concerns\RequiresStepUpAuth;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeBasicData;
@@ -17,6 +18,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class EmployeeController extends Controller
 {
+    use RequiresStepUpAuth;
+
     /**
      * Get current user's ECI
      */
@@ -879,6 +882,8 @@ class EmployeeController extends Controller
                 'created_on' => now(),
                 'block' => false,
                 'deletion_flag' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
 
             Log::info('Employee basic data created', [
@@ -1154,6 +1159,7 @@ class EmployeeController extends Controller
                         'employee_type' => \App\Models\EmployeeBasicData::deriveEmployeeType($request->home_base),
                         'last_changed_by' => $currentUserECI,  // ✅ Gunakan ECI
                         'last_changed_on' => now(),
+                        'updated_at' => now(),
                     ]
                 );
 
@@ -1576,6 +1582,16 @@ public function getRoles()
                 ->where('era.employee_id', $id)
                 ->select('er.id', 'er.name')
                 ->get();
+
+            // Granting EC Administrator that wasn't already held needs a
+            // fresh step-up 2FA code - the highest-risk action this
+            // controller can perform. Other role changes stay frictionless.
+            $grantingAdmin = in_array(RoleId::EC_ADMINISTRATOR->value, $roleIds, true)
+                && !$oldRoles->pluck('id')->contains(RoleId::EC_ADMINISTRATOR->value);
+
+            if ($grantingAdmin && ($stepUpFailure = $this->verifyStepUpOrFail($request))) {
+                return $stepUpFailure;
+            }
 
             // Sync pivot table (delete old, insert new)
             DB::table('employee_role_assignment')->where('employee_id', $id)->delete();
