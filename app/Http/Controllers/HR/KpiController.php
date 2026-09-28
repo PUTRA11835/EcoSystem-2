@@ -368,7 +368,7 @@ class KpiController extends Controller
                 $supId = $request->supervisor_id;
                 if (!$supId) {
                     $empModel = Employee::with('basicData')->find($empId);
-                    $supId = $empModel?->basicData?->direct_supervision ?: ($user['id'] ?? 1);
+                    $supId = $empModel?->basicData?->supervisorEmployeeId() ?: ($user['id'] ?? 1);
                 }
 
                 $evaluation = KpiEvaluation::create([
@@ -835,9 +835,9 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         $masterLeader  = [];   // employee_id => direct_supervision
 
         foreach ($employees as $emp) {
-            $sup = $emp->basicData?->direct_supervision;
+            $sup = $emp->basicData?->supervisorEmployeeId();
             if ($sup) {
-                $masterLeader[$emp->employee_id] = (int) $sup;
+                $masterLeader[$emp->employee_id] = $sup;
             }
 
             $pm = collect($emp->deliveryProjects ?? [])

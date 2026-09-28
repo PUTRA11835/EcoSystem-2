@@ -37,9 +37,8 @@
             Lead &amp; Project
         </h1>
         <p class="text-xs text-gray-500 mt-1 max-w-2xl">
-            Each employee's leader is filled in automatically: if they're on a <strong>project</strong>, the leader is that
-            project's manager; otherwise it's the <strong>“Report to”</strong> on their employee record. To change a leader,
-            edit the employee in <strong>Master Data → Employee</strong> — it can't be set here.
+            Leader = the <strong>project manager</strong> if on a project, otherwise the employee's <strong>“Report to”</strong>.
+            To change it, edit the employee in <strong>Master Data → Employee</strong>.
         </p>
     </div>
 
@@ -89,7 +88,7 @@
                         <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider w-10">No</th>
 
                         {{-- Employee --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[210px]">
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-52.5">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Employee</span>
                                 <button type="button" data-hf-btn onclick="hf(event,'hfEmp')"
@@ -119,7 +118,7 @@
                         </th>
 
                         {{-- Position --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[130px]">
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-32.5">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Position</span>
                                 <button type="button" data-hf-btn onclick="hf(event,'hfPos')"
@@ -153,7 +152,7 @@
                         </th>
 
                         {{-- Project --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[170px]">
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-42.5">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Project</span>
                                 <button type="button" data-hf-btn onclick="hf(event,'hfProj')"
@@ -198,7 +197,7 @@
                         </th>
 
                         {{-- Leader --}}
-                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[230px]">
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-57.5">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Leader</span>
                                 <button type="button" data-hf-btn onclick="hf(event,'hfLead')"

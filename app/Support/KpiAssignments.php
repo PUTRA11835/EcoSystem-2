@@ -48,8 +48,25 @@ class KpiAssignments
         // => [empId, tplId, supervisorId, isAnonymous]
         $desired       = [];
         $tplIndicators = [];
+        $activeIds     = $employees->pluck('employee_id')->flip()->all();
         foreach ($templates as $tpl) {
             $tplIndicators[$tpl->id] = $tpl->indicators->pluck('id')->all();
+
+            // Peer templates with HR-picked pairs: each pair is exactly one
+            // evaluation (reviewee = evaluated, reviewer = counterpart) and the
+            // audience / subject lists are not consulted.
+            if ($tpl->hasPeerPairs()) {
+                foreach ($tpl->peerPairs() as [$reviewerId, $revieweeId]) {
+                    if (!isset($activeIds[$reviewerId], $activeIds[$revieweeId])) {
+                        continue;
+                    }
+                    $desired[$revieweeId . '|' . $tpl->id . '|' . $reviewerId] = [
+                        $revieweeId, $tpl->id, $reviewerId, (bool) $tpl->is_anonymous,
+                    ];
+                }
+                continue;
+            }
+
             $explicitSubjects = $tpl->target_type !== 'self' && $tpl->hasExplicitSubjects()
                 ? $tpl->subjectEmployeeIds()
                 : null;
@@ -64,12 +81,15 @@ class KpiAssignments
                         if ($subId === (int) $emp->employee_id) {
                             continue; // never let someone be their own counterpart
                         }
+                        if (!self::subjectMatchesRater($tpl, $emp, $subId)) {
+                            continue;
+                        }
                         $desired[$emp->employee_id . '|' . $tpl->id . '|' . $subId] = [
                             $emp->employee_id, $tpl->id, $subId, (bool) $tpl->is_anonymous,
                         ];
                     }
                 } else {
-                    $supId = $tpl->target_type === 'self' ? null : ($emp->basicData?->direct_supervision ?: null);
+                    $supId = $tpl->target_type === 'self' ? null : $emp->basicData?->supervisorEmployeeId();
                     $desired[$emp->employee_id . '|' . $tpl->id . '|auto'] = [
                         $emp->employee_id, $tpl->id, $supId, (bool) $tpl->is_anonymous,
                     ];
@@ -94,7 +114,7 @@ class KpiAssignments
                 $existingKeys['gone:' . $e->id] = $e;
                 continue;
             }
-            $explicit = $tpl->target_type !== 'self' && $tpl->hasExplicitSubjects();
+            $explicit = $tpl->usesExplicitCounterparts();
             $key = $e->employee_id . '|' . $e->template_id . '|' . ($explicit ? ($e->supervisor_id ?? 'null') : 'auto');
             $existingKeys[$key] = $e;
         }
@@ -152,6 +172,22 @@ class KpiAssignments
     }
 
     /**
+     * Upward assessments only pair a rater with their OWN direct supervisor:
+     * even when the template lists many raters and many subjects, a rater is
+     * matched to the subject that is their leader and to no one else (Siti
+     * rates her lead, Budi rates his — never each other's). Other assessment
+     * types keep the full rater × subject pairing.
+     */
+    private static function subjectMatchesRater(KpiTemplate $tpl, Employee $rater, int $subjectId): bool
+    {
+        if ($tpl->target_type !== 'upward') {
+            return true;
+        }
+
+        return $rater->basicData?->supervisorEmployeeId() === $subjectId;
+    }
+
+    /**
      * Deadline column for a new evaluation, from the template's deadline
      * settings. Self and upward rows are filled by the employee (self_deadline);
      * lead and peer rows by the reviewer (supervisor_deadline).
@@ -190,12 +226,44 @@ class KpiAssignments
             ->get(['template_id', 'supervisor_id'])
             ->map(function ($e) use ($templates) {
                 $tpl = $templates->firstWhere('id', $e->template_id);
-                $explicit = $tpl && $tpl->target_type !== 'self' && $tpl->hasExplicitSubjects();
+                $explicit = $tpl && $tpl->usesExplicitCounterparts();
                 return $e->template_id . '|' . ($explicit ? ($e->supervisor_id ?? 'null') : 'auto');
             })->all();
 
         $created = 0;
         foreach ($templates as $tpl) {
+            // Peer pairs: this employee is the reviewee of each pair naming them.
+            if ($tpl->hasPeerPairs()) {
+                foreach ($tpl->peerPairs() as [$reviewerId, $revieweeId]) {
+                    if ($revieweeId !== $employeeId || in_array($tpl->id . '|' . $reviewerId, $existingPairKeys, true)) {
+                        continue;
+                    }
+                    if (!Employee::where('employee_id', $reviewerId)->where('is_active', true)->exists()) {
+                        continue;
+                    }
+                    $eval = KpiEvaluation::create([
+                        'employee_id'   => $employeeId,
+                        'template_id'   => $tpl->id,
+                        'period_month'  => $periodMonth,
+                        'supervisor_id' => $reviewerId,
+                        'status'        => KpiEvaluation::STATUS_DRAFT,
+                        'is_anonymous'  => (bool) $tpl->is_anonymous,
+                        'created_by'    => $actorId,
+                    ] + self::deadlineColumns($tpl, $periodMonth));
+                    $rows = $tpl->indicators->map(fn ($ind) => [
+                        'evaluation_id' => $eval->id,
+                        'indicator_id'  => $ind->id,
+                        'created_at'    => now(),
+                        'updated_at'    => now(),
+                    ])->all();
+                    if ($rows) {
+                        KpiEvaluationDetail::insert($rows);
+                    }
+                    $created++;
+                }
+                continue;
+            }
+
             if (!$tpl->appliesTo($emp)) {
                 continue;
             }
@@ -210,10 +278,13 @@ class KpiAssignments
                     if ($subId === $employeeId) {
                         continue; // never let someone be their own counterpart
                     }
+                    if (!self::subjectMatchesRater($tpl, $emp, $subId)) {
+                        continue;
+                    }
                     $pairs[] = [$subId, $tpl->id . '|' . $subId];
                 }
             } else {
-                $supId = $tpl->target_type === 'self' ? null : ($emp->basicData?->direct_supervision ?: null);
+                $supId = $tpl->target_type === 'self' ? null : $emp->basicData?->supervisorEmployeeId();
                 $pairs[] = [$supId, $tpl->id . '|auto'];
             }
 

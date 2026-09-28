@@ -21,6 +21,12 @@
     $vEmployees = collect(old('target_employees', $template->target_employees ?? []))->map(fn($v) => (string) $v)->all();
     $vProjects  = collect(old('target_projects', $template->target_projects ?? []))->map(fn($v) => (string) $v)->all();
     $vSubjects  = collect(old('subject_employees', $template->subject_employees ?? []))->map(fn($v) => (string) $v)->all();
+    $vGroups    = old('peer_groups') !== null
+        ? collect(old('peer_groups'))->map(fn($g) => [
+            'name' => (string) ($g['name'] ?? ''), 'basis' => (string) ($g['basis'] ?? ''),
+            'value' => (string) ($g['value'] ?? ''), 'members' => array_map('strval', (array) ($g['members'] ?? [])),
+        ])->values()->all()
+        : collect($template->peerGroups())->map(fn($g) => $g + ['members' => array_map('strval', $g['members'])])->values()->all();
     $vDivisor   = old('score_divisor', $template->score_divisor ?? 5);
     $vDlDay     = old('deadline_day', $template->deadline_day);
     $vDlMonth   = old('deadline_month', $template->deadline_month);
@@ -271,7 +277,26 @@
             <div id="subInputs"></div>
         </div>
 
+        {{-- ── Peer pairs (groups) — mutual evaluation inside a role / position / project ── --}}
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hidden" id="pairsPanel">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-1">
+                <h3 class="text-sm font-bold text-gray-800">Peer pairs <span class="text-gray-400 font-normal text-xs">— who evaluates each other</span></h3>
+                <button type="button" onclick="groupAdd()"
+                    class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-cyan-600 text-white text-xs font-bold rounded-xl hover:bg-cyan-700 transition-all">
+                    <i class="fas fa-plus text-[10px]"></i> Add pair
+                </button>
+            </div>
+            <p class="text-xs text-gray-400 mb-4">
+                Each pair takes <strong>one</strong> role, position or project and up to <strong>10 employees</strong> from it. Everyone in a pair
+                rates every other member — never themselves. Too many people? Add another pair for the same role / position / project.
+            </p>
+            <div id="groupList" class="space-y-4"></div>
+            <p id="groupEmpty" class="text-[11px] text-gray-400">No pairs yet — click <strong>Add pair</strong>.</p>
+            <div id="groupInputs"></div>
+        </div>
+
         <script>
+            window.__kpiGroups0 = @json($vGroups);
             window.__kpiPools  = @json($targetPools);
             window.__kpiChips0 = @json($preChips);
             window.__kpiSubjectChips0 = @json($preSubjectChips);
@@ -882,7 +907,7 @@ const AUDIENCE_COPY = {
         flow: {
             cls: 'border-cyan-200 bg-cyan-50',
             icon: 'fa-user-group text-cyan-600',
-            html: 'Set the peer reviewer below. Without one, this falls back to the direct supervisor, same as Lead.',
+            html: 'Mutual evaluation: build pairs below — each pair is one role, position or project, and its members rate <strong>each other</strong> (never themselves).',
         },
     },
     upward: {
@@ -899,7 +924,7 @@ const AUDIENCE_COPY = {
 const SUBJECT_COPY = {
     supervisor: { heading: 'Reviewer (optional)', sub: 'Pick specific reviewer(s) instead of the direct supervisor.' },
     peer:       { heading: 'Peer reviewer', sub: 'Pick who reviews the audience above. Leave empty to fall back to the direct supervisor.' },
-    upward:     { heading: 'Who is being rated (optional)', sub: 'Pick specific subject(s) instead of each rater\'s direct supervisor.' },
+    upward:     { heading: 'Who is being rated (optional)', sub: 'Pick the supervisor(s) to be rated. Each rater is matched only to their own direct supervisor — e.g. Siti rates her lead, Budi rates his, never each other\'s.' },
 };
 
 function updateAudienceCopy() {
@@ -918,11 +943,14 @@ function updateAudienceCopy() {
             <span class="text-xs text-gray-700 leading-relaxed">${copy.flow.html}</span>`;
     }
 
+    // Peer replaces both pickers with the pairs table.
+    document.getElementById('audienceHeading')?.parentElement.classList.toggle('hidden', type === 'peer');
+
     // Counterpart picker only makes sense once there's someone other than
     // the matched employee involved — Self never shows it.
     const panel = document.getElementById('subjectPanel');
     if (panel) {
-        const show = type !== 'self';
+        const show = type !== 'self' && type !== 'peer'; // Peer uses the pairs table instead
         panel.classList.toggle('hidden', !show);
         if (show) {
             const sc = SUBJECT_COPY[type] || SUBJECT_COPY.supervisor;
@@ -936,6 +964,7 @@ function updateAudienceCopy() {
     // re-render whenever it changes.
     window.tgtRenderList?.();
     window.subRenderList?.();
+    window.pairsRefresh?.();
 }
 updateAudienceCopy();
 
@@ -1110,10 +1139,288 @@ updateAudienceCopy();
     subRenderList();
 })();
 
+// ── Peer pairs (groups): mutual evaluation. A pair = ONE basis (role | position |
+//    project) + ONE value + up to GROUP_MAX members who all rate each other. A
+//    basis value can have many pairs. ────────────────────────────────────────────
+(function () {
+    const GROUP_MAX = 10;
+    const POOLS = window.__kpiPools || {};
+    const EMPS = POOLS.employee || [];
+    const BASIS = [
+        { id: 'role', name: 'Role' },
+        { id: 'position', name: 'Position' },
+        { id: 'project', name: 'Project' },
+    ];
+    const groups = []; // { name, basis, value, members:Set<string>, el, ... }
+
+    const $panel = document.getElementById('pairsPanel');
+    const $list = document.getElementById('groupList');
+    const $empty = document.getElementById('groupEmpty');
+    const $inputs = document.getElementById('groupInputs');
+    if (!$panel) return;
+
+    const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const isPeer = () => document.getElementById('targetTypeSelect')?.value === 'peer';
+
+    const valueItems = basis => (POOLS[basis] || []).map(o => ({ id: String(o.id), name: o.name }));
+    const belongs = (e, basis, value) =>
+        basis === 'role' ? (e.role_ids || []).includes(String(value))
+        : basis === 'position' ? (e.position || '') === value
+        : basis === 'project' ? (e.project_ids || []).includes(String(value))
+        : false;
+
+    // Small searchable dropdown: button + panel with a search box.
+    function combo({ placeholder, getItems, onPick }) {
+        const wrap = document.createElement('div');
+        wrap.className = 'relative';
+        wrap.innerHTML = `
+            <button type="button" class="cb-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-left hover:border-gray-300 focus:ring-2 focus:ring-cyan-300">
+                <span class="cb-label truncate text-gray-400">${esc(placeholder)}</span>
+                <i class="fas fa-chevron-down text-[10px] text-gray-400 shrink-0"></i>
+            </button>
+            <div class="cb-panel hidden absolute left-0 right-0 top-full mt-1 z-40 bg-white rounded-xl shadow-xl ring-1 ring-black/5 overflow-hidden">
+                <div class="p-2 border-b border-gray-100"><input type="text" placeholder="Search…" autocomplete="off"
+                    class="cb-search w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-300"></div>
+                <div class="cb-items max-h-56 overflow-y-auto py-1"></div>
+            </div>`;
+        const btn = wrap.querySelector('.cb-btn'), label = wrap.querySelector('.cb-label');
+        const panel = wrap.querySelector('.cb-panel'), search = wrap.querySelector('.cb-search'), box = wrap.querySelector('.cb-items');
+        let disabled = false;
+
+        function draw() {
+            const q = search.value.trim().toLowerCase();
+            const hits = getItems().filter(i => !q || i.name.toLowerCase().includes(q));
+            box.innerHTML = hits.length
+                ? hits.map(i => `<button type="button" data-id="${esc(i.id)}" class="cb-item w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">${esc(i.name)}</button>`).join('')
+                : '<p class="px-3 py-2 text-[11px] text-gray-400">No results</p>';
+            box.querySelectorAll('.cb-item').forEach(b => b.onclick = () => {
+                const item = hits.find(i => i.id === b.dataset.id);
+                api.set(item);
+                panel.classList.add('hidden');
+                onPick(item);
+            });
+        }
+        btn.onclick = e => {
+            e.stopPropagation();
+            if (disabled) return;
+            const open = panel.classList.contains('hidden');
+            document.querySelectorAll('.cb-panel').forEach(p => p.classList.add('hidden'));
+            if (open) { panel.classList.remove('hidden'); search.value = ''; draw(); search.focus(); }
+        };
+        panel.onclick = e => e.stopPropagation();
+        search.oninput = draw;
+
+        const api = {
+            el: wrap,
+            set(item) {
+                label.textContent = item ? item.name : placeholder;
+                label.classList.toggle('text-gray-400', !item);
+                label.classList.toggle('text-gray-800', !!item);
+            },
+            disable(v) { disabled = v; btn.classList.toggle('opacity-50', v); btn.classList.toggle('cursor-not-allowed', v); },
+        };
+        return api;
+    }
+    document.addEventListener('click', () => document.querySelectorAll('.cb-panel').forEach(p => p.classList.add('hidden')));
+
+    function syncInputs() {
+        $inputs.innerHTML = groups.map((g, i) =>
+            `<input type="hidden" name="peer_groups[${i}][name]" value="${esc(g.name)}">` +
+            `<input type="hidden" name="peer_groups[${i}][basis]" value="${esc(g.basis)}">` +
+            `<input type="hidden" name="peer_groups[${i}][value]" value="${esc(g.value)}">` +
+            [...g.members].map(m => `<input type="hidden" name="peer_groups[${i}][members][]" value="${esc(m)}">`).join('')
+        ).join('');
+        $empty.classList.toggle('hidden', groups.length > 0);
+    }
+
+    function buildCard(g, index) {
+        const card = document.createElement('div');
+        card.className = 'border border-gray-200 rounded-2xl p-4 bg-gray-50/40';
+        card.innerHTML = `
+            <div class="flex items-center gap-2 mb-3">
+                <span class="g-no inline-flex w-6 h-6 items-center justify-center rounded-lg bg-cyan-100 text-cyan-700 text-xs font-bold"></span>
+                <input type="text" maxlength="100" placeholder="Pair name (e.g. Developers – Squad 1)"
+                    class="g-name flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-cyan-300">
+                <button type="button" class="g-del w-8 h-8 rounded-lg bg-red-50 text-red-500 border border-red-200 hover:bg-red-100" title="Remove pair"><i class="fas fa-trash text-[11px]"></i></button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div><label class="block text-[11px] font-semibold text-gray-600 mb-1">1 · Choose by</label><div class="g-basis"></div></div>
+                <div><label class="block text-[11px] font-semibold text-gray-600 mb-1">2 · <span class="g-value-lbl">Value</span></label><div class="g-value"></div></div>
+            </div>
+            <div>
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="text-[11px] font-semibold text-gray-600">3 · Employees <span class="g-count text-gray-400 font-normal"></span></label>
+                    <div class="flex items-center gap-3">
+                        <button type="button" class="g-all text-[11px] text-cyan-700 font-semibold hover:underline">Select all (max ${GROUP_MAX})</button>
+                        <button type="button" class="g-none text-[11px] text-red-500 font-medium hover:underline">Clear</button>
+                    </div>
+                </div>
+                <div class="relative mb-2">
+                    <input type="text" placeholder="Search employees…" autocomplete="off"
+                        class="g-search w-full pl-11 pr-3 py-3.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-cyan-300">
+                    <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
+                <div class="g-warn hidden mb-2 p-2.5 rounded-lg border border-red-200 bg-red-50 text-[11px] text-red-700">
+                    <i class="fas fa-triangle-exclamation mr-1"></i> Only ${GROUP_MAX} employees per pair — create a new pair for the rest.
+                </div>
+                <div class="g-emps border border-gray-200 rounded-xl bg-white max-h-56 overflow-y-auto p-1.5 space-y-0.5"></div>
+            </div>`;
+
+        const q = sel => card.querySelector(sel);
+        q('.g-no').textContent = index + 1;
+        const nameEl = q('.g-name'); nameEl.value = g.name;
+        nameEl.oninput = () => { g.name = nameEl.value; syncInputs(); };
+        q('.g-del').onclick = () => { groups.splice(groups.indexOf(g), 1); card.remove(); renumber(); syncInputs(); };
+
+        const valueLbl = q('.g-value-lbl');
+        const basisCb = combo({
+            placeholder: 'Role / Position / Project',
+            getItems: () => BASIS,
+            onPick: item => {
+                if (g.basis !== item.id) { g.basis = item.id; g.value = ''; g.members.clear(); }
+                refresh(true);
+            },
+        });
+        const valueCb = combo({
+            placeholder: 'Choose basis first',
+            getItems: () => valueItems(g.basis),
+            onPick: item => {
+                if (g.value !== item.id) { g.value = item.id; g.members.clear(); }
+                refresh(false);
+            },
+        });
+        q('.g-basis').appendChild(basisCb.el);
+        q('.g-value').appendChild(valueCb.el);
+
+        const search = q('.g-search');
+        search.oninput = drawEmps;
+
+        // Ticks people currently listed (respecting the search) until the pair is
+        // full at GROUP_MAX; warns when more are left over.
+        q('.g-all').onclick = () => {
+            if (!g.basis || !g.value) return;
+            const term = search.value.trim().toLowerCase();
+            const hits = candidates().filter(e => !term || (e.name + ' ' + (e.meta || '')).toLowerCase().includes(term));
+            let left = 0;
+            hits.forEach(e => {
+                if (g.members.has(e.id)) return;
+                if (g.members.size < GROUP_MAX) g.members.add(e.id); else left++;
+            });
+            drawEmps();
+            syncInputs();
+            if (left) q('.g-warn').classList.remove('hidden');
+        };
+        q('.g-none').onclick = () => { g.members.clear(); drawEmps(); syncInputs(); };
+
+        function candidates() {
+            if (!g.basis || !g.value) return [];
+            return EMPS.filter(e => belongs(e, g.basis, g.value));
+        }
+
+        function drawEmps() {
+            const box = q('.g-emps');
+            if (!g.basis || !g.value) {
+                box.innerHTML = '<p class="px-2 py-3 text-[11px] text-gray-400">Choose a role, position or project first.</p>';
+                return updateCount();
+            }
+            const term = search.value.trim().toLowerCase();
+            const hits = candidates().filter(e => !term || (e.name + ' ' + (e.meta || '')).toLowerCase().includes(term))
+                .sort((a, b) => (g.members.has(b.id) ? 1 : 0) - (g.members.has(a.id) ? 1 : 0)); // chosen first (stable)
+            box.innerHTML = hits.length
+                ? hits.map(e => `<label class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-xs">
+                        <input type="checkbox" class="g-cb rounded text-cyan-600" data-id="${esc(e.id)}" ${g.members.has(e.id) ? 'checked' : ''}>
+                        <span class="font-medium text-gray-800">${esc(e.name)}</span>
+                        ${e.meta ? `<span class="text-gray-400">${esc(e.meta)}</span>` : ''}
+                    </label>`).join('')
+                : '<p class="px-2 py-3 text-[11px] text-gray-400">No employee matches this value.</p>';
+            box.querySelectorAll('.g-cb').forEach(cb => cb.onchange = () => {
+                if (cb.checked) {
+                    if (g.members.size >= GROUP_MAX) {
+                        cb.checked = false;
+                        q('.g-warn').classList.remove('hidden');
+                        return;
+                    }
+                    g.members.add(cb.dataset.id);
+                } else {
+                    g.members.delete(cb.dataset.id);
+                }
+                updateCount();
+                syncInputs();
+                const keep = box.scrollTop;
+                drawEmps(); // re-sort so chosen people stay on top
+                box.scrollTop = keep;
+            });
+            updateCount();
+        }
+
+        function updateCount() {
+            const n = g.members.size;
+            q('.g-count').textContent = `(${n}/${GROUP_MAX} selected)`;
+            if (n < GROUP_MAX) q('.g-warn').classList.add('hidden'); // shown only when a pick is refused
+        }
+
+        function refresh(basisChanged) {
+            const b = BASIS.find(x => x.id === g.basis);
+            basisCb.set(b || null);
+            valueLbl.textContent = b ? `Which ${b.name.toLowerCase()}` : 'Value';
+            valueCb.disable(!g.basis);
+            const item = g.value ? valueItems(g.basis).find(i => i.id === g.value) : null;
+            valueCb.set(item || null);
+            if (!g.value) valueCb.set(null);
+            search.value = '';
+            drawEmps();
+            syncInputs();
+        }
+
+        g.el = card;
+        g.setNo = n => { q('.g-no').textContent = n; };
+        refresh();
+        return card;
+    }
+
+    function renumber() { groups.forEach((g, i) => g.setNo(i + 1)); }
+
+    window.groupAdd = function (data) {
+        const g = { name: data?.name || '', basis: data?.basis || '', value: data?.value || '', members: new Set((data?.members || []).map(String)) };
+        groups.push(g);
+        $list.appendChild(buildCard(g, groups.length - 1));
+        syncInputs();
+    };
+
+    // Validation summary used by the submit handler; returns an error string or null.
+    window.groupsError = function () {
+        if (!groups.length) return 'Add at least one pair for a Peer template.';
+        for (const [i, g] of groups.entries()) {
+            const label = g.name ? `"${g.name}"` : `Pair ${i + 1}`;
+            if (!g.basis || !g.value) return `${label}: choose a role, position or project.`;
+            if (g.members.size < 2) return `${label}: pick at least 2 employees.`;
+        }
+        return null;
+    };
+    window.pairsCount = () => (isPeer() ? groups.length : 0);
+    window.pairsRefresh = function () { $panel.classList.toggle('hidden', !isPeer()); syncInputs(); };
+
+    (window.__kpiGroups0 || []).forEach(g => window.groupAdd(g));
+    window.pairsRefresh();
+})();
+
 document.getElementById('templateForm').addEventListener('submit', function (e) {
+    if (document.getElementById('targetTypeSelect').value === 'peer') {
+        const err = window.groupsError?.();
+        if (err) {
+            e.preventDefault();
+            showToast(err, 'error');
+            return;
+        }
+        // Audience / reviewer pickers are hidden for Peer — don't submit their stale picks.
+        document.getElementById('tgtInputs').innerHTML = '';
+        document.getElementById('subInputs').innerHTML = '';
+        return;
+    }
+    document.getElementById('groupInputs').innerHTML = ''; // pairs only apply to Peer
     const audienceIds = new Set(window.tgtGetEmployeeIds ? window.tgtGetEmployeeIds() : []);
     const subjectInputs = document.querySelectorAll('input[name="subject_employees[]"]');
-    const overlap = [...subjectInputs].some(inp => audienceIds.has(inp.value));
+    const overlap = !window.pairsCount?.() && [...subjectInputs].some(inp => audienceIds.has(inp.value));
     if (overlap) {
         e.preventDefault();
         showToast('An employee can\'t be picked as both the audience and the counterpart. Remove the overlapping name from one side.', 'error');
