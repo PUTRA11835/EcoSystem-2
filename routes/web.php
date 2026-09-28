@@ -602,6 +602,18 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             ->middleware('menu:management.permissions')
             ->name('ess-settings.update');
 
+        // D182 — pengelolaan grup dropdown ESS, slug SAMA dengan ESS Settings
+        // di atas (halaman yang sama, bukan fitur terpisah).
+        Route::post('/ess-settings/groups', [\App\Http\Controllers\Management\EssSettingsController::class, 'storeGroup'])
+            ->middleware('menu:management.permissions')
+            ->name('ess-settings.groups.store');
+        Route::post('/ess-settings/groups/{group}/update', [\App\Http\Controllers\Management\EssSettingsController::class, 'updateGroup'])
+            ->middleware('menu:management.permissions')
+            ->name('ess-settings.groups.update');
+        Route::post('/ess-settings/groups/{group}/delete', [\App\Http\Controllers\Management\EssSettingsController::class, 'destroyGroup'])
+            ->middleware('menu:management.permissions')
+            ->name('ess-settings.groups.destroy');
+
         Route::get('/holidays', [\App\Http\Controllers\HolidayManagementController::class, 'page'])
             ->middleware('menu:management.holidays')
             ->name('holidays.index');

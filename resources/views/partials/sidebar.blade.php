@@ -13,213 +13,210 @@
     @else
         <nav class="py-4 px-3 space-y-1">
             @php
-                $essConfig = \App\Http\Controllers\Management\EssSettingsController::getEssSettings();
+                $essConfig    = \App\Http\Controllers\Management\EssSettingsController::getEssSettings();
+                $essGroupData = \App\Http\Controllers\Management\EssSettingsController::getEssGroups();
+
+                // 🔴 D182 — SATU array data menggantikan lima belas blok
+                // `@if(!empty($essConfig[...]))` yang dulu ditulis tangan satu
+                // per satu. Setiap baris di sini adalah PERSIS logika yang
+                // sudah ada sebelumnya (route, pola aktif, gerbang tambahan) —
+                // dipindah ke bentuk data, bukan ditulis ulang — supaya
+                // perilaku untuk siapa pun yang TIDAK memakai fitur grup baru
+                // (mis. instalasi yang belum pernah membuat grup) IDENTIK
+                // dengan sebelum D182.
+                //
+                // `logout`, `events_calendar`, `my_timesheet` SENGAJA tidak
+                // ada di sini — lihat EssSettingsController::UNGROUPABLE_ITEMS
+                // untuk alasannya (logout tidak pernah benar-benar dijaga
+                // sakelar ini; dua lainnya sudah punya dropdown "Calendar"
+                // sendiri di bawah, di luar cakupan fitur ini).
+                $essNav = [
+                    'home' => [
+                        'label'   => 'Home',
+                        'icon'    => 'fas fa-home',
+                        'href'    => route('dashboard'),
+                        'active'  => Request::is('dashboard'),
+                        'visible' => !empty($essConfig['home']),
+                    ],
+                    'my_profile' => [
+                        'label'   => 'My Profile',
+                        'icon'    => 'fas fa-user-circle',
+                        'href'    => route('profile.my'),
+                        'active'  => Request::is('my-profile*') || Request::is('profile*'),
+                        'visible' => !empty($essConfig['my_profile']),
+                    ],
+                    'my_attendance' => [
+                        'label'   => 'My Attendance',
+                        'icon'    => 'fas fa-user-clock',
+                        'href'    => route('general.my-attendance.index'),
+                        'active'  => Request::is('general/my-attendance*'),
+                        'visible' => !empty($essConfig['my_attendance']),
+                    ],
+                    'my_leave_permit' => [
+                        'label'   => 'My Leave & Permit',
+                        'icon'    => 'fas fa-calendar-check',
+                        'href'    => route('my-leave-permit'),
+                        'active'  => Request::is('my-leave-permit*'),
+                        'visible' => !empty($essConfig['my_leave_permit']),
+                    ],
+                    'overtime' => [
+                        'label'   => 'Overtime',
+                        'icon'    => 'fas fa-business-time',
+                        'href'    => route('general.my-overtime.index'),
+                        'active'  => Request::is('general/my-overtime*'),
+                        'visible' => !empty($essConfig['overtime']),
+                    ],
+                    'expense_reimbursement' => [
+                        'label'   => 'My Reimbursement',
+                        'icon'    => 'fas fa-receipt',
+                        'href'    => route('general.my-reimbursement.index'),
+                        'active'  => Request::is('general/my-reimbursement*'),
+                        'visible' => !empty($essConfig['expense_reimbursement']),
+                    ],
+                    // route('coming-soon', ...) — belum menunjuk halaman sungguhan.
+                    'paystub' => [
+                        'label'   => 'Paystub',
+                        'icon'    => 'fas fa-file-invoice-dollar',
+                        'href'    => route('coming-soon', ['feature' => 'Paystub']),
+                        'active'  => false,
+                        'visible' => !empty($essConfig['paystub']),
+                    ],
+                    'purchase_request' => [
+                        'label'   => 'Purchase Request',
+                        'icon'    => 'fas fa-shopping-cart',
+                        'href'    => route('general.my-purchase-request.index'),
+                        'active'  => Request::is('general/my-purchase-request*'),
+                        'visible' => !empty($essConfig['purchase_request']),
+                    ],
+                    // 🔴 Pola aktif PRESISI, bukan wildcard (Keputusan D161) — supaya
+                    // tidak ikut menangkap `my-cash-advance-report` dan menyalakan
+                    // dua item sekaligus.
+                    'advance_payment_ca' => [
+                        'label'   => 'Cash Advance',
+                        'icon'    => 'fas fa-hand-holding-usd',
+                        'href'    => route('general.my-cash-advance.index'),
+                        'active'  => Request::is('general/my-cash-advance') || Request::is('general/my-cash-advance/*'),
+                        'visible' => !empty($essConfig['advance_payment_ca']),
+                    ],
+                    'advance_payment_car' => [
+                        'label'   => 'Cash Advance Report',
+                        'icon'    => 'fas fa-file-contract',
+                        'href'    => route('general.my-cash-advance-report.index'),
+                        'active'  => Request::is('general/my-cash-advance-report*'),
+                        'visible' => !empty($essConfig['advance_payment_car']),
+                    ],
+                    // route('coming-soon', ...) — belum menunjuk halaman sungguhan.
+                    'loans' => [
+                        'label'   => 'My Loans',
+                        'icon'    => 'fas fa-landmark',
+                        'href'    => route('coming-soon', ['feature' => 'Loans']),
+                        'active'  => false,
+                        'visible' => !empty($essConfig['loans']),
+                    ],
+                    'my_kpis' => [
+                        'label'   => 'My KPI',
+                        'icon'    => 'fas fa-chart-line',
+                        'href'    => route('general.my-kpi.index'),
+                        'active'  => Request::is('general/my-kpi*'),
+                        'visible' => !empty($essConfig['my_kpis']),
+                    ],
+                    // Gerbang GANDA seperti sebelumnya: sakelar ESS DAN slug izin.
+                    'ai_assistant' => [
+                        'label'   => 'AI Assistant',
+                        'icon'    => 'fas fa-robot',
+                        'href'    => route('ai-assistant'),
+                        'active'  => Request::is('ai-assistant*'),
+                        'visible' => !empty($essConfig['ai_assistant']) && $can('ai-assistant'),
+                    ],
+                    'ai_research' => [
+                        'label'   => 'AI Research',
+                        'icon'    => 'fas fa-magnifying-glass-chart',
+                        'href'    => route('ai-research'),
+                        'active'  => Request::is('ai-research*'),
+                        'visible' => !empty($essConfig['ai_research']) && $can('ai-research'),
+                    ],
+                ];
+
+                // Susun urutan tampil: item flat dan grup diselingi mengikuti
+                // urutan ASLI $essNav di atas — grup muncul persis di posisi
+                // anggota PERTAMANYA. Tanpa satu pun grup terkonfigurasi
+                // (instalasi baru, atau sebelum D182), ini menghasilkan urutan
+                // yang identik dengan lima belas blok lama.
+                $essRenderedGroupIds = [];
+                $essOutput = [];
+
+                foreach ($essNav as $essKey => $essItem) {
+                    $essGroupId = $essGroupData['assignments'][$essKey] ?? null;
+
+                    if ($essGroupId === null) {
+                        $essOutput[] = ['type' => 'item', 'item' => $essItem];
+                        continue;
+                    }
+
+                    if (in_array($essGroupId, $essRenderedGroupIds, true)) {
+                        continue; // sudah dirender lewat kemunculan pertama grup ini
+                    }
+
+                    $essGroup = collect($essGroupData['groups'])->firstWhere('id', $essGroupId);
+
+                    if (!$essGroup) {
+                        // Seharusnya sudah disaring getEssGroups() — jaga-jaga saja,
+                        // supaya item tidak pernah hilang hanya karena grupnya cacat.
+                        $essOutput[] = ['type' => 'item', 'item' => $essItem];
+                        continue;
+                    }
+
+                    $essMembers = collect($essNav)
+                        ->filter(fn ($it, $k) => ($essGroupData['assignments'][$k] ?? null) === $essGroupId)
+                        ->values();
+
+                    $essOutput[] = ['type' => 'group', 'group' => $essGroup, 'members' => $essMembers];
+                    $essRenderedGroupIds[] = $essGroupId;
+                }
             @endphp
 
-            @if(!empty($essConfig['home']))
-                <div class="mb-2">
-                    <a href="{{ route('dashboard') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('dashboard') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-home"></i>
-                        </span>
-                        <span class="nav-text font-medium">Home</span>
-                    </a>
-                </div>
-            @endif
-
-            @if(!empty($essConfig['my_profile']))
-                <div class="mb-2">
-                    <a href="{{ route('profile.my') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('my-profile*') || Request::is('profile*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-user-circle"></i>
-                        </span>
-                        <span class="nav-text font-medium">My Profile</span>
-                    </a>
-                </div>
-            @endif
-
-
-
-            @if(!empty($essConfig['my_attendance']))
-                <div class="mb-2">
-                    <a href="{{ route('general.my-attendance.index') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-attendance*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-user-clock"></i>
-                        </span>
-                        <span class="nav-text font-medium">My Attendance</span>
-                    </a>
-                </div>
-            @endif
-
-            @if(!empty($essConfig['my_leave_permit']))
-                <div class="mb-2">
-                    <a href="{{ route('my-leave-permit') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('my-leave-permit*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-calendar-check"></i>
-                        </span>
-                        <span class="nav-text font-medium">My Leave & Permit</span>
-                    </a>
-                </div>
-            @endif
-
-            @if(!empty($essConfig['overtime']))
-                <div class="mb-2">
-                    <a href="{{ route('general.my-overtime.index') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-overtime*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-business-time"></i>
-                        </span>
-                        <span class="nav-text font-medium">Overtime</span>
-                    </a>
-                </div>
-            @endif
-
-            @if(!empty($essConfig['expense_reimbursement']))
-                <div class="mb-2">
-                    <a href="{{ route('general.my-reimbursement.index') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-reimbursement*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-receipt"></i>
-                        </span>
-                        <span class="nav-text font-medium">My Reimbursement</span>
-                    </a>
-                </div>
-            @endif
-
-            @if(!empty($essConfig['paystub']))
-                <div class="mb-2">
-                    <a href="{{ route('coming-soon', ['feature' => 'Paystub']) }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-file-invoice-dollar"></i>
-                        </span>
-                        <span class="nav-text font-medium">Paystub</span>
-                    </a>
-                </div>
-            @endif
-
-            {{-- Sejak 2 Sep 2026 item ini menunjuk halaman sungguhan, bukan lagi
-                 route('coming-soon'). Pola yang sama dipakai My Attendance,
-                 Overtime, dan Reimbursement saat modulnya jadi.
-
-                 DUA GERBANG, keduanya harus terbuka: sakelar ESS di bawah
-                 mengatur apakah itemnya DIRENDER, sementara slug
-                 `general.my-purchase-request` di Control Center mengatur apakah
-                 RUTENYA boleh dibuka. Item yang terlihat tetapi menolak saat
-                 diklik berarti slugnya belum dibagikan. --}}
-            @if(!empty($essConfig['purchase_request']))
-                <div class="mb-2">
-                    <a href="{{ route('general.my-purchase-request.index') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-purchase-request*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-shopping-cart"></i>
-                        </span>
-                        <span class="nav-text font-medium">Purchase Request</span>
-                    </a>
-                </div>
-            @endif
-
-            {{-- Sejak 8 Sep 2026 item ini menunjuk halaman sungguhan, bukan lagi
-                 route('coming-soon'). Pola yang sama dipakai My Attendance,
-                 Overtime, Reimbursement, dan Purchase Request saat modulnya jadi.
-
-                 DUA GERBANG, keduanya harus terbuka: sakelar ESS di bawah mengatur
-                 apakah itemnya DIRENDER, sementara slug `general.my-cash-advance`
-                 di Control Center mengatur apakah RUTENYA boleh dibuka. Item yang
-                 terlihat tetapi menolak saat diklik berarti slugnya belum dibagikan.
-
-                 🔴 Nama menunya POLOS — 'Cash Advance', bukan 'Cash Advance (CA)'.
-                 Singkatan dalam kurung adalah penanda sisi ADMIN (D142/D151).
-
-                 🔴 POLA AKTIFNYA PRESISI, BUKAN `my-cash-advance*` (Keputusan D161).
-                 Wildcard itu ikut menangkap `my-cash-advance-report`, sehingga
-                 membuka halaman laporan menyalakan DUA item sekaligus. Dilaporkan
-                 pemilik sistem. Konvensi `is('x') || is('x/*')` sudah dipakai di
-                 blok Reporting berkas ini. --}}
-            @if(!empty($essConfig['advance_payment_ca']))
-                @php
-                    $essCaActive = Request::is('general/my-cash-advance')
-                        || Request::is('general/my-cash-advance/*');
-                @endphp
-                <div class="mb-2">
-                    <a href="{{ route('general.my-cash-advance.index') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ $essCaActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-hand-holding-usd"></i>
-                        </span>
-                        <span class="nav-text font-medium">Cash Advance</span>
-                    </a>
-                </div>
-            @endif
-
-            {{-- Menunjuk halaman sungguhan sejak 9 Sep 2026. Nama menunya POLOS
-                 (aturan D151) — singkatan (CAR) adalah penanda sisi admin.
-                 KUNCI `advance_payment_car` tidak diubah: kunci itulah yang
-                 tersimpan di JSON `ess_menu_settings`. --}}
-            @if(!empty($essConfig['advance_payment_car']))
-                <div class="mb-2">
-                    <a href="{{ route('general.my-cash-advance-report.index') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-cash-advance-report*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-file-contract"></i>
-                        </span>
-                        <span class="nav-text font-medium">Cash Advance Report</span>
-                    </a>
-                </div>
-            @endif
-
-            @if(!empty($essConfig['loans']))
-                <div class="mb-2">
-                    <a href="{{ route('coming-soon', ['feature' => 'Loans']) }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-landmark"></i>
-                        </span>
-                        <span class="nav-text font-medium">My Loans</span>
-                    </a>
-                </div>
-            @endif
-
-            @if(!empty($essConfig['my_kpis']))
-                <div class="mb-2">
-                    <a href="{{ route('general.my-kpi.index') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/my-kpi*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-chart-line"></i>
-                        </span>
-                        <span class="nav-text font-medium">My KPI</span>
-                    </a>
-                </div>
-            @endif
-
-
-            @if(!empty($essConfig['ai_assistant']) && $can('ai-assistant'))
-            <!-- AI ASSISTANT -->
-            <div class="mb-2">
-                <a href="{{ route('ai-assistant') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ai-assistant*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                    <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                        <i class="fas fa-robot"></i>
-                    </span>
-                    <span class="nav-text font-medium">AI Assistant</span>
-                </a>
-            </div>
-            @endif
-
-            @if(!empty($essConfig['ai_research']) && $can('ai-research'))
-            <!-- AI RESEARCH -->
-            <div class="mb-2">
-                <a href="{{ route('ai-research') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ai-research*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                    <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                        <i class="fas fa-magnifying-glass-chart"></i>
-                    </span>
-                    <span class="nav-text font-medium">AI Research</span>
-                </a>
-            </div>
-            @endif
+            @foreach($essOutput as $essEntry)
+                @if($essEntry['type'] === 'item')
+                    @if($essEntry['item']['visible'])
+                        @include('partials.ess-nav-item', [
+                            'href'   => $essEntry['item']['href'],
+                            'icon'   => $essEntry['item']['icon'],
+                            'label'  => $essEntry['item']['label'],
+                            'active' => $essEntry['item']['active'],
+                            'nested' => false,
+                        ])
+                    @endif
+                @else
+                    @php
+                        $essVisibleMembers = $essEntry['members']->filter(fn ($m) => $m['visible'])->values();
+                        $essGroupActive    = $essVisibleMembers->contains('active', true);
+                    @endphp
+                    @if($essVisibleMembers->count() > 0)
+                        <div class="mb-2">
+                            <button onclick="toggleEssGroupDropdown('{{ $essEntry['group']['id'] }}')"
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $essGroupActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="{{ $essEntry['group']['icon'] }}"></i>
+                                </span>
+                                <span class="nav-text flex-1 font-medium">{{ $essEntry['group']['label'] }}</span>
+                                <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $essGroupActive ? 'rotate-180' : '' }}" id="essGroup{{ $essEntry['group']['id'] }}Chevron"></i>
+                            </button>
+                            <div id="essGroup{{ $essEntry['group']['id'] }}Dropdown"
+                                class="nav-text {{ $essGroupActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
+                                @foreach($essVisibleMembers as $essMember)
+                                    @include('partials.ess-nav-item', [
+                                        'href'   => $essMember['href'],
+                                        'icon'   => $essMember['icon'],
+                                        'label'  => $essMember['label'],
+                                        'active' => $essMember['active'],
+                                        'nested' => true,
+                                    ])
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                @endif
+            @endforeach
 
             @php
                 $showEvents = !empty($essConfig['events_calendar']) && ($can('calendar.events') || Auth::check());
@@ -1254,6 +1251,11 @@
     function toggleSlaDropdown() { toggleSidebarDropdown('slaDropdown', 'slaChevron'); }
     function toggleRpmoDropdown() { toggleSidebarDropdown('rpmoSubmenu', 'rpmoChevron'); }
     function toggleManajemenDropdown() { toggleSidebarDropdown('manajemenDropdown', 'manajemenChevron'); }
+    // D182 — SATU fungsi generik untuk SELURUH grup ESS yang admin buat lewat
+    // Management -> ESS Settings, bukan satu fungsi bernama per grup seperti
+    // dropdown lain di atas — jumlah dan nama grupnya ditentukan admin saat
+    // dipakai, jadi tidak bisa dituliskan satu per satu di sini lebih dulu.
+    function toggleEssGroupDropdown(groupId) { toggleSidebarDropdown('essGroup' + groupId + 'Dropdown', 'essGroup' + groupId + 'Chevron'); }
     function toggleMgmtDropdown() { toggleSidebarDropdown('manajemenDropdown', 'manajemenChevron'); }
     function toggleHrGeneralMgmtDropdown() { toggleSidebarDropdown('hrGeneralMgmtDropdown', 'hrGeneralMgmtChevron'); }
     function toggleMasterMgmtDropdown() { toggleSidebarDropdown('masterMgmtDropdown', 'masterMgmtChevron'); }
