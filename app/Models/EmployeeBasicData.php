@@ -84,6 +84,57 @@ class EmployeeBasicData extends Model
     }
 
     /**
+     * Resolve a "direct supervisor" reference to that employee's employee_id.
+     *
+     * Accepts the numeric employee_id or an ECI (legacy free-text input), so
+     * KPI / approval code can always rely on an employee_id. Returns null when
+     * blank or when no employee matches.
+     */
+    public static function resolveSupervisorId($value): ?int
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        // Memoised per request: KPI sync resolves every employee × template.
+        static $cache = [];
+        if (array_key_exists($value, $cache)) {
+            return $cache[$value];
+        }
+
+        if (ctype_digit($value) && Employee::where('employee_id', (int) $value)->exists()) {
+            return $cache[$value] = (int) $value;
+        }
+
+        $id = Employee::where('eci', $value)->value('employee_id');
+
+        // Misses are not cached, so an employee created later in the same
+        // request (seeders, imports) is still found.
+        return $id ? ($cache[$value] = (int) $id) : null;
+    }
+
+    /**
+     * Always store the supervisor as an employee_id. An unresolvable value is
+     * kept as typed so nothing is silently lost (the KPI views show "—").
+     */
+    public function setDirectSupervisionAttribute($value): void
+    {
+        $resolved = self::resolveSupervisorId($value);
+        $this->attributes['direct_supervision'] = $resolved !== null
+            ? (string) $resolved
+            : (trim((string) $value) === '' ? null : trim((string) $value));
+    }
+
+    /**
+     * The direct supervisor's employee_id, tolerant of legacy ECI values.
+     */
+    public function supervisorEmployeeId(): ?int
+    {
+        return self::resolveSupervisorId($this->direct_supervision);
+    }
+
+    /**
      * Relationship with Employee
      */
     public function employee()

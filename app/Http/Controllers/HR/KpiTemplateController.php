@@ -141,7 +141,7 @@ class KpiTemplateController extends Controller
             ->pluck('position')
             ->values();
 
-        $employees = Employee::with('basicData')
+        $employees = Employee::with(['basicData', 'roles', 'deliveryProjects'])
             ->where('is_active', true)
             ->get()
             ->map(fn ($e) => [
@@ -150,7 +150,11 @@ class KpiTemplateController extends Controller
                 'meta'      => trim(($e->eci ?? '') . ' · ' . ($e->basicData?->position ?? ''), ' ·'),
                 // Direct supervisor from master data — lets the form cross-filter
                 // the "who fills" / "for who" pickers by reporting line.
-                'leader_id' => $e->basicData?->direct_supervision ? (string) $e->basicData->direct_supervision : null,
+                'leader_id' => ($lid = $e->basicData?->supervisorEmployeeId()) ? (string) $lid : null,
+                // Peer pairs must share one of these.
+                'position'    => $e->basicData?->position,
+                'role_ids'    => $e->roles->pluck('id')->map(fn ($v) => (string) $v)->values(),
+                'project_ids' => $e->deliveryProjects->pluck('id')->map(fn ($v) => (string) $v)->values(),
             ])
             ->sortBy('name')
             ->values();
@@ -191,6 +195,7 @@ class KpiTemplateController extends Controller
             'target_projects.*'   => 'integer',
             'subject_employees'   => 'nullable|array',
             'subject_employees.*' => 'integer',
+            'peer_groups'         => 'nullable|array',
             'score_divisor'       => 'nullable|integer|min:1|max:100',
             'indicators'                => 'required|array|min:1',
             'indicators.*.name'         => 'required|string|max:300',
@@ -203,6 +208,13 @@ class KpiTemplateController extends Controller
         ]);
 
         if ($msg = $this->weightError($request)) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return redirect()->back()->withInput()->with('error', $msg);
+        }
+
+        if ($msg = $this->peerGroupsError($request)) {
             if ($request->wantsJson()) {
                 return response()->json(['success' => false, 'message' => $msg], 422);
             }
@@ -229,12 +241,14 @@ class KpiTemplateController extends Controller
                 ...$this->deadlineFields($request),
                 'target_type'     => $targetType,
                 'is_anonymous'    => $request->boolean('is_anonymous'),
-                'target_roles'    => $this->cleanList($request->input('target_roles', [])),
-                'target_positions'=> $this->cleanList($request->input('target_positions', [])),
-                'target_employees'=> $this->cleanList($request->input('target_employees', [])),
-                'target_projects' => $this->cleanList($request->input('target_projects', [])),
+                // Peer templates are driven by pairs alone — no audience / subject lists.
+                'target_roles'    => $targetType === 'peer' ? null : $this->cleanList($request->input('target_roles', [])),
+                'target_positions'=> $targetType === 'peer' ? null : $this->cleanList($request->input('target_positions', [])),
+                'target_employees'=> $targetType === 'peer' ? null : $this->cleanList($request->input('target_employees', [])),
+                'target_projects' => $targetType === 'peer' ? null : $this->cleanList($request->input('target_projects', [])),
                 // Not applicable to Self — the filler and subject are always the same person.
-                'subject_employees'=> $targetType === 'self' ? null : $this->cleanList($request->input('subject_employees', [])),
+                'subject_employees'=> in_array($targetType, ['self', 'peer'], true) ? null : $this->cleanList($request->input('subject_employees', [])),
+                'peer_groups'     => $targetType === 'peer' ? $this->cleanGroups($request) : null,
                 'score_divisor'   => $this->resolveDivisor($request),
                 'is_active'       => true,
                 'created_by'      => $user['id'] ?? null,
@@ -299,6 +313,7 @@ class KpiTemplateController extends Controller
             'target_projects.*'   => 'integer',
             'subject_employees'   => 'nullable|array',
             'subject_employees.*' => 'integer',
+            'peer_groups'         => 'nullable|array',
             'score_divisor'       => 'nullable|integer|min:1|max:100',
             'indicators'                => 'required|array|min:1',
             'indicators.*.name'         => 'required|string|max:300',
@@ -311,6 +326,13 @@ class KpiTemplateController extends Controller
         ]);
 
         if ($msg = $this->weightError($request)) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return redirect()->back()->withInput()->with('error', $msg);
+        }
+
+        if ($msg = $this->peerGroupsError($request)) {
             if ($request->wantsJson()) {
                 return response()->json(['success' => false, 'message' => $msg], 422);
             }
@@ -337,11 +359,12 @@ class KpiTemplateController extends Controller
                 ...$this->deadlineFields($request),
                 'target_type'     => $targetType,
                 'is_anonymous'    => $request->boolean('is_anonymous'),
-                'target_roles'    => $this->cleanList($request->input('target_roles', [])),
-                'target_positions'=> $this->cleanList($request->input('target_positions', [])),
-                'target_employees'=> $this->cleanList($request->input('target_employees', [])),
-                'target_projects' => $this->cleanList($request->input('target_projects', [])),
-                'subject_employees'=> $targetType === 'self' ? null : $this->cleanList($request->input('subject_employees', [])),
+                'target_roles'    => $targetType === 'peer' ? null : $this->cleanList($request->input('target_roles', [])),
+                'target_positions'=> $targetType === 'peer' ? null : $this->cleanList($request->input('target_positions', [])),
+                'target_employees'=> $targetType === 'peer' ? null : $this->cleanList($request->input('target_employees', [])),
+                'target_projects' => $targetType === 'peer' ? null : $this->cleanList($request->input('target_projects', [])),
+                'subject_employees'=> in_array($targetType, ['self', 'peer'], true) ? null : $this->cleanList($request->input('subject_employees', [])),
+                'peer_groups'     => $targetType === 'peer' ? $this->cleanGroups($request) : null,
                 'score_divisor'   => $this->resolveDivisor($request),
                 'updated_by'      => $user['id'] ?? null,
             ]);
@@ -502,6 +525,76 @@ class KpiTemplateController extends Controller
     }
 
     /**
+     * Peer groups from the request: [{name, basis, value, members[]}] with clean
+     * types and de-duplicated members. Null when none.
+     */
+    private function cleanGroups(Request $request): ?array
+    {
+        $out = [];
+        foreach ((array) $request->input('peer_groups', []) as $g) {
+            $out[] = [
+                'name'    => trim((string) ($g['name'] ?? '')),
+                'basis'   => (string) ($g['basis'] ?? ''),
+                'value'   => trim((string) ($g['value'] ?? '')),
+                'members' => array_values(array_unique(array_filter(array_map('intval', (array) ($g['members'] ?? []))))),
+            ];
+        }
+
+        return $out ?: null;
+    }
+
+    /**
+     * A Peer template is one or more named pairs (groups). Each has a single
+     * basis (role / position / project) + value, 2..10 members, and every member
+     * must actually belong to that value.
+     */
+    private function peerGroupsError(Request $request): ?string
+    {
+        if ($request->input('target_type') !== 'peer') {
+            return null;
+        }
+
+        $groups = $this->cleanGroups($request);
+        if (!$groups) {
+            return 'A Peer template needs at least one pair (group).';
+        }
+
+        $ids = collect($groups)->flatMap(fn ($g) => $g['members'])->unique()->all();
+        $emps = Employee::with(['basicData', 'roles', 'deliveryProjects'])
+            ->whereIn('employee_id', $ids)->get()->keyBy('employee_id');
+
+        foreach ($groups as $i => $g) {
+            $label = $g['name'] !== '' ? "\"{$g['name']}\"" : 'Pair ' . ($i + 1);
+
+            if (!in_array($g['basis'], ['role', 'position', 'project'], true) || $g['value'] === '') {
+                return "{$label}: choose a role, position or project.";
+            }
+            $n = count($g['members']);
+            if ($n < 2) {
+                return "{$label}: pick at least 2 employees.";
+            }
+            if ($n > KpiTemplate::PEER_GROUP_MAX) {
+                return "{$label}: at most " . KpiTemplate::PEER_GROUP_MAX . ' employees per pair — create another pair for the rest.';
+            }
+
+            foreach ($g['members'] as $mid) {
+                $e = $emps->get($mid);
+                $ok = $e && match ($g['basis']) {
+                    'role'     => $e->roles->pluck('id')->contains((int) $g['value']),
+                    'position' => ($e->basicData?->position ?? '') === $g['value'],
+                    'project'  => $e->deliveryProjects->pluck('id')->contains((int) $g['value']),
+                };
+                if (!$ok) {
+                    $name = $e ? ($e->basicData?->full_name ?: $e->eci) : "#{$mid}";
+                    return "{$label}: {$name} doesn't belong to the chosen {$g['basis']}.";
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Guards against an employee being their own counterpart: reject if any
      * "for who"/"who fills" (subject_employees) pick also matches the
      * template's own audience targeting (explicit employee id, or a role /
@@ -511,6 +604,11 @@ class KpiTemplateController extends Controller
     {
         if (($request->input('target_type') ?: 'supervisor') === 'self') {
             return null; // subject_employees is discarded for Self regardless
+        }
+
+        // Peer pairs replace the audience / subject lists entirely.
+        if ($request->input('target_type') === 'peer' && $this->cleanGroups($request)) {
+            return null;
         }
 
         $subjectIds = array_map('intval', $this->cleanList($request->input('subject_employees', [])) ?? []);

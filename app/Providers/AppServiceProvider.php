@@ -115,6 +115,28 @@ class AppServiceProvider extends ServiceProvider
             }
         );
 
+        // Opsi "Direct Supervision" (dropdown searchable nama / ECI). Nilai yang
+        // disimpan = employee_id, sama dengan yang dibaca modul KPI.
+        View::composer(
+            'master.employee.sections.basicdata',
+            function ($view) {
+                $supervisorOptions = Schema::hasTable('employee')
+                    ? \App\Models\Employee::with('basicData:employee_id,first_name,last_name')
+                        ->where('is_active', true)
+                        ->get(['employee_id', 'eci'])
+                        ->map(fn ($e) => [
+                            'id'   => (string) $e->employee_id,
+                            'name' => $e->basicData?->full_name ?: $e->eci,
+                            'eci'  => $e->eci,
+                        ])
+                        ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+                        ->values()
+                        ->all()
+                    : [];
+                $view->with('supervisorOptions', $supervisorOptions);
+            }
+        );
+
         // Suntik opsi "Level" ke form Employee Qualification (tipe Certification) —
         // dari tabel `grades` yang sama dengan Home Base/Grade lama, tapi nama
         // di-strip suffix " Consultant" (Grade::levelOptions()).
