@@ -96,7 +96,13 @@
                     <h3 class="font-bold text-xs uppercase tracking-wider text-gray-700 flex items-center gap-2">
                         <i class="fas fa-inbox text-yellow-600"></i> Employee Applications Pending Review
                     </h3>
-                    <p class="text-[10px] text-gray-400">Use the <i class="fas fa-filter text-[9px]"></i> icons in the table header to search &amp; filter.</p>
+                    <div class="flex items-center gap-3">
+                        <p class="text-[10px] text-gray-400">Use the <i class="fas fa-filter text-[9px]"></i> icons in the table header to search &amp; filter.</p>
+                        <button type="button" onclick="resetInboxFilters()"
+                            class="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-800 text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                            <i class="fas fa-rotate-left text-[10px]"></i> Reset Filter
+                        </button>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs text-left">
@@ -202,10 +208,16 @@
                         <p class="text-xs text-gray-500 mt-0.5">Manage master leave types, quotas, paid/unpaid provisions,
                             and gender eligibility rules. Delete action is restricted to maintain history integrity.</p>
                     </div>
-                    <button onclick="openAddTypeModal()"
-                        class="px-3.5 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm">
-                        + Add New Leave Type
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="resetMasterTypesFilters()"
+                            class="px-3 py-2 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-800 text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                            <i class="fas fa-rotate-left text-[10px]"></i> Reset Filter
+                        </button>
+                        <button onclick="openAddTypeModal()"
+                            class="px-3.5 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm">
+                            + Add New Leave Type
+                        </button>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs text-left border-collapse">
@@ -314,7 +326,7 @@
                                             <!-- Toggle Switch On/Off -->
                                             <button onclick="toggleTypeActive({{ $t->id }}, {{ $t->is_active ? 1 : 0 }})"
                                                 title="{{ $t->is_active ? 'Click to Deactivate' : 'Click to Activate' }}"
-                                                class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $t->is_active ? 'bg-green-500' : 'bg-gray-300' }}">
+                                                class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $t->is_active ? 'bg-green-500' : 'bg-gray-300' }}">
                                                 <span
                                                     class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $t->is_active ? 'translate-x-4' : 'translate-x-0' }}"></span>
                                             </button>
@@ -341,6 +353,10 @@
                         <p class="text-xs text-gray-400 mt-0.5">Overview of total quota allocated, used, and remaining
                             balances per employee.</p>
                     </div>
+                    <button type="button" onclick="resetAllQuotasFilters()"
+                        class="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-800 text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 self-start sm:self-auto">
+                        <i class="fas fa-rotate-left text-[10px]"></i> Reset Filter
+                    </button>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs text-left">
@@ -349,24 +365,23 @@
                             <tr>
                                 <th class="px-5 py-3 text-center">No</th>
 
-                                {{-- Employee Name / ECI filter --}}
                                 <th class="px-5 py-3 min-w-48">
                                     <div class="flex items-center justify-between gap-1.5">
                                         <span>Employee Name</span>
                                         <button type="button" data-hf-btn onclick="toggleHF(event, 'allQuotasFilterBox')"
-                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Filter Employee">
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Filter Employee Name">
                                             <i class="fas fa-filter text-[10px]"></i>
                                             <span id="allQuotasFilterDot" class="hidden absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
                                         </button>
                                     </div>
                                     <div id="allQuotasFilterBox" class="header-filter-popover hidden w-60 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
                                         <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Employee</span>
+                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Employee Name</span>
                                             <button type="button" onclick="document.getElementById('allQuotasSearch').value='';setAllQuotasEmployeeFilter('');" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
                                         </div>
                                         <div class="p-2.5">
                                             <div class="relative">
-                                                <input type="text" id="allQuotasSearch" placeholder="Name or ECI…" autocomplete="off"
+                                                <input type="text" id="allQuotasSearch" placeholder="Name…" autocomplete="off"
                                                     oninput="setAllQuotasEmployeeFilter(this.value)"
                                                     class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
                                                 <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -374,12 +389,90 @@
                                         </div>
                                     </div>
                                 </th>
-
-                                <th class="px-4 py-3">ECI</th>
-                                <th class="px-4 py-3 text-right">Total Allocated</th>
-                                <th class="px-4 py-3 text-right">Total Used</th>
-                                <th class="px-4 py-3 text-right">Pending</th>
-                                <th class="px-5 py-3 text-right font-bold">Total Remaining</th>
+                                <th class="px-4 py-3">
+                                    <div class="flex items-center justify-between gap-1.5">
+                                        <span>ECI</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'allQuotasEciBox')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Filter ECI">
+                                            <i class="fas fa-filter text-[10px]"></i>
+                                            <span id="allQuotasEciDot" class="hidden absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
+                                        </button>
+                                    </div>
+                                    <div id="allQuotasEciBox" class="header-filter-popover hidden w-60 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · ECI</span>
+                                            <button type="button" onclick="document.getElementById('allQuotasEciSearch').value='';setAllQuotasEciFilter('');" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
+                                        </div>
+                                        <div class="p-2.5">
+                                            <div class="relative">
+                                                <input type="text" id="allQuotasEciSearch" placeholder="ECI…" autocomplete="off"
+                                                    oninput="setAllQuotasEciFilter(this.value)"
+                                                    class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
+                                                <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th class="px-4 py-3">
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <span>Total Allocated</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'allQuotasSortBox_total_allocated')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Sort Total Allocated">
+                                            <i id="allQuotasSortIcon_total_allocated" class="fas fa-sort text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                    <div id="allQuotasSortBox_total_allocated" class="header-filter-popover hidden w-44 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal text-left" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sort · Total Allocated</div>
+                                        <button type="button" onclick="setAllQuotasSort('total_allocated','asc')" class="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"><i class="fas fa-arrow-up text-[10px] mr-1.5"></i>Ascending</button>
+                                        <button type="button" onclick="setAllQuotasSort('total_allocated','desc')" class="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"><i class="fas fa-arrow-down text-[10px] mr-1.5"></i>Descending</button>
+                                        <button type="button" onclick="setAllQuotasSort('','')" class="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-gray-50 border-t border-gray-100">Clear sort</button>
+                                    </div>
+                                </th>
+                                <th class="px-4 py-3">
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <span>Total Used</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'allQuotasSortBox_total_used')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Sort Total Used">
+                                            <i id="allQuotasSortIcon_total_used" class="fas fa-sort text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                    <div id="allQuotasSortBox_total_used" class="header-filter-popover hidden w-44 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal text-left" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sort · Total Used</div>
+                                        <button type="button" onclick="setAllQuotasSort('total_used','asc')" class="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"><i class="fas fa-arrow-up text-[10px] mr-1.5"></i>Ascending</button>
+                                        <button type="button" onclick="setAllQuotasSort('total_used','desc')" class="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"><i class="fas fa-arrow-down text-[10px] mr-1.5"></i>Descending</button>
+                                        <button type="button" onclick="setAllQuotasSort('','')" class="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-gray-50 border-t border-gray-100">Clear sort</button>
+                                    </div>
+                                </th>
+                                <th class="px-4 py-3">
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <span>Pending</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'allQuotasSortBox_total_pending')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Sort Pending">
+                                            <i id="allQuotasSortIcon_total_pending" class="fas fa-sort text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                    <div id="allQuotasSortBox_total_pending" class="header-filter-popover hidden w-44 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal text-left" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sort · Pending</div>
+                                        <button type="button" onclick="setAllQuotasSort('total_pending','asc')" class="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"><i class="fas fa-arrow-up text-[10px] mr-1.5"></i>Ascending</button>
+                                        <button type="button" onclick="setAllQuotasSort('total_pending','desc')" class="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"><i class="fas fa-arrow-down text-[10px] mr-1.5"></i>Descending</button>
+                                        <button type="button" onclick="setAllQuotasSort('','')" class="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-gray-50 border-t border-gray-100">Clear sort</button>
+                                    </div>
+                                </th>
+                                <th class="px-5 py-3 font-bold">
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <span>Total Remaining</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'allQuotasSortBox_total_remaining')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Sort Total Remaining">
+                                            <i id="allQuotasSortIcon_total_remaining" class="fas fa-sort text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                    <div id="allQuotasSortBox_total_remaining" class="header-filter-popover hidden w-44 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal text-left" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sort · Total Remaining</div>
+                                        <button type="button" onclick="setAllQuotasSort('total_remaining','asc')" class="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"><i class="fas fa-arrow-up text-[10px] mr-1.5"></i>Ascending</button>
+                                        <button type="button" onclick="setAllQuotasSort('total_remaining','desc')" class="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"><i class="fas fa-arrow-down text-[10px] mr-1.5"></i>Descending</button>
+                                        <button type="button" onclick="setAllQuotasSort('','')" class="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-gray-50 border-t border-gray-100">Clear sort</button>
+                                    </div>
+                                </th>
                                 <th class="px-5 py-3 text-center">Action</th>
                             </tr>
                         </thead>
@@ -466,6 +559,10 @@
                     <h3 class="font-bold text-xs uppercase tracking-wider text-gray-700">
                         <i class="fas fa-users primary-text mr-1.5"></i> Employee Attendance & Leave Recap Summary
                     </h3>
+                    <button type="button" onclick="resetRptEmployeeFilters()"
+                        class="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-800 text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5">
+                        <i class="fas fa-rotate-left text-[10px]"></i> Reset Filter
+                    </button>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs text-left">
@@ -586,7 +683,7 @@
         const PAGE_SIZE = 10;
         const paginationState = {
             inbox:       { page: 1, perPage: PAGE_SIZE, data: [], filtered: [], filters: { employee: '', type: '', status: 'pending' } },
-            allQuotas:   { page: 1, perPage: PAGE_SIZE, data: [], filters: { employee: '' } },
+            allQuotas:   { page: 1, perPage: 25, pageSizes: [25, 50, 100, 200], data: [], filtered: [], filters: { employee: '', eci: '' }, sort: { key: '', dir: '' } },
             rptEmployee: { page: 1, perPage: PAGE_SIZE, data: [], filtered: [], filters: { employee: '' } },
             masterTypes: { page: 1, perPage: PAGE_SIZE, rows: [], filters: { search: '', status: '' } },
         };
@@ -665,7 +762,7 @@
                         <span class="text-xs text-gray-500 font-normal">Rows per page:</span>
                         <select onchange="changeRowsPerPage('${key}', this.value)"
                             class="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-1 focus:ring-(--primary-color) cursor-pointer shadow-sm transition-all">
-                            ${[10, 15, 25, 50].map(n => `<option value="${n}" ${perPage == n ? 'selected' : ''}>${n}</option>`).join('')}
+                            ${(state.pageSizes || [10, 15, 25, 50]).map(n => `<option value="${n}" ${perPage == n ? 'selected' : ''}>${n}</option>`).join('')}
                         </select>
                     </div>
                 </div>
@@ -746,6 +843,18 @@
             applyInboxFilters();
             closeAllHF();
         }
+        // Resets to the default view (status back to "pending")
+        function resetInboxFilters() {
+            clearTimeout(_inboxEmployeeDebounce);
+            paginationState.inbox.filters = { employee: '', type: '', status: 'pending' };
+            const el = document.getElementById('inboxEmployeeSearch');
+            if (el) el.value = '';
+            toggleFilterDot('inboxEmployeeFilterDot', false);
+            toggleFilterDot('inboxTypeFilterDot', false);
+            toggleFilterDot('inboxStatusFilterDot', true);
+            closeAllHF();
+            applyInboxFilters();
+        }
         function applyInboxFilters() {
             const st = paginationState.inbox;
             const f = st.filters;
@@ -762,10 +871,54 @@
         // ── All Employee Quotas — header filter (Employee / ECI) ────────────────────
         let _allQuotasDebounce = null;
         function setAllQuotasEmployeeFilter(val) {
-            paginationState.allQuotas.filters.employee = val;
-            toggleFilterDot('allQuotasFilterDot', !!val);
             clearTimeout(_allQuotasDebounce);
-            _allQuotasDebounce = setTimeout(() => loadAllEmployeesQuotas(), 350);
+            _allQuotasDebounce = setTimeout(() => {
+                paginationState.allQuotas.filters.employee = val;
+                toggleFilterDot('allQuotasFilterDot', !!val);
+                applyAllQuotasFilters();
+            }, 250);
+        }
+        function setAllQuotasEciFilter(val) {
+            clearTimeout(_allQuotasDebounce);
+            _allQuotasDebounce = setTimeout(() => {
+                paginationState.allQuotas.filters.eci = val;
+                toggleFilterDot('allQuotasEciDot', !!val);
+                applyAllQuotasFilters();
+            }, 250);
+        }
+        function setAllQuotasSort(key, dir) {
+            paginationState.allQuotas.sort = { key, dir };
+            ['total_allocated', 'total_used', 'total_pending', 'total_remaining'].forEach(k => {
+                const icon = document.getElementById('allQuotasSortIcon_' + k);
+                if (!icon) return;
+                icon.className = 'fas text-[10px] ' + (k === key ? (dir === 'asc' ? 'fa-sort-up text-(--primary-color)' : 'fa-sort-down text-(--primary-color)') : 'fa-sort');
+            });
+            applyAllQuotasFilters();
+            closeAllHF();
+        }
+        function resetAllQuotasFilters() {
+            clearTimeout(_allQuotasDebounce);
+            paginationState.allQuotas.filters = { employee: '', eci: '' };
+            ['allQuotasSearch', 'allQuotasEciSearch'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            toggleFilterDot('allQuotasFilterDot', false);
+            toggleFilterDot('allQuotasEciDot', false);
+            setAllQuotasSort('', '');
+        }
+        function applyAllQuotasFilters() {
+            const st = paginationState.allQuotas;
+            const name = st.filters.employee.trim().toLowerCase();
+            const eci = st.filters.eci.trim().toLowerCase();
+            st.filtered = st.data.filter(emp =>
+                (!name || String(emp.display_name || '').toLowerCase().includes(name)) &&
+                (!eci || String(emp.eci || '').toLowerCase().includes(eci))
+            );
+            const { key, dir } = st.sort;
+            if (key) {
+                const m = dir === 'desc' ? -1 : 1;
+                st.filtered.sort((a, b) => m * ((parseFloat(a[key]) || 0) - (parseFloat(b[key]) || 0)));
+            }
+            st.page = 1;
+            renderAllQuotasPage();
         }
 
         // ── Employee Recap Report — header filter (Employee) ────────────────────────
@@ -777,6 +930,15 @@
                 toggleFilterDot('rptEmployeeFilterDot', !!val);
                 applyRptEmployeeFilters();
             }, 250);
+        }
+        function resetRptEmployeeFilters() {
+            clearTimeout(_rptEmployeeDebounce);
+            paginationState.rptEmployee.filters = { employee: '' };
+            const el = document.getElementById('rptEmployeeSearch');
+            if (el) el.value = '';
+            toggleFilterDot('rptEmployeeFilterDot', false);
+            closeAllHF();
+            applyRptEmployeeFilters();
         }
         function applyRptEmployeeFilters() {
             const st = paginationState.rptEmployee;
@@ -809,6 +971,18 @@
             paginationState.masterTypes.page = 1;
             renderMasterTypesPage();
             closeAllHF();
+        }
+
+        function resetMasterTypesFilters() {
+            clearTimeout(_masterTypesDebounce);
+            paginationState.masterTypes.filters = { search: '', status: '' };
+            const el = document.getElementById('masterTypesSearch');
+            if (el) el.value = '';
+            toggleFilterDot('masterTypesSearchFilterDot', false);
+            toggleFilterDot('masterTypesStatusFilterDot', false);
+            closeAllHF();
+            paginationState.masterTypes.page = 1;
+            renderMasterTypesPage();
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -946,18 +1120,15 @@
         }
 
         // ── All Employees Quotas Table (Requirement 8) ───────────────────────────
-        // Employee/ECI search lives in the "Employee Name" column header filter and
-        // is sent to the backend (already supports ?search=), same as before.
+        // Name/ECI filters and numeric sorting run client-side over the full list.
         async function loadAllEmployeesQuotas() {
-            const search = paginationState.allQuotas.filters.employee || '';
             try {
-                const res = await fetch(`/api/hr-general/leave-permit/all-employees-quotas?year=${globalYear}&search=${encodeURIComponent(search)}`, { credentials: 'same-origin' });
+                const res = await fetch(`/api/hr-general/leave-permit/all-employees-quotas?year=${globalYear}`, { credentials: 'same-origin' });
                 const json = await res.json();
 
                 if (json.success) {
                     paginationState.allQuotas.data = json.data;
-                    paginationState.allQuotas.page = 1;
-                    renderAllQuotasPage();
+                    applyAllQuotasFilters();
                 }
             } catch (err) {
                 console.error(err);
@@ -986,7 +1157,7 @@
         function renderAllQuotasPage() {
             const state = paginationState.allQuotas;
             const tbody = document.getElementById('tblAllQuotasSummaryBody');
-            const totalItems = state.data.length;
+            const totalItems = state.filtered.length;
 
             if (totalItems === 0) {
                 tbody.innerHTML = `<tr><td colspan="8" class="px-5 py-6 text-center text-gray-400">No employee quota records found.</td></tr>`;
@@ -996,7 +1167,7 @@
 
             const perPage = state.perPage || PAGE_SIZE;
             const start = (state.page - 1) * perPage;
-            const pageItems = state.data.slice(start, start + perPage);
+            const pageItems = state.filtered.slice(start, start + perPage);
             tbody.innerHTML = pageItems.map((emp, i) => buildAllQuotasRow(emp, start + i + 1)).join('');
 
             renderPaginationControls('paginationAllQuotas', 'allQuotas', totalItems);
@@ -1211,7 +1382,7 @@
                     document.getElementById('rptStatApprovedDays').innerHTML = `${s.approved_days || 0} <span class="text-xs text-gray-400 font-normal">days</span>`;
                     document.getElementById('rptStatPending').innerText = s.pending_count || 0;
                     document.getElementById('rptStatRejected').innerText = (s.rejected_count || 0) + (s.revision_count || 0);
-                    
+
                     if (document.getElementById('rptStatEmployees')) {
                         document.getElementById('rptStatEmployees').innerText = s.total_requesting_employees || 0;
                     }
@@ -1360,7 +1531,7 @@
                 list.style.display = 'flex';
             }
             if (chevron) chevron.style.transform = 'rotate(180deg)';
-            
+
             // Render items based on current search input
             filterEmpDropdown();
 
@@ -1757,7 +1928,7 @@
                     const perfName = l.performer && l.performer.basic_data ? l.performer.basic_data.full_name : (l.performer ? l.performer.eci : 'System');
                     logHtml += `
                         <div class="border-l-2 border-red-500 pl-2 py-0.5">
-                            <span class="font-bold text-gray-800 uppercase">${l.action}</span> 
+                            <span class="font-bold text-gray-800 uppercase">${l.action}</span>
                             <span class="text-gray-400 text-[10px]">by ${perfName} at ${new Date(l.created_at).toLocaleString()}</span>
                             ${l.notes ? `<p class="text-gray-600 mt-0.5">${l.notes}</p>` : ''}
                         </div>

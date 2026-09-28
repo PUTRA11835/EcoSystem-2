@@ -23,6 +23,7 @@ class KpiTemplate extends Model
         'target_employees',
         'target_projects',
         'subject_employees',
+        'peer_groups',
         'score_divisor',
         'is_active',
         'created_by',
@@ -37,6 +38,7 @@ class KpiTemplate extends Model
         'target_employees'   => 'array',
         'target_projects'    => 'array',
         'subject_employees'  => 'array',
+        'peer_groups'        => 'array',
         'score_divisor'      => 'integer',
     ];
 
@@ -105,6 +107,68 @@ class KpiTemplate extends Model
     public function subjectEmployeeIds(): array
     {
         return array_values(array_unique(array_map('intval', $this->subject_employees ?? [])));
+    }
+
+    /** Max members in one peer pair (group) — keeps each person's workload sane. */
+    public const PEER_GROUP_MAX = 10;
+
+    /**
+     * Peer templates are built from named "pairs" (groups): each has ONE basis
+     * (role | position | project), ONE value of it, and up to PEER_GROUP_MAX
+     * members who all rate one another.
+     *
+     * @return array<int, array{name:string, basis:string, value:string, members:int[]}>
+     */
+    public function peerGroups(): array
+    {
+        $out = [];
+        foreach ((array) ($this->peer_groups ?? []) as $g) {
+            $basis = $g['basis'] ?? '';
+            $value = (string) ($g['value'] ?? '');
+            $members = array_values(array_unique(array_filter(array_map('intval', (array) ($g['members'] ?? [])))));
+            if (in_array($basis, ['role', 'position', 'project'], true) && $value !== '' && count($members) >= 2) {
+                $out[] = ['name' => (string) ($g['name'] ?? ''), 'basis' => $basis, 'value' => $value, 'members' => $members];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Every group is a full mesh: each member rates every other member. Returns
+     * unique [reviewerId, revieweeId] tuples (never self).
+     *
+     * @return array<int, array{0:int, 1:int}>
+     */
+    public function peerPairs(): array
+    {
+        $out = [];
+        foreach ($this->peerGroups() as $g) {
+            foreach ($g['members'] as $reviewer) {
+                foreach ($g['members'] as $reviewee) {
+                    if ($reviewer !== $reviewee) {
+                        $out[$reviewer . '|' . $reviewee] = [$reviewer, $reviewee];
+                    }
+                }
+            }
+        }
+
+        return array_values($out);
+    }
+
+    public function hasPeerPairs(): bool
+    {
+        return $this->target_type === 'peer' && !empty($this->peerPairs());
+    }
+
+    /**
+     * Whether each evaluation row's counterpart (supervisor_id) is pinned by
+     * the template — an explicit subject list, or Peer pairs — instead of
+     * derived from master data.
+     */
+    public function usesExplicitCounterparts(): bool
+    {
+        return $this->target_type !== 'self' && ($this->hasExplicitSubjects() || $this->hasPeerPairs());
     }
 
     /**
