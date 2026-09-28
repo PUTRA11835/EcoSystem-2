@@ -190,6 +190,13 @@
                     Delete
                 </button>
 
+                <button onclick="openGroupsModal()" title="Manage Contact Groups" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-violet-300 text-violet-700 text-xs font-semibold rounded-lg hover:bg-violet-50 transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+                    </svg>
+                    Groups
+                </button>
+
                 <button title="Settings" class="w-8 h-8 flex items-center justify-center border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
@@ -218,6 +225,7 @@
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Valid To</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Jarvies Access</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Ticket Access</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Group</th>
                         <th class="w-10 px-4 py-3 text-left">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-500">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -227,7 +235,7 @@
                 </thead>
                 <tbody id="contactTableBody" class="bg-white divide-y divide-gray-100">
                     <tr>
-                        <td colspan="12" class="px-4 py-16 text-center">
+                        <td colspan="13" class="px-4 py-16 text-center">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                             </svg>
@@ -322,6 +330,53 @@
     </div>
 </div>
 
+<!-- Contact Groups Modal -->
+<div id="contactGroupsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-2xl w-full shadow-2xl max-h-[85vh] flex flex-col">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Contact Groups</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Members in the same group can see each other's tickets in Jarvies. Admin contacts cannot be added — they already see every company ticket.</p>
+            </div>
+            <button onclick="closeGroupsModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="p-6 border-b border-gray-200 flex gap-2">
+            <input type="text" id="newGroupName" placeholder="New group name, e.g. Finance Team"
+                class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            <button onclick="createGroup()" class="px-4 py-2.5 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all whitespace-nowrap">New Group</button>
+        </div>
+
+        <div id="groupsListContainer" class="p-6 space-y-4 overflow-y-auto flex-1">
+            <p class="text-sm text-gray-400 text-center py-8">Loading groups...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Group Confirmation Modal -->
+<div id="confirmDeleteGroupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="p-6">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 text-center mb-2">Delete Group</h3>
+            <p class="text-sm text-gray-600 text-center mb-1">Members will simply be ungrouped — their contact records are not affected.</p>
+            <p class="text-sm font-semibold text-gray-900 text-center mb-6" id="deleteGroupInfo"></p>
+            <div class="flex gap-3">
+                <button onclick="closeConfirmDeleteGroup()" class="flex-1 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
+                <button onclick="confirmDeleteGroup()" class="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-all">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function() {
     'use strict';
@@ -330,6 +385,14 @@
     let selectedContactId = null;
     let deleteContactId = null;
     let isEditMode = false;
+    let groupsData = [];
+    let deleteGroupId = null;
+
+    function escapeHtmlLocal(str) {
+        const div = document.createElement('div');
+        div.textContent = str ?? '';
+        return div.innerHTML;
+    }
 
     /**
      * Load all contacts
@@ -431,6 +494,11 @@
                 ticketAccessBadge = `<span class="text-gray-300 text-xs">—</span>`;
             }
 
+            // Group badge — which Contact Group (if any) this contact shares ticket visibility with
+            const groupBadge = contact.group_id
+                ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-700">${escapeHtmlLocal(contact.group_name)}</span>`
+                : `<span class="text-gray-300 text-xs">—</span>`;
+
             return `
                 <tr class="hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.selectContactRow(${contact.contact_id}, event)">
                     <td class="px-4 py-3">
@@ -449,6 +517,7 @@
                     <td class="px-4 py-3 text-sm text-gray-600">${validTo}</td>
                     <td class="px-4 py-3">${loginBadge}</td>
                     <td class="px-4 py-3">${ticketAccessBadge}</td>
+                    <td class="px-4 py-3">${groupBadge}</td>
                     <td class="px-4 py-3">
                         <button onclick="window.loadContactToForm(${contact.contact_id}); event.stopPropagation();" class="text-gray-400 hover:text-gray-600">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -468,7 +537,7 @@
         const tbody = document.getElementById('contactTableBody');
         tbody.innerHTML = `
             <tr>
-                <td colspan="12" class="px-4 py-16 text-center">
+                <td colspan="13" class="px-4 py-16 text-center">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                     </svg>
@@ -987,6 +1056,226 @@
         }
     }
 
+    /**
+     * Contact Groups — shared ticket visibility between Member-level contacts
+     */
+    function isAdminContact(contact) {
+        return !!contact.auth_user_id && (contact.can_view_all_tickets == 1 || contact.can_view_all_tickets === true);
+    }
+
+    function openGroupsModal() {
+        document.getElementById('contactGroupsModal').classList.remove('hidden');
+        document.getElementById('contactGroupsModal').classList.add('flex');
+        loadGroups();
+    }
+
+    function closeGroupsModal() {
+        document.getElementById('contactGroupsModal').classList.add('hidden');
+        document.getElementById('contactGroupsModal').classList.remove('flex');
+    }
+
+    async function loadGroups() {
+        const container = document.getElementById('groupsListContainer');
+        try {
+            const response = await fetch(`/api/customers/{{ $customerId }}/contact-groups`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+            groupsData = (data.success && data.data) ? data.data : [];
+            renderGroupsList();
+        } catch (error) {
+            console.error('❌ Error loading groups:', error);
+            container.innerHTML = '<p class="text-sm text-red-500 text-center py-8">Failed to load groups</p>';
+        }
+    }
+
+    function renderGroupsList() {
+        const container = document.getElementById('groupsListContainer');
+
+        if (!groupsData.length) {
+            container.innerHTML = '<p class="text-sm text-gray-400 text-center py-8">No groups yet. Create one above.</p>';
+            return;
+        }
+
+        container.innerHTML = groupsData.map(group => {
+            const members = group.members || [];
+            const memberIds = members.map(m => parseInt(m.contact_id));
+
+            const memberChips = members.length
+                ? members.map(m => `
+                    <span class="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-violet-50 text-violet-700 text-xs font-medium">
+                        ${escapeHtmlLocal(m.full_name || m.email_work || ('Contact #' + m.contact_id))}
+                        <button onclick="removeMemberFromGroup(${group.group_id}, ${m.contact_id})" class="w-4 h-4 flex items-center justify-center rounded-full hover:bg-violet-200 leading-none" title="Remove from group">&times;</button>
+                    </span>`).join('')
+                : '<span class="text-xs text-gray-400">No members yet</span>';
+
+            const eligible = contactsData.filter(c =>
+                !isAdminContact(c) && !c.group_id && !memberIds.includes(parseInt(c.contact_id))
+            );
+            const options = eligible.map(c =>
+                `<option value="${c.contact_id}">${escapeHtmlLocal(c.full_name || ('Contact #' + c.contact_id))}</option>`
+            ).join('');
+
+            return `
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="text-sm font-semibold text-gray-900">${escapeHtmlLocal(group.name)}</h4>
+                        <button onclick="deleteGroupConfirm(${group.group_id})" class="text-red-500 hover:text-red-700 text-xs font-semibold">Delete Group</button>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-3">${memberChips}</div>
+                    <div class="flex gap-2">
+                        <select id="addMemberSelect_${group.group_id}" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <option value="">${eligible.length ? '+ Add member...' : 'No eligible contacts (must be Member, not already in a group)'}</option>
+                            ${options}
+                        </select>
+                        <button onclick="addMemberFromSelect(${group.group_id})" ${eligible.length ? '' : 'disabled'} class="px-3 py-2 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">Add</button>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    async function createGroup() {
+        const input = document.getElementById('newGroupName');
+        const name = input.value.trim();
+        if (!name) {
+            showNotification('Please enter a group name', 'warning');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/customers/{{ $customerId }}/contact-groups`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ name })
+            });
+            const data = await response.json();
+            if (data.success) {
+                input.value = '';
+                showNotification('Group created successfully', 'success');
+                await loadGroups();
+            } else {
+                showNotification(data.message || 'Failed to create group', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Error creating group:', error);
+            showNotification('An error occurred while creating the group', 'error');
+        }
+    }
+
+    function deleteGroupConfirm(groupId) {
+        const group = groupsData.find(g => parseInt(g.group_id) === parseInt(groupId));
+        deleteGroupId = groupId;
+        document.getElementById('deleteGroupInfo').textContent = group?.name || 'this group';
+        document.getElementById('confirmDeleteGroupModal').classList.remove('hidden');
+        document.getElementById('confirmDeleteGroupModal').classList.add('flex');
+    }
+
+    function closeConfirmDeleteGroup() {
+        document.getElementById('confirmDeleteGroupModal').classList.add('hidden');
+        document.getElementById('confirmDeleteGroupModal').classList.remove('flex');
+        deleteGroupId = null;
+    }
+
+    async function confirmDeleteGroup() {
+        if (!deleteGroupId) return;
+        const groupId = deleteGroupId;
+
+        try {
+            const response = await fetch(`/api/customers/{{ $customerId }}/contact-groups/${groupId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+            closeConfirmDeleteGroup();
+            if (data.success) {
+                showNotification('Group deleted successfully', 'success');
+                await loadGroups();
+                loadContacts();
+            } else {
+                showNotification(data.message || 'Failed to delete group', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Error deleting group:', error);
+            closeConfirmDeleteGroup();
+            showNotification('An error occurred while deleting the group', 'error');
+        }
+    }
+
+    function addMemberFromSelect(groupId) {
+        const select = document.getElementById(`addMemberSelect_${groupId}`);
+        const contactId = select?.value;
+        if (!contactId) {
+            showNotification('Please select a contact to add', 'warning');
+            return;
+        }
+        addMemberToGroup(groupId, contactId);
+    }
+
+    async function addMemberToGroup(groupId, contactId) {
+        try {
+            const response = await fetch(`/api/customers/{{ $customerId }}/contact-groups/${groupId}/members`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ contact_id: contactId })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showNotification('Contact added to group', 'success');
+                await loadGroups();
+                loadContacts();
+            } else {
+                showNotification(data.message || 'Failed to add contact to group', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Error adding member:', error);
+            showNotification('An error occurred while adding the member', 'error');
+        }
+    }
+
+    async function removeMemberFromGroup(groupId, contactId) {
+        try {
+            const response = await fetch(`/api/customers/{{ $customerId }}/contact-groups/${groupId}/members/${contactId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+            if (data.success) {
+                showNotification('Contact removed from group', 'success');
+                await loadGroups();
+                loadContacts();
+            } else {
+                showNotification(data.message || 'Failed to remove contact from group', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Error removing member:', error);
+            showNotification('An error occurred while removing the member', 'error');
+        }
+    }
+
     // Expose functions to window for onclick handlers
     window.selectContact = selectContact;
     window.selectContactRow = selectContactRow;
@@ -1006,6 +1295,15 @@
     window.closeRevokeLoginModal = closeRevokeLoginModal;
     window.confirmRevokeLogin = confirmRevokeLogin;
     window.loadContacts = loadContacts;
+    window.openGroupsModal = openGroupsModal;
+    window.closeGroupsModal = closeGroupsModal;
+    window.createGroup = createGroup;
+    window.deleteGroupConfirm = deleteGroupConfirm;
+    window.closeConfirmDeleteGroup = closeConfirmDeleteGroup;
+    window.confirmDeleteGroup = confirmDeleteGroup;
+    window.addMemberFromSelect = addMemberFromSelect;
+    window.addMemberToGroup = addMemberToGroup;
+    window.removeMemberFromGroup = removeMemberFromGroup;
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
@@ -1019,6 +1317,8 @@
             if (!document.getElementById('confirmDeleteContactModal').classList.contains('hidden')) closeConfirmDeleteContact();
             if (!document.getElementById('grantLoginModal').classList.contains('hidden')) closeGrantLoginModal();
             if (!document.getElementById('revokeLoginModal').classList.contains('hidden')) closeRevokeLoginModal();
+            if (!document.getElementById('confirmDeleteGroupModal').classList.contains('hidden')) { closeConfirmDeleteGroup(); return; }
+            if (!document.getElementById('contactGroupsModal').classList.contains('hidden')) closeGroupsModal();
         }
     });
 })();
