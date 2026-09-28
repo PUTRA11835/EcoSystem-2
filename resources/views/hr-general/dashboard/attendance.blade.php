@@ -10,9 +10,17 @@
     `general.dashboard.attendance`, sehingga pemuatan dashboard tidak ikut
     menanggung query presensi.
 
-    Yang dirender di server hanyalah identitas dari sesi (nol query) dan
-    rangka kartunya. Susunan blok: HERO -> sisi HR -> sisi pribadi, sesuai
-    keputusan D117.
+    Yang dirender di server hanyalah identitas dan rangka kartunya. Susunan
+    blok: HERO -> sisi HR -> sisi pribadi, sesuai keputusan D117.
+
+    🔴 D181 — SAPAAN memakai nick_name dari MASTER EMPLOYEE (satu query by id,
+    bukan lagi "nol query"), BUKAN dari `$user['name']` di sesi. Sebelumnya
+    baris ini memotong kata pertama nama lengkap sesi — berbeda dari My
+    Attendance yang selalu memanggil nick_name langsung dari
+    `employee_basic_data`. Kalau nick_name berbeda dari kata pertama nama
+    lengkap (kasus umum), Dashboard dan My Attendance menyapa dengan nama yang
+    berbeda untuk orang yang sama. Satu query tambahan (primary key, murah)
+    dianggap sepadan demi sapaan yang konsisten di kedua halaman.
 
     Warna kartu hero memakai `primary-surface` — ikut Accent color dan
     Sidebar style di Settings. Jangan menggantinya dengan warna patok;
@@ -22,7 +30,12 @@
 @php
     $hour       = now()->hour;
     $greeting   = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
-    $firstName  = explode(' ', $user['name'] ?? 'User')[0];
+
+    // D181 — nick_name dari master employee, sama seperti My Attendance.
+    // Fallback ke potongan nama sesi HANYA bila baris basic data-nya hilang
+    // (seharusnya tidak pernah terjadi untuk akun yang sah).
+    $firstName  = \App\Models\Employee::find($user['id'] ?? 0)?->basicData?->nick_name
+        ?: explode(' ', $user['name'] ?? 'User')[0];
     $roleName   = $user['role']['name'] ?? 'User';
 
     $canSelf    = $can('general.my-attendance');
