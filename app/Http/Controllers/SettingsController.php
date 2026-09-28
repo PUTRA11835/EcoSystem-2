@@ -23,16 +23,20 @@ class SettingsController extends Controller
         'notifications_enabled' => true,
         'email_notifications'   => true,
         'push_notifications'    => false,
+        // 'default' = ikut setting global admin (App\Support\GlobalSeasonalTheme);
+        // user tetap bisa menimpa sendiri dengan 'none' (matikan) atau tema eksplisit.
+        'seasonal_theme'        => 'default',
     ];
 
     /** Nilai yang diperbolehkan untuk field bertipe pilihan (whitelist). */
     const ALLOWED_VALUES = [
-        'theme'         => ['light', 'dark', 'auto'],
-        'sidebar_style' => ['gradient', 'solid'],
-        'font_size'     => ['small', 'medium', 'large'],
-        'language'      => ['en', 'id'],
-        'timezone'      => ['Asia/Jakarta', 'Asia/Singapore', 'UTC'],
-        'date_format'   => ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'],
+        'theme'          => ['light', 'dark', 'auto'],
+        'sidebar_style'  => ['gradient', 'solid'],
+        'font_size'      => ['small', 'medium', 'large'],
+        'language'       => ['en', 'id'],
+        'timezone'       => ['Asia/Jakarta', 'Asia/Singapore', 'UTC'],
+        'date_format'    => ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'],
+        'seasonal_theme' => ['default', 'none', 'natal'],
     ];
 
     const PROFILE_SECTIONS = [
