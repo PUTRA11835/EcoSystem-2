@@ -1,7 +1,7 @@
 @extends('dashboard')
 
 @section('title', 'KPI Evaluation Review — ' . ($evaluation->isUpwardType() ? ($evaluation->supervisor?->basicData?->full_name ?? 'Employee') : ($evaluation->employee?->basicData?->full_name ?? 'Employee')))
-@section('page-title', 'KPI Review')
+@section('page-title', !empty($leadMode) ? (($evaluation->template?->target_type ?? '') === 'peer' ? 'Peer Assessment' : 'Lead Assessment') : 'KPI Review')
 
 @section('content')
 @php
@@ -35,9 +35,24 @@
     $subjectName = $isUpward ? ($supBd?->full_name ?? 'their supervisor') : ($bd?->full_name ?? $emp?->eci ?? '—');
     // Upward rows are filled by the rater via the self-assessment pathway
     // (My KPI), never here — this page is HR's read-only review + approval.
-    $isReadOnly = $isApproved || $isSelf || $isUpward;
+    // A lead (the assigned reviewer, not HR/admin) is locked out once they submit to
+    // HR; a saved draft stays editable. They still see every question, score and rating.
+    $leadMode       = $leadMode ?? false; // opened from My KPI (the lead's own page)
+    $isLeadReviewer = $leadMode || ((int) ($user['id'] ?? 0) === (int) $evaluation->supervisor_id && !$canApprove && empty($user['is_admin']));
+    $isSubmitted    = $evaluation->hasSupervisorReview();
+    $isRevision     = $evaluation->status === \App\Models\KpiEvaluation::STATUS_HR_REJECTED;
+    $isLeadLocked   = $isLeadReviewer && $isSubmitted && !$isUpward;
+    // A self-assessment is never edited or approved here: HR only reviews how the
+    // employee scored themself.
+    $isSelfType     = $evaluation->isSelfType();
+    $usesSelfFields = $isUpward || $isSelfType; // filled by the employee (self_* fields)
+    $isReadOnly = $isApproved || $isSelf || $isUpward || $isLeadLocked || $isSelfType;
+    $backUrl = $isLeadReviewer
+        ? route('general.my-kpi.index', ['period' => $evaluation->period_month, 'tab' => $ttype === 'peer' ? 'peer' : 'lead'])
+        : route('general.kpi-evaluation.index', ['period' => $evaluation->period_month]);
+    $backLabel = $isLeadReviewer ? 'Back to My KPI' : 'Back to KPI Dashboard';
     $canReviewNow = $can('general.kpi-evaluation.review') && !$isReadOnly;
-    $canApproveNow = $canApprove && $evaluation->isReadyForApproval() && !$isApproved && !$isSelf;
+    $canApproveNow = !$leadMode && !$isSelfType && $canApprove && $evaluation->isReadyForApproval() && !$isApproved && !$isSelf;
     $scaleMax  = $evaluation->template?->scaleMax() ?: 5;
     $scaleRows = $evaluation->template ? $evaluation->template->scaleRows() : collect();
     $siblingUpwardEvaluations = $siblingUpwardEvaluations ?? collect();
@@ -49,11 +64,11 @@
     <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <h1 class="text-xl font-bold text-gray-900">
-                {{ $isReadOnly ? 'KPI Evaluation Detail' : ($evaluation->status === 'draft' ? 'Continue KPI Draft' : 'KPI Supervisor Review') }}
+                {{ $isLeadLocked ? 'KPI Assessment Submitted' : ($isSelfType ? 'Self-Assessment Review' : ($isReadOnly ? 'KPI Evaluation Detail' : ($isRevision ? 'Revise KPI Assessment' : ($evaluation->status === 'draft' ? 'Continue KPI Draft' : 'KPI Supervisor Review')))) }}
                 <span class="text-indigo-700">— {{ $subjectName }}</span>
             </h1>
             <p class="text-xs text-gray-500 mt-0.5">
-                {{ $isReadOnly ? 'Review scorecard and final approval status.' : 'Continue evaluation for the selected period and assign scores.' }}
+                {{ $isLeadLocked ? 'Your scores were sent to HR. This page is read-only.' : ($isSelfType ? 'How this employee scored themself. Self-assessments are not approved by HR.' : ($isReadOnly ? 'Review scorecard and final approval status.' : 'Continue evaluation for the selected period and assign scores.')) }}
                 @if($isUpward)
                     Scoring <strong>{{ $subjectName }}</strong>, submitted by {{ $raterName }}.
                 @endif
@@ -66,12 +81,16 @@
                 <i class="fas fa-chevron-left text-xs"></i> Back to My KPI
             </a>
             @else
-            <a href="{{ route('general.kpi-evaluation.index', ['period' => $evaluation->period_month]) }}"
+            <a href="{{ $backUrl }}"
                class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 text-xs font-semibold rounded-xl hover:bg-gray-200 transition-all">
-                <i class="fas fa-chevron-left text-xs"></i> Back to KPI Dashboard
+                <i class="fas fa-chevron-left text-xs"></i> {{ $backLabel }}
             </a>
             @endif
             @if($canApproveNow)
+            <button onclick="openReviseModal()"
+                class="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm hover:bg-red-50 transition-all">
+                <i class="fas fa-rotate-left text-xs"></i> Request Revision
+            </button>
             <button onclick="openApproveModal()"
                 class="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl shadow hover:bg-emerald-700 transition-all">
                 <i class="fas fa-check-circle text-xs"></i> Approve Evaluation
@@ -80,11 +99,56 @@
         </div>
     </div>
 
+    @if($isSelfType)
+    <div class="bg-purple-50 border border-purple-200 rounded-2xl p-4 flex items-start gap-3">
+        <i class="fas fa-eye text-purple-600 mt-0.5"></i>
+        <div class="text-xs text-purple-800">
+            <p class="font-bold">View only — no approval needed</p>
+            <p class="mt-0.5">This is the employee's own self-assessment. It is not scored or approved by HR; you can only review how they rated themself.</p>
+        </div>
+    </div>
+    @endif
+
+    @if($isRevision)
+    <div class="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+        <i class="fas fa-rotate-left text-red-600 mt-0.5"></i>
+        <div class="text-xs text-red-800">
+            <p class="font-bold">
+                {{ ($isLeadReviewer || $isSelf) ? 'HR asked for a revision' : 'Sent back for revision — waiting for the assessor to resubmit' }}
+            </p>
+            @if($evaluation->hr_notes)
+            <p class="mt-0.5"><span class="font-semibold">HR's note:</span> {{ $evaluation->hr_notes }}</p>
+            @endif
+            @if($isLeadReviewer)
+            <p class="mt-0.5">Update your scores below, then use <strong>Send to HR</strong> to resubmit.</p>
+            @endif
+        </div>
+    </div>
+    @endif
+
+    @if($isLeadLocked)
+    <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
+        <i class="fas fa-lock text-emerald-600 mt-0.5"></i>
+        <div class="text-xs text-emerald-800">
+            <p class="font-bold">Submitted to HR{{ $evaluation->reviewed_at ? ' on ' . $evaluation->reviewed_at->format('d M Y, H:i') : '' }}</p>
+            <p class="mt-0.5">You can no longer edit this assessment, but your indicator answers, scores and ratings are shown below.</p>
+        </div>
+    </div>
+    @elseif($isLeadReviewer && !$isReadOnly && !$isRevision)
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+        <i class="fas fa-pen-to-square text-amber-600 mt-0.5"></i>
+        <div class="text-xs text-amber-800">
+            <p class="font-bold">{{ $evaluation->status === 'draft' ? 'Draft — not sent to HR yet' : 'Not sent to HR yet' }}</p>
+            <p class="mt-0.5"><strong>Save Draft</strong> keeps your work private and editable. <strong>Send to HR</strong> submits it and locks your changes.</p>
+        </div>
+    </div>
+    @endif
+
     {{-- ── Section 1: Employee & Template Info (Screenshot 3 & 4) ──────────── --}}
     <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
         <div class="flex items-center justify-between border-b border-gray-100 pb-3">
             <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
-                <i class="fas fa-id-card text-indigo-500"></i> Detail Karyawan
+                <i class="fas fa-id-card text-indigo-500"></i> Employee Details
             </h3>
             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border
                 {{ $isApproved ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200' }}">
@@ -94,19 +158,19 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
             <div>
-                <span class="text-gray-400 font-medium block">NAMA KARYAWAN</span>
+                <span class="text-gray-400 font-medium block">EMPLOYEE NAME</span>
                 <span class="font-bold text-gray-900 text-sm mt-0.5 block">{{ $bd?->full_name ?? '—' }}</span>
             </div>
             <div>
-                <span class="text-gray-400 font-medium block">NO. KARYAWAN</span>
+                <span class="text-gray-400 font-medium block">EMPLOYEE NO.</span>
                 <span class="font-mono text-red-500 font-bold mt-0.5 block">{{ $emp?->eci ?? '—' }}</span>
             </div>
             <div>
-                <span class="text-gray-400 font-medium block">POSISI</span>
+                <span class="text-gray-400 font-medium block">POSITION</span>
                 <span class="font-semibold text-gray-700 mt-0.5 block">{{ $bd?->position ?? '—' }}</span>
             </div>
             <div>
-                <span class="text-gray-400 font-medium block">DEPARTEMEN</span>
+                <span class="text-gray-400 font-medium block">DEPARTMENT</span>
                 <span class="font-semibold text-gray-700 mt-0.5 block">{{ $bd?->department ?? '—' }}</span>
             </div>
         </div>
@@ -116,7 +180,7 @@
             <div class="flex flex-wrap items-center gap-2">
                 <span class="font-bold text-indigo-700 text-sm">{{ $evaluation->template?->name ?? '—' }}</span>
                 <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border {{ $badgeClass }}">
-                    {{ $badgeLabel }} &middot; {{ $evaluation->template?->target_type_label ?? 'Penilaian Atasan' }}
+                    {{ $badgeLabel }} &middot; {{ $evaluation->template?->target_type_label ?? 'Lead Assessment' }}
                 </span>
             </div>
             @if($evaluation->template?->description)
@@ -152,7 +216,7 @@
     @endif
 
     {{-- ── Upward Assessment: sibling submissions & anonymous average publish ── --}}
-    @if($isUpward && $canApprove)
+    @if($isUpward && $canApprove && !$leadMode)
     @php
         $approvedSiblings = $siblingUpwardEvaluations->where('status', \App\Models\KpiEvaluation::STATUS_HR_APPROVED);
         $publishedSiblings = $siblingUpwardEvaluations->whereNotNull('published_at');
@@ -217,8 +281,8 @@
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="px-5 py-3 bg-amber-50/60 border-b border-amber-100 flex items-center gap-2">
             <i class="fas fa-table-list text-amber-600 text-xs"></i>
-            <h3 class="text-xs font-bold text-amber-900 uppercase tracking-wider">Skala Penilaian</h3>
-            <span class="text-[11px] text-amber-700">Weighted Score = Score &divide; {{ $scaleMax }} &times; Bobot</span>
+            <h3 class="text-xs font-bold text-amber-900 uppercase tracking-wider">Rating Scale</h3>
+            <span class="text-[11px] text-amber-700">Weighted Score = Score &divide; {{ $scaleMax }} &times; Weight</span>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-xs table-fixed min-w-200 text-center">
@@ -231,11 +295,11 @@
                 </colgroup>
                 <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase">
                     <tr>
-                        <th class="px-4 py-2.5 font-semibold">Skala</th>
-                        <th class="px-4 py-2.5 font-semibold">Kategori</th>
-                        <th class="px-4 py-2.5 font-semibold">Definisi</th>
+                        <th class="px-4 py-2.5 font-semibold">Scale</th>
+                        <th class="px-4 py-2.5 font-semibold">Category</th>
+                        <th class="px-4 py-2.5 font-semibold">Definition</th>
                         <th class="px-4 py-2.5 font-semibold">Achievement</th>
-                        <th class="px-4 py-2.5 font-semibold">Keterangan</th>
+                        <th class="px-4 py-2.5 font-semibold">Remarks</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -262,29 +326,29 @@
             {{-- Period & General Notes --}}
             <div class="p-6 border-b border-gray-100 space-y-4">
                 <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
-                    <i class="fas fa-calendar-alt text-amber-500"></i> Periode Penilaian & Catatan Evaluasi Umum
+                    <i class="fas fa-calendar-alt text-amber-500"></i> Evaluation Period &amp; General Notes
                 </h3>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">TIPE PERIODE</label>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">PERIOD TYPE</label>
                         <input type="text" readonly value="{{ $evaluation->template?->period_type_label ?? 'Bulanan (Monthly)' }}"
                             class="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl bg-gray-50 font-medium">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">NAMA PERIODE</label>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">PERIOD NAME</label>
                         <input type="text" readonly value="{{ $periodObj->format('F') }}"
                             class="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl bg-gray-50 font-medium">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">TAHUN</label>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">YEAR</label>
                         <input type="text" readonly value="{{ $periodObj->format('Y') }}"
                             class="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl bg-gray-50 font-medium">
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">CATATAN EVALUASI UMUM</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">GENERAL EVALUATION NOTES</label>
                     <textarea name="general_notes" rows="2" {{ $isReadOnly ? 'readonly' : '' }}
-                        placeholder="Ulasan umum kinerja karyawan selama periode ini..."
+                        placeholder="General comments on the employee's performance this period..."
                         class="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 resize-none">{{ old('general_notes', $evaluation->general_notes) }}</textarea>
                 </div>
             </div>
@@ -293,7 +357,7 @@
             <div class="p-6 space-y-4">
                 <div class="flex items-center justify-between">
                     <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
-                        <i class="fas fa-star-half-alt text-yellow-500"></i> Formulir Pengisian Skor Indikator
+                        <i class="fas fa-star-half-alt text-yellow-500"></i> Indicator Scoring Form
                     </h3>
                     <span class="text-xs text-gray-400">
                         Select <strong>1–{{ $scaleMax }} stars</strong> for rating. Unfilled indicators are highlighted in <span class="text-amber-600 font-bold">amber</span>.
@@ -305,9 +369,9 @@
                         <thead class="bg-gray-50/80 border-b border-gray-200">
                             <tr>
                                 <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase w-10">NO</th>
-                                <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase">INDIKATOR KPI</th>
-                                <th class="text-center px-3 py-3 font-semibold text-gray-500 uppercase w-16">BOBOT</th>
-                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-72 min-w-72">REALISASI (ACTUAL)</th>
+                                <th class="text-left px-4 py-3 font-semibold text-gray-500 uppercase">KPI INDICATOR</th>
+                                <th class="text-center px-3 py-3 font-semibold text-gray-500 uppercase w-16">WEIGHT</th>
+                                <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-72 min-w-72">ACTUAL</th>
                                 <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-48">RATING</th>
                                 <th class="text-center px-4 py-3 font-semibold text-gray-500 uppercase w-28">WEIGHTED SCORE</th>
                             </tr>
@@ -321,10 +385,14 @@
                                 $weight = $ind?->weight ?? 0;
                                 // Upward rows are filled via self_* fields (rater's own input);
                                 // every other type via supervisor_* fields.
-                                $scoreVal = $isUpward ? $detail->self_achievement : $detail->supervisor_score;
-                                $notesVal = $isUpward ? $detail->self_notes : $detail->supervisor_notes;
+                                $scoreVal = $usesSelfFields ? $detail->self_achievement : $detail->supervisor_score;
+                                $notesVal = $usesSelfFields ? $detail->self_notes : $detail->supervisor_notes;
+                                $weightedVal = $usesSelfFields
+                                    ? (is_null($detail->self_achievement) ? null : round($weight * $detail->self_achievement / 100, 2))
+                                    : $detail->weighted_score;
                                 $currentRating = $detail->star_rating ?? ($scoreVal ? min($max, max(1, (int) round($scoreVal / 100 * $max))) : null);
-                                $isUnfilled = !$isPara && is_null($currentRating);
+                                // A text-answer indicator counts as filled once its text is written.
+                                $isUnfilled = $isPara ? trim((string) old("scores.{$detail->id}.notes", $notesVal)) === '' : is_null($currentRating);
                             @endphp
                             <tr class="indicator-tr ind-row hover:bg-gray-50/50 transition-colors {{ $isUnfilled ? 'bg-amber-50/20' : '' }}" data-weight="{{ $weight }}">
                                 <td class="px-4 py-4 font-bold text-gray-400 align-top">{{ $i + 1 }}</td>
@@ -332,7 +400,7 @@
                                     <div>
                                         <p class="font-bold text-gray-900 text-xs">
                                             {{ $ind?->name ?? '—' }}
-                                            @if($isPara)<span class="ml-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] font-semibold">Uraian</span>@endif
+                                            @if($isPara)<span class="ml-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] font-semibold">Text answer</span>@endif
                                         </p>
                                         @if($ind?->description)
                                             <p class="text-[11px] text-gray-400 mt-0.5">{{ $ind->description }}</p>
@@ -341,22 +409,22 @@
                                     @if($isPara)
                                     <textarea name="scores[{{ $detail->id }}][notes]" rows="3"
                                         {{ $isReadOnly ? 'readonly' : '' }}
-                                        placeholder="Catatan / tanggapan atas jawaban karyawan..."
+                                        placeholder="Notes / feedback on the employee's answer..."
                                         oninput="updateReviewSubmitState()"
                                         class="req-field w-full px-3 py-2 text-[11px] border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y bg-white">{{ old("scores.{$detail->id}.notes", $notesVal) }}</textarea>
-                                    @if(!$isUpward && $detail->self_notes)
-                                    <p class="text-[11px] text-gray-500 mt-1"><span class="font-semibold text-gray-600">Jawaban karyawan:</span> {{ $detail->self_notes }}</p>
+                                    @if(!$usesSelfFields && $detail->self_notes)
+                                    <p class="text-[11px] text-gray-500 mt-1"><span class="font-semibold text-gray-600">Employee's answer:</span> {{ $detail->self_notes }}</p>
                                     @endif
                                     @else
                                     <input type="text" name="scores[{{ $detail->id }}][notes]"
                                         value="{{ old("scores.{$detail->id}.notes", $notesVal) }}"
                                         {{ $isReadOnly ? 'readonly' : '' }}
-                                        placeholder="Tambahkan catatan khusus untuk indikator ini (opsional)..."
+                                        placeholder="Add a note for this indicator (optional)..."
                                         class="w-full px-3 py-1.5 text-[11px] border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 bg-white">
                                     @endif
                                 </td>
                                 @if($isPara)
-                                <td colspan="4" class="px-4 py-4 align-top text-center text-[11px] text-gray-300 italic">Jawaban uraian — tidak diberi skor</td>
+                                <td colspan="4" class="px-4 py-4 align-top text-center text-[11px] text-gray-300 italic">Text answer — not scored</td>
                                 @else
                                 <td class="px-3 py-4 align-top text-center font-bold text-indigo-700">
                                     {{ rtrim(rtrim(number_format($weight, 2), '0'), '.') }}%
@@ -364,7 +432,7 @@
                                 <td class="px-4 py-4 align-top text-center">
                                     <textarea name="scores[{{ $detail->id }}][actual]" rows="3" maxlength="255"
                                         {{ $isReadOnly ? 'readonly' : '' }}
-                                        placeholder="Tuliskan realisasi..."
+                                        placeholder="Enter the actual result..."
                                         class="w-full min-h-18 px-3 py-2 text-sm text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y {{ $isReadOnly ? 'bg-gray-50 text-gray-600' : 'bg-white' }}">{{ old("scores.{$detail->id}.actual", $detail->actual_achievement) }}</textarea>
                                 </td>
                                 <td class="px-4 py-4 align-top text-center">
@@ -383,12 +451,12 @@
 
                                     <span id="rating_badge_{{ $detail->id }}" class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full transition-all
                                         {{ $isUnfilled ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-gray-100 text-gray-700' }}">
-                                        {{ $currentRating ? "{$currentRating}/{$max}" : 'Pilih (Belum Diisi)' }}
+                                        {{ $currentRating ? "{$currentRating}/{$max}" : 'Select (Not filled)' }}
                                     </span>
                                 </td>
                                 <td class="px-4 py-4 align-top text-center font-bold text-sm">
                                     <span id="weighted_score_{{ $detail->id }}" class="weighted-cell text-gray-800">
-                                        {{ !is_null($detail->weighted_score) ? number_format($detail->weighted_score, 2) : '0.00' }}
+                                        {{ !is_null($weightedVal) ? number_format($weightedVal, 2) : '0.00' }}
                                     </span>
                                 </td>
                                 @endif
@@ -401,36 +469,47 @@
                 {{-- Bottom Summary Bar (Screenshot 4 & 5) --}}
                 <div class="p-4 bg-gray-50 rounded-xl border border-gray-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
                     <div class="flex items-center gap-2">
-                        <span class="font-bold text-gray-700">Total Bobot:</span>
+                        <span class="font-bold text-gray-700">Total Weight:</span>
                         <span class="font-bold text-indigo-700 text-sm">100.00%</span>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span class="font-bold text-gray-700">Nilai Akhir Evaluasi:</span>
+                        <span class="font-bold text-gray-700">Final Evaluation Score:</span>
                         <span id="finalScoreDisplay" class="text-xl font-bold text-gray-900">
-                            {{ !is_null($evaluation->overall_score) ? number_format($evaluation->overall_score, 2) : '0.00' }}
+                            {{ number_format(!is_null($evaluation->overall_score) ? $evaluation->overall_score : $evaluation->details->sum('weighted_score'), 2) }}
                         </span>
                     </div>
                 </div>
             </div>
 
+            {{-- Locked lead: the send button stays visible but inactive --}}
+            @if($isLeadLocked)
+            <div class="p-5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                <a href="{{ $backUrl }}" class="px-4 py-2 bg-gray-200 text-gray-700 text-xs font-semibold rounded-xl hover:bg-gray-300 transition-all">Back</a>
+                <button type="button" disabled
+                    class="px-6 py-2 bg-gray-200 text-gray-400 text-xs font-bold rounded-xl cursor-not-allowed">
+                    <i class="fas fa-check text-xs mr-1"></i> Sent to HR
+                </button>
+            </div>
+            @endif
+
             {{-- Action Footer Buttons --}}
             @if(!$isReadOnly)
             <div class="p-5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                <a href="{{ route('general.kpi-evaluation.index', ['period' => $evaluation->period_month]) }}"
+                <a href="{{ $backUrl }}"
                    class="px-4 py-2 bg-gray-200 text-gray-700 text-xs font-semibold rounded-xl hover:bg-gray-300 transition-all">
-                    Batal
+                    Cancel
                 </a>
                 <div class="flex items-center gap-2">
                     <button type="submit" name="action" value="draft" onclick="window._kpiReviewAction='draft'"
                         class="px-5 py-2 bg-white text-indigo-600 border border-indigo-200 text-xs font-bold rounded-xl shadow-sm hover:bg-indigo-50 transition-all">
-                        Simpan Draft
+                        Save Draft
                     </button>
                     <span id="reviewIncompleteHint" class="hidden text-[11px] font-semibold text-amber-700">
-                        <i class="fas fa-circle-exclamation mr-1"></i><span id="reviewIncompleteCount"></span> belum diisi
+                        <i class="fas fa-circle-exclamation mr-1"></i><span id="reviewIncompleteCount"></span> not filled
                     </span>
                     <button type="submit" name="action" value="submit" id="submitReviewBtn" disabled onclick="window._kpiReviewAction='submit'"
                         class="px-6 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40">
-                        <i class="fas fa-paper-plane text-xs mr-1"></i> Kirim Ke HR
+                        <i class="fas fa-paper-plane text-xs mr-1"></i> Send to HR
                     </button>
                 </div>
             </div>
@@ -448,20 +527,39 @@
             <i class="fas fa-exclamation-triangle"></i>
         </div>
         <div class="space-y-1.5">
-            <h3 class="text-base font-bold text-gray-900">Konfirmasi Kirim Penilaian</h3>
+            <h3 class="text-base font-bold text-gray-900">Confirm Submission</h3>
             <p class="text-xs text-gray-500 leading-relaxed px-2">
-                Kirim hasil penilaian untuk <strong>{{ $bd?->full_name ?? 'karyawan ini' }}</strong> ke HR?
-                Pastikan skor dan catatan setiap indikator sudah benar sebelum melanjutkan.
+                Send the assessment for <strong>{{ $bd?->full_name ?? 'this employee' }}</strong> to HR?
+                Make sure the scores and notes for every indicator are correct before continuing.
             </p>
         </div>
         <div class="flex items-center justify-center gap-3 pt-2">
             <button type="button" onclick="hideKpiModal('reviewConfirmModal')"
                 class="px-5 py-2.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-xl hover:bg-gray-200 transition-all">
-                Batal
+                Cancel
             </button>
             <button type="button" onclick="executeKpiReview()"
                 class="inline-flex items-center gap-1.5 px-6 py-2.5 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all">
-                <i class="fas fa-paper-plane text-xs"></i> Ya, Kirim ke HR
+                <i class="fas fa-paper-plane text-xs"></i> Yes, Send to HR
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- Request Revision Modal --}}
+<div id="reviseModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
+        <h3 class="text-base font-bold text-gray-900">Request Revision</h3>
+        <p class="text-sm text-gray-600">
+            This sends the assessment back to the person who filled it in so they can correct it and resubmit.
+            Their answers are kept, and the score stays hidden until you approve the revised version.
+        </p>
+        <textarea id="reviseNotes" rows="3" placeholder="What needs to change? (required)..."
+            class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300 resize-none"></textarea>
+        <div class="flex items-center justify-end gap-3">
+            <button onclick="hideKpiModal('reviseModal')" class="px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl">Cancel</button>
+            <button onclick="confirmRevise()" class="inline-flex items-center gap-2 px-6 py-2.5 bg-red-600 text-white text-sm font-bold rounded-xl shadow hover:bg-red-700">
+                <i class="fas fa-rotate-left text-xs"></i> Send Back
             </button>
         </div>
     </div>
@@ -511,9 +609,9 @@ function setStarRating(detailId, star, weight, max) {
     updateReviewSubmitState();
 }
 
-// "Kirim Ke HR" stays disabled until every indicator is complete (rating picked for
-// scale rows, uraian filled for paragraph rows; realisasi is optional). Counted per indicator, updated live as the
-// reviewer fills in. "Simpan Draft" is always available.
+// "Send to HR" stays disabled until every indicator is complete (rating picked for
+// scale rows, text answer written for text-answer rows; actual result is optional). Counted per indicator, updated live as the
+// reviewer fills in. "Save Draft" is always available.
 function updateReviewSubmitState() {
     const btn = document.getElementById('submitReviewBtn');
     if (!btn) return;
@@ -521,13 +619,15 @@ function updateReviewSubmitState() {
     document.querySelectorAll('tr.ind-row').forEach(tr => {
         const ratingMissing = [...tr.querySelectorAll('.rating-val')].some(i => i.value === '');
         const textMissing   = [...tr.querySelectorAll('.req-field')].some(el => el.value.trim() === '');
-        if (ratingMissing || textMissing) missing++;
+        const rowMissing = ratingMissing || textMissing;
+        if (rowMissing) missing++;
+        tr.classList.toggle('bg-amber-50/20', rowMissing); // amber = indicator not filled yet
     });
     btn.disabled = missing > 0;
     const hint = document.getElementById('reviewIncompleteHint');
     if (hint) {
         hint.classList.toggle('hidden', missing === 0);
-        document.getElementById('reviewIncompleteCount').textContent = `${missing} indikator`;
+        document.getElementById('reviewIncompleteCount').textContent = `${missing} indicator(s)`;
     }
 }
 document.addEventListener('DOMContentLoaded', updateReviewSubmitState);
@@ -559,7 +659,7 @@ let _kpiReviewForm = null;
 function submitKpiReview(e) {
     e.preventDefault();
     _kpiReviewForm = e.target;
-    // "Kirim Ke HR" needs an explicit confirmation; "Simpan Draft" saves silently.
+    // "Send to HR" needs an explicit confirmation; "Save Draft" saves silently.
     if (window._kpiReviewAction === 'submit') {
         if (document.getElementById('submitReviewBtn')?.disabled) return;
         showKpiModal('reviewConfirmModal');
@@ -573,7 +673,7 @@ async function executeKpiReview() {
     const form = _kpiReviewForm || document.getElementById('kpiReviewForm');
     const fd = new FormData(form);
     fd.append('action', window._kpiReviewAction || 'draft');
-    const res  = await fetch('{{ route("general.kpi-evaluation.review.submit", $evaluation->id) }}', {
+    const res  = await fetch('{{ $leadMode ? route($ttype === 'peer' ? "general.my-kpi.peer-review.submit" : "general.my-kpi.lead-review.submit", $evaluation->id) : route("general.kpi-evaluation.review.submit", $evaluation->id) }}', {
         method: 'POST',
         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
         body: fd,
@@ -584,6 +684,19 @@ async function executeKpiReview() {
 }
 
 function openApproveModal() { showKpiModal('approveModal'); }
+function openReviseModal() { showKpiModal('reviseModal'); }
+async function confirmRevise() {
+    const notes = document.getElementById('reviseNotes').value.trim();
+    if (notes.length < 5) { showToast('Please explain what needs to change (at least 5 characters).', 'error'); return; }
+    const form = new FormData(); form.append('hr_notes', notes);
+    const res  = await fetch('{{ route("general.kpi-evaluation.reject", $evaluation->id) }}', {
+        method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }, body: form,
+    });
+    const data = await res.json();
+    hideKpiModal('reviseModal');
+    showToast(data.message, data.success ? 'success' : 'error');
+    if (data.success) setTimeout(() => location.reload(), 1000);
+}
 async function confirmApprove() {
     const notes = document.getElementById('approveNotes').value;
     const form  = new FormData(); form.append('hr_notes', notes);

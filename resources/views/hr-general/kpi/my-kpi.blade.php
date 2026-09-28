@@ -20,8 +20,13 @@
     $peerAssigned  = collect($assignedEvaluations ?? [])->filter($isPeerEval)->values();
     // "Has a leader": at least one of my lead-type evaluations is assigned to someone to review it.
     $hasLeader = $leadOnlyEvals->contains(fn($e) => !empty($e->supervisor_id));
+    // "Leads a team" = has direct reports, or has (had) lead-type assessments to score.
+    // $isSupervisor is broader — it is also true for a peer reviewer — so it is not used here.
+    $leadsTeam = ($subordinates ?? collect())->isNotEmpty()
+        || collect($assignedEvaluations ?? [])->contains(fn($e) => $e->isLeadType() && !$isPeerEval($e))
+        || collect($reviewHistory ?? [])->contains(fn($e) => !$isPeerEval($e));
     $showSelfTab   = $canTab('self');
-    $showLeadTab   = $canTab('lead') && ($isSystemAdmin || $isSupervisor || $hasLeader);
+    $showLeadTab   = $canTab('lead') && ($isSystemAdmin || $leadsTeam || $hasLeader);
     $showPeerTab   = $canTab('peer') && ($isSystemAdmin || $peerReceived->isNotEmpty() || $peerAssigned->isNotEmpty());
     $showUpwardTab = $canTab('upward');
     $firstTab = collect(['self' => $showSelfTab, 'lead' => $showLeadTab, 'peer' => $showPeerTab, 'upward' => $showUpwardTab])
@@ -73,13 +78,17 @@
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 col-span-2 lg:col-span-1 flex flex-col items-center justify-center text-center">
             <p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Current Period</p>
-            @if($currentEval && $currentEval->status === KpiEvaluation::STATUS_HR_APPROVED)
+            @php
+                // Self-assessments need no HR approval: their score shows as soon as it is submitted.
+                $currentSelfDone = $currentEval && $currentEval->isSelfType() && $currentEval->hasSelfAssessment() && $currentEval->overall_score !== null;
+            @endphp
+            @if($currentEval && ($currentEval->status === KpiEvaluation::STATUS_HR_APPROVED || $currentSelfDone))
                 <div class="flex items-end justify-center gap-2">
                     <span class="text-4xl font-bold text-gray-900">{{ number_format($currentEval->overall_score, 1) }}</span>
                     <span class="text-lg text-gray-400 mb-1">/ 100</span>
                 </div>
                 <p class="text-xs text-emerald-600 mt-1 flex items-center justify-center gap-1 font-semibold">
-                    <i class="fas fa-check-circle"></i> HR Approved
+                    <i class="fas fa-check-circle"></i> {{ $currentSelfDone && $currentEval->status !== KpiEvaluation::STATUS_HR_APPROVED ? 'Self-assessed' : 'HR Approved' }}
                 </p>
             @elseif($currentEval)
                 <div class="text-3xl font-bold text-amber-500">Pending</div>
@@ -248,6 +257,8 @@
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Approved</span>
                                 @elseif($done)
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">Self-Assessed</span>
+                                @elseif($eval->status === KpiEvaluation::STATUS_HR_REJECTED)
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">Needs Revision</span>
                                 @elseif($overdue)
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">Overdue</span>
                                 @else
@@ -257,7 +268,7 @@
                             <td class="px-4 py-3.5 text-center">
                                 <a href="{{ route('general.my-kpi.self-assessment', $eval->id) }}"
                                    class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all {{ ($done || $approved) ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100' : 'primary-gradient text-white hover:opacity-90' }}">
-                                    {{ ($done || $approved) ? 'View Details' : 'Fill Self-Assessment' }}
+                                    {{ ($done || $approved) ? 'View Details' : ($eval->status === KpiEvaluation::STATUS_HR_REJECTED ? 'Revise' : 'Fill Self-Assessment') }}
                                 </a>
                             </td>
                         </tr>
@@ -282,7 +293,9 @@
         @include('hr-general.kpi.partials.my-lead-assessments')
         @endif
 
-        @if($isSupervisor || $isSystemAdmin)
+        {{-- My Team + Review History only make sense for someone who actually leads a team;
+             everyone else just sees "Assessments From My Lead" above. --}}
+        @if($leadsTeam)
         <div class="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
             <div class="p-5 border-b border-indigo-50 bg-indigo-50/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
@@ -332,6 +345,8 @@
                             <td class="px-4 py-3.5 text-center">
                                 @if($tIsApproved)
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Approved</span>
+                                @elseif($tEval->status === KpiEvaluation::STATUS_HR_REJECTED)
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">Needs Revision</span>
                                 @elseif($tSupDone)
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">Reviewed</span>
                                 @else
@@ -342,9 +357,9 @@
                                 {{ $tEval->overall_score ? number_format($tEval->overall_score, 1) : '—' }}
                             </td>
                             <td class="px-4 py-3.5 text-center">
-                                <a href="{{ route('general.kpi-evaluation.review', $tEval->id) }}"
+                                <a href="{{ route('general.my-kpi.lead-review', $tEval->id) }}"
                                    class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all {{ $tSupDone ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100' : 'primary-gradient text-white hover:opacity-90' }}">
-                                    {{ $tSupDone ? ($tIsApproved ? 'View' : 'Edit Review') : 'Evaluate' }}
+                                    {{ $tSupDone ? 'View' : ($tEval->status === KpiEvaluation::STATUS_HR_REJECTED ? 'Revise' : 'Evaluate') }}
                                 </a>
                             </td>
                         </tr>
@@ -419,8 +434,8 @@
                                         </td>
                                         <td class="px-4 py-2.5 text-center font-bold text-gray-900">{{ $h->overall_score !== null ? number_format($h->overall_score, 1) : '—' }}</td>
                                         <td class="px-4 py-2.5 text-center">
-                                            <a href="{{ route('general.kpi-evaluation.review', $h->id) }}"
-                                               class="inline-flex items-center px-3 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all">{{ $hApproved ? 'View' : 'Edit Review' }}</a>
+                                            <a href="{{ route('general.my-kpi.lead-review', $h->id) }}"
+                                               class="inline-flex items-center px-3 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all">View</a>
                                         </td>
                                     </tr>
                                     @endforeach
@@ -479,14 +494,14 @@
                             <td class="px-4 py-3.5 text-xs font-medium text-cyan-700">{{ $pEval->template?->name ?? '—' }}</td>
                             <td class="px-4 py-3.5 text-center">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold {{ $pApproved ? 'bg-emerald-100 text-emerald-800' : ($pDone ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800') }}">
-                                    {{ $pApproved ? 'Approved' : ($pDone ? 'Reviewed' : 'To Evaluate') }}
+                                    {{ $pApproved ? 'Approved' : ($pDone ? 'Reviewed' : ($pEval->status === KpiEvaluation::STATUS_HR_REJECTED ? 'Needs Revision' : 'To Evaluate')) }}
                                 </span>
                             </td>
                             <td class="px-4 py-3.5 text-center font-bold text-sm">{{ $pEval->overall_score ? number_format($pEval->overall_score, 1) : '—' }}</td>
                             <td class="px-4 py-3.5 text-center">
-                                <a href="{{ route('general.kpi-evaluation.review', $pEval->id) }}"
+                                <a href="{{ route('general.my-kpi.peer-review', $pEval->id) }}"
                                    class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all {{ $pDone ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100' : 'primary-gradient text-white hover:opacity-90' }}">
-                                    {{ $pDone ? ($pApproved ? 'View' : 'Edit Review') : 'Evaluate' }}
+                                    {{ $pDone ? 'View' : ($pEval->status === KpiEvaluation::STATUS_HR_REJECTED ? 'Revise' : 'Evaluate') }}
                                 </a>
                             </td>
                         </tr>
@@ -555,7 +570,7 @@
                             &middot; Evaluating: <strong>{{ $eval->supervisor?->basicData?->full_name ?? 'your supervisor' }}</strong>
                         </p>
                     </div>
-                    <a href="{{ route('general.my-kpi.self-assessment', $eval->id) }}"
+                    <a href="{{ route('general.my-kpi.upward-assessment', $eval->id) }}"
                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-bold rounded-xl shadow hover:opacity-90 transition-all shrink-0">
                         Fill Now
                     </a>
@@ -591,13 +606,13 @@
                             <td class="px-5 py-3.5 text-xs text-gray-700">{{ $eval->supervisor?->basicData?->full_name ?? '—' }}</td>
                             <td class="px-4 py-3.5 text-center">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold {{ $done ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
-                                    {{ $done ? 'Submitted' : 'Pending' }}
+                                    {{ $done ? 'Submitted' : ($eval->status === KpiEvaluation::STATUS_HR_REJECTED ? 'Needs Revision' : 'Pending') }}
                                 </span>
                             </td>
                             <td class="px-4 py-3.5 text-center">
-                                <a href="{{ route('general.my-kpi.self-assessment', $eval->id) }}"
+                                <a href="{{ route('general.my-kpi.upward-assessment', $eval->id) }}"
                                    class="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all {{ $done ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100' : 'primary-gradient text-white hover:opacity-90' }}">
-                                    {{ $done ? 'View Details' : 'Fill Now' }}
+                                    {{ $done ? 'View Details' : ($eval->status === KpiEvaluation::STATUS_HR_REJECTED ? 'Revise' : 'Fill Now') }}
                                 </a>
                             </td>
                         </tr>
@@ -618,23 +633,34 @@
                 </div>
             </div>
             @if($upwardFeedback->isNotEmpty())
-            <div class="divide-y divide-gray-100">
-                @foreach($upwardFeedback as $fb)
-                <div class="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="font-bold text-gray-900 text-sm">{{ $fb->template?->name ?? 'Upward Assessment' }}</span>
-                            <span class="text-xs text-gray-400">&middot;</span>
-                            <span class="text-xs text-gray-500">{{ Carbon::createFromFormat('Y-m', $fb->period_month)->format('F Y') }}</span>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-0.5">
-                            Based on {{ $fb->rater_count }} rater{{ $fb->rater_count > 1 ? 's' : '' }} &middot;
-                            published {{ $fb->published_at?->format('d M Y') }}
-                        </p>
-                    </div>
-                    <span class="text-2xl font-bold text-slate-700">{{ number_format($fb->average_score, 1) }}<span class="text-sm text-gray-400"> / 100</span></span>
-                </div>
-                @endforeach
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-12">No</th>
+                            <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Template</th>
+                            <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Month</th>
+                            <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Raters</th>
+                            <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Average Score</th>
+                            <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Published</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        @foreach($upwardFeedback as $fb)
+                        <tr class="hover:bg-gray-50/70 transition-colors">
+                            <td class="px-5 py-3.5 text-gray-400 text-xs font-medium">{{ $loop->iteration }}</td>
+                            <td class="px-4 py-3.5 text-xs font-semibold text-gray-900">{{ $fb->template?->name ?? 'Upward Assessment' }}</td>
+                            <td class="px-4 py-3.5 text-xs text-gray-600 whitespace-nowrap">{{ Carbon::createFromFormat('Y-m', $fb->period_month)->format('F Y') }}</td>
+                            <td class="px-4 py-3.5 text-center text-xs text-gray-600">{{ $fb->rater_count }}</td>
+                            <td class="px-4 py-3.5 text-center">
+                                <span class="text-sm font-bold text-slate-700">{{ number_format($fb->average_score, 1) }}</span>
+                                <span class="text-[11px] text-gray-400"> / 100</span>
+                            </td>
+                            <td class="px-4 py-3.5 text-xs text-gray-600 whitespace-nowrap">{{ $fb->published_at?->format('d M Y') ?? '—' }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
             @else
             <div class="text-center py-12">
