@@ -10,6 +10,7 @@ window.SupportRecons = (function () {
     // Plan Cost/Payment Terms, dan aman saat aplikasi diakses lewat HTTPS di
     // belakang proxy tanpa bergantung pada skema yang di-generate server.
     const BASE_URL   = `/delivery/support/${SUPPORT_ID}/recons`;
+    const TICKET_URL_BASE = '{{ url('/ticket') }}';
     const CAN_EDIT   = @json($can('delivery-support.recons.edit'));
     const CAN_MANAGE = @json($can('delivery-support.recons.manage'));
 
@@ -104,7 +105,9 @@ window.SupportRecons = (function () {
 
         body.innerHTML = rows.map(r => `
             <tr class="hover:bg-gray-50">
-                <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">${esc(r.ticket_number || ('#' + r.ticket_id))}</td>
+                <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">
+                    <a href="${TICKET_URL_BASE}/${r.ticket_id}" class="primary-link">${esc(r.ticket_number || ('#' + r.ticket_id))}</a>
+                </td>
                 <td class="px-4 py-3 text-gray-700">${esc(r.description || '-')}</td>
                 <td class="px-4 py-3 text-center whitespace-nowrap text-gray-600">${esc(r.start_date_label)}</td>
                 <td class="px-4 py-3 text-center whitespace-nowrap text-gray-600">${esc(r.close_date_label)}</td>

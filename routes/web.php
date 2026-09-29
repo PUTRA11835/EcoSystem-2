@@ -9,6 +9,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\DeliveryProjectIssueController;
 use App\Http\Controllers\DeliveryProjectWricefController;
+use App\Http\Controllers\DeliveryProjectStakeholderController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\DeliveryProjectController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\TicketViewController;
 use App\Http\Controllers\ConsultantWorkloadController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\TicketMessageController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AuditLogController;
@@ -59,12 +61,14 @@ Route::get('/', function () {
 
 Route::prefix('api/auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+    Route::post('/2fa/verify', [AuthController::class, 'verifyTwoFactor'])->middleware('throttle:5,1');
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 });
 
 // Login page
 Route::get('/auth/login', [AuthController::class, 'showLogin'])->name('login');
+Route::get('/auth/2fa/verify', [AuthController::class, 'showTwoFactorChallenge'])->name('2fa.verify');
 
 // ==================== PASSWORD SETUP & RESET (public — tidak perlu auth) ====================
 // Halaman "Cek email Anda" — tampil setelah setup akun baru atau forgot password
@@ -101,6 +105,14 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== AI ASSISTANT ====================
     Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->name('ai-assistant')->middleware('menu:ai-assistant');
     Route::post('/ai-assistant/chat', [\App\Http\Controllers\AiAssistantController::class, 'chat'])->name('ai-assistant.chat')->middleware('menu:ai-assistant');
+    // Riwayat percakapan (arsip DB, per-employee — lihat AiAssistantController::
+    // conversations()) — inilah yang membuat history tetap muncul lintas
+    // device/browser selama login sebagai employee yang sama, bukan cuma
+    // tersimpan di sessionStorage device itu saja. Hapus memakai POST, bukan
+    // DELETE: verb DELETE diblokir edge/WAF di production (sama seperti AI Research).
+    Route::get('/ai-assistant/conversations', [\App\Http\Controllers\AiAssistantController::class, 'conversations'])->name('ai-assistant.conversations')->middleware('menu:ai-assistant');
+    Route::get('/ai-assistant/conversations/{conversation}', [\App\Http\Controllers\AiAssistantController::class, 'conversation'])->name('ai-assistant.conversation')->middleware('menu:ai-assistant');
+    Route::post('/ai-assistant/conversations/{conversation}/delete', [\App\Http\Controllers\AiAssistantController::class, 'destroyConversation'])->name('ai-assistant.conversation.delete')->middleware('menu:ai-assistant');
 
     // ==================== WORD REPORT GENERATOR ====================
     // Menu slug 'word-report-generator' didaftarkan lewat migration
@@ -125,6 +137,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/ai-research/conversations', [\App\Http\Controllers\AiResearchController::class, 'conversations'])->name('ai-research.conversations')->middleware('menu:ai-research');
     Route::get('/ai-research/conversations/{conversation}', [\App\Http\Controllers\AiResearchController::class, 'conversation'])->name('ai-research.conversation')->middleware('menu:ai-research');
     Route::post('/ai-research/conversations/{conversation}/delete', [\App\Http\Controllers\AiResearchController::class, 'destroyConversation'])->name('ai-research.conversation.delete')->middleware('menu:ai-research');
+    // Ubah teks jawaban assistant jadi file .docx yang bisa diunduh — assistant
+    // sendiri tidak punya alat untuk membuat/melampirkan file, jadi konversinya
+    // dilakukan di sini saat user menekan tombol Download.
+    Route::post('/ai-research/export-docx', [\App\Http\Controllers\AiResearchController::class, 'exportDocx'])->name('ai-research.export-docx')->middleware('menu:ai-research');
 
     // ==================== CALENDAR ====================
     Route::prefix('calendar')->name('calendar.')->group(function () {
@@ -138,6 +154,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/export-excel',     [\App\Http\Controllers\ReportingController::class, 'exportExcel'])->name('reporting.export');
     Route::get('/reporting/md-recap',         [\App\Http\Controllers\ReportingController::class, 'mdRecapIndex'])->name('reporting.md-recap')->middleware('menu:reporting.md-recap');
     Route::get('/reporting/md-recap/export',           [\App\Http\Controllers\ReportingController::class, 'exportMdRecap'])->name('reporting.md-recap.export');
+    Route::get('/reporting/md-recap/export-summary',   [\App\Http\Controllers\ReportingController::class, 'exportMdRecapSummary'])->name('reporting.md-recap.export-summary');
     Route::get('/reporting/resolution-days/export',    [\App\Http\Controllers\ReportingController::class, 'exportResolutionDays'])->name('reporting.resolution-days.export');
     Route::get('/reporting/collection-outlook',        [\App\Http\Controllers\ReportingController::class, 'collectionOutlookIndex'])->name('reporting.collection-outlook')->middleware('menu:reporting.collection-outlook');
     Route::get('/reporting/collection-outlook/export', [\App\Http\Controllers\ReportingController::class, 'exportCollectionOutlook'])->name('reporting.collection-outlook.export')->middleware('menu:reporting.collection-outlook');
@@ -146,12 +163,17 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/ticketing-overview',        [\App\Http\Controllers\ReportingController::class, 'ticketingOverviewIndex'])->name('reporting.ticketing-overview')->middleware('menu:reporting.ticketing-overview');
     Route::get('/reporting/ticket-by-module',           [\App\Http\Controllers\ReportingController::class, 'ticketByModuleIndex'])->name('reporting.ticket-by-module')->middleware('menu:reporting.ticket-by-module');
     Route::get('/reporting/log-shifting',               [\App\Http\Controllers\ReportingController::class, 'logShiftingIndex'])->name('reporting.log-shifting')->middleware('menu:reporting.log-shifting');
+    Route::get('/reporting/log-shifting/export',        [\App\Http\Controllers\ReportingController::class, 'exportLogShifting'])->name('reporting.log-shifting.export')->middleware('menu:reporting.log-shifting');
+    Route::get('/reporting/weekly-consolidation',        [\App\Http\Controllers\WeeklyConsolidationController::class, 'index'])->name('reporting.weekly-consolidation')->middleware('menu:reporting.weekly-consolidation');
+    Route::get('/reporting/weekly-consolidation/{id}/export', [\App\Http\Controllers\WeeklyConsolidationController::class, 'export'])->name('reporting.weekly-consolidation.export')->middleware('menu:reporting.weekly-consolidation');
     Route::get('/reporting/ticket-by-module/export',    [\App\Http\Controllers\ReportingController::class, 'exportTicketByModule'])->name('reporting.ticket-by-module.export')->middleware('menu:reporting.ticket-by-module');
     Route::get('/reporting/resolution-days',             [\App\Http\Controllers\ReportingController::class, 'resolutionDaysIndex'])->name('reporting.resolution-days')->middleware('menu:reporting.resolution-days');
     Route::get('/reporting/consultant-assignment',        [\App\Http\Controllers\ReportingController::class, 'consultantAssignmentIndex'])->name('reporting.consultant-assignment')->middleware('menu:reporting.consultant-assignment');
     Route::get('/reporting/consultant-assignment/export', [\App\Http\Controllers\ReportingController::class, 'exportConsultantAssignment'])->name('reporting.consultant-assignment.export')->middleware('menu:reporting.consultant-assignment');
     Route::get('/reporting/diagram-report',              [\App\Http\Controllers\ReportingController::class, 'diagramReportIndex'])->name('reporting.diagram-report')->middleware('menu:reporting.diagram-report');
     Route::get('/reporting/resource-timeline',            [\App\Http\Controllers\ResourceTimelineController::class, 'index'])->name('reporting.resource-timeline')->middleware('menu:reporting.resource-timeline');
+    Route::get('/reporting/customer-md',                  [\App\Http\Controllers\ReportingController::class, 'customerMdIndex'])->name('reporting.customer-md')->middleware('menu:reporting.customer-md');
+    Route::get('/reporting/customer-md/export',           [\App\Http\Controllers\ReportingController::class, 'exportCustomerMd'])->name('reporting.customer-md.export')->middleware('menu:reporting.customer-md');
 
     // ==================== MASTER ====================
     Route::prefix('master')->name('master.')->group(function () {
@@ -217,8 +239,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log')->middleware('menu:control-center.activity-log');
         Route::get('/audit-log', [AuditLogController::class, 'index'])->name('audit-log')->middleware('menu:control-center.audit-log');
         Route::get('/login-log', [LoginLogController::class, 'index'])->name('login-log')->middleware('menu:control-center.login-log');
+        Route::get('/security-center', [\App\Http\Controllers\SecurityCenterController::class, 'index'])->name('security-center')->middleware('menu:control-center.security');
         Route::get('/sessions', [AdminSessionController::class, 'page'])->name('sessions')->middleware('menu:control-center.sessions');
         Route::get('/failed-jobs', [AdminJobController::class, 'page'])->name('failed-jobs')->middleware('menu:control-center.failed-jobs');
+        Route::get('/schedule-monitor', [\App\Http\Controllers\ScheduleMonitorController::class, 'page'])->name('schedule-monitor')->middleware('menu:control-center.schedule-monitor');
         Route::get('/backup', [AdminBackupController::class, 'page'])->name('backup')->middleware('menu:control-center.backup');
         Route::get('/backup/download/{filename}', [AdminBackupController::class, 'downloadBackup'])->name('backup.download');
         Route::get('/export/employees', [AdminBackupController::class, 'exportEmployees'])->name('export.employees');
@@ -245,6 +269,15 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         // Model AI yang dipakai kedua asisten — dipegang super admin.
         Route::get('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'index'])->name('ai-settings')->middleware('menu:control-center.ai-settings');
         Route::post('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'update'])->name('ai-settings.update')->middleware('menu:control-center.ai-settings');
+
+        // Tema musiman default untuk semua user (dashboard) + halaman login — dipegang super admin.
+        Route::get('/seasonal-theme', [\App\Http\Controllers\SeasonalThemeSettingsController::class, 'index'])->name('seasonal-theme')->middleware('menu:control-center.seasonal-theme');
+        Route::post('/seasonal-theme', [\App\Http\Controllers\SeasonalThemeSettingsController::class, 'update'])->name('seasonal-theme.update')->middleware('menu:control-center.seasonal-theme');
+        Route::post('/seasonal-theme/upload-sound', [\App\Http\Controllers\SeasonalThemeSettingsController::class, 'uploadSound'])->name('seasonal-theme.upload-sound')->middleware('menu:control-center.seasonal-theme');
+
+        // Role mana yang wajib 2FA — admin-configurable, dibaca EnforceTwoFactorForAdmins.
+        Route::get('/two-factor-enforcement', [\App\Http\Controllers\TwoFactorEnforcementSettingsController::class, 'index'])->name('two-factor-enforcement')->middleware('menu:control-center.two-factor-enforcement');
+        Route::post('/two-factor-enforcement', [\App\Http\Controllers\TwoFactorEnforcementSettingsController::class, 'update'])->name('two-factor-enforcement.update')->middleware('menu:control-center.two-factor-enforcement');
     });
 
     // ==================== SLA ====================
@@ -258,6 +291,13 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/', [SettingsController::class, 'index'])->name('index');
         Route::post('/preferences', [SettingsController::class, 'updatePreferences'])->name('preferences');
         Route::post('/reset', [SettingsController::class, 'resetPreferences'])->name('reset');
+
+        Route::prefix('2fa')->name('2fa.')->group(function () {
+            Route::post('/enable', [\App\Http\Controllers\TwoFactorController::class, 'enable'])->name('enable');
+            Route::post('/confirm', [\App\Http\Controllers\TwoFactorController::class, 'confirm'])->name('confirm')->middleware('throttle:5,1');
+            Route::post('/disable', [\App\Http\Controllers\TwoFactorController::class, 'disable'])->name('disable')->middleware('throttle:5,1');
+            Route::post('/regenerate-recovery-codes', [\App\Http\Controllers\TwoFactorController::class, 'regenerateRecoveryCodes'])->name('regenerate-recovery-codes')->middleware('throttle:5,1');
+        });
     });
 
     // ==================== DASHBOARD API ====================
@@ -452,6 +492,18 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::post('/projects/{project}/wricefs/{wricef}/delete',  [DeliveryProjectWricefController::class, 'destroy'])->name('projects.wricefs.destroy.post');
     });
 
+    // Stakeholder Register routes (AJAX CRUD on the project detail page)
+    Route::get('/projects/{project}/stakeholders',            [DeliveryProjectStakeholderController::class, 'apiIndex'])->name('projects.stakeholders.index')->middleware('menu:delivery-project.stakeholder.view');
+    Route::middleware(['menu:delivery-project.stakeholder.edit', 'project.editable'])->group(function () {
+        Route::put('/projects/{project}/stakeholders/{stakeholder}', [DeliveryProjectStakeholderController::class, 'update'])->name('projects.stakeholders.update');
+    });
+    Route::middleware(['menu:delivery-project.stakeholder.manage', 'project.editable'])->group(function () {
+        Route::post('/projects/{project}/stakeholders',                       [DeliveryProjectStakeholderController::class, 'store'])->name('projects.stakeholders.store');
+        Route::delete('/projects/{project}/stakeholders/{stakeholder}',       [DeliveryProjectStakeholderController::class, 'destroy'])->name('projects.stakeholders.destroy');
+        // Verb DELETE diblokir edge/WAF di production — sediakan jalur POST.
+        Route::post('/projects/{project}/stakeholders/{stakeholder}/delete',  [DeliveryProjectStakeholderController::class, 'destroy'])->name('projects.stakeholders.destroy.post');
+    });
+
     // Profile routes
     Route::get('/staging-tickets', [StagingTicketController::class, 'view'])->name('staging.index')->middleware('menu:tickets.staging');
     Route::get('/staging-tickets/rejected', [StagingTicketController::class, 'viewRejected'])->name('staging.rejected');
@@ -592,6 +644,16 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::post('/{id}/ai-summary', [\App\Http\Controllers\AiTicketSummaryController::class, 'stream'])
             ->name('ai-summary')
             ->middleware('menu:tickets.inbox');
+        // Tombol "Ask AI" — siapkan/temukan lagi conversation AI Research milik
+        // employee ini tentang tiket ini, lalu redirect ke sana. Lihat
+        // AiResearchController::openForTicket().
+        Route::get('/{id}/ai-research', [\App\Http\Controllers\AiResearchController::class, 'openForTicket'])
+            ->name('ai-research')
+            ->middleware('menu:tickets.inbox');
+        // Tombol "Export Chat" di headbar room chat — unduh percakapan (tanpa internal note) sebagai PDF.
+        Route::get('/{id}/export-chat', [TicketMessageController::class, 'exportPdf'])
+            ->name('export-chat')
+            ->middleware('menu:ticket.export-chat');
         // Buka tiket berdasarkan NOMOR tiket (bukan id). Dipakai hyperlink "#NNNNNNNN"
         // di internal note — di-resolve ke id lalu redirect ke halaman tiket.
         Route::get('/ref/{number}', [TicketViewController::class, 'showByNumber'])->name('ref');
@@ -649,6 +711,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             Route::get('/bank',           [\App\Http\Controllers\ManagementEmployeeController::class, 'bank'])         ->middleware('menu:management.employee.bank')           ->name('bank.index');
             Route::get('/payment',        [\App\Http\Controllers\ManagementEmployeeController::class, 'payment'])      ->middleware('menu:management.employee.payment')        ->name('payment.index');
             Route::get('/attachment',     [\App\Http\Controllers\ManagementEmployeeController::class, 'attachment'])   ->middleware('menu:management.employee.attachment')     ->name('attachment.index');
+            Route::get('/dropdown-settings', [\App\Http\Controllers\ManagementEmployeeController::class, 'dropdownSettings'])->middleware('menu:management.employee.dropdown-settings')->name('dropdown-settings.index');
         });
     });
 

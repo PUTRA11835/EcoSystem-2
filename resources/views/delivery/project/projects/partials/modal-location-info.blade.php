@@ -5,7 +5,7 @@
      kalkulasi finansial, attachSectionForm) tetap terikat tanpa perubahan.
      ══════════════════════════════════════════════════════════════════════ --}}
 <div id="locationInfoModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50" onclick="closeModal('locationInfoModal')"></div>
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="closeModal('locationInfoModal')"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
         <div class="modal-content bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
             <div class="p-6 border-b border-gray-200 flex-shrink-0">

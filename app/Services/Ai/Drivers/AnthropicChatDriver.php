@@ -3,7 +3,9 @@
 namespace App\Services\Ai\Drivers;
 
 use Anthropic\Client;
+use Anthropic\Messages\CacheControlEphemeral;
 use Anthropic\Messages\InputJSONDelta;
+use Anthropic\Messages\TextBlockParam;
 use Anthropic\Messages\TextDelta;
 use Anthropic\Messages\ToolUseBlock;
 use App\Services\Ai\Drivers\Contracts\ChatDriver;
@@ -35,7 +37,12 @@ class AnthropicChatDriver implements ChatDriver
             maxTokens: $maxTokens,
             messages: $messages,
             model: $model,
-            system: $systemPrompt,
+            // Cache breakpoint: pemanggil (AiTicketQaService, AiChatService) merakit
+            // ulang system prompt yang sama persis di setiap giliran chat SELAMA
+            // state yang dirujuknya (mis. ai_analysis staging ticket) belum berubah
+            // — tanpa breakpoint ini, giliran ke-2/3/dst dalam satu sesi tanya-jawab
+            // memproses ulang konteks yang identik dari nol setiap kali.
+            system: [TextBlockParam::with(text: $systemPrompt, cacheControl: CacheControlEphemeral::with())],
             thinking: $effort ? ['type' => 'adaptive'] : null,
             outputConfig: $effort ? ['effort' => $effort] : null,
             tools: $tools,

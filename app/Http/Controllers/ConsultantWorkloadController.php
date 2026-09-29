@@ -51,14 +51,19 @@ class ConsultantWorkloadController extends Controller
             $empIds     = $consultants->pluck('employee_id')->toArray();
             $modulesMap = self::modulesMapForEmployees($empIds);
 
-            $result = $consultants->map(function (Employee $emp) use ($progressMap, $modulesMap) {
+            // Bulk-load tickets per employee sekaligus untuk semua konsultan —
+            // ganti N panggilan ticketsByEmployee() (masing-masing ~6-7 query,
+            // lihat komentar di ticketsByEmployeesBulk()) dengan ~3 query total.
+            $ticketsByEmployeeMap = $this->ticketsByEmployeesBulk($empIds, $allTicketIds, $progressMap);
+
+            $result = $consultants->map(function (Employee $emp) use ($modulesMap, $ticketsByEmployeeMap) {
                 $name = $emp->basicData
                     ? trim($emp->basicData->first_name . ' ' . ($emp->basicData->last_name ?? ''))
                     : $emp->eci;
 
                 $roles = $emp->roles->pluck('name')->implode(', ');
 
-                $tickets = $this->ticketsByEmployee($emp->employee_id, $progressMap);
+                $tickets = $ticketsByEmployeeMap[$emp->employee_id] ?? collect();
 
                 // Aggregate from sub-row consultant_details so main row always matches sub-rows
                 $totalAllocMd = 0;
@@ -243,6 +248,111 @@ class ConsultantWorkloadController extends Controller
         $filename = "consultant_workload_{$slug}_" . now()->format('Ymd_His') . '.xlsx';
 
         return Excel::download(new ConsultantWorkloadTicketsExport($consultant, $tickets), $filename);
+    }
+
+    /**
+     * Versi bulk dari ticketsByEmployee() untuk N employee sekaligus — dipakai
+     * oleh list() supaya tidak N+1 (ticketsByEmployee() sendirian menjalankan
+     * ~6-7 query: 3 dari Ticket::assignedTicketIds(), 1 fetch ticket, 2+ dari
+     * consultantDetailsForTickets() — kalau dipanggil di dalam loop per
+     * konsultan, itu jadi ratusan query untuk satu kali load halaman).
+     *
+     * Di sini, ketiga sumber assignment (lead/member/mandays) dan fetch
+     * ticket + consultant_details masing-masing cuma dijalankan SEKALI untuk
+     * seluruh $empIds, lalu hasilnya di-assemble ulang per employee di memori
+     * — bentuk & isi tiap ticket row sama persis dengan yang dihasilkan
+     * ticketsByEmployee() (role_in_ticket, consultant_progress,
+     * consultant_details), jadi aman menggantikan pemanggilan per-employee.
+     *
+     * Return: [employee_id => Collection<ticket row>]
+     */
+    private function ticketsByEmployeesBulk(array $empIds, array $activeTicketIds, array $progressMap = []): array
+    {
+        if (empty($empIds) || empty($activeTicketIds)) {
+            return [];
+        }
+
+        // Siapa PIC/member/mandays di tiket aktif mana — 3 query total,
+        // dibatasi ke $activeTicketIds dari awal (setara dengan filter status
+        // aktif yang tadinya baru diterapkan belakangan di query ticket).
+        $leadRows = DB::table('ticket')
+            ->whereIn('ticket_id', $activeTicketIds)
+            ->whereIn('ticket_lead_id', $empIds)
+            ->select('ticket_id', 'ticket_lead_id as employee_id')
+            ->get();
+
+        $memberRows = DB::table('ticket_member')
+            ->whereIn('ticket_id', $activeTicketIds)
+            ->whereIn('employee_id', $empIds)
+            ->where('is_active', true)
+            ->select('ticket_id', 'employee_id')
+            ->get();
+
+        $mandaysRows = DB::table('consultant_mandays_detail as cmd')
+            ->join('consultant_mandays as cm', 'cm.id', '=', 'cmd.consultant_mandays_id')
+            ->whereIn('cm.ticket_id', $activeTicketIds)
+            ->whereIn('cmd.employee_id', $empIds)
+            ->select('cm.ticket_id as ticket_id', 'cmd.employee_id')
+            ->get();
+
+        // employee_id => [ticket_id => true] (dedup, setara ->unique() punya assignedTicketIds())
+        $empTicketIds = [];
+        foreach ([$leadRows, $memberRows, $mandaysRows] as $rows) {
+            foreach ($rows as $row) {
+                $empTicketIds[(int) $row->employee_id][(int) $row->ticket_id] = true;
+            }
+        }
+
+        if (empty($empTicketIds)) {
+            return [];
+        }
+
+        // Semua ticket row sekaligus (select/join sama persis dengan ticketsByEmployee()).
+        $baseSelect = [
+            'ticket.ticket_id', 'ticket.ticket_number',
+            DB::raw("COALESCE(NULLIF(ticket.subject, ''), ticket.description) as subject"),
+            'ticket.status', 'ticket.ticket_priority', 'ticket.ticket_type',
+            'ticket.man_days', 'ticket.progress_percentage', 'ticket.progress_note',
+            'ticket.last_progress_at', 'ticket.module', 'ticket.start_date',
+            'ticket.end_date', 'ticket.ticket_lead_id',
+            'customer_basic_data.name_1 as customer_name',
+            DB::raw("NULLIF(TRIM(CONCAT(COALESCE(ticket_updater_ebd.first_name,''), ' ', COALESCE(ticket_updater_ebd.last_name,''))), '') as last_progress_by_name"),
+        ];
+
+        $ticketsById = DB::table('ticket')
+            ->leftJoin('customer_basic_data', 'ticket.customer_id', '=', 'customer_basic_data.customer_id')
+            ->leftJoin('employee_basic_data as ticket_updater_ebd', 'ticket_updater_ebd.employee_id', '=', 'ticket.progress_updated_by')
+            ->whereIn('ticket.ticket_id', $activeTicketIds)
+            ->whereIn('ticket.status', self::ACTIVE_STATUSES)
+            ->whereNull('ticket.deleted_at')
+            ->whereNull('ticket.is_hidden')
+            ->select($baseSelect)
+            ->get()
+            ->keyBy('ticket_id');
+
+        // Per-konsultan progress detail untuk SEMUA tiket sekaligus (method ini
+        // sudah bulk-capable, sebelumnya hanya dipanggil dengan subset per employee).
+        $consultantDetails = self::consultantDetailsForTickets($activeTicketIds);
+
+        $result = [];
+        foreach ($empTicketIds as $empId => $tids) {
+            $tickets = collect();
+            foreach (array_keys($tids) as $tid) {
+                if (!isset($ticketsById[$tid])) {
+                    continue; // assigned tapi tidak lolos filter status/deleted/hidden aktif
+                }
+                // Clone — satu ticket row bisa dipakai >1 employee (lead + member
+                // berbeda), role_in_ticket & isi lain harus spesifik per employee.
+                $ticket = clone $ticketsById[$tid];
+                $ticket->role_in_ticket = ((int) $ticket->ticket_lead_id === $empId) ? 'pic' : 'member';
+                $ticket->consultant_progress = $progressMap[$tid] ?? (float) ($ticket->progress_percentage ?? 0);
+                $ticket->consultant_details = $consultantDetails[$tid] ?? [];
+                $tickets->push($ticket);
+            }
+            $result[$empId] = $tickets;
+        }
+
+        return $result;
     }
 
     /**

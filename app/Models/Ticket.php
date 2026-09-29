@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
 use App\Traits\Auditable;
+use App\Services\TicketDeliverableRequirementSync;
 
 class Ticket extends Model
 {
@@ -13,6 +14,19 @@ class Ticket extends Model
     use \App\Models\Concerns\HasOneDriveShareLink;
 
     protected static ?string $auditModule = 'Ticket';
+
+    /**
+     * Denormalized "last activity" cache columns bumped on nearly every
+     * incoming/outgoing ticket message - pure bookkeeping, not something an
+     * admin reviewing the audit trail needs to see (they cluttered the
+     * activity summary with second-precision timestamp diffs and multiplied
+     * row count without adding audit value).
+     */
+    protected static array $auditIgnore = [
+        'last_message_at',
+        'last_customer_reply_at',
+        'last_agent_reply_at',
+    ];
 
     protected $table = 'ticket';
     protected $primaryKey = 'ticket_id';
@@ -27,6 +41,16 @@ class Ticket extends Model
         static::creating(function (Ticket $ticket) {
             if (!$ticket->last_message_at) {
                 $ticket->last_message_at = $ticket->created_at ?? now();
+            }
+        });
+
+        // Re-snapshot the deliverable document checklist whenever the ticket
+        // gets its type for the first time or is reclassified — see
+        // TicketDeliverableRequirementSync. Deliberately NOT run on every
+        // save: only a type change should reset the checklist.
+        static::saved(function (Ticket $ticket) {
+            if ($ticket->wasRecentlyCreated || $ticket->wasChanged('ticket_type')) {
+                TicketDeliverableRequirementSync::sync($ticket);
             }
         });
     }
@@ -139,6 +163,8 @@ class Ticket extends Model
 
     // Relasi ke tabel modules (master). Nama relasi sengaja beda dari kolom
     // string `module` (legacy free text) supaya keduanya bisa diakses terpisah.
+    // Ini masih mengacu ke module_id TUNGGAL ("modul utama") — lihat modules()
+    // di bawah untuk daftar LENGKAP tiket yang sudah bisa multi-modul.
     public function moduleMaster()
     {
         return $this->belongsTo(Module::class, 'module_id', 'id');
@@ -149,6 +175,78 @@ class Ticket extends Model
     public function getModuleNameAttribute(): ?string
     {
         return $this->moduleMaster?->name ?? $this->module;
+    }
+
+    /**
+     * Nama SEMUA modul tiket ini, digabung koma — dipakai di tempat-tempat yang
+     * memang menampilkan modul tiket ke user (list, export, SLA, task, konteks
+     * AI) supaya tiket multi-modul tidak terlihat cuma 1 modul. Fallback ke
+     * teks lama (module) kalau belum ada satu pun baris di pivot ticket_module
+     * (tiket lama yang belum di-assign modul terstruktur).
+     */
+    public function getModuleNamesAttribute(): ?string
+    {
+        $names = $this->modules->pluck('name')->filter()->implode(', ');
+        return $names !== '' ? $names : $this->module;
+    }
+
+    /**
+     * Versi batch dari getModuleNamesAttribute() untuk caller yang punya baris
+     * ticket dari query builder mentah (bukan Eloquent, jadi relasi modules()
+     * tidak terjangkau) dan perlu nama modul banyak tiket sekaligus tanpa N+1 —
+     * lihat TaskController::list(). TIDAK menyertakan fallback ke `module` teks
+     * lama di sini (caller yang punya baris $ticket->module sendiri sudah bisa
+     * fallback ke situ, seperti TaskController melakukannya).
+     *
+     * @param array<int, int> $ticketIds
+     * @return \Illuminate\Support\Collection<int, string> keyed by ticket_id
+     */
+    public static function moduleNamesMapFor(array $ticketIds): \Illuminate\Support\Collection
+    {
+        if (empty($ticketIds)) {
+            return collect();
+        }
+
+        return \Illuminate\Support\Facades\DB::table('ticket_module')
+            ->join('modules', 'modules.id', '=', 'ticket_module.module_id')
+            ->whereIn('ticket_module.ticket_id', $ticketIds)
+            ->orderBy('modules.name')
+            ->get(['ticket_module.ticket_id', 'modules.name'])
+            ->groupBy('ticket_id')
+            ->map(fn ($rows) => $rows->pluck('name')->implode(', '));
+    }
+
+    /**
+     * Daftar LENGKAP modul tiket ini (satu tiket boleh menyentuh lebih dari
+     * satu modul) — lihat migrasi create_ticket_module_table. `module_id`
+     * (scalar, dipakai moduleMaster()/module_name di atas) tetap ada sebagai
+     * "modul utama" untuk kompatibilitas ~20 tempat lama yang cuma baca satu
+     * nilai; tabel ini yang jadi sumber kebenaran untuk daftar lengkapnya.
+     */
+    public function modules()
+    {
+        return $this->belongsToMany(Module::class, 'ticket_module', 'ticket_id', 'module_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * SATU-SATUNYA titik tulis untuk modul tiket — dipakai oleh semua jalur
+     * create/update/approve (TicketController, StagingTicketService) supaya
+     * "modul utama" (module_id) dan daftar lengkap (pivot ticket_module)
+     * TIDAK PERNAH bisa saling menyimpang. Modul utama otomatis mengikuti
+     * modul PERTAMA dalam daftar — bukan pilihan terpisah — supaya tempat
+     * lama yang cuma baca module_id tetap melihat sesuatu yang masuk akal
+     * tanpa perlu tahu apa-apa soal multi-modul.
+     *
+     * @param array<int, int|null> $moduleIds boleh memuat null/duplikat — dibuang sebelum disimpan
+     */
+    public function syncModules(array $moduleIds): void
+    {
+        $moduleIds = array_values(array_unique(array_filter($moduleIds)));
+
+        $this->modules()->sync($moduleIds);
+        $this->module_id = $moduleIds[0] ?? null;
+        $this->save();
     }
 
     public function endCustomer()
@@ -423,6 +521,17 @@ class Ticket extends Model
     {
         return $this->hasMany(TicketMessage::class, 'ticket_id', 'ticket_id')
             ->orderBy('created_at', 'asc');
+    }
+
+    /**
+     * Snapshotted deliverable-document requirements for this ticket — see
+     * App\Services\TicketDeliverableRequirementSync and the `saved` hook in
+     * booted() below, which (re)populates this whenever ticket_type is set
+     * or changed.
+     */
+    public function deliverableRequirements()
+    {
+        return $this->hasMany(TicketDeliverableRequirement::class, 'ticket_id', 'ticket_id');
     }
 
     // Relasi ke Delivery Support melalui activities

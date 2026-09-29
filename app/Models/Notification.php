@@ -88,6 +88,8 @@ class Notification extends Model
             'ticket_reply'                 => $from . ' replied to a ticket',
             'mention'                      => $from . ' mentioned you',
             'timesheet_reminder'           => 'Timesheet reminder',
+            'security_alert'               => 'Security alert',
+            'schedule_alert'               => 'Scheduled task alert',
             default                        => $from . ' sent you a notification',
         };
     }

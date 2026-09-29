@@ -62,7 +62,21 @@ final class AiModelSettings
     public const TICKET_ANALYZER = 'ticket_analyzer';
 
     /**
-     * Tombol "AI Summarize" di daftar tiket (AiTicketSummaryService).
+     * Tanya-jawab interaktif di panel AI Analyzer saat validasi staging ticket
+     * (AiTicketQaService) — entri TERPISAH dari TICKET_ANALYZER meski sama-sama
+     * dipakai di layar yang sama, karena keduanya beda driver & beban kerja:
+     * TICKET_ANALYZER lewat TicketAnalysisDriver (Agent Skill + code execution,
+     * satu giliran, bisa makan waktu menitan), sedangkan ini lewat ChatDriver
+     * (streaming, banyak giliran cepat, tanpa tool). Menumpang konfigurasi
+     * TICKET_ANALYZER berarti tanya-jawab ringan ikut memakai model/effort yang
+     * dipilih untuk triage berat (default opus-5/high) tanpa bisa diatur
+     * terpisah — pola yang sama seperti TICKET_SUMMARY yang sengaja dipisah
+     * dari INTERNAL (lihat docblock konstanta itu).
+     */
+    public const TICKET_QA = 'ticket_qa';
+
+    /**
+     * Tombol "AI Summarize" di panel kanan halaman detail tiket (AiTicketSummaryService).
      *
      * Punya entri SENDIRI sejak Agustus 2026. Sebelumnya fitur ini menumpang
      * konfigurasi AI Assistant (INTERNAL) dan diam-diam jatuh ke konfigurasi AI
@@ -235,10 +249,19 @@ final class AiModelSettings
             'max_tokens' => 4096,
             'effort' => 'high',
         ],
+        self::TICKET_QA => [
+            // Sonnet 5/medium, bukan opus-5/high milik TICKET_ANALYZER --
+            // ini tanya-jawab bolak-balik cepat atas konteks yang sudah
+            // disiapkan (bukan triage berat dari nol), jadi tidak butuh
+            // model paling kuat untuk terasa responsif.
+            'model' => 'claude-sonnet-5',
+            'max_tokens' => 2048,
+            'effort' => 'medium',
+        ],
         self::TICKET_SUMMARY => [
             // OpenAI, bukan Claude: ringkasan tiket adalah fitur bervolume
             // paling tinggi di antara semua asisten (satu klik per tiket, oleh
-            // siapa pun yang membuka daftar tiket), dan gpt-5.6-terra memberi
+            // siapa pun yang membuka tiketnya), dan gpt-5.6-terra memberi
             // web search yang sama dengan harga per token jauh di bawah Opus 5.
             'model' => 'gpt-5.6-terra',
             // 16000 = angka yang dulu dipatok mati di dalam
@@ -373,23 +396,11 @@ final class AiModelSettings
      * (TICKET_SUMMARY, dijamin ber-server-tool oleh sanitize()), pemeriksaan itu
      * tidak dibutuhkan lagi — tapi helper-nya dipertahankan karena ini satu-
      * satunya cara membaca flag `server_tools` untuk SATU model dari luar kelas
-     * ini (requiresServerTools() menjawab pertanyaan berbeda: per asisten).
+     * ini.
      */
     public static function supportsServerTools(string $model): bool
     {
         return (bool) (self::CATALOG[$model]['server_tools'] ?? false);
-    }
-
-    /**
-     * Apakah asisten ini dibatasi ke model ber-server-tool?
-     *
-     * Dipakai form admin supaya keterangan "cuma model dengan web search yang
-     * ditawarkan" muncul di baris yang memang dibatasi — tanpa menyalin lagi
-     * daftar NEEDS_SERVER_TOOLS ke dalam Blade.
-     */
-    public static function requiresServerTools(string $assistant): bool
-    {
-        return in_array($assistant, self::NEEDS_SERVER_TOOLS, true);
     }
 
     public static function catalog(): array
@@ -403,7 +414,8 @@ final class AiModelSettings
             self::RESEARCH => 'AI Research',
             self::INTERNAL => 'AI Assistant',
             self::TICKET_ANALYZER => 'Ticket Analyzer',
-            self::TICKET_SUMMARY => 'AI Summarize (Daftar Tiket)',
+            self::TICKET_QA => 'Ticket Q&A (Staging Validation)',
+            self::TICKET_SUMMARY => 'AI Summarize (Detail Tiket)',
             self::WORD_REPORT => 'Word Report Generator (Struktur & Data)',
             self::WORD_REPORT_DOCUMENT => 'Word Report Generator (Susun Dokumen)',
         ];

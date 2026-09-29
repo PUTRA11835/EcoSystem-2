@@ -84,7 +84,7 @@ Route::middleware(['web'])->group(function () {
     // ==================== AUTH ROUTES (PUBLIC — no session required) ====================
     Route::prefix('auth')->group(function () {
         Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
-        Route::post('/logout', [AuthController::class, 'logout']);
+        Route::post('/logout', [AuthController::class, 'logout'])->name('api.auth.logout');
         Route::get('/me', [AuthController::class, 'me']);
     });
 
@@ -108,6 +108,7 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/{id}', [EmployeeController::class, 'destroy'])->middleware('menu:master.employee.action');
         Route::post('/{id}/delete', [EmployeeController::class, 'destroy'])->middleware('menu:master.employee.action');
         Route::patch('/{id}/change-password', [EmployeeController::class, 'changePassword'])->middleware('menu:master.employee.action');
+        Route::patch('/{id}/change-eci', [EmployeeController::class, 'changeEci'])->middleware('menu:master.employee.action');
         Route::patch('/{id}/change-role', [EmployeeController::class, 'changeRole'])->middleware('menu:master.employee.action');
     });
 
@@ -363,6 +364,23 @@ Route::middleware(['web'])->group(function () {
         Route::patch('/{contactId}/toggle-view-all', [CustomerContactController::class, 'toggleViewAllTickets'])->middleware('customer.section:contact');
     });
 
+    // Customer Contact Groups — shared ticket visibility between Member-level contacts.
+    // Gated by its own slug (customer.section.contact.group), NOT the general
+    // customer.section.contact.update ability — being able to edit a contact's
+    // details doesn't automatically mean being able to reshape ticket visibility
+    // between contacts. New slug = admin-only by default (see MenuRegistrar);
+    // other roles are granted explicitly via Control Center → Menu Access.
+    Route::prefix('customers/{customerId}/contact-groups')->group(function () {
+        Route::get('/', [CustomerContactController::class, 'groups']);
+        Route::post('/', [CustomerContactController::class, 'createGroup'])->middleware('customer.section:contact,group');
+        Route::put('/{groupId}', [CustomerContactController::class, 'renameGroup'])->middleware('customer.section:contact,group');
+        Route::delete('/{groupId}', [CustomerContactController::class, 'deleteGroup'])->middleware('customer.section:contact,group');
+        Route::post('/{groupId}/delete', [CustomerContactController::class, 'deleteGroup'])->middleware('customer.section:contact,group');
+        Route::post('/{groupId}/members', [CustomerContactController::class, 'addGroupMember'])->middleware('customer.section:contact,group');
+        Route::delete('/{groupId}/members/{contactId}', [CustomerContactController::class, 'removeGroupMember'])->middleware('customer.section:contact,group');
+        Route::post('/{groupId}/members/{contactId}/delete', [CustomerContactController::class, 'removeGroupMember'])->middleware('customer.section:contact,group');
+    });
+
     // Customer Identification endpoints
     Route::prefix('customers/{customerId}/identifications')->group(function () {
         Route::get('/', [CustomerIdentificationController::class, 'index']);
@@ -428,6 +446,7 @@ Route::middleware(['web'])->group(function () {
     // ==================== STAGING TICKET ROUTES ====================
     Route::prefix('staging-tickets')->group(function () {
         Route::get('/statistics', [StagingTicketController::class, 'statistics']);
+        Route::get('/latest-update', [StagingTicketController::class, 'latestUpdate']);
         Route::get('/', [StagingTicketController::class, 'index']);
         Route::post('/', [StagingTicketController::class, 'store']);
         Route::get('/{id}', [StagingTicketController::class, 'show']);
@@ -437,6 +456,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/approve', [StagingTicketController::class, 'approve']);
         Route::post('/{id}/reject', [StagingTicketController::class, 'reject']);
         Route::post('/{id}/analyze', [StagingTicketController::class, 'analyze']);
+        Route::post('/{id}/ask', [StagingTicketController::class, 'ask']);
     });
 
     // ==================== TICKET ROUTES ====================
@@ -497,8 +517,10 @@ Route::middleware(['web'])->group(function () {
 
         // ==================== DELIVERABLE ROUTES ====================
         Route::get('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'index']);
+        Route::post('/{id}/deliverables/upload-session', [\App\Http\Controllers\TicketDeliverableController::class, 'createUploadSession']);
         Route::post('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'store']);
         Route::patch('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'update']);
+        Route::post('/{id}/deliverables/send', [\App\Http\Controllers\TicketDeliverableController::class, 'sendBatch']);
         Route::patch('/{id}/deliverables/{delivId}/send', [\App\Http\Controllers\TicketDeliverableController::class, 'send']);
         Route::delete('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'destroy']);
         Route::post('/{id}/deliverables/{delivId}/delete', [\App\Http\Controllers\TicketDeliverableController::class, 'destroy']);
@@ -611,7 +633,18 @@ Route::middleware(['web'])->group(function () {
         Route::get('/diagram-report/ticket-by-cr-per-month', [\App\Http\Controllers\ReportingController::class, 'diagramTicketByCrPerMonth']);
         Route::get('/diagram-report/ticket-closed-per-month', [\App\Http\Controllers\ReportingController::class, 'diagramTicketClosedPerMonth']);
         Route::get('/log-shifting', [\App\Http\Controllers\ReportingController::class, 'logShifting']);
+        // Harus di atas /log-shifting/{ticketId} supaya "notes" tidak ketangkap sebagai ticketId.
+        Route::get('/log-shifting/notes', [\App\Http\Controllers\ReportingController::class, 'logShiftingNotes']);
         Route::get('/log-shifting/{ticketId}', [\App\Http\Controllers\ReportingController::class, 'logShiftingDetail']);
+        // Weekly Consolidation — path literal harus di atas /weekly-consolidation/{id}
+        // supaya "modules"/"preview" tidak ketangkap sebagai id batch.
+        Route::get('/weekly-consolidation/modules', [\App\Http\Controllers\WeeklyConsolidationController::class, 'modules']);
+        Route::get('/weekly-consolidation/preview', [\App\Http\Controllers\WeeklyConsolidationController::class, 'preview']);
+        Route::get('/weekly-consolidation', [\App\Http\Controllers\WeeklyConsolidationController::class, 'history']);
+        Route::post('/weekly-consolidation', [\App\Http\Controllers\WeeklyConsolidationController::class, 'generate']);
+        Route::get('/weekly-consolidation/{id}', [\App\Http\Controllers\WeeklyConsolidationController::class, 'show']);
+        Route::post('/weekly-consolidation/{id}/refresh', [\App\Http\Controllers\WeeklyConsolidationController::class, 'refresh']);
+        Route::post('/weekly-consolidation/{id}/tickets/{ticketId}/notes', [\App\Http\Controllers\WeeklyConsolidationController::class, 'updateNote']);
         Route::get('/resolution-days', [\App\Http\Controllers\ReportingController::class, 'resolutionDays']);
         // Consultant Assignment — daftar consultant yang tergabung di Delivery Project.
         // Izinnya diperiksa di controller lewat Employee::canAccessMenu().
@@ -625,6 +658,10 @@ Route::middleware(['web'])->group(function () {
         Route::get('/resource-timeline/entries',       [\App\Http\Controllers\ResourceTimelineController::class, 'entries']);
         Route::post('/resource-timeline/entries',      [\App\Http\Controllers\ResourceTimelineController::class, 'upsertEntries']);
         Route::post('/resource-timeline/entries/delete', [\App\Http\Controllers\ResourceTimelineController::class, 'deleteEntries']);
+
+        // Customer MD — tiket type CR dan/atau yang punya Customer Mandays proposal.
+        // Izinnya diperiksa di controller lewat Employee::canAccessMenu().
+        Route::get('/customer-md', [\App\Http\Controllers\ReportingController::class, 'customerMd']);
     });
 
     // ==================== NOTIFICATION ROUTES ====================
@@ -702,6 +739,18 @@ Route::middleware(['web'])->group(function () {
         Route::delete('/sessions', [AdminSessionController::class, 'destroyAll']);
         Route::post('/sessions/delete-all', [AdminSessionController::class, 'destroyAll']);
 
+        // Security Center
+        Route::get('/security-events', [\App\Http\Controllers\SecurityCenterController::class, 'getData']);
+        Route::get('/security-events/event-types', [\App\Http\Controllers\SecurityCenterController::class, 'eventTypes']);
+        Route::get('/security-events/blocked-ips', [\App\Http\Controllers\SecurityCenterController::class, 'blockedIps']);
+        Route::get('/security-events/top-offenders', [\App\Http\Controllers\SecurityCenterController::class, 'topOffenders']);
+        Route::get('/security-events/export', [\App\Http\Controllers\SecurityCenterController::class, 'exportCsv']);
+        Route::post('/security-events/{id}/resolve', [\App\Http\Controllers\SecurityCenterController::class, 'resolve']);
+        Route::post('/security-events/unlock-account', [\App\Http\Controllers\SecurityCenterController::class, 'unlockAccount']);
+        Route::post('/security-events/block-ip', [\App\Http\Controllers\SecurityCenterController::class, 'blockIp']);
+        Route::post('/security-events/unblock-ip', [\App\Http\Controllers\SecurityCenterController::class, 'unblockIp']);
+        Route::post('/security-events/force-logout', [\App\Http\Controllers\SecurityCenterController::class, 'forceLogoutAccount']);
+
         // DB Backup
         Route::get('/backup/list', [AdminBackupController::class, 'listBackups']);
         Route::post('/backup/create', [AdminBackupController::class, 'createBackup']);
@@ -723,6 +772,7 @@ Route::middleware(['web'])->group(function () {
 
         // Failed Job Monitor
         Route::get('/failed-jobs', [AdminJobController::class, 'index']);
+        Route::get('/failed-jobs/queues', [AdminJobController::class, 'queues']);
         Route::get('/failed-jobs/{uuid}', [AdminJobController::class, 'show']);
         Route::post('/failed-jobs/{uuid}/retry', [AdminJobController::class, 'retry']);
         Route::post('/failed-jobs/retry-all', [AdminJobController::class, 'retryAll']);
@@ -730,6 +780,12 @@ Route::middleware(['web'])->group(function () {
         Route::post('/failed-jobs/{uuid}/delete', [AdminJobController::class, 'destroy']);
         Route::delete('/failed-jobs', [AdminJobController::class, 'clearAll']);
         Route::post('/failed-jobs/clear', [AdminJobController::class, 'clearAll']);
+
+        // Schedule Monitor
+        Route::get('/schedule-monitor', [\App\Http\Controllers\ScheduleMonitorController::class, 'index']);
+        Route::get('/schedule-monitor/runs', [\App\Http\Controllers\ScheduleMonitorController::class, 'getRuns']);
+        Route::get('/schedule-monitor/queue-health', [\App\Http\Controllers\ScheduleMonitorController::class, 'queueHealth']);
+        Route::get('/schedule-monitor/disk-usage', [\App\Http\Controllers\ScheduleMonitorController::class, 'diskUsage']);
     });
 
     // ── SLA ────────────────────────────────────────────────────────────────
@@ -790,6 +846,22 @@ Route::middleware(['web'])->group(function () {
     Route::put('/management/holidays/{id}',    [\App\Http\Controllers\HolidayManagementController::class, 'update']);
     Route::delete('/management/holidays/{id}', [\App\Http\Controllers\HolidayManagementController::class, 'destroy']);
     Route::post('/management/holidays/{id}/delete', [\App\Http\Controllers\HolidayManagementController::class, 'destroy']);
+
+    // Dropdown config management (Manajemen → Employee → Dropdown Settings) —
+    // generic Employee Information dropdown master data (Position, Division,
+    // Personnel Area/Subarea, Employee Group/Subgroup, Department, and any new
+    // dropdown type added later). See App\Models\DropdownConfig.
+    Route::get('/management/dropdown-configs',              [\App\Http\Controllers\DropdownConfigController::class, 'index']);
+    Route::post('/management/dropdown-configs',              [\App\Http\Controllers\DropdownConfigController::class, 'store']);
+    Route::put('/management/dropdown-configs/{id}',          [\App\Http\Controllers\DropdownConfigController::class, 'update']);
+    Route::delete('/management/dropdown-configs/{id}',       [\App\Http\Controllers\DropdownConfigController::class, 'destroy']);
+    Route::post('/management/dropdown-configs/{id}/delete',  [\App\Http\Controllers\DropdownConfigController::class, 'destroy']);
+
+    Route::get('/management/dropdown-configs/{id}/values',                     [\App\Http\Controllers\DropdownConfigController::class, 'values']);
+    Route::post('/management/dropdown-configs/{id}/values',                    [\App\Http\Controllers\DropdownConfigController::class, 'storeValue']);
+    Route::put('/management/dropdown-configs/{id}/values/{valueId}',           [\App\Http\Controllers\DropdownConfigController::class, 'updateValue']);
+    Route::delete('/management/dropdown-configs/{id}/values/{valueId}',        [\App\Http\Controllers\DropdownConfigController::class, 'destroyValue']);
+    Route::post('/management/dropdown-configs/{id}/values/{valueId}/delete',   [\App\Http\Controllers\DropdownConfigController::class, 'destroyValue']);
 
     // Employee ↔ Role assignment
     // Menentukan role seseorang = menentukan izinnya, jadi digate sama dengan

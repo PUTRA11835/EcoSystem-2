@@ -4,7 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Services\LoginSecurityService;
 use App\Traits\Auditable;
+use Illuminate\Support\Facades\Log;
 
 class EmployeeBasicData extends Model
 {
@@ -198,6 +200,40 @@ class EmployeeBasicData extends Model
             // Always update last_changed_on when updating
             if ($model->exists && $model->isDirty()) {
                 $model->last_changed_on = now();
+            }
+        });
+
+        // Block/deletion-flag can be set from several controller entry points
+        // (full upsert, partial update, and the dedicated toggle/soft-delete
+        // actions) - a single model-level hook covers all of them instead of
+        // relying on every write path to remember to do this. Only a false->true
+        // transition matters: unblocking, or saving with the flag already true,
+        // must not kill sessions again.
+        static::updated(function ($model) {
+            $justBlocked = $model->wasChanged('block') && $model->block;
+            $justDeleted = $model->wasChanged('deletion_flag') && $model->deletion_flag;
+
+            if (!$justBlocked && !$justDeleted) {
+                return;
+            }
+
+            try {
+                $count = app(LoginSecurityService::class)->killSessionsForEmployee((int) $model->employee_id);
+
+                if ($count > 0) {
+                    Log::info('EmployeeBasicData: killed active sessions on block/deletion', [
+                        'employee_id' => $model->employee_id,
+                        'reason'      => $justBlocked ? 'block' : 'deletion_flag',
+                        'by'          => $model->last_changed_by,
+                        'count'       => $count,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                // Never let this break the block/delete action itself.
+                Log::warning('EmployeeBasicData: failed to kill sessions on block/deletion', [
+                    'employee_id' => $model->employee_id,
+                    'error'       => $e->getMessage(),
+                ]);
             }
         });
     }

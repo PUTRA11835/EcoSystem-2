@@ -44,8 +44,7 @@ class ActivityLogController extends Controller
         $dateFrom = $request->input('date_from', '');
         $dateTo   = $request->input('date_to', '');
 
-        $query = DB::table('login_activity')
-            ->orderByDesc('activity_id');
+        $query = DB::table('login_activity');
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -72,6 +71,21 @@ class ActivityLogController extends Controller
 
         if ($dateTo !== '') {
             $query->whereDate('created_at', '<=', $dateTo);
+        }
+
+        // Allowlisted sort columns only - never pass the request value straight into orderBy().
+        $sortColumns = [
+            'user_name' => 'user_name',
+            'status'    => 'status',
+            'ip'        => 'ip_address',
+            'location'  => 'location_country',
+            'time'      => 'created_at',
+        ];
+        $sortBy  = $sortColumns[$request->input('sort_by')] ?? 'activity_id';
+        $sortDir = $request->input('sort_dir') === 'asc' ? 'asc' : 'desc';
+        $query->orderBy($sortBy, $sortDir);
+        if ($sortBy !== 'activity_id') {
+            $query->orderByDesc('activity_id'); // stable tie-break
         }
 
         $total   = $query->count();

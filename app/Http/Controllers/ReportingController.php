@@ -3,15 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Exports\CustomerMdExport;
+use App\Exports\LogShiftingExport;
 use App\Exports\MdRecapExport;
+use App\Exports\MdRecapSummaryExport;
 use App\Exports\ResolutionDaysExport;
 use App\Exports\TicketByModuleExport;
 use App\Exports\TimesheetReportExport;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\CustomerMandays;
+use App\Models\DeliveryProject;
+use App\Models\DeliverySupport;
+use App\Models\DeliverySupportActivity;
 use App\Models\ReportingPeriod;
 use App\Models\Ticket;
+use App\Models\TicketMessage;
 use App\Services\PeriodService;
 use App\Support\SessionUser;
 use Carbon\Carbon;
@@ -386,6 +393,48 @@ class ReportingController extends Controller
 
     // ── Web: MD Recap page ────────────────────────────────────────────────
 
+    /**
+     * Resolve a human-readable "Delivery" label per timesheet row for MD Recap.
+     * Priority: `delivery_projects_id` (already joined as delivery_project_name)
+     * → project name; else `ticket_id` → the Delivery Support linked to that
+     * ticket via delivery_support_activities; else "Unassigned".
+     *
+     * Done as a separate lookup rather than another JOIN so a ticket that ever
+     * ends up linked to more than one delivery_support_activities row can't
+     * multiply the timesheet rows (each timesheet must stay exactly one row).
+     */
+    private function attachDeliveryNames(\Illuminate\Support\Collection $rows): \Illuminate\Support\Collection
+    {
+        $ticketIds = $rows
+            ->filter(fn($r) => empty($r->delivery_project_name) && !empty($r->ticket_id))
+            ->pluck('ticket_id')
+            ->unique()
+            ->values();
+
+        $ticketToSupportName = [];
+        if ($ticketIds->isNotEmpty()) {
+            $activities = DeliverySupportActivity::whereIn('ticket_id', $ticketIds)
+                ->whereNotNull('delivery_support_id')
+                ->select('ticket_id', 'delivery_support_id')
+                ->get()
+                ->unique('ticket_id'); // one Delivery Support per ticket — first match wins
+
+            $supportNames = DeliverySupport::whereIn('id', $activities->pluck('delivery_support_id')->unique())
+                ->pluck('name', 'id');
+
+            foreach ($activities as $activity) {
+                $ticketToSupportName[$activity->ticket_id] = $supportNames[$activity->delivery_support_id] ?? null;
+            }
+        }
+
+        return $rows->map(function ($r) use ($ticketToSupportName) {
+            $r->delivery = $r->delivery_project_name
+                ?: ($ticketToSupportName[$r->ticket_id] ?? null)
+                ?: 'Unassigned';
+            return $r;
+        });
+    }
+
     public function mdRecapIndex()
     {
         $sessionUser = session('user');
@@ -416,6 +465,7 @@ class ReportingController extends Controller
             $query = DB::table('timesheets')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
+                ->leftJoin('delivery_projects', 'timesheets.delivery_projects_id', '=', 'delivery_projects.id')
                 ->where('timesheets.status', 'approved')
                 ->whereNull('timesheets.deleted_at');
 
@@ -437,6 +487,8 @@ class ReportingController extends Controller
                 ->select(
                     'timesheets.id',
                     'timesheets.date',
+                    'timesheets.ticket_id',
+                    'delivery_projects.name as delivery_project_name',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     DB::raw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END as mode"),
                     DB::raw('COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0) as mandays')
@@ -445,12 +497,15 @@ class ReportingController extends Controller
                 ->orderBy('timesheets.date')
                 ->get();
 
+            $rows = $this->attachDeliveryNames($rows);
+
             $data = $rows->map(fn($r) => [
-                'id'      => $r->id,
-                'name'    => trim($r->employee_name),
-                'date'    => $r->date,
-                'mode'    => $r->mode,
-                'mandays' => round((float) $r->mandays, 2),
+                'id'       => $r->id,
+                'name'     => trim($r->employee_name),
+                'date'     => $r->date,
+                'mode'     => $r->mode,
+                'mandays'  => round((float) $r->mandays, 2),
+                'delivery' => $r->delivery,
             ]);
 
             return response()->json(['success' => true, 'data' => $data]);
@@ -464,6 +519,103 @@ class ReportingController extends Controller
     // ── Web: MD Recap export ──────────────────────────────────────────────
 
     public function exportMdRecap(Request $request)
+    {
+        try {
+            $sessionUser   = session('user');
+            $currentRoleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+            $allowed        = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
+
+            if (empty(array_intersect($currentRoleIds, $allowed))) {
+                abort(403, 'Access denied. Only Admins and Head of Support can export the MD recap.');
+            }
+
+            $filterName  = trim($request->input('name', ''));
+            $filterMode  = trim($request->input('mode', ''));
+            $filterMonth = (int) $request->input('month', 0);
+            $filterYear  = (int) $request->input('year',  0);
+
+            $query = DB::table('timesheets')
+                ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
+                ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
+                ->leftJoin('delivery_projects', 'timesheets.delivery_projects_id', '=', 'delivery_projects.id')
+                ->where('timesheets.status', 'approved')
+                ->whereNull('timesheets.deleted_at');
+
+            if ($filterMonth && $filterYear) {
+                $range = ReportingPeriod::dateRange($filterYear, $filterMonth);
+                $query->whereBetween('timesheets.date', [
+                    $range['start']->format('Y-m-d'),
+                    $range['end']->format('Y-m-d'),
+                ]);
+            } elseif ($filterMonth) {
+                $query->whereMonth('timesheets.date', $filterMonth);
+            } elseif ($filterYear) {
+                $query->whereYear('timesheets.date', $filterYear);
+            }
+            if ($filterName !== '') {
+                $query->whereRaw(
+                    "LOWER(TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,'')))) LIKE ?",
+                    ['%' . strtolower($filterName) . '%']
+                );
+            }
+            if ($filterMode !== '') {
+                $query->whereRaw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END = ?", [$filterMode]);
+            }
+
+            $rows = $query
+                ->select(
+                    'timesheets.date',
+                    'timesheets.ticket_id',
+                    'delivery_projects.name as delivery_project_name',
+                    DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
+                    DB::raw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END as mode"),
+                    DB::raw('COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0) as mandays')
+                )
+                ->orderByRaw('employee_name')
+                ->orderBy('timesheets.date')
+                ->get();
+
+            $rows = $this->attachDeliveryNames($rows);
+
+            // Aggregate: same employee + same mode + same delivery → one merged row.
+            // A single employee can log mandays against different deliveries within
+            // the same period, so grouping by delivery too keeps each one on its
+            // own row instead of blending unrelated work into one total.
+            $exportRows = $rows
+                ->groupBy(fn($r) => trim($r->employee_name) . '||' . $r->mode . '||' . $r->delivery)
+                ->map(fn($group) => [
+                    'name'     => trim($group->first()->employee_name),
+                    'mode'     => $group->first()->mode,
+                    'delivery' => $group->first()->delivery,
+                    'entries'  => $group->count(),
+                    'mandays'  => round((float) $group->sum(fn($r) => (float) $r->mandays), 2),
+                ])
+                ->sortBy([['name', 'asc'], ['mode', 'asc'], ['delivery', 'asc']])
+                ->values();
+
+            $periodSuffix = ($filterMonth && $filterYear)
+                ? '_' . $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT)
+                : '_' . now()->format('Y-m-d');
+            $filename = 'MD_Recap_Export' . $periodSuffix . '.xlsx';
+
+            return Excel::download(new MdRecapExport(collect($exportRows)), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportMdRecap error');
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // ── Web: MD Recap export (Summary — no Delivery breakdown) ─────────────
+
+    /**
+     * Same filters/access as exportMdRecap(), but grouped by employee + mode
+     * only (no Delivery column/join): one name with two modes stays two rows,
+     * one name with a single mode is merged into one row with the summed
+     * mandays. Added alongside exportMdRecap() as a separate endpoint/export
+     * class so the existing "with Delivery" export stays untouched.
+     */
+    public function exportMdRecapSummary(Request $request)
     {
         try {
             $sessionUser   = session('user');
@@ -508,7 +660,6 @@ class ReportingController extends Controller
 
             $rows = $query
                 ->select(
-                    'timesheets.date',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     DB::raw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END as mode"),
                     DB::raw('COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0) as mandays')
@@ -517,14 +668,15 @@ class ReportingController extends Controller
                 ->orderBy('timesheets.date')
                 ->get();
 
-            // Aggregate: same employee + same mode → one merged row
+            // Aggregate: same employee + same mode → one merged row (no Delivery
+            // split). Different modes for the same person stay on separate rows.
             $exportRows = $rows
                 ->groupBy(fn($r) => trim($r->employee_name) . '||' . $r->mode)
                 ->map(fn($group) => [
-                    'name'    => trim($group->first()->employee_name),
-                    'mode'    => $group->first()->mode,
-                    'entries' => $group->count(),
-                    'mandays' => round((float) $group->sum(fn($r) => (float) $r->mandays), 2),
+                    'name'     => trim($group->first()->employee_name),
+                    'mode'     => $group->first()->mode,
+                    'entries'  => $group->count(),
+                    'mandays'  => round((float) $group->sum(fn($r) => (float) $r->mandays), 2),
                 ])
                 ->sortBy([['name', 'asc'], ['mode', 'asc']])
                 ->values();
@@ -532,12 +684,12 @@ class ReportingController extends Controller
             $periodSuffix = ($filterMonth && $filterYear)
                 ? '_' . $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT)
                 : '_' . now()->format('Y-m-d');
-            $filename = 'MD_Recap_Export' . $periodSuffix . '.xlsx';
+            $filename = 'MD_Recap_Summary_Export' . $periodSuffix . '.xlsx';
 
-            return Excel::download(new MdRecapExport(collect($exportRows)), $filename);
+            return Excel::download(new MdRecapSummaryExport(collect($exportRows)), $filename);
 
         } catch (\Exception $e) {
-            Log::error('exportMdRecap error');
+            Log::error('exportMdRecapSummary error');
             abort(500, $e->getMessage());
         }
     }
@@ -635,6 +787,166 @@ class ReportingController extends Controller
 
         } catch (\Exception $e) {
             Log::error('exportResolutionDays error', ['msg' => $e->getMessage()]);
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // ── Web: Customer MD page ───────────────────────────────────────────────
+
+    public function customerMdIndex()
+    {
+        $sessionUser = SessionUser::fromSession(session('user'));
+        if (!$sessionUser) {
+            return redirect()->route('login');
+        }
+
+        $employee = \App\Models\Employee::find($sessionUser->id);
+        if (!$employee || !$employee->canAccessMenu('reporting.customer-md')) {
+            abort(403, 'Access denied.');
+        }
+
+        return view('reporting.customer-md', ['user' => session('user')]);
+    }
+
+    /**
+     * Label tampilan status Customer Mandays untuk report ini. Hanya 5 status
+     * yang relevan — "approved" SENGAJA tidak termasuk: begitu Customer Mandays
+     * disetujui, tiketnya dianggap selesai tahap proposal dan tidak lagi
+     * ditampilkan di report tracking ini (lihat customerMdRows()).
+     *
+     * "Review by Module Lead" = label untuk status `pending_helpdesk` (proposal
+     * sudah disubmit PIC/Ticket Lead, sedang direview sebelum dikirim ke
+     * customer) — penamaan mengikuti istilah yang dipakai user, bukan nama
+     * status di database.
+     */
+    private const CUSTOMER_MD_STATUS_LABELS = [
+        'none'             => 'None',
+        'pic_draft'        => 'Draft',
+        'pending_helpdesk' => 'Review by Module Lead',
+        'sent_to_chat'     => 'Review by Customer',
+        'canceled'         => 'Cancel',
+    ];
+
+    /**
+     * Baris report Customer MD, dipakai bareng oleh endpoint JSON dan Export
+     * supaya keduanya selalu melihat data yang identik (single source of truth).
+     *
+     * Cakupan: semua tiket yang type-nya Change Request DAN/ATAU sudah punya
+     * Customer Mandays proposal (mandays_proposal_status bukan null/none),
+     * KECUALI yang sudah Approved — begitu disetujui, tiketnya keluar dari
+     * tracking report ini (lihat CUSTOMER_MD_STATUS_LABELS).
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function customerMdRows(): \Illuminate\Support\Collection
+    {
+        $tickets = Ticket::with(['customer.basicData', 'ticketLead.basicData'])
+            ->whereNull('deleted_at')
+            ->whereNull('is_hidden')
+            ->where(function ($q) {
+                // "Punya Customer Mandays" berarti statusnya bukan 'none' — kolom ini
+                // TIDAK PERNAH benar-benar NULL di DB (defaultnya string 'none'), jadi
+                // whereNotNull() di sini akan salah menangkap SEMUA tiket. whereNull()
+                // tetap disertakan sebagai jaga-jaga kalau skema kolom berubah nullable.
+                $q->where('ticket_type', 'Change Request')
+                  ->orWhere(function ($q2) {
+                      $q2->whereNotNull('mandays_proposal_status')
+                         ->where('mandays_proposal_status', '!=', 'none');
+                  });
+            })
+            ->where(function ($q) {
+                $q->whereNull('mandays_proposal_status')
+                  ->orWhere('mandays_proposal_status', '!=', 'approved');
+            })
+            ->orderByDesc('created_at')
+            ->get(['ticket_id', 'ticket_number', 'description', 'ticket_type', 'customer_id', 'ticket_lead_id', 'mandays_proposal_status', 'created_at']);
+
+        $ticketIds = $tickets->pluck('ticket_id');
+
+        // Satu tiket cuma bisa punya satu Delivery Support aktif (lihat
+        // [[project_changes_2026_07_02]] — aturan "one-DS-per-ticket").
+        $deliveryMap = DeliverySupportActivity::with('deliverySupport')
+            ->whereIn('ticket_id', $ticketIds)
+            ->whereNotNull('ticket_id')
+            ->get()
+            ->keyBy('ticket_id');
+
+        // Latest version's proposed total per ticket (a ticket can have several
+        // draft/revision versions — only the newest one reflects the current proposal).
+        $mandaysMap = CustomerMandays::whereIn('ticket_id', $ticketIds)
+            ->orderByDesc('version')
+            ->get()
+            ->unique('ticket_id')
+            ->keyBy('ticket_id');
+
+        return $tickets->map(function (Ticket $ticket) use ($deliveryMap, $mandaysMap) {
+            $status = $ticket->mandays_proposal_status ?: 'none';
+
+            return [
+                'ticket_id'     => $ticket->ticket_id,
+                'ticket_number' => $ticket->ticket_number,
+                'description'   => $ticket->description,
+                'ticket_type'   => $ticket->ticket_type,
+                'customer_name' => $ticket->customer?->basicData?->name_1 ?? $ticket->customer?->email,
+                'delivery_name' => $deliveryMap->get($ticket->ticket_id)?->deliverySupport?->name,
+                // ?: null (bukan cuma ?? null) — trim() bisa hasilkan '' kalau ticketLead
+                // ada tapi basicData-nya kosong; '' ?? 'Unassigned' di CustomerMdExport
+                // tidak akan trigger karena '' bukan null, jadi harus dinormalisasi di sini.
+                'lead_name'     => $ticket->ticketLead
+                    ? (trim(($ticket->ticketLead->basicData?->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData?->last_name ?? '')) ?: null)
+                    : null,
+                'md_status'         => $status,
+                'md_status_label'   => self::CUSTOMER_MD_STATUS_LABELS[$status] ?? $status,
+                'customer_mandays'  => ($mandays = $mandaysMap->get($ticket->ticket_id)?->total_mandays) !== null ? (float) $mandays : null,
+                'created_at'        => $ticket->created_at,
+            ];
+        })->values();
+    }
+
+    // ── API: Customer MD data ───────────────────────────────────────────────
+
+    public function customerMd(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.customer-md')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            return response()->json(['success' => true, 'data' => $this->customerMdRows()]);
+
+        } catch (\Exception $e) {
+            Log::error('customerMd error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load Customer MD data. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Customer MD export ──────────────────────────────────────────────
+
+    public function exportCustomerMd(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.customer-md')) {
+                abort(403, 'Access denied.');
+            }
+
+            $filename = 'Customer_MD_Export_' . now()->timezone('Asia/Jakarta')->format('dmY') . '.xlsx';
+
+            return Excel::download(new CustomerMdExport($this->customerMdRows()), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportCustomerMd error: ' . $e->getMessage());
             abort(500, $e->getMessage());
         }
     }
@@ -1459,22 +1771,25 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($seriesLabels, 0);
             }
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $otherLabel, $noModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $seriesLabel = $typeMap[$ticket->ticket_type] ?? $otherLabel;
+                ->get();
 
-                        $moduleName = $ticket->module_name;
-                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $noModuleLabel;
+            foreach ($ticketsForCount as $ticket) {
+                $seriesLabel = $typeMap[$ticket->ticket_type] ?? $otherLabel;
 
-                        $counts[$label][$seriesLabel]++;
-                    }
-                });
+                $moduleName = $ticket->module_name;
+                $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $noModuleLabel;
+
+                $counts[$label][$seriesLabel]++;
+            }
 
             // Modules with zero tickets across all four categories are hidden entirely.
             $labels = array_values(array_filter($labels, fn ($label) => array_sum($counts[$label]) > 0));
@@ -1544,22 +1859,25 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($months, 0);
             }
 
-            Ticket::whereNull('deleted_at')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('ticket_type', array_keys($typeMap))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_type', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $typeMap) {
-                    foreach ($tickets as $ticket) {
-                        $label = $typeMap[$ticket->ticket_type] ?? null;
-                        if (!$label) continue;
-                        $ym = $ticket->created_at->format('Y-m');
-                        if (isset($counts[$label][$ym])) {
-                            $counts[$label][$ym]++;
-                        }
-                    }
-                });
+                ->get();
+
+            foreach ($ticketsForCount as $ticket) {
+                $label = $typeMap[$ticket->ticket_type] ?? null;
+                if (!$label) continue;
+                $ym = $ticket->created_at->format('Y-m');
+                if (isset($counts[$label][$ym])) {
+                    $counts[$label][$ym]++;
+                }
+            }
 
             $monthLabels = array_map(fn ($ym) => Carbon::createFromFormat('Y-m', $ym)->format('M Y'), $months);
 
@@ -1635,24 +1953,27 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($seriesLabels, 0);
             }
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('ticket_type', array_keys($typeMap))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $allModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $seriesLabel = $typeMap[$ticket->ticket_type] ?? null;
-                        if (!$seriesLabel) continue;
+                ->get();
 
-                        $moduleName = $ticket->module_name;
-                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+            foreach ($ticketsForCount as $ticket) {
+                $seriesLabel = $typeMap[$ticket->ticket_type] ?? null;
+                if (!$seriesLabel) continue;
 
-                        $counts[$label][$seriesLabel]++;
-                    }
-                });
+                $moduleName = $ticket->module_name;
+                $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+
+                $counts[$label][$seriesLabel]++;
+            }
 
             // Modules with zero tickets across all three ticket_type values are hidden.
             $labels = array_values(array_filter($labels, fn ($label) => array_sum($counts[$label]) > 0));
@@ -1720,24 +2041,27 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($columns, 0);
             }
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('ticket_type', array_keys($typeMap))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $allModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $rowLabel = $typeMap[$ticket->ticket_type] ?? null;
-                        if (!$rowLabel) continue;
+                ->get();
 
-                        $moduleName = $ticket->module_name;
-                        $column     = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+            foreach ($ticketsForCount as $ticket) {
+                $rowLabel = $typeMap[$ticket->ticket_type] ?? null;
+                if (!$rowLabel) continue;
 
-                        $counts[$rowLabel][$column]++;
-                    }
-                });
+                $moduleName = $ticket->module_name;
+                $column     = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+
+                $counts[$rowLabel][$column]++;
+            }
 
             // Columns (modules) with zero tickets across all three rows are hidden.
             $columns = array_values(array_filter($columns, function ($column) use ($rowLabels, $counts) {
@@ -1801,19 +2125,22 @@ class ReportingController extends Controller
 
             $counts = array_fill_keys($labels, 0);
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $allModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $moduleName = $ticket->module_name;
-                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
-                        $counts[$label]++;
-                    }
-                });
+                ->get();
+
+            foreach ($ticketsForCount as $ticket) {
+                $moduleName = $ticket->module_name;
+                $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+                $counts[$label]++;
+            }
 
             // Modules with zero tickets are hidden entirely.
             $labels = array_values(array_filter($labels, fn ($label) => $counts[$label] > 0));
@@ -1932,19 +2259,22 @@ class ReportingController extends Controller
                 'Open'  => ['Non CR' => 0, 'Request CR' => 0],
             ];
 
-            Ticket::whereNull('deleted_at')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('status', array_merge($closeStatuses, $openStatuses))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'status', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $closeStatuses) {
-                    foreach ($tickets as $ticket) {
-                        $group  = $ticket->ticket_type === 'Change Request' ? 'Request CR' : 'Non CR';
-                        $series = in_array($ticket->status, $closeStatuses, true) ? 'Close' : 'Open';
-                        $counts[$series][$group]++;
-                    }
-                });
+                ->get();
+
+            foreach ($ticketsForCount as $ticket) {
+                $group  = $ticket->ticket_type === 'Change Request' ? 'Request CR' : 'Non CR';
+                $series = in_array($ticket->status, $closeStatuses, true) ? 'Close' : 'Open';
+                $counts[$series][$group]++;
+            }
 
             $series = [
                 'Close' => [$counts['Close']['Non CR'], $counts['Close']['Request CR']],
@@ -2240,7 +2570,16 @@ class ReportingController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
             }
 
-            $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
+            // select() dibatasi ke kolom yang benar-benar dipakai di response bawah — tabel
+            // `ticket` punya puluhan kolom (SLA, mandays, confirmation, dst) yang kalau ikut
+            // ter-hydrate untuk SETIAP tiket (endpoint ini load seluruh tabel, tanpa filter
+            // tanggal/pagination) jadi biaya memori & waktu terbesar di endpoint ini.
+            $tickets = Ticket::select(['ticket_id', 'ticket_number', 'description', 'status', 'module_id', 'module', 'ticket_lead_id', 'created_at'])
+                ->with([
+                    'ticketLead:employee_id',
+                    'ticketLead.basicData:employee_id,nick_name,first_name',
+                    'moduleMaster:id,name',
+                ])
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->orderByDesc('created_at')
@@ -2290,7 +2629,12 @@ class ReportingController extends Controller
                 abort(403, 'Access denied.');
             }
 
-            $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
+            $tickets = Ticket::select(['ticket_id', 'ticket_number', 'description', 'status', 'module_id', 'module', 'ticket_lead_id', 'created_at'])
+                ->with([
+                    'ticketLead:employee_id',
+                    'ticketLead.basicData:employee_id,nick_name,first_name',
+                    'moduleMaster:id,name',
+                ])
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->orderByDesc('created_at')
@@ -2452,6 +2796,124 @@ class ReportingController extends Controller
         } catch (\Exception $e) {
             Log::error('logShiftingDetail error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to load SLA message detail. Please try again.'], 500);
+        }
+    }
+
+    // ── Log Shifting export — SLA notes flat, filtered by date(+optional hour) range ──
+    //
+    // "Tanggal" yang dipakai adalah created_at bubble chat itu sendiri (sama seperti
+    // logShiftingDetail), bukan tanggal tiket dibuat. Kalau time_from/time_to kosong,
+    // batasnya jadi awal/akhir hari penuh untuk tanggal tsb — jadi semua jam ikut.
+    private function logShiftingDateRange(Request $request): array
+    {
+        $dateFrom = $request->query('date_from');
+        $dateTo   = $request->query('date_to');
+        $timeFrom = $request->query('time_from');
+        $timeTo   = $request->query('time_to');
+
+        if (!$dateFrom || !$dateTo) {
+            throw new \InvalidArgumentException('Tanggal dari dan sampai wajib diisi.');
+        }
+
+        $from = Carbon::parse($dateFrom . ' ' . ($timeFrom ?: '00:00:00'));
+        $to   = $timeTo
+            ? Carbon::parse($dateTo . ' ' . $timeTo)
+            : Carbon::parse($dateTo)->endOfDay();
+
+        if ($from->gt($to)) {
+            throw new \InvalidArgumentException('Tanggal/jam "dari" tidak boleh setelah "sampai".');
+        }
+
+        return [$from, $to];
+    }
+
+    private function logShiftingNoteRows(Carbon $from, Carbon $to): \Illuminate\Support\Collection
+    {
+        $messages = TicketMessage::whereNotNull('sla_message')
+            ->where('sla_message', '!=', '')
+            ->whereBetween('created_at', [$from, $to])
+            ->with(['ticket:ticket_id,ticket_number,description', 'slaMessageBy.basicData'])
+            ->orderBy('created_at')
+            ->get();
+
+        return $messages->map(function (TicketMessage $msg) {
+            $byName = $msg->slaMessageBy
+                ? trim(($msg->slaMessageBy->basicData->first_name ?? '') . ' ' . ($msg->slaMessageBy->basicData->last_name ?? '')) ?: ($msg->slaMessageBy->eci ?? 'Unknown')
+                : null;
+
+            return [
+                'ticket_id'     => $msg->ticket->ticket_id ?? null,
+                'ticket_number' => $msg->ticket->ticket_number ?? '—',
+                'description'   => $msg->ticket->description ?? '—',
+                'bubble_date'   => $msg->created_at,
+                'sla_message'   => $msg->sla_message,
+                'pic'           => $byName,
+            ];
+        })->values();
+    }
+
+    // ── API: Log Shifting — flat SLA notes for the export/report table ─────
+    public function logShiftingNotes(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.log-shifting')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            [$from, $to] = $this->logShiftingDateRange($request);
+            $rows = $this->logShiftingNoteRows($from, $to);
+
+            return response()->json(['success' => true, 'data' => $rows]);
+
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Exception $e) {
+            Log::error('logShiftingNotes error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load log shifting notes. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Log Shifting — export flat SLA notes to Excel ─────────────────
+    public function exportLogShifting(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.log-shifting')) {
+                abort(403);
+            }
+
+            [$from, $to] = $this->logShiftingDateRange($request);
+            $rows = $this->logShiftingNoteRows($from, $to);
+
+            $generatedBy = trim(($employee->basicData->first_name ?? '') . ' ' . ($employee->basicData->last_name ?? '')) ?: ($employee->eci ?? 'System');
+
+            $meta = [
+                'from'         => $from,
+                'to'           => $to,
+                'generated_by' => $generatedBy,
+                'generated_at' => now()->timezone('Asia/Jakarta'),
+            ];
+
+            $filename = 'Log_Shifting_Export_' . now()->timezone('Asia/Jakarta')->format('dmY_Hi') . '.xlsx';
+
+            return Excel::download(new LogShiftingExport($rows, $meta), $filename);
+
+        } catch (\InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error('exportLogShifting error: ' . $e->getMessage());
+            abort(500, $e->getMessage());
         }
     }
 

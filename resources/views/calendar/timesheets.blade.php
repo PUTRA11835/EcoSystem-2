@@ -711,7 +711,7 @@
 
 @if($isApprovalMode || $isHoSMode)
 <!-- Rejection Reason Modal -->
-<div id="rejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="rejectModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -738,7 +738,7 @@
 </div>
 
 <!-- Approval Confirmation Modal (single) -->
-<div id="approveModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="approveModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -766,7 +766,7 @@
 </div>
 
 <!-- Bulk Approve Modal -->
-<div id="bulkApproveModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="bulkApproveModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -792,7 +792,7 @@
 </div>
 
 <!-- Bulk Reject Modal -->
-<div id="bulkRejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="bulkRejectModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -1002,7 +1002,7 @@
 </div>
 
 <!-- Modal Konfirmasi Bulk Delete -->
-<div id="confirmBulkDeleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmBulkDeleteModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -1029,7 +1029,7 @@
 </div>
 
 <!-- Modal Konfirmasi Bulk Submit -->
-<div id="confirmBulkSubmitModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmBulkSubmitModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -1056,7 +1056,7 @@
 </div>
 
 <!-- Modal Konfirmasi Delete (Single) -->
-<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -1083,7 +1083,7 @@
 </div>
 
 <!-- Modal Konfirmasi Submit (Single) -->
-<div id="confirmSubmitModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmSubmitModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -1143,7 +1143,7 @@
 
 {{-- ── Late Access Request Modal (Employee) ──────────────────────────────── --}}
 @if(!isset($isHead) || !$isHead)
-<div id="lateAccessModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="lateAccessModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <h3 class="text-base font-bold text-gray-900"><i class="fas fa-user-clock text-yellow-500 mr-1.5"></i>Request Late Access</h3>

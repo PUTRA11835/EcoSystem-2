@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -77,7 +78,7 @@ class EmployeeAttachmentController extends Controller
             $fileName  = Str::uuid() . ($extension ? '.' . $extension : '');
             $filePath  = $file->storeAs('employee_attachments/' . $employeeId, $fileName, 'public');
 
-            $attachmentId = DB::table('employee_attachment')->insertGetId([
+            $attachmentData = [
                 'employee_id'    => $employeeId,
                 'document_type'  => $request->document_type,
                 'document_title' => $request->document_title,
@@ -89,7 +90,20 @@ class EmployeeAttachmentController extends Controller
                 'uploaded_by'    => session('user.eci') ?? session('user.name') ?? 'system',
                 'created_at'     => now(),
                 'updated_at'     => now(),
-            ]);
+            ];
+
+            $attachmentId = DB::table('employee_attachment')->insertGetId($attachmentData);
+
+            AuditLog::recordAction(
+                module: 'Employee',
+                auditableType: 'EmployeeAttachment',
+                auditableId: $attachmentId,
+                event: 'created',
+                recordLabel: $request->document_title,
+                description: "added Employee Attachment: {$request->document_title} - Employee #{$employeeId}",
+                old: null,
+                new: $attachmentData,
+            );
 
             Log::info('=== API: EMPLOYEE ATTACHMENT CREATED ===', ['attachment_id' => $attachmentId]);
 
@@ -135,6 +149,19 @@ class EmployeeAttachmentController extends Controller
             DB::table('employee_attachment')
                 ->where('attachment_id', $attachmentId)
                 ->delete();
+
+            $label = $attachment->document_title ?? "Attachment #{$attachmentId}";
+
+            AuditLog::recordAction(
+                module: 'Employee',
+                auditableType: 'EmployeeAttachment',
+                auditableId: $attachmentId,
+                event: 'deleted',
+                recordLabel: $label,
+                description: "deleted Employee Attachment: {$label} - Employee #{$employeeId}",
+                old: (array) $attachment,
+                new: null,
+            );
 
             Log::info('=== API: EMPLOYEE ATTACHMENT DELETED ===', ['attachment_id' => $attachmentId]);
 

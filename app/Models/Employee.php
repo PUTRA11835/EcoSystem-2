@@ -54,7 +54,24 @@ class Employee extends Model
     /** Ambil semua role ID yang dimiliki employee */
     public function getRoleIds(): array
     {
-        return $this->roles()->pluck('employee_role.id')->map(fn($id) => (int) $id)->toArray();
+        return $this->memoizedRoleIds();
+    }
+
+    /**
+     * Role ID di-cache per instance supaya canAccessMenu/hasMenuPermission/hasPermission/
+     * allPermissionSlugs yang dipanggil berkali-kali pada objek Employee yang sama dalam
+     * satu request (mis. gating banyak section di satu halaman) tidak re-query roles()
+     * tiap panggilan.
+     */
+    private ?array $memoizedRoleIdsCache = null;
+
+    private function memoizedRoleIds(): array
+    {
+        if ($this->memoizedRoleIdsCache === null) {
+            $this->memoizedRoleIdsCache = $this->roles()->pluck('employee_role.id')->map(fn($id) => (int) $id)->toArray();
+        }
+
+        return $this->memoizedRoleIdsCache;
     }
 
     /** Scope: filter employee yang memiliki role tertentu (via assignment) */
@@ -81,10 +98,28 @@ class Employee extends Model
         });
     }
 
+    /**
+     * Scope: employee aktif dan tidak diblokir/ditandai untuk dihapus di Basic
+     * Data — dipakai di semua daftar kandidat Ticket Lead / Ticket Member supaya
+     * employee yang di-block atau kena deletion_flag tidak lagi bisa dipilih.
+     * Employee tanpa basic data dianggap eligible (tidak ada alasan untuk
+     * dikecualikan hanya karena basic data-nya belum diisi).
+     */
+    public function scopeEligibleForTicketTeam(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereDoesntHave('basicData')
+                  ->orWhereHas('basicData', function ($b) {
+                      $b->where('block', false)->where('deletion_flag', false);
+                  });
+            });
+    }
+
     /** Semua menu yang dapat diakses (union dari semua role) */
     public function accessibleMenus()
     {
-        $roleIds = $this->roles()->pluck('employee_role.id');
+        $roleIds = $this->memoizedRoleIds();
 
         return Menu::whereHas('roles', function ($q) use ($roleIds) {
                 $q->whereIn('employee_role.id', $roleIds)
@@ -99,7 +134,7 @@ class Employee extends Model
     /** Cek apakah employee boleh akses menu berdasarkan slug */
     public function canAccessMenu(string $slug): bool
     {
-        $roleIds = $this->roles()->pluck('employee_role.id');
+        $roleIds = $this->memoizedRoleIds();
 
         return Menu::where('slug', $slug)
             ->whereHas('roles', function ($q) use ($roleIds) {
@@ -116,7 +151,7 @@ class Employee extends Model
      */
     public function hasMenuPermission(string $slug, string $permission = 'can_view'): bool
     {
-        $roleIds = $this->roles()->pluck('employee_role.id');
+        $roleIds = $this->memoizedRoleIds();
 
         return Menu::where('slug', $slug)
             ->whereHas('roles', function ($q) use ($roleIds, $permission) {
@@ -136,7 +171,7 @@ class Employee extends Model
     /** Semua slug permission yang dimiliki (union semua role). Untuk dikirim ke frontend. */
     public function allPermissionSlugs(): array
     {
-        $roleIds = $this->roles()->pluck('employee_role.id');
+        $roleIds = $this->memoizedRoleIds();
 
         return Menu::whereHas('roles', function ($q) use ($roleIds) {
                 $q->whereIn('employee_role.id', $roleIds)

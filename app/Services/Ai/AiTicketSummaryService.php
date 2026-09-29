@@ -8,9 +8,9 @@ use App\Support\AiModelSettings;
 use Closure;
 
 /**
- * "AI Summarize" pada daftar tiket: satu klik, keluarnya catatan kerja
- * berstruktur tetap (heading Issue / Resolution Steps / Conclusion, isi Bahasa
- * Indonesia) yang di-stream ke modal.
+ * "AI Summarize" di panel kanan halaman detail tiket: satu klik, keluarnya
+ * catatan kerja berstruktur tetap (heading Issue / Resolution Steps /
+ * Conclusion, isi Bahasa Indonesia) yang di-stream ke modal.
  *
  * DUA SUMBER, DAN INI INTI FITURNYA (24 Agu 2026):
  *
@@ -44,7 +44,7 @@ use Closure;
  * prompt dan jumlah giliran (di sini selalu satu).
  *
  * Model, plafon token, dan effort-nya ikut Control Center > AI Settings pada
- * baris "AI Summarize (Daftar Tiket)" — entri SENDIRI, bukan lagi menumpang
+ * baris "AI Summarize (Detail Tiket)" — entri SENDIRI, bukan lagi menumpang
  * baris AI Assistant seperti dulu (lihat AiModelSettings::TICKET_SUMMARY).
  * AiModelSettings menjamin baris itu selalu berisi model ber-server-tool, jadi
  * tidak ada lagi jalur diam-diam jatuh ke konfigurasi Research di sini.
@@ -162,10 +162,10 @@ class AiTicketSummaryService
     }
 
     /**
-     * Tiga heading di bawah ini adalah KONTRAK dengan modal di daftar tiket:
-     * klien memecah teks yang mengalir tepat pada heading-heading ini untuk
-     * mengisi tiga kartu. Kalau judulnya diubah di sini, ubah juga
-     * TICKET_SUMMARY_SECTIONS di resources/views/ticket/index.blade.php.
+     * Tiga heading di bawah ini adalah KONTRAK dengan modal di halaman detail
+     * tiket: klien memecah teks yang mengalir tepat pada heading-heading ini
+     * untuk mengisi tiga kartu. Kalau judulnya diubah di sini, ubah juga
+     * TICKET_SUMMARY_SECTIONS di resources/views/ticket/show.blade.php.
      *
      * DUA BAHASA, DAN PEMBAGIANNYA DISENGAJA (27 Agu 2026):
      *

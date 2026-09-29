@@ -11,8 +11,12 @@ use App\Models\Notification;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
+use App\Models\SecurityEvent;
+use App\Services\AttachmentSecurityScanner;
+use App\Services\LoginSecurityService;
 use App\Services\MessageHtmlSanitizerService;
 use App\Services\SlaService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -270,6 +274,13 @@ class TicketMessageController extends Controller
 
             $uploadedFiles = $request->hasFile('attachments') ? $request->file('attachments') : [];
             $message       = null;
+
+            // Security Center: flag suspicious attachments for review — never
+            // blocks the upload (a ticket can legitimately carry a .sh/.log
+            // file as troubleshooting evidence).
+            foreach ($uploadedFiles as $uploadedFile) {
+                $this->flagSuspiciousAttachment($uploadedFile, $ticketId, $senderId, $sessionUser, $request);
+            }
 
             if ($request->message_type === 'reply') {
                 // Simpan CC baru ke ticket agar reply berikutnya juga pakai CC yang sama
@@ -1335,6 +1346,42 @@ class TicketMessageController extends Controller
     }
 
     /**
+     * Security Center: log a SecurityEvent + notify admins if an uploaded
+     * attachment looks suspicious (dangerous extension, double extension,
+     * or extension/content-type mismatch). See AttachmentSecurityScanner.
+     */
+    private function flagSuspiciousAttachment(
+        \Illuminate\Http\UploadedFile $file,
+        int $ticketId,
+        int $senderId,
+        array $sessionUser,
+        Request $request
+    ): void {
+        $suspicion = AttachmentSecurityScanner::inspect($file);
+        if (!$suspicion) {
+            return;
+        }
+
+        $event = SecurityEvent::record([
+            'event_type'         => 'suspicious_attachment_upload',
+            'severity'           => 'high',
+            'module'             => 'Upload',
+            'status'             => 'open',
+            'title'              => "Suspicious attachment: {$suspicion['filename']}",
+            'description'        => implode('; ', $suspicion['reasons']) . " - uploaded to ticket #{$ticketId} by " . ($sessionUser['name'] ?? 'unknown') . '.',
+            'target_employee_id' => $senderId,
+            'actor_employee_id'  => $senderId,
+            'actor_name'         => $sessionUser['name'] ?? null,
+            'ip_address'         => $request->ip(),
+            'payload'            => $suspicion + ['ticket_id' => $ticketId],
+        ]);
+
+        if ($event) {
+            app(LoginSecurityService::class)->notifyAdmins($event, "Suspicious attachment \"{$suspicion['filename']}\" uploaded to ticket #{$ticketId}");
+        }
+    }
+
+    /**
      * Simpan file ke local storage untuk non-email ticket atau internal note.
      *
      * @param \Illuminate\Http\UploadedFile[] $files
@@ -1798,5 +1845,107 @@ class TicketMessageController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Export percakapan tiket ke PDF (tombol "Export Chat" di headbar room chat).
+     *
+     * Hanya pesan yang dilihat customer: internal note, pesan terhapus, dan kartu
+     * event meeting tidak ikut. Izin tombol lewat slug `ticket.export-chat`
+     * (middleware route); di sini hanya dicek akses ke tiketnya.
+     */
+    public function exportPdf($ticketId)
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser) {
+            abort(401);
+        }
+
+        $roleId = $sessionUser['role']['id'];
+        if ($roleId === RoleId::EC_USER->value) {
+            abort(403);
+        }
+
+        $ticket = Ticket::with(['customer.basicData', 'modules', 'members'])->findOrFail($ticketId);
+
+        // External employee: hanya tiket yang dia handle (sama seperti TicketController::show)
+        $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
+        if ($isExternalEmployee && $roleId !== RoleId::EC_ADMINISTRATOR->value) {
+            $employeeId = (int) $sessionUser['id'];
+            $isLead     = (int) $ticket->ticket_lead_id === $employeeId;
+            $isMember   = $ticket->members->contains('employee_id', $employeeId);
+            if (!$isLead && !$isMember) {
+                abort(403);
+            }
+        }
+
+        // Balasan employee tidak menyimpan sender_email — email ke customer
+        // dikirim dari shared mailbox M365, jadi itu alamat yang tampil.
+        $helpdeskEmail = config('services.microsoft_graph.sender_email');
+
+        $messages = TicketMessage::where('ticket_id', $ticket->ticket_id)
+            ->where('is_internal_note', false)
+            ->where(fn ($q) => $q->where('is_deleted', false)->orWhereNull('is_deleted'))
+            ->where(fn ($q) => $q->whereNull('message_type')->orWhereNotIn('message_type', ['meeting_started', 'meeting_ended']))
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->map(fn (TicketMessage $m) => [
+                'sender_name'  => $m->sender_name ?: ($m->sender_type === 'employee' ? 'Helpdesk Support' : '—'),
+                'sender_email' => $m->sender_email ?: ($m->sender_type === 'employee' ? $helpdeskEmail : null),
+                'is_customer'  => $m->sender_type === 'customer',
+                'sent_at'      => $m->created_at,
+                'html'         => $this->pdfMessageHtml($m),
+            ]);
+
+        $moduleName = $ticket->modules->pluck('name')->implode(', ') ?: ($ticket->module ?: '—');
+
+        $pdf = Pdf::loadView('ticket.chat-export-pdf', compact('ticket', 'messages', 'moduleName'));
+        $pdf->setPaper('A4', 'portrait');
+
+        return $pdf->download('Chat-' . $ticket->ticket_number . '-' . now()->format('Ymd') . '.pdf');
+    }
+
+    /**
+     * Isi pesan siap render dompdf: disanitasi ulang, gambar /storage/... di-embed
+     * sebagai data URI (dompdf tidak mengambil URL remote), gambar lain yang tidak
+     * bisa di-resolve diganti teks "[image]".
+     */
+    private function pdfMessageHtml(TicketMessage $message): string
+    {
+        $html = $message->message_html
+            ? MessageHtmlSanitizerService::sanitize($message->message_html)
+            : nl2br(e($message->message ?? ''));
+
+        if (stripos($html, '<img') === false) {
+            return $html;
+        }
+
+        return preg_replace_callback('/<img\b[^>]*>/i', function (array $m): string {
+            if (!preg_match('/\ssrc\s*=\s*"([^"]+)"/i', $m[0], $src)) {
+                return '';
+            }
+            $src = html_entity_decode($src[1]);
+
+            if (str_starts_with($src, 'data:image/')) {
+                return '<img src="' . e($src) . '" style="max-width:100%;">';
+            }
+
+            $path = parse_url($src, PHP_URL_PATH) ?? '';
+            if (str_starts_with($path, '/storage/')) {
+                $relative = ltrim(substr($path, strlen('/storage/')), '/');
+                // Tolak path traversal — hanya file di dalam public disk.
+                if (!str_contains($relative, '..') && Storage::disk('public')->exists($relative)) {
+                    $binary = Storage::disk('public')->get($relative);
+                    $mime   = Storage::disk('public')->mimeType($relative) ?: 'image/png';
+                    $size   = @getimagesizefromstring($binary);
+                    // Lebar area konten A4 ≈ 500pt; gambar kecil tetap ukuran aslinya.
+                    $width  = $size ? min($size[0], 500) : 500;
+
+                    return '<img src="data:' . $mime . ';base64,' . base64_encode($binary) . '" width="' . $width . '">';
+                }
+            }
+
+            return '<span style="color:#6b7280;">[image]</span>';
+        }, $html) ?? $html;
     }
 }

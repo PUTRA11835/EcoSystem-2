@@ -11,6 +11,8 @@ use Illuminate\Support\Str;
 use App\Http\Controllers\PasswordSetupController;
 use App\Models\LoginActivity;
 use App\Support\IntendedUrl;
+use App\Models\SecurityEvent;
+use App\Services\TwoFactorAuthService;
 use Illuminate\Support\Facades\Http;
 use Exception;
 
@@ -21,6 +23,15 @@ class AuthController extends Controller
 
     /** Durasi remember-me dalam hari */
     private const REMEMBER_DAYS = 1;
+
+    /**
+     * Cookie device-trust 2FA: memungkinkan login berikutnya di device yang
+     * sama skip prompt kode OTP (password tetap wajib dicek) selama belum
+     * melewati window (lihat TwoFactorAuthService::trustWindowMinutes()).
+     * Terpisah dari REMEMBER_COOKIE — remember-me tetap dimatikan total untuk
+     * akun ber-2FA.
+     */
+    public const TWO_FACTOR_TRUST_COOKIE = 'ecosystem_2fa_trust';
 
     // =========================================================================
     // HELPER: Bangun session data dari employee_id
@@ -48,11 +59,16 @@ class AuthController extends Controller
                 'ea.cell_phone as phone_number',
                 'eb.position',
                 'eb.employee_subgroup as department',
-                'eb.employee_type'
+                'eb.employee_type',
+                'eb.block',
+                'eb.deletion_flag'
             )
             ->first();
 
-        if (!$employee || !$employee->is_active) {
+        // Employee di-blok atau ditandai untuk dihapus di Master Employee (Basic
+        // Data) — perlakukan sama seperti is_active = false: tidak boleh login,
+        // dan sesi remember-me yang coba di-restore juga langsung gagal.
+        if (!$employee || !$employee->is_active || $employee->block || $employee->deletion_flag) {
             return null;
         }
 
@@ -509,29 +525,14 @@ class AuthController extends Controller
     }
 
     /**
-     * Lookup city/country from IP via ip-api.com (free, no key required).
-     * Times out in 1 second to avoid slowing down login.
+     * Lookup city/country from IP. Delegates to the shared IpLocationService
+     * (also used by Active Sessions and Security Center to show a location
+     * instead of a bare IP address), which adds a 24h per-IP cache on top of
+     * this same ip-api.com lookup.
      */
     private static function resolveIpLocation(string $ip): array
     {
-        // Skip private/local IPs
-        if (in_array($ip, ['127.0.0.1', '::1']) || str_starts_with($ip, '192.168.') || str_starts_with($ip, '10.')) {
-            return ['city' => 'Local', 'country' => 'Local'];
-        }
-
-        try {
-            $res = Http::timeout(1)->get("http://ip-api.com/json/{$ip}?fields=status,city,country");
-            if ($res->successful()) {
-                $data = $res->json();
-                if (($data['status'] ?? '') === 'success') {
-                    return ['city' => $data['city'] ?? null, 'country' => $data['country'] ?? null];
-                }
-            }
-        } catch (\Throwable) {
-            // geolocation failure is non-fatal
-        }
-
-        return ['city' => null, 'country' => null];
+        return \App\Services\IpLocationService::resolve($ip);
     }
 
     /**
@@ -624,6 +625,22 @@ class AuthController extends Controller
                 'remember' => $remember
             ]);
 
+            // Brute-force guard: reject early if this IP is already locked out
+            // from repeated failed attempts (see LoginSecurityService).
+            $loginSecurity = app(\App\Services\LoginSecurityService::class);
+
+            if ($loginSecurity->isIpBlocked($request->ip())) {
+                Log::channel('daily')->warning('=== LOGIN BLOCKED: IP is locked out ===', [
+                    'request_id' => $requestId,
+                    'ip_address' => $request->ip(),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Too many failed attempts. Please try again later.',
+                ], 403);
+            }
+
             // CEK AUTH_USERS TABLE (centralized auth)
             Log::channel('daily')->info('=== CHECKING AUTH_USERS TABLE ===', [
                 'request_id' => $requestId,
@@ -654,10 +671,37 @@ class AuthController extends Controller
                     'timestamp' => now()->toDateTimeString()
                 ]);
 
+                self::recordActivity(
+                    userId:    0,
+                    roleId:    0,
+                    userName:  $email,
+                    userType:  'employee',
+                    ip:        $request->ip(),
+                    userAgent: $request->userAgent() ?? '',
+                    status:    'failed'
+                );
+                $loginSecurity->recordFailedAttempt(null, $request->ip(), $email);
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid email or password',
                 ], 401);
+            }
+
+            // Brute-force guard: account already locked from prior failed
+            // attempts — reject without touching Hash::check() (also avoids
+            // wasted bcrypt cost during an active attack).
+            if ($loginSecurity->isAccountLocked($authUser)) {
+                Log::channel('daily')->warning('=== LOGIN BLOCKED: account is locked ===', [
+                    'request_id'   => $requestId,
+                    'auth_user_id' => $authUser->id,
+                    'ip_address'   => $request->ip(),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Too many failed attempts. Please try again later.',
+                ], 403);
             }
 
             // Verifikasi password dari auth_users
@@ -676,6 +720,18 @@ class AuthController extends Controller
                     'email' => $email,
                     'ip_address' => $request->ip()
                 ]);
+
+                $isEmployeeAttempt = !is_null($authUser->employee_id);
+                self::recordActivity(
+                    userId:    $isEmployeeAttempt ? $authUser->employee_id : ($authUser->customer_id ?? 0),
+                    roleId:    0,
+                    userName:  $email,
+                    userType:  $isEmployeeAttempt ? 'employee' : 'customer',
+                    ip:        $request->ip(),
+                    userAgent: $request->userAgent() ?? '',
+                    status:    'failed'
+                );
+                $loginSecurity->recordFailedAttempt($authUser, $request->ip(), $email);
 
                 return response()->json([
                     'success' => false,
@@ -774,70 +830,31 @@ class AuthController extends Controller
                     ], 403);
                 }
 
-                $token    = $sessionData['token'];
-                $userData = $sessionData['userData'];
+                // ── Two-factor authentication gate ──────────────────────────
+                // Every other gate (customer block, is_already_cp, system-access
+                // role) has already run by this point, so verifyTwoFactor() below
+                // doesn't need to repeat any of them — by construction, only an
+                // employee who already passed every other gate can reach here.
+                // No session/cookie/DB mutation happens yet if 2FA is required.
+                if (TwoFactorAuthService::isEnabled($authUser)) {
+                    // Device-trust grace period: this device already completed a
+                    // fresh TOTP/recovery-code check within the window, so — the
+                    // password above already passed — skip the OTP prompt this time.
+                    if (TwoFactorAuthService::isTrusted($authUser, $request->cookie(self::TWO_FACTOR_TRUST_COOKIE))) {
+                        Log::channel('daily')->info('=== LOGIN 2FA SKIPPED (trusted device within window) ===', [
+                            'request_id'   => $requestId,
+                            'auth_user_id' => $authUser->id,
+                        ]);
 
-                // Update last_login_at
-                $rememberUpdates = ['last_login_at' => now()];
+                        return $this->finalizeEmployeeLogin($authUser, $sessionData, $remember, $request, $requestId);
+                    }
 
-                // ── Remember Me ──────────────────────────────────────────────
-                // Catatan: blok ini hanya tercapai untuk akun is_already_cp = 1,
-                // karena akun is_already_cp = 0 sudah di-return di atas (jalur
-                // require_password_change) sebelum sampai ke sini. Jadi untuk
-                // akun password-initial, checkbox otomatis diabaikan.
-                $responseCookies = [];
-                if ($remember) {
-                    $rawRememberToken = Str::random(60);
-                    $rememberUpdates['remember_token'] = hash('sha256', $rawRememberToken);
+                    $twoFactorToken = TwoFactorAuthService::issueChallengeToken($authUser->id, $remember);
 
-                    // Cookie HttpOnly, SameSite=Lax, REMEMBER_DAYS hari
-                    // secure: ikut SESSION_SECURE_COOKIE (.env) — false lokal, true production HTTPS
-                    $responseCookies[] = cookie(
-                        self::REMEMBER_COOKIE,
-                        $rawRememberToken,
-                        self::REMEMBER_DAYS * 24 * 60, // menit
-                        '/',
-                        null,
-                        config('session.secure'),
-                        true   // httpOnly
-                    );
-                } else {
-                    // Hapus remember token jika tidak centang
-                    $rememberUpdates['remember_token'] = null;
-                }
-
-                DB::table('auth_users')->where('id', $authUser->id)->update($rememberUpdates);
-
-                $request->session()->put('auth_token', $token);
-                $request->session()->put('user', $userData);
-                $request->session()->regenerate();
-                $request->session()->save();
-
-                DB::table('sessions')
-                    ->where('id', $request->session()->getId())
-                    ->update(['user_id' => $authUser->id]);
-
-                Log::channel('daily')->info('=== EMPLOYEE LOGIN SUCCESSFUL ===', [
-                    'request_id'  => $requestId,
-                    'employee_id' => $userData['id'],
-                    'eci'         => $userData['eci'],
-                    'remember_me' => $remember,
-                    'ip_address'  => $request->ip(),
-                    'timestamp'   => now()->toDateTimeString()
-                ]);
-
-                // Record login activity (include Client Hints for better device detection)
-                self::recordActivity(
-                    userId:     $userData['id'],
-                    roleId:     $userData['role']['id'] ?? 0,
-                    userName:   $userData['name'] ?? $userData['eci'] ?? 'Unknown',
-                    userType:   'employee',
-                    ip:         $request->ip(),
-                    userAgent:  $request->userAgent() ?? '',
-                    status:     'success',
-                    chModel:    $request->header('Sec-CH-UA-Model', ''),
-                    chPlatform: $request->header('Sec-CH-UA-Platform', '')
-                );
+                    Log::channel('daily')->info('=== LOGIN REQUIRES 2FA ===', [
+                        'request_id'   => $requestId,
+                        'auth_user_id' => $authUser->id,
+                    ]);
 
                 $response = response()->json([
                     'success' => true,
@@ -855,7 +872,7 @@ class AuthController extends Controller
                     $response = $response->withCookie($cookie);
                 }
 
-                return $response;
+                return $this->finalizeEmployeeLogin($authUser, $sessionData, $remember, $request, $requestId);
             }
 
             // auth_user tanpa employee_id maupun customer_id
@@ -898,6 +915,276 @@ class AuthController extends Controller
                 'message' => 'A system error occurred. Please try again.',
             ], 500);
         }
+    }
+
+    /**
+     * Finishes an employee login after every gate (password, customer-block,
+     * is_already_cp, system-access role, and — if enabled — 2FA) has passed:
+     * remember-me cookie, auth_users/sessions table updates, session
+     * put/regenerate/save, recordActivity(success), and the success response.
+     * Called both directly from login() (2FA not enabled) and from
+     * verifyTwoFactor() (after a 2FA challenge is confirmed), so the two
+     * paths can't drift apart.
+     *
+     * Takes the full $authUser row (not just $sessionData) — the DB writes
+     * below key off auth_users.id, which is NOT $sessionData['userData']['id']
+     * (that key holds employee_id, a different value).
+     *
+     * $justVerified2fa: true only when this call follows a fresh TOTP/recovery
+     * code check (verifyTwoFactor()) — issues the device-trust cookie so the
+     * next login on this device can skip the OTP prompt for a while. Never
+     * true for the trusted-device skip path itself or for non-2FA accounts,
+     * so the trust window only ever resets on an actual code verification.
+     */
+    private function finalizeEmployeeLogin(object $authUser, array $sessionData, bool $remember, Request $request, string $requestId, bool $justVerified2fa = false)
+    {
+        $token    = $sessionData['token'];
+        $userData = $sessionData['userData'];
+
+        $rememberUpdates = ['last_login_at' => now()];
+
+        // ── Remember Me ──────────────────────────────────────────────
+        // Catatan: blok ini hanya tercapai untuk akun is_already_cp = 1,
+        // karena akun is_already_cp = 0 sudah di-return di atas (jalur
+        // require_password_change) sebelum sampai ke sini. Jadi untuk
+        // akun password-initial, checkbox otomatis diabaikan.
+        //
+        // 2FA-enabled accounts never get a persistent-login cookie, even if
+        // "remember" was checked — every session expiry requires a full
+        // login + 2FA challenge again (confirmed policy; see CheckAuthToken,
+        // which also refuses to restore a stale cookie for a 2FA account).
+        $responseCookies = [];
+        if ($remember && !TwoFactorAuthService::isEnabled($authUser)) {
+            $rawRememberToken = Str::random(60);
+            $rememberUpdates['remember_token'] = hash('sha256', $rawRememberToken);
+
+            // Cookie HttpOnly, SameSite=Lax, REMEMBER_DAYS hari
+            // secure: ikut SESSION_SECURE_COOKIE (.env) — false lokal, true production HTTPS
+            $responseCookies[] = cookie(
+                self::REMEMBER_COOKIE,
+                $rawRememberToken,
+                self::REMEMBER_DAYS * 24 * 60, // menit
+                '/',
+                null,
+                config('session.secure'),
+                true   // httpOnly
+            );
+        } else {
+            // Hapus remember token jika tidak centang (atau akun ber-2FA)
+            $rememberUpdates['remember_token'] = null;
+        }
+
+        DB::table('auth_users')->where('id', $authUser->id)->update($rememberUpdates);
+
+        // ── 2FA device-trust cookie ──────────────────────────────────────
+        // Only issued right after a fresh OTP/recovery-code verification —
+        // resets the grace-period window. A login that skipped the prompt
+        // via an already-valid trust cookie leaves it untouched (fixed
+        // expiry from the last real verification, not a sliding window).
+        if ($justVerified2fa) {
+            $trustToken = TwoFactorAuthService::issueTrustToken($authUser->id);
+
+            $responseCookies[] = cookie(
+                self::TWO_FACTOR_TRUST_COOKIE,
+                $trustToken,
+                TwoFactorAuthService::trustWindowMinutes(),
+                '/',
+                null,
+                config('session.secure'),
+                true // httpOnly
+            );
+        }
+
+        $request->session()->put('auth_token', $token);
+        $request->session()->put('user', $userData);
+        $request->session()->regenerate();
+        $request->session()->save();
+
+        DB::table('sessions')
+            ->where('id', $request->session()->getId())
+            ->update(['user_id' => $authUser->id]);
+
+        Log::channel('daily')->info('=== EMPLOYEE LOGIN SUCCESSFUL ===', [
+            'request_id'  => $requestId,
+            'employee_id' => $userData['id'],
+            'eci'         => $userData['eci'],
+            'remember_me' => $remember,
+            'ip_address'  => $request->ip(),
+            'timestamp'   => now()->toDateTimeString()
+        ]);
+
+        // Record login activity (include Client Hints for better device detection)
+        self::recordActivity(
+            userId:     $userData['id'],
+            roleId:     $userData['role']['id'] ?? 0,
+            userName:   $userData['name'] ?? $userData['eci'] ?? 'Unknown',
+            userType:   'employee',
+            ip:         $request->ip(),
+            userAgent:  $request->userAgent() ?? '',
+            status:     'success',
+            chModel:    $request->header('Sec-CH-UA-Model', ''),
+            chPlatform: $request->header('Sec-CH-UA-Platform', '')
+        );
+
+        $response = response()->json([
+            'success' => true,
+            'message' => 'Login successful',
+            // URL tujuan hasil deep link (mis. /ticket/123 dari kartu Teams).
+            // Sudah disanitasi — selalu path relatif pada host sendiri.
+            'redirect_url' => IntendedUrl::pull($request),
+            'data'    => [
+                'token' => $token,
+                'user'  => $userData
+            ],
+        ], 200);
+
+        foreach ($responseCookies as $cookie) {
+            $response = $response->withCookie($cookie);
+        }
+
+        return $response;
+    }
+
+    /**
+     * Completes login after a 2FA challenge issued by login(). Accepts
+     * either a 6-digit TOTP code or an "XXXX-XXXX" recovery code
+     * (auto-detected by shape — the two formats can never collide).
+     * POST /api/auth/2fa/verify
+     */
+    public function verifyTwoFactor(Request $request)
+    {
+        $requestId = uniqid('2fa_', true);
+
+        $validator = Validator::make($request->all(), [
+            'two_factor_token' => 'required|string',
+            'code'              => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $challenge = TwoFactorAuthService::resolveChallengeToken($request->input('two_factor_token'));
+
+        if (!$challenge) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This verification step has expired. Please log in again.',
+            ], 422);
+        }
+
+        $authUserId = $challenge['auth_user_id'];
+
+        // Defense in depth: re-fetch fresh rather than trusting anything from
+        // before — is_active/locked_until could have changed in the challenge
+        // token's ~5-minute life (e.g. an admin action, or the password-login
+        // brute-force guard tripping concurrently).
+        $authUser = DB::table('auth_users')->where('id', $authUserId)->first();
+
+        if (!$authUser || !$authUser->is_active || is_null($authUser->employee_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This verification step is no longer valid. Please log in again.',
+            ], 422);
+        }
+
+        $loginSecurity = app(\App\Services\LoginSecurityService::class);
+
+        if ($loginSecurity->isAccountLocked($authUser) || TwoFactorAuthService::isChallengeLocked($authUserId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Too many failed attempts. Please try again later.',
+            ], 403);
+        }
+
+        // Recovery codes are always generated in uppercase (see
+        // TwoFactorAuthService::generateRecoveryCodes) and password_verify()
+        // is case-sensitive - normalization happens inside verifyForAuthUser()
+        // itself now, so a manually-typed lowercase code still matches even
+        // though the recovery-mode input visually renders it uppercase via CSS.
+        $result           = TwoFactorAuthService::verifyForAuthUser($authUserId, (string) $request->input('code'));
+        $verified         = $result['verified'];
+        $usedRecoveryCode = $result['used_recovery_code'];
+
+        if (!$verified) {
+            $attempts = TwoFactorAuthService::recordFailedChallenge($authUserId);
+
+            // Idempotency guard — mirrors LoginSecurityService::checkAccountThreshold's
+            // "don't re-alert/re-extend on every attempt past the threshold" pattern.
+            if (TwoFactorAuthService::isChallengeLocked($authUserId) && !$loginSecurity->isAccountLocked($authUser)) {
+                $lockedUntil = now()->addMinutes((int) config('security_center.two_factor.lockout_minutes', 30));
+                DB::table('auth_users')->where('id', $authUserId)->update(['locked_until' => $lockedUntil]);
+
+                $event = SecurityEvent::record([
+                    'event_type'         => 'two_factor_bypass_attempt',
+                    'severity'           => 'critical',
+                    'module'             => 'Auth',
+                    'status'             => 'open',
+                    'title'              => 'Repeated 2FA failures - account locked',
+                    'description'        => "Auth user #{$authUserId} had {$attempts} failed 2FA verification attempts and was auto-locked until {$lockedUntil->format('d M Y H:i')} - this account's password is already known to whoever is attempting this.",
+                    'target_employee_id' => $authUser->employee_id,
+                    'ip_address'         => $request->ip(),
+                    'payload'            => ['attempts' => $attempts],
+                ]);
+
+                if ($event) {
+                    $loginSecurity->notifyAdmins($event, "Repeated 2FA failures on auth user #{$authUserId} - account locked");
+                }
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid code. Please try again.',
+            ], 401);
+        }
+
+        TwoFactorAuthService::clearFailedChallenge($authUserId);
+
+        if ($usedRecoveryCode) {
+            $event = SecurityEvent::record([
+                'event_type'         => 'two_factor_recovery_code_used',
+                'severity'           => 'medium',
+                'module'             => 'Auth',
+                'status'             => 'open',
+                'title'              => 'Recovery code used to log in',
+                'description'        => "Auth user #{$authUserId} logged in using a 2FA recovery code instead of an authenticator code - often a sign they lost access to their device.",
+                'target_employee_id' => $authUser->employee_id,
+                'ip_address'         => $request->ip(),
+            ]);
+
+            if ($event) {
+                $loginSecurity->notifyAdmins($event, "Recovery code used for auth user #{$authUserId}");
+            }
+        }
+
+        $sessionData = self::buildEmployeeSessionData($authUser->employee_id);
+
+        if (!$sessionData) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your account is inactive',
+            ], 403);
+        }
+
+        return $this->finalizeEmployeeLogin($authUser, $sessionData, $challenge['remember'], $request, $requestId, justVerified2fa: true);
+    }
+
+    /**
+     * Renders the 2FA challenge page. No server-side token validation here —
+     * the POST verify call is the real gate — this just bounces back to
+     * login if there's obviously nothing to verify.
+     * GET /auth/2fa/verify
+     */
+    public function showTwoFactorChallenge(Request $request)
+    {
+        if (!$request->query('token')) {
+            return redirect()->route('login');
+        }
+
+        return view('auth.two-factor-challenge');
     }
 
     /**

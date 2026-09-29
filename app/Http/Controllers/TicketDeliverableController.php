@@ -8,6 +8,7 @@ use App\Models\DeliverableDocumentType;
 use App\Models\Ticket;
 use App\Models\TicketDeliverable;
 use App\Models\TicketMessage;
+use App\Services\MessageHtmlSanitizerService;
 use App\Services\OneDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -69,8 +70,109 @@ class TicketDeliverableController extends Controller
     }
 
     /**
+     * POST /api/tickets/{id}/deliverables/upload-session
+     * Buat OneDrive upload session lebih dulu supaya file diupload LANGSUNG dari
+     * browser ke Graph (chunked), tidak lewat body request Laravel. Ini menghindari
+     * batas post_max_size/upload_max_filesize PHP dan batas 4 MB simple-PUT Graph —
+     * lihat submitNewDoc() di ticket/show.blade.php untuk alur lengkapnya.
+     */
+    public function createUploadSession(Request $request, $ticketId)
+    {
+        $user = session('user');
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'file_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+
+        [$state, $message] = $this->resolveFolderState($ticket);
+        if ($state !== 'ready') {
+            return response()->json(['success' => false, 'message' => $message], 422);
+        }
+
+        try {
+            $oneDrive             = new OneDriveService();
+            $deliverableFolderId  = $this->resolveDeliverableFolderId($oneDrive, $ticket);
+            $uploadUrl            = $oneDrive->createUploadSession($deliverableFolderId, $request->input('file_name'));
+
+            return response()->json(['success' => true, 'upload_url' => $uploadUrl]);
+        } catch (\Throwable $e) {
+            Log::error('Deliverable createUploadSession failed', [
+                'ticket_id' => $ticketId,
+                'error'     => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create upload session: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Folder ticket berada di level customer:
+     *   {root}/{customer_id} {NAMA}/TICKETING/{ticket_number}/Deliverable
+     * Find-or-create rantai folder tsb (idempotent) dan cache folder id + share
+     * link "edit" pada ticket (dipakai tombol "Open folder").
+     */
+    private function resolveDeliverableFolderId(OneDriveService $oneDrive, Ticket $ticket): string
+    {
+        // Folder customer (di-find-or-create, diturunkan langsung dari customer ticket).
+        $rootPath         = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
+        $customerFolderId = $oneDrive->findOrCreateFolderInPath($rootPath, $ticket->customerDeliverableFolderName());
+
+        // Rantai folder (idempotent, case-insensitive): TICKETING -> {ticket_number} -> Deliverable
+        $ticketingId    = $oneDrive->findOrCreateSubFolderById($customerFolderId, 'TICKETING');
+        $ticketFolderId = $oneDrive->findOrCreateSubFolderById(
+            $ticketingId,
+            $ticket->ticket_number ?: ('Ticket-' . $ticket->ticket_id)
+        );
+        // File deliverable ditempatkan di subfolder "Deliverable" agar tidak tercampur
+        // dengan file lain yang mungkin diupload manual ke folder ticket.
+        $deliverableFolderId = $oneDrive->findOrCreateSubFolderById($ticketFolderId, 'Deliverable');
+
+        // Cache folder id + share link (untuk tombol "Open folder").
+        // PENTING: link "edit" anonymous dibuat pada folder TICKET (induk),
+        // BUKAN subfolder Deliverable. Permission edit anonymous menurun ke
+        // seluruh isi folder, sehingga pengguna yang mengakses link bisa
+        // upload/create/download langsung di folder ticket MAUPUN di subfolder
+        // Deliverable. Jika link dibuat di subfolder Deliverable saja, folder
+        // ticket induk hanya view-only (editable hilang saat naik ke folder ticket).
+        $update = [
+            'onedrive_folder_id'             => $ticketFolderId,
+            'onedrive_deliverable_folder_id' => $deliverableFolderId,
+        ];
+        // Link diperbarui bukan hanya saat kosong/pindah folder, tapi juga saat
+        // link tersimpan ternyata bukan share link, sudah kedaluwarsa, atau
+        // scope-nya bukan anonymous — kondisi yang bikin customer kena
+        // "Request access" padahal di EcoSystem terlihat normal.
+        $needsLink = empty($ticket->onedrive_folder_url)
+            || $ticket->onedrive_folder_id !== $ticketFolderId
+            || !$ticket->onedrive_link_is_public;
+
+        if ($needsLink) {
+            try {
+                $link = $oneDrive->createShareLink($ticketFolderId, 'edit');
+                $update['onedrive_folder_url']      = $link['url'];
+                $update['onedrive_link_scope']      = $link['scope'];
+                $update['onedrive_link_expires_at'] = $link['expires_at'];
+                $update['onedrive_link_checked_at'] = now();
+            } catch (\Throwable $e) {
+                Log::warning('Deliverable folder share link failed', ['ticket_id' => $ticket->ticket_id, 'error' => $e->getMessage()]);
+            }
+        }
+        $ticket->update($update);
+
+        return $deliverableFolderId;
+    }
+
+    /**
      * POST /api/tickets/{id}/deliverables
-     * Multipart form: doc_type, body_text (optional), file (optional)
+     * JSON body: doc_type, description (optional, internal note — never sent to customer), onedrive_item_id + file_name
+     * (optional — hasil dari createUploadSession() + upload chunked ke Graph).
      */
     public function store(Request $request, $ticketId)
     {
@@ -84,9 +186,10 @@ class TicketDeliverableController extends Controller
         $validDocTypes = DeliverableDocumentType::active()->pluck('name');
 
         $request->validate([
-            'doc_type'  => ['required', 'string', 'in:' . $validDocTypes->implode(',')],
-            'body_text' => ['nullable', 'string', 'max:1000'],
-            'file'      => ['nullable', 'file', 'max:20480'], // 20 MB max
+            'doc_type'         => ['required', 'string', 'in:' . $validDocTypes->implode(',')],
+            'description'      => ['nullable', 'string', 'max:1000'],
+            'onedrive_item_id' => ['nullable', 'string'],
+            'file_name'        => ['required_with:onedrive_item_id', 'string', 'max:255'],
         ]);
 
         $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
@@ -95,102 +198,32 @@ class TicketDeliverableController extends Controller
         $fileUrl  = null;
         $fileName = null;
 
-        if ($request->hasFile('file') && $request->file('file')->isValid()) {
-            // Folder ticket berada di level customer:
-            //   {root}/{customer_id} {NAMA}/TICKETING/{ticket_number}/Deliverable
-            [$state, $message] = $this->resolveFolderState($ticket);
-            if ($state !== 'ready') {
-                return response()->json(['success' => false, 'message' => $message], 422);
-            }
+        if ($request->filled('onedrive_item_id')) {
+            $fileId   = $request->input('onedrive_item_id');
+            $fileName = $request->input('file_name');
 
-            $uploadedFile = $request->file('file');
-            $fileName     = $uploadedFile->getClientOriginalName();
-            $mimeType     = $uploadedFile->getMimeType() ?? 'application/octet-stream';
-            $fileContent  = file_get_contents($uploadedFile->getRealPath());
-
+            // webUrl dari upload adalah path SharePoint langsung — butuh izin akun
+            // (Request access). Buat anonymous share link agar file bisa dibuka
+            // customer tanpa login. File SUDAH terupload ke OneDrive di titik ini —
+            // kalau share link gagal dibuat, tetap simpan baris deliverable (fileUrl
+            // null) daripada kehilangan record untuk file yang sudah ada di OneDrive.
+            // `onedrive:audit-links --fix` bisa memperbaiki link-nya belakangan.
             try {
                 $oneDrive = new OneDriveService();
-
-                // Folder customer (di-find-or-create, diturunkan langsung dari customer ticket).
-                $rootPath           = config('services.microsoft_graph.customer_deliverable_path', 'DELIVERY SUPPORT/CUSTOMER DELIVERABLE');
-                $customerFolderId   = $oneDrive->findOrCreateFolderInPath($rootPath, $ticket->customerDeliverableFolderName());
-
-                // Rantai folder (idempotent, case-insensitive): TICKETING -> {ticket_number} -> Deliverable
-                $ticketingId    = $oneDrive->findOrCreateSubFolderById($customerFolderId, 'TICKETING');
-                $ticketFolderId = $oneDrive->findOrCreateSubFolderById(
-                    $ticketingId,
-                    $ticket->ticket_number ?: ('Ticket-' . $ticket->ticket_id)
-                );
-                // File deliverable ditempatkan di subfolder "Deliverable" agar tidak tercampur
-                // dengan file lain yang mungkin diupload manual ke folder ticket.
-                $deliverableFolderId = $oneDrive->findOrCreateSubFolderById($ticketFolderId, 'Deliverable');
-
-                // Cache folder id + share link (untuk tombol "Open folder").
-                // PENTING: link "edit" anonymous dibuat pada folder TICKET (induk),
-                // BUKAN subfolder Deliverable. Permission edit anonymous menurun ke
-                // seluruh isi folder, sehingga pengguna yang mengakses link bisa
-                // upload/create/download langsung di folder ticket MAUPUN di subfolder
-                // Deliverable. Jika link dibuat di subfolder Deliverable saja, folder
-                // ticket induk hanya view-only (editable hilang saat naik ke folder ticket).
-                $update = [
-                    'onedrive_folder_id'             => $ticketFolderId,
-                    'onedrive_deliverable_folder_id' => $deliverableFolderId,
-                ];
-                // Link diperbarui bukan hanya saat kosong/pindah folder, tapi juga saat
-                // link tersimpan ternyata bukan share link, sudah kedaluwarsa, atau
-                // scope-nya bukan anonymous — kondisi yang bikin customer kena
-                // "Request access" padahal di EcoSystem terlihat normal.
-                $needsLink = empty($ticket->onedrive_folder_url)
-                    || $ticket->onedrive_folder_id !== $ticketFolderId
-                    || !$ticket->onedrive_link_is_public;
-
-                if ($needsLink) {
-                    try {
-                        $link = $oneDrive->createShareLink($ticketFolderId, 'edit');
-                        $update['onedrive_folder_url']      = $link['url'];
-                        $update['onedrive_link_scope']      = $link['scope'];
-                        $update['onedrive_link_expires_at'] = $link['expires_at'];
-                        $update['onedrive_link_checked_at'] = now();
-                    } catch (\Throwable $e) {
-                        Log::warning('Deliverable folder share link failed', ['ticket_id' => $ticketId, 'error' => $e->getMessage()]);
-                    }
-                }
-                $ticket->update($update);
-
-                $result  = $oneDrive->uploadFile($deliverableFolderId, $fileName, $fileContent, $mimeType);
-                $fileId  = $result['id'];
-
-                // webUrl dari upload adalah path SharePoint langsung — butuh izin akun (Request access).
-                // Buat anonymous share link agar file bisa dibuka customer tanpa login.
-                try {
-                    $fileUrl = $oneDrive->createShareLink($fileId, 'view')['url'];
-                } catch (\Throwable $e) {
-                    // Fallback webUrl HANYA bisa dibuka akun yang punya izin item —
-                    // customer akan kena "Request access". Dicatat sebagai error supaya
-                    // ketahuan, dan `onedrive:audit-links --fix` bisa memperbaikinya nanti.
-                    Log::error('Deliverable file share link failed — falling back to direct webUrl (external users cannot open it)', [
-                        'ticket_id' => $ticketId,
-                        'file_id'   => $fileId,
-                        'error'     => $e->getMessage(),
-                    ]);
-                    $fileUrl = $result['webUrl'] ?? $result['downloadUrl'] ?? null;
-                }
+                $fileUrl  = $oneDrive->createShareLink($fileId, 'view')['url'];
             } catch (\Throwable $e) {
-                Log::error('Deliverable upload to OneDrive failed', [
+                Log::error('Deliverable file share link failed — file uploaded but no public link yet', [
                     'ticket_id' => $ticketId,
+                    'file_id'   => $fileId,
                     'error'     => $e->getMessage(),
                 ]);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to upload file to OneDrive: ' . $e->getMessage(),
-                ], 500);
             }
         }
 
         $deliverable = TicketDeliverable::create([
             'ticket_id'         => $ticketId,
             'doc_type'          => $request->doc_type,
-            'body_text'         => $request->body_text,
+            'description'       => $request->description,
             'file_name'         => $fileName,
             'onedrive_file_id'  => $fileId,
             'onedrive_file_url' => $fileUrl,
@@ -207,7 +240,7 @@ class TicketDeliverableController extends Controller
 
     /**
      * PATCH /api/tickets/{ticketId}/deliverables/{delivId}
-     * Update body_text (only allowed while status is not "Sent").
+     * Update description (only allowed while status is not "Sent").
      */
     public function update(Request $request, $ticketId, $delivId)
     {
@@ -217,7 +250,7 @@ class TicketDeliverableController extends Controller
         }
 
         $request->validate([
-            'body_text' => ['nullable', 'string', 'max:1000'],
+            'description' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $deliverable = TicketDeliverable::where('id', $delivId)
@@ -231,17 +264,14 @@ class TicketDeliverableController extends Controller
             ], 422);
         }
 
-        $deliverable->update(['body_text' => $request->body_text]);
+        $deliverable->update(['description' => $request->description]);
 
         return response()->json(['success' => true, 'data' => $this->format($deliverable->fresh())]);
     }
 
     /**
      * PATCH /api/tickets/{ticketId}/deliverables/{delivId}/send
-     * Mark a deliverable as "Sent", add to chat, and email the customer.
-     *
-     * Mengikuti alur reply biasa: helpdesk wajib memilih status tiket lebih dulu
-     * (dikirim via `ticket_status`) sebelum dokumen benar-benar dikirim ke customer.
+     * Kirim satu dokumen deliverable ke customer. Sama dengan sendBatch() dengan satu id.
      */
     public function send(Request $request, $ticketId, $delivId)
     {
@@ -250,19 +280,74 @@ class TicketDeliverableController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $request->validate([
-            'ticket_status' => 'nullable|in:inprocess,waiting_on_customer,waiting_to_confirmation,waiting_on_3rd_party,hold',
-            'to_emails'     => 'nullable',
-            'cc_emails'     => 'nullable',
-        ]);
+        $this->validateSendRequest($request);
 
         $deliverable = TicketDeliverable::where('id', $delivId)
             ->where('ticket_id', $ticketId)
             ->firstOrFail();
 
-        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+        return $this->dispatchDeliverables($request, $ticketId, collect([$deliverable]), $user);
+    }
 
-        $deliverable->update(['status' => 'Sent']);
+    /**
+     * POST /api/tickets/{ticketId}/deliverables/send
+     * Kirim beberapa dokumen sekaligus sebagai SATU bubble chat / SATU email.
+     * `body_text` = isi email yang diketik saat kirim; TIDAK disimpan di database
+     * (beda dengan `description` per file yang internal).
+     */
+    public function sendBatch(Request $request, $ticketId)
+    {
+        $user = session('user');
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $this->validateSendRequest($request);
+        $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ]);
+
+        // Dokumen yang sudah terkirim dilewati agar tidak terkirim dua kali.
+        $deliverables = TicketDeliverable::whereIn('id', $request->input('ids'))
+            ->where('ticket_id', $ticketId)
+            ->where('status', '!=', 'Sent')
+            ->orderBy('created_at')
+            ->get();
+
+        if ($deliverables->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No unsent documents found to send.',
+            ], 422);
+        }
+
+        return $this->dispatchDeliverables($request, $ticketId, $deliverables, $user);
+    }
+
+    private function validateSendRequest(Request $request): void
+    {
+        $request->validate([
+            'ticket_status' => 'nullable|in:inprocess,waiting_on_customer,waiting_to_confirmation,waiting_on_3rd_party,hold',
+            'body_text'     => ['nullable', 'string', 'max:20000'],
+            'to_emails'     => 'nullable',
+            'cc_emails'     => 'nullable',
+        ]);
+    }
+
+    /**
+     * Tandai dokumen "Sent", buat SATU ticket_message (bubble) berisi body text di
+     * atas lalu daftar dokumen (type + nama file), dan kirim satu email.
+     * Mengikuti alur reply biasa: status tiket dipilih helpdesk (`ticket_status`).
+     */
+    private function dispatchDeliverables(Request $request, $ticketId, $deliverables, array $user)
+    {
+        $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+        // Body text = HTML rich text dari editor (seperti chat reply) → disanitasi dulu.
+        $bodyHtml = trim(MessageHtmlSanitizerService::sanitize((string) $request->input('body_text', '')));
+        $bodyText = trim(html_entity_decode(strip_tags(preg_replace('#<(br|/p|/li|/h[1-6])\s*/?>#i', "\n", $bodyHtml))));
+
+        TicketDeliverable::whereIn('id', $deliverables->pluck('id'))->update(['status' => 'Sent']);
 
         // To/Cc diambil dari kolom composer reply (mirror reply biasa). Jika frontend
         // mengirim daftar (walau kosong) → HORMATI apa adanya & persist ke ticket; jika
@@ -303,39 +388,48 @@ class TicketDeliverableController extends Controller
         }
         $signatureName = $nickName ?? explode(' ', $user['name'] ?? 'Helpdesk')[0];
 
-        $plainMsg = 'Deliverable document sent: ' . $deliverable->doc_type;
-        if ($deliverable->body_text) $plainMsg .= ' — ' . $deliverable->body_text;
-        if ($deliverable->file_name) $plainMsg .= ' (' . $deliverable->file_name . ')';
-
-        // Layout key-value 3 kolom: label | ":" | value. Kolom ":" dipisah agar titik dua
-        // SEJAJAR vertikal antar-baris (tabel otomatis melebarkan kolom label ke label
-        // terlebar, sehingga semua ":" mulai di posisi X yang sama). Kolom label
-        // `white-space:nowrap` biar "Description" tak terpotong; kolom nilai
-        // `overflow-wrap:anywhere` supaya nama file panjang membungkus rapi (bukan meluber).
-        // Class `deliv-card` dipakai untuk override border tabel paksaan `.email-html-body td`
-        // di chat bubble (lihat CSS di ticket/show.blade.php).
-        $labelTd = 'padding:4px 0;color:#6b7280;white-space:nowrap;vertical-align:top;';
-        $colonTd = 'padding:4px 10px;color:#6b7280;vertical-align:top;';
-        $valueTd = 'padding:4px 0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;';
-
-        $row = fn(string $label, string $value, string $valueExtra = '') =>
-            '<tr><td style="' . $labelTd . '">' . $label . '</td>'
-            . '<td style="' . $colonTd . '">:</td>'
-            . '<td style="' . $valueTd . $valueExtra . '">' . $value . '</td></tr>';
-
-        $htmlMsg = '<p style="margin:0 0 8px"><strong>Deliverable Document</strong></p>'
-            . '<table class="deliv-card" style="border-collapse:collapse;font-size:13px;width:100%;max-width:460px;">'
-            . $row('Doc Type', htmlspecialchars($deliverable->doc_type), 'font-weight:600;');
-
-        if ($deliverable->body_text) {
-            $htmlMsg .= $row('Description', nl2br(htmlspecialchars($deliverable->body_text)));
+        // Satu bubble/email untuk semua dokumen, formatnya:
+        //   Deliverable Document        (judul tebal)
+        //   <body text>                 (jika diisi)
+        //   Doc Type : RCA
+        //   File     : nama_file.xlsx
+        // Beberapa dokumen = pasangan Doc Type/File diulang, dipisah jarak. `description`
+        // per file bersifat internal → TIDAK ikut dikirim ke customer.
+        $plainMsg = 'Deliverable Document';
+        if ($bodyText !== '') {
+            $plainMsg .= "\n" . $bodyText;
+        }
+        foreach ($deliverables as $d) {
+            $plainMsg .= "\n\nDoc Type: " . $d->doc_type . "\nFile: " . ($d->file_name ?: '-');
         }
 
-        if ($deliverable->file_name) {
-            $fileCell = $deliverable->onedrive_file_url
-                ? '<a href="' . htmlspecialchars($deliverable->onedrive_file_url) . '" target="_blank" style="color:#2563eb;word-break:break-word;overflow-wrap:anywhere;">' . htmlspecialchars($deliverable->file_name) . '</a>'
-                : htmlspecialchars($deliverable->file_name);
-            $htmlMsg .= $row('File', $fileCell);
+        // Layout key-value 3 kolom: label | ":" | value. Kolom ":" dipisah agar titik dua
+        // SEJAJAR vertikal antar-baris. Kolom label `white-space:nowrap`; kolom nilai
+        // `overflow-wrap:anywhere` supaya nama file panjang membungkus rapi.
+        // Class `deliv-card` dipakai untuk override border tabel paksaan `.email-html-body td`
+        // di chat bubble (lihat CSS di ticket/show.blade.php).
+        $labelTd = 'padding:2px 0;color:#6b7280;white-space:nowrap;vertical-align:top;';
+        $colonTd = 'padding:2px 10px;color:#6b7280;vertical-align:top;';
+        $valueTd = 'padding:2px 0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;';
+
+        $htmlMsg = '<p style="margin:0 0 8px"><strong>Deliverable Document</strong></p>';
+        if ($bodyText !== '') {
+            $htmlMsg .= '<div style="margin:0 0 12px;">' . $bodyHtml . '</div>';
+        }
+        $htmlMsg .= '<table class="deliv-card" style="border-collapse:collapse;font-size:13px;width:100%;max-width:460px;">';
+        foreach ($deliverables as $i => $d) {
+            $fileCell = $d->file_name
+                ? ($d->onedrive_file_url
+                    ? '<a href="' . htmlspecialchars($d->onedrive_file_url) . '" target="_blank" style="color:#2563eb;word-break:break-word;overflow-wrap:anywhere;">' . htmlspecialchars($d->file_name) . '</a>'
+                    : htmlspecialchars($d->file_name))
+                : '&mdash;';
+            if ($i > 0) {
+                $htmlMsg .= '<tr><td colspan="3" style="padding:4px 0;"></td></tr>';
+            }
+            $htmlMsg .= '<tr><td style="' . $labelTd . '">Doc Type</td><td style="' . $colonTd . '">:</td>'
+                . '<td style="' . $valueTd . 'font-weight:600;">' . htmlspecialchars($d->doc_type) . '</td></tr>'
+                . '<tr><td style="' . $labelTd . '">File</td><td style="' . $colonTd . '">:</td>'
+                . '<td style="' . $valueTd . '">' . $fileCell . '</td></tr>';
         }
         $htmlMsg .= '</table>';
 
@@ -449,14 +543,14 @@ class TicketDeliverableController extends Controller
                 'reason'     => $emailError,
                 'error'      => $e->getMessage(),
                 'ticket_id'  => $ticketId,
-                'deliv_id'   => $delivId,
+                'deliv_ids'  => $deliverables->pluck('id')->all(),
                 'raw_detail' => $e instanceof EmailSendException ? $e->rawDetail : null,
             ]);
         }
 
         return response()->json([
             'success'      => true,
-            'data'         => $this->format($deliverable->fresh()),
+            'data'         => TicketDeliverable::whereIn('id', $deliverables->pluck('id'))->get()->map(fn ($d) => $this->format($d))->values(),
             // Dokumen tetap tersimpan/terkirim ke chat, tapi email ke customer GAGAL →
             // frontend tampilkan peringatan (bukan sukses) agar tidak membingungkan.
             'email_failed' => $emailError !== null,
@@ -567,7 +661,7 @@ class TicketDeliverableController extends Controller
         return [
             'id'           => $d->id,
             'doc_type'     => $d->doc_type,
-            'body_text'    => $d->body_text,
+            'description'  => $d->description,
             'file_name'    => $d->file_name,
             'file_url'     => $d->onedrive_file_url,
             'status'       => $d->status,

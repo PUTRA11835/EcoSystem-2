@@ -9,7 +9,6 @@ use App\Models\AuditLog;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\Customer;
-use App\Models\DeliverySupportType;
 use App\Models\Employee;
 use App\Models\ModuleLead;
 use App\Models\Notification;
@@ -175,6 +174,17 @@ class TicketController extends Controller
         $csvFilter($query, 'ticket.status', $request->input('status'));
         $csvFilter($query, 'ticket.ticket_type', $request->input('type'));
 
+        // Module (comma-separated, multi-select). Lewat relasi modules() (bukan
+        // whereIn('module_id', ...) langsung) supaya tiket yang punya modul ini
+        // sebagai salah satu dari beberapa modulnya tetap ketemu, bukan cuma
+        // yang modul UTAMA-nya persis cocok — sama seperti filter di exportToExcel().
+        if ($request->filled('module')) {
+            $moduleIds = array_filter(explode(',', $request->input('module')), fn ($v) => $v !== '');
+            if (!empty($moduleIds)) {
+                $query->whereHas('modules', fn ($q) => $q->whereIn('module_id', $moduleIds));
+            }
+        }
+
         // Kolom "Assign Delivery" — tiket terhubung ke Delivery Support lewat
         // delivery_support_activities. Dipakai whereExists (bukan join) supaya
         // satu tiket yang punya beberapa activity pada support yang sama tidak
@@ -298,7 +308,7 @@ class TicketController extends Controller
                     ->select('ticket.*')
                     ->orderByRaw(
                         "GREATEST(0, CEIL(TIMESTAMPDIFF(SECOND, ticket.created_at,
-                            CASE WHEN ticket.status IN ('closed', 'cancelled')
+                            CASE WHEN ticket.status = 'closed'
                                 THEN COALESCE(ticket_sla.resolved_at, ticket.updated_at)
                                 ELSE NOW()
                             END
@@ -345,8 +355,8 @@ class TicketController extends Controller
     }
 
     /**
-     * Distinct customers/PICs that actually have a (visible) ticket, for the Customer/PIC
-     * filter dropdowns in ticket/index.blade.php. Needed once the ticket list is paginated —
+     * Distinct customers/PICs/Delivery Supports that actually have a (visible) ticket, for
+     * the Customer/PIC/Assign Delivery filter dropdowns in ticket/index.blade.php. Needed once the ticket list is paginated —
      * the dropdowns used to be populated by scanning every ticket already loaded client-side,
      * which only ever contained the current page after pagination. Cheap DISTINCT query,
      * much lighter than fetching full ticket rows just to read two columns off them.
@@ -437,7 +447,7 @@ class TicketController extends Controller
             if ($isRestrictedExternal) {
                 Log::info('External employee viewing own tickets only', ['employee_id' => $sessionUser['id']]);
                 $employeeId = $sessionUser['id'];
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
                     ->whereNull('ticket.is_hidden')
                     ->where(function ($q) use ($employeeId) {
                         $q->where('ticket.ticket_lead_id', $employeeId)
@@ -448,7 +458,7 @@ class TicketController extends Controller
             } elseif ($sessionUser['role']['id'] === RoleId::EC_ADMINISTRATOR->value) {
                 Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
                     ->whereNull('ticket.is_hidden');
                 if ($filterUnassigned) {
                     $query->whereNull('ticket.ticket_lead_id');
@@ -460,7 +470,7 @@ class TicketController extends Controller
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value) {
                 Log::info('Employee viewing all tickets', ['unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'modules'])
                     ->whereNull('ticket.is_hidden');
                 if ($filterUnassigned) {
                     $query->whereNull('ticket.ticket_lead_id');
@@ -475,7 +485,7 @@ class TicketController extends Controller
             )) {
                 Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
                     ->whereNull('ticket.is_hidden');
                 if ($filterUnassigned) {
                     $query->whereNull('ticket.ticket_lead_id');
@@ -486,7 +496,7 @@ class TicketController extends Controller
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_MANAGER->value) {
                 Log::info('Support Manager viewing all tickets', ['employee_id' => $sessionUser['id']]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
                     ->whereNull('ticket.is_hidden');
 
                 if ($filterUnassigned) {
@@ -509,7 +519,7 @@ class TicketController extends Controller
                     'employee_id' => $sessionUser['id'],
                 ]);
 
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
                     ->whereNull('ticket.is_hidden');
                 if ($filterUnassigned) {
                     $query->whereNull('ticket.ticket_lead_id');
@@ -571,7 +581,9 @@ class TicketController extends Controller
             $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
             // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
-            $canReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            // Reuse $employee dari cek 'All Tickets' di atas kalau sudah di-load — hindari Employee::find() dua kali.
+            $employee ??= Employee::find($sessionUser['id']);
+            $canReadFeature = (bool) $employee?->hasPermission('ticket.read');
             $readAtMap = $canReadFeature
                 ? DB::table('ticket_reads')
                     ->where('employee_id', $sessionUser['id'])
@@ -653,7 +665,9 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
-                    'module' => $ticket->module_name,
+                    // module_names = semua modul tiket digabung koma (bukan cuma modul
+                    // utama) — tiket boleh menyentuh lebih dari satu modul sekarang.
+                    'module' => $ticket->module_names,
                     'module_id' => $ticket->module_id,
                     'scale' => $ticket->scale,
                     'status' => $ticket->status,
@@ -749,7 +763,7 @@ class TicketController extends Controller
             abort(403);
         }
 
-        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'moduleMaster'])
+        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'moduleMaster', 'modules'])
             ->whereNull('is_hidden')
             ->orderBy('ticket_id', 'asc');
 
@@ -773,9 +787,44 @@ class TicketController extends Controller
         if ($request->filled('type')) {
             $query->whereIn('ticket_type', explode(',', $request->type));
         }
-        // Module (comma-separated untuk multi-select)
+        // Module (comma-separated untuk multi-select). Lewat relasi modules()
+        // (bukan whereIn('module_id', ...) langsung), supaya tiket yang punya
+        // modul ini sebagai salah satu dari beberapa modulnya tetap ketemu,
+        // tidak cuma yang modul UTAMA-nya persis cocok.
         if ($request->filled('module')) {
-            $query->whereIn('module_id', explode(',', $request->module));
+            $moduleIds = explode(',', $request->module);
+            $query->whereHas('modules', fn ($q) => $q->whereIn('module_id', $moduleIds));
+        }
+        // Assign Delivery (comma-separated, multi-select + '__unassigned__') — sama
+        // seperti filter di applyTicketListFilters(), lewat whereExists supaya tiket
+        // dengan beberapa activity pada support yang sama tidak menghasilkan baris ganda.
+        if ($request->filled('delivery_support_id')) {
+            $values = array_filter(explode(',', $request->delivery_support_id), fn ($v) => $v !== '');
+            if (!empty($values)) {
+                $includeUnassigned = in_array('__unassigned__', $values, true);
+                $ids = array_values(array_filter($values, fn ($v) => $v !== '__unassigned__'));
+
+                $query->where(function ($q) use ($ids, $includeUnassigned) {
+                    if (!empty($ids)) {
+                        $q->whereExists(function ($sub) use ($ids) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa')
+                                ->whereColumn('dsa.ticket_id', 'ticket.ticket_id')
+                                ->whereIn('dsa.delivery_support_id', $ids);
+                        });
+                    }
+
+                    if ($includeUnassigned) {
+                        $method = empty($ids) ? 'whereNotExists' : 'orWhereNotExists';
+                        $q->{$method}(function ($sub) {
+                            $sub->selectRaw('1')
+                                ->from('delivery_support_activities as dsa2')
+                                ->whereColumn('dsa2.ticket_id', 'ticket.ticket_id')
+                                ->whereNotNull('dsa2.delivery_support_id');
+                        });
+                    }
+                });
+            }
         }
         // Ticket number keyword
         if ($request->filled('ticket_number')) {
@@ -785,24 +834,19 @@ class TicketController extends Controller
         if ($request->filled('description')) {
             $query->where('description', 'like', '%' . $request->description . '%');
         }
-        // Date range — cocokkan start_date, fallback ke created_at
+        // Date range — cocokkan created_at, sama persis dengan applyTicketListFilters()
+        // (filter list di layar) supaya jumlah tiket yang di-export selalu sinkron dengan
+        // yang tampil di layar untuk filter yang sama. Sebelumnya di sini menyaring by
+        // start_date — kolom itu artinya "kapan Ticket Lead pertama kali di-assign", BUKAN
+        // kapan tiket dibuat (lihat assignTicketLead(), start_date di-set now() cuma saat
+        // first assign) — jadi tiket yang sempat unassigned lama bisa lolos filter di layar
+        // (created_at-nya masih dalam rentang) tapi hilang dari export (start_date sudah
+        // melenceng ke bulan lain).
         if ($request->filled('date_from')) {
-            $dateFrom = $request->date_from;
-            $query->where(function ($q) use ($dateFrom) {
-                $q->whereDate('start_date', '>=', $dateFrom)
-                  ->orWhere(function ($q2) use ($dateFrom) {
-                      $q2->whereNull('start_date')->whereDate('created_at', '>=', $dateFrom);
-                  });
-            });
+            $query->where('created_at', '>=', \Carbon\Carbon::parse($request->input('date_from') . ' 00:00:00', 'Asia/Jakarta'));
         }
         if ($request->filled('date_to')) {
-            $dateTo = $request->date_to;
-            $query->where(function ($q) use ($dateTo) {
-                $q->whereDate('start_date', '<=', $dateTo)
-                  ->orWhere(function ($q2) use ($dateTo) {
-                      $q2->whereNull('start_date')->whereDate('created_at', '<=', $dateTo);
-                  });
-            });
+            $query->where('created_at', '<=', \Carbon\Carbon::parse($request->input('date_to') . ' 23:59:59', 'Asia/Jakarta'));
         }
         // Customer — filter kolom di ticket/index.blade.php sekarang mengirim customer_id
         // (bukan nama) sejak dropdown-nya diisi dari /api/tickets/filter-options.
@@ -876,7 +920,7 @@ class TicketController extends Controller
                 'scale'                  => $ticket->scale,
                 'status'                 => $ticket->status,
                 'ticket_type'            => $ticket->ticket_type,
-                'module'                 => $ticket->module_name,
+                'module'                 => $ticket->module_names,
                 'customer_mandays'       => $customerMandaysMap[$ticket->ticket_id] ?? null,
                 'all_consultant_progress'=> $progressMap[$ticket->ticket_id] ?? (float)($ticket->progress_percentage ?? 0),
                 'end_date'               => $ticket->end_date,
@@ -906,6 +950,8 @@ class TicketController extends Controller
                 'no_hp'           => 'nullable|string|max:255',
                 'module'          => 'nullable|string|max:255',
                 'module_id'       => 'nullable|exists:modules,id',
+                'module_ids'      => 'nullable|array',
+                'module_ids.*'    => 'integer|exists:modules,id',
                 'client'          => 'nullable|string|max:255',
                 'to_email'        => 'nullable|string|max:2000',
                 'cc_emails'       => 'nullable|string|max:2000',
@@ -972,7 +1018,7 @@ class TicketController extends Controller
 
             try {
                 $ticket = DB::transaction(function () use ($validated, $toEmail, $toList, $ccList, $conversationId, $user) {
-                    return Ticket::create([
+                    $ticket = Ticket::create([
                         'ticket_number'      => $this->ticketNumbers->generate(),
                         'customer_id'        => $validated['customer_id'],
                         'description'        => $validated['description'],
@@ -982,7 +1028,6 @@ class TicketController extends Controller
                         'name'               => $validated['name'] ?? null,
                         'no_hp'              => $validated['no_hp'] ?? null,
                         'module'             => $validated['module'] ?? null,
-                        'module_id'          => $validated['module_id'] ?? null,
                         'client'             => $validated['client'] ?? null,
                         'status'             => 'inprocess',
                         // channel 'email' agar composer To/CC selalu tersedia di halaman tiket,
@@ -996,6 +1041,13 @@ class TicketController extends Controller
                         'to_emails'          => !empty($toList) ? $toList : null,
                         'cc_emails'          => !empty($ccList) ? $ccList : null,
                     ]);
+
+                    // module_id ditulis lewat syncModules(), bukan langsung di atas —
+                    // terima module_ids[] (baru) atau module_id tunggal (lama) supaya
+                    // caller yang belum diupdate ke array tidak ikut rusak.
+                    $ticket->syncModules($validated['module_ids'] ?? array_filter([$validated['module_id'] ?? null]));
+
+                    return $ticket;
                 });
 
                 $message = null;
@@ -1111,6 +1163,8 @@ class TicketController extends Controller
             'no_hp'           => 'nullable|string|max:255',
             'module'          => 'nullable|string|max:255',
             'module_id'       => 'nullable|exists:modules,id',
+            'module_ids'      => 'nullable|array',
+            'module_ids.*'    => 'integer|exists:modules,id',
             'client'          => 'nullable|string|max:255',
             'body'            => 'nullable|string',
             'attachments'     => 'nullable|array',
@@ -1195,7 +1249,6 @@ class TicketController extends Controller
                     'name'               => $validated['name'] ?? null,
                     'no_hp'              => $validated['no_hp'] ?? null,
                     'module'             => $validated['module'] ?? null,
-                    'module_id'          => $validated['module_id'] ?? null,
                     'client'             => $validated['client'] ?? null,
                     'status'             => 'open',
                     // channel 'email' agar composer To/CC selalu tersedia di halaman tiket,
@@ -1212,6 +1265,10 @@ class TicketController extends Controller
                     'last_message_at'    => now(),
                     'last_agent_reply_at'=> now(),
                 ]);
+
+                // module_id ditulis lewat syncModules(), bukan langsung di atas —
+                // terima module_ids[] (baru) atau module_id tunggal (lama).
+                $ticket->syncModules($validated['module_ids'] ?? array_filter([$validated['module_id'] ?? null]));
 
                 if (!empty($validated['body'])) {
                     TicketMessage::create([
@@ -1426,7 +1483,7 @@ class TicketController extends Controller
             if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
                 $employeeId = $sessionUser['id'];
                 Log::info('My Tickets - External employee', ['employee_id' => $employeeId]);
-                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
+                $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster', 'modules'])
                     ->whereNull('ticket.is_hidden')
                     ->where(function ($q) use ($employeeId) {
                         $q->where('ticket.ticket_lead_id', $employeeId)
@@ -1456,7 +1513,7 @@ class TicketController extends Controller
                         ->unique()
                         ->values();
 
-                    $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'modules'])
                         ->whereNull('ticket.is_hidden')
                         ->whereIn('ticket.ticket_id', $managedTicketIds);
                 } else {
@@ -1464,7 +1521,7 @@ class TicketController extends Controller
                     // tiket dimana employee jadi PIC atau member.
                     Log::info('My Tickets - DS User scope', ['employee_id' => $employeeId, 'explicit_permission' => $isDsUserScope]);
 
-                    $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+                    $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'modules'])
                         ->whereNull('ticket.is_hidden')
                         ->where(function ($q) use ($employeeId) {
                             $q->where('ticket.ticket_lead_id', $employeeId)
@@ -1572,7 +1629,9 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
-                    'module' => $ticket->module_name,
+                    // module_names = semua modul tiket digabung koma (bukan cuma modul
+                    // utama) — tiket boleh menyentuh lebih dari satu modul sekarang.
+                    'module' => $ticket->module_names,
                     'module_id' => $ticket->module_id,
                     'scale' => $ticket->scale,
                     'status' => $ticket->status,
@@ -1819,7 +1878,7 @@ class TicketController extends Controller
                 ], 403);
             }
 
-            $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
+            $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'modules'])
                 ->whereNull('ticket.is_hidden')
                 ->whereNull('ticket.ticket_lead_id');
 
@@ -2134,22 +2193,28 @@ class TicketController extends Controller
                 ->orderBy('ticket_confirmation.created_at', 'desc')
                 ->get();
 
-            // Decode member_ids for each confirmation
+            // Decode member_ids for each confirmation, then bulk-load ALL member
+            // names in one query instead of one query per confirmation row (was
+            // N+1 — each pending confirmation triggered its own employee lookup).
             foreach ($confirmations as $confirmation) {
                 $confirmation->member_ids = json_decode($confirmation->member_ids, true) ?? [];
-                
-                // Get member names
-                if (!empty($confirmation->member_ids)) {
-                    $members = DB::table('employee')
-                        ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-                        ->whereIn('employee.employee_id', $confirmation->member_ids)
-                        ->pluck('employee_basic_data.first_name')
-                        ->toArray();
-                    
-                    $confirmation->member_names = $members;
-                } else {
-                    $confirmation->member_names = [];
-                }
+            }
+
+            $allMemberIds = collect($confirmations)->flatMap(fn($c) => $c->member_ids)->unique()->values();
+
+            $memberNameMap = $allMemberIds->isEmpty()
+                ? collect()
+                : DB::table('employee')
+                    ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+                    ->whereIn('employee.employee_id', $allMemberIds)
+                    ->pluck('employee_basic_data.first_name', 'employee.employee_id');
+
+            foreach ($confirmations as $confirmation) {
+                $confirmation->member_names = collect($confirmation->member_ids)
+                    ->map(fn($id) => $memberNameMap->get($id))
+                    ->filter()
+                    ->values()
+                    ->toArray();
             }
 
             return response()->json([
@@ -2349,7 +2414,7 @@ class TicketController extends Controller
         }
 
         $pics = Employee::withMenuPermission('ticket.eligible-ticket-lead')
-            ->where('is_active', true)
+            ->eligibleForTicketTeam()
             ->with('basicData:employee_id,first_name,last_name')
             ->get()
             ->map(fn($e) => [
@@ -2393,10 +2458,20 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
+        // Employee nonaktif / diblokir / ditandai untuk dihapus tidak boleh jadi
+        // Ticket Lead — dicek di sini juga (bukan cuma filter dropdown) supaya
+        // request langsung ke API tidak bisa membypass.
+        if (!TicketTeamAccess::isEligibleEmployee((int) $request->ticket_lead_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee ini nonaktif, diblokir, atau ditandai untuk dihapus dan tidak bisa dijadikan Ticket Lead.',
+            ], 422);
+        }
+
         // Ticket Lead / Module Lead hanya boleh menunjuk lead dari anggota module tiket ini.
-        // (Hanya berlaku untuk tiket yang sudah punya module_id.)
+        // (Hanya berlaku untuk tiket yang sudah punya modul — bisa lebih dari satu.)
         if ($isLeadPath && $ticket->module_id
-            && !in_array((int) $request->ticket_lead_id, TicketTeamAccess::moduleCandidateIds($ticket->module_id), true)) {
+            && !in_array((int) $request->ticket_lead_id, TicketTeamAccess::moduleCandidateIds($ticket->modules->pluck('id')->all()), true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Ticket Lead harus dipilih dari anggota module tiket ini.',
@@ -2422,18 +2497,9 @@ class TicketController extends Controller
                 $updateData['pic'] = trim($leadName);
             }
 
-            $previousLeadId = $ticket->ticket_lead_id !== null ? (int) $ticket->ticket_lead_id : null;
-
             $ticket->update($updateData);
             $ticket->refreshPlaceholderManDays();
             $ticket->syncDraftResolutionMembers();
-
-            // PIC baru ikut ditarik ke channel Teams tiket ini. Hanya saat
-            // orangnya benar-benar berganti — menyimpan ulang PIC yang sama
-            // tidak perlu memanggil flow.
-            if ($previousLeadId !== (int) $request->ticket_lead_id) {
-                $this->notifyTeamsTicketPerson($ticket, (int) $request->ticket_lead_id, 'pic', $sessionUser);
-            }
 
             return response()->json(['success' => true, 'message' => $isFirstAssign ? 'Ticket Lead assigned successfully' : 'Ticket Lead updated successfully']);
         } catch (\Exception $e) {
@@ -2753,7 +2819,7 @@ class TicketController extends Controller
             && $ticketForCheck
             && $ticketForCheck->ticket_lead_id === null;
 
-        $addInfoKeys   = ['name', 'no_hp', 'module', 'module_id', 'client'];
+        $addInfoKeys   = ['name', 'no_hp', 'module', 'module_id', 'module_ids', 'client'];
         $isAddInfoOnly = $canEditAddInfo
             && $requestKeys !== []
             && count(array_diff($requestKeys, $addInfoKeys)) === 0;
@@ -2781,6 +2847,8 @@ class TicketController extends Controller
             'no_hp'          => 'sometimes|nullable|string|max:255',
             'module'         => 'sometimes|nullable|string|max:255',
             'module_id'      => 'sometimes|nullable|exists:modules,id',
+            'module_ids'     => 'sometimes|nullable|array',
+            'module_ids.*'   => 'integer|exists:modules,id',
             'client'         => 'sometimes|nullable|string|max:255',
         ]);
 
@@ -2789,6 +2857,15 @@ class TicketController extends Controller
                 'success' => false,
                 'message' => 'Ticket update data is invalid.',
                 'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Employee nonaktif / diblokir / ditandai untuk dihapus tidak boleh
+        // di-assign sebagai Ticket Lead lewat endpoint update ini juga.
+        if (!empty($request->ticket_lead_id) && !TicketTeamAccess::isEligibleEmployee((int) $request->ticket_lead_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee ini nonaktif, diblokir, atau ditandai untuk dihapus dan tidak bisa dijadikan Ticket Lead.',
             ], 422);
         }
 
@@ -2827,14 +2904,9 @@ class TicketController extends Controller
             if ($request->has('module') && $canEditAddInfo) {
                 $updateData['module'] = $request->module ?: null;
             }
-            if ($request->has('module_id') && $canEditAddInfo) {
-                $updateData['module_id'] = $request->module_id ?: null;
-            }
             if ($request->has('client') && $canEditAddInfo) {
                 $updateData['client'] = $request->client ?: null;
             }
-
-            $previousLeadId = $ticket->ticket_lead_id !== null ? (int) $ticket->ticket_lead_id : null;
 
             if (!empty($updateData)) {
                 $ticket->update($updateData);
@@ -2843,14 +2915,18 @@ class TicketController extends Controller
                     $ticket->refreshPlaceholderManDays();
                     $ticket->syncDraftResolutionMembers();
                 }
+            }
 
-                // Jalur kedua penetapan PIC (edit tiket), sejajar dengan assignPic().
-                $newLeadId = array_key_exists('ticket_lead_id', $updateData) && $updateData['ticket_lead_id']
-                    ? (int) $updateData['ticket_lead_id']
-                    : null;
-                if ($newLeadId && $newLeadId !== $previousLeadId) {
-                    $this->notifyTeamsTicketPerson($ticket, $newLeadId, 'pic', $sessionUser);
-                }
+            // module_id/modules ditulis lewat syncModules(), terpisah dari $updateData
+            // di atas — module_ids bisa jadi SATU-SATUNYA field yang berubah (mis. cuma
+            // ganti modul tanpa menyentuh field lain), jadi tidak boleh terikat pada
+            // !empty($updateData). Terima module_ids[] (baru) atau module_id tunggal
+            // (lama, termasuk string kosong "-- none --" → clear semua modul).
+            if ($canEditAddInfo && ($request->has('module_ids') || $request->has('module_id'))) {
+                $moduleIds = $request->has('module_ids')
+                    ? (array) $request->input('module_ids', [])
+                    : array_filter([$request->input('module_id') ?: null]);
+                $ticket->syncModules($moduleIds);
             }
 
             $ticket->load(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData']);
@@ -3195,18 +3271,25 @@ class TicketController extends Controller
                 ->orderBy('member_change_requests.created_at', 'desc')
                 ->get();
 
-            // Decode member_ids and get names
+            // Decode member_ids and get names — bulk-load in one query instead
+            // of one query per pending change request (was N+1).
             foreach ($memberChanges as $change) {
                 $change->member_ids = json_decode($change->member_ids, true) ?? [];
-                
+            }
+
+            $allMemberIds = collect($memberChanges)->flatMap(fn($c) => $c->member_ids)->unique()->values();
+
+            $memberNameMap = $allMemberIds->isEmpty()
+                ? collect()
+                : DB::table('employee')
+                    ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+                    ->whereIn('employee.employee_id', $allMemberIds)
+                    ->pluck('employee_basic_data.first_name', 'employee.employee_id');
+
+            foreach ($memberChanges as $change) {
                 if (!empty($change->member_ids)) {
-                    $members = DB::table('employee')
-                        ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-                        ->whereIn('employee.employee_id', $change->member_ids)
-                        ->pluck('employee_basic_data.first_name')
-                        ->toArray();
-                    
-                    $change->member_names = implode(', ', $members);
+                    $names = collect($change->member_ids)->map(fn($id) => $memberNameMap->get($id))->filter();
+                    $change->member_names = $names->isEmpty() ? 'None' : $names->implode(', ');
                 } else {
                     $change->member_names = 'None';
                 }
@@ -3314,10 +3397,19 @@ class TicketController extends Controller
         try {
             $empId = (int) $request->employee_id;
 
+            // Employee nonaktif / diblokir / ditandai untuk dihapus tidak boleh
+            // ditambahkan sebagai member.
+            if (!TicketTeamAccess::isEligibleEmployee($empId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee ini nonaktif, diblokir, atau ditandai untuk dihapus dan tidak bisa ditambahkan sebagai member.',
+                ], 422);
+            }
+
             // Ticket Lead / Module Lead hanya boleh menambah member dari anggota module tiket ini.
-            // (Hanya berlaku untuk tiket yang sudah punya module_id.)
+            // (Hanya berlaku untuk tiket yang sudah punya modul — bisa lebih dari satu.)
             if ($isLeadPath && $ticket->module_id
-                && !in_array($empId, TicketTeamAccess::moduleCandidateIds($ticket->module_id), true)) {
+                && !in_array($empId, TicketTeamAccess::moduleCandidateIds($ticket->modules->pluck('id')->all()), true)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Member harus dipilih dari anggota module tiket ini.',
@@ -3382,9 +3474,6 @@ class TicketController extends Controller
             );
 
             $this->sendMemberNotifications($ticket, $actorId, $actorName, $empId, $addedName, $isReactivation ? 'reactivated' : 'added');
-
-            // Ikut tarik orangnya ke channel Teams tiket ini.
-            $this->notifyTeamsTicketPerson($ticket, $empId, 'member', $sessionUser);
 
             return response()->json([
                 'success' => true,
@@ -3521,9 +3610,22 @@ class TicketController extends Controller
             ], 422);
         }
 
+        // Employee nonaktif / diblokir / ditandai untuk dihapus tidak boleh ada
+        // di daftar member.
+        $ineligible = array_values(array_filter(
+            array_map('intval', $request->member_ids),
+            fn ($empId) => !TicketTeamAccess::isEligibleEmployee($empId)
+        ));
+        if (!empty($ineligible)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Salah satu employee nonaktif, diblokir, atau ditandai untuk dihapus dan tidak bisa jadi member.',
+            ], 422);
+        }
+
         // Jalur lead: semua member_ids harus anggota module tiket ini.
         if ($isLeadPath && $ticket->module_id) {
-            $allowed = TicketTeamAccess::moduleCandidateIds($ticket->module_id);
+            $allowed = TicketTeamAccess::moduleCandidateIds($ticket->modules->pluck('id')->all());
             $invalid = array_diff(array_map('intval', $request->member_ids), $allowed);
             if (!empty($invalid)) {
                 return response()->json([
@@ -3814,6 +3916,24 @@ class TicketController extends Controller
             if ($action === 'approve') {
                 $ticket = Ticket::findOrFail($changeRequest->ticket_id);
                 $memberIds = json_decode($changeRequest->member_ids, true);
+
+                // Employee yang di-request bisa saja sudah di-block / ditandai untuk
+                // dihapus / dinonaktifkan SETELAH request diajukan — cek ulang di sini
+                // supaya approval tidak menghidupkan kembali membership employee semacam itu.
+                if ($changeRequest->change_type === 'update') {
+                    $ineligible = array_values(array_filter(
+                        array_map('intval', $memberIds),
+                        fn ($empId) => !TicketTeamAccess::isEligibleEmployee($empId)
+                    ));
+                    if (!empty($ineligible)) {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Salah satu employee pada permintaan ini nonaktif, diblokir, atau ditandai untuk dihapus. Tolak permintaan ini dan minta pengajuan ulang.',
+                        ], 422);
+                    }
+                }
+
                 $oldActiveMemberIds = DB::table('ticket_member')
                     ->where('ticket_id', $ticket->ticket_id)
                     ->where('is_active', true)
@@ -4022,11 +4142,15 @@ class TicketController extends Controller
                 ->orderBy('delivery_support.created_at', 'desc')
                 ->get();
 
-            // Count tickets per support
+            // Count tickets per support — 1 query groupBy, bukan 1 query per baris support
+            $ticketCounts = DB::table('delivery_support_activities')
+                ->whereIn('delivery_support_id', $supports->pluck('id'))
+                ->select('delivery_support_id', DB::raw('count(*) as total'))
+                ->groupBy('delivery_support_id')
+                ->pluck('total', 'delivery_support_id');
+
             foreach ($supports as $support) {
-                $support->ticket_count = DB::table('delivery_support_activities')
-                    ->where('delivery_support_id', $support->id)
-                    ->count();
+                $support->ticket_count = (int) ($ticketCounts[$support->id] ?? 0);
             }
 
             return response()->json([
@@ -4323,14 +4447,9 @@ class TicketController extends Controller
             ], 403);
         }
 
-        // Support type kini master data (menu Management > Master Delivery
-        // Settings > Support Type) — lihat DeliverySupportTypeController —
-        // bukan hardcode lagi.
-        $validSupportTypes = DeliverySupportType::active()->pluck('name');
-
         $validator = Validator::make($request->all(), [
             'name'           => 'required|string|max:255',
-            'type'           => 'required|in:' . $validSupportTypes->implode(','),
+            'type'           => 'required|in:AMS,MO,ATS,CR,RISE,CLOUD,POSTPAID,Project,Internal',
             'support_method' => 'nullable|string|max:100',
         ]);
 

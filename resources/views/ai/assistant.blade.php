@@ -26,6 +26,19 @@
 
     #aiInput { max-height: 200px; }
 
+    /* Sidebar riwayat. Di layar lebar ia kolom biasa; di layar sempit ruang
+       tidak cukup untuk dua kolom, jadi ia muncul sebagai drawer melayang —
+       pola sama persis dengan #airHistory di ai/research.blade.php. Selektor
+       ber-id dipakai supaya menang atas .hidden milik Tailwind. */
+    @media (max-width: 1023px) {
+        #aiHistory.is-open {
+            display: flex; position: fixed; z-index: 60;
+            top: 5.5rem; left: .75rem; bottom: 1rem; width: 17rem;
+            box-shadow: 0 12px 40px rgba(0,0,0,.18);
+        }
+    }
+    .ai-history-item.is-active { background: rgba(220,38,38,.08); border-color: #fecaca; }
+
     /* Isi jawaban assistant dirender dari markdown (lihat aiRenderMarkdown). */
     .ai-prose p { margin: 0 0 .6rem; }
     .ai-prose p:last-child, .ai-prose > *:last-child { margin-bottom: 0; }
@@ -60,12 +73,58 @@
     .ai-prose a { color: #dc2626; text-decoration: underline; }
     .ai-prose blockquote { border-left: 3px solid #e5e7eb; padding-left: .75rem; margin: 0 0 .6rem; color: #6b7280; }
     .ai-prose hr { border: none; border-top: 1px solid #e5e7eb; margin: .6rem 0; }
+
+    /* ── Lampiran gambar ───────────────────────────────────────────────────── */
+    .ai-thumb {
+        display: block; border-radius: .5rem; object-fit: cover;
+        cursor: zoom-in; transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .ai-thumb:hover { transform: scale(1.02); box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+
+    #aiLightbox { background: rgba(3,7,18,.88); backdrop-filter: blur(2px); }
+    #aiLightbox img { max-width: 92vw; max-height: 86vh; border-radius: .5rem; }
 </style>
 @endpush
 
 @section('content')
 
 <div class="ai-shell flex gap-4">
+
+    {{-- ── Riwayat percakapan ───────────────────────────────────────────────
+         Isinya hanya milik user yang login — tidak ada jalur untuk melihat
+         riwayat orang lain, termasuk untuk admin (lihat AiAssistantController::
+         conversations()). Tersimpan di server (bukan sessionStorage), jadi
+         tetap tampak kalau login dari device/browser lain. --}}
+    <aside id="aiHistory" class="hidden lg:flex w-64 shrink-0 flex-col bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div class="flex items-center gap-2 px-3 py-3 border-b border-gray-100">
+            <h3 class="flex-1 text-xs font-bold text-gray-900">History</h3>
+            <button type="button" onclick="aiNewChat()" title="Start a new chat"
+                    class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-600 text-white text-[10px] font-semibold hover:bg-red-700 transition-all">
+                <i class="fas fa-plus text-[9px]"></i> New
+            </button>
+            <button type="button" onclick="aiToggleHistory()" title="Close"
+                    class="lg:hidden w-6 h-6 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100">
+                <i class="fas fa-xmark text-[11px]"></i>
+            </button>
+        </div>
+
+        <div class="px-3 pt-2.5 pb-2 border-b border-gray-100">
+            <div class="relative">
+                <i class="fas fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-300"></i>
+                <input type="text" id="aiHistorySearch" placeholder="Search chats…" autocomplete="off"
+                       oninput="aiRenderHistory(aiFilteredHistory())"
+                       class="w-full pl-7 pr-2.5 py-1.5 rounded-lg border border-gray-200 text-[11px] text-gray-700 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300">
+            </div>
+        </div>
+
+        <div id="aiHistoryList" class="flex-1 overflow-y-auto ai-scroll px-2 py-2 space-y-1">
+            <p class="px-2 py-6 text-center text-[11px] text-gray-400">Loading…</p>
+        </div>
+
+        <p class="px-3 py-2.5 border-t border-gray-100 text-[10px] text-gray-400 leading-snug">
+            Only you can see these, from any device you log in on.
+        </p>
+    </aside>
 
     {{-- ── Panel chat ───────────────────────────────────────────────────────── --}}
     <section class="flex-1 min-w-0 flex flex-col bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -86,6 +145,10 @@
             </div>
 
             <div class="flex items-center gap-1.5">
+                <button type="button" onclick="aiToggleHistory()" title="Conversation history"
+                        class="lg:hidden w-8 h-8 inline-flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
+                    <i class="fas fa-clock-rotate-left text-xs"></i>
+                </button>
                 {{-- Pemilih model DIHAPUS: modelnya ditentukan super admin di
                      Control Center → AI Settings, sama untuk semua orang. --}}
                 <button type="button" onclick="aiNewChat()" title="Clear conversation"
@@ -157,6 +220,18 @@
     </section>
 </div>
 
+{{-- Lightbox gambar (di luar thread supaya tidak ikut ter-scroll) --}}
+<div id="aiLightbox" class="hidden fixed inset-0 z-[70] items-center justify-center p-6" onclick="aiCloseLightbox(event)">
+    <button type="button" onclick="aiCloseLightbox()" title="Close"
+            class="absolute top-4 right-4 w-10 h-10 inline-flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-all">
+        <i class="fas fa-xmark"></i>
+    </button>
+    <figure class="max-w-full max-h-full flex flex-col items-center gap-3">
+        <img id="aiLightboxImg" src="" alt="">
+        <figcaption id="aiLightboxCaption" class="text-xs text-white/70"></figcaption>
+    </figure>
+</div>
+
 {{-- Pratinjau tempelan besar. Chip di composer maupun di bubble yang sudah
      terkirim membuka modal ini — isi tempelan tidak pernah dirender inline,
      karena 8.000 baris di dalam thread membuat halaman tak bisa dipakai. --}}
@@ -186,16 +261,35 @@
 /* ──────────────────────────────────────────────────────────────────────────
    AI Assistant.
 
-   Backend touchpoint is aiSendToBackend(), which streams the reply from
-   POST /ai-assistant/chat as Server-Sent Events. No conversation history is
-   stored server-side beyond a short-lived cache keyed by a client-generated
-   conversation id (see aiEnsureConversationId()) — refreshing or switching
-   tabs keeps the same conversation id, so the backend's cached context
-   picks up where it left off; a brand-new tab starts a fresh conversation.
+   Backend touchpoint for sending is aiSendToBackend(), which streams the
+   reply from POST /ai-assistant/chat as Server-Sent Events. The conversation
+   id is a client-generated UUID kept in sessionStorage (see
+   aiEnsureConversationId()) — same tab/id, so refreshing or switching menus
+   and coming back reuses it; a brand-new tab starts a fresh conversation.
+
+   The chat itself IS persisted server-side (assistant's working memory lasts
+   24h, and a text-only archive survives well past that — see AiChatService).
+   What used to reset on every page load was purely the DOM: the thread was
+   never re-fetched after a reload. aiOpenConversation() (called from
+   DOMContentLoaded when a saved id exists) fixes that by pulling the archived
+   transcript from GET /ai-assistant/conversations/{id} and re-rendering it.
+
+   sessionStorage only ever remembers "which conversation is active in THIS
+   tab" — it never carries across devices/browsers on its own. The History
+   sidebar (aiLoadHistory() et al., mirroring ai/research.blade.php's) is what
+   makes past conversations reachable from anywhere: it lists straight from
+   the server-side archive (AiAssistantController::conversations(), keyed by
+   employee_id, not by device), so logging in on a different device and
+   opening History shows the same chats.
    ────────────────────────────────────────────────────────────────────────── */
 
 const AI_MAX_CHARS = 4000;
 const AI_CHAT_ENDPOINT = @json(route('ai-assistant.chat'));
+/* {id} diganti saat dipakai — route() butuh parameter, dan menyusun URL-nya
+   di sisi JS dengan string mentah gampang salah kalau prefiks app berubah. */
+const AI_CONV_ENDPOINT = @json(route('ai-assistant.conversation', ['conversation' => '__ID__']));
+const AI_LIST_ENDPOINT = @json(route('ai-assistant.conversations'));
+const AI_DELETE_ENDPOINT = @json(route('ai-assistant.conversation.delete', ['conversation' => '__ID__']));
 const AI_CONVERSATION_STORAGE_KEY = 'ai_conversation_id';
 
 /* Ambang "ini tempelan, bukan ketikan". Di atas salah satu angka ini, teks
@@ -216,6 +310,10 @@ let aiFiles     = [];     // File[] yang dipilih untuk pesan berikutnya
 let aiBusy      = false;  // sedang menunggu balasan
 let aiAbort     = null;   // AbortController pembatal request berjalan
 let aiConversationId = null;
+let aiAttachSeq = 0;      // id unik elemen badge lampiran arsip, lihat aiAppendUserStored()
+
+const aiPreviews = new Map();  // File → object URL, dibuat sekali per File
+let aiPreviewUrls = [];        // dibuang saat chat baru, lihat aiNewChat()
 
 /* Nama user yang login, untuk sapaan di empty state (aiGreeting()). */
 const AI_USER_NAME = @json(session('user.name', ''));
@@ -314,6 +412,110 @@ function aiGreeting() {
 
 /* ── Lampiran ──────────────────────────────────────────────────────────── */
 
+function aiIsImage(file) {
+    return (file.type || '').startsWith('image/');
+}
+
+/** Object URL pratinjau, dibuat sekali per File. */
+function aiPreviewUrl(file) {
+    if (!aiPreviews.has(file)) {
+        const url = URL.createObjectURL(file);
+        aiPreviews.set(file, url);
+        aiPreviewUrls.push(url);
+    }
+    return aiPreviews.get(file);
+}
+
+/* Cache lampiran di browser (opsional, murni kenyamanan) — server TIDAK
+   PERNAH menyimpan byte gambar, arsip cuma mencatat JUMLAH lampiran
+   (lihat migration create_ai_conversation_tables: "tanpa menyimpan
+   screenshot sistem customer selamanya"). Supaya thumbnail tetap muncul
+   lagi saat conversation dibuka ulang DI BROWSER/DEVICE YANG SAMA,
+   file-nya disimpan di IndexedDB milik user sendiri, dikunci dari teks
+   pesan (bukan posisi/index — lebih tahan terhadap pesan yang gagal/
+   ditolak terkirim, yang tidak pernah benar-benar sampai ke arsip).
+   Kegagalan di jalur ini SELALU diam: ini cuma penambah, bukan pengganti,
+   badge teks "N attachment" yang sudah ada. Database TERPISAH dari AI
+   Research (nama beda) supaya lampiran dua fitur tidak tercampur. */
+const AI_ATTACHMENT_DB = 'ai_assistant_attachment_cache';
+const AI_ATTACHMENT_STORE = 'files';
+const AI_ATTACHMENT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 hari
+
+function aiAttachmentDb() {
+    return new Promise((resolve, reject) => {
+        if (!window.indexedDB) { reject(new Error('no indexedDB')); return; }
+        const req = indexedDB.open(AI_ATTACHMENT_DB, 1);
+        req.onupgradeneeded = () => req.result.createObjectStore(AI_ATTACHMENT_STORE);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+function aiAttachmentCacheKey(conversationId, text, fileIndex) {
+    return conversationId + '::' + (text || '').trim().slice(0, 200) + '::' + fileIndex;
+}
+
+async function aiCacheAttachmentFile(key, file) {
+    try {
+        const db = await aiAttachmentDb();
+        await new Promise((resolve) => {
+            const tx = db.transaction(AI_ATTACHMENT_STORE, 'readwrite');
+            tx.objectStore(AI_ATTACHMENT_STORE).put({ file, at: Date.now() }, key);
+            tx.oncomplete = resolve;
+            tx.onerror = resolve;
+        });
+    } catch { /* diam - lihat catatan di atas */ }
+}
+
+async function aiGetCachedAttachmentFile(key) {
+    try {
+        const db = await aiAttachmentDb();
+        return await new Promise((resolve) => {
+            const tx = db.transaction(AI_ATTACHMENT_STORE, 'readonly');
+            const req = tx.objectStore(AI_ATTACHMENT_STORE).get(key);
+            req.onsuccess = () => resolve(req.result?.file || null);
+            req.onerror = () => resolve(null);
+        });
+    } catch {
+        return null;
+    }
+}
+
+/** Buang entri lebih dari 30 hari. Dipanggil sekali tiap halaman dimuat, non-blocking. */
+async function aiPruneAttachmentCache() {
+    try {
+        const db = await aiAttachmentDb();
+        const cutoff = Date.now() - AI_ATTACHMENT_MAX_AGE_MS;
+        const store = db.transaction(AI_ATTACHMENT_STORE, 'readwrite').objectStore(AI_ATTACHMENT_STORE);
+        const req = store.openCursor();
+        req.onsuccess = () => {
+            const cursor = req.result;
+            if (!cursor) return;
+            if ((cursor.value?.at || 0) < cutoff) cursor.delete();
+            cursor.continue();
+        };
+    } catch { /* diam */ }
+}
+
+/* Lightbox */
+
+function aiOpenLightbox(url, caption) {
+    const box = document.getElementById('aiLightbox');
+    document.getElementById('aiLightboxImg').src = url;
+    document.getElementById('aiLightboxCaption').textContent = caption || '';
+    box.classList.remove('hidden');
+    box.classList.add('flex');
+}
+
+/** Klik di area gelap (bukan pada gambar) menutup lightbox. */
+function aiCloseLightbox(e) {
+    if (e && e.target.tagName === 'IMG') return;
+
+    const box = document.getElementById('aiLightbox');
+    box.classList.add('hidden');
+    box.classList.remove('flex');
+}
+
 function aiOnFilesPicked(input) {
     aiAddFiles(Array.from(input.files || []));
     input.value = '';  // supaya file yang sama bisa dipilih lagi
@@ -348,15 +550,32 @@ function aiRenderAttachments() {
     box.classList.toggle('hidden', aiFiles.length === 0);
     box.classList.toggle('flex', aiFiles.length > 0);
 
-    box.innerHTML = aiFiles.map((file, i) => `
+    // Gambar tampil sebagai thumbnail sungguhan (klik untuk lightbox), sama
+    // seperti bubble terkirim — bukan cuma chip ikon+nama. Tempelan teks
+    // TETAP lewat aiChipFace() apa adanya (paste selalu menang atas image-
+    // ness, walau secara teknis jarang/tidak pernah keduanya sekaligus).
+    box.innerHTML = aiFiles.map((file, i) => {
+        const isImage = aiIsImage(file) && !aiPasteMeta.has(file);
+
+        const face = isImage ? `
+            <img src="${aiPreviewUrl(file)}" alt="${aiEsc(file.name)}" title="${aiEsc(file.name)}"
+                 class="ai-thumb w-9 h-9 shrink-0"
+                 data-ai-full="${aiPreviewUrl(file)}" data-ai-caption="${aiEsc(file.name)}">
+            <span class="min-w-0">
+                <span class="block text-[11px] font-semibold text-gray-700 truncate">${aiEsc(file.name)}</span>
+                <span class="block text-[10px] text-gray-400">${aiFileSize(file.size)}</span>
+            </span>`
+            : aiChipFace(file, 'text-gray-400', 'text-gray-700', 'bg-gray-200/70');
+
+        return `
         <span class="inline-flex items-center gap-2 pl-2.5 pr-1.5 py-1.5 rounded-xl border border-gray-200 bg-gray-50 max-w-[240px]">
-            ${aiChipFace(file, 'text-gray-400', 'text-gray-700', 'bg-gray-200/70')}
+            ${face}
             <button type="button" onclick="aiRemoveFile(${i})" title="Remove"
                     class="w-5 h-5 shrink-0 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-all">
                 <i class="fas fa-xmark text-[10px]"></i>
             </button>
-        </span>
-    `).join('');
+        </span>`;
+    }).join('');
 }
 
 /**
@@ -541,8 +760,16 @@ function aiEsc(s) {
     }[c]));
 }
 
-function aiTime() {
-    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+/* Tanpa argumen = sekarang. Bubble yang dipulihkan dari arsip mengirim waktu
+   aslinya — kalau tidak, percakapan kemarin tampil seolah baru saja terjadi. */
+function aiTime(at) {
+    const d = at ? new Date(at) : new Date();
+    if (isNaN(d)) return '';
+
+    const sameDay = d.toDateString() === new Date().toDateString();
+    const clock = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    return sameDay ? clock : d.toLocaleDateString([], { day: '2-digit', month: 'short' }) + ' ' + clock;
 }
 
 function aiShowThread() {
@@ -556,21 +783,42 @@ function aiScrollToBottom() {
 }
 
 function aiAppendUser(text, files) {
-    const chips = files.length === 0 ? '' : `
-        <div class="flex flex-wrap gap-1.5 justify-end mt-2">
-            ${files.map(f => `
+    // Gambar (kecuali tempelan teks yang kebetulan lolos deteksi MIME — tidak
+    // pernah terjadi di praktik, tapi aiPasteMeta.get(f) di aiChipFace() sudah
+    // menjaganya) tampil utuh sebagai thumbnail; file lain tetap chip nama.
+    const images = files.filter(f => aiIsImage(f) && !aiPasteMeta.has(f));
+    const others = files.filter(f => !images.includes(f));
+
+    // Lampiran DULU, teks/prompt di bawahnya — sama seperti composer
+    // claude.ai (gambar/berkas adalah "subjek", teksnya keterangan/pertanyaan
+    // tentangnya). justify-start (bukan justify-end) — bubble-nya sendiri
+    // sudah rata kanan (flex justify-end di bawah), thumbnail di DALAM bubble
+    // harus rata kiri seperti alur baca normal, bukan menempel ke sudut kanan.
+    const thumbs = images.length === 0 ? '' : `
+        <div class="flex flex-wrap gap-1.5 justify-start">
+            ${images.map(f => `
+                <img src="${aiPreviewUrl(f)}" alt="${aiEsc(f.name)}" title="${aiEsc(f.name)}"
+                     class="ai-thumb w-28 h-28 border border-white/25"
+                     data-ai-full="${aiPreviewUrl(f)}" data-ai-caption="${aiEsc(f.name)}">`).join('')}
+        </div>`;
+
+    const chips = others.length === 0 ? '' : `
+        <div class="flex flex-wrap gap-1.5 justify-start ${images.length ? 'mt-2' : ''}">
+            ${others.map(f => `
                 <span class="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-white/15 border border-white/20 max-w-[220px]">
                     ${aiChipFace(f, 'text-white/70', 'text-white', 'bg-white/20')}
                 </span>`).join('')}
         </div>`;
 
-    const body = text ? `<p class="whitespace-pre-wrap break-words">${aiEsc(text)}</p>` : '';
+    const body = text
+        ? `<p class="whitespace-pre-wrap break-words ${(images.length || others.length) ? 'mt-2' : ''}">${aiEsc(text)}</p>`
+        : '';
 
     document.getElementById('aiMessages').insertAdjacentHTML('beforeend', `
         <div class="ai-bubble-in flex justify-end gap-3">
             <div class="max-w-[85%] sm:max-w-[70%]">
                 <div class="bg-red-600 text-white text-sm rounded-2xl rounded-br-md px-4 py-2.5">
-                    ${body}${chips}
+                    ${thumbs}${chips}${body}
                 </div>
                 <p class="text-[10px] text-gray-400 mt-1 text-right">${aiTime()}</p>
             </div>
@@ -579,9 +827,14 @@ function aiAppendUser(text, files) {
     aiScrollToBottom();
 }
 
+/* Hidrasi riwayat membuat banyak bubble dalam milidetik yang sama, jadi id-nya
+   TIDAK boleh berbasis Date.now() — id kembar membuat delta jawaban baru
+   mendarat di bubble lama. */
+let aiMsgSeq = 0;
+
 /** Bubble assistant kosong + indikator mengetik. Kembalikan id-nya. */
-function aiAppendAssistantPending() {
-    const id = 'aiMsg' + Date.now();
+function aiAppendAssistantPending(at) {
+    const id = 'aiMsg' + (++aiMsgSeq);
 
     document.getElementById('aiMessages').insertAdjacentHTML('beforeend', `
         <div class="ai-bubble-in flex gap-3" id="${id}">
@@ -611,13 +864,123 @@ function aiAppendAssistantPending() {
                             class="w-6 h-6 inline-flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
                         <i class="fas fa-thumbs-down text-[10px]"></i>
                     </button>
-                    <span class="text-[10px] text-gray-400 ml-1">${aiTime()}</span>
+                    <span class="text-[10px] text-gray-400 ml-1">${aiTime(at)}</span>
                 </div>
             </div>
         </div>
     `);
     aiScrollToBottom();
     return id;
+}
+
+/**
+ * Bubble user dari arsip: teksnya tersimpan, lampirannya (di server) tidak.
+ * Badge teks ditampilkan LEBIH DULU (selalu benar, tidak pernah menunggu apa
+ * pun); kalau file aslinya kebetulan masih ada di cache browser (dikirim
+ * dari browser/device yang sama, lihat aiCacheAttachmentFile()), badge-nya
+ * ditingkatkan jadi thumbnail sungguhan secara asinkron begitu ketemu.
+ */
+function aiAppendUserStored(text, attachmentCount, at, conversationId) {
+    const noteId = attachmentCount > 0 ? 'aiAtt' + (++aiAttachSeq) : null;
+
+    const note = attachmentCount > 0 ? `
+        <div id="${noteId}" class="flex items-center gap-1.5 justify-start text-[10px] text-white/70">
+            <i class="fas fa-paperclip text-[9px]"></i>
+            ${attachmentCount} attachment${attachmentCount > 1 ? 's' : ''} (not kept in history)
+        </div>` : '';
+
+    const body = text
+        ? `<p class="whitespace-pre-wrap break-words ${attachmentCount > 0 ? 'mt-2' : ''}">${aiEsc(text)}</p>`
+        : '';
+
+    document.getElementById('aiMessages').insertAdjacentHTML('beforeend', `
+        <div class="flex justify-end gap-3">
+            <div class="max-w-[85%] sm:max-w-[70%]">
+                <div class="bg-red-600 text-white text-sm rounded-2xl rounded-br-md px-4 py-2.5">
+                    ${note}${body}
+                </div>
+                <p class="text-[10px] text-gray-400 mt-1 text-right">${aiTime(at)}</p>
+            </div>
+        </div>
+    `);
+    aiScrollToBottom();
+
+    if (attachmentCount > 0 && conversationId) {
+        aiUpgradeStoredAttachments(noteId, conversationId, text, attachmentCount);
+    }
+}
+
+/** Ganti badge teks jadi thumbnail sungguhan kalau SEMUA file-nya ketemu di cache browser. */
+async function aiUpgradeStoredAttachments(noteId, conversationId, text, count) {
+    const files = await Promise.all(
+        Array.from({ length: count }, (_, fi) => aiGetCachedAttachmentFile(aiAttachmentCacheKey(conversationId, text, fi)))
+    );
+
+    if (files.some(f => !f)) return; // sebagian/semua tidak ada — biarkan badge teks apa adanya
+
+    const el = document.getElementById(noteId);
+    if (!el) return;
+
+    const images = files.filter(aiIsImage);
+    const others = files.filter(f => !aiIsImage(f));
+
+    const thumbs = images.length === 0 ? '' : `
+        <div class="flex flex-wrap gap-1.5 justify-start">
+            ${images.map(f => `
+                <img src="${aiPreviewUrl(f)}" alt="${aiEsc(f.name)}" title="${aiEsc(f.name)}"
+                     class="ai-thumb w-28 h-28 border border-white/25"
+                     data-ai-full="${aiPreviewUrl(f)}" data-ai-caption="${aiEsc(f.name)}">`).join('')}
+        </div>`;
+
+    const chips = others.length === 0 ? '' : `
+        <div class="flex flex-wrap gap-1.5 justify-start ${images.length ? 'mt-2' : ''}">
+            ${others.map(f => `
+                <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/15 border border-white/20">
+                    <i class="fas ${aiFileIcon(f.name)} text-[10px]"></i>
+                    <span class="text-[10px] font-medium truncate max-w-[140px]">${aiEsc(f.name)}</span>
+                </span>`).join('')}
+        </div>`;
+
+    // Note (badge lampiran) diganti thumbs+chips di POSISI YANG SAMA — bubble
+    // sudah dirakit dengan lampiran DI ATAS teks (lihat aiAppendUserStored()),
+    // jadi tidak perlu urus ulang posisi teksnya di sini.
+    el.outerHTML = thumbs + chips;
+}
+
+/** Bubble assistant dari arsip — bentuknya sama dengan hasil streaming. */
+function aiAppendAssistantStored(text, at) {
+    const id = aiAppendAssistantPending(at);
+    const wrap = document.getElementById(id);
+    const body = wrap.querySelector('.ai-body');
+
+    // dataset.text diisi supaya tombol Copy tetap menyalin teks aslinya.
+    body.dataset.streaming = '1';
+    body.dataset.text = text || '';
+    body.innerHTML = aiRenderMarkdown(body.dataset.text);
+
+    const actions = wrap.querySelector('.ai-actions');
+    actions.classList.remove('hidden');
+    actions.classList.add('flex');
+
+    aiScrollToBottom();
+}
+
+/**
+ * Garis "dari sini yang diingat model".
+ *
+ * Ditempatkan DI DALAM transkrip, bukan sebagai banner di atas halaman: yang
+ * perlu diketahui user bukan "ada batas", melainkan batasnya ada DI MANA.
+ */
+function aiAppendMemoryDivider() {
+    document.getElementById('aiMessages').insertAdjacentHTML('beforeend', `
+        <div class="flex items-center gap-2 py-1" title="Older messages are still readable here; the assistant just no longer has them in context.">
+            <span class="flex-1 h-px bg-gray-200"></span>
+            <span class="text-[10px] text-gray-400 px-1 text-center leading-snug">
+                The assistant remembers the conversation from here on; earlier messages are no longer in its context
+            </span>
+            <span class="flex-1 h-px bg-gray-200"></span>
+        </div>
+    `);
 }
 
 /** Bertahap: append satu potongan teks ke bubble yang sedang streaming, lalu
@@ -688,6 +1051,18 @@ function aiSend() {
 
     aiShowThread();
     aiAppendUser(text, files);
+
+    // Cache opsional di browser sendiri (lihat blok "Cache lampiran" dekat
+    // aiIsImage()) — kalau turn ini ternyata gagal/ditolak dan tidak pernah
+    // sampai ke arsip, entrinya cuma jadi sisa yang tidak pernah dicocokkan
+    // siapa pun; tidak ada salahnya menyimpan lebih awal daripada menunggu
+    // konfirmasi sukses.
+    // aiEnsureConversationId(), bukan aiConversationId mentah: untuk pesan
+    // PERTAMA di percakapan baru, id-nya baru dijamin ada di titik ini
+    // (aiSendToBackend() di bawah memanggil fungsi yang sama, jadi id-nya
+    // dijamin sama persis dengan yang nanti dipakai server untuk arsip).
+    const cacheConversationId = aiEnsureConversationId();
+    files.forEach((f, fi) => aiCacheAttachmentFile(aiAttachmentCacheKey(cacheConversationId, text, fi), f));
 
     input.value = '';
     aiFiles = [];
@@ -807,14 +1182,21 @@ function aiNewChat() {
     aiFiles = [];
     aiRenderAttachments();
 
+    // Bubble lama sudah dibuang, jadi object URL pratinjau boleh dilepas.
+    aiPreviewUrls.forEach(URL.revokeObjectURL);
+    aiPreviewUrls = [];
+    aiPreviews.clear();
+
     // Bubble yang memegang id-nya sudah ikut terhapus di atas, jadi isi
     // tempelan lama tidak lagi bisa dibuka; jangan ditahan di memori.
     Object.keys(aiPasteById).forEach(id => delete aiPasteById[id]);
 
-    // Start a fresh conversation; the backend's cached context for the old
-    // id is simply left to expire, nothing to explicitly tear down.
+    // Start a fresh conversation. The old one is NOT deleted — it stays in
+    // the archive, just no longer linked to this tab — so nothing needs to
+    // be explicitly torn down beyond dropping the id.
     aiConversationId = null;
     sessionStorage.removeItem(AI_CONVERSATION_STORAGE_KEY);
+    aiMarkActive(null);
 
     const input = document.getElementById('aiInput');
     input.value = '';
@@ -823,12 +1205,213 @@ function aiNewChat() {
     input.focus();
 }
 
+/* ── Riwayat ───────────────────────────────────────────────────────────
+   Percakapan disimpan di server (ai_conversations, assistant 'internal') dan
+   hanya bisa dilihat pemiliknya — dari device/browser mana pun dia login,
+   bukan cuma tab yang memulainya. Pola sama persis dengan History milik
+   ai/research.blade.php (fungsi air*), cuma prefiks-nya "ai" di sini.
+   ────────────────────────────────────────────────────────────────────── */
+
+let aiHistoryItems = [];
+
+async function aiLoadHistory() {
+    const box = document.getElementById('aiHistoryList');
+
+    try {
+        const res = await fetch(AI_LIST_ENDPOINT, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        aiHistoryItems = (await res.json()).items || [];
+        aiRenderHistory(aiFilteredHistory());
+    } catch {
+        box.innerHTML = '<p class="px-2 py-6 text-center text-[11px] text-gray-400">Could not load history.</p>';
+    }
+}
+
+/* Pencarian murni di klien: 100 item terakhir sudah dimuat sekali lewat
+   aiLoadHistory(), jadi mengetik di kotak cari tidak perlu roundtrip baru —
+   cukup saring ulang array yang sudah ada lalu render lagi. */
+function aiFilteredHistory() {
+    const q = (document.getElementById('aiHistorySearch')?.value || '').trim().toLowerCase();
+    if (!q) return aiHistoryItems;
+
+    return aiHistoryItems.filter(item => (item.title || '').toLowerCase().includes(q));
+}
+
+function aiRenderHistory(items) {
+    const box = document.getElementById('aiHistoryList');
+
+    if (aiHistoryItems.length === 0) {
+        box.innerHTML = '<p class="px-2 py-6 text-center text-[11px] text-gray-400">No saved conversations yet.</p>';
+        return;
+    }
+
+    if (items.length === 0) {
+        box.innerHTML = '<p class="px-2 py-6 text-center text-[11px] text-gray-400">No chats match your search.</p>';
+        return;
+    }
+
+    box.innerHTML = items.map(item => `
+        <div class="ai-history-item group flex items-start gap-1 rounded-xl border border-transparent hover:bg-gray-50 transition-all"
+             data-ai-conv="${aiEsc(item.id)}">
+            <button type="button" onclick="aiOpenConversation('${aiEsc(item.id)}')"
+                    class="flex-1 min-w-0 text-left px-2.5 py-2">
+                <span class="block text-[11px] font-semibold text-gray-700 truncate">${aiEsc(item.title)}</span>
+                <span class="block text-[10px] text-gray-400 mt-0.5">${aiEsc(aiHistoryDate(item.updated_at))}</span>
+            </button>
+            <button type="button" onclick="aiDeleteConversation('${aiEsc(item.id)}', ${aiAttr(item.title)})" title="Delete"
+                    class="w-6 h-6 mt-2 mr-1.5 shrink-0 inline-flex items-center justify-center rounded-lg text-gray-300 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-gray-600 transition-all">
+                <i class="fas fa-trash text-[9px]"></i>
+            </button>
+        </div>`).join('');
+
+    aiMarkActive(aiConversationId);
+}
+
+/* Judul percakapan adalah teks user, jadi ia bisa memuat kutip atau backslash.
+   JSON.stringify membuat literal JS yang aman, aiEsc menjaganya tetap utuh
+   sebagai atribut HTML. */
+function aiAttr(value) {
+    return aiEsc(JSON.stringify(String(value ?? '')));
+}
+
+function aiHistoryDate(iso) {
+    if (!iso) return '';
+
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    const sameYear = d.getFullYear() === today.getFullYear();
+    return d.toLocaleDateString([], sameYear
+        ? { day: '2-digit', month: 'short' }
+        : { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function aiMarkActive(id) {
+    document.querySelectorAll('.ai-history-item').forEach(el => {
+        el.classList.toggle('is-active', !!id && el.dataset.aiConv === id);
+    });
+}
+
+/**
+ * Restore a conversation's transcript from the archive.
+ *
+ * silent = called automatically on page load; a conversation that was
+ * started but never got a reply is legitimately not archived yet, and
+ * surfacing an error toast for that would just be confusing.
+ */
+async function aiOpenConversation(id, silent = false) {
+    try {
+        const res = await fetch(AI_CONV_ENDPOINT.replace('__ID__', encodeURIComponent(id)),
+            { headers: { 'Accept': 'application/json' } });
+
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        const data = await res.json();
+
+        document.getElementById('aiMessages').innerHTML = '';
+        document.getElementById('aiMessages').classList.add('hidden');
+        document.getElementById('aiEmptyState').classList.remove('hidden');
+
+        aiConversationId = data.id;
+        sessionStorage.setItem(AI_CONVERSATION_STORAGE_KEY, data.id);
+
+        const messages = data.messages || [];
+
+        if (messages.length > 0) {
+            aiShowThread();
+
+            // Batas ingatan model. Saat konteks kerjanya sudah kedaluwarsa,
+            // yang disemai ulang ke model hanya `window` pesan TERAKHIR —
+            // layar menampilkan lebih banyak daripada yang diingat model,
+            // dan itu harus dikatakan, bukan dibiarkan ditebak dari jawaban
+            // yang pelupa.
+            const ctx = data.context || {};
+            const cut = (!ctx.warm && ctx.window && messages.length > ctx.window)
+                ? messages.length - ctx.window
+                : -1;
+
+            messages.forEach((m, i) => {
+                if (i === cut) aiAppendMemoryDivider();
+
+                m.role === 'user'
+                    ? aiAppendUserStored(m.content, m.attachments, m.at, data.id)
+                    : aiAppendAssistantStored(m.content, m.at);
+            });
+        }
+
+        aiMarkActive(data.id);
+        aiCloseHistoryDrawer();
+        document.getElementById('aiInput').focus();
+    } catch {
+        if (!silent) showToast('Could not open that conversation.', 'error');
+    }
+}
+
+async function aiDeleteConversation(id, title) {
+    if (!await showConfirm('Delete "' + title + '"? This cannot be undone.', 'Delete Conversation', 'danger')) return;
+
+    try {
+        const res = await fetch(AI_DELETE_ENDPOINT.replace('__ID__', encodeURIComponent(id)), {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': aiCsrfToken(), 'Accept': 'application/json' },
+        });
+
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        // Menghapus percakapan yang sedang dibuka juga harus membersihkan layar,
+        // kalau tidak user masih melihat isi sesuatu yang sudah tidak ada.
+        if (aiConversationId === id) aiNewChat();
+
+        aiLoadHistory();
+        showToast('Conversation deleted.', 'success');
+    } catch {
+        showToast('Could not delete that conversation.', 'error');
+    }
+}
+
+/* ── Drawer riwayat (layar sempit) ─────────────────────────────────────── */
+
+function aiToggleHistory() {
+    document.getElementById('aiHistory').classList.toggle('is-open');
+}
+
+function aiCloseHistoryDrawer() {
+    document.getElementById('aiHistory').classList.remove('is-open');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('aiInput');
     input.placeholder = aiRandomPlaceholder();
     aiAutoGrow(input);
     document.getElementById('aiGreeting').textContent = aiGreeting();
     input.focus();
+
+    aiLoadHistory();
+
+    // Switching menus and coming back no longer means losing the chat: this
+    // tab's conversation id (if any) is reloaded from the archive.
+    const saved = sessionStorage.getItem(AI_CONVERSATION_STORAGE_KEY);
+    if (saved) aiOpenConversation(saved, true);
+
+    aiPruneAttachmentCache();
+
+    // Klik thumbnail → lightbox. Delegasi, karena thumbnail dibuat dinamis;
+    // nama file masuk lewat data-attribute (bukan onclick inline) supaya
+    // nama yang mengandung kutip tidak merusak markup.
+    document.addEventListener('click', e => {
+        const thumb = e.target.closest?.('img.ai-thumb');
+        if (thumb) aiOpenLightbox(thumb.dataset.aiFull, thumb.dataset.aiCaption);
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') aiCloseLightbox();
+    });
 });
 </script>
 @endpush

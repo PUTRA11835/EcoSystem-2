@@ -2,7 +2,7 @@
 {{-- ============================================================================ --}}
 {{-- QUICK MODAL - Add/Edit Group --}}
 {{-- ============================================================================ --}}
-<div id="quickModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="quickModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg">
             <form id="quickForm" onsubmit="saveQuickItem(event)">
                 <!-- Header -->
@@ -71,7 +71,7 @@
 {{-- ============================================================================ --}}
 {{-- DELETE CONFIRMATION MODAL --}}
 {{-- ============================================================================ --}}
-<div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="deleteModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md">
         <!-- Header -->
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">

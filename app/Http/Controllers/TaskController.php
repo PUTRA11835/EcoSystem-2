@@ -71,6 +71,13 @@ class TaskController extends Controller
             $modulesMap        = ConsultantWorkloadController::modulesMapForEmployees([$empId]);
             $myModules         = $modulesMap[$empId] ?? '-';
 
+            // Nama SEMUA modul tiket (bukan cuma teks bebas `ticket.module` yang
+            // dipilih di query di atas) — satu tiket boleh menyentuh lebih dari
+            // satu modul terstruktur sekarang, lihat Ticket::modules() dan
+            // Ticket::moduleNamesMapFor() (versi batch dari module_names, dipakai
+            // di sini karena $tickets hasil query builder mentah, bukan Eloquent).
+            $ticketModuleNamesMap = Ticket::moduleNamesMapFor($ticketIds);
+
             // Tiket dengan konfirmasi take-ticket yang sudah confirmed juga dianggap
             // punya man_days asli (bukan cuma placeholder headcount), sama seperti
             // Ticket::hasRealManDays().
@@ -80,7 +87,7 @@ class TaskController extends Controller
                 ->pluck('ticket_id')
                 ->flip();
 
-            $ticketsData = $tickets->map(function ($ticket) use ($progressMap, $consultantDetails, $confirmedTicketIds, $empId) {
+            $ticketsData = $tickets->map(function ($ticket) use ($progressMap, $consultantDetails, $confirmedTicketIds, $empId, $ticketModuleNamesMap) {
                 $tid = $ticket->ticket_id;
                 $hasRealManDays = $ticket->resolution_days_status === 'approved'
                     || $ticket->mandays_proposal_status === 'approved'
@@ -100,7 +107,7 @@ class TaskController extends Controller
                     'progress_note'       => $ticket->progress_note,
                     'last_progress_at'    => $ticket->last_progress_at,
                     'last_progress_by_name' => $ticket->last_progress_by_name,
-                    'module'              => $ticket->module,
+                    'module'              => $ticketModuleNamesMap[$tid] ?? $ticket->module,
                     'start_date'          => $ticket->start_date,
                     'end_date'            => $ticket->end_date,
                     'customer_name'       => $ticket->customer_name,

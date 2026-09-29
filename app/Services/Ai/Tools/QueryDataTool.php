@@ -109,6 +109,8 @@ class QueryDataTool implements AiTool
             return $error;
         }
 
+        TableAccess::excludeHiddenTickets($table, $query);
+
         if ($error = $this->applyFilters($query, (array) ($input['filters'] ?? []), $columns, $table)) {
             return $error;
         }

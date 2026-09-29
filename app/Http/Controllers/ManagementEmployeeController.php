@@ -14,4 +14,5 @@ class ManagementEmployeeController extends Controller
     public function bank()          { return view('management.employee.bank.index'); }
     public function payment()       { return view('management.employee.payment.index'); }
     public function attachment()    { return view('management.employee.attachment.index'); }
+    public function dropdownSettings() { return view('management.employee.dropdown-settings.index'); }
 }
