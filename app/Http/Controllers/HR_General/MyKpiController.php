@@ -188,6 +188,76 @@ class MyKpiController extends Controller
     }
 
     /**
+     * The evaluation this user is the assigned lead / peer reviewer of (never their
+     * own row, never a self / upward row). 404 for anyone else.
+     */
+    private function reviewerEvaluation(int $id, array $with = []): KpiEvaluation
+    {
+        $employeeId = session('user')['id'] ?? null;
+
+        $evaluation = KpiEvaluation::with($with)
+            ->where('supervisor_id', $employeeId)
+            ->where('employee_id', '!=', $employeeId)
+            ->findOrFail($id);
+
+        abort_unless($evaluation->isLeadType(), 404);
+
+        return $evaluation;
+    }
+
+    /**
+     * The lead's scoring page, inside My KPI: draft / send to HR while open, and a
+     * read-only copy (with a disabled send button) once it has been sent.
+     */
+    public function leadReviewForm(int $id)
+    {
+        $user = session('user');
+
+        $evaluation = $this->reviewerEvaluation($id, [
+            'employee.basicData',
+            'supervisor.basicData',
+            'template.indicators',
+            'template.scoringScales',
+            'details.indicator',
+        ]);
+
+        // Peer rows live at /peer-review, lead rows at /lead-review.
+        $isPeer = ($evaluation->template?->target_type ?? '') === 'peer';
+        if ($isPeer && request()->routeIs('general.my-kpi.lead-review')) {
+            return redirect()->route('general.my-kpi.peer-review', $id);
+        }
+        if (!$isPeer && request()->routeIs('general.my-kpi.peer-review')) {
+            return redirect()->route('general.my-kpi.lead-review', $id);
+        }
+
+        return view('hr-general.kpi.review', [
+            'user'                     => $user,
+            'evaluation'               => $evaluation,
+            'canApprove'               => false,
+            'siblingUpwardEvaluations' => collect(),
+            'leadMode'                 => true,
+        ]);
+    }
+
+    /**
+     * POST: save the lead's scores as a draft, or send them to HR. Scoring itself is
+     * shared with the HR controller; this only adds the ownership + lock checks.
+     */
+    public function submitLeadReview(Request $request, int $id)
+    {
+        $evaluation = $this->reviewerEvaluation($id);
+
+        if ($evaluation->hasSupervisorReview()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This assessment was already sent to HR and can no longer be changed.',
+            ], 403);
+        }
+
+        return app(\App\Http\Controllers\HR\KpiController::class)->submitReview($request, $id);
+    }
+
+    /**
      * Show the self-assessment form for a specific evaluation.
      */
     public function selfAssessmentForm(int $id)
@@ -204,6 +274,11 @@ class MyKpiController extends Controller
         ])
         ->where('employee_id', $employeeId) // ownership check
         ->findOrFail($id);
+
+        // Old "self-assessment" address for an upward row → its own URL.
+        if ($evaluation->isUpwardType() && request()->routeIs('general.my-kpi.self-assessment')) {
+            return redirect()->route('general.my-kpi.upward-assessment', $id);
+        }
 
         // Only self-type rows are fillable by the employee. Lead-assessment rows
         // are scored by the manager and are read-only here.
@@ -261,6 +336,23 @@ class MyKpiController extends Controller
             'achievements.*.notes'  => 'nullable|string|max:2000',
         ]);
 
+        // Every indicator must be filled before submitting: a rating for scored rows,
+        // and the written text for text-answer rows.
+        foreach ($evaluation->details as $d) {
+            $row = $request->achievements[$d->id] ?? [];
+            $isText = $d->indicator && $d->indicator->isParagraph();
+            $filled = $isText
+                ? trim((string) ($row['notes'] ?? '')) !== ''
+                : (((int) ($row['rating'] ?? 0)) > 0 || (isset($row['achievement']) && $row['achievement'] !== ''));
+            if (!$filled) {
+                $msg = 'Please fill every indicator (a rating, or the text answer) before submitting.';
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $msg], 422);
+                }
+                return redirect()->back()->with('error', $msg);
+            }
+        }
+
         $scaleMax = $evaluation->template?->scaleMax() ?: 5;
 
         DB::beginTransaction();
@@ -302,6 +394,9 @@ class MyKpiController extends Controller
             }
 
             // Mark self-assessment timestamp on evaluation
+            if ($evaluation->status === KpiEvaluation::STATUS_HR_REJECTED) {
+                $evaluation->status = KpiEvaluation::STATUS_DRAFT; // back into the normal flow
+            }
             $evaluation->self_assessed_at = $now;
             $evaluation->save();
             $evaluation->recalculateScore(); // self rows score off self_achievement
