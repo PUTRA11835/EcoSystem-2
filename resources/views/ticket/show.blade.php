@@ -192,6 +192,14 @@
                 <i class="fas fa-exchange-alt text-xs"></i> Log Shifting
             </button>
             @endif
+            @if($can('ticket.export-chat'))
+            {{-- Unduh percakapan tiket (tanpa internal note) sebagai PDF. --}}
+            <a href="{{ route('ticket.export-chat', $ticket->ticket_id) }}"
+                title="Export Chat to PDF"
+                class="ml-2 flex-shrink-0 h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
+                <i class="fas fa-file-pdf text-xs"></i> Export Chat
+            </a>
+            @endif
             {{-- Toggle right panel --}}
             <button id="toggleRightPanelBtn" onclick="toggleRightPanel()" title="Toggle Properties Panel"
                 class="ml-2 flex-shrink-0 w-9 h-9 hidden xl:flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">

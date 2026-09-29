@@ -35,6 +35,7 @@ use App\Http\Controllers\TicketViewController;
 use App\Http\Controllers\ConsultantWorkloadController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\TicketMessageController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AuditLogController;
@@ -649,6 +650,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/{id}/ai-research', [\App\Http\Controllers\AiResearchController::class, 'openForTicket'])
             ->name('ai-research')
             ->middleware('menu:tickets.inbox');
+        // Tombol "Export Chat" di headbar room chat — unduh percakapan (tanpa internal note) sebagai PDF.
+        Route::get('/{id}/export-chat', [TicketMessageController::class, 'exportPdf'])
+            ->name('export-chat')
+            ->middleware('menu:ticket.export-chat');
         // Buka tiket berdasarkan NOMOR tiket (bukan id). Dipakai hyperlink "#NNNNNNNN"
         // di internal note — di-resolve ke id lalu redirect ke halaman tiket.
         Route::get('/ref/{number}', [TicketViewController::class, 'showByNumber'])->name('ref');
