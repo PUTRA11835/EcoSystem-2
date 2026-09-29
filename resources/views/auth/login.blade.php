@@ -1073,6 +1073,8 @@
     }
     function intendedTarget() {
         return safePath(new URLSearchParams(window.location.search).get('redirect'));
+    }
+
     // Loading screen bertema musiman — dipanggil HANYA di cabang login sukses
     // FINAL (bukan 2FA/ganti password), lihat pemanggilnya di bawah. Dibungkus
     // try/catch dengan sengaja: kalau overlay ini gagal tampil karena alasan

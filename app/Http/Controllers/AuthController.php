@@ -856,20 +856,11 @@ class AuthController extends Controller
                         'auth_user_id' => $authUser->id,
                     ]);
 
-                $response = response()->json([
-                    'success' => true,
-                    'message' => 'Login successful',
-                    // URL tujuan hasil deep link (mis. /ticket/123 dari kartu Teams).
-                    // Sudah disanitasi — selalu path relatif pada host sendiri.
-                    'redirect_url' => IntendedUrl::pull($request),
-                    'data'    => [
-                        'token' => $token,
-                        'user'  => $userData
-                    ],
-                ], 200);
-
-                foreach ($responseCookies as $cookie) {
-                    $response = $response->withCookie($cookie);
+                    return response()->json([
+                        'success'          => true,
+                        'requires_2fa'     => true,
+                        'two_factor_token' => $twoFactorToken,
+                    ]);
                 }
 
                 return $this->finalizeEmployeeLogin($authUser, $sessionData, $remember, $request, $requestId);
