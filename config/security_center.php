@@ -268,9 +268,7 @@ return [
         'recovery_codes_count'  => 8,
         // RoleId::EC_ADMINISTRATOR - checked against session role_ids; 2FA is
         // mandatory for these roles, optional (self-enrolled) for everyone else.
-        // TESTING: temporarily set to [] (disabled) for local development.
-        // Restore to [1] before/when deploying to production.
-        'enforce_for_role_ids'  => [],
+        'enforce_for_role_ids'  => [1],
     ],
 
 ];
