@@ -43,8 +43,16 @@
             'font_size' => 'medium',
             'compact_mode' => false,
             'show_animations' => true,
+            'seasonal_theme' => 'none',
         ]);
-        
+
+        // Musik latar musiman — MURNI wewenang admin (Control Center → Seasonal
+        // Theme), tidak ada preferensi per-user untuk memilih lagu/menonaktifkan
+        // permanen. Null kalau admin belum pasang apa pun (tombol mute di header
+        // tidak dirender sama sekali dalam kondisi ini — lihat di bawah).
+        $globalBgMusicUrl = \App\Support\GlobalSeasonalTheme::soundUrl();
+        $globalBgMusicVolume = \App\Support\GlobalSeasonalTheme::soundVolume();
+
         // Convert hex to RGB for Tailwind
         $primaryColor = $preferences['primary_color'];
         $rgb = sscanf($primaryColor, "#%02x%02x%02x");
@@ -88,8 +96,15 @@
     @endphp
     
     <style>
-        * { 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        /* Cross-document View Transitions — pasangan dari deklarasi yang sama di
+           auth/login.blade.php. Progressive enhancement murni CSS, tidak ada
+           dampak di browser yang tidak mendukungnya. */
+        @view-transition {
+            navigation: auto;
+        }
+
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
         
         :root {
@@ -729,12 +744,26 @@
 <body class="text-gray-900 min-h-screen" style="background-color: var(--bg-color);">
     <div id="toast-container"></div>
     <div class="flex min-h-screen">
-        
+
         <!-- Mobile sidebar backdrop (only visible when drawer is open on < lg) -->
         <div id="sidebarOverlay" onclick="closeSidebar()" class="fixed inset-0 z-40 hidden lg:hidden" style="background-color: rgba(0,0,0,0.5);"></div>
 
+        {{-- Tema musiman: resolve preferensi user ('default' → ikut admin) SEKALI di sini,
+             dipakai untuk dekorasi sidebar saja (bukan seluruh halaman — lihat feedback
+             di App\Support\SeasonalThemeResolver / partials.seasonal-theme). --}}
+        @php
+            $effectiveSeasonalTheme = \App\Support\SeasonalThemeResolver::effectiveFor($preferences['seasonal_theme'] ?? 'default');
+        @endphp
+
         <!-- Sidebar - Modern Design -->
         <aside id="sidebar" class="sidebar-transition fixed inset-y-0 left-0 h-screen overflow-y-auto {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
+            @if($effectiveSeasonalTheme !== 'none')
+                @include('partials.seasonal-theme', [
+                    'themeKey' => $effectiveSeasonalTheme,
+                    'showAnimations' => $preferences['show_animations'] ?? true,
+                    'placement' => 'sidebar',
+                ])
+            @endif
             <!-- Logo Section -->
             <div class="sidebar-logo p-5 pb-2 flex items-center justify-center">
                     <div class="w-full rounded-xl p-3 backdrop-blur-sm">
@@ -849,7 +878,8 @@
                             || Request::is('reporting/ticket-by-module*')
                             || Request::is('reporting/log-shifting*')
                             || Request::is('reporting/resolution-days*')
-                            || Request::is('reporting/customer-md*');
+                            || Request::is('reporting/customer-md*')
+                            || Request::is('reporting/weekly-consolidation*');
                         $canRepProject = $can('reporting.collection-outlook') || $can('reporting.consultant-assignment') || $can('reporting.resource-timeline');
                         $canRepSupport = $can('reporting.validation')
                             || $can('reporting.md-recap')
@@ -858,7 +888,8 @@
                             || $can('reporting.ticket-by-module')
                             || $can('reporting.log-shifting')
                             || $can('reporting.resolution-days')
-                            || $can('reporting.customer-md');
+                            || $can('reporting.customer-md')
+                            || $can('reporting.weekly-consolidation');
                     @endphp
                     <div id="reportingDropdown" class="nav-text {{ Request::is('reporting*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                         @if($canRepProject)
@@ -972,6 +1003,14 @@
                                         <i class="fas fa-file-invoice-dollar text-xs"></i>
                                     </span>
                                     <span class="nav-text text-sm">Customer MD</span>
+                                </a>
+                                @endif
+                                @if($can('reporting.weekly-consolidation'))
+                                <a href="{{ route('reporting.weekly-consolidation') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/weekly-consolidation*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
+                                    <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                        <i class="fas fa-clipboard-list text-xs"></i>
+                                    </span>
+                                    <span class="nav-text text-sm">Weekly Consolidation</span>
                                 </a>
                                 @endif
                             </div>
@@ -1222,6 +1261,12 @@
                         <a href="{{ route('admin.ai-settings') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/ai-settings*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-microchip text-xs"></i></span>
                             <span class="nav-text text-sm">AI Settings</span>
+                        </a>
+                        @endif
+                        @if($can('control-center.two-factor-enforcement'))
+                        <a href="{{ route('admin.two-factor-enforcement') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/two-factor-enforcement*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-shield-halved text-xs"></i></span>
+                            <span class="nav-text text-sm">Two-Factor Enforcement</span>
                         </a>
                         @endif
                     </div>
@@ -1505,6 +1550,13 @@
         <main id="mainContent" class="sidebar-transition flex-1 ml-0 lg:ml-64 min-w-0">
             <!-- Header - Modern Design -->
             <header class="sticky top-0 z-40 shadow-sm border-b border-gray-100" style="background-color: var(--card-bg);">
+                @if($effectiveSeasonalTheme !== 'none')
+                    @include('partials.seasonal-theme', [
+                        'themeKey' => $effectiveSeasonalTheme,
+                        'showAnimations' => $preferences['show_animations'] ?? true,
+                        'placement' => 'header',
+                    ])
+                @endif
                 <div class="px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-3">
                     <div class="flex items-center gap-3 sm:gap-4 min-w-0">
                         <button onclick="toggleSidebar()" class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 rounded-xl primary-hover primary-border transition-all" style="border-color: var(--primary-color); color: var(--text-color);">
@@ -1521,6 +1573,21 @@
                         @yield('page-actions')
                         <!-- Notification Bell -->
                         <div class="flex items-center gap-2">
+                            @if($globalBgMusicUrl)
+                                {{-- Musik latar musiman: admin-only (di atas, App\Support\GlobalSeasonalTheme).
+                                     Tombol ini CUMA mute/unmute LOKAL demi aksesibilitas (WCAG 1.4.2 —
+                                     audio otomatis wajib bisa dikontrol user), BUKAN pemilihan lagu/tema.
+                                     Status "sudah di-unmute" disimpan di sessionStorage (bukan preferensi
+                                     tersimpan permanen) — reset tiap sesi browser baru, dan TIDAK ditulis
+                                     ke server sama sekali. Digerbang keberadaan $globalBgMusicUrl: kalau
+                                     admin belum pasang musik apa pun, tombol ini tidak dirender sama sekali. --}}
+                                <audio id="globalBgMusic" loop preload="auto" muted data-volume="{{ $globalBgMusicVolume }}" src="{{ $globalBgMusicUrl }}"></audio>
+                                <button id="bgMusicToggleBtn" onclick="toggleGlobalBgMusic()"
+                                    title="Unmute background music"
+                                    class="w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-gray-400 hover:text-red-800">
+                                    <i id="bgMusicToggleIcon" class="fas fa-music text-sm"></i>
+                                </button>
+                            @endif
                             <button id="soundToggleBtn" onclick="toggleNotifSound()"
                                 title="Disable notification sound"
                                 class="w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-red-700 hover:text-red-800">
@@ -2051,6 +2118,53 @@
 
         // Sync button UI to persisted state on page load
         _applySoundUi();
+
+        // ── Musik latar musiman (admin-only, lihat App\Support\GlobalSeasonalTheme) ──
+        // sessionStorage BUKAN preferensi tersimpan — reset tiap sesi browser baru,
+        // murni supaya status unmute tetap konsisten selagi user pindah-pindah
+        // halaman DALAM sesi yang sama (tiap halaman = document baru, audio-nya
+        // ikut dibuat ulang dari nol setiap kali — lihat catatan di bawah).
+        (function initGlobalBgMusic() {
+            const audio = document.getElementById('globalBgMusic');
+            const btn   = document.getElementById('bgMusicToggleBtn');
+            const icon  = document.getElementById('bgMusicToggleIcon');
+            if (!audio || !btn || !icon) return; // admin belum pasang musik apa pun
+
+            // Volume diatur admin, berlaku sama untuk semua user — dibaca dari
+            // data-volume (data-* attribute, bukan preferensi tersimpan di
+            // browser) supaya nilainya selalu sinkron dengan apa yang admin set
+            // di Control Center, tanpa kemungkinan tertinggal versi lama.
+            const vol = parseFloat(audio.dataset.volume);
+            audio.volume = isNaN(vol) ? 0.5 : vol;
+
+            function reflectUi() {
+                icon.className = 'fas fa-music text-sm';
+                btn.classList.toggle('text-red-700', !audio.muted);
+                btn.classList.toggle('text-gray-400', audio.muted);
+                btn.title = audio.muted ? 'Unmute background music' : 'Mute background music';
+            }
+
+            const wantsUnmuted = sessionStorage.getItem('bgMusicUnmuted') === '1';
+            audio.muted = !wantsUnmuted;
+            // Selalu mulai lewat play() yang di-muted (diizinkan browser tanpa gesture
+            // user apa pun). Kalau user sebelumnya sudah unmute di halaman lain dalam
+            // sesi ini, di sini dicoba unmute lagi langsung — browser MUNGKIN
+            // mengizinkan (Chrome dkk punya heuristik "sudah pernah putar audio di
+            // situs ini"), MUNGKIN juga tidak (kebijakan autoplay browser, beda-beda
+            // per browser/versi) — kalau diblokir, audio otomatis tetap ter-mute dan
+            // ikon merefleksikan keadaan sebenarnya (tidak berpura-pura menyala),
+            // user tinggal klik tombolnya sekali lagi (klik = gesture asli, dijamin
+            // berhasil unmute).
+            audio.play().catch(() => {});
+            reflectUi();
+
+            window.toggleGlobalBgMusic = function () {
+                audio.muted = !audio.muted;
+                sessionStorage.setItem('bgMusicUnmuted', audio.muted ? '0' : '1');
+                if (!audio.muted) { audio.play().catch(() => {}); }
+                reflectUi();
+            };
+        })();
 
         /* ---- browser (OS) notification ---- */
         function showOsNotification(title, body, url) {

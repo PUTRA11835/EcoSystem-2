@@ -8,6 +8,7 @@ use App\Models\DeliverableDocumentType;
 use App\Models\Ticket;
 use App\Models\TicketDeliverable;
 use App\Models\TicketMessage;
+use App\Services\MessageHtmlSanitizerService;
 use App\Services\OneDriveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -170,7 +171,7 @@ class TicketDeliverableController extends Controller
 
     /**
      * POST /api/tickets/{id}/deliverables
-     * JSON body: doc_type, body_text (optional), onedrive_item_id + file_name
+     * JSON body: doc_type, description (optional, internal note — never sent to customer), onedrive_item_id + file_name
      * (optional — hasil dari createUploadSession() + upload chunked ke Graph).
      */
     public function store(Request $request, $ticketId)
@@ -186,7 +187,7 @@ class TicketDeliverableController extends Controller
 
         $request->validate([
             'doc_type'         => ['required', 'string', 'in:' . $validDocTypes->implode(',')],
-            'body_text'        => ['nullable', 'string', 'max:1000'],
+            'description'      => ['nullable', 'string', 'max:1000'],
             'onedrive_item_id' => ['nullable', 'string'],
             'file_name'        => ['required_with:onedrive_item_id', 'string', 'max:255'],
         ]);
@@ -222,7 +223,7 @@ class TicketDeliverableController extends Controller
         $deliverable = TicketDeliverable::create([
             'ticket_id'         => $ticketId,
             'doc_type'          => $request->doc_type,
-            'body_text'         => $request->body_text,
+            'description'       => $request->description,
             'file_name'         => $fileName,
             'onedrive_file_id'  => $fileId,
             'onedrive_file_url' => $fileUrl,
@@ -239,7 +240,7 @@ class TicketDeliverableController extends Controller
 
     /**
      * PATCH /api/tickets/{ticketId}/deliverables/{delivId}
-     * Update body_text (only allowed while status is not "Sent").
+     * Update description (only allowed while status is not "Sent").
      */
     public function update(Request $request, $ticketId, $delivId)
     {
@@ -249,7 +250,7 @@ class TicketDeliverableController extends Controller
         }
 
         $request->validate([
-            'body_text' => ['nullable', 'string', 'max:1000'],
+            'description' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $deliverable = TicketDeliverable::where('id', $delivId)
@@ -263,17 +264,14 @@ class TicketDeliverableController extends Controller
             ], 422);
         }
 
-        $deliverable->update(['body_text' => $request->body_text]);
+        $deliverable->update(['description' => $request->description]);
 
         return response()->json(['success' => true, 'data' => $this->format($deliverable->fresh())]);
     }
 
     /**
      * PATCH /api/tickets/{ticketId}/deliverables/{delivId}/send
-     * Mark a deliverable as "Sent", add to chat, and email the customer.
-     *
-     * Mengikuti alur reply biasa: helpdesk wajib memilih status tiket lebih dulu
-     * (dikirim via `ticket_status`) sebelum dokumen benar-benar dikirim ke customer.
+     * Kirim satu dokumen deliverable ke customer. Sama dengan sendBatch() dengan satu id.
      */
     public function send(Request $request, $ticketId, $delivId)
     {
@@ -282,19 +280,74 @@ class TicketDeliverableController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $request->validate([
-            'ticket_status' => 'nullable|in:inprocess,waiting_on_customer,waiting_to_confirmation,waiting_on_3rd_party,hold',
-            'to_emails'     => 'nullable',
-            'cc_emails'     => 'nullable',
-        ]);
+        $this->validateSendRequest($request);
 
         $deliverable = TicketDeliverable::where('id', $delivId)
             ->where('ticket_id', $ticketId)
             ->firstOrFail();
 
-        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+        return $this->dispatchDeliverables($request, $ticketId, collect([$deliverable]), $user);
+    }
 
-        $deliverable->update(['status' => 'Sent']);
+    /**
+     * POST /api/tickets/{ticketId}/deliverables/send
+     * Kirim beberapa dokumen sekaligus sebagai SATU bubble chat / SATU email.
+     * `body_text` = isi email yang diketik saat kirim; TIDAK disimpan di database
+     * (beda dengan `description` per file yang internal).
+     */
+    public function sendBatch(Request $request, $ticketId)
+    {
+        $user = session('user');
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $this->validateSendRequest($request);
+        $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ]);
+
+        // Dokumen yang sudah terkirim dilewati agar tidak terkirim dua kali.
+        $deliverables = TicketDeliverable::whereIn('id', $request->input('ids'))
+            ->where('ticket_id', $ticketId)
+            ->where('status', '!=', 'Sent')
+            ->orderBy('created_at')
+            ->get();
+
+        if ($deliverables->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No unsent documents found to send.',
+            ], 422);
+        }
+
+        return $this->dispatchDeliverables($request, $ticketId, $deliverables, $user);
+    }
+
+    private function validateSendRequest(Request $request): void
+    {
+        $request->validate([
+            'ticket_status' => 'nullable|in:inprocess,waiting_on_customer,waiting_to_confirmation,waiting_on_3rd_party,hold',
+            'body_text'     => ['nullable', 'string', 'max:20000'],
+            'to_emails'     => 'nullable',
+            'cc_emails'     => 'nullable',
+        ]);
+    }
+
+    /**
+     * Tandai dokumen "Sent", buat SATU ticket_message (bubble) berisi body text di
+     * atas lalu daftar dokumen (type + nama file), dan kirim satu email.
+     * Mengikuti alur reply biasa: status tiket dipilih helpdesk (`ticket_status`).
+     */
+    private function dispatchDeliverables(Request $request, $ticketId, $deliverables, array $user)
+    {
+        $ticket   = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+        // Body text = HTML rich text dari editor (seperti chat reply) → disanitasi dulu.
+        $bodyHtml = trim(MessageHtmlSanitizerService::sanitize((string) $request->input('body_text', '')));
+        $bodyText = trim(html_entity_decode(strip_tags(preg_replace('#<(br|/p|/li|/h[1-6])\s*/?>#i', "\n", $bodyHtml))));
+
+        TicketDeliverable::whereIn('id', $deliverables->pluck('id'))->update(['status' => 'Sent']);
 
         // To/Cc diambil dari kolom composer reply (mirror reply biasa). Jika frontend
         // mengirim daftar (walau kosong) → HORMATI apa adanya & persist ke ticket; jika
@@ -335,39 +388,48 @@ class TicketDeliverableController extends Controller
         }
         $signatureName = $nickName ?? explode(' ', $user['name'] ?? 'Helpdesk')[0];
 
-        $plainMsg = 'Deliverable document sent: ' . $deliverable->doc_type;
-        if ($deliverable->body_text) $plainMsg .= ' — ' . $deliverable->body_text;
-        if ($deliverable->file_name) $plainMsg .= ' (' . $deliverable->file_name . ')';
-
-        // Layout key-value 3 kolom: label | ":" | value. Kolom ":" dipisah agar titik dua
-        // SEJAJAR vertikal antar-baris (tabel otomatis melebarkan kolom label ke label
-        // terlebar, sehingga semua ":" mulai di posisi X yang sama). Kolom label
-        // `white-space:nowrap` biar "Description" tak terpotong; kolom nilai
-        // `overflow-wrap:anywhere` supaya nama file panjang membungkus rapi (bukan meluber).
-        // Class `deliv-card` dipakai untuk override border tabel paksaan `.email-html-body td`
-        // di chat bubble (lihat CSS di ticket/show.blade.php).
-        $labelTd = 'padding:4px 0;color:#6b7280;white-space:nowrap;vertical-align:top;';
-        $colonTd = 'padding:4px 10px;color:#6b7280;vertical-align:top;';
-        $valueTd = 'padding:4px 0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;';
-
-        $row = fn(string $label, string $value, string $valueExtra = '') =>
-            '<tr><td style="' . $labelTd . '">' . $label . '</td>'
-            . '<td style="' . $colonTd . '">:</td>'
-            . '<td style="' . $valueTd . $valueExtra . '">' . $value . '</td></tr>';
-
-        $htmlMsg = '<p style="margin:0 0 8px"><strong>Deliverable Document</strong></p>'
-            . '<table class="deliv-card" style="border-collapse:collapse;font-size:13px;width:100%;max-width:460px;">'
-            . $row('Doc Type', htmlspecialchars($deliverable->doc_type), 'font-weight:600;');
-
-        if ($deliverable->body_text) {
-            $htmlMsg .= $row('Description', nl2br(htmlspecialchars($deliverable->body_text)));
+        // Satu bubble/email untuk semua dokumen, formatnya:
+        //   Deliverable Document        (judul tebal)
+        //   <body text>                 (jika diisi)
+        //   Doc Type : RCA
+        //   File     : nama_file.xlsx
+        // Beberapa dokumen = pasangan Doc Type/File diulang, dipisah jarak. `description`
+        // per file bersifat internal → TIDAK ikut dikirim ke customer.
+        $plainMsg = 'Deliverable Document';
+        if ($bodyText !== '') {
+            $plainMsg .= "\n" . $bodyText;
+        }
+        foreach ($deliverables as $d) {
+            $plainMsg .= "\n\nDoc Type: " . $d->doc_type . "\nFile: " . ($d->file_name ?: '-');
         }
 
-        if ($deliverable->file_name) {
-            $fileCell = $deliverable->onedrive_file_url
-                ? '<a href="' . htmlspecialchars($deliverable->onedrive_file_url) . '" target="_blank" style="color:#2563eb;word-break:break-word;overflow-wrap:anywhere;">' . htmlspecialchars($deliverable->file_name) . '</a>'
-                : htmlspecialchars($deliverable->file_name);
-            $htmlMsg .= $row('File', $fileCell);
+        // Layout key-value 3 kolom: label | ":" | value. Kolom ":" dipisah agar titik dua
+        // SEJAJAR vertikal antar-baris. Kolom label `white-space:nowrap`; kolom nilai
+        // `overflow-wrap:anywhere` supaya nama file panjang membungkus rapi.
+        // Class `deliv-card` dipakai untuk override border tabel paksaan `.email-html-body td`
+        // di chat bubble (lihat CSS di ticket/show.blade.php).
+        $labelTd = 'padding:2px 0;color:#6b7280;white-space:nowrap;vertical-align:top;';
+        $colonTd = 'padding:2px 10px;color:#6b7280;vertical-align:top;';
+        $valueTd = 'padding:2px 0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;';
+
+        $htmlMsg = '<p style="margin:0 0 8px"><strong>Deliverable Document</strong></p>';
+        if ($bodyText !== '') {
+            $htmlMsg .= '<div style="margin:0 0 12px;">' . $bodyHtml . '</div>';
+        }
+        $htmlMsg .= '<table class="deliv-card" style="border-collapse:collapse;font-size:13px;width:100%;max-width:460px;">';
+        foreach ($deliverables as $i => $d) {
+            $fileCell = $d->file_name
+                ? ($d->onedrive_file_url
+                    ? '<a href="' . htmlspecialchars($d->onedrive_file_url) . '" target="_blank" style="color:#2563eb;word-break:break-word;overflow-wrap:anywhere;">' . htmlspecialchars($d->file_name) . '</a>'
+                    : htmlspecialchars($d->file_name))
+                : '&mdash;';
+            if ($i > 0) {
+                $htmlMsg .= '<tr><td colspan="3" style="padding:4px 0;"></td></tr>';
+            }
+            $htmlMsg .= '<tr><td style="' . $labelTd . '">Doc Type</td><td style="' . $colonTd . '">:</td>'
+                . '<td style="' . $valueTd . 'font-weight:600;">' . htmlspecialchars($d->doc_type) . '</td></tr>'
+                . '<tr><td style="' . $labelTd . '">File</td><td style="' . $colonTd . '">:</td>'
+                . '<td style="' . $valueTd . '">' . $fileCell . '</td></tr>';
         }
         $htmlMsg .= '</table>';
 
@@ -481,14 +543,14 @@ class TicketDeliverableController extends Controller
                 'reason'     => $emailError,
                 'error'      => $e->getMessage(),
                 'ticket_id'  => $ticketId,
-                'deliv_id'   => $delivId,
+                'deliv_ids'  => $deliverables->pluck('id')->all(),
                 'raw_detail' => $e instanceof EmailSendException ? $e->rawDetail : null,
             ]);
         }
 
         return response()->json([
             'success'      => true,
-            'data'         => $this->format($deliverable->fresh()),
+            'data'         => TicketDeliverable::whereIn('id', $deliverables->pluck('id'))->get()->map(fn ($d) => $this->format($d))->values(),
             // Dokumen tetap tersimpan/terkirim ke chat, tapi email ke customer GAGAL →
             // frontend tampilkan peringatan (bukan sukses) agar tidak membingungkan.
             'email_failed' => $emailError !== null,
@@ -599,7 +661,7 @@ class TicketDeliverableController extends Controller
         return [
             'id'           => $d->id,
             'doc_type'     => $d->doc_type,
-            'body_text'    => $d->body_text,
+            'description'  => $d->description,
             'file_name'    => $d->file_name,
             'file_url'     => $d->onedrive_file_url,
             'status'       => $d->status,

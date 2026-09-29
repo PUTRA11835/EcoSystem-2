@@ -84,7 +84,7 @@ Route::middleware(['web'])->group(function () {
     // ==================== AUTH ROUTES (PUBLIC — no session required) ====================
     Route::prefix('auth')->group(function () {
         Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
-        Route::post('/logout', [AuthController::class, 'logout']);
+        Route::post('/logout', [AuthController::class, 'logout'])->name('api.auth.logout');
         Route::get('/me', [AuthController::class, 'me']);
     });
 
@@ -520,6 +520,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/deliverables/upload-session', [\App\Http\Controllers\TicketDeliverableController::class, 'createUploadSession']);
         Route::post('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'store']);
         Route::patch('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'update']);
+        Route::post('/{id}/deliverables/send', [\App\Http\Controllers\TicketDeliverableController::class, 'sendBatch']);
         Route::patch('/{id}/deliverables/{delivId}/send', [\App\Http\Controllers\TicketDeliverableController::class, 'send']);
         Route::delete('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'destroy']);
         Route::post('/{id}/deliverables/{delivId}/delete', [\App\Http\Controllers\TicketDeliverableController::class, 'destroy']);
@@ -635,6 +636,15 @@ Route::middleware(['web'])->group(function () {
         // Harus di atas /log-shifting/{ticketId} supaya "notes" tidak ketangkap sebagai ticketId.
         Route::get('/log-shifting/notes', [\App\Http\Controllers\ReportingController::class, 'logShiftingNotes']);
         Route::get('/log-shifting/{ticketId}', [\App\Http\Controllers\ReportingController::class, 'logShiftingDetail']);
+        // Weekly Consolidation — path literal harus di atas /weekly-consolidation/{id}
+        // supaya "modules"/"preview" tidak ketangkap sebagai id batch.
+        Route::get('/weekly-consolidation/modules', [\App\Http\Controllers\WeeklyConsolidationController::class, 'modules']);
+        Route::get('/weekly-consolidation/preview', [\App\Http\Controllers\WeeklyConsolidationController::class, 'preview']);
+        Route::get('/weekly-consolidation', [\App\Http\Controllers\WeeklyConsolidationController::class, 'history']);
+        Route::post('/weekly-consolidation', [\App\Http\Controllers\WeeklyConsolidationController::class, 'generate']);
+        Route::get('/weekly-consolidation/{id}', [\App\Http\Controllers\WeeklyConsolidationController::class, 'show']);
+        Route::post('/weekly-consolidation/{id}/refresh', [\App\Http\Controllers\WeeklyConsolidationController::class, 'refresh']);
+        Route::post('/weekly-consolidation/{id}/tickets/{ticketId}/notes', [\App\Http\Controllers\WeeklyConsolidationController::class, 'updateNote']);
         Route::get('/resolution-days', [\App\Http\Controllers\ReportingController::class, 'resolutionDays']);
         // Consultant Assignment — daftar consultant yang tergabung di Delivery Project.
         // Izinnya diperiksa di controller lewat Employee::canAccessMenu().

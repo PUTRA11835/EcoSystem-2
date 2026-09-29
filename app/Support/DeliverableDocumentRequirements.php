@@ -6,16 +6,15 @@ use App\Models\Ticket;
 use App\Services\TicketDeliverableRequirementSync;
 
 /**
- * Reads a ticket's SNAPSHOTTED deliverable-document requirements (mandatory
- * vs optional), used to render the completeness checklist in the
- * "Deliverable Documents" modal (resources/views/ticket/show.blade.php).
+ * Reads a ticket's deliverable-document requirements (mandatory vs optional),
+ * used to render the completeness checklist in the "Deliverable Documents"
+ * modal (resources/views/ticket/show.blade.php).
  *
- * The snapshot (ticket_deliverable_requirements) is what actually backs
- * this — taken from the live config (deliverable_document_type_ticket_types,
- * managed at Management > Master Ticket Settings > Document Type) the moment
- * the ticket's type was set. Reading the ticket's own snapshot rather than
- * the live config means a later config change never silently changes what
- * an already-existing ticket is required to have.
+ * The ticket's own copy (ticket_deliverable_requirements) is kept in step with
+ * the live config (deliverable_document_type_ticket_types, managed at
+ * Management > Master Ticket Settings > Document Type): every read compares
+ * the two and re-syncs on any difference, so a Document Type change can never
+ * leave a ticket showing a stale checklist.
  */
 final class DeliverableDocumentRequirements
 {
@@ -30,10 +29,9 @@ final class DeliverableDocumentRequirements
             return null;
         }
 
-        // Legacy tickets created before this feature has no snapshot yet —
-        // backfill once from the current config so their checklist isn't
-        // just empty forever.
-        TicketDeliverableRequirementSync::syncIfMissing($ticket);
+        // Keeps the snapshot aligned with the live Document Type config
+        // (also backfills legacy tickets that have no snapshot yet).
+        TicketDeliverableRequirementSync::syncIfStale($ticket);
 
         $rows = $ticket->deliverableRequirements()->orderBy('id')->get();
 

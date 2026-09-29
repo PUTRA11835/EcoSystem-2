@@ -18,6 +18,7 @@ class MenuSeeder extends Seeder
     const HELPDESK = 6; // Delivery Support Service Helpdesk
     const RPMO     = 7; // Delivery RPMO Head
     const MANAGER  = 14; // Delivery Support Manager
+    const MODUL_LEAD = 15; // Modul Lead
 
     /**
      * Section halaman detail Delivery Project / Delivery Support beserta aksi
@@ -140,6 +141,8 @@ class MenuSeeder extends Seeder
             ['slug' => 'reporting.consultant-assignment', 'name' => 'Consultant Assignment', 'type' => 'page',   'parent_slug' => 'reporting',   'route_name' => 'reporting.consultant-assignment', 'icon' => null,                'order_seq' => 8],
             ['slug' => 'reporting.diagram-report',     'name' => 'Diagram Report',          'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.diagram-report',     'icon' => null,                   'order_seq' => 8],
             ['slug' => 'reporting.resource-timeline',  'name' => 'Resource Timeline',       'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.resource-timeline',  'icon' => null,                   'order_seq' => 9],
+            ['slug' => 'reporting.weekly-consolidation', 'name' => 'Weekly Consolidation',  'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.weekly-consolidation', 'icon' => null,                 'order_seq' => 10],
+            ['slug' => 'reporting.weekly-consolidation.combine-modules', 'name' => 'Combine Modules', 'type' => 'function', 'parent_slug' => 'reporting.weekly-consolidation', 'route_name' => null, 'icon' => null, 'order_seq' => 1],
 
             // ── Master ────────────────────────────────────────────────────────────
             ['slug' => 'master',                       'name' => 'Master',                  'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-database',          'order_seq' => 4],
@@ -227,6 +230,8 @@ class MenuSeeder extends Seeder
             ['slug' => 'control-center.backup',        'name' => 'Backup & Export',         'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.backup',             'icon' => null,                   'order_seq' => 5],
             ['slug' => 'control-center.sounds',        'name' => 'Notif Sounds',            'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.sounds',             'icon' => null,                   'order_seq' => 6],
             ['slug' => 'control-center.ai-settings',   'name' => 'AI Settings',             'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.ai-settings',        'icon' => null,                   'order_seq' => 8],
+            ['slug' => 'control-center.seasonal-theme', 'name' => 'Seasonal Theme',         'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.seasonal-theme',     'icon' => null,                   'order_seq' => 9],
+            ['slug' => 'control-center.two-factor-enforcement', 'name' => 'Two-Factor Enforcement', 'type' => 'page', 'parent_slug' => 'control-center', 'route_name' => 'admin.two-factor-enforcement', 'icon' => null,               'order_seq' => 10],
 
             // ── SLA ───────────────────────────────────────────────────────────────
             ['slug' => 'sla',                          'name' => 'SLA',                     'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-stopwatch',         'order_seq' => 13],
@@ -343,6 +348,12 @@ class MenuSeeder extends Seeder
             'reporting.ticketing-overview' => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'reporting.ticket-by-module'   => [self::ADMIN=>$v, self::EMPLOYEE=>$v, self::HOP=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'reporting.log-shifting'       => [self::ADMIN=>$vced, self::HOS=>$vce, self::HELPDESK=>$vce, self::RPMO=>$vce],
+            // Employee ikut diberi akses (bukan cuma Admin/HOS/Helpdesk/RPMO) karena
+            // module lead yang mengisi recon ini biasanya role Delivery Support User —
+            // pembatasan "hanya modul yang dia pimpin" dilakukan di
+            // WeeklyConsolidationController (data-driven), bukan di sini.
+            'reporting.weekly-consolidation' => [self::ADMIN=>$vced, self::EMPLOYEE=>$vce, self::HOS=>$vce, self::HELPDESK=>$vce, self::RPMO=>$vce, self::MODUL_LEAD=>$vce],
+            'reporting.weekly-consolidation.combine-modules' => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'reporting.resolution-days'    => [self::ADMIN=>$vced, self::HOS=>$vce],
             // Master
             'master'                      => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$v],
@@ -417,6 +428,8 @@ class MenuSeeder extends Seeder
             'control-center.backup'       => [self::ADMIN=>$v],
             'control-center.sounds'       => [self::ADMIN=>$v],
             'control-center.ai-settings'  => [self::ADMIN=>$v],
+            'control-center.seasonal-theme' => [self::ADMIN=>$v],
+            'control-center.two-factor-enforcement' => [self::ADMIN=>$v],
             // SLA
             'sla'                         => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
             'sla.report'                  => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
