@@ -88,7 +88,89 @@ class DeliveryProject extends Model
         'location_valid_to' => 'date',
         'contract_start_date' => 'date',
         'contract_end_date' => 'date',
+        'last_activity_at' => 'datetime',
     ];
+
+    /**
+     * Kolom yang diisi OTOMATIS oleh sistem (turunan planning / metadata OneDrive).
+     * Perubahan pada kolom ini saja tidak dihitung sebagai aktivitas user.
+     * Catatan: category/status/phase juga diturunkan sistem, tapi jalurnya
+     * (updateFromPlanning) memakai saveQuietly sehingga tidak memicu event —
+     * sedangkan perubahan manual lewat updateField tetap terhitung.
+     */
+    private const SYSTEM_MANAGED_COLUMNS = [
+        'updated_at',
+        'last_activity_at',
+        'go_live_estimated',
+        'calculated_progress',
+        'onedrive_link_scope',
+        'onedrive_link_expires_at',
+        'onedrive_link_checked_at',
+    ];
+
+    /** Saat true, markActivity() diabaikan (lihat withoutActivityTracking()). */
+    private static bool $activityTrackingPaused = false;
+
+    /** Dedup per detik agar import/loop tidak menembak UPDATE berulang. */
+    private static array $activityMarkedAt = [];
+
+    /**
+     * Catat "Last Update Date" (last_activity_at) project = sekarang.
+     *
+     * Ditulis lewat query builder mentah: tidak memicu event model, audit log,
+     * maupun updated_at — kolom ini murni jejak aktivitas user.
+     */
+    public static function markActivity($projectId): void
+    {
+        if (!$projectId || static::$activityTrackingPaused) {
+            return;
+        }
+
+        $now = now();
+        if ((static::$activityMarkedAt[$projectId] ?? null) === $now->timestamp) {
+            return;
+        }
+        static::$activityMarkedAt[$projectId] = $now->timestamp;
+
+        static::query()->whereKey($projectId)->toBase()->update(['last_activity_at' => $now]);
+    }
+
+    /**
+     * Nilai kolom "Last Update Date" di list/export: aktivitas user terakhir,
+     * fallback ke updated_at untuk baris yang belum pernah tercatat.
+     */
+    public function getLastUpdateDateAttribute(): ?Carbon
+    {
+        return $this->last_activity_at ?? $this->updated_at;
+    }
+
+    /** Versi instance dari markActivity(); ikut menyegarkan nilai in-memory. */
+    public function touchActivity(): void
+    {
+        if (static::$activityTrackingPaused || !$this->exists) {
+            return;
+        }
+
+        static::markActivity($this->getKey());
+        $this->last_activity_at = now();
+        $this->syncOriginalAttribute('last_activity_at');
+    }
+
+    /**
+     * Jalankan $callback tanpa mencatat aktivitas — untuk penulisan yang
+     * dilakukan SISTEM (auto-sync saat halaman dibuka, scheduler, dsb).
+     */
+    public static function withoutActivityTracking(callable $callback)
+    {
+        $previous = static::$activityTrackingPaused;
+        static::$activityTrackingPaused = true;
+
+        try {
+            return $callback();
+        } finally {
+            static::$activityTrackingPaused = $previous;
+        }
+    }
 
     // Existing relationships
     // ECOSYSTEM Integration: Customer table with customer_id as PK
@@ -285,13 +367,24 @@ class DeliveryProject extends Model
         // jalur update type=activity tidak men-sync tanggal). Fallback ke planning.
         $startDate = $goLiveLeaf->activity?->start_date ?: $goLiveLeaf->start_date;
 
-        $this->go_live_estimated = $startDate;
+        $this->go_live_estimated = static::normalizeGoLiveDate($startDate);
         Log::info("✅ Go-Live date updated from activity", [
             'planning_id' => $goLiveLeaf->id,
             'date'        => $startDate,
         ]);
     }
     
+    /**
+     * go_live_estimated (kolom DATE) tidak punya cast, jadi nilainya harus
+     * disimpan sebagai string 'Y-m-d'. Kalau diisi objek Carbon, Eloquent selalu
+     * menganggapnya berubah (objek !== string dari DB) sehingga setiap save()
+     * menulis ulang baris project walau tanggalnya sama.
+     */
+    public static function normalizeGoLiveDate($date): ?string
+    {
+        return $date ? Carbon::parse($date)->toDateString() : null;
+    }
+
     private function updateCurrentPhase()
     {
         // Get all visible phases for this project
@@ -615,7 +708,21 @@ class DeliveryProject extends Model
 
     protected static function booted()
     {
+        static::creating(function ($project) {
+            if (!$project->last_activity_at && !static::$activityTrackingPaused) {
+                $project->last_activity_at = now();
+            }
+        });
+
         static::updated(function ($project) {
+            // Edit header project oleh user (general/delivery/financial/location
+            // info, close/reopen, role FK, dsb.) → catat aktivitas. Perubahan yang
+            // hanya menyentuh kolom turunan sistem diabaikan.
+            $userColumns = array_diff(array_keys($project->getChanges()), self::SYSTEM_MANAGED_COLUMNS);
+            if (!empty($userColumns)) {
+                $project->touchActivity();
+            }
+
             $project->updateStatusAutomatically();
         });
     }

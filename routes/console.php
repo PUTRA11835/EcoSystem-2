@@ -28,6 +28,11 @@ Schedule::command('activities:recompute-status')->dailyAt('00:05');
 // - TOP invoice jatuh tempo (estimated_date) yang belum diisi Submit Invoice Date
 Schedule::command('notifications:project-reminders')->dailyAt('07:00');
 
+// Reminder harian 15:00 untuk konsultan (position SAP CONSULTANT) yang belum mengisi
+// timesheet hari ini (draft sudah dihitung terisi). Tidak jalan di akhir pekan /
+// tanggal merah — command-nya sendiri yang mengecek HolidayService.
+Schedule::command('notifications:timesheet-reminders')->dailyAt('15:00');
+
 // Periksa & perbaiki share link OneDrive tiap hari 02:30 — link bisa mati sendiri
 // (kebijakan expiry "Anyone links", scope diturunkan tenant, izin dicabut manual)
 // dan tanpa ini kegagalannya baru ketahuan saat customer melapor tidak bisa akses.

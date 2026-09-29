@@ -565,8 +565,8 @@ Route::middleware(['web'])->group(function () {
         Route::get('/statistics', [TimesheetController::class, 'statistics']);
         Route::get('/submitted-for-approval', [TimesheetController::class, 'submittedForApproval']); // For heads to review
         Route::get('/my-projects', [TimesheetController::class, 'myProjects']);
-        Route::get('/my-activities/all', [TimesheetController::class, 'allMyActivities']); // Get ALL assigned activities
-        Route::get('/my-activities/{projectId}', [TimesheetController::class, 'myActivities']); // Get activities for specific project
+        Route::get('/my-activities/{projectId}', [TimesheetController::class, 'myActivities']); // Get activities for specific project (?date= → only running that day)
+        Route::get('/project-form-context', [TimesheetController::class, 'projectFormContext']); // Non-working-day flag + booked time ranges for the project form
         Route::get('/remaining-md', [TimesheetController::class, 'remainingMd']); // Remaining MD quota for a ticket
         Route::get('/my-late-exceptions', [TimesheetController::class, 'myLateExceptions']); // Approved late exception requests (not expired)
         Route::get('/valid-periods',      [TimesheetController::class, 'validPeriods']);      // Active window + late exceptions for the current user

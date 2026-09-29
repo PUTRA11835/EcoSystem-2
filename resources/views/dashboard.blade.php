@@ -2147,6 +2147,7 @@
             resolution_days_proposed:     { bg: '#e0e7ff', color: '#4f46e5', fa: 'fa-users' },
             contract_end_reminder:        { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-file-contract' },
             top_invoice_reminder:         { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice-dollar' },
+            timesheet_reminder:           { bg: '#ffedd5', color: '#ea580c', fa: 'fa-user-clock' },
             ticket_member_added:          { bg: '#dcfce7', color: '#16a34a', fa: 'fa-user-plus' },
             ticket_member_removed:        { bg: '#fee2e2', color: '#dc2626', fa: 'fa-user-minus' },
             ticket_member_reactivated:    { bg: '#dbeafe', color: '#2563eb', fa: 'fa-user-check' },
@@ -2170,6 +2171,7 @@
                 case 'resolution_days_proposed':     return 'Resolution Days — needs review';
                 case 'contract_end_reminder':        return 'Contract deadline reminder';
                 case 'top_invoice_reminder':         return 'Invoice submission due';
+                case 'timesheet_reminder':           return 'Timesheet reminder';
                 case 'ticket_member_added':       return (n.from_name || 'Someone') + ' added you to a ticket';
                 case 'ticket_member_removed':     return (n.from_name || 'Someone') + ' removed a member from a ticket';
                 case 'ticket_member_reactivated': return (n.from_name || 'Someone') + ' re-added a member to a ticket';

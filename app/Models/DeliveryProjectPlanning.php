@@ -13,7 +13,7 @@ use App\Traits\Auditable;
 
 class DeliveryProjectPlanning extends Model
 {
-    use HasFactory, Auditable;
+    use HasFactory, Auditable, Concerns\TouchesProjectActivity;
 
     protected static ?string $auditModule = 'Delivery Project';
 

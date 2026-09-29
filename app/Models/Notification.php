@@ -87,6 +87,7 @@ class Notification extends Model
             'ticket_internal_note'         => $from . ' added an internal note',
             'ticket_reply'                 => $from . ' replied to a ticket',
             'mention'                      => $from . ' mentioned you',
+            'timesheet_reminder'           => 'Timesheet reminder',
             default                        => $from . ' sent you a notification',
         };
     }
