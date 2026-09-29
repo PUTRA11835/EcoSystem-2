@@ -89,20 +89,20 @@
 
     {{-- Ticket table --}}
     <div class="overflow-x-auto border border-gray-200 rounded-xl">
-        <table class="w-full">
+        <table class="w-full" id="wcTicketTable">
             <thead>
                 <tr>
-                    <th class="wc-th text-left">Ticket</th>
-                    <th class="wc-th text-left" style="min-width:220px;">Description</th>
-                    <th class="wc-th text-left">Start Date</th>
-                    <th class="wc-th text-left">Type</th>
-                    <th class="wc-th text-left">Status</th>
-                    <th class="wc-th text-left">Module</th>
-                    <th class="wc-th text-left">Lead &amp; Member</th>
-                    <th class="wc-th text-left">PIC</th>
-                    <th class="wc-th text-left">Progress</th>
-                    <th class="wc-th text-left">Deliverable</th>
-                    <th class="wc-th text-left" style="min-width:220px;">Notes</th>
+                    <th class="wc-th text-left" data-filter-key="ticket_number" style="min-width:130px;">Ticket</th>
+                    <th class="wc-th text-left" data-filter-key="description" style="min-width:220px;">Description</th>
+                    <th class="wc-th text-left" data-filter-key="start_date" style="min-width:150px;">Start Date</th>
+                    <th class="wc-th text-left" data-filter-key="ticket_type" style="min-width:120px;">Type</th>
+                    <th class="wc-th text-left" data-filter-key="status" style="min-width:140px;">Status</th>
+                    <th class="wc-th text-left" data-filter-key="module_name" style="min-width:110px;">Module</th>
+                    <th class="wc-th text-left" data-filter-key="lead_member" style="min-width:160px;">Lead &amp; Member</th>
+                    <th class="wc-th text-left" data-filter-key="pic" style="min-width:120px;">PIC</th>
+                    <th class="wc-th text-left" data-filter-key="progress" style="min-width:100px;">Progress</th>
+                    <th class="wc-th text-left" data-filter-key="deliverable" style="min-width:110px;">Deliverable</th>
+                    <th class="wc-th text-left" data-filter-key="notes" style="min-width:220px;">Notes</th>
                 </tr>
             </thead>
             <tbody id="wcTableBody">
@@ -144,7 +144,7 @@
 </div>
 
 {{-- Ticket quick-view modal (left click on a ticket number) --}}
-<div id="wcTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="wcTicketModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div>
@@ -164,6 +164,26 @@
     </div>
 </div>
 
+{{-- Note editor modal (expand icon next to the inline Notes textarea) --}}
+<div id="wcNoteModal" class="hidden fixed inset-0 bg-black/50 z-[60] items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h3 class="text-base font-bold text-gray-900">Notes — <span id="wcNoteModalTicketNumber">—</span></h3>
+            <button onclick="wcCloseNoteModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <i class="fas fa-times text-xs"></i>
+            </button>
+        </div>
+        <div class="p-6">
+            <textarea id="wcNoteModalTextarea" class="wc-note-modal-textarea" placeholder="Write a note..."></textarea>
+            <div class="wc-note-status mt-1" id="wcNoteModalStatus"></div>
+        </div>
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+            <button type="button" onclick="wcCloseNoteModal()" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-md hover:bg-gray-200 transition-colors">Close</button>
+            <button type="button" onclick="wcSaveNoteFromModal()" class="px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-md hover:bg-red-900 transition-colors">Save</button>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('styles')
@@ -178,13 +198,26 @@
     padding: 0.6rem 0.9rem; border-bottom: 1px solid #f3f4f6;
     vertical-align: middle; font-size: 0.875rem; color: #374151;
 }
+.wc-note-wrap { display: flex; align-items: flex-start; gap: 4px; }
 .wc-note-input {
     width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #e5e7eb; border-radius: 0.375rem;
-    font-size: 0.8125rem; color: #374151; background: #fff;
+    font-size: 0.8125rem; color: #374151; background: #fff; font-family: inherit;
+    resize: none; overflow: hidden; min-height: 34px; line-height: 1.4;
 }
 .wc-note-input:focus { outline: none; border-color: #f87171; box-shadow: 0 0 0 2px #fee2e2; }
 .wc-note-input:disabled { background: #f9fafb; color: #9ca3af; cursor: not-allowed; }
 .wc-note-status { font-size: 10px; color: #9ca3af; margin-top: 2px; min-height: 12px; }
+.wc-note-expand-btn {
+    flex-shrink: 0; width: 26px; height: 34px; display: flex; align-items: center; justify-content: center;
+    border: 1px solid #e5e7eb; border-radius: 0.375rem; background: #fff; color: #9ca3af;
+    font-size: 11px; cursor: pointer; transition: all .15s;
+}
+.wc-note-expand-btn:hover { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.wc-note-modal-textarea {
+    width: 100%; min-height: 220px; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem;
+    font-size: 0.875rem; color: #374151; font-family: inherit; line-height: 1.6; resize: vertical;
+}
+.wc-note-modal-textarea:focus { outline: none; border-color: #f87171; box-shadow: 0 0 0 2px #fee2e2; }
 .wc-status-badge {
     display: inline-block; padding: 1px 7px; border-radius: 9999px; font-size: 10px;
     font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
@@ -198,6 +231,30 @@
 .wc-chip:hover { background: #f9fafb; }
 .wc-chip.active { background: #991b1b; border-color: #991b1b; color: #fff; }
 .wc-chip.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+.wc-th-filter-btn {
+    width: 100%; display: flex; align-items: center; gap: 5px; background: none; border: none;
+    padding: 0; margin: 0; cursor: pointer; font: inherit; color: inherit; text-transform: inherit;
+    letter-spacing: inherit; text-align: left;
+}
+.wc-th-filter-btn:hover { color: #991b1b; }
+.wc-th-filter-icon { width: 11px; height: 11px; flex-shrink: 0; color: #d1d5db; transition: color .15s; }
+.wc-th-filter-icon.active { color: #dc2626; }
+.wc-col-panel {
+    display: none; position: fixed; background: #fff; border: 1px solid #e5e7eb; border-radius: 0.5rem;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,.15); padding: 0.6rem; z-index: 9999; min-width: 200px;
+}
+.wc-col-panel.open { display: block; }
+.wc-col-panel input {
+    width: 100%; padding: 0.35rem 0.55rem; border: 1px solid #d1d5db; border-radius: 0.375rem;
+    font-size: 0.8125rem; font-weight: 400; text-transform: none; letter-spacing: normal; color: #374151;
+}
+.wc-col-panel input:focus { outline: none; border-color: #f87171; box-shadow: 0 0 0 2px #fee2e2; }
+.wc-col-panel button {
+    margin-top: 0.4rem; font-size: 0.6875rem; font-weight: 600; text-transform: none; letter-spacing: normal;
+    color: #6b7280; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.375rem;
+    padding: 0.25rem 0.55rem; cursor: pointer;
+}
+.wc-col-panel button:hover { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
 </style>
 @endpush
 
@@ -206,6 +263,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     wcLoadModules();
     wcLoadHistory();
+    wcInitColumnFilters();
 });
 
 let wcState = 'idle'; // 'idle' | 'preview' | 'batch'
@@ -216,6 +274,9 @@ let wcSelectedModuleIds = [];
 let wcSelectedAll = false;
 let wcAutoViewTimer = null;
 let wcRowsById = {};
+let wcAllRows = [];        // semua baris yang sedang dimuat (belum difilter)
+let wcEditableMode = false;
+let wcColumnFilters = {};  // { [columnKey]: 'search text lowercase' }
 const wcNoteTimers = {};
 
 function escHtml(str) {
@@ -381,7 +442,7 @@ async function wcViewTickets() {
         wcState = 'preview';
         wcCurrentBatchId = null;
 
-        wcRenderRows(json.data.rows, false);
+        wcLoadRowsIntoState(json.data.rows, false);
         document.getElementById('wcGenerateBar').classList.remove('hidden');
         document.getElementById('wcBatchBar').classList.add('hidden');
         document.getElementById('wcResultSummary').innerHTML =
@@ -523,16 +584,32 @@ function wcApplyBatch(data) {
         `<strong class="text-gray-900">${escHtml(moduleLabel)}</strong> &middot; ${escHtml(data.period_label || '-')} &middot; `
         + `<strong class="text-gray-900">${data.rows.length}</strong> ticket(s) saved in this recon.`;
 
-    wcRenderRows(data.rows, true);
+    wcLoadRowsIntoState(data.rows, true);
+}
+
+// Dipanggil setiap kali batch/preview baru dimuat — set ulang "sumber data"
+// lengkap (belum difilter), reset filter kolom yang mungkin masih aktif dari
+// sesi sebelumnya, lalu render lewat wcApplyColumnFilters() supaya konsisten
+// dengan satu jalur render (tidak ada dua tempat yang bisa beda hasil).
+function wcLoadRowsIntoState(rows, editable) {
+    wcAllRows = rows;
+    wcEditableMode = editable;
+    wcRowsById = {};
+    rows.forEach(r => { wcRowsById[r.ticket_id] = r; });
+
+    wcColumnFilters = {};
+    document.querySelectorAll('#wcTicketTable .wc-col-panel input').forEach(el => { el.value = ''; });
+    wcUpdateFilterIndicators();
+
+    wcApplyColumnFilters();
 }
 
 function wcRenderRows(rows, editable) {
     const body = document.getElementById('wcTableBody');
-    wcRowsById = {};
-    rows.forEach(r => { wcRowsById[r.ticket_id] = r; });
 
     if (!rows.length) {
-        body.innerHTML = wcEmptyRow('No open tickets found for the selected module(s).', 11);
+        const msg = wcAllRows.length ? 'No tickets match your filters.' : 'No open tickets found for the selected module(s).';
+        body.innerHTML = wcEmptyRow(msg, 11);
         return;
     }
 
@@ -555,22 +632,147 @@ function wcRenderRows(rows, editable) {
             <td class="wc-td">${wcDeliverableBadge(r.deliverable_status)}</td>
             <td class="wc-td">
                 ${editable ? `
-                    <input type="text" class="wc-note-input" value="${escHtml(r.notes || '')}" placeholder="Write a note..."
-                        oninput="wcOnNoteInput(${r.ticket_id}, this)"
-                        onblur="wcSaveNote(${r.ticket_id}, this.value)">
+                    <div class="wc-note-wrap">
+                        <textarea class="wc-note-input" id="wcNoteTextarea-${r.ticket_id}" rows="1" placeholder="Write a note..."
+                            oninput="wcAutoResizeNote(this); wcOnNoteInput(${r.ticket_id}, this)"
+                            onblur="wcSaveNote(${r.ticket_id}, this.value)">${escHtml(r.notes || '')}</textarea>
+                        <button type="button" class="wc-note-expand-btn" onclick="wcOpenNoteModal(${r.ticket_id})" title="Expand note">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
                     <div class="wc-note-status" id="wcNoteStatus-${r.ticket_id}"></div>
                 ` : `
-                    <input type="text" class="wc-note-input" value="" placeholder="Available after Generate" disabled>
+                    <textarea class="wc-note-input" rows="1" placeholder="Available after Generate" disabled></textarea>
                 `}
             </td>
         </tr>
     `).join('');
+
+    body.querySelectorAll('.wc-note-input:not(:disabled)').forEach(wcAutoResizeNote);
+}
+
+function wcAutoResizeNote(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
 }
 
 function wcDeliverableBadge(status) {
     if (status === 'ok') return '<span class="wc-status-badge" style="background:#dcfce7;color:#166534;">OK</span>';
     if (status === 'not_ok') return '<span class="wc-status-badge" style="background:#fee2e2;color:#991b1b;">Not OK</span>';
     return '<span class="text-gray-300 italic">—</span>';
+}
+
+// ── Per-column header filters (satu filter teks per kolom, sama pola dengan
+// tabel "Ringkasan per Tiket" di Log Shifting) ──────────────────────────────
+
+const WC_FILTER_KEYS = ['ticket_number', 'description', 'start_date', 'ticket_type', 'status', 'module_name', 'lead_member', 'pic', 'progress', 'deliverable', 'notes'];
+
+function wcInitColumnFilters() {
+    document.querySelectorAll('#wcTicketTable thead th[data-filter-key]').forEach(th => {
+        const key = th.dataset.filterKey;
+        const label = th.textContent.trim();
+
+        const panel = document.createElement('div');
+        panel.className = 'wc-col-panel';
+        panel.id = `wcColPanel-${key}`;
+        panel.innerHTML = `
+            <input type="text" id="wcColInput-${key}" placeholder="Search ${escHtml(label)}..." oninput="wcOnColFilterInput('${key}')">
+            <div><button type="button" onclick="wcClearColFilter('${key}')">Clear</button></div>
+        `;
+        document.body.appendChild(panel);
+
+        th.innerHTML = '';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'wc-th-filter-btn';
+        btn.onclick = (ev) => wcToggleColFilter(key, ev);
+        btn.innerHTML = `<span>${escHtml(label)}</span><svg class="wc-th-filter-icon" id="wcColIcon-${key}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>`;
+        th.appendChild(btn);
+    });
+
+    document.addEventListener('click', (e) => {
+        WC_FILTER_KEYS.forEach(key => {
+            const panel = document.getElementById(`wcColPanel-${key}`);
+            const btn = document.querySelector(`#wcTicketTable th[data-filter-key="${key}"] .wc-th-filter-btn`);
+            if (panel && panel.classList.contains('open') && !panel.contains(e.target) && btn && !btn.contains(e.target)) {
+                wcClosePanel(key);
+            }
+        });
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') WC_FILTER_KEYS.forEach(wcClosePanel);
+    });
+}
+
+function wcToggleColFilter(key, ev) {
+    ev?.stopPropagation();
+    const panel = document.getElementById(`wcColPanel-${key}`);
+    const btn = document.querySelector(`#wcTicketTable th[data-filter-key="${key}"] .wc-th-filter-btn`);
+    const wasOpen = panel.classList.contains('open');
+
+    WC_FILTER_KEYS.forEach(wcClosePanel);
+    if (wasOpen) return;
+
+    const rect = btn.getBoundingClientRect();
+    panel.style.top = (rect.bottom + 4) + 'px';
+    panel.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+    panel.classList.add('open');
+    document.getElementById(`wcColInput-${key}`)?.focus();
+}
+
+function wcClosePanel(key) {
+    document.getElementById(`wcColPanel-${key}`)?.classList.remove('open');
+}
+
+let wcFilterDebounce = null;
+function wcOnColFilterInput(key) {
+    clearTimeout(wcFilterDebounce);
+    wcFilterDebounce = setTimeout(() => {
+        wcColumnFilters[key] = (document.getElementById(`wcColInput-${key}`)?.value || '').trim().toLowerCase();
+        wcUpdateFilterIndicators();
+        wcApplyColumnFilters();
+    }, 200);
+}
+
+function wcClearColFilter(key) {
+    const input = document.getElementById(`wcColInput-${key}`);
+    if (input) input.value = '';
+    wcColumnFilters[key] = '';
+    wcUpdateFilterIndicators();
+    wcApplyColumnFilters();
+}
+
+function wcUpdateFilterIndicators() {
+    WC_FILTER_KEYS.forEach(key => {
+        const icon = document.getElementById(`wcColIcon-${key}`);
+        if (icon) icon.classList.toggle('active', !!wcColumnFilters[key]);
+    });
+}
+
+function wcGetFilterText(row, key) {
+    switch (key) {
+        case 'ticket_number': return row.ticket_number || '';
+        case 'description':   return row.description || '';
+        case 'start_date':    return row.start_date ? new Date(row.start_date).toLocaleString('en-US') : '';
+        case 'ticket_type':   return row.ticket_type || '';
+        case 'status':        return row.status_label || row.status || '';
+        case 'module_name':   return row.module_name || '';
+        case 'lead_member':   return row.lead_member || '';
+        case 'pic':           return row.pic || '';
+        case 'progress':      return (row.progress_percentage !== null && row.progress_percentage !== undefined) ? Math.round(row.progress_percentage) + '%' : '';
+        case 'deliverable':   return row.deliverable_status === 'ok' ? 'OK' : (row.deliverable_status === 'not_ok' ? 'Not OK' : '');
+        case 'notes':         return row.notes || '';
+        default:              return '';
+    }
+}
+
+function wcApplyColumnFilters() {
+    const active = Object.entries(wcColumnFilters).filter(([, v]) => v);
+    const filtered = active.length
+        ? wcAllRows.filter(row => active.every(([key, val]) => wcGetFilterText(row, key).toLowerCase().includes(val)))
+        : wcAllRows;
+
+    wcRenderRows(filtered, wcEditableMode);
 }
 
 function wcOnNoteInput(ticketId, el) {
@@ -652,8 +854,56 @@ function wcCloseTicketModal() {
     modal.classList.remove('flex');
 }
 
+// ── Note editor modal: dibuka dari ikon expand di sebelah textarea Notes
+// inline, dipakai untuk notes panjang atau saat mau menulis lebih leluasa.
+// Menyimpan lewat wcSaveNote() yang sama dengan autosave inline, supaya tidak
+// ada dua jalur simpan yang bisa saling menimpa — textarea inline di tabel
+// ikut disinkronkan begini modal ditutup, jadi tidak perlu render ulang baris.
+let wcNoteModalTicketId = null;
+
+function wcOpenNoteModal(ticketId) {
+    wcNoteModalTicketId = ticketId;
+    const row = wcRowsById[ticketId];
+
+    document.getElementById('wcNoteModalTicketNumber').textContent = row?.ticket_number || '—';
+    document.getElementById('wcNoteModalTextarea').value = row?.notes || '';
+    document.getElementById('wcNoteModalStatus').textContent = '';
+
+    const modal = document.getElementById('wcNoteModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(() => document.getElementById('wcNoteModalTextarea').focus(), 50);
+}
+
+function wcCloseNoteModal() {
+    const modal = document.getElementById('wcNoteModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    wcNoteModalTicketId = null;
+}
+
+async function wcSaveNoteFromModal() {
+    if (!wcNoteModalTicketId) return;
+    const ticketId = wcNoteModalTicketId;
+    const value = document.getElementById('wcNoteModalTextarea').value;
+    const statusEl = document.getElementById('wcNoteModalStatus');
+    statusEl.textContent = 'Saving...';
+
+    const inlineEl = document.getElementById(`wcNoteTextarea-${ticketId}`);
+    if (inlineEl) {
+        inlineEl.value = value;
+        wcAutoResizeNote(inlineEl);
+    }
+
+    await wcSaveNote(ticketId, value);
+    statusEl.textContent = 'Saved';
+    setTimeout(() => { if (wcNoteModalTicketId === ticketId) wcCloseNoteModal(); }, 500);
+}
+
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') wcCloseTicketModal();
+    if (e.key !== 'Escape') return;
+    wcCloseTicketModal();
+    wcCloseNoteModal();
 });
 
 async function wcLoadHistory() {
