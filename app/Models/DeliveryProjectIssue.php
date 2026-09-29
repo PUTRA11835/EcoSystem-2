@@ -8,7 +8,7 @@ use App\Traits\Auditable;
 
 class DeliveryProjectIssue extends Model
 {
-    use HasFactory, Auditable;
+    use HasFactory, Auditable, Concerns\TouchesProjectActivity;
 
     protected static ?string $auditModule = 'Delivery Project';
 

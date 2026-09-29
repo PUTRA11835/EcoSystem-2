@@ -1058,6 +1058,21 @@
     const showError   = m => showToast('error',   m);
     const showSuccess = m => showToast('success', m);
 
+    // ── URL tujuan (deep link) ───────────────────────────────────
+    // Middleware CheckAuthToken menaruh tujuan di ?redirect= saat user yang belum
+    // login membuka deep link. Hanya path relatif same-origin yang diterima —
+    // "//evil.com", "https://lain.com/x", dan "javascript:" ditolak.
+    function safePath(value) {
+        const raw = (value || '').trim();
+        if (!raw || raw[0] !== '/' || raw.startsWith('//')) return null;
+        try {
+            const u = new URL(raw, window.location.origin);
+            if (u.origin !== window.location.origin) return null;
+            return u.pathname + u.search + u.hash;
+        } catch { return null; }
+    }
+    function intendedTarget() {
+        return safePath(new URLSearchParams(window.location.search).get('redirect'));
     // Loading screen bertema musiman — dipanggil HANYA di cabang login sukses
     // FINAL (bukan 2FA/ganti password), lihat pemanggilnya di bawah. Dibungkus
     // try/catch dengan sengaja: kalau overlay ini gagal tampil karena alasan
@@ -1128,7 +1143,7 @@
                     'X-Requested-With':'XMLHttpRequest',
                 },
                 credentials:'same-origin',
-                body:JSON.stringify({ email, password, remember }),
+                body:JSON.stringify({ email, password, remember, redirect: intendedTarget() }),
             });
             const data = await res.json();
             if (res.ok && data.success) {
@@ -1145,6 +1160,10 @@
                 }
                 localStorage.setItem('api_token', data.data.token);
                 localStorage.setItem('user_data', JSON.stringify(data.data.user));
+                // Server yang menentukan tujuan akhir (URL deep link yang tadi
+                // diklik, mis. /ticket/123 dari kartu Teams) — sudah disanitasi
+                // di sisi server. Di sini tetap dipagari: hanya path relatif.
+                const target = safePath(data.redirect_url) || intendedTarget() || '/dashboard';
                 // Redirect dijadwalkan LEBIH DULU, sebagai satu-satunya sumber kebenaran
                 // untuk kapan pengguna berpindah halaman — supaya apa pun yang terjadi di
                 // showSeasonalLoadingScreen() (tema aktif atau tidak, gagal atau berhasil)
@@ -1153,10 +1172,10 @@
                     // 2600ms: sengaja sedikit lebih lama dari durasi animasi kereta
                     // luncur (2400ms, lihat <style> overlay) supaya animasinya benar-benar
                     // SELESAI mentok kanan dulu sebelum halaman berpindah.
-                    setTimeout(() => window.location.href = '/dashboard', 2600);
+                    setTimeout(() => window.location.href = target, 2600);
                     showSeasonalLoadingScreen();
                 } else {
-                    setTimeout(() => window.location.href = '/dashboard', 1000);
+                    setTimeout(() => window.location.href = target, 1000);
                     showSuccess('Login successful! Redirecting…');
                 }
             } else {

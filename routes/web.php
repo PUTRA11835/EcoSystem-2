@@ -722,6 +722,19 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         ->where('id', '[0-9]+');
 });
 
+// ==================== ATTACHMENT PROXY — TAUTAN TEAMS ====================
+// Lampiran internal note yang ikut dikirim ke group chat tiket. Yang membukanya
+// klien Teams milik orang tanpa sesi EcoSystem, jadi route ini SENGAJA di luar
+// grup ber-CheckAuthToken — yang menjaganya middleware `signed`, bukan login.
+//
+// Tanda tangan = kapabilitas: siapa pun yang memegang tautannya bisa membuka
+// berkasnya. Konsekuensi yang diterima sadar (23 Sep 2026) supaya gambar tetap
+// tampil di riwayat chat. Aksesnya dicatat di AttachmentController.
+Route::get('/teams/attachments/{id}', [AttachmentController::class, 'showForTeams'])
+    ->middleware('signed')
+    ->name('attachments.teams')
+    ->where('id', '[0-9]+');
+
 // ==================== ROOT REDIRECT ====================
 
 Route::get('/', function () {

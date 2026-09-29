@@ -20,7 +20,9 @@ use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\ReportingPeriod;
 use App\Models\Ticket;
+use App\Services\HolidayService;
 use App\Services\PeriodService;
+use App\Services\ReverseGeocodingService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -121,6 +123,11 @@ class TimesheetController extends Controller
                                         'md_consumed' => $timesheet->md_consumed,
                                         'presence' => $timesheet->presence,
                                         'location' => $timesheet->location,
+                                        'gps_latitude' => $timesheet->gps_latitude,
+                                        'gps_longitude' => $timesheet->gps_longitude,
+                                        'gps_accuracy' => $timesheet->gps_accuracy,
+                                        'gps_address' => $timesheet->gps_address,
+                                        'is_without_activity' => (bool) $timesheet->is_without_activity,
                                         'delivery_projects_id' => $timesheet->delivery_projects_id,
                                         'activity_id' => $timesheet->activity_id,
                                         'activity_name' => $timesheet->activity?->name,
@@ -430,7 +437,7 @@ class TimesheetController extends Controller
             $roleIds           = $sessionUser->role_ids;
 
             // Load employee, activity, and ticket (with customer) relationships
-            $query = Timesheet::with(['employee.basicData', 'activity', 'ticket.customer.basicData']);
+            $query = Timesheet::with(['employee.basicData', 'activity', 'delivery_project:id,name', 'ticket.customer.basicData']);
 
             // ── Visibility filter ─────────────────────────────────────────────
             // Admin sees everything. Others see own timesheets + additional scope per role:
@@ -531,6 +538,12 @@ class TimesheetController extends Controller
                     'is_billable'          => $t->is_billable,
                     'presence'             => $t->presence,
                     'location'             => $t->location,
+                    'gps_latitude'         => $t->gps_latitude,
+                    'gps_longitude'        => $t->gps_longitude,
+                    'gps_accuracy'         => $t->gps_accuracy,
+                    'gps_address'          => $t->gps_address,
+                    'is_without_activity'  => (bool) $t->is_without_activity,
+                    'project_name'         => $t->delivery_project?->name,
                     'md_consumed'          => $t->md_consumed,
                     'approved_by'          => $t->approved_by,
                     'approved_at'          => $t->approved_at?->format('Y-m-d H:i:s'),
@@ -614,7 +627,8 @@ class TimesheetController extends Controller
                 'end_time' => 'required|after:start_time',
                 'description' => 'required|string',
                 'notes' => 'nullable|string',
-                'activity_type' => 'required|in:development,meeting,documentation,testing,support,training,other',
+                // Project timesheets no longer ask for an activity type (stored null)
+                'activity_type' => 'required_without:delivery_projects_id|nullable|in:development,meeting,documentation,testing,support,training,other',
                 'is_billable' => 'sometimes|boolean',
                 'presence' => 'nullable|string',
                 'location' => 'nullable|string',
@@ -626,6 +640,13 @@ class TimesheetController extends Controller
                 $rules['delivery_projects_id'] = 'nullable|integer';
                 $rules['activity_id'] = 'nullable|exists:delivery_project_activities,id'; // Activity validation
                 $rules['ticket_id'] = 'nullable';
+                $rules['presence'] = 'required|string';
+                $rules['location'] = 'required|string';
+                $rules['is_without_activity'] = 'sometimes|boolean';
+                // Device GPS is mandatory for project timesheets (the UI blocks submit without it)
+                $rules['gps_latitude']  = 'required|numeric|between:-90,90';
+                $rules['gps_longitude'] = 'required|numeric|between:-180,180';
+                $rules['gps_accuracy']  = 'nullable|numeric|min:0';
             } elseif ($request->filled('ticket_id')) {
                 $rules['ticket_id'] = 'nullable|integer';
                 $rules['delivery_projects_id'] = 'nullable';
@@ -635,6 +656,7 @@ class TimesheetController extends Controller
             }
 
             $validated = $request->validate($rules);
+            $isProject = !empty($validated['delivery_projects_id']);
 
             $validated['status'] = 'draft';
 
@@ -661,6 +683,18 @@ class TimesheetController extends Controller
                 $validated['ticket_id'] = null;
                 $validated['activity_id'] = null;
             }
+
+            // ── Project rules: date = today, project/activity eligibility, GPS ─
+            if ($isProject) {
+                $validated['date'] = today()->toDateString();
+                $validated['gps_captured_at'] = now();
+
+                $projectError = $this->prepareProjectTimesheet($request, $validated, (int) $validated['employee_id'], true);
+                if ($projectError) {
+                    return response()->json(['success' => false, 'message' => $projectError], 422);
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
 
             // ── Resolution Days quota guard ───────────────────────────────────
             if (!empty($validated['ticket_id'])) {
@@ -707,7 +741,29 @@ class TimesheetController extends Controller
             // Assign period year/month
             $this->assignPeriod($validated);
 
-            $timesheet = Timesheet::create($validated);
+            if ($isProject) {
+                // Overlap check + insert under a per-employee lock so two parallel
+                // saves (e.g. two tabs) can't both claim the same time slot.
+                $overlapError = null;
+                $timesheet = DB::transaction(function () use ($validated, &$overlapError) {
+                    Employee::where('employee_id', $validated['employee_id'])->lockForUpdate()->first();
+
+                    $overlapError = $this->checkProjectTimeOverlap(
+                        (int) $validated['employee_id'], $validated['date'],
+                        $validated['start_time'], $validated['end_time']
+                    );
+
+                    return $overlapError ? null : Timesheet::create($validated);
+                });
+
+                if (!$timesheet) {
+                    return response()->json(['success' => false, 'message' => $overlapError], 422);
+                }
+
+                $this->geocodeAfterResponse($timesheet);
+            } else {
+                $timesheet = Timesheet::create($validated);
+            }
 
             Log::info('Timesheet created successfully:', ['id' => $timesheet->id]);
 
@@ -773,7 +829,7 @@ class TimesheetController extends Controller
                 'end_time' => 'required|after:start_time',
                 'description' => 'required|string',
                 'notes' => 'nullable|string',
-                'activity_type' => 'required|in:development,meeting,documentation,testing,support,training,other',
+                'activity_type' => 'required_without:delivery_projects_id|nullable|in:development,meeting,documentation,testing,support,training,other',
                 'is_billable' => 'sometimes|boolean',
                 'presence' => 'nullable|string',
                 'location' => 'nullable|string',
@@ -784,6 +840,9 @@ class TimesheetController extends Controller
                 $rules['delivery_projects_id'] = 'nullable|integer';
                 $rules['activity_id'] = 'nullable|exists:delivery_project_activities,id';
                 $rules['ticket_id'] = 'nullable';
+                $rules['presence'] = 'required|string';
+                $rules['location'] = 'required|string';
+                $rules['is_without_activity'] = 'sometimes|boolean';
             } elseif ($request->filled('ticket_id')) {
                 $rules['ticket_id'] = 'nullable|integer';
                 $rules['delivery_projects_id'] = 'nullable';
@@ -808,6 +867,35 @@ class TimesheetController extends Controller
                 $validated['ticket_id'] = null;
                 $validated['activity_id'] = null;
             }
+
+            // ── Project rules on edit ─────────────────────────────────────────
+            // The date and the GPS location stay as captured at creation; only a
+            // timesheet converted from another type starts fresh on today's date
+            // (it then has no GPS fix yet, so the device location is required).
+            $isProject = !empty($validated['delivery_projects_id']);
+            if ($isProject) {
+                $wasProject = !empty($timesheet->delivery_projects_id);
+                if ($wasProject) {
+                    $validated['date'] = $timesheet->date->toDateString();
+                } else {
+                    $gps = $request->validate([
+                        'gps_latitude'  => 'required|numeric|between:-90,90',
+                        'gps_longitude' => 'required|numeric|between:-180,180',
+                        'gps_accuracy'  => 'nullable|numeric|min:0',
+                    ]);
+                    $validated = array_merge($validated, $gps, ['gps_captured_at' => now(), 'gps_address' => null]);
+                    $validated['date'] = today()->toDateString();
+                }
+
+                $projectError = $this->prepareProjectTimesheet(
+                    $request, $validated, (int) $timesheet->employee_id,
+                    (int) $timesheet->delivery_projects_id !== (int) $validated['delivery_projects_id']
+                );
+                if ($projectError) {
+                    return response()->json(['success' => false, 'message' => $projectError], 422);
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
 
             // ── Resolution Days quota guard ───────────────────────────────────
             if (!empty($validated['ticket_id'])) {
@@ -834,7 +922,30 @@ class TimesheetController extends Controller
             // Auto-assign period if date changed or period not yet set
             $this->assignPeriod($validated);
 
-            $timesheet->update($validated);
+            if ($isProject) {
+                $overlapError = null;
+                DB::transaction(function () use ($timesheet, $validated, &$overlapError) {
+                    Employee::where('employee_id', $timesheet->employee_id)->lockForUpdate()->first();
+
+                    $overlapError = $this->checkProjectTimeOverlap(
+                        (int) $timesheet->employee_id, $validated['date'],
+                        $validated['start_time'], $validated['end_time'], (int) $timesheet->id
+                    );
+                    if (!$overlapError) {
+                        $timesheet->update($validated);
+                    }
+                });
+
+                if ($overlapError) {
+                    return response()->json(['success' => false, 'message' => $overlapError], 422);
+                }
+
+                if (!$timesheet->gps_address) {
+                    $this->geocodeAfterResponse($timesheet);
+                }
+            } else {
+                $timesheet->update($validated);
+            }
 
             return response()->json([
                 'success' => true,
@@ -1272,8 +1383,21 @@ class TimesheetController extends Controller
                 ], 401);
             }
 
+            // Active projects the user is a team member of. `include_project_id` keeps
+            // an edited timesheet's project selectable even if it has since closed.
+            $includeId = $request->integer('include_project_id') ?: null;
+
             $projects = DeliveryProject::whereHas('teamMembers', function ($query) use ($employeeId) {
                 $query->where('employee.employee_id', $employeeId);
+            })
+            ->where(function ($q) use ($includeId) {
+                $q->where(function ($active) {
+                    $active->where(fn ($c) => $c->where('is_closed', false)->orWhereNull('is_closed'))
+                           ->where(fn ($c) => $c->where('category', '!=', 'Closed')->orWhereNull('category'));
+                });
+                if ($includeId) {
+                    $q->orWhere('id', $includeId);
+                }
             })
             ->with(['client.basicData'])
             ->select('id', 'name', 'client_id', 'status', 'phase')
@@ -1312,14 +1436,16 @@ class TimesheetController extends Controller
                 ], 401);
             }
 
+            // Optional `date`: only activities running on that date. Weekends / public
+            // holidays have no running activity by design, so they return an empty list
+            // (the form then offers "log without activity" instead).
+            $date = $request->filled('date') ? Carbon::parse($request->input('date')) : null;
+            if ($date && app(HolidayService::class)->isNonWorkingDay($date)) {
+                return response()->json(['success' => true, 'data' => [], 'message' => 'Non-working day']);
+            }
+
             // Query activities that have this employee in the pivot table
-            $activities = DeliveryProjectActivity::where('delivery_projects_id', $projectId)
-                ->whereExists(function ($query) use ($employeeId) {
-                    $query->select(DB::raw(1))
-                        ->from('activity_employee')
-                        ->whereColumn('activity_employee.delivery_project_activity_id', 'delivery_project_activities.id')
-                        ->where('activity_employee.employee_id', $employeeId);
-                })
+            $activities = $this->eligibleActivitiesQuery((int) $projectId, (int) $employeeId, $date)
                 ->with(['phase', 'stage'])
                 ->select('id', 'name', 'delivery_project_phase_id', 'stage_id', 'status', 'start_date', 'end_date')
                 ->orderBy('name')
@@ -1341,70 +1467,42 @@ class TimesheetController extends Controller
     }
 
     /**
-     * Get ALL activities assigned to the logged-in employee across all projects
-     * This is used for the timesheet dropdown to show activities directly
+     * Context for the Project timesheet form on a given date (default today):
+     * whether it is a weekend/public holiday, and the time ranges already taken by
+     * the user's other project timesheets that day (rejected ones are free again),
+     * so the time picker can disable them.
+     * GET /api/timesheets/project-form-context?date=YYYY-MM-DD&exclude_id=
      */
-    public function allMyActivities(Request $request)
+    public function projectFormContext(Request $request)
     {
-        try {
-            $user = session('user');
-            // Session stores employee_id as 'id', fallback to 'employee_id' for compatibility
-            $employeeId = $user['id'] ?? $user['employee_id'] ?? null;
-
-            Log::info('allMyActivities called', [
-                'user' => $user,
-                'employeeId' => $employeeId
-            ]);
-
-            if (!$employeeId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Employee not authenticated'
-                ], 401);
-            }
-
-            // Query activities that have this employee in the pivot table
-            $activities = DeliveryProjectActivity::whereExists(function ($query) use ($employeeId) {
-                    $query->select(DB::raw(1))
-                        ->from('activity_employee')
-                        ->whereColumn('activity_employee.delivery_project_activity_id', 'delivery_project_activities.id')
-                        ->where('activity_employee.employee_id', $employeeId);
-                })
-                ->with(['phase', 'stage', 'delivery_project:id,name'])
-                ->select('id', 'name', 'delivery_projects_id', 'delivery_project_phase_id', 'stage_id', 'status', 'start_date', 'end_date')
-                ->orderBy('delivery_projects_id')
-                ->orderBy('name')
-                ->get();
-
-            Log::info('Activities found', ['count' => $activities->count()]);
-
-            $result = $activities->map(function ($activity) {
-                    return [
-                        'id' => $activity->id,
-                        'name' => $activity->name,
-                        'delivery_projects_id' => $activity->delivery_projects_id,
-                        'project_name' => $activity->delivery_project->name ?? 'Unknown Project',
-                        'phase_name' => $activity->phase->name ?? null,
-                        'stage_name' => $activity->stage->name ?? null,
-                        'status' => $activity->status,
-                        'start_date' => $activity->start_date,
-                        'end_date' => $activity->end_date,
-                    ];
-                });
-
-            return response()->json([
-                'success' => true,
-                'data' => $result,
-                'message' => 'All assigned activities retrieved successfully'
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error retrieving all my activities: ' . $e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve activities'
-            ], 500);
+        $user       = session('user');
+        $employeeId = $user['id'] ?? $user['employee_id'] ?? null;
+        if (!$employeeId) {
+            return response()->json(['success' => false, 'message' => 'Employee not authenticated'], 401);
         }
+
+        $date      = $request->filled('date') ? Carbon::parse($request->input('date')) : today();
+        $excludeId = $request->integer('exclude_id') ?: null;
+
+        $booked = $this->bookedProjectTimesQuery((int) $employeeId, $date->toDateString(), $excludeId)
+            ->with(['delivery_project:id,name', 'activity:id,name'])
+            ->orderBy('start_time')
+            ->get()
+            ->map(fn ($t) => [
+                'id'            => $t->id,
+                'start'         => substr((string) $t->start_time, 0, 5),
+                'end'           => substr((string) $t->end_time, 0, 5),
+                'project_name'  => $t->delivery_project?->name,
+                'activity_name' => $t->activity?->name,
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'data'    => array_merge(
+                ['date' => $date->toDateString(), 'booked' => $booked],
+                $this->nonWorkingDayInfo($date)
+            ),
+        ]);
     }
 
     // ── Resolution Days quota guard ─────────────────────────────────────────
@@ -1492,5 +1590,163 @@ class TimesheetController extends Controller
 
         $data['period_year']  = $p['year'];
         $data['period_month'] = $p['month'];
+    }
+
+    // ── Project timesheet helpers ─────────────────────────────────────────
+
+    /**
+     * Activities of a project assigned to the employee, optionally only those
+     * running on $date (start_date ≤ date ≤ end_date).
+     */
+    private function eligibleActivitiesQuery(int $projectId, int $employeeId, ?Carbon $date = null)
+    {
+        return DeliveryProjectActivity::where('delivery_projects_id', $projectId)
+            ->whereExists(function ($query) use ($employeeId) {
+                $query->select(DB::raw(1))
+                    ->from('activity_employee')
+                    ->whereColumn('activity_employee.delivery_project_activity_id', 'delivery_project_activities.id')
+                    ->where('activity_employee.employee_id', $employeeId);
+            })
+            ->when($date, fn ($q) => $q
+                ->whereDate('start_date', '<=', $date->toDateString())
+                ->whereDate('end_date', '>=', $date->toDateString()));
+    }
+
+    /**
+     * The employee's project timesheets on a date that occupy time — every status
+     * except rejected (a rejected entry frees its slot again).
+     */
+    private function bookedProjectTimesQuery(int $employeeId, string $date, ?int $excludeId = null)
+    {
+        return Timesheet::where('employee_id', $employeeId)
+            ->whereDate('date', $date)
+            ->whereNotNull('delivery_projects_id')
+            ->where('status', '!=', 'rejected')
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId));
+    }
+
+    /**
+     * Returns an error message when [start, end) overlaps another project timesheet
+     * of the employee on that date, or null when the slot is free. Ranges that only
+     * touch (08:00–12:00 then 12:00–15:00) do not overlap.
+     */
+    private function checkProjectTimeOverlap(int $employeeId, string $date, string $start, string $end, ?int $excludeId = null): ?string
+    {
+        $start = substr($start, 0, 5) . ':00';
+        $end   = substr($end, 0, 5) . ':00';
+
+        $clash = $this->bookedProjectTimesQuery($employeeId, $date, $excludeId)
+            ->where('start_time', '<', $end)
+            ->where('end_time', '>', $start)
+            ->with('delivery_project:id,name')
+            ->orderBy('start_time')
+            ->first();
+
+        if (!$clash) {
+            return null;
+        }
+
+        return sprintf(
+            'Time %s–%s overlaps your other project timesheet (%s, %s–%s). Please choose a free time slot.',
+            substr($start, 0, 5), substr($end, 0, 5),
+            $clash->delivery_project?->name ?? 'Project #' . $clash->delivery_projects_id,
+            substr((string) $clash->start_time, 0, 5), substr((string) $clash->end_time, 0, 5)
+        );
+    }
+
+    /**
+     * ['is_non_working_day' => bool, 'non_working_reason' => 'Weekend' | holiday name | null]
+     */
+    private function nonWorkingDayInfo(Carbon $date): array
+    {
+        $holidays = app(HolidayService::class);
+        if (!$holidays->isNonWorkingDay($date)) {
+            return ['is_non_working_day' => false, 'non_working_reason' => null];
+        }
+
+        $holiday = collect($holidays->getHolidays($date->year, $date->year))
+            ->firstWhere('date', $date->toDateString());
+
+        return [
+            'is_non_working_day' => true,
+            'non_working_reason' => $holiday['name'] ?? 'Weekend',
+        ];
+    }
+
+    /**
+     * Validate & normalise a project timesheet payload in place:
+     *  - the project must be one the employee is a team member of (and active,
+     *    when it is newly chosen);
+     *  - working day → an activity is required, assigned to the employee and
+     *    running on the timesheet date;
+     *  - weekend / public holiday → no activity runs, so the user must confirm
+     *    "log without activity" (activity_id = null, detail in description);
+     *  - billable is always true and activity type is no longer used.
+     * Returns an error message, or null when valid.
+     */
+    private function prepareProjectTimesheet(Request $request, array &$validated, int $employeeId, bool $projectIsNew): ?string
+    {
+        $project = DeliveryProject::whereKey($validated['delivery_projects_id'])
+            ->whereHas('teamMembers', fn ($q) => $q->where('employee.employee_id', $employeeId))
+            ->first();
+
+        if (!$project) {
+            return 'You are not a team member of the selected project.';
+        }
+        if ($projectIsNew && ($project->is_closed || $project->category === 'Closed')) {
+            return 'The selected project is closed.';
+        }
+
+        $date          = Carbon::parse($validated['date']);
+        $nonWorkingDay = $this->nonWorkingDayInfo($date)['is_non_working_day'];
+
+        if ($nonWorkingDay) {
+            if (!$request->boolean('is_without_activity')) {
+                return 'No activity runs on a weekend or public holiday. Tick "Log without activity" and describe the work in Activity Detail.';
+            }
+            $validated['activity_id']         = null;
+            $validated['is_without_activity'] = true;
+        } else {
+            $activityId = $request->input('activity_id');
+            if (!$activityId) {
+                return 'Please select an activity.';
+            }
+            $eligible = $this->eligibleActivitiesQuery((int) $project->id, $employeeId, $date)
+                ->whereKey($activityId)
+                ->exists();
+            if (!$eligible) {
+                return 'The selected activity is not assigned to you or is not running on ' . $date->format('d M Y') . '.';
+            }
+            $validated['activity_id']         = (int) $activityId;
+            $validated['is_without_activity'] = false;
+        }
+
+        $validated['is_billable']   = true;
+        $validated['activity_type'] = null;
+
+        return null;
+    }
+
+    /**
+     * Resolve the GPS fix to an address after the response is sent, so the
+     * (external) geocoding call never slows the save. Written via the query
+     * builder: no audit entry / updated_at bump for a system-filled column.
+     */
+    private function geocodeAfterResponse(Timesheet $timesheet): void
+    {
+        if ($timesheet->gps_latitude === null || $timesheet->gps_longitude === null) {
+            return;
+        }
+
+        $id  = $timesheet->id;
+        $lat = (float) $timesheet->gps_latitude;
+        $lng = (float) $timesheet->gps_longitude;
+
+        app()->terminating(function () use ($id, $lat, $lng) {
+            $address = app(ReverseGeocodingService::class)->reverse($lat, $lng);
+            if ($address) {
+                DB::table('timesheets')->where('id', $id)->update(['gps_address' => $address]);
+            }
+        });
     }
 }

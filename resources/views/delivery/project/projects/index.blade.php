@@ -278,7 +278,7 @@
                             <div class="pt-2 border-t border-gray-200">
                                 <div class="flex justify-between items-center text-sm">
                                     <span class="text-gray-500">Last Update:</span>
-                                    <span class="font-medium text-gray-900">{{ $project->updated_at->format('d M Y') }}</span>
+                                    <span class="font-medium text-gray-900">{{ optional($project->last_update_date)->format('d M Y') ?? '-' }}</span>
                                 </div>
                             </div>
                         </div>
@@ -466,7 +466,7 @@
                                     data-ae="{{ strtolower($project->ae_name ?? '') }}"
                                     data-owner="{{ strtolower($project->project_owner ?? '') }}"
                                     data-customer="{{ strtolower($project->client->basicData->name_1 ?? '') }}"
-                                    data-updated="{{ optional($project->updated_at)->timestamp ?? 0 }}"
+                                    data-updated="{{ optional($project->last_update_date)->timestamp ?? 0 }}"
                                     data-searchable-content="{{ strtolower(($project->io_number ?? '') . ' ' . ($project->client->basicData->name_1 ?? '') . ' ' . $project->project_type . ' ' . $project->name . ' ' . ($project->ae_name ?? '') . ' ' . $project->project_owner . ' ' . $project->status . ' ' . $project->category) }}">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {{ $project->io_number ?? 'N/A' }}
@@ -507,7 +507,7 @@
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {{ $project->updated_at->format('d M Y') }}
+                                        {{ optional($project->last_update_date)->format('d M Y') ?? '-' }}
                                     </td>
                                 </tr>
                             @empty

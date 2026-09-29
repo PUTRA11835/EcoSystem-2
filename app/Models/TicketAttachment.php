@@ -65,7 +65,45 @@ class TicketAttachment extends Model
             return route('attachments.show', $this->id);
         }
 
+        // Berkas yang dibagikan di group chat Teams: tautannya menunjuk langsung
+        // ke SharePoint, dan SharePoint meminta login Microsoft lebih dulu.
+        // Dilewatkan proxy yang sama dengan lampiran email supaya perilakunya
+        // seragam bagi orang yang membuka tiket.
+        if ($this->isCloudProxyable()) {
+            return route('attachments.show', $this->id);
+        }
+
         return $this->link_url;
+    }
+
+    /**
+     * Tautan cloud yang boleh diambilkan EcoSystem lewat Graph.
+     *
+     * Host-nya dibatasi dengan SENGAJA. `link_url` berasal dari lampiran pesan
+     * Teams — isinya ditentukan orang lain, dan proxy ini mengambil berkas
+     * memakai token aplikasi yang punya akses luas. Tanpa pembatasan host, satu
+     * baris attachment berisi URL sembarang bisa memancing server mengambil
+     * apa pun yang bisa dijangkau token itu.
+     */
+    public function isCloudProxyable(): bool
+    {
+        if ($this->attachment_type !== 'link' || !$this->link_url) {
+            return false;
+        }
+
+        $host = strtolower((string) parse_url($this->link_url, PHP_URL_HOST));
+
+        if ($host === '') {
+            return false;
+        }
+
+        foreach (['sharepoint.com', 'onedrive.com', 'onedrive.live.com', '1drv.ms'] as $allowed) {
+            if ($host === $allowed || str_ends_with($host, '.' . $allowed)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
