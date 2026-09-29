@@ -273,6 +273,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/seasonal-theme', [\App\Http\Controllers\SeasonalThemeSettingsController::class, 'index'])->name('seasonal-theme')->middleware('menu:control-center.seasonal-theme');
         Route::post('/seasonal-theme', [\App\Http\Controllers\SeasonalThemeSettingsController::class, 'update'])->name('seasonal-theme.update')->middleware('menu:control-center.seasonal-theme');
         Route::post('/seasonal-theme/upload-sound', [\App\Http\Controllers\SeasonalThemeSettingsController::class, 'uploadSound'])->name('seasonal-theme.upload-sound')->middleware('menu:control-center.seasonal-theme');
+
+        // Role mana yang wajib 2FA — admin-configurable, dibaca EnforceTwoFactorForAdmins.
+        Route::get('/two-factor-enforcement', [\App\Http\Controllers\TwoFactorEnforcementSettingsController::class, 'index'])->name('two-factor-enforcement')->middleware('menu:control-center.two-factor-enforcement');
+        Route::post('/two-factor-enforcement', [\App\Http\Controllers\TwoFactorEnforcementSettingsController::class, 'update'])->name('two-factor-enforcement.update')->middleware('menu:control-center.two-factor-enforcement');
     });
 
     // ==================== SLA ====================
