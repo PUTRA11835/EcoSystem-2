@@ -31,6 +31,7 @@ use Maatwebsite\Excel\Facades\Excel;
 class WeeklyConsolidationController extends Controller
 {
     private const MENU_SLUG = 'reporting.weekly-consolidation';
+    private const COMBINE_MODULES_SLUG = 'reporting.weekly-consolidation.combine-modules';
 
     private function authorize(): ?Employee
     {
@@ -66,14 +67,17 @@ class WeeklyConsolidationController extends Controller
     }
 
     /**
-     * Kombinasi >1 modul ("all" atau module_ids lebih dari satu) hanya untuk
-     * role privileged (Admin/HOS/Helpdesk/RPMO) — module lead biasa tetap satu
-     * modul per batch meski dia kebetulan memimpin lebih dari satu modul,
-     * sesuai spek awal fitur ini (satu lead, satu modul, satu laporan).
+     * Kombinasi >1 modul ("all" atau module_ids lebih dari satu) digerbangi
+     * lewat function permission reporting.weekly-consolidation.combine-modules
+     * (menu Access, sama pola dengan ticket.assign-pic dkk) — BUKAN dikunci ke
+     * accessibleModuleIds() lagi, supaya admin bisa grant/cabut kapabilitas
+     * ini per-role kapan saja lewat Menu Access tanpa perlu deploy kode baru.
+     * Default grant migrasi disamakan dengan role privileged sebelumnya
+     * (Admin/HOS/Helpdesk/RPMO) supaya perilaku hari ini tidak berubah.
      */
     private function canCombineModules(Employee $employee): bool
     {
-        return $this->accessibleModuleIds($employee) === null;
+        return $employee->canAccessMenu(self::COMBINE_MODULES_SLUG);
     }
 
     /**
@@ -203,7 +207,7 @@ class WeeklyConsolidationController extends Controller
         $moduleIds = $this->resolveModuleIds($request, $employee);
 
         $tickets = $this->liveTicketRowsQuery($moduleIds)
-            ->with(['ticketLead.basicData', 'members.basicData', 'moduleMaster'])
+            ->with(['ticketLead.basicData', 'members.basicData', 'modules'])
             ->orderByDesc('last_message_at')
             ->get();
 
@@ -372,11 +376,22 @@ class WeeklyConsolidationController extends Controller
             ? 'ALL MODULES'
             : ($moduleNamesSorted->implode(', ') ?: ($consolidation->module->name ?? 'Module'));
 
+        // Recon Date/Code dipatok ke created_at BATCH (bukan now()) supaya stabil
+        // — export ulang batch yang sama besok tetap menunjukkan kode & tanggal
+        // recon yang sama, bukan berubah tiap kali tombol Export diklik.
+        $reconCreatedAt  = $consolidation->created_at->timezone('Asia/Jakarta');
+        $moduleGroupLabel = $consolidation->is_all_modules
+            ? 'ALL MODULES'
+            : ($moduleNamesSorted->implode('/') ?: ($consolidation->module->name ?? 'Module'));
+
         $meta = [
             'module_name'   => $bannerModuleLabel,
             'period_label'  => $consolidation->period_label,
             'generated_by'  => $generatedBy,
             'generated_at'  => now()->timezone('Asia/Jakarta'),
+            'code'          => 'REC_' . $reconCreatedAt->format('dmy'),
+            'recon_date'    => $reconCreatedAt->format('d/m/Y'),
+            'module_group'  => $moduleGroupLabel,
         ];
 
         // Format sengaja ddMMyy ("dmy"), BUKAN mengikuti konvensi export lain di
@@ -395,11 +410,23 @@ class WeeklyConsolidationController extends Controller
 
     // ── internal helpers ──────────────────────────────────────────────────────
 
+    /**
+     * Tiket dianggap "milik" salah satu modul terpilih kalau modul itu ada di
+     * DAFTAR LENGKAP modulnya (pivot ticket_module, lihat Ticket::modules()),
+     * bukan cuma modul utama (module_id) — supaya tiket lintas-modul (mis.
+     * "FI, ABAP") tetap muncul di recon SEMUA modul yang disentuhnya, bukan
+     * cuma modul utamanya. Fallback ke module_id tetap disertakan sebagai
+     * jaring pengaman untuk tiket lama yang seandainya belum sempat ter-sync
+     * ke pivot (terverifikasi 0 kasus saat ini, tapi murah untuk dijaga).
+     */
     private function liveTicketRowsQuery(array $moduleIds)
     {
         return Ticket::whereNull('deleted_at')
             ->whereNull('is_hidden')
-            ->whereIn('module_id', $moduleIds)
+            ->where(function ($q) use ($moduleIds) {
+                $q->whereHas('modules', fn ($q2) => $q2->whereIn('modules.id', $moduleIds))
+                  ->orWhereIn('module_id', $moduleIds);
+            })
             ->whereIn('status', WeeklyConsolidation::OPEN_STATUSES);
     }
 
@@ -444,7 +471,7 @@ class WeeklyConsolidationController extends Controller
     {
         return $consolidation->lines()
             ->with(['ticket' => function ($q) {
-                $q->with(['ticketLead.basicData', 'members.basicData', 'moduleMaster']);
+                $q->with(['ticketLead.basicData', 'members.basicData', 'modules']);
             }])
             ->get()
             ->map(fn (WeeklyConsolidationTicket $line) => $this->shapeTicketRow($line->ticket, $line->id, $line->notes))
@@ -478,7 +505,11 @@ class WeeklyConsolidationController extends Controller
             'ticket_id'           => $t->ticket_id,
             'ticket_number'       => $t->ticket_number ?? '—',
             'module_id'           => $t->module_id,
-            'module_name'         => $t->module_name,
+            // Daftar LENGKAP modul tiket ini (gabung koma), bukan cuma modul
+            // utama — tiket lintas-modul (mis. "FI, ABAP") tetap kelihatan
+            // jelas modul mana saja yang disentuh, sama seperti kolom Module
+            // di halaman Ticket List.
+            'module_name'         => $t->module_names,
             'description'         => $t->description,
             'start_date'          => $t->created_at,
             'ticket_type'         => $t->ticket_type,

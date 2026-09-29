@@ -21,8 +21,8 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
     protected Collection $rows;
     protected array $meta;
 
-    private const HEADER_ROW     = 5;
-    private const FIRST_DATA_ROW = 6;
+    private const HEADER_ROW     = 8;
+    private const FIRST_DATA_ROW = 9;
     private const LAST_COL       = 'K';
 
     public function __construct(Collection $rows, array $meta = [])
@@ -34,9 +34,13 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
     public function array(): array
     {
         $blank = array_fill(0, 11, '');
+        $labelValue = fn (string $label, string $value) => array_merge([$label, $value], array_slice($blank, 2));
 
         $rows = [
             array_merge(['WEEKLY CONSOLIDATION — ' . strtoupper($this->meta['module_name'] ?? '')], array_slice($blank, 1)),
+            $labelValue('Code', $this->meta['code'] ?? '—'),
+            $labelValue('Recon Date', $this->meta['recon_date'] ?? '—'),
+            $labelValue('Module Group', $this->meta['module_group'] ?? '—'),
             array_merge([$this->periodLabel()], array_slice($blank, 1)),
             array_merge([$this->metaLabel()], array_slice($blank, 1)),
             $blank,
@@ -111,25 +115,38 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
         $lastRow      = $headerRow + $this->rows->count();
 
         $sheet->mergeCells("A1:{$lastCol}1");
-        $sheet->mergeCells("A2:{$lastCol}2");
-        $sheet->mergeCells("A3:{$lastCol}3");
+        // Baris 2-4 (Code/Recon Date/Module Group) SENGAJA tidak di-merge —
+        // format label (kolom A) : value (kolom B), beda dari baris judul/
+        // periode/meta yang teksnya menyatu selebar tabel.
+        $sheet->mergeCells("A5:{$lastCol}5");
+        $sheet->mergeCells("A6:{$lastCol}6");
         $sheet->getRowDimension(1)->setRowHeight(22);
 
         $sheet->freezePane("A{$firstDataRow}");
         $sheet->setAutoFilter("A{$headerRow}:{$lastCol}{$lastRow}");
 
         $thinBorder = ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FFE5E7EB']];
+        $labelValueStyle = [
+            'font'      => ['size' => 10, 'color' => ['argb' => 'FF374151']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
+        ];
 
         $styles = [
             1 => [
                 'font'      => ['bold' => true, 'size' => 16, 'color' => ['argb' => 'FF991B1B']],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             ],
-            2 => [
+            'A2' => ['font' => ['bold' => true, 'size' => 10, 'color' => ['argb' => 'FF374151']]],
+            'B2' => $labelValueStyle,
+            'A3' => ['font' => ['bold' => true, 'size' => 10, 'color' => ['argb' => 'FF374151']]],
+            'B3' => $labelValueStyle,
+            'A4' => ['font' => ['bold' => true, 'size' => 10, 'color' => ['argb' => 'FF374151']]],
+            'B4' => $labelValueStyle,
+            5 => [
                 'font'      => ['italic' => true, 'size' => 10, 'color' => ['argb' => 'FF4B5563']],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             ],
-            3 => [
+            6 => [
                 'font'      => ['italic' => true, 'size' => 9, 'color' => ['argb' => 'FF9CA3AF']],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             ],

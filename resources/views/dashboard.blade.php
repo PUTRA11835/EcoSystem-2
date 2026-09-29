@@ -1006,7 +1006,7 @@
                                 </a>
                                 @endif
                                 @if($can('reporting.weekly-consolidation'))
-                                <a href="{{ route('reporting.weekly-consolidation') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/weekly-consolidation*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting.weekly-consolidation') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/weekly-consolidation*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-clipboard-list text-xs"></i>
                                     </span>

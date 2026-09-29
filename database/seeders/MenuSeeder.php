@@ -142,6 +142,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'reporting.diagram-report',     'name' => 'Diagram Report',          'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.diagram-report',     'icon' => null,                   'order_seq' => 8],
             ['slug' => 'reporting.resource-timeline',  'name' => 'Resource Timeline',       'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.resource-timeline',  'icon' => null,                   'order_seq' => 9],
             ['slug' => 'reporting.weekly-consolidation', 'name' => 'Weekly Consolidation',  'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.weekly-consolidation', 'icon' => null,                 'order_seq' => 10],
+            ['slug' => 'reporting.weekly-consolidation.combine-modules', 'name' => 'Combine Modules', 'type' => 'function', 'parent_slug' => 'reporting.weekly-consolidation', 'route_name' => null, 'icon' => null, 'order_seq' => 1],
 
             // ── Master ────────────────────────────────────────────────────────────
             ['slug' => 'master',                       'name' => 'Master',                  'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-database',          'order_seq' => 4],
@@ -351,6 +352,7 @@ class MenuSeeder extends Seeder
             // pembatasan "hanya modul yang dia pimpin" dilakukan di
             // WeeklyConsolidationController (data-driven), bukan di sini.
             'reporting.weekly-consolidation' => [self::ADMIN=>$vced, self::EMPLOYEE=>$vce, self::HOS=>$vce, self::HELPDESK=>$vce, self::RPMO=>$vce, self::MODUL_LEAD=>$vce],
+            'reporting.weekly-consolidation.combine-modules' => [self::ADMIN=>$v, self::HOS=>$v, self::HELPDESK=>$v, self::RPMO=>$v],
             'reporting.resolution-days'    => [self::ADMIN=>$vced, self::HOS=>$vce],
             // Master
             'master'                      => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$v],
