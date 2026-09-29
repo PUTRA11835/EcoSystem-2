@@ -163,6 +163,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/reporting/ticket-by-module',           [\App\Http\Controllers\ReportingController::class, 'ticketByModuleIndex'])->name('reporting.ticket-by-module')->middleware('menu:reporting.ticket-by-module');
     Route::get('/reporting/log-shifting',               [\App\Http\Controllers\ReportingController::class, 'logShiftingIndex'])->name('reporting.log-shifting')->middleware('menu:reporting.log-shifting');
     Route::get('/reporting/log-shifting/export',        [\App\Http\Controllers\ReportingController::class, 'exportLogShifting'])->name('reporting.log-shifting.export')->middleware('menu:reporting.log-shifting');
+    Route::get('/reporting/weekly-consolidation',        [\App\Http\Controllers\WeeklyConsolidationController::class, 'index'])->name('reporting.weekly-consolidation')->middleware('menu:reporting.weekly-consolidation');
+    Route::get('/reporting/weekly-consolidation/{id}/export', [\App\Http\Controllers\WeeklyConsolidationController::class, 'export'])->name('reporting.weekly-consolidation.export')->middleware('menu:reporting.weekly-consolidation');
     Route::get('/reporting/ticket-by-module/export',    [\App\Http\Controllers\ReportingController::class, 'exportTicketByModule'])->name('reporting.ticket-by-module.export')->middleware('menu:reporting.ticket-by-module');
     Route::get('/reporting/resolution-days',             [\App\Http\Controllers\ReportingController::class, 'resolutionDaysIndex'])->name('reporting.resolution-days')->middleware('menu:reporting.resolution-days');
     Route::get('/reporting/consultant-assignment',        [\App\Http\Controllers\ReportingController::class, 'consultantAssignmentIndex'])->name('reporting.consultant-assignment')->middleware('menu:reporting.consultant-assignment');
@@ -266,6 +268,11 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         // Model AI yang dipakai kedua asisten — dipegang super admin.
         Route::get('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'index'])->name('ai-settings')->middleware('menu:control-center.ai-settings');
         Route::post('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'update'])->name('ai-settings.update')->middleware('menu:control-center.ai-settings');
+
+        // Tema musiman default untuk semua user (dashboard) + halaman login — dipegang super admin.
+        Route::get('/seasonal-theme', [\App\Http\Controllers\SeasonalThemeSettingsController::class, 'index'])->name('seasonal-theme')->middleware('menu:control-center.seasonal-theme');
+        Route::post('/seasonal-theme', [\App\Http\Controllers\SeasonalThemeSettingsController::class, 'update'])->name('seasonal-theme.update')->middleware('menu:control-center.seasonal-theme');
+        Route::post('/seasonal-theme/upload-sound', [\App\Http\Controllers\SeasonalThemeSettingsController::class, 'uploadSound'])->name('seasonal-theme.upload-sound')->middleware('menu:control-center.seasonal-theme');
     });
 
     // ==================== SLA ====================

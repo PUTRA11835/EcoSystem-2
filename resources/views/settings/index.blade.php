@@ -137,6 +137,59 @@
                     </div>
                 </div>
 
+                {{-- Seasonal Theme --}}
+                @php
+                    // Dihitung di sini (bukan controller) supaya konsisten dengan pola yang
+                    // sudah dipakai dashboard.blade.php/login.blade.php untuk fitur ini.
+                    $currentGlobalSeasonal = \App\Support\GlobalSeasonalTheme::active();
+                    $currentGlobalSeasonalLabel = $currentGlobalSeasonal === 'none'
+                        ? 'Off (admin hasn\'t enabled anything)'
+                        : (\App\Support\SeasonalThemes::get($currentGlobalSeasonal)['label'] ?? 'Off');
+                @endphp
+                <div class="px-8 py-6">
+                    <div class="flex items-start justify-between gap-8">
+                        <div class="w-48 flex-shrink-0">
+                            <p class="text-sm font-medium text-gray-800">Seasonal theme</p>
+                            <p class="text-xs text-gray-400 mt-1 leading-relaxed">Festive decoration on your dashboard</p>
+                            <p class="text-xs text-gray-400 mt-2 leading-relaxed">
+                                "Default" currently follows the admin's global setting:
+                                <span class="font-semibold text-gray-600">{{ $currentGlobalSeasonalLabel }}</span>.
+                                Pick "Off" here to opt out for yourself only.
+                            </p>
+                            @if($can('control-center.seasonal-theme'))
+                                <a href="{{ route('admin.seasonal-theme') }}"
+                                   class="inline-flex items-center gap-1.5 text-xs font-medium text-red-700 hover:text-red-800 hover:underline mt-2">
+                                    <i class="fas fa-gear text-[10px]"></i>
+                                    Manage global default (Admin)
+                                </a>
+                            @endif
+                        </div>
+                        <div class="flex items-center gap-3">
+                            {{-- 'default' bukan bagian dari SeasonalThemes (itu katalog tema yang
+                                 bisa dirender) — ini murni pilihan "ikut admin" di level preferensi
+                                 user, lihat App\Support\SeasonalThemeResolver. --}}
+                            <button type="button" onclick="selectSeasonalTheme('default')"
+                                class="flex flex-col items-center gap-2 w-24 p-2.5 border-2 rounded-xl transition-all hover:border-red-400
+                                       {{ ($preferences['seasonal_theme'] ?? 'default')==='default' ? 'border-red-600 bg-red-50/50' : 'border-gray-200' }}">
+                                <div class="w-full h-8 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                                    <i class="fas fa-wand-magic-sparkles text-gray-500"></i>
+                                </div>
+                                <span class="text-xs font-medium {{ ($preferences['seasonal_theme'] ?? 'default')==='default' ? 'text-red-700' : 'text-gray-500' }}">Default</span>
+                            </button>
+                            @foreach(\App\Support\SeasonalThemes::catalog() as $sk=>$meta)
+                            <button type="button" onclick="selectSeasonalTheme('{{ $sk }}')"
+                                class="flex flex-col items-center gap-2 w-24 p-2.5 border-2 rounded-xl transition-all hover:border-red-400
+                                       {{ ($preferences['seasonal_theme'] ?? 'default')===$sk ? 'border-red-600 bg-red-50/50' : 'border-gray-200' }}">
+                                <div class="w-full h-8 rounded-lg flex items-center justify-center overflow-hidden" style="background:{{ $meta['accent'] }}1a">
+                                    <i class="fas {{ $meta['icon'] }}" style="color:{{ $meta['accent'] }}"></i>
+                                </div>
+                                <span class="text-xs font-medium {{ ($preferences['seasonal_theme'] ?? 'default')===$sk ? 'text-red-700' : 'text-gray-500' }}">{{ $meta['label'] }}</span>
+                            </button>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+
                 {{-- Font Size --}}
                 <div class="px-8 py-6">
                     <div class="flex items-start justify-between gap-8">
@@ -706,6 +759,18 @@ function selectFontSize(size) {
     el.classList.remove('border-gray-200');
     document.documentElement.style.fontSize = {small:'14px',medium:'16px',large:'18px'}[size];
 }
+function selectSeasonalTheme(theme) {
+    S.seasonal_theme = theme;
+    document.querySelectorAll('[onclick^="selectSeasonalTheme"]').forEach(o => {
+        o.classList.remove('border-red-600','bg-red-50/50');
+        o.classList.add('border-gray-200');
+        o.querySelectorAll('span').forEach(s => { s.classList.replace('text-red-700','text-gray-500'); });
+    });
+    const el = event.currentTarget;
+    el.classList.add('border-red-600','bg-red-50/50');
+    el.classList.remove('border-gray-200');
+    el.querySelectorAll('span').forEach(s => { s.classList.replace('text-gray-500','text-red-700'); });
+}
 function _applyColor(hex) {
     document.documentElement.style.setProperty('--primary-color', hex);
     const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -1010,6 +1075,7 @@ async function submitPasswordConfirm() {
 // ── Expose ────────────────────────────────────────────────────────────────────
 window.switchTab=switchTab; window.selectTheme=selectTheme; window.selectColor=selectColor;
 window.selectSidebarStyle=selectSidebarStyle; window.selectFontSize=selectFontSize;
+window.selectSeasonalTheme=selectSeasonalTheme;
 window.saveSettings=saveSettings; window.resetSettings=resetSettings;
 window.changePassword=changePassword; window.togglePassword=togglePassword;
 window.selectSound=selectSound; window.previewSound=previewSound; window._soundDDToggle=_soundDDToggle;

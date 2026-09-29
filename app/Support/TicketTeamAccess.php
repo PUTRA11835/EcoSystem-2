@@ -81,6 +81,25 @@ final class TicketTeamAccess
     }
 
     /**
+     * Module ID yang dipimpin employee ini (module_leads) — dipakai untuk
+     * membatasi modul mana yang boleh dia generate/refresh/isi notes di
+     * Weekly Consolidation (Reporting → Support).
+     *
+     * @return array<int, int>
+     */
+    public static function ledModuleIds(?int $employeeId): array
+    {
+        if (!$employeeId) {
+            return [];
+        }
+
+        return ModuleLead::where('employee_id', $employeeId)
+            ->pluck('module_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
      * Daftar kandidat (Ticket Lead / member) untuk jalur lead: employee aktif
      * yang punya qualification di SALAH SATU modul yang diberikan, digabung
      * dengan module lead dari modul-modul itu. Satu tiket bisa punya lebih

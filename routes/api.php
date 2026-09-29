@@ -636,6 +636,15 @@ Route::middleware(['web'])->group(function () {
         // Harus di atas /log-shifting/{ticketId} supaya "notes" tidak ketangkap sebagai ticketId.
         Route::get('/log-shifting/notes', [\App\Http\Controllers\ReportingController::class, 'logShiftingNotes']);
         Route::get('/log-shifting/{ticketId}', [\App\Http\Controllers\ReportingController::class, 'logShiftingDetail']);
+        // Weekly Consolidation — path literal harus di atas /weekly-consolidation/{id}
+        // supaya "modules"/"preview" tidak ketangkap sebagai id batch.
+        Route::get('/weekly-consolidation/modules', [\App\Http\Controllers\WeeklyConsolidationController::class, 'modules']);
+        Route::get('/weekly-consolidation/preview', [\App\Http\Controllers\WeeklyConsolidationController::class, 'preview']);
+        Route::get('/weekly-consolidation', [\App\Http\Controllers\WeeklyConsolidationController::class, 'history']);
+        Route::post('/weekly-consolidation', [\App\Http\Controllers\WeeklyConsolidationController::class, 'generate']);
+        Route::get('/weekly-consolidation/{id}', [\App\Http\Controllers\WeeklyConsolidationController::class, 'show']);
+        Route::post('/weekly-consolidation/{id}/refresh', [\App\Http\Controllers\WeeklyConsolidationController::class, 'refresh']);
+        Route::post('/weekly-consolidation/{id}/tickets/{ticketId}/notes', [\App\Http\Controllers\WeeklyConsolidationController::class, 'updateNote']);
         Route::get('/resolution-days', [\App\Http\Controllers\ReportingController::class, 'resolutionDays']);
         // Consultant Assignment — daftar consultant yang tergabung di Delivery Project.
         // Izinnya diperiksa di controller lewat Employee::canAccessMenu().

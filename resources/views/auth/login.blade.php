@@ -9,6 +9,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800&display=swap" rel="stylesheet">
     <style>
+        /* Cross-document View Transitions — progressive enhancement murni CSS.
+           Browser yang belum dukung (unknown at-rule) mengabaikannya begitu saja,
+           navigasi tetap seperti biasa. Browser yang dukung (Chromium terbaru)
+           otomatis crossfade halus saat window.location.href berpindah ke halaman
+           lain yang JUGA mendeklarasikan ini (lihat dashboard.blade.php) — jadi
+           kedip "flash putih" antara login → dashboard berkurang, tanpa JS apa pun,
+           tanpa mengubah logika redirect yang sudah ada. */
+        @view-transition {
+            navigation: auto;
+        }
+
         /* ── Variables ─────────────────────────────────────────────── */
         :root {
             --red-deepest: #1A0000;
@@ -366,6 +377,282 @@
 
 <div id="toast-container"></div>
 
+{{-- Dihitung SEKALI di sini (paling atas), dipakai overlay loading screen di
+     bawah DAN #deco-panel nanti — halaman ini pre-auth, tidak ada preferensi
+     per-user, cuma setting global admin. GlobalSeasonalTheme::active() sendiri
+     sudah aman (fallback 'none' kalau app_configs belum ada/bermasalah). --}}
+@php
+    $loginSeasonalTheme = \App\Support\GlobalSeasonalTheme::active();
+@endphp
+
+{{-- Loading screen bertema musiman — TERSEMBUNYI secara default (display:none),
+     cuma dimunculkan lewat JS di cabang login SUKSES FINAL (bukan 2FA/ganti
+     password), dan HANYA kalau tema musiman aktif secara global. Kalau tema
+     'none', elemen ini tidak pernah ditampilkan sama sekali — alur login
+     persis seperti sebelum fitur ini ada. Reuse partial yang sama dipakai di
+     #deco-panel (placement 'fullpage', yang sebelumnya belum ada pemakainya). --}}
+<div id="seasonalLoginOverlay" style="display:none; opacity:0; transition:opacity .4s ease;
+     position:fixed; inset:0; z-index:99999; align-items:center; justify-content:center;
+     flex-direction:column; text-align:center; overflow:hidden;
+     background:linear-gradient(155deg,#1A0000 0%,#3D0000 18%,#6B0000 40%,#8B0000 62%,#A00000 80%,#B91C1C 100%);">
+    @if($loginSeasonalTheme !== 'none')
+        @include('partials.seasonal-theme', [
+            'themeKey' => $loginSeasonalTheme,
+            'showAnimations' => true,
+            'placement' => 'fullpage',
+        ])
+    @endif
+    @if($loginSeasonalTheme === 'natal')
+        {{-- Border salju di tepi atas & bawah — REVISI: sebelumnya pola tile
+             penuh layar (SVG garis polos diulang) terasa "kasar"/ramai (feedback
+             user). Diganti karakter Unicode ❄ (sama yang dipakai salju jatuh,
+             sudah terbukti rapi) di ukuran & posisi bervariasi membentuk garis
+             dekoratif, BUKAN menutupi seluruh layar. Statis (tidak animasi) —
+             beda dari salju jatuh yang tetap ada terpisah lewat partial di atas. --}}
+        <div class="seasonal-frost-border seasonal-frost-border--top" aria-hidden="true">
+            @foreach([14,22,17,28,20,36,21,29,16,24,13] as $j => $fsize)
+                <span style="font-size:{{ $fsize }}px; opacity:{{ $fsize > 25 ? '0.55' : '0.35' }}; transform:translateY({{ $j % 2 === 0 ? '-2px' : '4px' }});">❄</span>
+            @endforeach
+        </div>
+        <div class="seasonal-frost-border seasonal-frost-border--bottom" aria-hidden="true">
+            @foreach([13,21,16,27,19,32,20,26,15,23,14] as $j => $fsize)
+                <span style="font-size:{{ $fsize }}px; opacity:{{ $fsize > 25 ? '0.5' : '0.32' }}; transform:translateY({{ $j % 2 === 0 ? '3px' : '-3px' }});">❄</span>
+            @endforeach
+        </div>
+    @endif
+    @if($loginSeasonalTheme === 'natal')
+        {{-- Tim kereta luncur: sorotan khusus loading screen, terpisah dari aksen
+             ambient di sidebar/login-panel (yang sengaja tetap halus/statis).
+             Beberapa elemen (rusa/kereta/Santa/hadiah/kerlip) masing-masing punya
+             animasi SENDIRI di atas animasi terbang bersama — supaya pergerakannya
+             terasa "detail", bukan cuma satu emoji melayang datar. Ini aman dibuat
+             lebih besar & dramatis karena cuma tampil ~1.8 detik sekali per login,
+             bukan chrome yang selalu terlihat. Tersembunyi total kalau
+             prefers-reduced-motion (lihat <style> di bawah) — statis di tengah
+             tanpa animasi akan terlihat aneh/rusak, lebih baik tidak ditampilkan
+             sama sekali untuk pengguna itu. --}}
+        {{-- Ilustrasi SVG orisinal (bukan aset/gambar pihak ketiga) — siluet flat
+             2 warna (emas #FCD34D untuk badan utama, merah #DC2626 untuk aksen
+             jubah Santa/pita hadiah) senada palet brand. Dikelompokkan per
+             bagian (<g class="...">) supaya tiap bagian bisa dianimasikan
+             sendiri lewat CSS tanpa perlu transform-origin presisi — kaki
+             rusa & badan kereta dianimasikan lewat translateY sederhana
+             (naik-turun bergantian), bukan rotasi, supaya tidak butuh titik
+             pivot yang rawan meleset tanpa alat preview visual. --}}
+        <svg class="seasonal-sleigh-team" viewBox="0 0 440 160" aria-hidden="true">
+            {{-- Kaki: dulu rect lurus sejajar (terlihat kaku/robotik menurut feedback
+                 user, lihat screenshot). Sekarang trapesium meruncing (lebar di atas,
+                 sempit di "pergelangan") + kuku kecil warna lebih gelap di ujung, dan
+                 condong berlawanan arah (belakang mundur, depan maju) supaya
+                 terlihat seperti pose berlari, bukan berdiri kaku 4 tiang sejajar. --}}
+            <g class="sleigh-legs-back">
+                <polygon points="312.5,112 321.5,112 313.5,152 308.5,152" fill="#FCD34D"/>
+                <ellipse cx="311" cy="153" rx="4.5" ry="2.5" fill="#B8860B"/>
+                <polygon points="328.5,112 337.5,112 329.5,152 324.5,152" fill="#FCD34D"/>
+                <ellipse cx="327" cy="153" rx="4.5" ry="2.5" fill="#B8860B"/>
+            </g>
+            <g class="sleigh-legs-front">
+                <polygon points="355.5,112 364.5,112 368.5,152 363.5,152" fill="#FCD34D"/>
+                <ellipse cx="366" cy="153" rx="4.5" ry="2.5" fill="#B8860B"/>
+                <polygon points="371.5,112 380.5,112 384.5,152 379.5,152" fill="#FCD34D"/>
+                <ellipse cx="382" cy="153" rx="4.5" ry="2.5" fill="#B8860B"/>
+            </g>
+            <g class="sleigh-reindeer">
+                <polygon points="305,84 297,90 305,97" fill="#FCD34D"/>
+                {{-- Badan dipecah 2 lengkung (pinggul + dada) yang overlap, bukan 1
+                     ellipse simetris — biar terlihat seperti torso hewan (menyempit
+                     di tengah, membulat di dua ujung), bukan telur/blob polos. Kaki
+                     belakang jatuh di bawah pinggul, kaki depan di bawah dada. --}}
+                <ellipse cx="325" cy="97" rx="28" ry="22" fill="#FCD34D"/>
+                <ellipse cx="362" cy="92" rx="26" ry="20" fill="#FCD34D"/>
+                {{-- Leher: menjembatani dada (puncak ~362,72) ke kepala (~395,58) —
+                     tanpa ini ada celah kosong di antara keduanya. --}}
+                <ellipse cx="378" cy="72" rx="20" ry="16" fill="#FCD34D" transform="rotate(-30 378 72)"/>
+                <path d="M393,48 L388,26 M388,26 L383,16 M388,26 L394,18 M393,48 L401,24 M401,24 L397,12 M401,24 L407,16"
+                      stroke="#FCD34D" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                <ellipse cx="390" cy="44" rx="5" ry="9" fill="#FCD34D" transform="rotate(-25 390 44)"/>
+                <ellipse cx="395" cy="58" rx="15" ry="13" fill="#FCD34D"/>
+                <ellipse cx="408" cy="64" rx="8" ry="6" fill="#FCD34D"/>
+            </g>
+            <g class="sleigh-box-group">
+                <path d="M130,140 L230,140 Q246,140 251,124 Q254,111 240,107"
+                      stroke="#FCD34D" stroke-width="6" fill="none" stroke-linecap="round"/>
+                <rect x="145" y="95" width="110" height="45" rx="14" fill="#FCD34D"/>
+                <rect x="145" y="119" width="110" height="7" fill="#DC2626"/>
+                <ellipse cx="245" cy="88" rx="20" ry="16" fill="#FCD34D"/>
+                <path d="M232,80 L258,80 M232,96 L258,96" stroke="#DC2626" stroke-width="4" stroke-linecap="round"/>
+                <rect x="177" y="66" width="38" height="36" rx="15" fill="#DC2626"/>
+                <rect x="177" y="90" width="38" height="6" fill="#FCD34D"/>
+                <circle cx="196" cy="54" r="13" fill="#FCD34D"/>
+                <ellipse cx="196" cy="61" rx="9" ry="6" fill="#FFFFFF"/>
+                <rect x="181" y="44" width="30" height="6" rx="3" fill="#FFFFFF"/>
+                <polygon points="183,47 209,47 201,26" fill="#DC2626"/>
+                <circle cx="201" cy="24" r="5" fill="#FFFFFF"/>
+            </g>
+            <g class="sleigh-sparkles">
+                <circle class="sleigh-sparkle sleigh-sparkle-1" cx="105" cy="98" r="4" fill="#FCD34D"/>
+                <circle class="sleigh-sparkle sleigh-sparkle-2" cx="78"  cy="118" r="3" fill="#FFFFFF"/>
+                <circle class="sleigh-sparkle sleigh-sparkle-3" cx="52"  cy="90"  r="3.5" fill="#FCD34D"/>
+                <circle class="sleigh-sparkle sleigh-sparkle-4" cx="24"  cy="112" r="2.5" fill="#FFFFFF"/>
+            </g>
+        </svg>
+    @endif
+    <div style="position:relative; z-index:10;">
+        <div style="font-size:3.5rem; line-height:1;">🎄</div>
+        <p style="margin-top:1rem; font-size:1rem; font-weight:700; color:#fff; letter-spacing:.02em;">
+            Preparing your EcoSystem workspace&hellip;
+        </p>
+        <p style="margin-top:.35rem; font-size:.75rem; color:rgba(255,255,255,.7);">
+            Happy Holidays from Eclectic Consulting
+        </p>
+    </div>
+    @if($loginSeasonalTheme === 'natal')
+        {{-- File sudah ada di public/sounds/jingle-bells.mp3 (2.5MB — sepertinya
+             lagu penuh, bukan cuma klip pendek; browser cukup mulai mengunduh &
+             memutar dari detik 0, redirect di 2.6 detik otomatis memotongnya,
+             jadi tidak masalah biar filenya panjang). --}}
+        <audio id="seasonalJingle" preload="auto" src="/sounds/jingle-bells.mp3"></audio>
+    @endif
+</div>
+@if($loginSeasonalTheme === 'natal')
+<style>
+    /* Border salju atas/bawah — statis, TIDAK menutupi seluruh layar (beda
+       dari pola tile lama yang dihapus). Warna & drop-shadow sama seperti
+       salju jatuh (partials/seasonal-theme.blade.php) supaya terasa satu
+       kesatuan visual, bukan dua gaya salju berbeda dalam 1 layar. */
+    #seasonalLoginOverlay .seasonal-frost-border {
+        position: absolute;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 3%;
+        pointer-events: none;
+        color: #bfdbfe;
+        line-height: 1;
+    }
+    #seasonalLoginOverlay .seasonal-frost-border span {
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,.25));
+        display: inline-block;
+    }
+    #seasonalLoginOverlay .seasonal-frost-border--top { top: 0; height: 72px; }
+    #seasonalLoginOverlay .seasonal-frost-border--bottom { bottom: 0; height: 60px; }
+
+    /* Kontainer: 260×90px, jadi anak-anaknya bisa diposisikan dengan `left`
+       relatif terhadap grup, bukan relatif ke layar — supaya formasi rusa di
+       depan, kereta+Santa di tengah, hadiah+kerlip di belakang tetap rapi di
+       ukuran layar berapa pun. Kontainer ini yang terbang melintasi layar;
+       tiap anak di dalamnya punya animasi mikronya SENDIRI (lihat bawah),
+       jadi geraknya berlapis — bukan satu blok kaku yang cuma bergeser datar.
+       Statis di posisi awal sampai prefers-reduced-motion diketahui aman. */
+    /* SVG viewBox 440×160 (rasio 2.75:1) — width CSS diset, height mengikuti
+       rasio otomatis (tidak ada atribut width/height di tag <svg>, cuma viewBox). */
+    #seasonalLoginOverlay .seasonal-sleigh-team {
+        position: absolute;
+        top: 18%;
+        left: 0;
+        z-index: 5;
+        width: 320px;
+        pointer-events: none;
+        filter: drop-shadow(0 6px 12px rgba(0,0,0,.4));
+        overflow: visible;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        /* Grup: terbang melintasi layar mengikuti busur — SEKALI JALAN (bukan
+           infinite), durasinya sengaja disamakan dengan waktu tampil overlay
+           (lihat JS: redirect dijadwalkan 2600ms, animasi ini 2400ms) supaya
+           benar-benar SELESAI dari kiri sampai mentok kanan sebelum halaman
+           berpindah — sebelumnya animasi 6 detik tapi overlay cuma tampil 1.8
+           detik, jadi kepotong baru sampai ±tengah. `both` di shorthand animation
+           menahan keadaan akhir (di luar layar, opacity 0) kalau redirect
+           meleset sepersekian detik, supaya tidak ada lompatan balik ke awal
+           yang terlihat sekali kejap. */
+        #seasonalLoginOverlay .seasonal-sleigh-team {
+            animation: seasonal-sleigh-fly-across 2.4s cubic-bezier(.3,.05,.6,1) both;
+        }
+        @keyframes seasonal-sleigh-fly-across {
+            0%   { transform: translate(-40vw, 12vh) rotate(-6deg) scale(.9); opacity: 0; }
+            10%  { opacity: 1; }
+            50%  { transform: translate(45vw, -10vh) rotate(3deg) scale(1.08); }
+            90%  { opacity: 1; }
+            100% { transform: translate(130vw, 14vh) rotate(-6deg) scale(.92); opacity: 0; }
+        }
+
+        /* Kaki rusa: naik-turun BERGANTIAN (bukan rotasi di titik pivot — SVG
+           transform-origin butuh koordinat presisi yang rawan meleset tanpa
+           alat preview visual, translateY jauh lebih aman & tetap terlihat
+           seperti kuda-kudaan berlari lewat 2 pasang kaki berlawanan fase). */
+        {{-- transform-box:fill-box dipasang di SEMUA elemen SVG yang di-transform
+             di bawah ini — default CSS untuk SVG adalah transform-origin relatif
+             ke viewBox PENUH (440×160), bukan ke elemen itu sendiri. Tanpa
+             fill-box, scale()/rotate() bisa melenceng jauh dari posisi
+             seharusnya (elemen kecil seperti kaki/kerlip bisa "meloncat" ke
+             tempat lain). Ini satu-satunya cara memastikan transform-origin
+             "center"/"center top"/dst mengacu ke bounding box elemen itu
+             sendiri, bukan ke seluruh kanvas SVG. --}}
+        #seasonalLoginOverlay .sleigh-legs-back,
+        #seasonalLoginOverlay .sleigh-legs-front {
+            animation: seasonal-sleigh-trot .3s ease-in-out infinite;
+            transform-box: fill-box;
+            transform-origin: center top;
+        }
+        #seasonalLoginOverlay .sleigh-legs-front { animation-delay: .15s; }
+        @keyframes seasonal-sleigh-trot {
+            0%, 100% { transform: translateY(0) scaleY(1); }
+            50%      { transform: translateY(-3px) scaleY(.94); }
+        }
+
+        /* Badan rusa (tanpa kaki): bob halus mengikuti lari, sedikit beda fase
+           dari kaki supaya terasa menyatu, bukan dua lapisan lepas. */
+        #seasonalLoginOverlay .sleigh-reindeer {
+            animation: seasonal-sleigh-reindeer-bob .3s ease-in-out infinite;
+            transform-box: fill-box;
+        }
+        @keyframes seasonal-sleigh-reindeer-bob {
+            0%, 100% { transform: translateY(0); }
+            50%      { transform: translateY(-4px); }
+        }
+
+        /* Kereta + Santa + hadiah: satu grup, goyang bersama lebih pelan &
+           lebih besar amplitudonya, seperti terbawa angin. */
+        #seasonalLoginOverlay .sleigh-box-group {
+            animation: seasonal-sleigh-sway .8s ease-in-out infinite;
+            transform-box: fill-box;
+            transform-origin: center bottom;
+        }
+        @keyframes seasonal-sleigh-sway {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50%      { transform: translateY(4px) rotate(-2deg); }
+        }
+
+        /* Kerlip: berkedip bergantian (jejak "keajaiban"), masing-masing beda delay. */
+        #seasonalLoginOverlay .sleigh-sparkle {
+            animation: seasonal-sleigh-twinkle 1.2s ease-in-out infinite;
+            transform-box: fill-box;
+            transform-origin: center;
+        }
+        #seasonalLoginOverlay .sleigh-sparkle-1 { animation-delay: 0s;   }
+        #seasonalLoginOverlay .sleigh-sparkle-2 { animation-delay: .3s;  }
+        #seasonalLoginOverlay .sleigh-sparkle-3 { animation-delay: .6s;  }
+        #seasonalLoginOverlay .sleigh-sparkle-4 { animation-delay: .9s;  }
+        @keyframes seasonal-sleigh-twinkle {
+            0%, 100% { opacity: 0;   transform: scale(.4); }
+            50%      { opacity: .9; transform: scale(1.3); }
+        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        /* Statis di tengah layar akan terlihat rusak — sembunyikan total,
+           sisa overlay (pesan + salju diam) tetap tampil normal. */
+        #seasonalLoginOverlay .seasonal-sleigh-team {
+            display: none;
+        }
+    }
+</style>
+@endif
+<script>window.__seasonalThemeActive = @json($loginSeasonalTheme !== 'none');</script>
+
 {{-- Mobile header strip --}}
 <div class="mobile-strip">
     <img src="/images/eclectic_logo_nobg.png" alt="ECoSystem"
@@ -381,6 +668,17 @@
             align-items:flex-start; justify-content:center; padding:0 4.75rem;
             height:100vh;
             background:linear-gradient(155deg,#1A0000 0%,#3D0000 18%,#6B0000 40%,#8B0000 62%,#A00000 80%,#B91C1C 100%);">
+
+    {{-- Tema musiman: $loginSeasonalTheme sudah dihitung di paling atas <body>.
+         Dikurung di panel kiri saja, TIDAK PERNAH menyentuh form login di panel
+         kanan. --}}
+    @if($loginSeasonalTheme !== 'none')
+        @include('partials.seasonal-theme', [
+            'themeKey' => $loginSeasonalTheme,
+            'showAnimations' => true,
+            'placement' => 'login-panel',
+        ])
+    @endif
 
     {{-- Orbs --}}
     <div style="position:absolute;top:-80px;right:-60px;width:360px;height:360px;border-radius:50%;
@@ -698,6 +996,23 @@
 </div>
 
 <script>
+    // ── bfcache guard ────────────────────────────────────────────
+    // Kalau user login sukses lalu tekan Back, browser bisa memulihkan
+    // halaman ini dari back-forward cache (bfcache) — DOM PERSIS seperti
+    // sesaat sebelum redirect, termasuk overlay loading yang masih
+    // 'display:flex' dari showSeasonalLoadingScreen(). Ini BUKAN salah
+    // routing: AuthController::showLogin() (app/Http/Controllers/AuthController.php)
+    // sudah benar redirect ke /dashboard kalau sesi masih aktif — masalahnya
+    // bfcache memulihkan halaman TANPA request baru ke server, jadi guard
+    // server itu tidak sempat jalan lagi. Fix standar: paksa reload kalau
+    // terdeteksi dipulihkan dari bfcache (event.persisted), supaya request
+    // baru benar-benar dikirim dan guard server itu jalan.
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted) {
+            window.location.reload();
+        }
+    });
+
     // ── Password toggle ──────────────────────────────────────────
     document.getElementById('togglePassword').addEventListener('click', function () {
         const pwd  = document.getElementById('password');
@@ -742,6 +1057,38 @@
     }
     const showError   = m => showToast('error',   m);
     const showSuccess = m => showToast('success', m);
+
+    // Loading screen bertema musiman — dipanggil HANYA di cabang login sukses
+    // FINAL (bukan 2FA/ganti password), lihat pemanggilnya di bawah. Dibungkus
+    // try/catch dengan sengaja: kalau overlay ini gagal tampil karena alasan
+    // apa pun, itu TIDAK BOLEH ikut menggagalkan/menunda redirect ke dashboard
+    // — pemanggil selalu menjadwalkan redirect lewat setTimeout TERPISAH,
+    // tidak menunggu fungsi ini selesai atau berhasil.
+    function showSeasonalLoadingScreen() {
+        try {
+            const overlay = document.getElementById('seasonalLoginOverlay');
+            if (!overlay) return;
+            overlay.style.display = 'flex';
+            requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+        } catch (err) {
+            console.warn('Seasonal loading screen failed to show:', err);
+        }
+        try {
+            // Backsound — belum ada file-nya (lihat catatan di
+            // resources/views/auth/login.blade.php <audio> tag), jadi .play()
+            // akan gagal SENYAP (404/NotSupportedError ditangkap .catch) sampai
+            // filenya benar-benar ditaruh di path itu. Dibungkus try/catch
+            // ganda (di sini + .catch() promise-nya) supaya kegagalan audio
+            // apa pun (file belum ada, browser blokir autoplay-with-sound,
+          // dst) TIDAK PERNAH ikut menggagalkan tampilnya loading screen atau
+            // menunda redirect — audio murni bonus, bukan hal yang ditunggu.
+            const jingle = document.getElementById('seasonalJingle');
+            if (jingle) {
+                jingle.currentTime = 0;
+                jingle.play().catch(() => { /* autoplay diblokir / file belum ada — tidak apa */ });
+            }
+        } catch (err) { /* sama, jangan sampai ganggu alur utama */ }
+    }
 
     // ── Form ─────────────────────────────────────────────────────
     const form     = document.getElementById('loginForm');
@@ -798,8 +1145,20 @@
                 }
                 localStorage.setItem('api_token', data.data.token);
                 localStorage.setItem('user_data', JSON.stringify(data.data.user));
-                showSuccess('Login successful! Redirecting…');
-                setTimeout(() => window.location.href = '/dashboard', 1000);
+                // Redirect dijadwalkan LEBIH DULU, sebagai satu-satunya sumber kebenaran
+                // untuk kapan pengguna berpindah halaman — supaya apa pun yang terjadi di
+                // showSeasonalLoadingScreen() (tema aktif atau tidak, gagal atau berhasil)
+                // tidak pernah bisa menunda atau membatalkan redirect ini.
+                if (window.__seasonalThemeActive) {
+                    // 2600ms: sengaja sedikit lebih lama dari durasi animasi kereta
+                    // luncur (2400ms, lihat <style> overlay) supaya animasinya benar-benar
+                    // SELESAI mentok kanan dulu sebelum halaman berpindah.
+                    setTimeout(() => window.location.href = '/dashboard', 2600);
+                    showSeasonalLoadingScreen();
+                } else {
+                    setTimeout(() => window.location.href = '/dashboard', 1000);
+                    showSuccess('Login successful! Redirecting…');
+                }
             } else {
                 showError(data.message || 'Login failed. Please check your credentials.');
                 setLoading(false);
