@@ -169,7 +169,7 @@ class DeliveryProjectPaymentTermController extends Controller
     /**
      * Perbarui amount tersimpan bila tidak lagi sesuai revenue project saat ini.
      * Timestamps sengaja dimatikan agar audit trail term tidak berubah hanya
-     * karena halaman dibuka.
+     * karena halaman dibuka — begitu juga "Last Update Date" project.
      */
     private function resyncAmount(DeliveryProject $project, DeliveryProjectPaymentTerm $term): void
     {
@@ -178,7 +178,7 @@ class DeliveryProjectPaymentTermController extends Controller
         if (abs((float) $term->amount - $amount) > 0.001) {
             $term->amount = $amount;
             $term->timestamps = false;
-            $term->save();
+            DeliveryProject::withoutActivityTracking(fn () => $term->save());
             $term->timestamps = true;
         }
     }

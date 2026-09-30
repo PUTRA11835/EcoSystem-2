@@ -3314,6 +3314,57 @@ class TicketController extends Controller
     }
 
     /**
+     * Kirim event "orang ditambahkan ke tiket" ke Power Automate supaya orang itu
+     * ikut masuk ke group chat Teams tiket tersebut.
+     *
+     * Flow tidak menyimpan chat id (aksi HTTP untuk memanggil balik EcoSystem
+     * butuh lisensi Premium), jadi payload membawa topic group chat hasil
+     * rakitan fungsi yang sama dengan yang dipakai flow "ticket validated" saat
+     * membuat grupnya; flow mencarinya lewat aksi Teams "List chats" lalu
+     * mencocokkannya persis.
+     *
+     * Semua kegagalan ditelan: penambahan member tidak boleh gagal hanya karena
+     * notifikasi Teams bermasalah.
+     *
+     * @param  'member'|'pic'  $role
+     */
+    private function notifyTeamsTicketPerson(Ticket $ticket, int $employeeId, string $role, array $sessionUser): void
+    {
+        try {
+            $powerAutomate = app(\App\Services\PowerAutomateService::class);
+
+            if (!$powerAutomate->isFlowReady(\App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED)) {
+                return;
+            }
+
+            // Tanpa email kerja, konektor Teams tidak bisa menemukan orangnya —
+            // lebih baik flow tidak dipanggil sama sekali daripada gagal separuh.
+            $person = $powerAutomate->employeeContact($employeeId);
+            if (!$person) {
+                Log::info('PowerAutomate: penambahan ke wadah Teams dilewati, employee tanpa email kerja', [
+                    'ticket_id'   => $ticket->ticket_id,
+                    'employee_id' => $employeeId,
+                ]);
+                return;
+            }
+
+            $powerAutomate->dispatchAfterResponse(
+                \App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED,
+                $powerAutomate->ticketMemberPayload($ticket, $person, $role, [
+                    'id'    => $sessionUser['id'] ?? null,
+                    'name'  => $sessionUser['name'] ?? null,
+                    'email' => $sessionUser['email'] ?? null,
+                ])
+            );
+        } catch (\Throwable $e) {
+            Log::warning('TicketController: gagal menyiapkan penambahan anggota channel Teams (non-fatal)', [
+                'ticket_id'   => $ticket->ticket_id,
+                'employee_id' => $employeeId,
+                'error'       => $e->getMessage(),
+            ]);
+        }
+    }
+    /**
      * Add a single member to ticket (Admin, PIC, or Helpdesk)
      */
     public function addMember(Request $request, $id)

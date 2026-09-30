@@ -8,7 +8,7 @@ use App\Traits\Auditable;
 
 class DeliveryProjectCostItem extends Model
 {
-    use HasFactory, Auditable;
+    use HasFactory, Auditable, Concerns\TouchesProjectActivity;
 
     protected static ?string $auditModule = 'Delivery Project';
 
@@ -30,5 +30,11 @@ class DeliveryProjectCostItem extends Model
     public function costItem()
     {
         return $this->belongsTo(DeliveryProjectCost::class, 'delivery_project_cost_id');
+    }
+
+    /** Cost item tidak menyimpan FK project — ambil lewat cost induknya. */
+    protected function projectIdForActivity()
+    {
+        return DeliveryProjectCost::whereKey($this->delivery_project_cost_id)->value('delivery_projects_id');
     }
 }

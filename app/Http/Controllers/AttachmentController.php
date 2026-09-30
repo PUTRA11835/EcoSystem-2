@@ -27,6 +27,46 @@ class AttachmentController extends Controller
             abort(401, 'Authentication required. Please log in to access this resource.');
         }
 
+        return $this->streamAttachment($id, $sessionUser);
+    }
+
+    /**
+     * Varian TANPA login, dilindungi tanda tangan URL, untuk group chat Teams.
+     *
+     * Route: GET /teams/attachments/{id}  (middleware `signed`)
+     *
+     * Kenapa ada jalur kedua: lampiran internal note ikut dikirim ke group chat
+     * tiket sebagai tautan, dan yang membukanya adalah klien Teams milik orang
+     * yang tidak punya sesi EcoSystem. Memakai {@see show()} apa adanya berujung
+     * layar login — persis masalah yang dulu bikin tautan SharePoint mentah
+     * ditolak (lihat `streamSharePointFile()`).
+     *
+     * **Tanda tangan URL adalah kapabilitas, bukan izin.** Siapa pun yang
+     * memegang tautannya bisa membuka berkasnya tanpa akun. Itu konsekuensi yang
+     * diterima secara sadar (keputusan 23 Sep 2026) supaya gambar tetap tampil di
+     * riwayat chat; masa berlakunya diatur `TEAMS_ATTACHMENT_LINK_DAYS` dan
+     * default-nya tanpa batas. Karena itu aksesnya DICATAT — satu-satunya jejak
+     * yang tersisa kalau tautannya bocor.
+     */
+    public function showForTeams(int $id)
+    {
+        Log::info('AttachmentController: akses lewat tautan Teams bertanda tangan', [
+            'attachment_id' => $id,
+            'ip'            => request()->ip(),
+        ]);
+
+        return $this->streamAttachment($id, ['name' => 'Teams (tautan bertanda tangan)']);
+    }
+
+    /**
+     * Isi sesungguhnya {@see show()} — dipisah supaya jalur bertanda tangan
+     * memakai logika streaming yang SAMA, bukan salinannya. Perbedaan kedua
+     * jalur hanya pada cara menentukan siapa yang boleh mengakses.
+     *
+     * @param  array<string,mixed>  $sessionUser  pengakses, untuk baris log
+     */
+    private function streamAttachment(int $id, array $sessionUser)
+    {
         $attachment = TicketAttachment::findOrFail($id);
 
         // File lokal (internal note / ticket non-email / record lama) → stream dari disk
@@ -66,6 +106,18 @@ class AttachmentController extends Controller
                 'Content-Length'      => Storage::disk('public')->size($filePath),
                 'Cache-Control'       => 'private, max-age=3600',
             ]);
+        }
+
+        // Berkas yang dibagikan di group chat Teams. Lampirannya berupa TAUTAN
+        // SharePoint (`contentType: "reference"`), dan membuka tautan itu
+        // langsung menuntut login Microsoft lebih dulu — sering berujung layar
+        // "Request access" bagi yang tidak punya izin di SharePoint-nya.
+        //
+        // Diambilkan lewat Graph memakai kredensial aplikasi, persis pola
+        // lampiran email di bawah: byte-nya TIDAK disimpan di server, tiap
+        // request diambil ulang.
+        if ($attachment->isCloudProxyable()) {
+            return $this->streamSharePointFile($attachment, $sessionUser);
         }
 
         // Validasi: harus punya graph_message_id + graph_attachment_id
@@ -265,5 +317,77 @@ class AttachmentController extends Controller
         }
 
         return $response->json('access_token');
+    }
+
+    /**
+     * Stream berkas SharePoint/OneDrive yang dibagikan di group chat Teams.
+     *
+     * Graph tidak menerima URL SharePoint apa adanya; ia harus diubah dulu jadi
+     * "sharing token" — base64url dari URL-nya, berawalan `u!`. Dari situ
+     * /shares/{token}/driveItem memberi metadata (nama, MIME, ukuran) dan
+     * /content memberi byte-nya.
+     *
+     * Aksesnya dijaga di dua tempat: pemanggil WAJIB sudah login (dicek di
+     * show()), dan host URL-nya dibatasi di TicketAttachment::isCloudProxyable().
+     */
+    private function streamSharePointFile(TicketAttachment $attachment, array $sessionUser)
+    {
+        $graph = app(\App\Services\Teams\TeamsGraphClient::class);
+        $token = "u!" . rtrim(strtr(base64_encode($attachment->link_url), "+/", "-_"), "=");
+
+        try {
+            $meta = $graph->get("shares/{$token}/driveItem");
+        } catch (\Throwable $e) {
+            Log::warning("AttachmentController: gagal membaca metadata berkas SharePoint", [
+                "attachment_id" => $attachment->id,
+                "error"         => $e->getMessage(),
+            ]);
+            abort(404, "Berkas tidak dapat diakses. Mungkin sudah dipindah atau dihapus di SharePoint.");
+        }
+
+        $filename = $meta["name"] ?? $attachment->file_name ?? "file";
+        $mime     = $meta["file"]["mimeType"] ?? "application/octet-stream";
+        $size     = (int) ($meta["size"] ?? 0);
+
+        // Berkas besar TIDAK diproksi: Graph mengembalikan seluruh isi sekaligus,
+        // jadi memuatnya ke memori PHP hanya untuk diteruskan akan menjatuhkan
+        // proses pada berkas ratusan MB. Untuk yang sebesar itu, lebih baik
+        // pengguna dilempar ke SharePoint-nya — perlu login, tapi jalan.
+        $maxProxyBytes = max(1, (int) config("services.teams_sync.max_proxy_file_mb", 25)) * 1024 * 1024;
+
+        if ($size > $maxProxyBytes) {
+            Log::info("AttachmentController: berkas terlalu besar untuk diproksi, dialihkan ke SharePoint", [
+                "attachment_id" => $attachment->id,
+                "size"          => $size,
+            ]);
+
+            return redirect()->away($attachment->link_url);
+        }
+
+        try {
+            $response = $graph->getRaw("shares/{$token}/driveItem/content");
+        } catch (\Throwable $e) {
+            Log::warning("AttachmentController: gagal mengunduh berkas SharePoint", [
+                "attachment_id" => $attachment->id,
+                "error"         => $e->getMessage(),
+            ]);
+            abort(404, "Berkas tidak dapat diunduh.");
+        }
+
+        Log::info("AttachmentController: berkas Teams/SharePoint diakses", [
+            "attachment_id" => $attachment->id,
+            "file_name"     => $filename,
+            "ticket_id"     => $attachment->ticket_id,
+            "accessed_by"   => $sessionUser["eci"] ?? $sessionUser["name"] ?? $sessionUser["id"] ?? "unknown",
+        ]);
+
+        $asciiName = str_replace(["\"", "\\", "", "
+"], "", preg_replace("/[^ -~]/", "_", $filename));
+
+        return response($response->body(), 200, [
+            "Content-Type"        => $mime,
+            "Content-Disposition" => "attachment; filename=\"{$asciiName}\"; filename*=UTF-8''" . rawurlencode($filename),
+            "Cache-Control"       => "private, max-age=600",
+        ]);
     }
 }
