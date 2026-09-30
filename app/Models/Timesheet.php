@@ -34,6 +34,12 @@ class Timesheet extends Model
         'is_billable',
         'presence',
         'location',
+        'gps_latitude',
+        'gps_longitude',
+        'gps_accuracy',
+        'gps_captured_at',
+        'gps_address',
+        'is_without_activity',
         'md_consumed',
         'period_year',
         'period_month',
@@ -45,6 +51,11 @@ class Timesheet extends Model
         'activity_date' => 'date',
         'approved_at'  => 'datetime',
         'is_billable'  => 'boolean',
+        'is_without_activity' => 'boolean',
+        'gps_latitude'    => 'float',
+        'gps_longitude'   => 'float',
+        'gps_accuracy'    => 'float',
+        'gps_captured_at' => 'datetime',
     ];
 
     protected static function boot()

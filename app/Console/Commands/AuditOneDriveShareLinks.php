@@ -65,11 +65,13 @@ class AuditOneDriveShareLinks extends Command
         $this->newLine();
 
         if ($target === 'all' || $target === 'projects') {
-            $this->auditFolders(
+            // Perbaikan link oleh scheduler bukan aktivitas user → jangan geser
+            // "Last Update Date" (last_activity_at) project.
+            DeliveryProject::withoutActivityTracking(fn () => $this->auditFolders(
                 'Delivery Project',
                 DeliveryProject::whereNotNull('onedrive_folder_id')->orderBy('id')->when($limit > 0, fn($q) => $q->limit($limit))->get(),
                 fn(DeliveryProject $p) => '#' . $p->id . ' ' . $p->name
-            );
+            ));
         }
 
         if ($target === 'all' || $target === 'supports') {
@@ -179,12 +181,15 @@ class AuditOneDriveShareLinks extends Command
             return ['the stored link no longer exists on the folder (revoked or replaced)'];
         }
 
-        // Segarkan metadata dari kondisi sebenarnya di OneDrive.
+        // Segarkan metadata dari kondisi sebenarnya di OneDrive. Timestamps
+        // dimatikan: pengecekan rutin tidak boleh menggeser updated_at record.
+        $row->timestamps = false;
         $row->update([
             'onedrive_link_scope'      => $stored['scope'],
             'onedrive_link_expires_at' => $stored['expires_at'],
             'onedrive_link_checked_at' => now(),
         ]);
+        $row->timestamps = true;
 
         $issues = [];
         if ($stored['expires_at'] && $stored['expires_at']->isPast()) {

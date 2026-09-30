@@ -35,6 +35,7 @@ use App\Http\Controllers\TicketViewController;
 use App\Http\Controllers\ConsultantWorkloadController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\TicketMessageController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AuditLogController;
@@ -649,6 +650,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/{id}/ai-research', [\App\Http\Controllers\AiResearchController::class, 'openForTicket'])
             ->name('ai-research')
             ->middleware('menu:tickets.inbox');
+        // Tombol "Export Chat" di headbar room chat — unduh percakapan (tanpa internal note) sebagai PDF.
+        Route::get('/{id}/export-chat', [TicketMessageController::class, 'exportPdf'])
+            ->name('export-chat')
+            ->middleware('menu:ticket.export-chat');
         // Buka tiket berdasarkan NOMOR tiket (bukan id). Dipakai hyperlink "#NNNNNNNN"
         // di internal note — di-resolve ke id lalu redirect ke halaman tiket.
         Route::get('/ref/{number}', [TicketViewController::class, 'showByNumber'])->name('ref');
@@ -716,6 +721,19 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         ->name('attachments.show')
         ->where('id', '[0-9]+');
 });
+
+// ==================== ATTACHMENT PROXY — TAUTAN TEAMS ====================
+// Lampiran internal note yang ikut dikirim ke group chat tiket. Yang membukanya
+// klien Teams milik orang tanpa sesi EcoSystem, jadi route ini SENGAJA di luar
+// grup ber-CheckAuthToken — yang menjaganya middleware `signed`, bukan login.
+//
+// Tanda tangan = kapabilitas: siapa pun yang memegang tautannya bisa membuka
+// berkasnya. Konsekuensi yang diterima sadar (23 Sep 2026) supaya gambar tetap
+// tampil di riwayat chat. Aksesnya dicatat di AttachmentController.
+Route::get('/teams/attachments/{id}', [AttachmentController::class, 'showForTeams'])
+    ->middleware('signed')
+    ->name('attachments.teams')
+    ->where('id', '[0-9]+');
 
 // ==================== ROOT REDIRECT ====================
 
