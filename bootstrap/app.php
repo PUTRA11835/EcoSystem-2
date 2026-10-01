@@ -55,6 +55,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'jarvies.api_key'   => CheckJarviesApiKey::class,
             'external.api_key'  => \App\Http\Middleware\CheckExternalApiKey::class,
             'menu'              => \App\Http\Middleware\CheckMenuAccess::class,
+            'menu.can'          => \App\Http\Middleware\CheckMenuPermission::class,
             'menu.owner'        => \App\Http\Middleware\CheckMenuOrProjectOwner::class,
             'employee.section'  => \App\Http\Middleware\CheckEmployeeSectionAccess::class,
             'customer.section'  => \App\Http\Middleware\CheckCustomerSectionAccess::class,

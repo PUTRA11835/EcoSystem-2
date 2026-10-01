@@ -499,7 +499,10 @@
                 || $can('general.cash-advance-report')
                 || $can('general.approval-workflow.overtime') || $can('general.approval-workflow.reimbursement')
                 || $can('general.approval-workflow.purchase-request') || $can('management.approval-workflow.cash-advance')
-                || $can('management.approval-workflow.cash-advance-report'))
+                || $can('management.approval-workflow.cash-advance-report')
+                || $can('general.recruitment') || $can('general.recruitment.jobs') || $can('general.recruitment.candidates')
+                || $can('general.recruitment.schedule') || $can('general.recruitment.offers') || $can('general.recruitment.settings')
+                || $can('general.recruitment.offers.settings') || $can('general.letter-templates'))
                 <!-- HR & GENERAL -->
                 @php
                     // 🔴 Daftar ini harus diperbarui setiap kali item baru masuk ke grup —
@@ -521,7 +524,9 @@
                         || Request::is('management/cash-advance-settings*')
                         || Request::is('general/kpi-evaluation*')
                         // 🔴 D180 — hub Approval Workflow, satu prefix untuk kelima tab.
-                        || Request::is('general/approval-workflow*');
+                        || Request::is('general/approval-workflow*')
+                        || Request::is('general/recruitment*')
+                        || Request::is('general/letter-templates*');
                 @endphp
                 <div class="mb-2">
                     <button onclick="toggleHrGeneralDropdown()"
@@ -744,6 +749,75 @@
                                     <i class="fas fa-list-check text-xs"></i>
                                 </span>
                                 <span class="nav-text text-sm">Approval Workflow</span>
+                            </a>
+                        @endif
+
+                        {{-- Rekrutmen — hub bertab (Dashboard / Selection Process / Schedule /
+                             Job Openings / Settings), mengikuti pola Attendance & Overtime:
+                             gerbangnya ATAU atas seluruh tab, landasannya tab PERTAMA
+                             yang benar-benar dipegang. --}}
+                        @php
+                            // Offers is intentionally EXCLUDED here — it is its own sidebar
+                            // entry below, not a tab inside the Recruitment hub, so this
+                            // gate/landing/active-check must stay in sync with the five tabs
+                            // actually listed in hr-general/recruitment/components/hub-tabs.blade.php.
+                            $recruitmentGate = $can('general.recruitment') || $can('general.recruitment.jobs')
+                                || $can('general.recruitment.candidates') || $can('general.recruitment.schedule')
+                                || $can('general.recruitment.settings');
+
+                            $recruitmentLanding = match (true) {
+                                $can('general.recruitment')           => route('general.recruitment.index'),
+                                $can('general.recruitment.candidates') => route('general.recruitment.candidates.index'),
+                                $can('general.recruitment.schedule')  => route('general.recruitment.schedule.index'),
+                                $can('general.recruitment.jobs')      => route('general.recruitment.jobs.index'),
+                                $can('general.recruitment.settings')  => route('general.recruitment.settings.edit'),
+                                default => route('general.recruitment.index'),
+                            };
+
+                            $recruitmentActive = Request::is('general/recruitment')
+                                || Request::is('general/recruitment/jobs*')
+                                || Request::is('general/recruitment/candidates*')
+                                || Request::is('general/recruitment/schedule*')
+                                || Request::is('general/recruitment/settings*');
+                        @endphp
+                        @if($recruitmentGate)
+                            <a href="{{ $recruitmentLanding }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ $recruitmentActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-user-tie text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm">Recruitment</span>
+                            </a>
+                        @endif
+
+                        {{-- Offering Letter — a standalone menu item with its own two tabs
+                             (Letters / Settings), deliberately NOT tabs inside the Recruitment
+                             hub, so it can be granted independently of the rest of the module.
+                             It lands on the first tab the person actually holds. --}}
+                        @if($can('general.recruitment.offers') || $can('general.recruitment.offers.settings'))
+                            <a href="{{ $can('general.recruitment.offers') ? route('general.recruitment.offers.index') : route('general.recruitment.offers.settings.edit') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/recruitment/offers*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-file-signature text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm flex-1">Offering Letter</span>
+                                @php $pendingOffers = $can('general.recruitment.offers') ? \App\Models\Recruitment\Offer::where('decision', 'pending')->count() : 0; @endphp
+                                @if($pendingOffers > 0)
+                                    <span class="nav-text bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                        {{ $pendingOffers > 99 ? '99+' : $pendingOffers }}
+                                    </span>
+                                @endif
+                            </a>
+                        @endif
+
+                        {{-- Letter Templates — letterheads shared by the letters HR prints. --}}
+                        @if($can('general.letter-templates'))
+                            <a href="{{ route('general.letter-templates.index') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/letter-templates*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-file-lines text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm">Letter Templates</span>
                             </a>
                         @endif
                     </div>
