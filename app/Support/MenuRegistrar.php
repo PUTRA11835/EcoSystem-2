@@ -145,10 +145,15 @@ class MenuRegistrar
      * Role diresolve lewat NAMA (bukan ID) karena `migrate:fresh` bisa
      * menghasilkan ID role yang berbeda dari DB produksi.
      *
+     * $capabilities menentukan kotak C/E/D (Management → Roles) yang ikut
+     * dicentang untuk SEMUA role penerima, selain View yang selalu aktif.
+     * Kosong = hanya View, perilaku lama.
+     *
      * @param  string[]  $slugs
-     * @param  string[]  $roleNames  nama di employee_role.name
+     * @param  string[]  $roleNames     nama di employee_role.name
+     * @param  string[]  $capabilities  subset dari ['create', 'edit', 'delete']
      */
-    public static function grantToAdminAndRoles(array $slugs, array $roleNames): void
+    public static function grantToAdminAndRoles(array $slugs, array $roleNames, array $capabilities = []): void
     {
         $menuIds = DB::table('menu')->whereIn('slug', $slugs)->pluck('id');
         if ($menuIds->isEmpty()) {
@@ -179,9 +184,9 @@ class MenuRegistrar
                     'role_id'    => $roleId,
                     'menu_id'    => $menuId,
                     'can_view'   => true,
-                    'can_create' => false,
-                    'can_edit'   => false,
-                    'can_delete' => false,
+                    'can_create' => in_array('create', $capabilities, true),
+                    'can_edit'   => in_array('edit', $capabilities, true),
+                    'can_delete' => in_array('delete', $capabilities, true),
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];

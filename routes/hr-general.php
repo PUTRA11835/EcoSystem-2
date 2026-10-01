@@ -13,6 +13,7 @@ use App\Http\Controllers\HR_General\DashboardAttendanceController;
 use App\Http\Controllers\HR_General\MyCashAdvanceController;
 use App\Http\Controllers\HR_General\MyCashAdvanceReportController;
 use App\Http\Controllers\HR_General\GeoLookupController;
+use App\Http\Controllers\HR_General\LetterTemplateController;
 use App\Http\Controllers\HR_General\MyAttendanceController;
 use App\Http\Controllers\HR_General\MyOvertimeController;
 use App\Http\Controllers\HR_General\MyPurchaseRequestController;
@@ -23,6 +24,12 @@ use App\Http\Controllers\HR_General\OnboardingController;
 use App\Http\Controllers\SidebarFavoriteController;
 use App\Http\Controllers\HR_General\OvertimeReviewController;
 use App\Http\Controllers\HR_General\OvertimeSettingController;
+use App\Http\Controllers\HR_General\RecruitmentCandidateController;
+use App\Http\Controllers\HR_General\RecruitmentController;
+use App\Http\Controllers\HR_General\RecruitmentInterviewController;
+use App\Http\Controllers\HR_General\RecruitmentJobController;
+use App\Http\Controllers\HR_General\RecruitmentOfferController;
+use App\Http\Controllers\HR_General\RecruitmentSettingController;
 use App\Http\Controllers\HR_General\ReimbursementController;
 use App\Http\Controllers\HR_General\ReimbursementImportController;
 use App\Http\Controllers\HR_General\ReimbursementSettingController;
@@ -1017,6 +1024,156 @@ Route::prefix('general')
                             ->name('indicators');
                     });
             });
+
+        // =====================================================================
+        // REKRUTMEN — dashboard, kandidat/pipeline, jadwal interview, lowongan
+        // (sinkronisasi Microsoft Teams Calendar lewat Graph API)
+        // =====================================================================
+        // 🔴 Hak akses SELURUHNYA diatur di Management → Roles, per tab:
+        //   `menu:{slug}`               -> kotak V (View) — membuka tab.
+        //   `menu.can:{slug},{aksi}`    -> kotak C / E / D milik slug tab yang SAMA.
+        // Tidak ada slug "manage" terpisah. Arti tiap kotak:
+        //
+        //   Selection Process  C tambah kandidat · E ubah kandidat & dokumennya · D hapus kandidat
+        //   Schedule           C jadwalkan interview · E reschedule / sync · D cancel
+        //   Job Openings       C buat · E ubah / tutup · D hapus
+        //   Settings           E simpan pengaturan & ubah opsi · C tambah opsi · D hapus opsi
+        //   Offering Letter    C buat surat · E ubah / kirim / terima / tolak
+        //   Offering Settings  E simpan pengaturan & ubah komponen · C tambah komponen · D hapus komponen
+        //
+        // Rute STATIS ('settings', 'jobs', 'candidates', 'schedule') memakai
+        // prefix-nya SENDIRI-SENDIRI, bukan berbagi prefix 'recruitment/{id}'
+        // dengan rute berparameter — jadi tidak ada jebakan urutan di sini.
+        Route::prefix('recruitment/settings')
+            ->name('recruitment.settings.')
+            ->middleware('menu:general.recruitment.settings')
+            ->group(function () {
+                $can = fn (string $action) => "menu.can:general.recruitment.settings,{$action}";
+
+                Route::get('/', [RecruitmentSettingController::class, 'edit'])->name('edit');
+                Route::post('/update', [RecruitmentSettingController::class, 'update'])->name('update')->middleware($can('edit'));
+                // Read-only against Microsoft Graph, so View is enough.
+                Route::post('/test-connection', [RecruitmentSettingController::class, 'testConnection'])->name('test-connection');
+
+                // Dropdown lists of the module (source platforms, employment types, document types).
+                Route::post('/options', [RecruitmentSettingController::class, 'storeOption'])
+                    ->name('options.store')->middleware($can('create'));
+                Route::post('/options/{option}/update', [RecruitmentSettingController::class, 'updateOption'])
+                    ->name('options.update')->middleware($can('edit'));
+                Route::post('/options/{option}/delete', [RecruitmentSettingController::class, 'destroyOption'])
+                    ->name('options.destroy')->middleware($can('delete'));
+            });
+
+        Route::prefix('recruitment')->name('recruitment.')->group(function () {
+            Route::get('/', [RecruitmentController::class, 'index'])
+                ->name('index')
+                ->middleware('menu:general.recruitment');
+
+            Route::prefix('candidates')->name('candidates.')->middleware('menu:general.recruitment.candidates')->group(function () {
+                $can = fn (string $action) => "menu.can:general.recruitment.candidates,{$action}";
+
+                Route::get('/', [RecruitmentCandidateController::class, 'index'])->name('index');
+                Route::post('/', [RecruitmentCandidateController::class, 'store'])
+                    ->name('store')->middleware($can('create'));
+                Route::get('/{candidate}', [RecruitmentCandidateController::class, 'show'])->name('show');
+                Route::post('/{candidate}/update', [RecruitmentCandidateController::class, 'update'])
+                    ->name('update')->middleware($can('edit'));
+                Route::post('/{candidate}/delete', [RecruitmentCandidateController::class, 'destroy'])
+                    ->name('destroy')->middleware($can('delete'));
+                Route::get('/{candidate}/documents/{document}', [RecruitmentCandidateController::class, 'downloadDocument'])
+                    ->name('documents.download');
+                Route::post('/{candidate}/documents/{document}/delete', [RecruitmentCandidateController::class, 'destroyDocument'])
+                    ->name('documents.destroy')->middleware($can('edit'));
+            });
+
+            Route::prefix('schedule')->name('schedule.')->middleware('menu:general.recruitment.schedule')->group(function () {
+                $can = fn (string $action) => "menu.can:general.recruitment.schedule,{$action}";
+
+                Route::get('/', [RecruitmentInterviewController::class, 'index'])->name('index');
+                Route::post('/', [RecruitmentInterviewController::class, 'store'])
+                    ->name('store')->middleware($can('create'));
+                Route::post('/{interview}/update', [RecruitmentInterviewController::class, 'update'])
+                    ->name('update')->middleware($can('edit'));
+                Route::post('/{interview}/sync', [RecruitmentInterviewController::class, 'sync'])
+                    ->name('sync')->middleware($can('edit'));
+                Route::post('/{interview}/cancel', [RecruitmentInterviewController::class, 'cancel'])
+                    ->name('cancel')->middleware($can('delete'));
+            });
+
+            Route::prefix('jobs')->name('jobs.')->middleware('menu:general.recruitment.jobs')->group(function () {
+                $can = fn (string $action) => "menu.can:general.recruitment.jobs,{$action}";
+
+                Route::get('/', [RecruitmentJobController::class, 'index'])->name('index');
+                Route::get('/create', [RecruitmentJobController::class, 'create'])
+                    ->name('create')->middleware($can('create'));
+                Route::post('/', [RecruitmentJobController::class, 'store'])
+                    ->name('store')->middleware($can('create'));
+                // Opens read-only for a role without Edit, so View is enough to reach it.
+                Route::get('/{job}/edit', [RecruitmentJobController::class, 'edit'])->name('edit');
+                Route::post('/{job}/update', [RecruitmentJobController::class, 'update'])
+                    ->name('update')->middleware($can('edit'));
+                Route::post('/{job}/close', [RecruitmentJobController::class, 'close'])
+                    ->name('close')->middleware($can('edit'));
+                Route::post('/{job}/delete', [RecruitmentJobController::class, 'destroy'])
+                    ->name('destroy')->middleware($can('delete'));
+            });
+
+            // ── Offering Letter — entri sidebar sendiri, dua tab: Letters & Settings ──
+            // 🔴 Grup Settings WAJIB terdaftar SEBELUM grup Letters: keduanya
+            // berbagi prefix 'offers', dan tanpa urutan ini (plus whereNumber di
+            // bawah) 'settings' tertangkap sebagai {offer} — jebakan D177.
+            Route::prefix('offers/settings')->name('offers.settings.')->middleware('menu:general.recruitment.offers.settings')->group(function () {
+                $can = fn (string $action) => "menu.can:general.recruitment.offers.settings,{$action}";
+
+                Route::get('/', [RecruitmentOfferController::class, 'settings'])->name('edit');
+                Route::post('/update', [RecruitmentOfferController::class, 'updateSettings'])
+                    ->name('update')->middleware($can('edit'));
+
+                // Compensation components offered on a letter.
+                Route::post('/components', [RecruitmentOfferController::class, 'storeComponent'])
+                    ->name('components.store')->middleware($can('create'));
+                Route::post('/components/{component}/update', [RecruitmentOfferController::class, 'updateComponent'])
+                    ->name('components.update')->middleware($can('edit'));
+                Route::post('/components/{component}/delete', [RecruitmentOfferController::class, 'destroyComponent'])
+                    ->name('components.destroy')->middleware($can('delete'));
+            });
+
+            Route::prefix('offers')->name('offers.')->middleware('menu:general.recruitment.offers')->group(function () {
+                $can = fn (string $action) => "menu.can:general.recruitment.offers,{$action}";
+
+                Route::get('/', [RecruitmentOfferController::class, 'index'])->name('index');
+                Route::post('/', [RecruitmentOfferController::class, 'store'])
+                    ->name('store')->middleware($can('create'));
+
+                Route::whereNumber('offer')->group(function () use ($can) {
+                    Route::get('/{offer}/print', [RecruitmentOfferController::class, 'print'])->name('print');
+                    Route::post('/{offer}/update', [RecruitmentOfferController::class, 'update'])->name('update')->middleware($can('edit'));
+                    Route::post('/{offer}/send', [RecruitmentOfferController::class, 'send'])->name('send')->middleware($can('edit'));
+                    Route::post('/{offer}/accept', [RecruitmentOfferController::class, 'accept'])->name('accept')->middleware($can('edit'));
+                    Route::post('/{offer}/reject', [RecruitmentOfferController::class, 'reject'])->name('reject')->middleware($can('edit'));
+                });
+            });
+        });
+
+        // =====================================================================
+        // LETTER TEMPLATES — kop surat (header & footer) untuk surat-surat HR
+        // =====================================================================
+        // Satu slug, kotak C / E / D: C tambah kop · E ubah kop & surat yang
+        // memakainya · D hapus kop. Surat yang bisa dicentang terdaftar di
+        // App\Models\Letterhead::LETTER_TYPES.
+        Route::prefix('letter-templates')->name('letter-templates.')->middleware('menu:general.letter-templates')->group(function () {
+            $can = fn (string $action) => "menu.can:general.letter-templates,{$action}";
+
+            Route::get('/', [LetterTemplateController::class, 'index'])->name('index');
+            Route::post('/', [LetterTemplateController::class, 'store'])
+                ->name('store')->middleware($can('create'));
+            Route::get('/{letterhead}/image/{part}', [LetterTemplateController::class, 'image'])
+                ->name('image')->where('part', 'header|footer');
+            Route::post('/{letterhead}/update', [LetterTemplateController::class, 'update'])
+                ->name('update')->middleware($can('edit'));
+            Route::post('/{letterhead}/delete', [LetterTemplateController::class, 'destroy'])
+                ->name('destroy')->middleware($can('delete'));
+        });
     });
 
 /**
