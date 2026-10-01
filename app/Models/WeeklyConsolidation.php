@@ -3,14 +3,21 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Header satu batch recon "Weekly Consolidation" (Reporting → Support) untuk
  * satu modul pada satu periode. Baris tiketnya ada di WeeklyConsolidationTicket
  * — lihat docblock di sana untuk aturan live-join (data tiket TIDAK disnapshot).
+ *
+ * Delete default = soft (SoftDeletes, bisa di-restore lewat Recon History →
+ * Show Deleted); hapus permanen adalah aksi terpisah di controller
+ * (forceDelete, cascade ke lines() lewat FK yang sudah ada).
  */
 class WeeklyConsolidation extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'weekly_consolidations';
 
     protected $fillable = [
@@ -22,6 +29,7 @@ class WeeklyConsolidation extends Model
         'generated_by_id',
         'last_refreshed_at',
         'last_refreshed_by_id',
+        'deleted_by_id',
     ];
 
     protected $casts = [
@@ -29,6 +37,7 @@ class WeeklyConsolidation extends Model
         'period_end'        => 'date',
         'last_refreshed_at' => 'datetime',
         'is_all_modules'    => 'boolean',
+        'deleted_at'        => 'datetime',
     ];
 
     /** Status tiket yang dianggap "masih terbuka" untuk keperluan recon ini. */
@@ -64,6 +73,11 @@ class WeeklyConsolidation extends Model
     public function lastRefreshedBy()
     {
         return $this->belongsTo(Employee::class, 'last_refreshed_by_id', 'employee_id');
+    }
+
+    public function deletedBy()
+    {
+        return $this->belongsTo(Employee::class, 'deleted_by_id', 'employee_id');
     }
 
     public function lines()
