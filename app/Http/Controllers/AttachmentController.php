@@ -120,15 +120,22 @@ class AttachmentController extends Controller
             return $this->streamSharePointFile($attachment, $sessionUser);
         }
 
-        // Validasi: harus punya graph_message_id + graph_attachment_id
-        if (!$attachment->graph_message_id || !$attachment->graph_attachment_id) {
-            abort(404, 'File ini tidak dapat diakses via proxy.');
-        }
-
         try {
             $sender  = config('services.microsoft_graph.sender_email');
             $token   = $this->getGraphToken();
             $baseUrl = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
+
+            // Baris tanpa Graph ID (mis. balasan customer dari portal JARVIES saat
+            // lookup Sent Items gagal) tetap bisa dipulihkan lewat email_message_id
+            // dari ticket_message. Hasilnya disimpan ke DB, jadi request berikutnya
+            // langsung memakai jalur normal.
+            if (!$attachment->graph_message_id || !$attachment->graph_attachment_id) {
+                $this->recoverGraphIds($attachment, $token, $sender, $baseUrl);
+            }
+
+            if (!$attachment->graph_message_id || !$attachment->graph_attachment_id) {
+                abort(404, 'File ini tidak dapat diakses via proxy.');
+            }
 
             // Fetch attachment beserta contentBytes dari Graph
             $response = Http::withToken($token)->get(
@@ -138,82 +145,11 @@ class AttachmentController extends Controller
             if (!$response->successful()) {
                 // Jika 404: kemungkinan graph_message_id adalah draft ID lama yang sudah
                 // tidak valid setelah email dikirim (email pindah ke Sent Items dengan ID baru).
-                // Coba cari message baru di Sent Items via internetMessageId dari ticket_message.
-                if ($response->status() === 404 && $attachment->message_id) {
-                    $ticketMsg = DB::table('ticket_message')
-                        ->where('id', $attachment->message_id)
-                        ->whereNotNull('email_message_id')
-                        ->first();
-
-                    if ($ticketMsg?->email_message_id) {
-                        try {
-                            // OData $filter pada internetMessageId tidak reliable di SentItems.
-                            // Ambil pesan terbaru dan cocokkan internetMessageId di PHP.
-                            $sentMsgId = null;
-                            $baseUrl   = rtrim(config('services.microsoft_graph.base_url', 'https://graph.microsoft.com/v1.0'), '/');
-                            for ($retryAttempt = 1; $retryAttempt <= 3; $retryAttempt++) {
-                                if ($retryAttempt > 1) sleep(1);
-                                $searchResult = Http::withToken($token)->get(
-                                    "{$baseUrl}/users/{$sender}/mailFolders/SentItems/messages",
-                                    [
-                                        '$orderby' => 'sentDateTime desc',
-                                        '$select'  => 'id,internetMessageId',
-                                        '$top'     => 20,
-                                    ]
-                                );
-                                foreach ($searchResult->json('value') ?? [] as $msg) {
-                                    if (($msg['internetMessageId'] ?? '') === $ticketMsg->email_message_id) {
-                                        $sentMsgId = $msg['id'];
-                                        break 2;
-                                    }
-                                }
-                            }
-
-                            if ($sentMsgId) {
-                                // Attachment ID juga berubah setelah draft dikirim.
-                                // Fetch daftar attachment dari Sent Items, cocokkan berdasarkan nama file.
-                                $sentAttId = $attachment->graph_attachment_id; // fallback
-                                try {
-                                    $attList = Http::withToken($token)->get(
-                                        "{$baseUrl}/users/{$sender}/messages/{$sentMsgId}/attachments",
-                                        ['$select' => 'id,name']
-                                    );
-                                    foreach ($attList->json('value') ?? [] as $sa) {
-                                        if (strtolower($sa['name'] ?? '') === strtolower($attachment->file_name ?? '')) {
-                                            $sentAttId = $sa['id'];
-                                            break;
-                                        }
-                                    }
-                                } catch (\Exception $attE) {
-                                    Log::warning('AttachmentController@show: failed to fetch Sent Items attachment list', [
-                                        'attachment_id' => $id,
-                                        'error'         => $attE->getMessage(),
-                                    ]);
-                                }
-
-                                // Simpan kedua ID yang benar ke DB untuk request berikutnya
-                                $attachment->update([
-                                    'graph_message_id'    => $sentMsgId,
-                                    'graph_attachment_id' => $sentAttId,
-                                ]);
-
-                                // Retry fetch dengan kedua ID yang sudah diperbarui
-                                $response = Http::withToken($token)->get(
-                                    "{$baseUrl}/users/{$sender}/messages/{$sentMsgId}/attachments/{$sentAttId}"
-                                );
-                            } else {
-                                Log::warning('AttachmentController@show: sentMsgId not found in SentItems', [
-                                    'attachment_id'    => $id,
-                                    'email_message_id' => $ticketMsg->email_message_id,
-                                ]);
-                            }
-                        } catch (\Exception $retryE) {
-                            Log::warning('AttachmentController@show: Graph retry failed', [
-                                'attachment_id' => $id,
-                                'error'         => $retryE->getMessage(),
-                            ]);
-                        }
-                    }
+                // Cari message baru via internetMessageId dari ticket_message.
+                if ($response->status() === 404 && $this->recoverGraphIds($attachment, $token, $sender, $baseUrl)) {
+                    $response = Http::withToken($token)->get(
+                        "{$baseUrl}/users/{$sender}/messages/{$attachment->graph_message_id}/attachments/{$attachment->graph_attachment_id}"
+                    );
                 }
 
                 if (!$response->successful()) {
@@ -294,6 +230,103 @@ class AttachmentController extends Controller
                 'error'         => $e->getMessage(),
             ]);
             abort(500, 'An unexpected error occurred while retrieving the file.');
+        }
+    }
+
+    /**
+     * Cari ulang ID pesan + ID attachment yang valid di mailbox Graph, lalu simpan ke DB.
+     *
+     * Dipakai saat ID kosong (lookup Sent Items saat pengiriman gagal) atau sudah
+     * tidak valid (draft ID yang berubah setelah email terkirim). Kuncinya
+     * internetMessageId yang tersimpan di ticket_message.email_message_id; attachment
+     * dicocokkan berdasarkan nama file.
+     *
+     * @return bool true jika ID berhasil ditemukan dan disimpan
+     */
+    private function recoverGraphIds(TicketAttachment $attachment, string $token, string $sender, string $baseUrl): bool
+    {
+        if (!$attachment->message_id) {
+            return false;
+        }
+
+        $internetMsgId = DB::table('ticket_message')
+            ->where('id', $attachment->message_id)
+            ->value('email_message_id');
+
+        if (!$internetMsgId) {
+            return false;
+        }
+
+        try {
+            $msgId = null;
+
+            // 1) Filter langsung di seluruh mailbox (mencakup email masuk yang dipindah folder).
+            $filtered = Http::withToken($token)->get("{$baseUrl}/users/{$sender}/messages", [
+                '$filter' => "internetMessageId eq '" . str_replace("'", "''", $internetMsgId) . "'",
+                '$select' => 'id',
+                '$top'    => 1,
+            ]);
+            $msgId = $filtered->successful() ? ($filtered->json('value.0.id') ?? null) : null;
+
+            // 2) Fallback: $filter pada internetMessageId tidak selalu andal, jadi pindai
+            //    pesan terbaru di Sent Items dan cocokkan di PHP.
+            if (!$msgId) {
+                $scan = Http::withToken($token)->get("{$baseUrl}/users/{$sender}/mailFolders/SentItems/messages", [
+                    '$orderby' => 'sentDateTime desc',
+                    '$select'  => 'id,internetMessageId',
+                    '$top'     => 50,
+                ]);
+                foreach ($scan->json('value') ?? [] as $msg) {
+                    if (($msg['internetMessageId'] ?? '') === $internetMsgId) {
+                        $msgId = $msg['id'];
+                        break;
+                    }
+                }
+            }
+
+            if (!$msgId) {
+                Log::warning('AttachmentController: recoverGraphIds: pesan tidak ditemukan di mailbox', [
+                    'attachment_id'    => $attachment->id,
+                    'email_message_id' => $internetMsgId,
+                ]);
+                return false;
+            }
+
+            // Attachment ID juga berubah setelah draft dikirim: cocokkan by nama file.
+            $attList = Http::withToken($token)->get(
+                "{$baseUrl}/users/{$sender}/messages/{$msgId}/attachments",
+                ['$select' => 'id,name']
+            );
+            $attId = null;
+            foreach ($attList->json('value') ?? [] as $sa) {
+                if (strtolower($sa['name'] ?? '') === strtolower($attachment->file_name ?? '')) {
+                    $attId = $sa['id'];
+                    break;
+                }
+            }
+
+            if (!$attId) {
+                Log::warning('AttachmentController: recoverGraphIds: attachment tidak cocok by nama', [
+                    'attachment_id' => $attachment->id,
+                    'file_name'     => $attachment->file_name,
+                ]);
+                return false;
+            }
+
+            $attachment->update([
+                'graph_message_id'    => $msgId,
+                'graph_attachment_id' => $attId,
+            ]);
+
+            Log::info('AttachmentController: Graph ID dipulihkan', ['attachment_id' => $attachment->id]);
+
+            return true;
+        } catch (\Exception $e) {
+            Log::warning('AttachmentController: recoverGraphIds gagal', [
+                'attachment_id' => $attachment->id,
+                'error'         => $e->getMessage(),
+            ]);
+            return false;
         }
     }
 
@@ -381,7 +414,8 @@ class AttachmentController extends Controller
             "accessed_by"   => $sessionUser["eci"] ?? $sessionUser["name"] ?? $sessionUser["id"] ?? "unknown",
         ]);
 
-        $asciiName = str_replace(["\"", "\\", "", "
+        $asciiName = str_replace(["\"", "\\", "
+", "
 "], "", preg_replace("/[^ -~]/", "_", $filename));
 
         return response($response->body(), 200, [
