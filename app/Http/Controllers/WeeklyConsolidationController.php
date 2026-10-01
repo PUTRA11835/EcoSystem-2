@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
 use App\Exports\WeeklyConsolidationExport;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Module;
 use App\Models\Ticket;
@@ -78,6 +79,22 @@ class WeeklyConsolidationController extends Controller
     private function canCombineModules(Employee $employee): bool
     {
         return $employee->canAccessMenu(self::COMBINE_MODULES_SLUG);
+    }
+
+    /**
+     * Edit (ubah modul/period) dan Delete (soft/restore/permanen) sebuah
+     * recon tersimpan digerbangi lewat kolom can_edit/can_delete yang SUDAH
+     * ada di role_menu untuk menu reporting.weekly-consolidation — diatur
+     * admin lewat Control Center → Menu Access, tanpa slug/migrasi baru.
+     */
+    private function canEditBatch(Employee $employee): bool
+    {
+        return $employee->hasMenuPermission(self::MENU_SLUG, 'can_edit');
+    }
+
+    private function canDeleteBatch(Employee $employee): bool
+    {
+        return $employee->hasMenuPermission(self::MENU_SLUG, 'can_delete');
     }
 
     /**
@@ -231,9 +248,20 @@ class WeeklyConsolidationController extends Controller
 
         $allowed = $this->accessibleModuleIds($employee);
 
-        $query = WeeklyConsolidation::with(['module:id,name', 'modules:id,name', 'generatedBy.basicData', 'lastRefreshedBy.basicData'])
+        $query = WeeklyConsolidation::with(['module:id,name', 'modules:id,name', 'generatedBy.basicData', 'lastRefreshedBy.basicData', 'deletedBy.basicData'])
             ->withCount('lines')
             ->orderByDesc('created_at');
+
+        // Show Deleted (frontend toggle) — hanya berarti kalau employee punya
+        // can_delete, dicek juga di sini (bukan cuma disembunyikan di UI)
+        // supaya ?trashed=1 lewat devtools tidak membocorkan recon terhapus
+        // ke role yang tidak berhak melihatnya sama sekali.
+        if ($request->boolean('trashed')) {
+            if (!$this->canDeleteBatch($employee)) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+            $query->onlyTrashed();
+        }
 
         if ($allowed !== null) {
             $query->whereHas('modules', fn ($q) => $q->whereIn('modules.id', $allowed));
@@ -242,7 +270,7 @@ class WeeklyConsolidationController extends Controller
             $query->whereHas('modules', fn ($q) => $q->where('modules.id', (int) $moduleId));
         }
 
-        $batches = $query->get()->map(fn (WeeklyConsolidation $b) => $this->summarize($b));
+        $batches = $query->get()->map(fn (WeeklyConsolidation $b) => $this->summarize($b, $employee));
 
         return response()->json(['success' => true, 'data' => $batches]);
     }
@@ -301,7 +329,7 @@ class WeeklyConsolidationController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => array_merge($this->summarize($consolidation), [
+            'data'    => array_merge($this->summarize($consolidation, $employee), [
                 'rows' => $this->shapeRows($consolidation),
             ]),
         ]);
@@ -327,6 +355,176 @@ class WeeklyConsolidationController extends Controller
         ]);
 
         return $this->show($id);
+    }
+
+    // ── API: edit a saved batch — period + module composition ───────────────
+    // Menambah modul memakai jalur yang sama persis dengan generate()
+    // (resolveModuleIds → syncMatchingTickets), jadi otorisasi & insert baris
+    // baru konsisten. Mengurangi modul HANYA menghapus baris tiket yang tidak
+    // lagi cocok dengan modul manapun yang tersisa — tiket lintas-modul yang
+    // masih cocok dengan modul lain yang tetap dipilih TIDAK ikut terhapus.
+    // Frontend wajib sudah menampilkan konfirmasi sebelum request ini dikirim
+    // kalau ada modul yang dilepas (Notes-nya ikut hilang, tidak bisa dibatalkan).
+
+    public function update(Request $request, $id)
+    {
+        $employee = $this->authorize();
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $consolidation = WeeklyConsolidation::findOrFail($id);
+        $this->assertBatchAccess($employee, $consolidation);
+
+        if (!$this->canEditBatch($employee)) {
+            return response()->json(['success' => false, 'message' => 'You are not allowed to edit this recon.'], 403);
+        }
+
+        $validated = $request->validate([
+            'period_start' => ['required', 'date'],
+            'period_end'   => ['required', 'date', 'after_or_equal:period_start'],
+            'period_label' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $oldModuleIds = $this->batchModuleIds($consolidation);
+        $isAllModules = $request->boolean('all');
+        $newModuleIds = $this->resolveModuleIds($request, $employee);
+
+        $sortedModules   = Module::whereIn('id', $newModuleIds)->orderBy('name')->get(['id', 'name']);
+        $primaryModuleId = $sortedModules->first()->id ?? $newModuleIds[0];
+
+        $consolidation->modules()->sync($newModuleIds);
+
+        // Modul bertambah: tarik tiket baru yang cocok (idempotent, sama
+        // seperti Refresh). Modul berkurang: buang baris yang tiketnya sudah
+        // tidak cocok dengan modul manapun yang tersisa — Notes-nya ikut
+        // terhapus lewat baris ini sendiri (bukan kolom terpisah).
+        $this->syncMatchingTickets($consolidation, $employee);
+
+        $stillMatchingTicketIds = $this->liveTicketRowsQuery($newModuleIds)->pluck('ticket_id');
+        $consolidation->lines()->whereNotIn('ticket_id', $stillMatchingTicketIds)->delete();
+
+        $consolidation->update([
+            'module_id'      => $primaryModuleId,
+            'is_all_modules' => $isAllModules,
+            'period_start'   => $validated['period_start'],
+            'period_end'     => $validated['period_end'],
+            'period_label'   => $validated['period_label']
+                ?: (\Carbon\Carbon::parse($validated['period_start'])->format('d/m/Y') . ' - ' . \Carbon\Carbon::parse($validated['period_end'])->format('d/m/Y')),
+        ]);
+
+        AuditLog::recordAction(
+            module: 'Reporting',
+            auditableType: 'WeeklyConsolidation',
+            auditableId: $consolidation->id,
+            event: 'updated',
+            recordLabel: $consolidation->period_label,
+            description: "updated Weekly Consolidation recon #{$consolidation->id}",
+            old: ['module_ids' => $oldModuleIds],
+            new: ['module_ids' => $newModuleIds],
+        );
+
+        return $this->show($id);
+    }
+
+    // ── API: soft-delete / restore / permanently delete a saved batch ───────
+
+    public function destroy($id)
+    {
+        $employee = $this->authorize();
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $consolidation = WeeklyConsolidation::findOrFail($id);
+        $this->assertBatchAccess($employee, $consolidation);
+
+        if (!$this->canDeleteBatch($employee)) {
+            return response()->json(['success' => false, 'message' => 'You are not allowed to delete this recon.'], 403);
+        }
+
+        $consolidation->update(['deleted_by_id' => $employee->employee_id]);
+        $consolidation->delete();
+
+        AuditLog::recordAction(
+            module: 'Reporting',
+            auditableType: 'WeeklyConsolidation',
+            auditableId: $consolidation->id,
+            event: 'deleted',
+            recordLabel: $consolidation->period_label,
+            description: "soft-deleted Weekly Consolidation recon #{$consolidation->id}",
+            old: null,
+            new: null,
+        );
+
+        return response()->json(['success' => true]);
+    }
+
+    public function restore($id)
+    {
+        $employee = $this->authorize();
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $consolidation = WeeklyConsolidation::onlyTrashed()->findOrFail($id);
+        $this->assertBatchAccess($employee, $consolidation);
+
+        if (!$this->canDeleteBatch($employee)) {
+            return response()->json(['success' => false, 'message' => 'You are not allowed to restore this recon.'], 403);
+        }
+
+        $consolidation->restore();
+        $consolidation->update(['deleted_by_id' => null]);
+
+        AuditLog::recordAction(
+            module: 'Reporting',
+            auditableType: 'WeeklyConsolidation',
+            auditableId: $consolidation->id,
+            event: 'restored',
+            recordLabel: $consolidation->period_label,
+            description: "restored Weekly Consolidation recon #{$consolidation->id}",
+            old: null,
+            new: null,
+        );
+
+        return response()->json(['success' => true]);
+    }
+
+    public function forceDestroy($id)
+    {
+        $employee = $this->authorize();
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $consolidation = WeeklyConsolidation::onlyTrashed()->with('modules:id,name')->findOrFail($id);
+        $this->assertBatchAccess($employee, $consolidation);
+
+        if (!$this->canDeleteBatch($employee)) {
+            return response()->json(['success' => false, 'message' => 'You are not allowed to permanently delete this recon.'], 403);
+        }
+
+        // Catat audit SEBELUM forceDelete() — setelah baris ini hilang, tidak
+        // bisa lagi diambil datanya untuk log.
+        AuditLog::recordAction(
+            module: 'Reporting',
+            auditableType: 'WeeklyConsolidation',
+            auditableId: $consolidation->id,
+            event: 'permanently_deleted',
+            recordLabel: $consolidation->period_label,
+            description: "permanently deleted Weekly Consolidation recon #{$consolidation->id}",
+            old: [
+                'module_names'  => $consolidation->modules->pluck('name')->implode(', '),
+                'period_label'  => $consolidation->period_label,
+                'ticket_count'  => $consolidation->lines()->count(),
+            ],
+            new: null,
+        );
+
+        $consolidation->forceDelete();
+
+        return response()->json(['success' => true]);
     }
 
     // ── API: update one line's notes ─────────────────────────────────────────
@@ -444,7 +642,7 @@ class WeeklyConsolidationController extends Controller
         }
     }
 
-    private function summarize(WeeklyConsolidation $c): array
+    private function summarize(WeeklyConsolidation $c, ?Employee $employee = null): array
     {
         $modules     = $c->relationLoaded('modules') ? $c->modules : collect();
         $moduleNames = $modules->pluck('name')->sort()->values();
@@ -464,6 +662,10 @@ class WeeklyConsolidationController extends Controller
             'last_refreshed_at'  => $c->last_refreshed_at,
             'last_refreshed_by'  => $this->fullName($c->lastRefreshedBy),
             'ticket_count'       => $c->lines_count ?? $c->lines()->count(),
+            'can_edit'           => $employee !== null && $this->canEditBatch($employee),
+            'can_delete'         => $employee !== null && $this->canDeleteBatch($employee),
+            'deleted_at'         => $c->deleted_at,
+            'deleted_by'         => $c->trashed() ? $this->fullName($c->deletedBy) : null,
         ];
     }
 
@@ -512,6 +714,10 @@ class WeeklyConsolidationController extends Controller
             'module_name'         => $t->module_names,
             'description'         => $t->description,
             'start_date'          => $t->created_at,
+            // Aktivitas tiket, bukan raw updated_at (bisa berubah karena field
+            // yang tidak relevan) — field yang sama dipakai untuk sort di
+            // preview() dan halaman Ticket List.
+            'last_update'         => $t->last_message_at,
             'ticket_type'         => $t->ticket_type,
             'status'              => $t->status,
             'status_label'        => $t->status_label,

@@ -26,6 +26,11 @@ class SettingsController extends Controller
         // 'default' = ikut setting global admin (App\Support\GlobalSeasonalTheme);
         // user tetap bisa menimpa sendiri dengan 'none' (matikan) atau tema eksplisit.
         'seasonal_theme'        => 'default',
+        // Daftar href menu sidebar yang di-pin user ke Command Center (Dashboard).
+        // Diidentifikasi lewat href (bukan slug menu) karena sidebar dirender dari
+        // ~100 blok <a> hardcoded per item, bukan dari satu sumber data menu yang
+        // bisa ditandai slug-nya — baca/tulis murni dari DOM yang sudah dirender.
+        'pinned_menus'          => [],
     ];
 
     /** Nilai yang diperbolehkan untuk field bertipe pilihan (whitelist). */
@@ -268,6 +273,16 @@ class SettingsController extends Controller
                 if (is_string($value) && preg_match('/^#[0-9a-fA-F]{6}$/', $value)) {
                     $clean[$key] = strtolower($value);
                 }
+            } elseif (is_array($default)) {
+                // Mis. pinned_menus — tanpa cabang ini nilainya KE-BUANG oleh
+                // fallback scalar di bawah (is_scalar(array) === false), diam-diam
+                // kembali ke default setiap kali field array dikirim.
+                $clean[$key] = is_array($value)
+                    ? array_values(array_unique(array_filter(array_map(
+                        fn ($v) => is_scalar($v) ? (string) $v : null,
+                        $value
+                    ))))
+                    : $default;
             } else {
                 $clean[$key] = is_scalar($value) ? (string) $value : $default;
             }
