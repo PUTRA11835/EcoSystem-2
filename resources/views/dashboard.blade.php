@@ -205,7 +205,27 @@
         .nav-link.active {
             box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
         }
-        
+
+        /* Sidebar menu search — highlight a matching item instead of hiding others. */
+        .nav-link.sidebar-search-match {
+            background-color: rgba(255,255,255,0.18) !important;
+            box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.5);
+        }
+
+        /* Pin-to-Dashboard button injected into each sidebar link (JS) — faint
+           until hovered, solid gold once pinned, same icon state either way. */
+        .nav-link { position: relative; }
+        .nav-pin-btn {
+            margin-left: auto; flex-shrink: 0;
+            width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+            border: none; background: transparent; border-radius: 6px;
+            color: rgba(255,255,255,0.28); font-size: 11px;
+            opacity: 0; transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+        }
+        .nav-link:hover .nav-pin-btn { opacity: 1; }
+        .nav-pin-btn:hover { background-color: rgba(255,255,255,0.15); color: #fff; }
+        .nav-pin-btn.pinned { opacity: 1; color: #fbbf24; }
+
         @if($preferences['compact_mode'])
         .p-6 { padding: 1rem !important; }
         .p-8 { padding: 1.5rem !important; }
@@ -756,7 +776,7 @@
         @endphp
 
         <!-- Sidebar - Modern Design -->
-        <aside id="sidebar" class="sidebar-transition fixed inset-y-0 left-0 h-screen overflow-y-auto {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
+        <aside id="sidebar" class="sidebar-transition fixed inset-y-0 left-0 h-screen flex flex-col {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
             @if($effectiveSeasonalTheme !== 'none')
                 @include('partials.seasonal-theme', [
                     'themeKey' => $effectiveSeasonalTheme,
@@ -764,14 +784,25 @@
                     'placement' => 'sidebar',
                 ])
             @endif
-            <!-- Logo Section -->
-            <div class="sidebar-logo p-5 pb-2 flex items-center justify-center">
-                    <div class="w-full rounded-xl p-3 backdrop-blur-sm">
-                        <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="w-full h-auto"/>
+            {{-- Fixed header: logo + menu search — stays put while the nav list below scrolls --}}
+            <div class="shrink-0">
+                <!-- Logo Section -->
+                <div class="sidebar-logo p-5 pb-2 flex items-center justify-center">
+                        <div class="w-full rounded-xl p-3 backdrop-blur-sm">
+                            <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="w-full h-auto"/>
+                        </div>
+                </div>
+                <div class="px-4 pb-2">
+                    <div class="relative">
+                        <i class="fas fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-white/50"></i>
+                        <input type="text" id="sidebarSearch" oninput="filterSidebarMenu(this.value)" placeholder="Search menu..."
+                            class="w-full pl-8 pr-3 py-2 rounded-lg bg-white/10 placeholder-white/50 text-white text-sm border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 focus:bg-white/15 transition-all">
                     </div>
+                </div>
             </div>
 
-            <!-- Navigation Menu -->
+            <!-- Navigation Menu (only this part scrolls) -->
+            <div class="flex-1 overflow-y-auto" id="sidebarNavScroll">
             @hasSection('sidebar-nav')
                 @yield('sidebar-nav')
             @else
@@ -1544,6 +1575,7 @@
                 </div>
             </nav>
             @endif
+            </div>
         </aside>
 
         <!-- Main Content -->
@@ -1704,6 +1736,181 @@
         // Desktop = docked sidebar (>= Tailwind lg breakpoint 1024px).
         // Below that we treat the sidebar as a slide-in drawer with a backdrop.
         function isDesktopViewport() { return window.innerWidth >= 1024; }
+
+        // Sidebar menu search — never hides anything (too risky to get a nested
+        // dropdown's show/hide logic wrong on a live page); instead it highlights
+        // matches and force-opens whichever collapsed dropdown(s) contain one, so
+        // the match is actually visible without relying on the collapse toggle.
+        var sidebarSearchOpenedIds = [];
+        // Top-level wrappers (the `.mb-2` div around each root nav item/group —
+        // Home, Reporting, Control Center, ... all 21 of them, verified to be
+        // the ONLY place that class is used inside the nav list; nested
+        // sub-groups like Reporting > Project use a plain unclassed <div>) that
+        // THIS search hid, so clearing the box restores exactly what was there.
+        var sidebarSearchHiddenWrappers = [];
+
+        function filterSidebarMenu(query) {
+            var q = query.trim().toLowerCase();
+            var scroll = document.getElementById('sidebarNavScroll');
+            if (!scroll) return;
+
+            scroll.querySelectorAll('.nav-link.sidebar-search-match').forEach(function (el) {
+                el.classList.remove('sidebar-search-match');
+            });
+
+            if (!q) {
+                sidebarSearchHiddenWrappers.forEach(function (el) { el.style.removeProperty('display'); });
+                sidebarSearchHiddenWrappers = [];
+                // Re-collapse only the dropdowns THIS search opened — leave
+                // everything else (e.g. already-open-because-active-route) alone.
+                sidebarSearchOpenedIds.forEach(function (id) {
+                    var el = document.getElementById(id);
+                    if (el) el.classList.add('hidden');
+                });
+                sidebarSearchOpenedIds = [];
+                return;
+            }
+
+            var firstMatch = null;
+
+            // One pass per TOP-LEVEL section: hide the whole section unless it
+            // (its own name, or any item/sub-item anywhere inside it) matches.
+            // A section that matches is shown in full (its unrelated sub-groups
+            // keep whatever expand state they already had) rather than trying
+            // to selectively hide individual nested items too — far less prone
+            // to a filtering bug accidentally swallowing a real menu item.
+            scroll.querySelectorAll('.mb-2').forEach(function (wrapper) {
+                var wrapperHasMatch = false;
+
+                wrapper.querySelectorAll('a.nav-link, button.nav-link').forEach(function (link) {
+                    var textEl = link.querySelector('.nav-text');
+                    var text = (textEl ? textEl.textContent : link.textContent).trim().toLowerCase();
+                    if (!text || text.indexOf(q) === -1) return;
+
+                    wrapperHasMatch = true;
+                    link.classList.add('sidebar-search-match');
+                    if (!firstMatch) firstMatch = link;
+
+                    // Expand every ANCESTOR dropdown so the match is reachable...
+                    var el = link.parentElement;
+                    while (el && el !== scroll) {
+                        if (el.id && /Dropdown$/.test(el.id) && el.classList.contains('hidden')) {
+                            el.classList.remove('hidden');
+                            if (sidebarSearchOpenedIds.indexOf(el.id) === -1) sidebarSearchOpenedIds.push(el.id);
+                        }
+                        el = el.parentElement;
+                    }
+                    // ...and if the match IS a toggler itself, also expand the
+                    // dropdown it controls (that's a sibling, not an ancestor).
+                    var ownDropdown = link.nextElementSibling;
+                    if (ownDropdown && ownDropdown.id && /Dropdown$/.test(ownDropdown.id) && ownDropdown.classList.contains('hidden')) {
+                        ownDropdown.classList.remove('hidden');
+                        if (sidebarSearchOpenedIds.indexOf(ownDropdown.id) === -1) sidebarSearchOpenedIds.push(ownDropdown.id);
+                    }
+                });
+
+                if (wrapperHasMatch) {
+                    wrapper.style.removeProperty('display');
+                } else {
+                    wrapper.style.display = 'none';
+                    sidebarSearchHiddenWrappers.push(wrapper);
+                }
+            });
+
+            if (firstMatch) firstMatch.scrollIntoView({ block: 'nearest' });
+        }
+
+        // Keep the sidebar's scroll position across full page navigations (this
+        // app is server-rendered — every menu click is a fresh page load, which
+        // otherwise resets scroll to the top). sessionStorage survives exactly
+        // one tab's navigation history, which is the right scope here: per-tab
+        // convenience, not shared/critical state.
+        (function () {
+            var scrollEl = document.getElementById('sidebarNavScroll');
+            if (!scrollEl) return;
+            var KEY = 'wc_sidebar_scroll_top';
+
+            try {
+                var saved = sessionStorage.getItem(KEY);
+                if (saved !== null) scrollEl.scrollTop = parseInt(saved, 10) || 0;
+            } catch (e) {}
+
+            scrollEl.addEventListener('scroll', function () {
+                try { sessionStorage.setItem(KEY, String(scrollEl.scrollTop)); } catch (e) {}
+            }, { passive: true });
+
+            // A left-click on a real menu link navigates away immediately —
+            // the 'scroll' listener above only fires on manual scrolling, so
+            // also save scrollTop at the moment a link is clicked.
+            scrollEl.addEventListener('click', function (ev) {
+                var link = ev.target.closest('a.nav-link');
+                if (!link) return;
+                try { sessionStorage.setItem(KEY, String(scrollEl.scrollTop)); } catch (e) {}
+            });
+        })();
+
+        // ── Pin menu (sidebar → Dashboard "Command Center") ─────────────────────
+        // Pins are identified by href, not a menu slug — the sidebar has no single
+        // data source tagging each of its ~100 hardcoded <a> items with one, so
+        // this reads/writes the already-rendered DOM instead of touching every nav
+        // block. Persisted through the existing generic preferences endpoint
+        // (same one Settings uses), so a pin follows the account across devices.
+        window.PINNED_MENUS = @json(array_values(session('user_preferences')['pinned_menus'] ?? []));
+
+        function isMenuPinned(href) {
+            return window.PINNED_MENUS.indexOf(href) !== -1;
+        }
+
+        function savePinnedMenus() {
+            fetch('/settings/preferences', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify({ pinned_menus: window.PINNED_MENUS })
+            }).catch(function (e) { console.error('Failed to save pinned menus', e); });
+        }
+
+        function toggleMenuPin(href, btn) {
+            var idx = window.PINNED_MENUS.indexOf(href);
+            if (idx === -1) window.PINNED_MENUS.push(href);
+            else window.PINNED_MENUS.splice(idx, 1);
+
+            document.querySelectorAll('.nav-pin-btn[data-href="' + CSS.escape(href) + '"]').forEach(function (b) {
+                b.classList.toggle('pinned', idx === -1);
+            });
+
+            savePinnedMenus();
+            // Dashboard's Command Center widget (home.blade.php), if present on
+            // this page, defines this hook to refresh its "Pinned" tab live.
+            if (typeof window.onPinnedMenusChanged === 'function') window.onPinnedMenusChanged();
+        }
+
+        (function initSidebarPins() {
+            var scroll = document.getElementById('sidebarNavScroll');
+            if (!scroll) return;
+
+            scroll.querySelectorAll('a.nav-link').forEach(function (link) {
+                var href = link.getAttribute('href');
+                if (!href || href === '#') return;
+
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'nav-pin-btn' + (isMenuPinned(href) ? ' pinned' : '');
+                btn.dataset.href = href;
+                btn.title = 'Pin to Dashboard Command Center';
+                btn.innerHTML = '<i class="fa-solid fa-thumbtack"></i>';
+                btn.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    toggleMenuPin(href, btn);
+                });
+
+                link.appendChild(btn);
+            });
+        })();
 
         function openSidebar() {
             var sidebar = document.getElementById('sidebar');
