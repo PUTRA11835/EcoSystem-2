@@ -47,7 +47,7 @@ class CollectionOutlookExport implements FromArray, WithEvents, ShouldAutoSize
                 $r['ae_name'],
                 $r['term_number'],
                 $r['payment_term'],
-                $r['payment_percentage'],
+                $r['payment_percentage'] ?? 'Fixed amount',
                 $r['amount'],
                 $r['status'],
                 $r['estimated_date'],
