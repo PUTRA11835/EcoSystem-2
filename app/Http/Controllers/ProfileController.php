@@ -98,11 +98,69 @@ class ProfileController extends Controller
             $profileSectionReadonly[$key] = $canView && !$canUpdate;
         }
 
+        // HC-D14: progres kelengkapan data MILIK SENDIRI untuk banner di halaman ini.
+        // Kegagalan menghitung tidak boleh merusak My Profile — banner saja yang hilang.
+        $onboarding = null;
+        try {
+            $onboarding = app(\App\Services\Onboarding\OnboardingProgressService::class)
+                ->forEmployee((int) $employeeId);
+        } catch (\Throwable $e) {
+            Log::error('My Profile: gagal menghitung progres onboarding', [
+                'employee_id' => $employeeId,
+                'error'       => $e->getMessage(),
+            ]);
+        }
+
         return view('master.employee.show', [
             'employee'               => $employee,
             'isOwnProfile'           => true,
             'profileSectionHidden'   => $profileSectionHidden,
             'profileSectionReadonly' => $profileSectionReadonly,
+            'onboarding'             => $onboarding,
+        ]);
+    }
+
+    /**
+     * Progres kelengkapan data MILIK SENDIRI (JSON) — dipakai banner My Profile untuk
+     * memperbarui diri setelah pegawai menyimpan seksi lewat AJAX (halaman tidak dimuat ulang).
+     * Identitas dari sesi, bukan dari request; hanya butir + angka yang dikembalikan.
+     */
+    public function myOnboardingProgress()
+    {
+        $sessionUser = session('user');
+        if (!$sessionUser || ($sessionUser['type'] ?? null) !== 'employee') {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        try {
+            $p = app(\App\Services\Onboarding\OnboardingProgressService::class)
+                ->forEmployee((int) $sessionUser['id']);
+        } catch (\Throwable $e) {
+            Log::error('My Profile: gagal menghitung progres onboarding (refresh)', [
+                'employee_id' => $sessionUser['id'],
+                'error'       => $e->getMessage(),
+            ]);
+            return response()->json(['success' => false, 'message' => 'Could not load progress'], 500);
+        }
+
+        if ($p === null) {
+            return response()->json(['success' => false, 'message' => 'Not found'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'done'    => $p['done'],
+                'total'   => $p['total'],
+                'percent' => $p['percent'],
+                'status'  => $p['status'],
+                'items'   => array_map(fn ($i) => [
+                    'label'   => $i['label'],
+                    'section' => $i['section'],
+                    'hint'    => $i['hint'] ?? null,
+                    'done'    => (bool) $i['done'],
+                ], $p['items']),
+            ],
         ]);
     }
 

@@ -208,6 +208,101 @@
         $firstKey = array_key_first($visibleSections);
     @endphp
 
+    {{-- HC-D14 — Banner progres kelengkapan data (HANYA My Profile; $onboarding tidak
+         dikirim oleh halaman Master). Butir dipisah menurut siapa yang bisa mengisinya:
+         seksi yang tampak DAN tidak read-only bagi pemilik = tombol pindah tab; sisanya
+         (mis. kontrak, tanggal bergabung) dikelola HR dan hanya disebutkan. --}}
+    @php
+        $onb = $onboarding ?? null;
+        $onbEditable = [];
+        $onbHints    = [];
+        $onbHrOnly   = [];
+        if ($onb && $onb['status'] !== 'complete') {
+            foreach ($onb['items'] as $onbItem) {
+                if ($onbItem['done']) {
+                    continue;
+                }
+                $onbKey = str_replace('-', '_', (string) $onbItem['section']);
+                $canFill = isset($visibleSections[$onbKey]) && !($ro[$onbKey] ?? false);
+                if ($canFill) {
+                    $onbEditable[$onbItem['section']][] = $onbItem['label'];
+                    if (!empty($onbItem['hint'])) {
+                        $onbHints[$onbItem['section']][] = ['label' => $onbItem['label'], 'hint' => $onbItem['hint']];
+                    }
+                } else {
+                    $onbHrOnly[] = $onbItem['label'];
+                }
+            }
+        }
+        $onbSectionNames = [
+            'basic-data' => 'Basic Data', 'address' => 'Address', 'identification' => 'Identification',
+            'bank' => 'Bank Account', 'contract' => 'Contract',
+        ];
+        // Seksi yang tampak DAN tidak read-only bagi pemilik — dipakai pembaruan banner sisi klien.
+        $onbEditableSections = [];
+        foreach (array_keys($onbSectionNames) as $onbSec) {
+            $onbSecKey = str_replace('-', '_', $onbSec);
+            if (isset($visibleSections[$onbSecKey]) && !($ro[$onbSecKey] ?? false)) {
+                $onbEditableSections[] = $onbSec;
+            }
+        }
+    @endphp
+    @if($onb)
+    <div id="onboardingBanner" class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-5"
+         data-url="{{ route('profile.onboarding-progress') }}"
+         data-editable='@json($onbEditableSections)'
+         data-names='@json($onbSectionNames)'>
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+                <h3 class="text-base font-bold text-gray-900">Your profile data</h3>
+                <p id="onbSubtitle" class="text-sm mt-0.5 {{ $onb['status'] === 'complete' ? 'text-green-700' : 'text-gray-600' }}">
+                    @if($onb['status'] === 'complete')
+                        <i class="fas fa-check-circle"></i> All required data is filled in. Thank you!
+                    @else
+                        Please complete the items below so payroll, contract and BPJS administration can proceed.
+                    @endif
+                </p>
+            </div>
+            <div class="md:w-72">
+                <div class="flex items-end justify-between">
+                    <span id="onbCount" class="text-xs text-gray-500">{{ $onb['done'] }} of {{ $onb['total'] }} items</span>
+                    <span id="onbPercent" class="text-2xl font-bold text-gray-900">{{ $onb['percent'] }}%</span>
+                </div>
+                <div class="mt-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div id="onbBar" class="h-2 rounded-full primary-solid" style="width: {{ $onb['percent'] }}%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="onbMissing" class="mt-4 space-y-2 {{ $onbEditable ? '' : 'hidden' }}">
+            @if($onbEditable)
+                @foreach($onbEditable as $onbSection => $labels)
+                    <div class="flex flex-wrap items-center gap-2 text-sm">
+                        <button type="button" onclick="switchSection('{{ $onbSection }}'); document.getElementById('section-{{ $onbSection }}')?.scrollIntoView({behavior:'smooth', block:'start'});"
+                                class="px-3 py-1.5 text-xs font-semibold rounded-lg primary-gradient text-white hover:opacity-90 whitespace-nowrap">
+                            Go to {{ $onbSectionNames[$onbSection] ?? $onbSection }}
+                        </button>
+                        <span class="text-gray-700">Missing: {{ implode(', ', $labels) }}</span>
+                    </div>
+                    @if(!empty($onbHints[$onbSection]))
+                        <ul class="ml-1 text-xs text-gray-500 space-y-0.5 list-disc list-inside" data-onb-hints>
+                            @foreach($onbHints[$onbSection] as $h)
+                                <li><span class="font-medium text-gray-700">{{ $h['label'] }}:</span> {{ $h['hint'] }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+                @endforeach
+            @endif
+        </div>
+
+        <p id="onbHrOnly" class="mt-3 text-xs text-gray-500 {{ $onbHrOnly ? '' : 'hidden' }}">
+            @if($onbHrOnly)
+                Maintained by HR (please contact HR if these are wrong): {{ implode(', ', $onbHrOnly) }}.
+            @endif
+        </p>
+    </div>
+    @endif
+
     <!-- Tabs Navigation -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
         <div class="border-b border-gray-200">
@@ -615,6 +710,110 @@
         } finally {
             clearTimeout(profileRevealFallback);
             revealProfilePage();
+        }
+
+        // HC-D27: banner progres memperbarui diri setelah simpan/hapus berhasil di tab mana pun
+        // (seksi menyimpan lewat AJAX, jadi halaman tidak dimuat ulang). Dipicu dari notifikasi
+        // bertipe "success" yang sudah dipanggil semua seksi; dibatasi (debounce) dan hanya
+        // membangun DOM dengan textContent (tanpa innerHTML) — label datang dari konfigurasi.
+        (function () {
+            const banner = document.getElementById('onboardingBanner');
+            if (!banner || typeof window.showNotification !== 'function') { return; }
+            let editable = [], names = {};
+            try { editable = JSON.parse(banner.dataset.editable || '[]'); names = JSON.parse(banner.dataset.names || '{}'); } catch (e) { return; }
+            let timer = null, seq = 0;
+
+            function render(d) {
+                document.getElementById('onbCount').textContent = d.done + ' of ' + d.total + ' items';
+                document.getElementById('onbPercent').textContent = d.percent + '%';
+                document.getElementById('onbBar').style.width = d.percent + '%';
+
+                const sub = document.getElementById('onbSubtitle');
+                sub.textContent = '';
+                if (d.status === 'complete') {
+                    sub.className = 'text-sm mt-0.5 text-green-700';
+                    const ic = document.createElement('i'); ic.className = 'fas fa-check-circle';
+                    sub.appendChild(ic);
+                    sub.appendChild(document.createTextNode(' All required data is filled in. Thank you!'));
+                } else {
+                    sub.className = 'text-sm mt-0.5 text-gray-600';
+                    sub.textContent = 'Please complete the items below so payroll, contract and BPJS administration can proceed.';
+                }
+
+                const bySection = {}, hintsBySection = {}, hrOnly = [];
+                d.items.filter(function (i) { return !i.done; }).forEach(function (i) {
+                    if (editable.indexOf(i.section) !== -1) {
+                        (bySection[i.section] = bySection[i.section] || []).push(i.label);
+                        if (i.hint) { (hintsBySection[i.section] = hintsBySection[i.section] || []).push({ label: i.label, hint: i.hint }); }
+                    }
+                    else { hrOnly.push(i.label); }
+                });
+
+                const box = document.getElementById('onbMissing');
+                box.textContent = '';
+                Object.keys(bySection).forEach(function (sec) {
+                    const row = document.createElement('div');
+                    row.className = 'flex flex-wrap items-center gap-2 text-sm';
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg primary-gradient text-white hover:opacity-90 whitespace-nowrap';
+                    btn.textContent = 'Go to ' + (names[sec] || sec);
+                    btn.addEventListener('click', function () {
+                        switchSection(sec);
+                        const target = document.getElementById('section-' + sec);
+                        if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+                    });
+                    const txt = document.createElement('span');
+                    txt.className = 'text-gray-700';
+                    txt.textContent = 'Missing: ' + bySection[sec].join(', ');
+                    row.appendChild(btn); row.appendChild(txt);
+                    const wrap = document.createElement('div');
+                    wrap.appendChild(row);
+                    const hints = hintsBySection[sec] || [];
+                    if (hints.length) {
+                        const ul = document.createElement('ul');
+                        ul.className = 'ml-1 mt-1 text-xs text-gray-500 space-y-0.5 list-disc list-inside';
+                        hints.forEach(function (h) {
+                            const li = document.createElement('li');
+                            const b = document.createElement('span');
+                            b.className = 'font-medium text-gray-700';
+                            b.textContent = h.label + ': ';
+                            li.appendChild(b);
+                            li.appendChild(document.createTextNode(h.hint));
+                            ul.appendChild(li);
+                        });
+                        wrap.appendChild(ul);
+                    }
+                    box.appendChild(wrap);
+                });
+                box.classList.toggle('hidden', Object.keys(bySection).length === 0);
+
+                const hr = document.getElementById('onbHrOnly');
+                hr.textContent = hrOnly.length ? 'Maintained by HR (please contact HR if these are wrong): ' + hrOnly.join(', ') + '.' : '';
+                hr.classList.toggle('hidden', hrOnly.length === 0);
+            }
+
+            function refresh() {
+                const mine = ++seq;
+                fetch(banner.dataset.url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (j) { if (j && j.success && mine === seq) { render(j.data); } })
+                    .catch(function () { /* banner opsional: biarkan angka lama */ });
+            }
+
+            const original = window.showNotification;
+            window.showNotification = function (message, type) {
+                const result = original.apply(this, arguments);
+                if (type === 'success') { clearTimeout(timer); timer = setTimeout(refresh, 400); }
+                return result;
+            };
+        })();
+
+        // HC-D14: tautan ?section=<tab-id> (dari halaman Onboarding) membuka tab yang diminta.
+        // Nilai tak dikenal diabaikan — tab pertama tetap terbuka.
+        const requestedSection = new URLSearchParams(window.location.search).get('section');
+        if (requestedSection && document.getElementById('section-' + requestedSection)) {
+            switchSection(requestedSection);
         }
     });
 </script>

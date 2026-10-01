@@ -77,6 +77,8 @@ blanket rule.
 | `employee_bank` | Employee bank account numbers |
 | `customer_bank` | Customer bank account numbers |
 | `employee_payment` | Individual payroll/salary figures |
+| `employee_contract` | Contract terms including the `salary` column (added 30 Sep 2026, HC-D32) |
+| `employee_hr_profile` | HR profile: health data (blood type), third-party emergency contact, dormant payroll data (PTKP, dependents, BPJS flags); added 30 Sep 2026 |
 
 **Rule:** not freely queryable. An employee should be able to reach their
 own row (self-service, same as the existing profile pages); reaching

@@ -20,6 +20,8 @@ use App\Http\Controllers\HR_General\MyPurchaseRequestController;
 use App\Http\Controllers\HR_General\MyReimbursementController;
 use App\Http\Controllers\HR_General\PurchaseRequestController;
 use App\Http\Controllers\HR_General\PurchaseRequestSettingController;
+use App\Http\Controllers\HR_General\OnboardingController;
+use App\Http\Controllers\SidebarFavoriteController;
 use App\Http\Controllers\HR_General\OvertimeReviewController;
 use App\Http\Controllers\HR_General\OvertimeSettingController;
 use App\Http\Controllers\HR_General\RecruitmentCandidateController;
@@ -1245,3 +1247,28 @@ Route::prefix('management/cash-advance-settings')
         Route::post('/steps/{step}/delete', [CashAdvanceSettingController::class, 'destroyStep'])->name('steps.destroy');
         Route::post('/steps/{step}/move', [CashAdvanceSettingController::class, 'moveStep'])->name('steps.move');
     });
+
+/**
+ * HUMAN CAPITAL — ONBOARDING (progres kelengkapan data master employee).
+ *
+ * v1 hanya MEMBACA (HC-D14): dua rute GET, tanpa tabel baru. Dijaga satu slug,
+ * `general.onboarding`, karena halaman ini menampilkan progres SEMUA karyawan.
+ * Karyawan melihat progres dirinya sendiri lewat banner di My Profile.
+ */
+Route::prefix('general/onboarding')
+    ->name('general.onboarding.')
+    ->middleware([CheckAuthToken::class, 'menu:general.onboarding'])
+    ->group(function () {
+        Route::get('/', [OnboardingController::class, 'index'])->name('index');
+        Route::get('/{employeeId}', [OnboardingController::class, 'show'])->whereNumber('employeeId')->name('show');
+    });
+
+/**
+ * SIDEBAR — MENU FAVORIT (HC-D25). Satu rute POST, semantik "replace": browser
+ * mengirim daftar jalur terurut. Identitas dari sesi; jalur divalidasi sebagai rute
+ * GET yang ada. Ditaruh di berkas ini karena berkas ini dimuat web.php tanpa
+ * menambah baris `require` baru pada berkas rute produksi.
+ */
+Route::post('/sidebar/favorites', [SidebarFavoriteController::class, 'sync'])
+    ->middleware([CheckAuthToken::class, 'throttle:60,1'])
+    ->name('sidebar.favorites.sync');

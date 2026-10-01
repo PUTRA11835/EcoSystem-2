@@ -1,13 +1,57 @@
 <aside id="sidebar"
-    class="sidebar-transition fixed inset-y-0 left-0 h-screen overflow-y-auto {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
-    <!-- Logo Section -->
-    <div class="sidebar-logo p-5 pb-2 flex items-center justify-center">
-        <div class="w-full rounded-xl p-3 backdrop-blur-sm">
-            <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="w-full h-auto" />
+    class="sidebar-transition fixed inset-y-0 left-0 h-screen flex flex-col overflow-hidden {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
+    @php
+        // HC-D25 — Favorit hanya untuk karyawan (portal pelanggan tidak memakainya).
+        // forEmployee() tidak pernah melempar galat: sidebar tampil di SETIAP halaman.
+        $sbFavoritesEnabled = (session('user.type') ?? null) === 'employee';
+        $sbFavorites = $sbFavoritesEnabled
+            ? app(\App\Services\Sidebar\SidebarFavoriteService::class)->forEmployee((int) session('user.id'))
+            : [];
+    @endphp
+    <script>
+        window.__sidebarFavoritesEnabled = @json($sbFavoritesEnabled);
+        window.__sidebarFavorites = @json($sbFavorites);
+        window.__sidebarFavoritesMax = {{ \App\Services\Sidebar\SidebarFavoriteService::MAX }};
+    </script>
+
+    {{-- HC: header TETAP (logo + pencarian menu). Dulu seluruh <aside> yang di-scroll
+         (overflow-y-auto) sehingga logo ikut terguling. Kini <aside> berupa kolom flex:
+         header `flex-shrink-0` tidak pernah bergeser, hanya #sidebarScroll di bawahnya
+         yang menggulung. --}}
+    <div id="sidebarHeader" class="flex-shrink-0 px-4 pt-4 pb-3">
+        <!-- Logo Section -->
+        <div class="sidebar-logo flex items-center justify-center">
+            <div class="w-full rounded-xl px-3 backdrop-blur-sm">
+                <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="w-full h-auto mx-auto" style="max-height:64px; object-fit:contain;" />
+            </div>
+        </div>
+
+        <!-- Pencarian menu -->
+        <div class="relative mt-3">
+            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-white text-opacity-60 pointer-events-none"></i>
+            <input id="sidebarSearch" type="search" autocomplete="off" spellcheck="false"
+                placeholder="Search menu..."
+                aria-label="Search menu"
+                class="w-full pl-9 pr-8 py-2 rounded-lg text-sm text-white placeholder-white placeholder-opacity-60 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-40">
+            <button type="button" id="sidebarSearchClear" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-white text-opacity-70 hover:text-opacity-100 text-xs" aria-label="Clear search">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        {{-- HC-D25 — FAVORIT. Di header TETAP agar selalu terlihat; disembunyikan bila kosong.
+             Isinya SALINAN tautan yang sudah ada di sidebar (sudah disaring izin di server),
+             sehingga favorit tak bisa membuka halaman yang izinnya sudah dicabut. --}}
+        <div id="sidebarFavorites" class="hidden mt-3">
+            <button type="button" id="sidebarFavToggle" class="w-full flex items-center justify-between px-1 pb-1 text-left" aria-expanded="true" aria-controls="sidebarFavList">
+                <span class="sb-label-inline">Favorites</span>
+                <i class="fas fa-chevron-down text-[10px] text-white text-opacity-60 transition-transform" id="sidebarFavChevron"></i>
+            </button>
+            <div id="sidebarFavList" class="space-y-1"></div>
         </div>
     </div>
 
-    <!-- Navigation Menu -->
+    <!-- Navigation Menu (satu-satunya bagian yang di-scroll) -->
+    <div id="sidebarScroll" class="flex-1 min-h-0 overflow-y-auto">
     @hasSection('sidebar-nav')
         @yield('sidebar-nav')
     @else
@@ -458,6 +502,34 @@
                 </div>
             @endif
 
+            {{-- HC-D18 — Grup "HUMAN CAPITAL" seperti pada aplikasi acuan (ESH). Label seksi +
+                 item yang SUDAH ada saja; item lain (Struktur Organisasi, Rekrutmen, Offering
+                 Letter, Kontrak, Template Kontrak, Offboarding) ditambahkan di sini saat
+                 modulnya dibangun — tidak ada tautan mati. Master → Employee TETAP ada
+                 (prinsip HC-D15: hanya penambahan). Gerbang tiap item = slug-nya sendiri,
+                 tanpa `|| $can('general')`, agar item tak muncul hanya karena memegang induk. --}}
+            @if($can('master.employee') || $can('general.onboarding'))
+                <div class="sb-label nav-text">Human Capital</div>
+                @if($can('master.employee'))
+                    <a href="{{ route('master.employee.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-users text-sm"></i>
+                        </span>
+                        <span class="nav-text text-sm">Employee Data</span>
+                    </a>
+                @endif
+                @if($can('general.onboarding'))
+                    <a href="{{ route('general.onboarding.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/onboarding*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-user-check text-sm"></i>
+                        </span>
+                        <span class="nav-text text-sm">Onboarding</span>
+                    </a>
+                @endif
+            @endif
+
             @if($can('financial'))
                 <!-- FINANCIAL -->
                 <div class="mb-2">
@@ -613,6 +685,7 @@
                                 <span class="nav-text text-sm">Overtime Management</span>
                             </a>
                         @endif
+
 
                         {{-- 🔴 D177 — Gerbang & landasan DILEBARKAN, pola sama dengan
                              Overtime di atas: Reimbursement Settings kini tab kedua di
@@ -1306,7 +1379,386 @@
             </div>
         </nav>
     @endif
+    </div>{{-- /#sidebarScroll --}}
 </aside>
+
+<style>
+    /* HC: pencarian menu & gulir sidebar. ID (#sidebar) menang spesifisitas atas aturan
+       generik input dark mode di layout (`input { background:#374151 !important }`). */
+    #sidebar #sidebarSearch {
+        background-color: rgba(255, 255, 255, 0.12) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    #sidebar #sidebarSearch::placeholder { color: rgba(255, 255, 255, 0.6) !important; }
+    #sidebar #sidebarSearch::-webkit-search-cancel-button { display: none; }
+    #sidebar .sb-hide { display: none !important; }
+    /* Favorit */
+    #sidebar .sb-label-inline {
+        font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55);
+    }
+    #sidebarFavList { max-height: 30vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.35) transparent; }
+    #sidebar .sb-star {
+        margin-left: auto; padding: 2px 4px; border-radius: 6px; font-size: 12px; line-height: 1;
+        color: rgba(255, 255, 255, 0.75); opacity: 0; cursor: pointer; transition: opacity .15s;
+    }
+    #sidebar a.nav-link:hover .sb-star, #sidebar .sb-star:focus, #sidebar .sb-star.on { opacity: 1; }
+    #sidebar .sb-star.on { color: #fde047; }
+    #sidebar .sb-star:hover { background: rgba(255, 255, 255, 0.18); }
+    @media (hover: none) { #sidebar .sb-star { opacity: .55; } #sidebar .sb-star.on { opacity: 1; } }
+    #sidebarScroll { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.35) transparent; }
+    #sidebarScroll::-webkit-scrollbar { width: 6px; }
+    #sidebarScroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.35); border-radius: 9999px; }
+    /* Label seksi (mis. HUMAN CAPITAL) */
+    #sidebar .sb-label {
+        font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.55); padding: 14px 16px 4px;
+    }
+</style>
+
+<script>
+    /**
+     * Pencarian menu sidebar. Menyaring tautan (`a.nav-link`) di dalam #sidebarScroll:
+     *  - yang cocok tetap tampil, induk dropdown-nya DIBUKA otomatis;
+     *  - blok tingkat atas tanpa tautan cocok disembunyikan (label seksi ikut);
+     *  - bila NAMA grup yang cocok (mis. "hr"), seluruh isi grup ditampilkan;
+     *  - dikosongkan / Esc → keadaan dropdown dikembalikan persis seperti sebelum mencari.
+     * Enter membuka tautan cocok pertama.
+     */
+    (function () {
+        var input = document.getElementById('sidebarSearch');
+        var scroll = document.getElementById('sidebarScroll');
+        var clearBtn = document.getElementById('sidebarSearchClear');
+        if (!input || !scroll) { return; }
+
+        var wasHidden = null; // elemen `.hidden` sebelum pencarian pertama
+
+        function topBlocks() {
+            var nav = scroll.querySelector('nav');
+            return Array.prototype.slice.call((nav || scroll).children);
+        }
+
+        function restore() {
+            scroll.querySelectorAll('.sb-hide').forEach(function (el) { el.classList.remove('sb-hide'); });
+            if (wasHidden) {
+                wasHidden.forEach(function (el) { el.classList.add('hidden'); });
+                wasHidden = null;
+            }
+        }
+
+        function apply() {
+            var q = input.value.trim().toLowerCase();
+            clearBtn.classList.toggle('hidden', q === '');
+            if (q === '') { restore(); return; }
+
+            if (!wasHidden) {
+                wasHidden = [];
+                scroll.querySelectorAll('.hidden').forEach(function (el) { wasHidden.push(el); });
+            }
+            scroll.querySelectorAll('.sb-hide').forEach(function (el) { el.classList.remove('sb-hide'); });
+
+            function has(el) { return (el.textContent || '').toLowerCase().indexOf(q) !== -1; }
+
+            // Sebuah tautan cocok bila teksnya cocok, ATAU nama grup dropdown yang
+            // MEMBUNGKUSNYA cocok (tombol toggle = saudara sebelum wadah dropdown).
+            // Nama sub-grup hanya mencocokkan isinya sendiri, bukan grup induknya.
+            function linkMatches(a) {
+                if (has(a)) { return true; }
+                for (var p = a.parentElement; p && p !== scroll; p = p.parentElement) {
+                    var prev = p.previousElementSibling;
+                    if (prev && prev.matches && prev.matches('button.nav-link') && has(prev)) { return true; }
+                }
+                return false;
+            }
+
+            var links = Array.prototype.slice.call(scroll.querySelectorAll('a.nav-link'));
+            var matched = links.filter(linkMatches);
+
+            links.forEach(function (a) { if (matched.indexOf(a) === -1) { a.classList.add('sb-hide'); } });
+            matched.forEach(function (a) {
+                for (var p = a.parentElement; p && p !== scroll; p = p.parentElement) {
+                    p.classList.remove('hidden');
+                }
+            });
+
+            // Tombol toggle grup yang isinya tak ada yang cocok ikut disembunyikan.
+            scroll.querySelectorAll('button.nav-link').forEach(function (b) {
+                var box = b.nextElementSibling;
+                if (box && !box.querySelector('a.nav-link:not(.sb-hide)')) { b.classList.add('sb-hide'); }
+            });
+
+            // Blok tingkat atas (dan label seksi) tanpa satu pun tautan tampil disembunyikan.
+            topBlocks().forEach(function (block) {
+                var shown = block.matches('a.nav-link')
+                    ? !block.classList.contains('sb-hide')
+                    : !!block.querySelector('a.nav-link:not(.sb-hide)');
+                if (!shown) { block.classList.add('sb-hide'); }
+            });
+        }
+
+        input.addEventListener('input', apply);
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { input.value = ''; apply(); }
+            if (e.key === 'Enter') {
+                var first = Array.prototype.slice.call(scroll.querySelectorAll('a.nav-link'))
+                    .filter(function (a) { return !a.closest('.sb-hide') && !a.classList.contains('sb-hide') && a.getAttribute('href') && a.getAttribute('href') !== '#'; })[0];
+                if (first) { window.location.href = first.getAttribute('href'); }
+            }
+        });
+        clearBtn.addEventListener('click', function () { input.value = ''; apply(); input.focus(); });
+    })();
+
+    /**
+     * FAVORIT (HC-D25). Bintang muncul saat menu di-hover/fokus; klik menyematkan menu ke
+     * bagian "Favorites" di header tetap (maks. window.__sidebarFavoritesMax).
+     *  - Yang disimpan hanya JALUR URL; tampilannya SALINAN tautan yang sudah ada di sidebar
+     *    (sudah disaring izin di server). Jalur yang tautannya tak ada lagi tidak ditampilkan.
+     *  - Simpan ke server semantik "replace"; bila gagal, keadaan dikembalikan + pemberitahuan.
+     *  - Tidak memakai innerHTML dengan data tersimpan (hanya cloneNode) → tidak ada jalur XSS.
+     */
+    (function () {
+        var scroll = document.getElementById('sidebarScroll');
+        var box = document.getElementById('sidebarFavorites');
+        var list = document.getElementById('sidebarFavList');
+        var toggle = document.getElementById('sidebarFavToggle');
+        var chevron = document.getElementById('sidebarFavChevron');
+        if (!scroll || !box || !list || !window.__sidebarFavoritesEnabled) { return; }
+
+        var MAX = window.__sidebarFavoritesMax || 6;
+        var COLLAPSED_KEY = 'ecosystem:sidebar:favorites:collapsed';
+        var favs = Array.isArray(window.__sidebarFavorites) ? window.__sidebarFavorites.slice() : [];
+        var FORBIDDEN = /^\/(api|auth|sidebar)(\/|$)|^\/logout(\/|$)/;
+
+        function pathOf(a) {
+            var href = a.getAttribute('href');
+            if (!href || href === '#' || href.indexOf('javascript:') === 0) { return null; }
+            try {
+                var u = new URL(href, window.location.origin);
+                if (u.origin !== window.location.origin || FORBIDDEN.test(u.pathname)) { return null; }
+                return u.pathname.length > 1 ? u.pathname.replace(/\/+$/, '') : u.pathname;
+            } catch (e) { return null; }
+        }
+
+        var links = Array.prototype.slice.call(scroll.querySelectorAll('a.nav-link')).filter(function (a) { return pathOf(a) !== null; });
+
+        function makeStar(on) {
+            var s = document.createElement('span');
+            s.className = 'sb-star' + (on ? ' on' : '');
+            s.setAttribute('role', 'button');
+            s.setAttribute('tabindex', '0');
+            var label = on ? 'Remove from favorites' : 'Add to favorites';
+            s.setAttribute('aria-label', label);
+            s.title = label;
+            var i = document.createElement('i');
+            i.className = (on ? 'fas' : 'far') + ' fa-star';
+            s.appendChild(i);
+            return s;
+        }
+
+        function existsInSidebar(path) {
+            return links.some(function (a) { return pathOf(a) === path; });
+        }
+
+        function render() {
+            // Bintang pada tautan utama.
+            links.forEach(function (a) {
+                var old = a.querySelector('.sb-star');
+                if (old) { old.remove(); }
+                a.appendChild(makeStar(favs.indexOf(pathOf(a)) !== -1));
+            });
+            // Bagian Favorites: salinan tautan yang MASIH ada (berizin).
+            list.textContent = '';
+            var shown = 0;
+            favs.forEach(function (path) {
+                var src = links.filter(function (a) { return pathOf(a) === path; })[0];
+                if (!src) { return; }
+                var clone = src.cloneNode(true);
+                var oldStar = clone.querySelector('.sb-star');
+                if (oldStar) { oldStar.remove(); }
+                clone.removeAttribute('id');
+                clone.appendChild(makeStar(true));
+                list.appendChild(clone);
+                shown++;
+            });
+            box.classList.toggle('hidden', shown === 0);
+        }
+
+        function save(previous) {
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            fetch('/sidebar/favorites', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': meta ? meta.content : '' },
+                body: JSON.stringify({ paths: favs })
+            }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+              .then(function (res) {
+                  if (!res.ok || !res.body.success) { throw new Error('save failed'); }
+                  favs = res.body.data.paths.slice();
+                  render();
+              })
+              .catch(function () {
+                  favs = previous;
+                  render();
+                  if (window.showNotification) { window.showNotification('Could not save your favorites. Please try again.', 'error'); }
+              });
+        }
+
+        function toggleFavorite(path) {
+            var previous = favs.slice();
+            var idx = favs.indexOf(path);
+            if (idx !== -1) {
+                favs.splice(idx, 1);
+            } else {
+                // Buang dulu favorit yang tautannya sudah tak ada (izin dicabut) agar tidak memakan kuota diam-diam.
+                favs = favs.filter(existsInSidebar);
+                if (favs.length >= MAX) {
+                    favs = previous;
+                    if (window.showNotification) { window.showNotification('You can pin up to ' + MAX + ' favorites. Remove one first.', 'warning'); }
+                    return;
+                }
+                favs.push(path);
+            }
+            render();
+            save(previous);
+        }
+
+        function starClick(e) {
+            var star = e.target.closest ? e.target.closest('.sb-star') : null;
+            if (!star) { return; }
+            var a = star.closest('a.nav-link');
+            var path = a ? pathOf(a) : null;
+            e.preventDefault();
+            e.stopPropagation();
+            if (path) { toggleFavorite(path); }
+        }
+        var sidebar = document.getElementById('sidebar');
+        sidebar.addEventListener('click', starClick, true);
+        sidebar.addEventListener('keydown', function (e) {
+            if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('sb-star')) { starClick(e); }
+        }, true);
+
+        // Bagian Favorites dapat dilipat; pilihan diingat di peramban ini.
+        function applyCollapsed(collapsed) {
+            list.classList.toggle('hidden', collapsed);
+            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            if (chevron) { chevron.classList.toggle('rotate-180', collapsed); }
+        }
+        try { applyCollapsed(localStorage.getItem(COLLAPSED_KEY) === '1'); } catch (e) { /* opsional */ }
+        toggle.addEventListener('click', function () {
+            var collapsed = !list.classList.contains('hidden');
+            applyCollapsed(collapsed);
+            try { localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0'); } catch (e) { /* opsional */ }
+        });
+
+        render();
+    })();
+
+    /**
+     * Sidebar TIDAK kembali ke atas setelah pindah halaman. Halaman dimuat ulang penuh
+     * (bukan SPA), sehingga posisi gulir #sidebarScroll dan dropdown yang dibuka manual
+     * hilang setiap klik menu. Keadaan disimpan di sessionStorage (per tab; bersih saat
+     * tab ditutup) dan dipulihkan SINKRON sebelum browser melukis halaman — tanpa kedipan.
+     *  1. dropdown yang dibuka manual dibuka kembali;
+     *  2. posisi gulir dipulihkan;
+     *  3. item AKTIF dipastikan terlihat (mis. kunjungan pertama, atau membuka URL langsung).
+     * Posisi TIDAK disimpan selama kolom pencarian terisi (daftar sedang tersaring, jadi
+     * posisinya tidak berlaku pada daftar penuh di halaman berikutnya).
+     */
+    (function () {
+        var KEY = 'ecosystem:sidebar:v1';
+        var scroll = document.getElementById('sidebarScroll');
+        var search = document.getElementById('sidebarSearch');
+        if (!scroll) { return; }
+
+        function load() { try { return JSON.parse(sessionStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
+        function save(patch) {
+            try {
+                var s = load();
+                for (var k in patch) { s[k] = patch[k]; }
+                sessionStorage.setItem(KEY, JSON.stringify(s));
+            } catch (e) { /* storage dinonaktifkan/penuh: fitur ini opsional */ }
+        }
+
+        var state = load();
+
+        // 1. Buka kembali dropdown yang dibuka manual (server hanya membuka grup halaman aktif).
+        var open = state.open || {};
+        Object.keys(open).forEach(function (dropdownId) {
+            var box = document.getElementById(dropdownId);
+            if (!box) { return; }
+            box.classList.remove('hidden');
+            var chevron = document.getElementById(open[dropdownId]);
+            if (chevron && !chevron.classList.contains('rotate-180')) { chevron.classList.add('rotate-180'); }
+        });
+
+        // 2. Pulihkan posisi gulir.
+        if (typeof state.scroll === 'number') { scroll.scrollTop = state.scroll; }
+
+        // 3. Pastikan item aktif terlihat.
+        var active = scroll.querySelector('a.nav-link.bg-opacity-15, a.nav-link.active');
+        if (active) {
+            var r = active.getBoundingClientRect();
+            var s = scroll.getBoundingClientRect();
+            if (r.height > 0 && (r.top < s.top || r.bottom > s.bottom)) {
+                scroll.scrollTop += (r.top - s.top) - (s.height / 2 - r.height / 2);
+            }
+        }
+
+        function searching() { return !!(search && search.value.trim() !== ''); }
+        var timer = null;
+        scroll.addEventListener('scroll', function () {
+            clearTimeout(timer);
+            timer = setTimeout(function () { if (!searching()) { save({ scroll: scroll.scrollTop }); } }, 80);
+        }, { passive: true });
+        window.addEventListener('pagehide', function () { if (!searching()) { save({ scroll: scroll.scrollTop }); } });
+
+        // Chevron milik sebuah dropdown = elemen ber-id `*Chevron` di tombol toggle-nya
+        // (saudara sebelum wadah dropdown).
+        function chevronOf(box) {
+            var btn = box.previousElementSibling;
+            var ch = btn && btn.querySelector ? btn.querySelector('[id$="Chevron"]') : null;
+            return ch ? ch.id : null;
+        }
+        var boxes = scroll.querySelectorAll('[id$="Dropdown"], [id$="Submenu"]');
+
+        // Catat setiap buka/tutup dropdown dengan MENGAMATI kelas `hidden` di DOM. Layout
+        // (dashboard.blade.php) punya fungsi toggle sendiri per grup dengan variabel status
+        // berbeda-beda, jadi mengait ke satu fungsi tidak akan menjangkau semuanya.
+        // Selama pencarian aktif perubahan diabaikan (pencarian membuka grup sementara).
+        if (window.MutationObserver) {
+            var observer = new MutationObserver(function (mutations) {
+                if (searching()) { return; }
+                mutations.forEach(function (m) {
+                    var box = m.target;
+                    var chevron = chevronOf(box);
+                    if (!chevron) { return; }
+                    var o = load().open || {};
+                    if (box.classList.contains('hidden')) { delete o[box.id]; } else { o[box.id] = chevron; }
+                    save({ open: o });
+                });
+            });
+            boxes.forEach(function (box) { observer.observe(box, { attributes: true, attributeFilter: ['class'] }); });
+        }
+
+        // Layout memegang variabel status sendiri (mis. `isHrGeneralDropdownOpen`) yang
+        // diisi dari URL SETELAH skrip ini berjalan. Bila dropdown sudah dibuka oleh
+        // pemulihan di atas tetapi variabelnya masih `false`, klik pertama pengguna
+        // menjadi "buka lagi" — terasa tidak bereaksi. Sinkronkan variabelnya dengan DOM.
+        document.addEventListener('DOMContentLoaded', function () {
+            boxes.forEach(function (box) {
+                var chevron = chevronOf(box);
+                if (!chevron) { return; }
+                var base = chevron.replace(/Chevron$/, '');
+                var name = 'is' + base.charAt(0).toUpperCase() + base.slice(1) + 'DropdownOpen';
+                if (!/^is[A-Za-z]+DropdownOpen$/.test(name)) { return; }
+                try {
+                    // Eval tidak langsung = lingkup global, menjangkau `var` maupun `let` di layout.
+                    (0, eval)('if (typeof ' + name + ' !== "undefined") { ' + name + ' = ' + (!box.classList.contains('hidden')) + '; }');
+                } catch (e) { /* CSP melarang eval: hanya klik pertama yang tidak bereaksi */ }
+            });
+        });
+    })();
+</script>
 
 <script>
     function toggleSidebarDropdown(dropdownId, chevronId) {

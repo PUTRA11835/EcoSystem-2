@@ -71,6 +71,21 @@ class TableAccess
             'self_permission' => 'my-profile.section.identification.view',
             'permission' => 'employee.section.identification.view',
         ],
+        // HC-D32 (T4): kolom `salary` kontrak sebelumnya terbuka bagi asisten AI. Pola sama dengan
+        // tabel bank/payment: pemilik hanya melihat barisnya sendiri, orang lain butuh izin seksi kontrak.
+        'employee_contract' => [
+            'self_field' => 'employee_id',
+            'self_permission' => 'my-profile.section.contract.view',
+            'permission' => 'employee.section.contract.view',
+        ],
+        // HC-D20/D21: profil HR memuat data kesehatan, kontak darurat pihak ketiga, dan data payroll
+        // NONAKTIF. Slug `*.hr_profile.view` dibuat di langkah H3.4; SEBELUM itu tak seorang pun
+        // memilikinya sehingga tabel tertutup untuk asisten AI (default aman, tabel juga masih kosong).
+        'employee_hr_profile' => [
+            'self_field' => 'employee_id',
+            'self_permission' => 'my-profile.section.hr_profile.view',
+            'permission' => 'employee.section.hr_profile.view',
+        ],
         'customer_bank' => [
             'self_field' => null,
             'self_permission' => null,
