@@ -74,7 +74,7 @@ class LiteNotificationController extends Controller
         }
 
         $employeeId   = $user['id'];
-        $messageTypes = ['ticket_reply', 'ticket_internal_note', 'mention'];
+        $messageTypes = ['ticket_reply', 'ticket_internal_note', 'mention', 'note_reply'];
 
         $count = Notification::where('employee_id', $employeeId)
             ->where('is_read', false)

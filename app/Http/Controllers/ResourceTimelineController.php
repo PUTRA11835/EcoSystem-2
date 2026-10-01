@@ -106,6 +106,7 @@ class ResourceTimelineController extends Controller
                 'location'             => 'nullable|string|max:255',
                 'previous_start_date'  => 'nullable|date',
                 'previous_end_date'    => 'nullable|date|after_or_equal:previous_start_date',
+                'previous_location'    => 'nullable|string|max:255',
             ]);
 
             $this->service->upsertRange(
@@ -114,7 +115,8 @@ class ResourceTimelineController extends Controller
                 $validated['end_date'],
                 $validated['location'] ?? null,
                 $validated['previous_start_date'] ?? null,
-                $validated['previous_end_date'] ?? null
+                $validated['previous_end_date'] ?? null,
+                $validated['previous_location'] ?? null
             );
 
             return response()->json(['success' => true, 'message' => 'Timeline saved.']);
@@ -138,12 +140,13 @@ class ResourceTimelineController extends Controller
         }
 
         try {
-            $validated = $this->validateRange($request);
+            $validated = $this->validateRange($request, ['location' => 'nullable|string|max:255']);
 
             $this->service->deleteRange(
                 $validated['employee_id'],
                 $validated['start_date'],
-                $validated['end_date']
+                $validated['end_date'],
+                $validated['location'] ?? null
             );
 
             return response()->json(['success' => true, 'message' => 'Timeline cleared.']);

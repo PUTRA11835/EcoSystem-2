@@ -363,23 +363,6 @@ class LiteAuthController extends Controller
 
         TwoFactorAuthService::clearFailedChallenge($authUserId);
 
-        if ($usedRecoveryCode) {
-            $event = SecurityEvent::record([
-                'event_type'         => 'two_factor_recovery_code_used',
-                'severity'           => 'medium',
-                'module'             => 'Auth',
-                'status'             => 'open',
-                'title'              => 'Recovery code used to log in',
-                'description'        => "Auth user #{$authUserId} logged in via Lite API using a 2FA recovery code instead of an authenticator code - often a sign they lost access to their device.",
-                'target_employee_id' => $authUser->employee_id,
-                'ip_address'         => $request->ip(),
-            ]);
-
-            if ($event) {
-                $loginSecurity->notifyAdmins($event, "Recovery code used for auth user #{$authUserId} (Lite API)");
-            }
-        }
-
         $sessionData = AuthController::buildEmployeeSessionData($authUser->employee_id);
 
         if (!$sessionData) {

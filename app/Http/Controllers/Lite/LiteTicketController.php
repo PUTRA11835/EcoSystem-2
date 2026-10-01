@@ -275,8 +275,9 @@ class LiteTicketController extends Controller
                 ]);
 
                 // Notifikasi mention (non-fatal) — reuse logic yang sama dengan web.
+                $notifiedIds = [];
                 if (!empty($mentionedEmployeeIds) || !empty($mentionedRoleIds)) {
-                    app(TicketMessageController::class)->createMentionNotifications(
+                    $notifiedIds = app(TicketMessageController::class)->createMentionNotifications(
                         $message,
                         $ticket,
                         (int) $user['id'],
@@ -285,6 +286,15 @@ class LiteTicketController extends Controller
                         $mentionedRoleIds
                     );
                 }
+
+                // Reply ke note orang lain: penulis aslinya dinotifikasi tanpa perlu di-tag.
+                app(TicketMessageController::class)->createReplyToNotification(
+                    $message,
+                    $ticket,
+                    (int) $user['id'],
+                    $user['name'],
+                    $notifiedIds
+                );
             } else {
                 // Parse CC — array, atau JSON string berisi array. null = tidak dikirim
                 // (pakai CC tiket saat ini); [] eksplisit = hapus semua CC.

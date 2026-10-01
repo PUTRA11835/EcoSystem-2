@@ -103,7 +103,7 @@ class NotificationController extends Controller
         }
 
         $employeeId   = $sessionUser['id'];
-        $messageTypes = ['ticket_reply', 'ticket_internal_note'];
+        $messageTypes = ['ticket_reply', 'ticket_internal_note', 'note_reply'];
 
         // Unified badge count — now includes chat/message types too, so ticket
         // replies show up in the bell like any other notification.

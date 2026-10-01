@@ -17,17 +17,21 @@ use Illuminate\Support\Facades\DB;
 class ResourceTimelineService
 {
     /**
-     * Query dasar: seluruh employee aktif dengan position "SAP CONSULTANT".
+     * Query dasar: seluruh employee aktif dengan position "SAP CONSULTANT"
+     * yang tidak di-block dan tidak kena deletion_flag.
      * Sama persis filter yang sudah dipakai ConsultantWorkloadController@list.
      *
      * $homeBase opsional: batasi ke satu lokasi kantor (App\Enums\HomeBase).
      */
     public function consultantsQuery(?string $homeBase = null)
     {
-        return Employee::with(['basicData', 'qualifications.module', 'ledModules'])
+        return Employee::with(['basicData', 'qualifications.module', 'ledModules.groups'])
             ->where('is_active', true)
             ->whereHas('basicData', function ($q) use ($homeBase) {
-                $q->byPosition('SAP CONSULTANT');
+                // Blocked / deletion-flagged consultants are not resources anymore.
+                $q->byPosition('SAP CONSULTANT')
+                  ->where('block', false)
+                  ->where('deletion_flag', false);
                 if ($homeBase) {
                     $q->where('home_base', $homeBase);
                 }
@@ -67,11 +71,15 @@ class ResourceTimelineService
 
         $locationsByEmployee = ResourceTimeline::whereIn('employee_id', $employeeIds)
             ->whereBetween('date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+            ->orderBy('id')
             ->get()
             ->groupBy('employee_id')
-            ->map(fn ($rows) => $rows->mapWithKeys(fn (ResourceTimeline $rt) => [
-                $rt->date->format('Y-m-d') => $rt->location,
-            ]));
+            // date => [location, ...] — a consultant can be on several projects
+            // on the same day (overlapping assignments).
+            ->map(fn ($rows) => $rows
+                ->groupBy(fn (ResourceTimeline $rt) => $rt->date->format('Y-m-d'))
+                ->map(fn ($day) => $day->pluck('location')->filter()->values()->all())
+            );
 
         $rows = $consultants->map(function (Employee $emp) use ($locationsByEmployee) {
             $modules = $emp->qualifications
@@ -86,6 +94,18 @@ class ResourceTimelineService
                 ->sort(SORT_NATURAL | SORT_FLAG_CASE)
                 ->values();
 
+            // Status shows Module *Groups* the person leads (e.g. "Lead Technical")
+            // instead of every led module, to keep the column short. A module
+            // that belongs to no active group falls back to its own name.
+            $leadLabels = $emp->ledModules
+                ->flatMap(function ($module) {
+                    $groups = $module->groups->where('is_active', true)->pluck('name');
+                    return $groups->isNotEmpty() ? $groups : collect([$module->name]);
+                })
+                ->unique()
+                ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+                ->values();
+
             $dates = $locationsByEmployee->get($emp->employee_id, collect());
 
             return [
@@ -94,7 +114,7 @@ class ResourceTimelineService
                 'group_key'    => $modules->first(), // null -> sorted last
                 'module_label' => $modules->implode(', '),
                 'is_lead'      => $leadModules->isNotEmpty(),
-                'status_label' => $leadModules->map(fn ($m) => "Lead {$m}")->implode(', '),
+                'status_label' => $leadLabels->map(fn ($g) => "Lead {$g}")->implode(', '),
                 'dates'        => $dates->all(),
             ];
         });
@@ -120,7 +140,9 @@ class ResourceTimelineService
     /**
      * Ringkasan range untuk satu consultant (dipakai list "existing entries"
      * di Create Timeline modal). Hari-hari berurutan dengan lokasi sama
-     * digabung jadi satu range.
+     * digabung jadi satu range. Consultant boleh punya beberapa lokasi di
+     * tanggal yang sama (project overlap), jadi digabung per lokasi dulu —
+     * range antar lokasi boleh saling tumpang-tindih.
      *
      * @return array<int,array{start:string,end:string,location:string}>
      */
@@ -130,48 +152,52 @@ class ResourceTimelineService
             ->whereNotNull('location')
             ->where('location', '!=', '')
             ->orderBy('date')
-            ->get(['date', 'location']);
+            ->get(['date', 'location'])
+            ->groupBy('location');
 
-        $ranges  = [];
-        $current = null;
+        $ranges = [];
 
-        foreach ($entries as $entry) {
-            if ($current
-                && $current['location'] === $entry->location
-                && Carbon::parse($current['end'])->addDay()->isSameDay($entry->date)
-            ) {
-                $current['end'] = $entry->date->format('Y-m-d');
-                continue;
+        foreach ($entries as $location => $rows) {
+            $current = null;
+
+            foreach ($rows as $entry) {
+                if ($current && Carbon::parse($current['end'])->addDay()->isSameDay($entry->date)) {
+                    $current['end'] = $entry->date->format('Y-m-d');
+                    continue;
+                }
+
+                if ($current) {
+                    $ranges[] = $current;
+                }
+
+                $current = [
+                    'start'    => $entry->date->format('Y-m-d'),
+                    'end'      => $entry->date->format('Y-m-d'),
+                    'location' => (string) $location,
+                ];
             }
 
             if ($current) {
                 $ranges[] = $current;
             }
-
-            $current = [
-                'start'    => $entry->date->format('Y-m-d'),
-                'end'      => $entry->date->format('Y-m-d'),
-                'location' => $entry->location,
-            ];
         }
 
-        if ($current) {
-            $ranges[] = $current;
-        }
+        usort($ranges, fn ($a, $b) => [$a['start'], $a['end'], $a['location']] <=> [$b['start'], $b['end'], $b['location']]);
 
         return $ranges;
     }
 
     /**
-     * Create/update: expand range jadi satu baris per tanggal. Location
-     * kosong/blank berarti "kosongkan" -> baris di range tsb dihapus.
+     * Create/update: expand range jadi satu baris per tanggal PER LOKASI.
+     * Lokasi lain di tanggal yang sama tidak ditimpa (project overlap tetap
+     * terlihat dua-duanya). Location kosong/blank pada create berarti
+     * "kosongkan" -> semua lokasi di range tsb dihapus.
      *
-     * $previousStartDate/$previousEndDate (opsional) = range ASLI sebelum
-     * di-edit. Kalau diisi, bagian dari range lama yang jatuh DI LUAR range
-     * baru ikut dihapus — supaya menyusutkan/menggeser tanggal saat edit
-     * (bukan sekadar menambah assignment baru yang overlap) benar-benar
-     * mengosongkan sisa hari yang tidak lagi terpakai, bukan meninggalkan
-     * location lama nyangkut di sana.
+     * $previousStartDate/$previousEndDate/$previousLocation (opsional) =
+     * range ASLI sebelum di-edit. Kalau diisi, range lama itu (hanya untuk
+     * lokasi lama) dihapus dulu, baru range baru ditulis — supaya
+     * menyusutkan/menggeser tanggal atau mengganti lokasi saat edit tidak
+     * meninggalkan sisa hari lama, tanpa menyentuh assignment lokasi lain.
      */
     public function upsertRange(
         int $employeeId,
@@ -179,38 +205,45 @@ class ResourceTimelineService
         string $endDate,
         ?string $location,
         ?string $previousStartDate = null,
-        ?string $previousEndDate = null
+        ?string $previousEndDate = null,
+        ?string $previousLocation = null
     ): void {
         $location = trim((string) $location);
 
-        DB::transaction(function () use ($employeeId, $startDate, $endDate, $location, $previousStartDate, $previousEndDate) {
-            if ($location === '') {
-                $this->deleteRange($employeeId, $startDate, $endDate);
-            } else {
-                foreach ($this->eachDate($startDate, $endDate) as $date) {
-                    ResourceTimeline::updateOrCreate(
-                        ['employee_id' => $employeeId, 'date' => $date],
-                        ['location' => $location]
-                    );
-                }
+        DB::transaction(function () use ($employeeId, $startDate, $endDate, $location, $previousStartDate, $previousEndDate, $previousLocation) {
+            if ($previousStartDate && $previousEndDate) {
+                $this->deleteRange($employeeId, $previousStartDate, $previousEndDate, $previousLocation);
             }
 
-            if ($previousStartDate && $previousEndDate) {
-                ResourceTimeline::where('employee_id', $employeeId)
-                    ->whereBetween('date', [$previousStartDate, $previousEndDate])
-                    ->where(function ($q) use ($startDate, $endDate) {
-                        $q->where('date', '<', $startDate)->orWhere('date', '>', $endDate);
-                    })
-                    ->delete();
+            if ($location === '') {
+                $this->deleteRange($employeeId, $startDate, $endDate);
+                return;
+            }
+
+            foreach ($this->eachDate($startDate, $endDate) as $date) {
+                ResourceTimeline::firstOrCreate([
+                    'employee_id' => $employeeId,
+                    'date'        => $date,
+                    'location'    => $location,
+                ]);
             }
         });
     }
 
-    public function deleteRange(int $employeeId, string $startDate, string $endDate): void
+    /**
+     * Hapus range. Dengan $location hanya lokasi itu yang dihapus (tombol
+     * delete di list entries); tanpa $location semua lokasi di range ikut.
+     */
+    public function deleteRange(int $employeeId, string $startDate, string $endDate, ?string $location = null): void
     {
-        ResourceTimeline::where('employee_id', $employeeId)
-            ->whereBetween('date', [$startDate, $endDate])
-            ->delete();
+        $query = ResourceTimeline::where('employee_id', $employeeId)
+            ->whereBetween('date', [$startDate, $endDate]);
+
+        if ($location !== null && $location !== '') {
+            $query->where('location', $location);
+        }
+
+        $query->delete();
     }
 
     private function employeeName(Employee $emp): string

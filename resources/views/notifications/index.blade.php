@@ -88,6 +88,8 @@
                                 {{ $notif->from_name ?? 'Someone' }} replied to a ticket
                             @elseif($notif->type === 'ticket_internal_note')
                                 {{ $notif->from_name ?? 'Someone' }} added an internal note
+                            @elseif($notif->type === 'note_reply')
+                                {{ $notif->from_name ?? 'Someone' }} replied to your message
                             @elseif($notif->type === 'ticket_member_added')
                                 {{ $notif->from_name ?? 'Someone' }} added you to a ticket
                             @elseif($notif->type === 'ticket_member_removed')
