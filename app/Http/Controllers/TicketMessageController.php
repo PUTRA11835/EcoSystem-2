@@ -439,6 +439,12 @@ class TicketMessageController extends Controller
                     );
                 }
 
+                // Reply ke pesan orang lain: penulis pesan asal dinotifikasi tanpa perlu di-tag
+                $mentionedNotifiedIds = array_merge(
+                    $mentionedNotifiedIds,
+                    $this->createReplyToNotification($message, $ticket, $senderId, $senderName, $mentionedNotifiedIds)
+                );
+
                 // Notifikasi ke PIC + member aktif lain (skip yang sudah dapat notifikasi mention)
                 $notePreview = mb_substr(strip_tags($messageBody), 0, 100);
                 $this->notifyTicketParticipants(
@@ -760,6 +766,60 @@ class TicketMessageController extends Controller
                     'is_read'          => false,
                 ]);
             });
+    }
+
+    /**
+     * Notify the author of the message being replied to (reply_to_id), without requiring a tag.
+     * Skips the sender, non-employee authors, and anyone already notified for this message.
+     *
+     * @return int[] Employee IDs actually notified (for de-duping downstream notifications).
+     */
+    public function createReplyToNotification(
+        TicketMessage $message,
+        Ticket $ticket,
+        int $senderId,
+        string $senderName,
+        array $alreadyNotifiedIds = []
+    ): array {
+        try {
+            if (!$message->reply_to_id) {
+                return [];
+            }
+
+            $original = TicketMessage::where('ticket_id', $message->ticket_id)->find($message->reply_to_id);
+            if (!$original || $original->sender_type !== 'employee' || !$original->sender_id) {
+                return [];
+            }
+
+            $recipientId = (int) $original->sender_id;
+            if ($recipientId === $senderId || in_array($recipientId, $alreadyNotifiedIds, true)) {
+                return [];
+            }
+
+            $ticketNum = $ticket->ticket_number ?? $message->ticket_id;
+            $rawText   = mb_substr(strip_tags($message->message ?? ''), 0, 100);
+
+            Notification::create([
+                'employee_id'      => $recipientId,
+                'type'             => 'note_reply',
+                'ticket_id'        => $message->ticket_id,
+                'message_id'       => $message->id,
+                'from_employee_id' => $senderId,
+                'from_name'        => $senderName,
+                'preview'          => "[Ticket #{$ticketNum}] {$rawText}",
+                'link'             => "/ticket/{$message->ticket_id}?msg={$message->id}",
+                'is_read'          => false,
+            ]);
+
+            return [$recipientId];
+        } catch (\Exception $e) {
+            Log::warning('createReplyToNotification: failed (non-fatal)', [
+                'message_id' => $message->id,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return [];
+        }
     }
 
     /**

@@ -158,11 +158,39 @@ class DetectAccessPatterns
         }
     }
 
+    /**
+     * True when the request was made by the EcoSystem web UI itself: browsers
+     * attach Sec-Fetch-Site (cannot be set by page JS) and Origin/Referer
+     * pointing at our own host. A script/curl/third-party page replaying a
+     * session cookie normally lacks these or points elsewhere.
+     */
+    private function isFromEcosystemUi(Request $request): bool
+    {
+        $fetchSite = strtolower((string) $request->header('Sec-Fetch-Site', ''));
+        if ($fetchSite !== '') {
+            return in_array($fetchSite, ['same-origin', 'same-site'], true);
+        }
+
+        $host = $request->getHost();
+        foreach (['Origin', 'Referer'] as $header) {
+            $value = (string) $request->headers->get($header, '');
+            if ($value !== '' && strcasecmp((string) parse_url($value, PHP_URL_HOST), $host) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function trackMassDataAccess(Request $request, $route, string $resourceId): void
     {
         $user = session('user');
         if (!$user || ($user['type'] ?? null) !== 'employee' || empty($user['id'])) {
             return; // only an authenticated-employee signal - insider risk, not anonymous probing
+        }
+
+        if ($this->isFromEcosystemUi($request)) {
+            return; // normal daily use of the app (e.g. checking many tickets) - only flag access from outside it
         }
 
         $employeeId = $user['id'];

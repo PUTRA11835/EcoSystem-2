@@ -5,23 +5,34 @@
 
 @section('content')
 
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
     <div>
         <h2 class="text-xl font-bold text-gray-900">Resource Timeline</h2>
         <p class="text-sm text-gray-500 mt-0.5">Where every SAP Consultant is assigned, day by day</p>
     </div>
-    <div class="flex items-center gap-2.5 flex-wrap">
+    <div id="rtToolbar" class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+        <div class="rt-tb-select" style="width:150px;">
+        <select id="rtHomeBase" onchange="rtLoadGrid()"
+                class="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+            <option value="">All Home Base</option>
+            @foreach ($homeBaseOptions as $hb)
+                <option value="{{ $hb }}">{{ $hb }}</option>
+            @endforeach
+        </select>
+        </div>
+        <div class="rt-tb-select" style="width:120px;">
         <select id="rtMonth" onchange="rtLoadGrid()"
                 class="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
             @foreach (['January','February','March','April','May','June','July','August','September','October','November','December'] as $i => $m)
                 <option value="{{ $i + 1 }}">{{ $m }}</option>
             @endforeach
         </select>
-        <input type="number" id="rtYear" min="2000" max="2100"
-               class="w-24 px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+        </div>
+        <input type="number" id="rtYear" min="2000" max="2100" style="width:80px !important;"
+               class="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
                onchange="rtLoadGrid()">
         <button onclick="rtOpenModal()"
-                class="inline-flex items-center px-5 py-2.5 primary-gradient text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-all duration-200">
+                class="inline-flex items-center whitespace-nowrap px-4 py-1.5 primary-gradient text-white text-xs font-semibold rounded-xl hover:opacity-90 transition-all duration-200">
             Create Timeline
         </button>
     </div>
@@ -42,19 +53,23 @@
     </div>
 </div>
 
-{{-- ── Consultant column filter (Home Base) — panel lives outside the table
-     so it survives renderHead() re-rendering the header row on every reload --}}
-<div id="rtHomeBaseFilterPanel" class="hidden fixed bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:200px;">
-    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Filter by Home Base</label>
-    <select id="rtHomeBaseFilterSelect" onchange="rtApplyHomeBaseFilter()"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
-        <option value="">All Home Base</option>
-        @foreach ($homeBaseOptions as $hb)
-            <option value="{{ $hb }}">{{ $hb }}</option>
-        @endforeach
-    </select>
+{{-- ── Column search panel (Consultant / Module) — lives outside the table so it
+     survives renderHead() re-rendering the header row --}}
+<div id="rtSearchPanel" class="hidden fixed bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+    <label id="rtSearchLabel" class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search</label>
+    <input type="text" id="rtSearchInput" oninput="rtApplySearch()" autocomplete="off"
+           class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+    <div class="border-t border-gray-100 mt-3 pt-3">
+        <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Sort</label>
+        <div class="flex gap-2">
+            <button type="button" id="rtSortAsc" onclick="rtSetSort('asc')"
+                    class="flex-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">↑ Ascending</button>
+            <button type="button" id="rtSortDesc" onclick="rtSetSort('desc')"
+                    class="flex-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">↓ Descending</button>
+        </div>
+    </div>
     <div class="flex justify-end gap-2 mt-3">
-        <button type="button" onclick="rtClearHomeBaseFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+        <button type="button" onclick="rtClearSearch()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
     </div>
 </div>
 
@@ -99,7 +114,7 @@
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Location</label>
                 <input type="text" id="rtLocation" placeholder="e.g. PJT1, GOTO, BA…"
                        class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
-                <p class="text-[11px] text-gray-400 mt-1">Leave blank to clear the location for the selected date range.</p>
+                <p class="text-[11px] text-gray-400 mt-1">Overlapping dates with another project are kept side by side. Leave blank to clear every location in the selected date range.</p>
             </div>
 
             <p id="rtFormError" class="hidden text-xs text-red-600"></p>
@@ -125,6 +140,9 @@
 </div>
 
 <style>
+    /* Compact the auto-enhanced (select-enhance.js) dropdowns in the toolbar */
+    #rtToolbar .se-btn { padding: 0.375rem 0.75rem; font-size: 0.75rem; font-weight: 600; border-radius: 0.75rem; border-color: #e5e7eb; }
+    #rtToolbar .se-item { font-size: 0.75rem; padding: 0.375rem 0.75rem; }
     #rtTable th, #rtTable td {
         white-space: nowrap;
         box-sizing: border-box;
@@ -163,6 +181,8 @@
     #rtTable .rt-col-status  { left: 398px; width: 160px; min-width: 160px; }
     #rtTable .rt-col-day     { width: 64px; min-width: 64px; text-align: center; }
     .rt-weekend { background-color: #fef2f2; }
+    /* Consultant is on 2+ projects on this day */
+    .rt-overlap { background-color: #fef3c7; font-weight: 600; }
 </style>
 
 <script>
@@ -171,7 +191,10 @@
 
     let rtDays = [];
     let rtEditingRange = null; // {employee_id, start, end} when editing an existing range
-    let rtHomeBaseValue = ''; // active Consultant-column filter (Home Base)
+    let rtRows = [];          // rows as returned by the server (default order)
+    let rtSort = { key: null, dir: 'asc' }; // key: 'name' | 'module_label' | null (default order)
+    let rtSearch = { name: '', module_label: '' };
+    let rtSearchKey = null;   // column whose search panel is currently open
 
     function csrfToken() {
         return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -210,7 +233,8 @@
         summary.textContent = 'Loading…';
 
         const params = new URLSearchParams({ month, year });
-        if (rtHomeBaseValue) params.set('home_base', rtHomeBaseValue);
+        const homeBase = document.getElementById('rtHomeBase').value;
+        if (homeBase) params.set('home_base', homeBase);
 
         const result = await rtFetch(`/api/reporting/resource-timeline/grid?${params.toString()}`);
         if (!result.success) {
@@ -219,34 +243,64 @@
         }
 
         rtDays = result.days;
+        rtRows = result.rows;
         renderHead();
-        renderBody(result.rows);
-        summary.textContent = `${result.rows.length} SAP Consultant${result.rows.length === 1 ? '' : 's'}`;
+        rtRender();
     };
+
+    // Apply the column search + sort to the server rows and redraw the body.
+    // "No" is re-numbered by displayed position so it stays contiguous.
+    function rtRender() {
+        let rows = rtRows.filter(r =>
+            ['name', 'module_label'].every(k =>
+                !rtSearch[k] || (r[k] || '').toLowerCase().includes(rtSearch[k].toLowerCase())
+            )
+        );
+
+        if (rtSort.key) {
+            const dir = rtSort.dir === 'asc' ? 1 : -1;
+            const key = rtSort.key;
+            rows = rows.slice().sort((a, b) =>
+                dir * (a[key] || '').localeCompare(b[key] || '', undefined, { numeric: true, sensitivity: 'base' })
+            );
+        }
+
+        rows = rows.map((r, i) => Object.assign({}, r, { no: i + 1 }));
+        renderBody(rows);
+
+        const filtered = rows.length !== rtRows.length;
+        document.getElementById('rtSummary').textContent =
+            `${filtered ? rows.length + ' of ' + rtRows.length : rtRows.length} SAP Consultant${rtRows.length === 1 ? '' : 's'}`;
+    }
+
+    // Same header pattern as the Ticket list: one button (label + sort glyph +
+    // caret) that opens a small panel holding the search box and sort buttons.
+    function rtSearchableHeader(key, label, cls) {
+        const sorted = rtSort.key === key;
+        const glyph = sorted ? (rtSort.dir === 'asc' ? '↑' : '↓') : '⇅';
+        const active = sorted || !!rtSearch[key];
+        return `
+            <th class="rt-sticky ${cls} p-0 text-left border-b border-gray-200 bg-gray-50">
+                <button type="button" id="rtHeadBtn_${key}" onclick="rtTogglePanel(event, '${key}', '${label}')"
+                        class="w-full flex items-center gap-1.5 px-2 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">${label}</span>
+                    <span class="${active ? 'text-red-500' : 'text-gray-300'} font-normal normal-case tracking-normal text-xs">${glyph}</span>
+                    <svg class="w-3.5 h-3.5 ${rtSearch[key] ? 'text-red-500' : 'text-gray-500'} shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+            </th>`;
+    }
 
     function renderHead() {
         const row = document.getElementById('rtHeadRow');
 
-        // No + Consultant (the latter doubles as the Home Base filter — button
-        // here, panel is static markup outside the table so it survives re-renders)
         let html = `
             <th class="rt-sticky rt-col-no px-2 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 bg-gray-50">No</th>
-            <th class="rt-sticky rt-col-name p-0 text-left border-b border-gray-200 bg-gray-50">
-                <button type="button" id="rtHomeBaseFilterBtn" onclick="rtToggleHomeBaseFilter(event)"
-                        class="w-full flex items-center gap-1.5 px-2 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
-                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Consultant</span>
-                    <svg class="w-3.5 h-3.5 ${rtHomeBaseValue ? 'text-red-500' : 'text-gray-300'} transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-            </th>
+            ${rtSearchableHeader('name', 'Consultant', 'rt-col-name')}
+            ${rtSearchableHeader('module_label', 'Module', 'rt-col-module')}
+            <th class="rt-sticky rt-col-status px-2 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 bg-gray-50">Status</th>
         `;
-
-        html += [['Module', 'rt-col-module'], ['Status', 'rt-col-status']].map(([label, cls]) => `
-            <th class="rt-sticky ${cls} px-2 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 bg-gray-50">
-                ${label}
-            </th>
-        `).join('');
 
         html += rtDays.map(d => `
             <th class="rt-col-day px-1 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 bg-gray-50 ${d.is_weekend ? 'rt-weekend' : ''}">
@@ -275,54 +329,95 @@
             `;
 
             const dayCells = rtDays.map(d => {
-                const loc = r.dates[d.date] || '';
-                return `<td class="rt-col-day px-1 py-2 text-[11px] text-gray-700 ${d.is_weekend ? 'rt-weekend' : ''}" title="${escapeHtml(loc)}">${escapeHtml(loc)}</td>`;
+                const locs = r.dates[d.date] || [];
+                const multi = locs.length > 1; // overlapping projects on this day
+                const cellCls = multi ? 'rt-overlap' : (d.is_weekend ? 'rt-weekend' : '');
+                const inner = locs.map(l => `<div class="truncate">${escapeHtml(l)}</div>`).join('');
+                return `<td class="rt-col-day px-1 py-2 text-[11px] text-gray-700 ${cellCls}" title="${escapeHtml(locs.join(' + '))}">${inner}</td>`;
             }).join('');
 
             return `<tr class="hover:bg-gray-50 transition-colors">${fixedCells}${dayCells}</tr>`;
         }).join('');
     }
 
-    // ── Consultant column filter (Home Base) ────────────────────────────────
-    window.rtToggleHomeBaseFilter = function (ev) {
-        ev?.stopPropagation();
-        const panel = document.getElementById('rtHomeBaseFilterPanel');
-        const btn = document.getElementById('rtHomeBaseFilterBtn');
-        const open = !panel.classList.contains('hidden');
+    // ── Column sort + search (Consultant / Module) ──────────────────────────
+    // Sort applies to the column whose panel is open; Clear resets it back to
+    // the default (module group / lead first) order.
+    function rtMarkSortButtons() {
+        const on = 'bg-red-50 text-red-700 border-red-200';
+        ['asc', 'desc'].forEach(dir => {
+            const btn = document.getElementById(dir === 'asc' ? 'rtSortAsc' : 'rtSortDesc');
+            const active = rtSort.key === rtSearchKey && rtSort.dir === dir;
+            on.split(' ').forEach(c => btn.classList.toggle(c, active));
+        });
+    }
 
-        if (open) {
-            panel.classList.add('hidden');
+    window.rtSetSort = function (dir) {
+        if (!rtSearchKey) return;
+        rtSort = { key: rtSearchKey, dir };
+        rtMarkSortButtons();
+        renderHead();
+        rtRender();
+    };
+
+    function rtClosePanel() {
+        document.getElementById('rtSearchPanel')?.classList.add('hidden');
+        rtSearchKey = null;
+    }
+
+    window.rtTogglePanel = function (ev, key, label) {
+        ev?.stopPropagation();
+        const panel = document.getElementById('rtSearchPanel');
+
+        if (!panel.classList.contains('hidden') && rtSearchKey === key) {
+            rtClosePanel();
             return;
         }
 
-        const rect = btn.getBoundingClientRect();
+        rtSearchKey = key;
+        const input = document.getElementById('rtSearchInput');
+        document.getElementById('rtSearchLabel').textContent = `Search ${label}`;
+        input.placeholder = `Search ${label.toLowerCase()}…`;
+        input.value = rtSearch[key];
+
+        const rect = document.getElementById(`rtHeadBtn_${key}`).getBoundingClientRect();
         panel.style.top = (rect.bottom + 4) + 'px';
         panel.style.left = rect.left + 'px';
         panel.classList.remove('hidden');
+        rtMarkSortButtons();
+        input.focus();
     };
 
-    window.rtApplyHomeBaseFilter = function () {
-        rtHomeBaseValue = document.getElementById('rtHomeBaseFilterSelect').value;
-        document.getElementById('rtHomeBaseFilterPanel').classList.add('hidden');
-        rtLoadGrid();
+    window.rtApplySearch = function () {
+        if (!rtSearchKey) return;
+        rtSearch[rtSearchKey] = document.getElementById('rtSearchInput').value.trim();
+        // Re-render only the body so the open panel/input keeps focus; the
+        // header icon colour is refreshed when the panel closes.
+        rtRender();
     };
 
-    window.rtClearHomeBaseFilter = function () {
-        document.getElementById('rtHomeBaseFilterSelect').value = '';
-        rtApplyHomeBaseFilter();
+    window.rtClearSearch = function () {
+        if (rtSearchKey) {
+            rtSearch[rtSearchKey] = '';
+            if (rtSort.key === rtSearchKey) rtSort = { key: null, dir: 'asc' };
+        }
+        rtClosePanel();
+        renderHead();
+        rtRender();
     };
 
     document.addEventListener('click', function (e) {
-        const panel = document.getElementById('rtHomeBaseFilterPanel');
-        const btn = document.getElementById('rtHomeBaseFilterBtn');
-        if (panel && !panel.classList.contains('hidden') && !panel.contains(e.target) && !(btn && btn.contains(e.target))) {
-            panel.classList.add('hidden');
+        const panel = document.getElementById('rtSearchPanel');
+        if (panel && !panel.classList.contains('hidden') && !panel.contains(e.target)) {
+            rtClosePanel();
+            renderHead();
         }
     });
 
     document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') {
-            document.getElementById('rtHomeBaseFilterPanel')?.classList.add('hidden');
+        if (e.key === 'Escape' && rtSearchKey) {
+            rtClosePanel();
+            renderHead();
         }
     });
 
@@ -395,7 +490,7 @@
                         </svg>
                     </button>
                     <button type="button" title="Delete"
-                            onclick="rtDeleteRange('${employeeId}','${range.start}','${range.end}')"
+                            onclick="rtDeleteRange('${employeeId}','${range.start}','${range.end}','${escapeHtml(range.location).replace(/'/g, "\\'")}')"
                             class="p-1.5 text-red-600 hover:bg-red-100 rounded transition">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -407,7 +502,7 @@
     };
 
     window.rtEditRange = function (employeeId, start, end, location) {
-        rtEditingRange = { employee_id: employeeId, start, end };
+        rtEditingRange = { employee_id: employeeId, start, end, location };
         document.getElementById('rtFormMode').value = 'edit';
         document.getElementById('rtConsultantSelect').value = employeeId;
         document.getElementById('rtLocation').value = location;
@@ -433,7 +528,7 @@
 
         const result = await rtFetch('/api/reporting/resource-timeline/entries/delete', {
             method: 'POST',
-            body: JSON.stringify({ employee_id: employeeId, start_date: start, end_date: end }),
+            body: JSON.stringify({ employee_id: employeeId, start_date: start, end_date: end, location }),
         });
 
         if (!result.success) {
@@ -494,6 +589,7 @@
             if (rtEditingRange) {
                 payload.previous_start_date = rtEditingRange.start;
                 payload.previous_end_date = rtEditingRange.end;
+                payload.previous_location = rtEditingRange.location;
             }
             const result = await rtFetch('/api/reporting/resource-timeline/entries', {
                 method: 'POST',
