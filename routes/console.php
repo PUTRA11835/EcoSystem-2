@@ -42,6 +42,11 @@ Schedule::command('notifications:project-reminders')
     ->dailyAt('07:00')
     ->name('notifications-project-reminders');
 
+// Reminder harian 15:00 untuk konsultan (position SAP CONSULTANT) yang belum mengisi
+// timesheet hari ini (draft sudah dihitung terisi). Tidak jalan di akhir pekan /
+// tanggal merah — command-nya sendiri yang mengecek HolidayService.
+Schedule::command('notifications:timesheet-reminders')->dailyAt('15:00');
+
 // Periksa & perbaiki share link OneDrive tiap hari 02:30 — link bisa mati sendiri
 // (kebijakan expiry "Anyone links", scope diturunkan tenant, izin dicabut manual)
 // dan tanpa ini kegagalannya baru ketahuan saat customer melapor tidak bisa akses.
@@ -114,4 +119,25 @@ Schedule::command('schedule-monitor:check-queue-health')
 // 15 minutes is fine.
 Schedule::command('schedule-monitor:check-disk-usage')
     ->everyFifteenMinutes()
+    ->withoutOverlapping();
+
+// Tarik pesan group chat Teams jadi internal note tiket. Command-nya keluar
+// seketika kalau TEAMS_SYNC_ENABLED / TEAMS_SYNC_INBOUND masih false, jadi
+// menjadwalkannya tiap menit aman walau fiturnya belum dinyalakan.
+//
+// Tiap menit, bukan lebih jarang: internal note dari Teams baru berguna kalau
+// muncul di tiket selagi diskusinya berlangsung. UI tiket sendiri sudah polling
+// tiap 15 detik, jadi jeda terburuk yang dirasakan orang ~1 menit.
+Schedule::command('teams:sync-chat-messages')
+    ->everyMinute()
+    ->withoutOverlapping();
+
+// Kirim internal note yang mengantre ke group chat Teams (flow 7). Keluar
+// seketika kalau TEAMS_SYNC_ENABLED / TEAMS_SYNC_OUTBOUND masih false.
+//
+// Terpisah dari teams:sync-chat-messages dengan sengaja: dua arah ini bisa
+// dimatikan sendiri-sendiri, dan arah yang bermasalah tidak boleh ikut
+// menghentikan arah yang sehat.
+Schedule::command('teams:flush-outbox')
+    ->everyMinute()
     ->withoutOverlapping();
