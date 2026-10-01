@@ -157,6 +157,21 @@
 </div>
 @endif
 
+{{-- ── Command Center: pinned-menu shortcuts (see sidebar's pin button, dashboard.blade.php) ── --}}
+<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-bolt text-red-700 text-sm"></i>
+            <h3 class="text-sm font-bold text-gray-800">Command Center</h3>
+        </div>
+        <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
+            <button type="button" id="ccTabPinned" onclick="ccSwitchTab('pinned')" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">Pinned</button>
+            <button type="button" id="ccTabAll" onclick="ccSwitchTab('all')" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">All Menu</button>
+        </div>
+    </div>
+    <div id="ccGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+</div>
+
 {{-- ── Row 2: KPI Cards ──────────────────────────────────────────────────────── --}}
 <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
 
@@ -453,6 +468,115 @@
     }
     updateClock();
     setInterval(updateClock, 1000);
+})();
+</script>
+
+<script>
+// Command Center — reads the sidebar's already-rendered nav links (this page
+// and the sidebar share one document) rather than querying a backend menu
+// list, so it only ever shows exactly what this user's sidebar shows them.
+(function () {
+    var ccAllItems = [];
+    var ccCurrentTab = 'pinned';
+
+    function ccEsc(str) {
+        return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function ccCollectMenuItems() {
+        var scroll = document.getElementById('sidebarNavScroll');
+        if (!scroll) return [];
+        var items = [];
+
+        scroll.querySelectorAll('a.nav-link').forEach(function (link) {
+            var href = link.getAttribute('href');
+            if (!href || href === '#') return;
+
+            var textEl = link.querySelector('.nav-text');
+            var label = (textEl ? textEl.textContent : link.textContent).trim();
+            if (!label) return;
+
+            var iconEl = link.querySelector('.nav-icon i');
+            var icon = iconEl ? iconEl.className : 'fas fa-circle';
+
+            // Breadcrumb: walk up through every ancestor "...Dropdown" container
+            // and read its toggler button's own label (e.g. Reporting > Support).
+            var crumbs = [];
+            var el = link.parentElement;
+            while (el && el !== scroll) {
+                if (el.id && /Dropdown$/.test(el.id)) {
+                    var toggler = el.previousElementSibling;
+                    var tTextEl = toggler ? toggler.querySelector('.nav-text') : null;
+                    var tText = toggler ? (tTextEl ? tTextEl.textContent : toggler.textContent).trim() : '';
+                    if (tText) crumbs.unshift(tText);
+                }
+                el = el.parentElement;
+            }
+
+            items.push({ href: href, label: label, icon: icon, breadcrumb: crumbs.join(' → ') });
+        });
+
+        return items;
+    }
+
+    function ccRender() {
+        var grid = document.getElementById('ccGrid');
+        if (!grid) return;
+
+        var pinned = window.PINNED_MENUS || [];
+        var items = ccCurrentTab === 'pinned'
+            ? ccAllItems.filter(function (it) { return pinned.indexOf(it.href) !== -1; })
+            : ccAllItems;
+
+        document.getElementById('ccTabPinned').className = 'px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ' + (ccCurrentTab === 'pinned' ? 'bg-red-800 text-white' : 'text-gray-500 hover:text-gray-700');
+        document.getElementById('ccTabAll').className = 'px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ' + (ccCurrentTab === 'all' ? 'bg-red-800 text-white' : 'text-gray-500 hover:text-gray-700');
+
+        if (!items.length) {
+            grid.innerHTML = '<div class="col-span-full text-center text-xs text-gray-400 py-6">' + (
+                ccCurrentTab === 'pinned'
+                    ? 'No pinned menus yet. Hover any menu in the sidebar and click the <i class="fas fa-thumbtack"></i> icon to add it here.'
+                    : 'No accessible menu items.'
+            ) + '</div>';
+            return;
+        }
+
+        grid.innerHTML = items.map(function (it) {
+            var unpinBtn = ccCurrentTab === 'pinned'
+                ? '<button type="button" class="cc-unpin-btn absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-gray-300 hover:text-red-600 hover:bg-red-50 text-[10px]" data-href="' + ccEsc(it.href) + '" title="Unpin"><i class="fas fa-xmark"></i></button>'
+                : '';
+            return '<a href="' + ccEsc(it.href) + '" class="relative flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-red-300 hover:shadow-sm transition-all">'
+                + '<div class="w-9 h-9 rounded-lg bg-red-50 text-red-700 flex items-center justify-center flex-shrink-0"><i class="' + ccEsc(it.icon) + '"></i></div>'
+                + '<div class="min-w-0 flex-1 pr-4">'
+                + '<p class="text-xs font-bold text-gray-800 truncate">' + ccEsc(it.label) + '</p>'
+                + '<p class="text-[10px] text-gray-400 truncate">' + (it.breadcrumb ? ccEsc(it.breadcrumb) : '&nbsp;') + '</p>'
+                + '</div>'
+                + unpinBtn
+                + '</a>';
+        }).join('');
+
+        grid.querySelectorAll('.cc-unpin-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (typeof window.toggleMenuPin === 'function') window.toggleMenuPin(btn.dataset.href, null);
+                ccRender();
+            });
+        });
+    }
+
+    window.ccSwitchTab = function (tab) {
+        ccCurrentTab = tab;
+        ccRender();
+    };
+
+    // Sidebar's toggleMenuPin() (dashboard.blade.php) calls this after every
+    // pin/unpin so this widget stays in sync without a page reload.
+    window.onPinnedMenusChanged = ccRender;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        ccAllItems = ccCollectMenuItems();
+        ccRender();
+    });
 })();
 </script>
 @endpush
