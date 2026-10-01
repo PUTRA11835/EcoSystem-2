@@ -16,10 +16,13 @@ use Illuminate\Support\Facades\DB;
  */
 class ResourceTimelineService
 {
+    /** Position yang masuk sebagai resource di timeline. */
+    public const RESOURCE_POSITIONS = ['SAP CONSULTANT', 'PROJECT MANAGEMENT OFFICER'];
+
     /**
-     * Query dasar: seluruh employee aktif dengan position "SAP CONSULTANT"
-     * yang tidak di-block dan tidak kena deletion_flag.
-     * Sama persis filter yang sudah dipakai ConsultantWorkloadController@list.
+     * Query dasar: seluruh employee aktif dengan position di RESOURCE_POSITIONS
+     * (SAP Consultant & Project Management Officer) yang tidak di-block dan
+     * tidak kena deletion_flag.
      *
      * $homeBase opsional: batasi ke satu lokasi kantor (App\Enums\HomeBase).
      */
@@ -29,7 +32,7 @@ class ResourceTimelineService
             ->where('is_active', true)
             ->whereHas('basicData', function ($q) use ($homeBase) {
                 // Blocked / deletion-flagged consultants are not resources anymore.
-                $q->byPosition('SAP CONSULTANT')
+                $q->whereIn('position', self::RESOURCE_POSITIONS)
                   ->where('block', false)
                   ->where('deletion_flag', false);
                 if ($homeBase) {
