@@ -364,7 +364,17 @@
                             SPV Score
                         </th>
 
-                        {{-- 7. Status --}}
+                        {{-- 7. Peer Score --}}
+                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
+                            Peer Score
+                        </th>
+
+                        {{-- 8. Upward Score --}}
+                        <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
+                            Upward Score
+                        </th>
+
+                        {{-- 9. Status --}}
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-35">
                             <div class="flex items-center justify-center gap-1.5">
                                 <span>Status</span>
@@ -385,7 +395,7 @@
                                     'reviewed'     => 'Reviewed',
                                     'completed'    => 'Completed',
                                     'hr_approved'  => 'Approved',
-                                    'hr_rejected'  => 'Rejected',
+                                    'hr_rejected'  => 'Needs Revision',
                                 ];
                             @endphp
                             <div id="statusFilterBox" class="header-filter-popover hidden w-48 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden text-left normal-case font-normal" onclick="event.stopPropagation()">
@@ -407,7 +417,7 @@
                             </div>
                         </th>
 
-                        {{-- 8. Action --}}
+                        {{-- 10. Action --}}
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
                             <span>Action</span>
                         </th>
@@ -464,7 +474,7 @@
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3.5 text-xs text-gray-400 italic" colspan="3">Not covered by any template</td>
+                            <td class="px-4 py-3.5 text-xs text-gray-400 italic" colspan="5">Not covered by any template</td>
                             <td class="px-4 py-3.5 text-center">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-500 border border-red-100">No template</span>
                             </td>
@@ -495,7 +505,7 @@
                                 @if($upwardN)<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">Upward ×{{ $upwardN }}</span>@endif
                                 @if($peerN)<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700">Peer ×{{ $peerN }}</span>@endif
                             </td>
-                            <td class="px-4 py-3.5 text-center text-xs text-gray-500" colspan="2">{{ $doneCount }} / {{ $empEvals->count() }} done</td>
+                            <td class="px-4 py-3.5 text-center text-xs text-gray-500" colspan="4">{{ $doneCount }} / {{ $empEvals->count() }} done</td>
                             <td class="px-4 py-3.5 text-center">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border {{ $allDone ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200' }}">
                                     {{ $allDone ? 'Complete' : 'In progress' }}
@@ -522,12 +532,24 @@
                                 'peer'   => 'bg-cyan-100 text-cyan-700',
                                 default  => 'bg-indigo-100 text-indigo-700',
                             };
-                            $selfScore = ($eval->hasSelfAssessment() && $eval->details->isNotEmpty())
+                            $isUpwardRow = $ttype === 'upward';
+                            $isPeerRow = $ttype === 'peer';
+                            // Each score lives in its own column: self rows -> Self Score,
+                            // lead rows -> SPV Score, peer rows -> Peer Score (what a colleague
+                            // gave this employee), upward rows -> Upward Score (what this
+                            // employee gave their supervisor).
+                            $selfScore = ($isSelf && $eval->hasSelfAssessment() && $eval->details->isNotEmpty())
                                 ? $eval->details->whereNotNull('self_achievement')->avg('self_achievement') : null;
-                            $spvScore = ($eval->overall_score !== null && !$isSelf)
-                                ? $eval->overall_score
-                                : (($eval->hasSupervisorReview() && $eval->details->isNotEmpty())
-                                    ? $eval->details->whereNotNull('supervisor_score')->avg('supervisor_score') : null);
+                            $upwardScore = ($isUpwardRow && $eval->hasSelfAssessment())
+                                ? ($eval->overall_score ?? $eval->details->whereNotNull('self_achievement')->avg('self_achievement')) : null;
+                            $reviewedScore = (!$isSelf && !$isUpwardRow)
+                                ? (($eval->overall_score !== null)
+                                    ? $eval->overall_score
+                                    : (($eval->hasSupervisorReview() && $eval->details->isNotEmpty())
+                                        ? $eval->details->whereNotNull('supervisor_score')->avg('supervisor_score') : null))
+                                : null;
+                            $spvScore  = $isPeerRow ? null : $reviewedScore;
+                            $peerScore = $isPeerRow ? $reviewedScore : null;
                         @endphp
                         <tr class="cov-detail cov-{{ $emp->employee_id }} hidden bg-gray-50/40 border-l-2 border-indigo-200">
                             <td></td>
@@ -540,12 +562,22 @@
                             </td>
                             <td class="px-4 py-2.5 text-center font-bold text-xs">
                                 @if($selfScore !== null)<span class="text-gray-900">{{ number_format($selfScore, 1) }}</span>
-                                @elseif($eval->hasSelfAssessment())<span class="text-purple-600 font-medium">Submitted</span>
+                                @elseif($isSelf && $eval->hasSelfAssessment())<span class="text-purple-600 font-medium">Submitted</span>
                                 @else<span class="text-gray-300">—</span>@endif
                             </td>
                             <td class="px-4 py-2.5 text-center font-bold text-xs">
                                 @if($spvScore !== null)<span class="text-gray-900">{{ number_format($spvScore, 1) }}</span>
-                                @elseif($eval->hasSupervisorReview())<span class="text-indigo-600 font-medium">Reviewed</span>
+                                @elseif(!$isSelf && !$isUpwardRow && !$isPeerRow && $eval->hasSupervisorReview())<span class="text-indigo-600 font-medium">Reviewed</span>
+                                @else<span class="text-gray-300">—</span>@endif
+                            </td>
+                            <td class="px-4 py-2.5 text-center font-bold text-xs">
+                                @if($peerScore !== null)<span class="text-gray-900">{{ number_format($peerScore, 1) }}</span>
+                                @elseif($isPeerRow && $eval->hasSupervisorReview())<span class="text-cyan-600 font-medium">Reviewed</span>
+                                @else<span class="text-gray-300">—</span>@endif
+                            </td>
+                            <td class="px-4 py-2.5 text-center font-bold text-xs">
+                                @if($upwardScore !== null)<span class="text-gray-900">{{ number_format($upwardScore, 1) }}</span>
+                                @elseif($isUpwardRow && $eval->hasSelfAssessment())<span class="text-amber-600 font-medium">Submitted</span>
                                 @else<span class="text-gray-300">—</span>@endif
                             </td>
                             <td class="px-4 py-2.5 text-center">
@@ -564,7 +596,7 @@
                         @endif
                     @empty
                     <tr>
-                        <td colspan="9" class="py-12 text-center text-gray-400">No matching employees found.</td>
+                        <td colspan="11" class="py-12 text-center text-gray-400">No matching employees found.</td>
                     </tr>
                     @endforelse
                 </tbody>

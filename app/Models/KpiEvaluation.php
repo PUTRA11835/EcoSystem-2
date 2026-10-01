@@ -162,7 +162,7 @@ class KpiEvaluation extends Model
             self::STATUS_REVIEWED      => 'Reviewed',
             self::STATUS_COMPLETED     => 'Completed',
             self::STATUS_HR_APPROVED   => 'Approved',
-            self::STATUS_HR_REJECTED   => 'Rejected',
+            self::STATUS_HR_REJECTED   => 'Needs Revision',
             default                    => ucfirst($this->status),
         };
     }

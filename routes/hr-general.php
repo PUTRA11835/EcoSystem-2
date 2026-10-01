@@ -884,6 +884,24 @@ Route::prefix('general')
                     ->name('self-assessment');
                 Route::post('/{id}/self-assessment', [\App\Http\Controllers\HR_General\MyKpiController::class, 'submitSelfAssessment'])
                     ->name('self-assessment.submit');
+
+                // A lead's own scoring page (draft / send to HR) — lives in My KPI, not in
+                // the HR "KPI Evaluation" area. Only the assigned reviewer can open it.
+                Route::get('/{id}/lead-review', [\App\Http\Controllers\HR_General\MyKpiController::class, 'leadReviewForm'])
+                    ->name('lead-review');
+                Route::post('/{id}/lead-review', [\App\Http\Controllers\HR_General\MyKpiController::class, 'submitLeadReview'])
+                    ->name('lead-review.submit');
+
+                // Same handlers, but each assessment type gets its own URL / name so the
+                // address bar matches the page (upward and peer are not "self" / "lead").
+                Route::get('/{id}/upward-assessment', [\App\Http\Controllers\HR_General\MyKpiController::class, 'selfAssessmentForm'])
+                    ->name('upward-assessment');
+                Route::post('/{id}/upward-assessment', [\App\Http\Controllers\HR_General\MyKpiController::class, 'submitSelfAssessment'])
+                    ->name('upward-assessment.submit');
+                Route::get('/{id}/peer-review', [\App\Http\Controllers\HR_General\MyKpiController::class, 'leadReviewForm'])
+                    ->name('peer-review');
+                Route::post('/{id}/peer-review', [\App\Http\Controllers\HR_General\MyKpiController::class, 'submitLeadReview'])
+                    ->name('peer-review.submit');
             });
 
         // =====================================================================

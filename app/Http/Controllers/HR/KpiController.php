@@ -500,6 +500,18 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
 
         $canApprove = $this->can('general.kpi-evaluation.approve');
 
+        // The assigned lead (who is not HR / admin) works from My KPI, not from this
+        // HR review-and-approve page.
+        if (!$canApprove && empty($user['is_admin'])
+            && (int) ($user['id'] ?? 0) === (int) $evaluation->supervisor_id
+            && (int) $evaluation->employee_id !== (int) ($user['id'] ?? 0)
+            && !$evaluation->isUpwardType()) {
+            return redirect()->route(
+                ($evaluation->template?->target_type ?? '') === 'peer' ? 'general.my-kpi.peer-review' : 'general.my-kpi.lead-review',
+                $evaluation->id
+            );
+        }
+
         // Upward assessments are filled by the rater via the self-assessment
         // pathway (see KpiEvaluation::usesSelfFields). HR reviews the group of
         // sibling submissions here and publishes their average — the subject
@@ -554,6 +566,20 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
             return redirect()->back()->with('error', 'Employees cannot evaluate their own KPI as a supervisor.');
         }
 
+        // A lead (not HR / admin) can no longer change an assessment once it has
+        // been submitted to HR; only a saved draft stays editable.
+        $isHrOrAdmin = !empty($user['is_admin']) || $this->can('general.kpi-evaluation.approve');
+        if (!$isHrOrAdmin && $userId === (int) $evaluation->supervisor_id && $evaluation->hasSupervisorReview()) {
+            $msg = 'This assessment was already submitted to HR and can no longer be changed.';
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 403);
+            }
+            return redirect()->back()->with('error', $msg);
+        }
+
+        // 'draft' saves the scores privately (HR sees nothing yet); 'submit' sends to HR.
+        $action = $request->input('action', 'submit') === 'draft' ? 'draft' : 'submit';
+
         // Validate scores array
         $request->validate([
             'scores'          => 'required|array',
@@ -606,11 +632,45 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
                 $detail->computeWeightedScore();
             }
 
-            // Mark review timestamp, overall comment, and recalculate overall score
-            $evaluation->reviewed_at = $now;
             if ($request->has('general_notes')) {
                 $evaluation->general_notes = $request->input('general_notes');
             }
+
+            if ($action === 'draft') {
+                // Private draft: keep reviewed_at / overall score / status untouched so
+                // HR sees nothing and the lead can keep editing.
+                $evaluation->save();
+                DB::commit();
+
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => true, 'message' => 'Draft saved. It has not been sent to HR yet.']);
+                }
+                return redirect()->back()->with('success', 'Draft saved. It has not been sent to HR yet.');
+            }
+
+            // Submit: every indicator must be complete before it goes to HR.
+            $evaluation->load('details.indicator');
+            foreach ($evaluation->details as $d) {
+                $incomplete = ($d->indicator && $d->indicator->isParagraph())
+                    ? trim((string) $d->supervisor_notes) === ''
+                    : is_null($d->supervisor_score);
+                if ($incomplete) {
+                    DB::rollBack();
+                    $msg = 'Complete every indicator before sending to HR (save as draft if you are not done).';
+                    if ($request->wantsJson()) {
+                        return response()->json(['success' => false, 'message' => $msg], 422);
+                    }
+                    return redirect()->back()->with('error', $msg);
+                }
+            }
+
+            // Resubmitting after HR asked for a revision puts it back in the normal flow.
+            if ($evaluation->status === KpiEvaluation::STATUS_HR_REJECTED) {
+                $evaluation->status = KpiEvaluation::STATUS_DRAFT;
+            }
+
+            // Mark review timestamp and recalculate overall score
+            $evaluation->reviewed_at = $now;
             $evaluation->save();
             $evaluation->recalculateScore();
             $evaluation->refreshStatus();
@@ -620,7 +680,7 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
             if ($request->wantsJson()) {
                 return response()->json([
                     'success'       => true,
-                    'message'       => 'Supervisor review submitted successfully.',
+                    'message'       => 'Assessment submitted to HR.',
                     'overall_score' => $evaluation->fresh()->overall_score,
                     'status'        => $evaluation->fresh()->status,
                 ]);
@@ -647,6 +707,15 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
     {
         $evaluation = KpiEvaluation::findOrFail($id);
         $user       = session('user');
+
+        // A self-assessment is the employee's own view of themself — nothing for HR to approve.
+        if ($evaluation->isSelfType()) {
+            $msg = 'Self-assessments do not need approval. HR can only review how the employee scored themself.';
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return redirect()->back()->with('error', $msg);
+        }
 
         if (!$evaluation->isReadyForApproval()) {
             $need = $evaluation->isSelfType()
@@ -681,14 +750,50 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         $evaluation = KpiEvaluation::findOrFail($id);
         $user       = session('user');
 
-        $evaluation->status    = KpiEvaluation::STATUS_HR_REJECTED;
-        $evaluation->hr_notes  = $request->input('hr_notes', '');
+        $fail = function (string $msg, int $code = 422) use ($request) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], $code);
+            }
+            return redirect()->back()->with('error', $msg);
+        };
+
+        $request->validate(['hr_notes' => 'required|string|min:5|max:1000']);
+
+        if ($evaluation->isSelfType()) {
+            return $fail('Self-assessments do not need approval, so they cannot be sent back.');
+        }
+        if ($evaluation->status === KpiEvaluation::STATUS_HR_APPROVED) {
+            return $fail('This evaluation is already approved and cannot be sent back.');
+        }
+        if (!$evaluation->isReadyForApproval()) {
+            return $fail('Nothing has been submitted for this evaluation yet.');
+        }
+
+        // "Reject" = ask the person who filled it in to revise. Their answers are kept;
+        // only the submitted mark is cleared so the form opens for editing again.
+        $usesSelfFields = $evaluation->isSelfType() || $evaluation->isUpwardType();
+        if ($usesSelfFields) {
+            $evaluation->self_assessed_at = null;
+        } else {
+            $evaluation->reviewed_at = null;
+        }
+        $evaluation->overall_score  = null;   // hidden until it is resubmitted and approved
+        $evaluation->hr_approved_at = null;
+        $evaluation->hr_approved_by = null;
+        $evaluation->published_at   = null;
+        $evaluation->published_by   = null;
+        $evaluation->status         = KpiEvaluation::STATUS_HR_REJECTED;
+        $evaluation->hr_notes       = trim($request->input('hr_notes'));
         $evaluation->save();
 
+        $who = $usesSelfFields ? $evaluation->employee : ($evaluation->supervisor ?? null);
+        $whoName = $who?->basicData?->full_name ?: 'the assessor';
+        $msg = "Sent back to {$whoName} for revision.";
+
         if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Evaluation rejected.']);
+            return response()->json(['success' => true, 'message' => $msg]);
         }
-        return redirect()->back()->with('success', 'Evaluation rejected. HR notes have been saved.');
+        return redirect()->back()->with('success', $msg);
     }
 
     // ── Upward Evaluation — Publish Anonymous Average ─────────────────────────
