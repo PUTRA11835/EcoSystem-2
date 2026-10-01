@@ -6,16 +6,52 @@
 @section('content')
 
 {{-- ============================================================ --}}
-{{-- View / Generate / Refresh / Export panel — selalu di atas tabel tiket --}}
+{{-- Recon history — di atas supaya siapa pun yang buka halaman ini untuk
+     cek status recon yang sudah ada bisa langsung lihat tanpa scroll dulu
+     lewat panel Generate/Edit di bawahnya. --}}
 {{-- ============================================================ --}}
 <div class="bg-white rounded-xl p-6 shadow-sm">
 
-    <div class="flex items-start gap-3 mb-5 pb-4 border-b-2 border-gray-100">
-        <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-800 shrink-0">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-gray-100">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-900" id="wcHistoryTitle">Recon History</h2>
+            <p class="text-sm text-gray-500 mt-0.5" id="wcHistorySubtitle">All Weekly Consolidation batches ever generated. Click "Open" to view or continue editing.</p>
+        </div>
+        <button type="button" id="wcShowDeletedBtn" onclick="wcToggleShowDeleted()" class="hidden px-3 py-1.5 bg-white border border-gray-300 text-gray-600 text-xs font-semibold rounded-md hover:bg-gray-100 transition-colors">
+            <i class="fas fa-trash-can mr-1"></i><span id="wcShowDeletedLabel">Show Deleted</span>
+        </button>
+    </div>
+
+    <div class="overflow-x-auto border border-gray-200 rounded-xl">
+        <table class="w-full">
+            <thead>
+                <tr>
+                    <th class="wc-th text-left">Module</th>
+                    <th class="wc-th text-left">Period</th>
+                    <th class="wc-th text-left">Tickets</th>
+                    <th class="wc-th text-left">Generated</th>
+                    <th class="wc-th text-left">Last Refreshed</th>
+                    <th class="wc-th text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="wcHistoryBody">
+                <tr><td colspan="6" class="text-center py-10 text-gray-400 text-sm">Loading history...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{{-- ============================================================ --}}
+{{-- View / Generate / Refresh / Export panel --}}
+{{-- ============================================================ --}}
+<div class="bg-white rounded-xl p-5 shadow-sm mt-6">
+
+    <div class="flex items-start gap-3 mb-4 pb-3 border-b-2 border-gray-100">
+        <div class="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center text-red-800 shrink-0 text-sm">
             <i class="fas fa-clipboard-list"></i>
         </div>
         <div>
-            <h2 class="text-2xl font-bold text-gray-900">Weekly Consolidation</h2>
+            <h2 class="text-xl font-bold text-gray-900">Weekly Consolidation</h2>
             <p class="text-sm text-gray-500 mt-0.5">Pick a module to view its open tickets, then generate a saved recon once you're ready.</p>
         </div>
     </div>
@@ -64,7 +100,7 @@
         </button>
     </div>
 
-    {{-- Step 3: saved-batch action bar (Refresh / Export) --}}
+    {{-- Step 3: saved-batch action bar (Refresh / Export / Edit / Delete) --}}
     <div id="wcBatchBar" class="hidden mt-4 flex flex-wrap items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200">
         <div class="text-sm text-green-800 flex items-center gap-1.5">
             <i class="fas fa-circle-check"></i>
@@ -79,7 +115,45 @@
                 class="px-4 py-2 bg-white border border-red-800 text-red-800 text-sm font-semibold rounded-md hover:bg-red-50 transition-colors">
                 <i class="fas fa-file-excel mr-1.5"></i>Export Excel
             </a>
+            <button type="button" id="wcEditBtn" onclick="wcEnterEditMode()" class="hidden px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-semibold rounded-md hover:bg-gray-100 transition-colors">
+                <i class="fas fa-pen mr-1.5"></i>Edit
+            </button>
+            <button type="button" id="wcDeleteBtn" onclick="wcDeleteBatch()" class="hidden px-4 py-2 bg-white border border-red-300 text-red-700 text-sm font-semibold rounded-md hover:bg-red-50 transition-colors">
+                <i class="fas fa-trash mr-1.5"></i>Delete
+            </button>
+            <button type="button" onclick="wcCloseBatch()" title="Stop viewing this recon and start a new one"
+                class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-semibold rounded-md hover:bg-gray-100 transition-colors">
+                <i class="fas fa-xmark mr-1.5"></i>Close
+            </button>
         </div>
+    </div>
+
+    {{-- Step 3b: edit-mode bar (period fields + Save/Cancel) — module chips above stay interactive while this is open --}}
+    <div id="wcEditBar" class="hidden mt-4 flex flex-wrap items-end gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
+        <div class="text-xs text-blue-800 flex items-center gap-1.5 mr-2 basis-full">
+            <i class="fas fa-pen"></i>
+            <span>Editing this recon — add/remove modules above, adjust the period, then Save. Removing a module deletes its ticket rows and Notes from this recon.</span>
+        </div>
+        <div>
+            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Period Start <span class="text-red-500">*</span></label>
+            <input type="date" id="wcEditPeriodStart" class="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+        </div>
+        <div>
+            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Period End <span class="text-red-500">*</span></label>
+            <input type="date" id="wcEditPeriodEnd" class="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+        </div>
+        <div class="flex-1 min-w-[180px]">
+            <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Period Label <span class="normal-case text-gray-400">(optional)</span></label>
+            <input type="text" id="wcEditPeriodLabel" class="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+        </div>
+        <button type="button" id="wcSaveEditBtn" onclick="wcSaveEdit()"
+            class="px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-md hover:bg-red-900 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+            <i class="fas fa-floppy-disk mr-1.5"></i>Save Changes
+        </button>
+        <button type="button" onclick="wcCancelEdit()"
+            class="px-4 py-2 bg-white border border-gray-300 text-gray-600 text-sm font-semibold rounded-md hover:bg-gray-100 transition-colors">
+            Cancel
+        </button>
     </div>
 
     {{-- Result summary --}}
@@ -92,6 +166,7 @@
         <table class="w-full" id="wcTicketTable">
             <thead>
                 <tr>
+                    <th class="wc-th text-left" data-filter-key="last_update" style="min-width:150px;">Last Update</th>
                     <th class="wc-th text-left" data-filter-key="ticket_number" style="min-width:130px;">Ticket</th>
                     <th class="wc-th text-left" data-filter-key="description" style="min-width:220px;">Description</th>
                     <th class="wc-th text-left" data-filter-key="start_date" style="min-width:150px;">Start Date</th>
@@ -106,38 +181,7 @@
                 </tr>
             </thead>
             <tbody id="wcTableBody">
-                <tr><td colspan="11" class="text-center py-10 text-gray-400 text-sm">No tickets loaded yet.</td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-{{-- ============================================================ --}}
-{{-- Recon history (reference table) --}}
-{{-- ============================================================ --}}
-<div class="bg-white rounded-xl p-6 shadow-sm mt-6">
-
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-gray-100">
-        <div>
-            <h2 class="text-2xl font-bold text-gray-900">Recon History</h2>
-            <p class="text-sm text-gray-500 mt-0.5">All Weekly Consolidation batches ever generated. Click "Open" to view or continue editing.</p>
-        </div>
-    </div>
-
-    <div class="overflow-x-auto border border-gray-200 rounded-xl">
-        <table class="w-full">
-            <thead>
-                <tr>
-                    <th class="wc-th text-left">Module</th>
-                    <th class="wc-th text-left">Period</th>
-                    <th class="wc-th text-left">Tickets</th>
-                    <th class="wc-th text-left">Generated</th>
-                    <th class="wc-th text-left">Last Refreshed</th>
-                    <th class="wc-th text-right">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="wcHistoryBody">
-                <tr><td colspan="6" class="text-center py-10 text-gray-400 text-sm">Loading history...</td></tr>
+                <tr><td colspan="12" class="text-center py-10 text-gray-400 text-sm">No tickets loaded yet.</td></tr>
             </tbody>
         </table>
     </div>
@@ -187,6 +231,7 @@
 @endsection
 
 @push('styles')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
 <style>
 .wc-th {
     padding: 0.65rem 0.9rem; font-size: 11px; font-weight: 600;
@@ -259,6 +304,7 @@
 @endpush
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     wcLoadModules();
@@ -278,6 +324,11 @@ let wcAllRows = [];        // semua baris yang sedang dimuat (belum difilter)
 let wcEditableMode = false;
 let wcColumnFilters = {};  // { [columnKey]: 'search text lowercase' }
 const wcNoteTimers = {};
+
+// ── Edit mode (module composition + period on an already-saved batch) ──────
+let wcEditMode = false;
+let wcOriginalModuleIds = [];  // snapshot at wcEnterEditMode(), used to detect removals
+let wcCurrentBatchData = null; // last data.* payload from wcApplyBatch(), used by Cancel
 
 function escHtml(str) {
     return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -314,53 +365,127 @@ async function wcLoadModules() {
     }
 }
 
+// Viewing a saved batch (wcState === 'batch') WITHOUT having clicked Edit
+// first must never let a stray click silently start building a brand-new
+// recon from scratch — that's exactly the trap that bit a user testing this:
+// opened an existing recon, clicked a module chip out of curiosity, and it
+// quietly began a new preview instead of editing the one they had open.
+function wcModuleFieldLocked() {
+    return wcState === 'batch' && !wcEditMode;
+}
+
 function wcRenderModuleField() {
     const wrap = document.getElementById('wcModuleField');
+    const locked = wcModuleFieldLocked();
 
     if (!wcAllModules.length) {
         wrap.innerHTML = '<span class="text-sm text-gray-400">No module available for you</span>';
         return;
     }
 
+    const lockedHint = locked ? `<p class="text-xs text-gray-400 mt-1.5"><i class="fas fa-lock mr-1"></i>Viewing a saved recon — click Edit to change modules.</p>` : '';
+
     if (!wcCanCombine) {
         // Role biasa: satu modul per batch, dropdown polos seperti sebelumnya.
-        wrap.innerHTML = `<select id="wcModuleSelect" onchange="wcOnSingleSelectChange()"
-            class="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+        wrap.innerHTML = `<select id="wcModuleSelect" onchange="wcOnSingleSelectChange()" ${locked ? 'disabled' : ''}
+            class="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400 disabled:bg-gray-100 disabled:text-gray-400">
             <option value="">Select a module...</option>
             ${wcAllModules.map(m => `<option value="${m.id}" ${wcSelectedModuleIds[0] === m.id ? 'selected' : ''}>${escHtml(m.name)}</option>`).join('')}
-        </select>`;
+        </select>${lockedHint}`;
         return;
     }
 
-    // Role privileged: chip multi-select + All Modules.
-    wrap.innerHTML = `<div class="flex flex-wrap gap-2">
-        <button type="button" class="wc-chip ${wcSelectedAll ? 'active' : ''}" onclick="wcToggleAllChip()">
+    // Role privileged: search box (muncul kalau modulnya banyak) + chip
+    // multi-select + All Modules. Search murni client-side, filter chip yang
+    // sudah dirender — dibutuhkan karena atasan kesulitan mencari modul di
+    // tengah rapat saat daftar modul panjang.
+    const searchBox = wcAllModules.length > 6 ? `
+        <input type="text" id="wcModuleSearch" placeholder="Search module..." oninput="wcFilterModuleChips(this.value)"
+            class="w-full mb-2 px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+    ` : '';
+
+    wrap.innerHTML = `${searchBox}<div class="flex flex-wrap gap-2" id="wcChipGrid">
+        <button type="button" ${locked ? 'disabled' : ''} class="wc-chip ${wcSelectedAll ? 'active' : ''} ${locked ? 'disabled' : ''}" onclick="wcToggleAllChip()">
             <i class="fas fa-layer-group mr-1"></i>All Modules
         </button>
-        ${wcAllModules.map(m => `<button type="button"
-            class="wc-chip ${(!wcSelectedAll && wcSelectedModuleIds.includes(m.id)) ? 'active' : ''} ${wcSelectedAll ? 'disabled' : ''}"
+        ${wcAllModules.map(m => `<button type="button" ${locked ? 'disabled' : ''} data-module-name="${escHtml(m.name.toLowerCase())}"
+            class="wc-chip ${(!wcSelectedAll && wcSelectedModuleIds.includes(m.id)) ? 'active' : ''} ${(wcSelectedAll || locked) ? 'disabled' : ''}"
             onclick="wcToggleModuleChip(${m.id})">${escHtml(m.name)}</button>`).join('')}
-    </div>`;
+    </div>${lockedHint}`;
 }
 
-function wcOnSingleSelectChange() {
+function wcFilterModuleChips(query) {
+    const q = query.trim().toLowerCase();
+    document.querySelectorAll('#wcChipGrid .wc-chip[data-module-name]').forEach(chip => {
+        chip.style.display = !q || chip.dataset.moduleName.includes(q) ? '' : 'none';
+    });
+}
+
+// Shared confirm dialog for "this will remove a module (+ its ticket rows
+// and Notes) from an already-saved recon" — used by both the single-select
+// dropdown and the chip grid's edit-mode removal path.
+function wcConfirmModuleRemoval(moduleName) {
+    return Swal.fire({
+        title: 'Remove this module?',
+        text: `Removing "${moduleName}" will permanently remove its ticket rows and Notes from this recon. This can't be undone.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, remove it'
+    }).then(result => result.isConfirmed);
+}
+
+async function wcOnSingleSelectChange() {
     const val = document.getElementById('wcModuleSelect').value;
-    wcSelectedModuleIds = val ? [parseInt(val, 10)] : [];
+    const newId = val ? parseInt(val, 10) : null;
+
+    if (wcEditMode) {
+        const oldId = wcSelectedModuleIds[0];
+        if (oldId && wcOriginalModuleIds.includes(oldId) && oldId !== newId) {
+            const oldMod = wcAllModules.find(m => m.id === oldId);
+            const confirmed = await wcConfirmModuleRemoval(oldMod ? oldMod.name : 'this module');
+            if (!confirmed) {
+                wcRenderModuleField(); // revert the <select> back to the current value
+                return;
+            }
+        }
+        wcSelectedModuleIds = newId ? [newId] : [];
+        wcRenderModuleField();
+        return;
+    }
+
+    wcSelectedModuleIds = newId ? [newId] : [];
     wcSelectedAll = false;
     wcOnSelectionChange();
 }
 
 function wcToggleAllChip() {
+    if (wcEditMode) return; // switching an existing recon to "All Modules" isn't supported from Edit
     wcSelectedAll = !wcSelectedAll;
     if (wcSelectedAll) wcSelectedModuleIds = [];
     wcRenderModuleField();
     wcOnSelectionChange();
 }
 
-function wcToggleModuleChip(id) {
-    wcSelectedAll = false;
+async function wcToggleModuleChip(id) {
     const idx = wcSelectedModuleIds.indexOf(id);
-    if (idx >= 0) wcSelectedModuleIds.splice(idx, 1);
+    const isRemoving = idx >= 0;
+
+    if (wcEditMode) {
+        if (isRemoving && wcOriginalModuleIds.includes(id)) {
+            const mod = wcAllModules.find(m => m.id === id);
+            const confirmed = await wcConfirmModuleRemoval(mod ? mod.name : 'this module');
+            if (!confirmed) return;
+        }
+        if (isRemoving) wcSelectedModuleIds.splice(idx, 1);
+        else wcSelectedModuleIds.push(id);
+        wcRenderModuleField();
+        return;
+    }
+
+    wcSelectedAll = false;
+    if (isRemoving) wcSelectedModuleIds.splice(idx, 1);
     else wcSelectedModuleIds.push(id);
     wcRenderModuleField();
     wcOnSelectionChange();
@@ -383,7 +508,7 @@ function wcOnSelectionChange() {
     clearTimeout(wcAutoViewTimer);
     if (!hasSelection) {
         document.getElementById('wcResultSummary').textContent = 'Select a module and click View Tickets to see its open tickets.';
-        document.getElementById('wcTableBody').innerHTML = wcEmptyRow('No tickets loaded yet.', 11);
+        document.getElementById('wcTableBody').innerHTML = wcEmptyRow('No tickets loaded yet.', 12);
         return;
     }
 
@@ -429,7 +554,7 @@ async function wcViewTickets() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i>Loading...';
 
     const body = document.getElementById('wcTableBody');
-    body.innerHTML = wcEmptyRow('Loading...', 11);
+    body.innerHTML = wcEmptyRow('Loading...', 12);
 
     try {
         const res = await fetch(`/api/reporting/weekly-consolidation/preview?${wcBuildModuleParams().toString()}`, {
@@ -451,7 +576,7 @@ async function wcViewTickets() {
     } catch (e) {
         console.error(e);
         wcShowMsg(e.message);
-        body.innerHTML = `<tr><td colspan="11" class="text-center py-10 text-red-500 text-sm">${escHtml(e.message)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="12" class="text-center py-10 text-red-500 text-sm">${escHtml(e.message)}</td></tr>`;
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-eye mr-1.5"></i>View Tickets';
@@ -535,7 +660,7 @@ async function wcRefresh() {
 async function wcOpenBatch(id) {
     wcClearMsg();
     const body = document.getElementById('wcTableBody');
-    body.innerHTML = wcEmptyRow('Loading...', 11);
+    body.innerHTML = wcEmptyRow('Loading...', 12);
 
     try {
         const res = await fetch(`/api/reporting/weekly-consolidation/${id}`, {
@@ -549,13 +674,16 @@ async function wcOpenBatch(id) {
     } catch (e) {
         console.error(e);
         wcShowMsg(e.message);
-        body.innerHTML = `<tr><td colspan="11" class="text-center py-10 text-red-500 text-sm">${escHtml(e.message)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="12" class="text-center py-10 text-red-500 text-sm">${escHtml(e.message)}</td></tr>`;
     }
 }
 
 function wcApplyBatch(data) {
     wcState = 'batch';
     wcCurrentBatchId = data.id;
+    wcCurrentBatchData = data;
+    wcEditMode = false;
+    document.getElementById('wcEditBar').classList.add('hidden');
 
     if (data.is_all_modules) {
         wcSelectedAll = true;
@@ -573,6 +701,9 @@ function wcApplyBatch(data) {
     const exportBtn = document.getElementById('wcExportBtn');
     exportBtn.href = `/reporting/weekly-consolidation/${data.id}/export`;
 
+    document.getElementById('wcEditBtn').classList.toggle('hidden', !data.can_edit);
+    document.getElementById('wcDeleteBtn').classList.toggle('hidden', !data.can_delete);
+
     const moduleLabel = data.module_names || data.module_name;
     const refreshedStr = data.last_refreshed_at
         ? `Last refreshed ${new Date(data.last_refreshed_at).toLocaleString('en-US')} by ${escHtml(data.last_refreshed_by || '—')}`
@@ -585,6 +716,135 @@ function wcApplyBatch(data) {
         + `<strong class="text-gray-900">${data.rows.length}</strong> ticket(s) saved in this recon.`;
 
     wcLoadRowsIntoState(data.rows, true);
+}
+
+// ── Edit / Save / Cancel / Delete (saved batch) ─────────────────────────────
+
+function wcEnterEditMode() {
+    if (!wcCurrentBatchData) return;
+    wcEditMode = true;
+    wcOriginalModuleIds = wcCurrentBatchData.is_all_modules
+        ? []
+        : (wcCurrentBatchData.module_ids && wcCurrentBatchData.module_ids.length ? [...wcCurrentBatchData.module_ids] : [wcCurrentBatchData.module_id]);
+
+    document.getElementById('wcEditPeriodStart').value = wcCurrentBatchData.period_start || '';
+    document.getElementById('wcEditPeriodEnd').value = wcCurrentBatchData.period_end || '';
+    document.getElementById('wcEditPeriodLabel').value = wcCurrentBatchData.period_label || '';
+
+    document.getElementById('wcEditBar').classList.remove('hidden');
+    wcRenderModuleField(); // unlock the chips/select now that edit mode is on
+    wcClearMsg();
+}
+
+function wcCancelEdit() {
+    wcEditMode = false;
+    document.getElementById('wcEditBar').classList.add('hidden');
+    if (wcCurrentBatchData) wcApplyBatch(wcCurrentBatchData); // revert chip/period state
+}
+
+async function wcSaveEdit() {
+    wcClearMsg();
+    const periodStart = document.getElementById('wcEditPeriodStart').value;
+    const periodEnd = document.getElementById('wcEditPeriodEnd').value;
+    const periodLabel = document.getElementById('wcEditPeriodLabel').value;
+
+    if (!periodStart || !periodEnd) { wcShowMsg('Period Start and Period End are required.'); return; }
+    if (!wcSelectedAll && wcSelectedModuleIds.length === 0) { wcShowMsg('Select at least one module.'); return; }
+
+    const btn = document.getElementById('wcSaveEditBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i>Saving...';
+
+    try {
+        const res = await fetch(`/api/reporting/weekly-consolidation/${wcCurrentBatchId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                module_ids: wcSelectedAll ? [] : wcSelectedModuleIds,
+                all: wcSelectedAll,
+                period_start: periodStart,
+                period_end: periodEnd,
+                period_label: periodLabel || null
+            })
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || 'Failed to save changes.');
+
+        wcApplyBatch(json.data);
+        wcLoadHistory();
+        showNotification('Changes saved.', 'success');
+    } catch (e) {
+        console.error(e);
+        wcShowMsg(e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-floppy-disk mr-1.5"></i>Save Changes';
+    }
+}
+
+// Shared reset back to "pick a module and start fresh" — used after Delete
+// succeeds, and by the Close button (view a saved recon, then back out
+// without touching it). Also clears the module selection and re-renders the
+// field, since it stays locked/pre-filled from whatever batch was open
+// otherwise.
+function wcResetToIdle(message) {
+    wcState = 'idle';
+    wcEditMode = false;
+    wcCurrentBatchId = null;
+    wcCurrentBatchData = null;
+    wcSelectedModuleIds = [];
+    wcSelectedAll = false;
+    document.getElementById('wcBatchBar').classList.add('hidden');
+    document.getElementById('wcEditBar').classList.add('hidden');
+    document.getElementById('wcGenerateBar').classList.add('hidden');
+    document.getElementById('wcViewBtn').disabled = true;
+    document.getElementById('wcResultSummary').textContent = message;
+    document.getElementById('wcTableBody').innerHTML = wcEmptyRow('No tickets loaded yet.', 12);
+    wcRenderModuleField();
+}
+
+function wcCloseBatch() {
+    wcResetToIdle('Select a module and click View Tickets to see its open tickets.');
+}
+
+async function wcDeleteBatch() {
+    if (!wcCurrentBatchId) return;
+
+    const result = await Swal.fire({
+        title: 'Delete this recon?',
+        text: 'It will be moved to Deleted (recoverable) until permanently removed.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, delete it'
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+        const res = await fetch(`/api/reporting/weekly-consolidation/${wcCurrentBatchId}`, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || 'Failed to delete recon.');
+
+        wcResetToIdle('Recon deleted. Select a module and click View Tickets to start a new one.');
+        wcLoadHistory();
+        showNotification('Recon deleted — recoverable from "Show Deleted".', 'success');
+    } catch (e) {
+        console.error(e);
+        showNotification(e.message, 'error');
+    }
 }
 
 // Dipanggil setiap kali batch/preview baru dimuat — set ulang "sumber data"
@@ -609,12 +869,13 @@ function wcRenderRows(rows, editable) {
 
     if (!rows.length) {
         const msg = wcAllRows.length ? 'No tickets match your filters.' : 'No open tickets found for the selected module(s).';
-        body.innerHTML = wcEmptyRow(msg, 11);
+        body.innerHTML = wcEmptyRow(msg, 12);
         return;
     }
 
     body.innerHTML = rows.map(r => `
         <tr>
+            <td class="wc-td text-xs text-gray-500 whitespace-nowrap">${r.last_update ? new Date(r.last_update).toLocaleString('en-US') : '—'}</td>
             <td class="wc-td">
                 <a href="/ticket/${r.ticket_id}" onclick="return wcTicketClick(event, ${r.ticket_id})" class="font-semibold text-red-800 hover:underline">${escHtml(r.ticket_number)}</a>
             </td>
@@ -665,7 +926,7 @@ function wcDeliverableBadge(status) {
 // ── Per-column header filters (satu filter teks per kolom, sama pola dengan
 // tabel "Ringkasan per Tiket" di Log Shifting) ──────────────────────────────
 
-const WC_FILTER_KEYS = ['ticket_number', 'description', 'start_date', 'ticket_type', 'status', 'module_name', 'lead_member', 'pic', 'progress', 'deliverable', 'notes'];
+const WC_FILTER_KEYS = ['last_update', 'ticket_number', 'description', 'start_date', 'ticket_type', 'status', 'module_name', 'lead_member', 'pic', 'progress', 'deliverable', 'notes'];
 
 function wcInitColumnFilters() {
     document.querySelectorAll('#wcTicketTable thead th[data-filter-key]').forEach(th => {
@@ -754,6 +1015,7 @@ function wcGetFilterText(row, key) {
         case 'ticket_number': return row.ticket_number || '';
         case 'description':   return row.description || '';
         case 'start_date':    return row.start_date ? new Date(row.start_date).toLocaleString('en-US') : '';
+        case 'last_update':   return row.last_update ? new Date(row.last_update).toLocaleString('en-US') : '';
         case 'ticket_type':   return row.ticket_type || '';
         case 'status':        return row.status_label || row.status || '';
         case 'module_name':   return row.module_name || '';
@@ -832,6 +1094,7 @@ function wcOpenTicketModal(ticketId) {
         ${r.description ? `<p class="text-gray-600">${escHtml(r.description)}</p>` : ''}
         <div class="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
             <div><span class="block text-[11px] font-semibold text-gray-400 uppercase">Start Date</span>${r.start_date ? new Date(r.start_date).toLocaleString('en-US') : '—'}</div>
+            <div><span class="block text-[11px] font-semibold text-gray-400 uppercase">Last Update</span>${r.last_update ? new Date(r.last_update).toLocaleString('en-US') : '—'}</div>
             <div><span class="block text-[11px] font-semibold text-gray-400 uppercase">Type</span>${r.ticket_type ? escHtml(r.ticket_type) : '<span class="text-gray-300 italic">—</span>'}</div>
             <div><span class="block text-[11px] font-semibold text-gray-400 uppercase">Module</span>${r.module_name ? escHtml(r.module_name) : '<span class="text-gray-300 italic">—</span>'}</div>
             <div><span class="block text-[11px] font-semibold text-gray-400 uppercase">Lead &amp; Member</span>${r.lead_member ? escHtml(r.lead_member) : '<span class="text-gray-300 italic">—</span>'}</div>
@@ -906,10 +1169,73 @@ document.addEventListener('keydown', (e) => {
     wcCloseNoteModal();
 });
 
+let wcShowDeleted = false;
+// Persists across toggles — re-deriving "can I see Show Deleted?" from just
+// the CURRENT list's first row breaks the moment that list is empty (e.g. no
+// deleted recons yet), which hid the only way back to History. Once we've
+// seen it's true from any load, it stays true for the rest of the session.
+let wcCanDeleteAny = false;
+
+function wcToggleShowDeleted() {
+    wcShowDeleted = !wcShowDeleted;
+    document.getElementById('wcShowDeletedLabel').textContent = wcShowDeleted ? 'Back to History' : 'Show Deleted';
+    document.getElementById('wcHistoryTitle').textContent = wcShowDeleted ? 'Deleted Recons' : 'Recon History';
+    document.getElementById('wcHistorySubtitle').textContent = wcShowDeleted
+        ? 'Soft-deleted batches — Restore to bring one back, or delete permanently.'
+        : 'All Weekly Consolidation batches ever generated. Click "Open" to view or continue editing.';
+    wcLoadHistory();
+}
+
+async function wcRestoreBatch(id) {
+    try {
+        const res = await fetch(`/api/reporting/weekly-consolidation/${id}/restore`, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || 'Failed to restore recon.');
+        wcLoadHistory();
+        showNotification('Recon restored.', 'success');
+    } catch (e) {
+        console.error(e);
+        showNotification(e.message, 'error');
+    }
+}
+
+async function wcForceDeleteBatch(id) {
+    const result = await Swal.fire({
+        title: 'Permanently delete this recon?',
+        text: 'This cannot be undone — the recon and its ticket rows will be gone for good.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, delete permanently'
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+        const res = await fetch(`/api/reporting/weekly-consolidation/${id}/force`, {
+            method: 'DELETE',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || 'Failed to permanently delete recon.');
+        wcLoadHistory();
+        showNotification('Recon permanently deleted.', 'success');
+    } catch (e) {
+        console.error(e);
+        showNotification(e.message, 'error');
+    }
+}
+
 async function wcLoadHistory() {
     const body = document.getElementById('wcHistoryBody');
     try {
-        const res = await fetch('/api/reporting/weekly-consolidation', {
+        const url = '/api/reporting/weekly-consolidation' + (wcShowDeleted ? '?trashed=1' : '');
+        const res = await fetch(url, {
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin'
         });
@@ -917,8 +1243,17 @@ async function wcLoadHistory() {
         if (!json.success) throw new Error(json.message || 'Failed to load history');
 
         const batches = json.data || [];
+
+        // Tombol "Show Deleted" hanya berarti buat yang punya can_delete —
+        // disembunyikan total dari yang lain, bukan cuma dinonaktifkan. Begitu
+        // kita tahu true (dari list manapun), biarkan tetap true supaya
+        // tombol/"Back to History" tidak hilang saat list yang SEDANG dilihat
+        // kebetulan kosong.
+        if (batches[0]?.can_delete) wcCanDeleteAny = true;
+        document.getElementById('wcShowDeletedBtn').classList.toggle('hidden', !wcCanDeleteAny);
+
         if (!batches.length) {
-            body.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400 text-sm">No recon has been generated yet.</td></tr>`;
+            body.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400 text-sm">${wcShowDeleted ? 'No deleted recons.' : 'No recon has been generated yet.'}</td></tr>`;
             return;
         }
 
@@ -928,10 +1263,17 @@ async function wcLoadHistory() {
                 <td class="wc-td">${escHtml(b.period_label || '-')}</td>
                 <td class="wc-td">${b.ticket_count}</td>
                 <td class="wc-td text-xs text-gray-500">${b.generated_at ? new Date(b.generated_at).toLocaleString('en-US') : '—'} ${b.generated_by ? 'by ' + escHtml(b.generated_by) : ''}</td>
-                <td class="wc-td text-xs text-gray-500">${b.last_refreshed_at ? new Date(b.last_refreshed_at).toLocaleString('en-US') : '—'}</td>
+                <td class="wc-td text-xs text-gray-500">${wcShowDeleted
+                    ? (b.deleted_at ? new Date(b.deleted_at).toLocaleString('en-US') + (b.deleted_by ? ' by ' + escHtml(b.deleted_by) : '') : '—')
+                    : (b.last_refreshed_at ? new Date(b.last_refreshed_at).toLocaleString('en-US') : '—')}</td>
                 <td class="wc-td text-right whitespace-nowrap">
-                    <button type="button" onclick="wcOpenBatch(${b.id})" class="px-2.5 py-1 text-xs font-semibold text-red-800 border border-red-800 rounded-md hover:bg-red-50 mr-1.5">Open</button>
-                    <a href="/reporting/weekly-consolidation/${b.id}/export" class="px-2.5 py-1 text-xs font-semibold text-gray-600 border border-gray-300 rounded-md hover:bg-gray-100">Export</a>
+                    ${wcShowDeleted ? `
+                        <button type="button" onclick="wcRestoreBatch(${b.id})" class="px-2.5 py-1 text-xs font-semibold text-green-700 border border-green-700 rounded-md hover:bg-green-50 mr-1.5">Restore</button>
+                        <button type="button" onclick="wcForceDeleteBatch(${b.id})" class="px-2.5 py-1 text-xs font-semibold text-red-700 border border-red-700 rounded-md hover:bg-red-50">Delete Permanently</button>
+                    ` : `
+                        <button type="button" onclick="wcOpenBatch(${b.id})" class="px-2.5 py-1 text-xs font-semibold text-red-800 border border-red-800 rounded-md hover:bg-red-50 mr-1.5">Open</button>
+                        <a href="/reporting/weekly-consolidation/${b.id}/export" class="px-2.5 py-1 text-xs font-semibold text-gray-600 border border-gray-300 rounded-md hover:bg-gray-100">Export</a>
+                    `}
                 </td>
             </tr>
         `).join('');

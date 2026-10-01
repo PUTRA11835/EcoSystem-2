@@ -23,7 +23,7 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
 
     private const HEADER_ROW     = 8;
     private const FIRST_DATA_ROW = 9;
-    private const LAST_COL       = 'K';
+    private const LAST_COL       = 'L';
 
     public function __construct(Collection $rows, array $meta = [])
     {
@@ -33,7 +33,7 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
 
     public function array(): array
     {
-        $blank = array_fill(0, 11, '');
+        $blank = array_fill(0, 12, '');
         $labelValue = fn (string $label, string $value) => array_merge([$label, $value], array_slice($blank, 2));
 
         $rows = [
@@ -44,13 +44,15 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
             array_merge([$this->periodLabel()], array_slice($blank, 1)),
             array_merge([$this->metaLabel()], array_slice($blank, 1)),
             $blank,
-            ['Ticket', 'Description', 'Start Date', 'Type', 'Status', 'Module', 'Lead & Member', 'PIC', 'Progress (%)', 'Deliverable', 'Notes'],
+            ['Last Update', 'Ticket', 'Description', 'Start Date', 'Type', 'Status', 'Module', 'Lead & Member', 'PIC', 'Progress (%)', 'Deliverable', 'Notes'],
         ];
 
         foreach ($this->rows as $r) {
-            $startDate = $r['start_date'] ?? null;
+            $startDate  = $r['start_date'] ?? null;
+            $lastUpdate = $r['last_update'] ?? null;
 
             $rows[] = [
+                $lastUpdate ? $lastUpdate->format('d M Y H:i') . ' WIB' : '—',
                 $r['ticket_number'] ?? '—',
                 $r['description'] ?? '—',
                 $startDate ? $startDate->format('d M Y H:i') . ' WIB' : '—',
@@ -93,17 +95,18 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
     public function columnWidths(): array
     {
         return [
-            'A' => 16, // Ticket
-            'B' => 34, // Description
-            'C' => 18, // Start Date
-            'D' => 14, // Type
-            'E' => 18, // Status
-            'F' => 12, // Module
-            'G' => 26, // Lead & Member
-            'H' => 16, // PIC
-            'I' => 11, // Progress (%)
-            'J' => 11, // Deliverable
-            'K' => 35, // Notes
+            'A' => 18, // Last Update
+            'B' => 16, // Ticket
+            'C' => 34, // Description
+            'D' => 18, // Start Date
+            'E' => 14, // Type
+            'F' => 18, // Status
+            'G' => 12, // Module
+            'H' => 26, // Lead & Member
+            'I' => 16, // PIC
+            'J' => 11, // Progress (%)
+            'K' => 11, // Deliverable
+            'L' => 35, // Notes
         ];
     }
 
@@ -165,7 +168,7 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
                 'borders'   => ['allBorders' => $thinBorder],
                 'alignment' => ['vertical' => Alignment::VERTICAL_TOP, 'wrapText' => true],
             ];
-            foreach (['C', 'D', 'E', 'F', 'I', 'J'] as $col) {
+            foreach (['A', 'D', 'E', 'F', 'G', 'J', 'K'] as $col) {
                 $styles["{$col}{$i}"] = ['alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_TOP]];
             }
         }

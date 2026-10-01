@@ -644,6 +644,10 @@ Route::middleware(['web'])->group(function () {
         Route::post('/weekly-consolidation', [\App\Http\Controllers\WeeklyConsolidationController::class, 'generate']);
         Route::get('/weekly-consolidation/{id}', [\App\Http\Controllers\WeeklyConsolidationController::class, 'show']);
         Route::post('/weekly-consolidation/{id}/refresh', [\App\Http\Controllers\WeeklyConsolidationController::class, 'refresh']);
+        Route::put('/weekly-consolidation/{id}', [\App\Http\Controllers\WeeklyConsolidationController::class, 'update']);
+        Route::delete('/weekly-consolidation/{id}/force', [\App\Http\Controllers\WeeklyConsolidationController::class, 'forceDestroy']);
+        Route::delete('/weekly-consolidation/{id}', [\App\Http\Controllers\WeeklyConsolidationController::class, 'destroy']);
+        Route::post('/weekly-consolidation/{id}/restore', [\App\Http\Controllers\WeeklyConsolidationController::class, 'restore']);
         Route::post('/weekly-consolidation/{id}/tickets/{ticketId}/notes', [\App\Http\Controllers\WeeklyConsolidationController::class, 'updateNote']);
         Route::get('/resolution-days', [\App\Http\Controllers\ReportingController::class, 'resolutionDays']);
         // Consultant Assignment — daftar consultant yang tergabung di Delivery Project.
