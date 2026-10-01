@@ -1451,9 +1451,15 @@ class TimesheetController extends Controller
                 ->orderBy('name')
                 ->get();
 
+            // Whether the employee is assigned to any activity of this project at all
+            // (any date). When not, the form offers "log without activity".
+            $hasAssignment = $activities->isNotEmpty()
+                || $this->eligibleActivitiesQuery((int) $projectId, (int) $employeeId)->exists();
+
             return response()->json([
                 'success' => true,
                 'data' => $activities,
+                'has_assignment' => $hasAssignment,
                 'message' => 'Activities retrieved successfully'
             ]);
         } catch (\Exception $e) {
@@ -1681,6 +1687,8 @@ class TimesheetController extends Controller
      *    running on the timesheet date;
      *  - weekend / public holiday → no activity runs, so the user must confirm
      *    "log without activity" (activity_id = null, detail in description);
+     *  - working day, but the employee is not assigned to any activity of the
+     *    project → same "log without activity" confirmation;
      *  - billable is always true and activity type is no longer used.
      * Returns an error message, or null when valid.
      */
@@ -1699,10 +1707,14 @@ class TimesheetController extends Controller
 
         $date          = Carbon::parse($validated['date']);
         $nonWorkingDay = $this->nonWorkingDayInfo($date)['is_non_working_day'];
+        $notAssigned   = !$nonWorkingDay
+            && !$this->eligibleActivitiesQuery((int) $project->id, $employeeId)->exists();
 
-        if ($nonWorkingDay) {
+        if ($nonWorkingDay || $notAssigned) {
             if (!$request->boolean('is_without_activity')) {
-                return 'No activity runs on a weekend or public holiday. Tick "Log without activity" and describe the work in Activity Detail.';
+                return $nonWorkingDay
+                    ? 'No activity runs on a weekend or public holiday. Tick "Log without activity" and describe the work in Activity Detail.'
+                    : 'You are not assigned to any activity in this project. Tick "Log without activity" and describe the work in Activity Detail.';
             }
             $validated['activity_id']         = null;
             $validated['is_without_activity'] = true;

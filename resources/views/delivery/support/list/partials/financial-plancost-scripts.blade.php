@@ -742,7 +742,7 @@
     function showPlanCostToast(msg, type) {
         if (typeof window.showToast === 'function') window.showToast(msg, type);
         else if (typeof window.showNotification === 'function') window.showNotification(msg, type);
-        else alert(msg);
+        else showAlert(msg);
     }
 
     async function _adLoadItems() {
@@ -1089,7 +1089,7 @@ window.SupportPaymentTermPlan = (function () {
     function notify(msg, type) {
         if (typeof window.showNotification === 'function') window.showNotification(msg, type);
         else if (typeof window.showToast === 'function') window.showToast(msg, type);
-        else alert(msg);
+        else showAlert(msg);
     }
 
     async function save() {

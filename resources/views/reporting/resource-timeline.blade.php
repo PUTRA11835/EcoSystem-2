@@ -429,7 +429,7 @@
     };
 
     window.rtDeleteRange = async function (employeeId, start, end) {
-        if (!confirm('Clear this location for the selected date range?')) return;
+        if (!(await showConfirm('Clear this location for the selected date range?', 'Clear Location', 'danger', { okText: 'Clear' }))) return;
 
         const result = await rtFetch('/api/reporting/resource-timeline/entries/delete', {
             method: 'POST',
@@ -437,7 +437,7 @@
         });
 
         if (!result.success) {
-            alert(result.message || 'Failed to delete.');
+            showAlert(result.message || 'Failed to delete.', 'Delete Failed', 'danger');
             return;
         }
 

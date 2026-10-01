@@ -89,12 +89,14 @@
             okBtn.className     = OK_CLS[variant];
             okBtn.textContent     = opts.okText     || 'OK';
             cancelBtn.textContent = opts.cancelText || 'Cancel';
+            cancelBtn.classList.toggle('hidden', !!opts.hideCancel);
 
             modal.classList.remove('hidden');
             okBtn.focus();
 
             function cleanup() {
                 modal.classList.add('hidden');
+                cancelBtn.classList.remove('hidden');
                 okBtn.removeEventListener('click',  onOk);
                 cancelBtn.removeEventListener('click', onCancel);
                 modal.removeEventListener('click',  onBackdrop);
@@ -113,6 +115,18 @@
             modal.addEventListener('click',  onBackdrop);
             document.addEventListener('keydown', onKey);
         });
+    };
+
+    /**
+     * Custom alert dialog (pengganti alert() native) — modal yang sama, hanya tombol OK.
+     * Returns Promise<void> yang resolve saat ditutup.
+     * @param {string} message
+     * @param {string} [title='Information']
+     * @param {'default'|'primary'|'danger'} [variant='primary']
+     */
+    window.showAlert = function (message, title, variant) {
+        return window.showConfirm(message, title || 'Information', variant || 'primary', { hideCancel: true })
+            .then(function () {});
     };
 
     /**

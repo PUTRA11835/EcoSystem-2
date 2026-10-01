@@ -35,7 +35,7 @@ window.SupportRecons = (function () {
     function notify(msg, type) {
         if (typeof window.showToast === 'function') window.showToast(msg, type);
         else if (typeof window.showNotification === 'function') window.showNotification(msg, type);
-        else alert(msg);
+        else showAlert(msg);
     }
 
     function fmtMd(value) {

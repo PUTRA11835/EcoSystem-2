@@ -3932,7 +3932,7 @@
         if (typeof window.showToast === 'function') {
             window.showToast(msg, type);
         } else {
-            alert(msg);
+            showAlert(msg);
         }
     }
 
@@ -7016,8 +7016,7 @@ function showContractWarningModal(warning) {
     const modal = document.getElementById('contractWarningModal');
     const body  = document.getElementById('contractWarningBody');
     if (!modal || !body) {            // graceful fallback if markup missing
-        alert(typeof warning === 'string' ? warning : 'Saved with warnings — please review planning.');
-        setTimeout(() => location.reload(), 200);
+        showAlert(typeof warning === 'string' ? warning : 'Saved with warnings — please review planning.', 'Saved with Warnings').then(() => location.reload());
         return;
     }
 
@@ -9848,9 +9847,12 @@ window.PaymentTermPlan = (function () {
         if (mode === _mode) return;
 
         const question = mode === 'line_item'
-            ? 'Switch billing mode to "Line Item (fixed amount)"?\n\nExisting % terms stay as they are. New payment terms must be linked to a contract line item, and fixed amounts are no longer taken from the revenue.'
-            : 'Switch billing mode back to "% of Revenue"?\n\nContract line items are kept but hidden. Only possible when no fixed-amount term exists.';
-        if (!confirm(question)) return;
+            ? 'Existing % terms stay as they are. New payment terms must be linked to a contract line item, and fixed amounts are no longer taken from the revenue.'
+            : 'Contract line items are kept but hidden. Only possible when no fixed-amount term exists.';
+        const title = mode === 'line_item'
+            ? 'Switch to "Line Item (fixed amount)"?'
+            : 'Switch back to "% of Revenue"?';
+        if (!(await showConfirm(question, title, 'primary', { okText: 'Switch Mode' }))) return;
 
         try {
             const res = await axios.post(MODE_URL, { top_mode: mode, _token: getCsrf() });

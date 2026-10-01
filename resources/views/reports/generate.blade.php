@@ -588,7 +588,7 @@
         }
 
         if (!selectedTemplateId) {
-            alert('Pilih template dulu di panel atas.');
+            showAlert('Pilih template dulu di panel atas.', 'Template Belum Dipilih');
             wrScopePanel.classList.remove('hidden');
             loadTemplates(templateSearchInput.value.trim());
             return;
@@ -637,7 +637,7 @@
     async function submitAnswer() {
         const answerText = wrInstructions.value.trim();
         if (!answerText) {
-            alert('Tulis jawaban Anda dulu.');
+            showAlert('Tulis jawaban Anda dulu.', 'Jawaban Kosong');
             return;
         }
 
