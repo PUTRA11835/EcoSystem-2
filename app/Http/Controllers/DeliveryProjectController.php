@@ -116,7 +116,7 @@ class DeliveryProjectController extends Controller
             $activityDone = $activities->filter(fn ($a) => (float) ($a->progress_percentage ?? 0) >= 100)->count();
 
             $terms       = $paymentTerms[$project->id] ?? collect();
-            $termAmount  = fn ($t) => round($revenue * ((float) $t->payment_percentage) / 100, 2);
+            $termAmount  = fn ($t) => $t->effectiveAmount($revenue);
             $topAmount   = $terms->sum($termAmount);
             $topPaid     = $terms->where('status', 'Paid')->sum($termAmount);
 
@@ -909,15 +909,17 @@ class DeliveryProjectController extends Controller
      * Hitung ulang amount setiap payment term dari revenue project terkini,
      * mengikuti rumus amount = revenue × payment_percentage / 100 yang juga dipakai
      * saat term dibuat/diedit (lihat DeliveryProjectPaymentTermController::computeAmount).
+     * Termin nominal tetap (mode Line Item) tidak diturunkan dari revenue → dilewati.
      */
     private function syncPaymentTermAmounts(DeliveryProject $project): void
     {
         $revenue = (float) ($project->revenue ?? 0);
 
         DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
+            ->where('basis', 'percentage')
             ->get()
             ->each(function (DeliveryProjectPaymentTerm $term) use ($revenue) {
-                $amount = round($revenue * ((float) $term->payment_percentage) / 100, 2);
+                $amount = $term->effectiveAmount($revenue);
                 if (abs((float) $term->amount - $amount) > 0.001) {
                     $term->update(['amount' => $amount]);
                 }

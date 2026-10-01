@@ -1142,13 +1142,15 @@ class ReportingController extends Controller
                     'term_id'             => (int) $t->id,
                     'term_number'         => (int) $t->term_number,
                     'month_key'           => $key,
-                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
-                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
-                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
-                    'amount'              => round(((float) $t->project_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    // Amount basis % = nilai turunan (revenue x % / 100), dihitung ulang di
+                    // sini supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0). Basis nominal
+                    // tetap (mode Line Item) memakai nilai tersimpan apa adanya.
+                    'amount'              => \App\Models\DeliveryProjectPaymentTerm::amountFor($t->basis, $t->payment_percentage, $t->amount, $t->project_revenue),
                     'status'              => $t->status,
                     'payment_term'        => $t->payment_term,
-                    'payment_percentage'  => (float) $t->payment_percentage,
+                    'payment_percentage'  => $t->basis === 'fixed' ? null : (float) $t->payment_percentage,
+                    'basis'               => $t->basis,
                     'requirements'        => $t->requirements,
                     'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : null,
                     'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : null,
@@ -1327,11 +1329,13 @@ class ReportingController extends Controller
                     'ae_name'             => $t->ae_name ?: '-',
                     'term_number'         => (int) $t->term_number,
                     'payment_term'        => $t->payment_term ?: '-',
-                    'payment_percentage'  => (float) $t->payment_percentage,
-                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
-                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
-                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
-                    'amount'              => round(((float) $t->project_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    'payment_percentage'  => $t->basis === 'fixed' ? null : (float) $t->payment_percentage,
+                    'basis'               => $t->basis,
+                    // Amount basis % = nilai turunan (revenue x % / 100), dihitung ulang di
+                    // sini supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0). Basis nominal
+                    // tetap (mode Line Item) memakai nilai tersimpan apa adanya.
+                    'amount'              => \App\Models\DeliveryProjectPaymentTerm::amountFor($t->basis, $t->payment_percentage, $t->amount, $t->project_revenue),
                     'status'              => $t->status,
                     'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : '',
                     'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : '',

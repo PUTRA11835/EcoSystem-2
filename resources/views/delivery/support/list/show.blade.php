@@ -1557,12 +1557,12 @@ async function copyDeliverableLink(folderId, row) {
 
         if (data.link_warning) {
             // Jangan klaim "anyone with this link" kalau scope-nya ternyata internal.
-            if (!copied) window.prompt('Copy this link:', data.url);
+            if (!copied) showAlert('Copy this link manually:\n\n' + data.url, 'Shareable Link');
             showToast(data.link_warning, 'error');
         } else if (copied) {
             showToast('Shareable link copied — anyone with this link can open the folder.', 'success');
         } else {
-            window.prompt('Copy this shareable link:', data.url);
+            showAlert('Copy this shareable link manually:\n\n' + data.url, 'Shareable Link');
         }
     } catch (err) {
         showToast('Failed to copy link: ' + err.message, 'error');

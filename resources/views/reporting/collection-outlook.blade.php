@@ -513,7 +513,9 @@ function openCoDetail(termId) {
     document.getElementById('coModalSub').textContent   = `TOP #${r.term_number} · ${r.payment_term || '-'}`;
 
     document.getElementById('coDetAmount').textContent = formatFullIDR(r.amount);
-    document.getElementById('coDetPct').textContent    = `${fmtPct(r.payment_percentage)}% of revenue`;
+    // Termin nominal tetap (mode Line Item) tidak punya persentase.
+    const isFixed = r.basis === 'fixed';
+    document.getElementById('coDetPct').textContent    = isFixed ? 'Fixed amount' : `${fmtPct(r.payment_percentage)}% of revenue`;
 
     const st = document.getElementById('coDetStatus');
     st.textContent = r.status;
@@ -524,7 +526,7 @@ function openCoDetail(termId) {
     document.getElementById('coDetIo').textContent       = r.io_number || '—';
     document.getElementById('coDetTermNo').textContent   = r.term_number;
     document.getElementById('coDetTermName').textContent = r.payment_term || '—';
-    document.getElementById('coDetPctRow').textContent   = `${fmtPct(r.payment_percentage)}%`;
+    document.getElementById('coDetPctRow').textContent   = isFixed ? 'Fixed amount' : `${fmtPct(r.payment_percentage)}%`;
     document.getElementById('coDetRevenue').textContent  = formatFullIDR(r.project_revenue);
     document.getElementById('coDetReq').textContent      = r.requirements || '—';
 

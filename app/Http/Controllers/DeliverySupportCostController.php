@@ -6,6 +6,7 @@ use App\Models\DeliverySupport;
 use App\Models\DeliverySupportCost;
 use App\Models\DeliverySupportCostItem;
 use App\Services\OneDriveService;
+use App\Services\PlanCostDocumentLink;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -155,6 +156,10 @@ class DeliverySupportCostController extends Controller
         }
 
         $items = $cost->items()->get();
+
+        // Dokumen lama yang masih berupa path SharePoint langsung → jadikan share link anonim.
+        $links = new PlanCostDocumentLink();
+        $items->each(fn($i) => $links->ensure($i, $support->onedrive_folder_id));
 
         return response()->json([
             'items' => $items->map(fn($i) => $this->formatItem($i)),

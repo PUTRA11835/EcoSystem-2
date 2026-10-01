@@ -17,7 +17,10 @@ class DeliveryProjectPaymentTerm extends Model
     protected $fillable = [
         'delivery_projects_id',
         'term_number',
+        'basis',
+        'contract_line_item_id',
         'payment_term',
+        'period',
         'payment_percentage',
         'amount',
         'requirements',
@@ -42,5 +45,38 @@ class DeliveryProjectPaymentTerm extends Model
     public function project()
     {
         return $this->belongsTo(DeliveryProject::class, 'delivery_projects_id');
+    }
+
+    public function contractLineItem()
+    {
+        return $this->belongsTo(DeliveryProjectContractLineItem::class, 'contract_line_item_id');
+    }
+
+    // ── Amount ─────────────────────────────────────────────────────
+
+    /**
+     * Satu-satunya rumus amount termin. Basis "percentage" diturunkan dari
+     * revenue Sales Data (nilai tersimpan bisa basi bila revenue berubah);
+     * basis "fixed" memakai nominal yang diisi user apa adanya.
+     *
+     * Static + argumen mentah supaya bisa dipakai juga untuk baris DB::table().
+     */
+    public static function amountFor(?string $basis, $percentage, $storedAmount, $revenue): float
+    {
+        if ($basis === 'fixed') {
+            return round((float) $storedAmount, 2);
+        }
+
+        return round(((float) $revenue) * ((float) $percentage) / 100, 2);
+    }
+
+    public function effectiveAmount($revenue): float
+    {
+        return self::amountFor($this->basis, $this->payment_percentage, $this->amount, $revenue);
+    }
+
+    public function isFixed(): bool
+    {
+        return $this->basis === 'fixed';
     }
 }
