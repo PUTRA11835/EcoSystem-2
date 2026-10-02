@@ -75,7 +75,7 @@
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <i class="fas fa-search text-white/40 text-xs"></i>
             </div>
-            <input type="text" id="sidebarSearch" placeholder="Search tickets..."
+            <input type="text" id="sidebarTicketSearch" placeholder="Search tickets..."
                 class="w-full pl-9 pr-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/50 focus:outline-none focus:bg-white/15 transition-all"
                 onkeyup="filterSidebarTickets()">
         </div>
@@ -99,7 +99,8 @@
 @section('content')
 {{-- Quill.js CDN --}}
 <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<link rel="preconnect" href="https://cdn.quilljs.com" crossorigin>
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js" defer></script>
 @php $customDdVer = file_exists(public_path('js/custom-dropdown.js')) ? filemtime(public_path('js/custom-dropdown.js')) : time(); @endphp
 <script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 
@@ -3722,6 +3723,7 @@
     }
     let allSidebarTickets  = [];
     let sidebarView        = 'all';
+    let sidebarLoadSeq     = 0;
     let deliverySupportList = [];
     // Set berisi ID pesan yang sudah dirender ke DOM.
     // Digunakan agar polling tidak me-render ulang pesan lama &rarr; gambar tidak flicker.
@@ -4062,7 +4064,17 @@
         renderToTags();
         renderCcTags();
         loadMessages().then(scrollToMessageFromHash);
-        switchSidebarView(canViewMyTicketTab ? 'my' : 'all');
+        (function () {
+            // Ingat tab terakhir (All/My) supaya tidak reset saat pindah ticket
+            let saved = null;
+            try { saved = sessionStorage.getItem('sbTicketsView:{{ session('user.id') }}'); } catch (_) {}
+            const hasAll = !!document.getElementById('sidebarTabAll');
+            const hasMy  = !!document.getElementById('sidebarTabMy');
+            let view = canViewMyTicketTab ? 'my' : 'all';
+            if (saved === 'all' && hasAll) view = 'all';
+            else if (saved === 'my' && hasMy) view = 'my';
+            switchSidebarView(view);
+        })();
         markMessagesRead();
         startMessagePolling();
 
@@ -5781,6 +5793,7 @@
     // ==================== SIDEBAR TICKETS ====================
     function switchSidebarView(view) {
         sidebarView = view;
+        try { sessionStorage.setItem('sbTicketsView:{{ session('user.id') }}', view); } catch (_) {}
         const tabAll = document.getElementById('sidebarTabAll');
         const tabMy  = document.getElementById('sidebarTabMy');
         if (tabAll && tabMy) {
@@ -5792,23 +5805,61 @@
         loadSidebarTickets();
     }
 
-    async function loadSidebarTickets() {
+    // Cache daftar sidebar (memori + sessionStorage) supaya pindah tab / pindah ticket
+    // langsung tampil dari cache, lalu disegarkan di belakang layar (stale-while-revalidate).
+    const sidebarCache = {};
+    const SIDEBAR_CACHE_PREFIX = 'sbTickets:{{ session('user.id') }}:';
+    function sidebarCacheGet(key) {
+        if (sidebarCache[key]) return sidebarCache[key];
         try {
-            let endpoint = '/api/tickets';
-            if (userRole === EC_USER_ROLE) endpoint = '/api/tickets/my';
-            else if ([EC_ADMINISTRATOR_ROLE, DELIVERY_SUPPORT_USER_ROLE, DELIVERY_HELPDESK_ROLE, DELIVERY_RPMO_HEAD_ROLE].includes(userRole) && sidebarView === 'my') endpoint = '/api/tickets/my';
+            const raw = sessionStorage.getItem(SIDEBAR_CACHE_PREFIX + key);
+            if (raw) return (sidebarCache[key] = JSON.parse(raw));
+        } catch (_) {}
+        return null;
+    }
+    function sidebarCacheSet(key, data) {
+        sidebarCache[key] = data;
+        try { sessionStorage.setItem(SIDEBAR_CACHE_PREFIX + key, JSON.stringify(data)); } catch (_) {}
+    }
 
-            const response = await fetch(endpoint, {
+    async function loadSidebarTickets() {
+        const loadingEl = document.getElementById('sidebarLoading');
+        try {
+            const endpoint = (userRole === EC_USER_ROLE || sidebarView === 'my') ? '/api/tickets/my' : '/api/tickets';
+
+            // sidebar=1 -> server hanya kirim kolom ringan (tanpa stats/SLA/progress), max 300 baris
+            const q = (document.getElementById('sidebarTicketSearch')?.value || '').trim();
+            const params = new URLSearchParams({ sidebar: '1' });
+            if (q) params.set('q', q);
+            const reqSeq = ++sidebarLoadSeq;
+            const cacheKey = endpoint + '?' + params.toString();
+
+            const cached = sidebarCacheGet(cacheKey);
+            if (cached) {
+                allSidebarTickets = cached;
+                renderSidebarTickets(cached);
+                loadingEl.classList.add('hidden');
+            } else {
+                document.getElementById('sidebarTicketList').innerHTML = '';
+                loadingEl.classList.remove('hidden');
+            }
+
+            const response = await fetch(cacheKey, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             });
             const data = await response.json();
+            if (reqSeq !== sidebarLoadSeq) return; // ada request lebih baru, abaikan hasil lama
 
-            document.getElementById('sidebarLoading').classList.add('hidden');
+            loadingEl.classList.add('hidden');
 
             if (data.success) {
-                allSidebarTickets = data.data.sort((a, b) => new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at));
-                renderSidebarTickets(allSidebarTickets);
+                sidebarCacheSet(cacheKey, data.data);
+                // Hindari re-render (kedip) kalau isi sama dengan cache
+                if (!cached || JSON.stringify(cached) !== JSON.stringify(data.data)) {
+                    allSidebarTickets = data.data;
+                    renderSidebarTickets(allSidebarTickets);
+                }
             }
         } catch (error) {
             document.getElementById('sidebarLoading').classList.add('hidden');
@@ -5858,7 +5909,7 @@
             const [sLabel, sCls] = statusMap[sRaw] || ['Unknown', 'sb-status-default'];
 
             return `
-                <a href="/ticket/${t.ticket_id}" class="sidebar-ticket-item ${isActive ? 'active' : ''}" title="${heading}">
+                <a href="/ticket/${t.ticket_id}" onclick="sidebarTicketNavigating(this)" class="sidebar-ticket-item ${isActive ? 'active' : ''}" title="${heading}">
                     <div class="flex items-start justify-between gap-1 mb-0.5">
                         <span class="text-[11px] font-bold text-gray-800 truncate leading-tight">${heading}</span>
                         <span class="text-[9px] text-gray-400 flex-shrink-0 mt-0.5" title="${timeTitle}">${timeAgo}</span>
@@ -5872,18 +5923,24 @@
         }).join('');
     }
 
+    // Feedback instan saat ticket diklik: tandai aktif + redupkan sisanya sampai halaman baru terbuka
+    function sidebarTicketNavigating(el) {
+        document.querySelectorAll('#sidebarTicketList .sidebar-ticket-item').forEach(a => a.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('sidebarTicketList').style.opacity = '0.6';
+        document.body.style.cursor = 'progress';
+    }
+
+    window.addEventListener('pageshow', () => {
+        const l = document.getElementById('sidebarTicketList');
+        if (l) l.style.opacity = '';
+        document.body.style.cursor = '';
+    });
+
+    let sidebarSearchTimer = null;
     function filterSidebarTickets() {
-        const term = document.getElementById('sidebarSearch').value.toLowerCase();
-        if (!term) {
-            renderSidebarTickets(allSidebarTickets);
-            return;
-        }
-        const filtered = allSidebarTickets.filter(t =>
-            (t.ticket_number && t.ticket_number.toLowerCase().includes(term)) ||
-            (t.description && t.description.toLowerCase().includes(term)) ||
-            (t.customer?.customer_name && t.customer.customer_name.toLowerCase().includes(term))
-        );
-        renderSidebarTickets(filtered);
+        clearTimeout(sidebarSearchTimer);
+        sidebarSearchTimer = setTimeout(loadSidebarTickets, 300);
     }
 
     // ==================== SIDEBAR RESIZE ====================

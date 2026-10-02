@@ -1,16 +1,19 @@
 @extends('dashboard')
 @section('title', 'Resource Timeline')
 @section('page-title', 'Resource Timeline')
-@section('page-subtitle', 'Daily client/location assignment per SAP Consultant')
+@section('page-subtitle', 'Daily customer assignment per SAP Consultant / PMO')
 
 @section('content')
 
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
     <div>
         <h2 class="text-xl font-bold text-gray-900">Resource Timeline</h2>
-        <p class="text-sm text-gray-500 mt-0.5">Where every SAP Consultant is assigned, day by day</p>
+        <p class="text-sm text-gray-500 mt-0.5">Where every SAP Consultant is assigned, day by day. Click a consultant's row to create or edit their timeline.</p>
     </div>
     <div id="rtToolbar" class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+        <input type="search" id="rtCustomerSearch" placeholder="Search customer code…" autocomplete="off"
+               oninput="rtRender()" style="width:170px !important;"
+               class="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
         <div class="rt-tb-select" style="width:150px;">
         <select id="rtHomeBase" onchange="rtLoadGrid()"
                 class="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
@@ -20,7 +23,14 @@
             @endforeach
         </select>
         </div>
-        <div class="rt-tb-select" style="width:120px;">
+        <div class="rt-tb-select" style="width:110px;">
+        <select id="rtView" onchange="rtOnViewChange()"
+                class="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+        </select>
+        </div>
+        <div class="rt-tb-select" id="rtMonthWrap" style="width:120px;">
         <select id="rtMonth" onchange="rtLoadGrid()"
                 class="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
             @foreach (['January','February','March','April','May','June','July','August','September','October','November','December'] as $i => $m)
@@ -31,16 +41,13 @@
         <input type="number" id="rtYear" min="2000" max="2100" style="width:80px !important;"
                class="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
                onchange="rtLoadGrid()">
-        <button onclick="rtOpenModal()"
-                class="inline-flex items-center whitespace-nowrap px-4 py-1.5 primary-gradient text-white text-xs font-semibold rounded-xl hover:opacity-90 transition-all duration-200">
-            Create Timeline
-        </button>
     </div>
 </div>
 
 <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
     <div class="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
-        <span id="rtSummary" class="text-xs text-gray-500">Loading…</span>
+        <span id="rtSummary" class="text-xs text-gray-500 shrink-0">Loading…</span>
+        <div id="rtLegend" class="flex flex-wrap justify-end gap-1.5 ml-4"></div>
     </div>
 
     <div class="overflow-x-auto touch-pan-x" id="rtScroll">
@@ -90,11 +97,9 @@
 
             <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Consultant</label>
-                <select id="rtConsultantSelect" required onchange="rtOnConsultantChange()"
-                        data-searchable="true" data-search-placeholder="Search consultant…"
-                        class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
-                    <option value="">Select consultant…</option>
-                </select>
+                {{-- Fixed to the consultant whose name was clicked in the grid --}}
+                <input type="hidden" id="rtConsultantSelect" value="">
+                <p id="rtConsultantName" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-800"></p>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
@@ -111,10 +116,12 @@
             </div>
 
             <div>
-                <label class="block text-xs font-semibold text-gray-600 mb-1">Location</label>
-                <input type="text" id="rtLocation" placeholder="e.g. PJT1, GOTO, BA…"
-                       class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
-                <p class="text-[11px] text-gray-400 mt-1">Overlapping dates with another project are kept side by side. Leave blank to clear every location in the selected date range.</p>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Customer Code</label>
+                <select id="rtLocation" data-searchable="true" data-search-placeholder="Search customer code…"
+                        class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                    <option value="">Select customer code…</option>
+                </select>
+                <p class="text-[11px] text-gray-400 mt-1">Overlapping dates with another project are kept side by side. Leave blank to clear every customer in the selected date range.</p>
             </div>
 
             <p id="rtFormError" class="hidden text-xs text-red-600"></p>
@@ -180,15 +187,23 @@
     #rtTable .rt-col-module  { left: 238px; width: 160px; min-width: 160px; }
     #rtTable .rt-col-status  { left: 398px; width: 160px; min-width: 160px; }
     #rtTable .rt-col-day     { width: 64px; min-width: 64px; text-align: center; }
+    #rtTable .rt-col-month   { width: 120px; min-width: 120px; text-align: center; }
     .rt-weekend { background-color: #fef2f2; }
-    /* Consultant is on 2+ projects on this day */
-    .rt-overlap { background-color: #fef3c7; font-weight: 600; }
+    /* Monthly: one coloured band per project on that day (2+ = stacked) */
+    .rt-band { padding: 6px 4px; font-weight: 600; text-align: center; }
+    /* Yearly: lanes hold position-filled customer bars inside a month cell */
+    .rt-lane { position: relative; height: 24px; }
+    .rt-seg  { position: absolute; top: 0; bottom: 0; padding: 0 4px; font-size: 11px; font-weight: 600;
+               line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
 </style>
 
 <script>
 (function () {
     'use strict';
 
+    const RT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    let rtView = 'monthly';   // 'monthly' | 'yearly'
+    let rtYear = new Date().getFullYear(); // year of the grid currently shown
     let rtDays = [];
     let rtEditingRange = null; // {employee_id, start, end} when editing an existing range
     let rtRows = [];          // rows as returned by the server (default order)
@@ -232,29 +247,88 @@
         const summary = document.getElementById('rtSummary');
         summary.textContent = 'Loading…';
 
-        const params = new URLSearchParams({ month, year });
+        const view = rtView;
+        const params = new URLSearchParams({ month, year, view });
         const homeBase = document.getElementById('rtHomeBase').value;
         if (homeBase) params.set('home_base', homeBase);
 
         const result = await rtFetch(`/api/reporting/resource-timeline/grid?${params.toString()}`);
+        if (view !== rtView) return; // user switched view while this request was in flight
         if (!result.success) {
             summary.textContent = result.message || 'Failed to load timeline.';
             return;
         }
 
-        rtDays = result.days;
+        rtDays = result.days || [];
+        rtYear = Number(result.year);
         rtRows = result.rows;
         renderHead();
         rtRender();
     };
 
+    window.rtOnViewChange = function () {
+        rtView = document.getElementById('rtView').value;
+        // Month picker is meaningless for the yearly view.
+        document.getElementById('rtMonthWrap').classList.toggle('hidden', rtView === 'yearly');
+        rtLoadGrid();
+    };
+
+    // ── Customer colours ──────────────────────────────────────────────────
+    // Deterministic soft pastel per customer code, so the same customer has
+    // the same colour in every row and in both views.
+    function rtColorStyle(code) {
+        let h = 0;
+        for (const ch of String(code)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+        return `background:hsl(${h},70%,85%);color:hsl(${h},45%,24%);`;
+    }
+
+    // Place month segments on lanes so that overlapping customers stack
+    // vertically while sequential ones share a lane.
+    function rtPackLanes(items) {
+        const segs = [];
+        items.forEach(it => it.segments.forEach(([s, e]) => segs.push({ loc: it.location, s, e })));
+        segs.sort((a, b) => a.s - b.s || a.e - b.e);
+
+        const lanes = [];
+        segs.forEach(seg => {
+            const lane = lanes.find(l => l[l.length - 1].e < seg.s);
+            if (lane) lane.push(seg); else lanes.push([seg]);
+        });
+        return lanes;
+    }
+
+    function rtRenderLegend(rows) {
+        const codes = new Set();
+        rows.forEach(r => {
+            if (rtView === 'yearly') {
+                Object.values(r.months || {}).forEach(items => items.forEach(it => codes.add(it.location)));
+            } else {
+                Object.values(r.dates || {}).forEach(locs => locs.forEach(l => codes.add(l)));
+            }
+        });
+        document.getElementById('rtLegend').innerHTML = [...codes]
+            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+            .map(c => `<span class="px-2 py-0.5 rounded text-[10px] font-semibold" style="${rtColorStyle(c)}">${escapeHtml(c)}</span>`)
+            .join('');
+    }
+
+    window.rtRender = rtRender; // used by the toolbar customer-code search input
+
+    // Customer codes present on a row in the current view (monthly or yearly).
+    function rtRowCodes(r) {
+        return rtView === 'yearly'
+            ? Object.values(r.months || {}).flatMap(items => items.map(it => it.location))
+            : Object.values(r.dates || {}).flat();
+    }
+
     // Apply the column search + sort to the server rows and redraw the body.
     // "No" is re-numbered by displayed position so it stays contiguous.
     function rtRender() {
+        const customerQ = document.getElementById('rtCustomerSearch').value.trim().toLowerCase();
         let rows = rtRows.filter(r =>
             ['name', 'module_label'].every(k =>
                 !rtSearch[k] || (r[k] || '').toLowerCase().includes(rtSearch[k].toLowerCase())
-            )
+            ) && (!customerQ || rtRowCodes(r).some(c => c.toLowerCase().includes(customerQ)))
         );
 
         if (rtSort.key) {
@@ -267,6 +341,7 @@
 
         rows = rows.map((r, i) => Object.assign({}, r, { no: i + 1 }));
         renderBody(rows);
+        rtRenderLegend(rows);
 
         const filtered = rows.length !== rtRows.length;
         document.getElementById('rtSummary').textContent =
@@ -302,7 +377,11 @@
             <th class="rt-sticky rt-col-status px-2 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 bg-gray-50">Status</th>
         `;
 
-        html += rtDays.map(d => `
+        html += rtView === 'yearly'
+            ? RT_MONTHS.map(m => `
+                <th class="rt-col-month px-1 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 bg-gray-50">${m}</th>
+            `).join('')
+            : rtDays.map(d => `
             <th class="rt-col-day px-1 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 bg-gray-50 ${d.is_weekend ? 'rt-weekend' : ''}">
                 <div>${d.day}</div>
                 <div class="text-[9px] font-normal normal-case text-gray-400">${d.label}</div>
@@ -316,7 +395,7 @@
         const tbody = document.getElementById('rtBody');
 
         if (!rows.length) {
-            tbody.innerHTML = `<tr><td colspan="${4 + rtDays.length}" class="text-center py-8 text-sm text-gray-400">No SAP Consultants found.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${4 + (rtView === 'yearly' ? 12 : rtDays.length)}" class="text-center py-8 text-sm text-gray-400">No SAP Consultants found.</td></tr>`;
             return;
         }
 
@@ -328,15 +407,34 @@
                 <td class="rt-sticky rt-col-status bg-white px-2 py-2 text-xs font-semibold ${r.is_lead ? 'text-red-600' : 'text-gray-400'} truncate">${escapeHtml(r.status_label)}</td>
             `;
 
-            const dayCells = rtDays.map(d => {
+            // Yearly: one cell per month. Each customer is a coloured bar that
+            // starts/ends at the position of its first/last day in the month
+            // (day 1–15 fills the left half, 16–31 the right half). Overlapping
+            // customers are stacked on separate lanes.
+            const monthCells = rtView === 'yearly' ? RT_MONTHS.map((_, i) => {
+                const items = (r.months && r.months[i + 1]) || [];
+                const dim = new Date(rtYear, i + 1, 0).getDate();
+                const lanes = rtPackLanes(items);
+                const inner = lanes.map(lane => `<div class="rt-lane">${lane.map(seg => {
+                    const left = (seg.s - 1) / dim * 100;
+                    const width = (seg.e - seg.s + 1) / dim * 100;
+                    const range = seg.s === seg.e ? `${seg.s}` : `${seg.s}–${seg.e}`;
+                    return `<div class="rt-seg" style="left:${left}%;width:${width}%;${rtColorStyle(seg.loc)}"
+                                 title="${escapeHtml(seg.loc)} · ${range} ${RT_MONTHS[i]}">${escapeHtml(seg.loc)}</div>`;
+                }).join('')}</div>`).join('');
+                return `<td class="rt-col-month p-0 align-top">${inner}</td>`;
+            }).join('') : '';
+
+            // Monthly: a day with 2+ projects is split into one coloured band per project.
+            const dayCells = rtView === 'yearly' ? monthCells : rtDays.map(d => {
                 const locs = r.dates[d.date] || [];
-                const multi = locs.length > 1; // overlapping projects on this day
-                const cellCls = multi ? 'rt-overlap' : (d.is_weekend ? 'rt-weekend' : '');
-                const inner = locs.map(l => `<div class="truncate">${escapeHtml(l)}</div>`).join('');
-                return `<td class="rt-col-day px-1 py-2 text-[11px] text-gray-700 ${cellCls}" title="${escapeHtml(locs.join(' + '))}">${inner}</td>`;
+                const inner = locs.map(l => `<div class="rt-band truncate" style="${rtColorStyle(l)}">${escapeHtml(l)}</div>`).join('');
+                const cellCls = locs.length ? '' : (d.is_weekend ? 'rt-weekend' : '');
+                return `<td class="rt-col-day p-0 align-top text-[11px] ${cellCls}" title="${escapeHtml(locs.join(' + '))}">${inner}</td>`;
             }).join('');
 
-            return `<tr class="hover:bg-gray-50 transition-colors">${fixedCells}${dayCells}</tr>`;
+            return `<tr class="hover:bg-gray-50 transition-colors cursor-pointer" onclick="rtOpenModal(${Number(r.employee_id)})"
+                        title="Click to create / edit timeline for ${escapeHtml(r.name)}">${fixedCells}${dayCells}</tr>`;
         }).join('');
     }
 
@@ -422,12 +520,46 @@
     });
 
     // ── Modal / consultant dropdown ─────────────────────────────────────────
-    window.rtOpenModal = function () {
+    // Opened by clicking a consultant's name in the grid; the modal is then
+    // locked to that consultant.
+    window.rtOpenModal = function (employeeId) {
+        const row = rtRows.find(r => Number(r.employee_id) === Number(employeeId));
+        if (!row) return;
+
+        rtResetForm();
+        document.getElementById('rtConsultantSelect').value = row.employee_id;
+        document.getElementById('rtConsultantName').textContent = row.name;
         document.getElementById('rtModal').classList.remove('hidden');
-        if (!document.getElementById('rtConsultantSelect').dataset.loaded) {
-            rtLoadConsultantOptions();
+        rtOnConsultantChange();
+        if (!document.getElementById('rtLocation').dataset.loaded) {
+            rtLoadCustomerOptions();
         }
     };
+
+    async function rtLoadCustomerOptions() {
+        const select = document.getElementById('rtLocation');
+        const result = await rtFetch('/api/reporting/resource-timeline/customers');
+        if (!result.success) return;
+
+        const current = select.value;
+        select.innerHTML = '<option value="">Select customer code…</option>' +
+            result.data.map(code => `<option value="${escapeHtml(code)}">${escapeHtml(code)}</option>`).join('');
+        select.dataset.loaded = '1';
+        if (current) rtSetLocationValue(current);
+    }
+
+    // Legacy entries may hold a free-text value that is not a customer code;
+    // keep it selectable so editing/deleting that range still works.
+    function rtSetLocationValue(value) {
+        const select = document.getElementById('rtLocation');
+        if (value && ![...select.options].some(o => o.value === value)) {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = value;
+            select.appendChild(opt);
+        }
+        select.value = value;
+    }
 
     // Closes only via the header's X button (rtCloseModal) — intentionally no
     // backdrop-click or Escape handler, so an accidental click outside the
@@ -443,16 +575,6 @@
             endInput.value = endInput.min;
         }
     };
-
-    async function rtLoadConsultantOptions() {
-        const select = document.getElementById('rtConsultantSelect');
-        const result = await rtFetch('/api/reporting/resource-timeline/consultants');
-        if (!result.success) return;
-
-        select.innerHTML = '<option value="">Select consultant…</option>' +
-            result.data.map(c => `<option value="${c.employee_id}">${escapeHtml(c.name)}</option>`).join('');
-        select.dataset.loaded = '1';
-    }
 
     window.rtOnConsultantChange = async function () {
         const employeeId = document.getElementById('rtConsultantSelect').value;
@@ -505,7 +627,7 @@
         rtEditingRange = { employee_id: employeeId, start, end, location };
         document.getElementById('rtFormMode').value = 'edit';
         document.getElementById('rtConsultantSelect').value = employeeId;
-        document.getElementById('rtLocation').value = location;
+        rtSetLocationValue(location);
         document.getElementById('rtStartDate').value = start;
         document.getElementById('rtEndDate').value = end;
         document.getElementById('rtEndDate').min = start;
