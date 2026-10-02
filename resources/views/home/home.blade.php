@@ -158,8 +158,8 @@
 @endif
 
 {{-- ── Command Center: pinned-menu shortcuts (see sidebar's pin button, dashboard.blade.php) ── --}}
-<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-    <div class="flex items-center justify-between mb-4">
+<div class="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-3">
+    <div class="flex items-center justify-between mb-2.5">
         <div class="flex items-center gap-2">
             <i class="fas fa-bolt text-red-700 text-sm"></i>
             <h3 class="text-sm font-bold text-gray-800">Command Center</h3>
@@ -169,7 +169,7 @@
             <button type="button" id="ccTabAll" onclick="ccSwitchTab('all')" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">All Menu</button>
         </div>
     </div>
-    <div id="ccGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+    <div id="ccGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;"></div>
 </div>
 
 {{-- ── Row 2: KPI Cards ──────────────────────────────────────────────────────── --}}
@@ -542,13 +542,13 @@
 
         grid.innerHTML = items.map(function (it) {
             var unpinBtn = ccCurrentTab === 'pinned'
-                ? '<button type="button" class="cc-unpin-btn absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-gray-300 hover:text-red-600 hover:bg-red-50 text-[10px]" data-href="' + ccEsc(it.href) + '" title="Unpin"><i class="fas fa-xmark"></i></button>'
+                ? '<button type="button" class="cc-unpin-btn flex items-center justify-center rounded-full text-gray-300 hover:text-red-600 hover:bg-red-50" style="position:absolute;top:4px;right:4px;width:16px;height:16px;font-size:10px;line-height:1;" data-href="' + ccEsc(it.href) + '" title="Unpin"><i class="fas fa-xmark"></i></button>'
                 : '';
-            return '<a href="' + ccEsc(it.href) + '" class="relative flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-red-300 hover:shadow-sm transition-all">'
-                + '<div class="w-9 h-9 rounded-lg bg-red-50 text-red-700 flex items-center justify-center flex-shrink-0"><i class="' + ccEsc(it.icon) + '"></i></div>'
-                + '<div class="min-w-0 flex-1 pr-4">'
+            return '<a href="' + ccEsc(it.href) + '" class="relative flex items-center rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-sm transition-all" style="gap:10px;padding:8px 10px;">'
+                + '<div class="rounded-md bg-red-50 text-red-700 text-xs flex items-center justify-center flex-shrink-0" style="width:32px;height:32px;"><i class="' + ccEsc(it.icon) + '"></i></div>'
+                + '<div class="min-w-0 flex-1" style="padding-right:14px;">'
                 + '<p class="text-xs font-bold text-gray-800 truncate">' + ccEsc(it.label) + '</p>'
-                + '<p class="text-[10px] text-gray-400 truncate">' + (it.breadcrumb ? ccEsc(it.breadcrumb) : '&nbsp;') + '</p>'
+                + (it.breadcrumb ? '<p class="text-[10px] text-gray-400 truncate">' + ccEsc(it.breadcrumb) + '</p>' : '')
                 + '</div>'
                 + unpinBtn
                 + '</a>';

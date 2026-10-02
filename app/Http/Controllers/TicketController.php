@@ -145,6 +145,49 @@ class TicketController extends Controller
      * live here now that /api/tickets is paginated — filtering after paginate() would only
      * search within whatever page happened to be loaded instead of the whole table.
      */
+    /**
+     * Versi ringan untuk sidebar halaman detail ticket: scope role sudah diterapkan
+     * di $query oleh caller, di sini hanya ambil kolom minimum (tanpa stats, progress,
+     * SLA, delivery support, dst) + batas 300 baris. Pencarian lewat ?q= (server-side).
+     */
+    private function sidebarTicketList($query, Request $request)
+    {
+        $query->setEagerLoads([])
+            ->with('customer.basicData')
+            ->select([
+                'ticket.ticket_id', 'ticket.ticket_number', 'ticket.description',
+                'ticket.ticket_priority', 'ticket.status', 'ticket.customer_id',
+                'ticket.last_message_at', 'ticket.created_at',
+            ]);
+
+        $term = trim((string) $request->input('q', ''));
+        if ($term !== '') {
+            $like = '%' . addcslashes($term, '%_\\') . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('ticket.ticket_number', 'like', $like)
+                    ->orWhere('ticket.description', 'like', $like)
+                    ->orWhereHas('customer', function ($c) use ($like) {
+                        $c->where('email', 'like', $like)
+                            ->orWhereHas('basicData', fn ($b) => $b->where('name_1', 'like', $like));
+                    });
+            });
+        }
+
+        $tickets = $query->orderByDesc('ticket.last_message_at')->limit(300)->get()
+            ->map(fn ($t) => [
+                'ticket_id'       => $t->ticket_id,
+                'ticket_number'   => $t->ticket_number,
+                'description'     => $t->description,
+                'ticket_priority' => $t->ticket_priority,
+                'status'          => $t->status,
+                'last_message_at' => $t->last_message_at,
+                'created_at'      => $t->created_at,
+                'customer'        => ['customer_name' => $t->customer?->basicData?->name_1 ?? $t->customer?->email],
+            ]);
+
+        return response()->json(['success' => true, 'data' => $tickets]);
+    }
+
     private function applyTicketListFilters($query, Request $request)
     {
         // Columns are qualified with "ticket." throughout — applyTicketListSort() may add a
@@ -552,6 +595,10 @@ class TicketController extends Controller
                           ->orWhereHas('members', fn ($i) => $i->whereIn('ticket_member.employee_id', $memberIds));
                     });
                 }
+            }
+
+            if ($request->boolean('sidebar')) {
+                return $this->sidebarTicketList($query, $request);
             }
 
             $this->applyTicketListFilters($query, $request);
@@ -1530,6 +1577,10 @@ class TicketController extends Controller
                                 });
                         });
                 }
+            }
+
+            if ($request->boolean('sidebar')) {
+                return $this->sidebarTicketList($query, $request);
             }
 
             $this->applyTicketListFilters($query, $request);
