@@ -523,8 +523,8 @@
         document.getElementById('rtFormError').classList.add('hidden');
     };
 
-    window.rtDeleteRange = async function (employeeId, start, end, location) {
-        if (!confirm('Clear this project for the selected date range?')) return;
+    window.rtDeleteRange = async function (employeeId, start, end) {
+        if (!(await showConfirm('Clear this location for the selected date range?', 'Clear Location', 'danger', { okText: 'Clear' }))) return;
 
         const result = await rtFetch('/api/reporting/resource-timeline/entries/delete', {
             method: 'POST',
@@ -532,7 +532,7 @@
         });
 
         if (!result.success) {
-            alert(result.message || 'Failed to delete.');
+            showAlert(result.message || 'Failed to delete.', 'Delete Failed', 'danger');
             return;
         }
 

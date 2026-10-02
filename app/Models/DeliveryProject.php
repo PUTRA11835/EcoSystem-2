@@ -55,6 +55,8 @@ class DeliveryProject extends Model
         'plan_cost',
         'gross_profit',
         'gross_profit_percentage',
+        // Mode Term Of Payment: percentage | line_item
+        'top_mode',
         'delivery_method',
         'warranty_period',
         'total_mandays',
@@ -213,6 +215,13 @@ class DeliveryProject extends Model
         return $this->hasMany(DeliveryProjectPhase::class, 'delivery_projects_id')
                     ->where('is_visible', true)
                     ->orderBy('order_sequence');
+    }
+
+    public function contractLineItems()
+    {
+        return $this->hasMany(DeliveryProjectContractLineItem::class, 'delivery_projects_id')
+                    ->orderBy('order_sequence')
+                    ->orderBy('id');
     }
 
     public function costs()

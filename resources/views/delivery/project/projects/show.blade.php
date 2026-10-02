@@ -769,6 +769,56 @@
 
             {{-- ── Term Of Payment (TOP) Plan ─────────────────────────── --}}
             <div class="mt-8 pt-6 border-t border-gray-200" data-project-id="{{ $project->id }}">
+                {{-- Mode penagihan: % dari revenue Sales Data, atau Line Item bernominal tetap --}}
+                <div class="flex items-center flex-wrap gap-x-4 gap-y-2 mb-5">
+                    <span class="text-sm font-semibold text-gray-900">Billing mode</span>
+                    <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden" role="group" id="ptModeToggle">
+                        <button type="button" data-mode="percentage" data-perm-action="edit"
+                                onclick="PaymentTermPlan.switchMode('percentage')"
+                                class="pt-mode-btn px-4 py-2 text-sm font-medium transition">% of Revenue</button>
+                        <button type="button" data-mode="line_item" data-perm-action="edit"
+                                onclick="PaymentTermPlan.switchMode('line_item')"
+                                class="pt-mode-btn px-4 py-2 text-sm font-medium border-l border-gray-300 transition">Line Item (fixed amount)</button>
+                    </div>
+                    <p id="ptModeHint" class="text-xs text-gray-500 basis-full sm:basis-auto"></p>
+                </div>
+
+                {{-- Peringatan non-blocking (mis. total TOP melebihi revenue Sales Data) --}}
+                <div id="ptWarnings" class="hidden mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"></div>
+
+                {{-- Contract Line Items — hanya di mode Line Item --}}
+                <div id="ptLineItemSection" class="hidden mb-8">
+                    <div class="flex justify-between items-center flex-wrap gap-3 mb-4">
+                        <div>
+                            <h4 class="text-lg font-medium text-gray-900">Contract Line Items</h4>
+                            <p class="text-xs text-gray-500 mt-0.5">Add the contract line items first — fixed-amount payment terms are linked to one of them.</p>
+                        </div>
+                        <button type="button" onclick="PaymentTermPlan.openAddLineItem()"
+                                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            Add Line Item
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto rounded-lg border border-gray-200">
+                        <table class="min-w-full text-sm border-collapse">
+                            <thead>
+                                <tr class="bg-gray-700 text-white">
+                                    <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Line Item</th>
+                                    <th class="px-3 py-3 text-left font-semibold whitespace-nowrap">Type</th>
+                                    <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[180px]">Schedule</th>
+                                    <th class="px-3 py-3 text-right font-semibold whitespace-nowrap">Nominal</th>
+                                    <th class="px-3 py-3 text-right font-semibold whitespace-nowrap">Total</th>
+                                    <th class="px-3 py-3 text-right font-semibold whitespace-nowrap">Billed in TOP</th>
+                                    <th class="px-3 py-3 text-center font-semibold whitespace-nowrap min-w-[220px]">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ptLineItemBody" class="divide-y divide-gray-100 bg-white"></tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <div class="flex justify-between items-center flex-wrap gap-3 mb-4">
                     <div>
                         <h4 class="text-lg font-medium text-gray-900">Term Of Payment Plan</h4>
@@ -784,24 +834,11 @@
 
                 <div class="overflow-x-auto rounded-lg border border-gray-200">
                     <table class="min-w-full text-sm border-collapse" id="paymentTermTable">
-                        <thead>
-                            <tr class="bg-gray-700 text-white">
-                                <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[50px]">No</th>
-                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Payment Term</th>
-                                <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[110px]">Payment %</th>
-                                <th class="px-3 py-3 text-right font-semibold whitespace-nowrap min-w-[150px]">Amount</th>
-                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[220px]">Payment Requirements / Evidence</th>
-                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Estimated Date</th>
-                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px]">Submit Invoice Date</th>
-                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Invoice No</th>
-                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Paid Date</th>
-                                <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px]">Status</th>
-                                <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Action</th>
-                            </tr>
-                        </thead>
+                        {{-- Kolom dirender JS: mode Line Item menambah kolom "Period" --}}
+                        <thead id="paymentTermHead"></thead>
                         <tbody id="paymentTermBody" class="divide-y divide-gray-100 bg-white">
                             <tr>
-                                <td colspan="11" class="text-center py-8">
+                                <td colspan="12" class="text-center py-8">
                                     <svg class="animate-spin h-5 w-5 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -810,14 +847,7 @@
                                 </td>
                             </tr>
                         </tbody>
-                        <tfoot class="bg-gray-50 border-t-2 border-gray-200">
-                            <tr id="paymentTermFooter" class="font-semibold text-gray-700">
-                                <td class="px-3 py-3 text-center" colspan="2">Total</td>
-                                <td class="px-3 py-3 text-center" id="ptTotalPct">0%</td>
-                                <td class="px-3 py-3 text-right" id="ptTotalAmount">Rp 0</td>
-                                <td class="px-3 py-3" colspan="7"></td>
-                            </tr>
-                        </tfoot>
+                        <tfoot id="paymentTermFoot" class="bg-gray-50 border-t-2 border-gray-200"></tfoot>
                     </table>
                 </div>
             </div>
@@ -2464,6 +2494,31 @@
                 <input type="hidden" id="paymentTermModalMode" value="create">
                 <input type="hidden" id="paymentTermModalId" value="">
 
+                {{-- Basis perhitungan — % dan nominal tetap saling eksklusif.
+                     Nominal tetap hanya tersedia di mode Line Item. --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Calculation basis</label>
+                    <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden" role="group">
+                        <button type="button" id="pt_basis_percentage" data-perm-keep
+                                onclick="PaymentTermPlan.setBasis('percentage')"
+                                class="pt-basis-btn px-4 py-2 text-sm font-medium transition">% of Revenue</button>
+                        <button type="button" id="pt_basis_fixed" data-perm-keep
+                                onclick="PaymentTermPlan.setBasis('fixed')"
+                                class="pt-basis-btn px-4 py-2 text-sm font-medium border-l border-gray-300 transition">Fixed amount</button>
+                    </div>
+                    <p id="pt_basis_hint" class="mt-1 text-xs text-gray-400"></p>
+                </div>
+
+                {{-- Line Item — wajib di mode Line Item --}}
+                <div id="pt_line_item_wrap" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Line Item <span class="text-red-500">*</span>
+                        <span class="text-gray-400 font-normal">(required in Line Item mode)</span>
+                    </label>
+                    <select id="pt_line_item" onchange="PaymentTermPlan.onLineItemChange()"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"></select>
+                </div>
+
                 {{-- Payment Term --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Payment Term <span class="text-red-500">*</span></label>
@@ -2473,29 +2528,44 @@
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {{-- Payment % --}}
+                    {{-- Payment % — terkunci saat basis nominal tetap --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Payment % <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Payment % <span id="pt_pct_req" class="text-red-500">*</span></label>
                         <div class="relative">
                             <input type="number" id="pt_payment_percentage" min="0" max="100" step="0.01" autocomplete="off"
                                    oninput="PaymentTermPlan.recalcAmount()"
-                                   class="w-full pr-9 pl-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus text-right"
+                                   class="w-full pr-9 pl-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus text-right disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
                                    placeholder="0">
                             <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-gray-500 pointer-events-none">%</span>
                         </div>
                     </div>
 
-                    {{-- Amount (auto) --}}
+                    {{-- Amount — auto dari revenue (basis %) atau diisi sendiri (nominal tetap) --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-gray-400 font-normal">(auto)</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Amount <span id="pt_amount_req" class="text-red-500 hidden">*</span>
+                            <span id="pt_amount_auto" class="text-gray-400 font-normal">(auto)</span>
+                        </label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
-                            <input type="text" id="pt_amount_disp" readonly tabindex="-1"
+                            <input type="text" id="pt_amount_disp" readonly tabindex="-1" inputmode="numeric" autocomplete="off"
+                                   oninput="PaymentTermPlan.onAmountInput(this)"
                                    class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed text-sm text-gray-600 text-right"
                                    placeholder="0">
                         </div>
                     </div>
                 </div>
+
+                {{-- Period — label periode tagihan (mode Line Item) --}}
+                <div id="pt_period_wrap" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                    <input type="text" id="pt_period" maxlength="50" autocomplete="off"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
+                           placeholder="e.g. Feb 2027">
+                </div>
+
+                {{-- Peringatan langsung: total TOP melebihi revenue / nilai line item (tidak memblokir) --}}
+                <div id="pt_over_warning" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800"></div>
 
                 {{-- Payment Requirements / Evidence --}}
                 <div>
@@ -2596,6 +2666,202 @@
                         Cancel
                     </button>
                     <button type="button" id="ptDeleteConfirmBtn" onclick="PaymentTermPlan.confirmDelete()"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
+                        Yes, Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TOP — CONTRACT LINE ITEM ADD / EDIT MODAL                      --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="lineItemModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PaymentTermPlan.closeLineItemModal()"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900" id="lineItemModalTitle">Add Line Item</h3>
+                <button type="button" onclick="PaymentTermPlan.closeLineItemModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-4">
+                <input type="hidden" id="li_id" value="">
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Line Item <span class="text-red-500">*</span></label>
+                    <input type="text" id="li_name" maxlength="255" autocomplete="off"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
+                           placeholder="e.g. SAP License, Implementation Service, ATS">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Type <span class="text-red-500">*</span></label>
+                        <select id="li_type" onchange="PaymentTermPlan.onLineItemTypeChange()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
+                            <option value="one_time">One-time</option>
+                            <option value="recurring">Recurring</option>
+                        </select>
+                    </div>
+                    <div id="li_frequency_wrap" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency <span class="text-red-500">*</span></label>
+                        <select id="li_frequency" onchange="PaymentTermPlan.previewLineItem()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
+                            <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="semiannual">Semi-annual</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <span id="li_start_label">Billing Month</span> <span id="li_start_req" class="text-red-500 hidden">*</span>
+                        </label>
+                        <input type="text" id="li_start_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus" placeholder="dd/mm/yyyy">
+                    </div>
+                    <div id="li_end_wrap" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">End <span class="text-red-500">*</span></label>
+                        <input type="text" id="li_end_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus" placeholder="dd/mm/yyyy">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <span id="li_amount_label">Nominal</span> <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
+                        <input type="text" id="li_amount" inputmode="numeric" autocomplete="off"
+                               oninput="PaymentTermPlan.onAmountInput(this); PaymentTermPlan.previewLineItem()"
+                               class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus text-right" placeholder="0">
+                    </div>
+                </div>
+
+                <div id="li_preview" class="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs text-gray-600"></div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="PaymentTermPlan.closeLineItemModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                <button type="button" id="lineItemSaveBtn" onclick="PaymentTermPlan.saveLineItem()"
+                        class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TOP — GENERATE SCHEDULE (LINE ITEM RECURRING) MODAL            --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="generateScheduleModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PaymentTermPlan.closeGenerateModal()"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900">Generate Schedule: <span id="gs_title"></span></h3>
+                <button type="button" onclick="PaymentTermPlan.closeGenerateModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-4">
+                <input type="hidden" id="gs_id" value="">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nominal per period</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
+                            <input type="text" id="gs_amount" inputmode="numeric" autocomplete="off"
+                                   oninput="PaymentTermPlan.onAmountInput(this); PaymentTermPlan.previewGenerate()"
+                                   class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus text-right" placeholder="0">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                        <select id="gs_frequency" onchange="PaymentTermPlan.previewGenerate()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
+                            <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="semiannual">Semi-annual</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                        <input type="text" id="gs_start_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus" placeholder="dd/mm/yyyy">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">End</label>
+                        <input type="text" id="gs_end_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus" placeholder="dd/mm/yyyy">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Payment Requirements</label>
+                    <input type="text" id="gs_requirements" autocomplete="off"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus" placeholder="e.g. Monthly invoice">
+                </div>
+                <div id="gs_preview" class="rounded-lg border px-3 py-2 text-sm"></div>
+                <p class="text-xs text-gray-400">Every generated term can still be edited per row. Periods that already have a payment term are skipped, and the schedule above is saved back to the line item.</p>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="PaymentTermPlan.closeGenerateModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                <button type="button" id="generateScheduleBtn" onclick="PaymentTermPlan.confirmGenerate()"
+                        class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    Generate
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TOP — CONTRACT LINE ITEM DELETE CONFIRMATION MODAL             --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="lineItemDeleteModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PaymentTermPlan.closeLineItemDeleteModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-gray-900 mb-1">Delete line item "<span id="liDeleteName"></span>"?</h3>
+                <p class="text-sm text-gray-500 mb-5">Only possible when no payment term uses it.</p>
+                <input type="hidden" id="liDeleteId" value="">
+                <div class="flex gap-3 justify-center">
+                    <button type="button" onclick="PaymentTermPlan.closeLineItemDeleteModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" id="liDeleteConfirmBtn" onclick="PaymentTermPlan.confirmDeleteLineItem()"
                             class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
                         Yes, Delete
                     </button>
@@ -3666,7 +3932,7 @@
         if (typeof window.showToast === 'function') {
             window.showToast(msg, type);
         } else {
-            alert(msg);
+            showAlert(msg);
         }
     }
 
@@ -6750,8 +7016,7 @@ function showContractWarningModal(warning) {
     const modal = document.getElementById('contractWarningModal');
     const body  = document.getElementById('contractWarningBody');
     if (!modal || !body) {            // graceful fallback if markup missing
-        alert(typeof warning === 'string' ? warning : 'Saved with warnings — please review planning.');
-        setTimeout(() => location.reload(), 200);
+        showAlert(typeof warning === 'string' ? warning : 'Saved with warnings — please review planning.', 'Saved with Warnings').then(() => location.reload());
         return;
     }
 
@@ -7561,6 +7826,17 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
         window._fpPtPaid          = HolidayCalendar.initPicker(document.getElementById('pt_paid_date'));
+
+        // TOP mode Line Item — jadwal Contract Line Item & Generate Schedule
+        // Jadwal kontrak boleh jatuh di hari libur (mis. 1 Jan) → jangan disable tanggal apa pun.
+        const ptPreview = (fn) => ({
+            disable : [],
+            onChange: function () { window.PaymentTermPlan && window.PaymentTermPlan[fn](); },
+        });
+        window._fpLiStart = HolidayCalendar.initPicker(document.getElementById('li_start_date'), ptPreview('previewLineItem'));
+        window._fpLiEnd   = HolidayCalendar.initPicker(document.getElementById('li_end_date'),   ptPreview('previewLineItem'));
+        window._fpGsStart = HolidayCalendar.initPicker(document.getElementById('gs_start_date'), ptPreview('previewGenerate'));
+        window._fpGsEnd   = HolidayCalendar.initPicker(document.getElementById('gs_end_date'),   ptPreview('previewGenerate'));
     });
 });
 </script>
@@ -9179,10 +9455,27 @@ window.StakeholderRegister = (function () {
 window.PaymentTermPlan = (function () {
     'use strict';
 
-    const PROJECT_ID = {{ $project->id }};
-    const BASE_URL   = `/projects/${PROJECT_ID}/payment-terms`;
+    // Dua mode penagihan (lihat App\Services\ProjectTopPlan):
+    //   percentage → Amount = Payment % × revenue Sales Data (total % ≤ 100, diblokir)
+    //   line_item  → termin dikaitkan ke Contract Line Item; basis termin boleh %
+    //                ATAU nominal tetap (saling eksklusif). Nominal tetap diisi
+    //                sendiri — melebihi revenue hanya diperingatkan, tidak diblokir.
+    const PROJECT_ID   = {{ $project->id }};
+    const BASE_URL     = `/projects/${PROJECT_ID}/payment-terms`;
+    const MODE_URL     = `/projects/${PROJECT_ID}/top-mode`;
+    const LINE_URL     = `/projects/${PROJECT_ID}/contract-line-items`;
+    const FREQ_MONTHS  = { monthly: 1, quarterly: 3, semiannual: 6, yearly: 12 };
+    const MONTHS       = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    // Grup line item dengan termin sebanyak ini atau lebih dilipat (design: "… 8 tagihan lainnya").
+    const COLLAPSE_AT  = 7;
+    const COLLAPSE_SHOW = 4;
 
-    let _terms   = [];
+    let _mode      = @json($project->top_mode === 'line_item' ? 'line_item' : 'percentage');
+    let _terms     = [];
+    let _lineItems = [];
+    let _warnings  = [];
+    let _basis     = 'percentage';   // basis termin yang sedang diedit di modal
+    const _expanded = new Set();     // id line item yang grupnya sedang dibuka penuh
     // Revenue acuan untuk hitung Amount = revenue × % / 100
     let _revenue = parseFloat('{{ $project->revenue ?? 0 }}') || 0;
 
@@ -9205,6 +9498,22 @@ window.PaymentTermPlan = (function () {
         const neg = num < 0;
         const abs = Math.abs(Math.round(num));
         return 'Rp ' + (neg ? '-' : '') + abs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function fmtThousands(n) {
+        return Math.abs(Math.round(Number(n) || 0)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    // "2.000.000" → 2000000 (input nominal memakai titik ribuan)
+    function parseAmount(str) {
+        const digits = String(str ?? '').replace(/[^\d]/g, '');
+        return digits === '' ? null : parseInt(digits, 10);
+    }
+
+    function onAmountInput(el) {
+        if (el.readOnly) return;
+        const v = parseAmount(el.value);
+        el.value = v === null ? '' : fmtThousands(v);
     }
 
     // Baca revenue terkini dari field Sales Data (jika user mengubah tanpa reload)
@@ -9233,49 +9542,277 @@ window.PaymentTermPlan = (function () {
         return (Number.isInteger(num) ? num.toString() : num.toFixed(2).replace('.', ',')) + '%';
     }
 
+    function errMsg(e, fallback) {
+        if (e.response?.data?.errors) {
+            const first = Object.values(e.response.data.errors)[0];
+            return Array.isArray(first) ? first[0] : String(first);
+        }
+        return e.response?.data?.message ?? fallback ?? 'Something went wrong. Please try again.';
+    }
+
+    function spinner() {
+        return '<svg class="animate-spin w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>';
+    }
+
+    // Peringatan dari server ditampilkan setelah notifikasi sukses.
+    function notifyWarnings(warnings) {
+        (warnings || []).forEach(w => showNotification(w, 'warning'));
+    }
+
+    // ── Periode (mirror DeliveryProjectContractLineItem::buildPeriods) ──
+    function parseYmd(s) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+        return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+    }
+
+    function monthLabel(d) { return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; }
+
+    function buildPeriods(freq, startStr, endStr) {
+        const months = FREQ_MONTHS[freq];
+        const start  = parseYmd(startStr);
+        const end    = parseYmd(endStr);
+        if (!months || !start || !end) return [];
+
+        const periods = [];
+        let cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+        while (cursor <= end && periods.length < 120) {
+            const pEnd = new Date(cursor.getFullYear(), cursor.getMonth() + months - 1, 1);
+            periods.push(months === 1 ? monthLabel(cursor) : `${monthLabel(cursor)} – ${monthLabel(pEnd)}`);
+            cursor = new Date(cursor.getFullYear(), cursor.getMonth() + months, 1);
+        }
+        return periods;
+    }
+
+    function lineItemById(id) {
+        return _lineItems.find(li => li.id === Number(id)) || null;
+    }
+
     // ── Load & render ─────────────────────────────────────────────
     async function load() {
         try {
             const res = await axios.get(BASE_URL);
-            _terms = res.data.payment_terms ?? [];
+            _terms     = res.data.payment_terms ?? [];
+            _lineItems = res.data.line_items ?? [];
+            _warnings  = res.data.warnings ?? [];
+            _mode      = res.data.top_mode === 'line_item' ? 'line_item' : 'percentage';
             if (res.data.project_revenue !== undefined && res.data.project_revenue !== null) {
                 _revenue = parseFloat(res.data.project_revenue) || _revenue;
             }
-            renderTable();
+            render();
         } catch (e) {
             const tbody = document.getElementById('paymentTermBody');
             if (tbody) tbody.innerHTML =
-                `<tr><td colspan="11" class="text-center py-8 text-red-500 text-sm">Failed to load data. Please refresh.</td></tr>`;
+                `<tr><td colspan="12" class="text-center py-8 text-red-500 text-sm">Failed to load data. Please refresh.</td></tr>`;
         }
     }
 
+    function render() {
+        renderMode();
+        renderWarnings();
+        renderLineItems();
+        renderTable();
+    }
+
+    function renderMode() {
+        document.querySelectorAll('#ptModeToggle .pt-mode-btn').forEach(btn => {
+            const active = btn.dataset.mode === _mode;
+            btn.classList.toggle('primary-gradient', active);
+            btn.classList.toggle('text-white', active);
+            btn.classList.toggle('bg-white', !active);
+            btn.classList.toggle('text-gray-700', !active);
+            btn.classList.toggle('hover:bg-gray-50', !active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+
+        const hint = document.getElementById('ptModeHint');
+        if (hint) {
+            hint.textContent = _mode === 'line_item'
+                ? `Terms are linked to a contract line item. Fixed amounts are entered manually and checked against the revenue in Sales Data (${fmtRp(currentRevenue())}).`
+                : `Amount = Payment % × revenue in Sales Data (${fmtRp(currentRevenue())}).`;
+        }
+
+        document.getElementById('ptLineItemSection')?.classList.toggle('hidden', _mode !== 'line_item');
+    }
+
+    function renderWarnings() {
+        const box = document.getElementById('ptWarnings');
+        if (!box) return;
+        box.classList.toggle('hidden', !_warnings.length);
+        box.innerHTML = _warnings.length
+            ? `<div class="flex gap-2">
+                   <svg class="w-5 h-5 flex-shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                   <ul class="space-y-1">${_warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
+               </div>`
+            : '';
+    }
+
+    function renderLineItems() {
+        const tbody = document.getElementById('ptLineItemBody');
+        if (!tbody) return;
+
+        if (!_lineItems.length) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-gray-400 text-sm">No line items yet. Add the contract line items (e.g. Service, License, ATS) before creating fixed-amount payment terms.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = _lineItems.map(li => {
+            const over   = li.billed_total > li.total + 0.01;
+            const billedCls = over ? 'text-red-600' : (Math.abs(li.billed_total - li.total) < 0.01 ? 'text-green-700' : 'text-gray-700');
+            return `<tr class="hover:bg-gray-50">
+                <td class="px-3 py-3 text-xs font-medium text-gray-800">${esc(li.name)}</td>
+                <td class="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">${esc(li.type_label)}</td>
+                <td class="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">${esc(li.schedule_label)}</td>
+                <td class="px-3 py-3 text-xs text-right text-gray-700 whitespace-nowrap">${fmtRp(li.amount)}</td>
+                <td class="px-3 py-3 text-xs text-right font-semibold text-gray-800 whitespace-nowrap">${fmtRp(li.total)}</td>
+                <td class="px-3 py-3 text-xs text-right font-semibold whitespace-nowrap ${billedCls}" title="${li.terms_count} payment term(s)">${fmtRp(li.billed_total)}</td>
+                <td class="px-3 py-3 text-center whitespace-nowrap">
+                    ${li.type === 'recurring' ? `
+                    <button type="button" onclick="PaymentTermPlan.openGenerate(${li.id})"
+                            class="inline-flex items-center px-3 py-1.5 mr-1 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        Generate Schedule
+                    </button>` : ''}
+                    <button type="button" onclick="PaymentTermPlan.openEditLineItem(${li.id})" title="Edit Line Item"
+                            class="inline-flex items-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </button>
+                    <button type="button" onclick="PaymentTermPlan.openLineItemDelete(${li.id})" title="Delete Line Item"
+                            class="inline-flex items-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function colCount() { return _mode === 'line_item' ? 12 : 11; }
+
+    function renderHead() {
+        const thead = document.getElementById('paymentTermHead');
+        if (!thead) return;
+        const th = (label, cls) => `<th class="px-3 py-3 font-semibold whitespace-nowrap ${cls}">${label}</th>`;
+        thead.innerHTML = `<tr class="bg-gray-700 text-white">
+            ${th('No', 'text-center w-[50px]')}
+            ${th('Payment Term', 'text-left min-w-[160px]')}
+            ${_mode === 'line_item' ? th('Period', 'text-left min-w-[110px]') : ''}
+            ${th('Payment %', 'text-center w-[110px]')}
+            ${th('Amount', 'text-right min-w-[150px]')}
+            ${th('Payment Requirements / Evidence', 'text-left min-w-[220px]')}
+            ${th('Estimated Date', 'text-left min-w-[130px]')}
+            ${th('Submit Invoice Date', 'text-left min-w-[150px]')}
+            ${th('Invoice No', 'text-left min-w-[130px]')}
+            ${th('Paid Date', 'text-left min-w-[130px]')}
+            ${th('Status', 'text-center w-[100px]')}
+            ${th('Action', 'text-center w-[80px]')}
+        </tr>`;
+    }
+
     function renderTable() {
+        renderHead();
         const tbody = document.getElementById('paymentTermBody');
         if (!tbody) return;
 
         if (!_terms.length) {
-            tbody.innerHTML = `<tr><td colspan="11" class="text-center py-8 text-gray-400 text-sm">No payment terms yet. Click "Add Payment Term" to get started.</td></tr>`;
+            const hint = _mode === 'line_item' && !_lineItems.length
+                ? 'No payment terms yet. Add a contract line item first, then click "Add Payment Term" or "Generate Schedule".'
+                : 'No payment terms yet. Click "Add Payment Term" to get started.';
+            tbody.innerHTML = `<tr><td colspan="${colCount()}" class="text-center py-8 text-gray-400 text-sm">${hint}</td></tr>`;
+        } else if (_mode === 'line_item') {
+            tbody.innerHTML = groupedRowsHtml();
         } else {
             tbody.innerHTML = _terms.map(t => rowHtml(t)).join('');
         }
 
-        // Footer totals
-        const totalPct = _terms.reduce((s, t) => s + (Number(t.payment_percentage) || 0), 0);
+        renderFoot();
+    }
+
+    // Mode Line Item: termin dikelompokkan per line item + subtotal (design "Contract Line Items").
+    function groupedRowsHtml() {
+        const groups = _lineItems.map(li => ({ li, terms: _terms.filter(t => t.contract_line_item_id === li.id) }))
+            .filter(g => g.terms.length);
+        const orphan = _terms.filter(t => !lineItemById(t.contract_line_item_id));
+        if (orphan.length) groups.push({ li: null, terms: orphan });
+
+        const span = colCount();
+        return groups.map(({ li, terms }) => {
+            const key      = li ? li.id : 0;
+            const subtotal = terms.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+            const title    = li ? li.name : 'Not linked to a line item';
+            const collapse = terms.length >= COLLAPSE_AT && !_expanded.has(key);
+            const visible  = collapse ? terms.slice(0, COLLAPSE_SHOW) : terms;
+            const hidden   = terms.slice(COLLAPSE_SHOW);
+
+            let html = `<tr class="bg-rose-50">
+                <td colspan="${span}" class="px-3 py-2.5 text-xs font-semibold text-gray-800">
+                    ${esc(title)} <span class="font-normal text-gray-500">(${terms.length} term${terms.length > 1 ? 's' : ''})</span>
+                    ${li ? `<span class="float-right font-normal text-gray-500">Contract value ${fmtRp(li.total)}</span>`
+                         : `<span class="float-right font-normal text-amber-700">Edit these terms to choose a line item.</span>`}
+                </td>
+            </tr>`;
+            html += visible.map(t => rowHtml(t)).join('');
+
+            if (terms.length >= COLLAPSE_AT) {
+                const range = hidden.length ? `${hidden[0].period || hidden[0].payment_term} – ${hidden[hidden.length - 1].period || hidden[hidden.length - 1].payment_term}` : '';
+                html += `<tr><td colspan="${span}" class="px-3 py-2 text-center text-xs">
+                    <button type="button" data-perm-keep onclick="PaymentTermPlan.toggleGroup(${key})" class="text-gray-500 hover:text-gray-800 underline-offset-2 hover:underline">
+                        ${collapse ? `… ${hidden.length} more term${hidden.length > 1 ? 's' : ''} (${esc(range)}) · Show all` : 'Show less'}
+                    </button>
+                </td></tr>`;
+            }
+
+            html += `<tr class="bg-gray-50/60">
+                <td colspan="4" class="px-3 py-2 text-xs font-semibold text-gray-500">Subtotal ${esc(title)}</td>
+                <td class="px-3 py-2 text-right text-xs font-semibold text-gray-600 whitespace-nowrap">${fmtRp(subtotal)}</td>
+                <td colspan="${span - 5}"></td>
+            </tr>`;
+            return html;
+        }).join('');
+    }
+
+    function renderFoot() {
+        const tfoot = document.getElementById('paymentTermFoot');
+        if (!tfoot) return;
+
         const totalAmt = _terms.reduce((s, t) => s + (Number(t.amount) || 0), 0);
-        const pctEl = document.getElementById('ptTotalPct');
-        const amtEl = document.getElementById('ptTotalAmount');
-        if (pctEl) {
-            pctEl.textContent = fmtPct(totalPct);
-            pctEl.className = 'px-3 py-3 text-center ' + (totalPct > 100 ? 'text-red-600' : 'text-gray-700');
+        const pctTerms = _terms.filter(t => t.basis !== 'fixed');
+        const totalPct = pctTerms.reduce((s, t) => s + (Number(t.payment_percentage) || 0), 0);
+        const revenue  = currentRevenue();
+        const over     = totalAmt - revenue;
+
+        const pctCell = pctTerms.length
+            ? `<td class="px-3 py-3 text-center ${totalPct > 100 ? 'text-red-600' : 'text-gray-700'}">${fmtPct(totalPct)}</td>`
+            : `<td class="px-3 py-3 text-center text-gray-400">—</td>`;
+
+        if (_mode === 'line_item') {
+            tfoot.innerHTML = `<tr class="font-semibold text-gray-700">
+                <td class="px-3 py-3" colspan="3">Total</td>
+                ${pctCell}
+                <td class="px-3 py-3 text-right whitespace-nowrap ${over > 0.01 ? 'text-red-600' : ''}">${fmtRp(totalAmt)}</td>
+                <td class="px-3 py-3 text-xs font-normal text-gray-500" colspan="7">
+                    Revenue in Sales Data: <span class="font-semibold text-gray-700">${fmtRp(revenue)}</span>
+                    ${over > 0.01 ? `<span class="ml-2 font-semibold text-red-600">Over by ${fmtRp(over)}</span>`
+                                  : (revenue - totalAmt > 0.01 ? `<span class="ml-2">· Outside TOP: ${fmtRp(revenue - totalAmt)}</span>` : '')}
+                </td>
+            </tr>`;
+        } else {
+            tfoot.innerHTML = `<tr class="font-semibold text-gray-700">
+                <td class="px-3 py-3 text-center" colspan="2">Total</td>
+                ${pctCell}
+                <td class="px-3 py-3 text-right">${fmtRp(totalAmt)}</td>
+                <td class="px-3 py-3" colspan="7"></td>
+            </tr>`;
         }
-        if (amtEl) amtEl.textContent = fmtRp(totalAmt);
     }
 
     function rowHtml(t) {
+        const pctCell = t.basis === 'fixed'
+            ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-500">Fixed</span>`
+            : fmtPct(t.payment_percentage);
+
         return `<tr class="hover:bg-gray-50 align-top">
             <td class="px-3 py-3 text-center text-xs font-mono text-gray-600">${t.term_number}</td>
             <td class="px-3 py-3 text-xs text-gray-800"><div class="line-clamp-3">${esc(t.payment_term)}</div></td>
-            <td class="px-3 py-3 text-center text-xs font-semibold text-gray-700">${fmtPct(t.payment_percentage)}</td>
+            ${_mode === 'line_item' ? `<td class="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">${esc(t.period) || '—'}</td>` : ''}
+            <td class="px-3 py-3 text-center text-xs font-semibold text-gray-700">${pctCell}</td>
             <td class="px-3 py-3 text-right text-xs font-semibold text-gray-800 whitespace-nowrap">${fmtRp(t.amount)}</td>
             <td class="px-3 py-3 text-xs text-gray-600 max-w-[260px]"><div class="line-clamp-3">${esc(t.requirements) || '—'}</div></td>
             <td class="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(t.estimated_date_label) || '—'}</td>
@@ -9300,15 +9837,150 @@ window.PaymentTermPlan = (function () {
         </tr>`;
     }
 
+    function toggleGroup(key) {
+        if (_expanded.has(key)) _expanded.delete(key); else _expanded.add(key);
+        renderTable();
+    }
+
+    // ── Mode penagihan ─────────────────────────────────────────────
+    async function switchMode(mode) {
+        if (mode === _mode) return;
+
+        const question = mode === 'line_item'
+            ? 'Existing % terms stay as they are. New payment terms must be linked to a contract line item, and fixed amounts are no longer taken from the revenue.'
+            : 'Contract line items are kept but hidden. Only possible when no fixed-amount term exists.';
+        const title = mode === 'line_item'
+            ? 'Switch to "Line Item (fixed amount)"?'
+            : 'Switch back to "% of Revenue"?';
+        if (!(await showConfirm(question, title, 'primary', { okText: 'Switch Mode' }))) return;
+
+        try {
+            const res = await axios.post(MODE_URL, { top_mode: mode, _token: getCsrf() });
+            showNotification(res.data.message ?? 'Billing mode updated.', 'success');
+            await load();
+        } catch (e) {
+            showNotification(errMsg(e, 'Failed to change billing mode.'), 'error');
+        }
+    }
+
+    // ── Modal Payment Term: basis % ↔ nominal tetap ────────────────
+    function setBasis(basis) {
+        if (basis === 'fixed' && _mode !== 'line_item') {
+            showNotification('Fixed amount is only available in "Line Item" billing mode.', 'warning');
+            return;
+        }
+        _basis = basis;
+        const fixed = basis === 'fixed';
+
+        ['percentage', 'fixed'].forEach(b => {
+            const btn = document.getElementById('pt_basis_' + b);
+            if (!btn) return;
+            const active = b === basis;
+            btn.classList.toggle('primary-gradient', active);
+            btn.classList.toggle('text-white', active);
+            btn.classList.toggle('bg-white', !active);
+            btn.classList.toggle('text-gray-700', !active);
+            // Mode %: tombol nominal tetap tampil redup (tidak tersedia)
+            btn.classList.toggle('opacity-50', b === 'fixed' && _mode !== 'line_item');
+        });
+
+        // Satu terisi → yang lain terkunci.
+        const pct = document.getElementById('pt_payment_percentage');
+        pct.disabled = fixed;
+        if (fixed) pct.value = '';
+        document.getElementById('pt_pct_req').classList.toggle('hidden', fixed);
+
+        const amt = document.getElementById('pt_amount_disp');
+        amt.readOnly = !fixed;
+        amt.tabIndex = fixed ? 0 : -1;
+        amt.classList.toggle('bg-gray-50', !fixed);
+        amt.classList.toggle('cursor-not-allowed', !fixed);
+        amt.classList.toggle('text-gray-600', !fixed);
+        amt.classList.toggle('border-gray-200', !fixed);
+        amt.classList.toggle('border-gray-300', fixed);
+        amt.classList.toggle('primary-focus', fixed);
+        document.getElementById('pt_amount_req').classList.toggle('hidden', !fixed);
+        document.getElementById('pt_amount_auto').classList.toggle('hidden', fixed);
+
+        document.getElementById('pt_basis_hint').textContent = fixed
+            ? 'Amount is entered manually (not taken from revenue). Payment % is disabled.'
+            : `Amount = Payment % × revenue in Sales Data (${fmtRp(currentRevenue())}). Fixed amount is disabled.`;
+
+        if (fixed) {
+            amt.value = '';
+            onLineItemChange(true);
+        } else {
+            recalcAmount();
+        }
+        checkOver();
+    }
+
+    function populateLineItemSelect(selectedId) {
+        const sel = document.getElementById('pt_line_item');
+        if (!sel) return;
+        sel.innerHTML = `<option value="">— Select line item —</option>` +
+            _lineItems.map(li => `<option value="${li.id}">${esc(li.name)} · ${esc(li.type_label)} · ${fmtRp(li.amount)}</option>`).join('');
+        sel.value = selectedId ? String(selectedId) : '';
+    }
+
+    // Prefill nominal (dan nama termin) dari line item yang dipilih — tetap bisa diubah.
+    function onLineItemChange(fromBasisSwitch) {
+        const li  = lineItemById(document.getElementById('pt_line_item')?.value);
+        const amt = document.getElementById('pt_amount_disp');
+        if (li && _basis === 'fixed' && (fromBasisSwitch === true || parseAmount(amt.value) === null)) {
+            amt.value = fmtThousands(li.amount);
+        }
+        const name = document.getElementById('pt_payment_term');
+        if (li && fromBasisSwitch !== true && !name.value.trim()) name.value = li.name;
+        checkOver();
+    }
+
     // ── Amount auto-calc (preview di modal) ────────────────────────
     function recalcAmount() {
+        if (_basis === 'fixed') { checkOver(); return; }
         const pct = parseFloat(document.getElementById('pt_payment_percentage').value);
         const amount = (isNaN(pct) ? 0 : currentRevenue() * pct / 100);
         const disp = document.getElementById('pt_amount_disp');
-        if (disp) {
-            const abs = Math.abs(Math.round(amount));
-            disp.value = abs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        if (disp) disp.value = fmtThousands(amount);
+        checkOver();
+    }
+
+    function modalAmount() {
+        if (_basis === 'fixed') return parseAmount(document.getElementById('pt_amount_disp').value) || 0;
+        const pct = parseFloat(document.getElementById('pt_payment_percentage').value);
+        return isNaN(pct) ? 0 : currentRevenue() * pct / 100;
+    }
+
+    // Notifikasi (tidak memblokir) bila total TOP melebihi revenue / nilai line item.
+    function checkOver() {
+        const box = document.getElementById('pt_over_warning');
+        if (!box) return;
+        if (_mode !== 'line_item') { box.classList.add('hidden'); return; }
+
+        const editId  = document.getElementById('paymentTermModalMode').value === 'edit'
+            ? parseInt(document.getElementById('paymentTermModalId').value, 10) : null;
+        const others  = _terms.filter(t => t.id !== editId);
+        const amount  = modalAmount();
+        const revenue = currentRevenue();
+        const total   = others.reduce((s, t) => s + (Number(t.amount) || 0), 0) + amount;
+        const msgs    = [];
+
+        if (revenue <= 0 && amount > 0) {
+            msgs.push('Revenue in Sales Data is still empty, so this amount cannot be checked against it.');
+        } else if (total > revenue + 0.01) {
+            msgs.push(`Total payment terms will be ${fmtRp(total)}, exceeding the revenue in Sales Data (${fmtRp(revenue)}) by ${fmtRp(total - revenue)}.`);
         }
+
+        const li = lineItemById(document.getElementById('pt_line_item')?.value);
+        if (li) {
+            const billed = others.filter(t => t.contract_line_item_id === li.id).reduce((s, t) => s + (Number(t.amount) || 0), 0) + amount;
+            if (billed > li.total + 0.01) {
+                msgs.push(`Terms for "${li.name}" will be ${fmtRp(billed)}, exceeding its contract value (${fmtRp(li.total)}).`);
+            }
+        }
+
+        box.classList.toggle('hidden', !msgs.length);
+        box.innerHTML = msgs.map(m => `<p>⚠ ${esc(m)}</p>`).join('') + (msgs.length ? '<p class="mt-1 text-amber-700/80">You can still save — this is only a notification.</p>' : '');
     }
 
     // Toggle indikator "wajib" pada Invoice Number sesuai isi Submit Invoice Date
@@ -9334,6 +10006,7 @@ window.PaymentTermPlan = (function () {
         document.getElementById('pt_payment_term').value        = '';
         document.getElementById('pt_payment_percentage').value  = '';
         document.getElementById('pt_amount_disp').value         = '';
+        document.getElementById('pt_period').value              = '';
         document.getElementById('pt_requirements').value        = '';
         document.getElementById('pt_status').value              = 'Open';
         document.getElementById('pt_estimated_date').value      = '';
@@ -9343,28 +10016,44 @@ window.PaymentTermPlan = (function () {
         if (window._fpPtEstimated)     window._fpPtEstimated.clear();
         if (window._fpPtSubmitInvoice) window._fpPtSubmitInvoice.clear();
         if (window._fpPtPaid)          window._fpPtPaid.clear();
+
+        const lineMode = _mode === 'line_item';
+        document.getElementById('pt_line_item_wrap').classList.toggle('hidden', !lineMode);
+        document.getElementById('pt_period_wrap').classList.toggle('hidden', !lineMode);
+        document.getElementById('pt_over_warning').classList.add('hidden');
+        populateLineItemSelect(null);
+
         toggleInvoiceRequired();
         togglePaidDateRequired();
     }
 
     function openAdd() {
-        resetForm();
+        // Nominal tetap butuh dropdown Contract Line Item → line item wajib ada dulu.
+        if (_mode === 'line_item' && !_lineItems.length) {
+            showNotification('Add a contract line item first — payment terms in Line Item mode must be linked to one.', 'warning');
+            openAddLineItem();
+            return;
+        }
+
         document.getElementById('paymentTermModalMode').value  = 'create';
         document.getElementById('paymentTermModalId').value    = '';
+        resetForm();
         document.getElementById('paymentTermModalTitle').textContent = 'Add Payment Term';
+        setBasis(_mode === 'line_item' ? 'fixed' : 'percentage');
         document.getElementById('paymentTermModal').classList.remove('hidden');
     }
 
     function openEdit(id) {
         const t = _terms.find(x => x.id === id);
         if (!t) return;
-        resetForm();
         document.getElementById('paymentTermModalMode').value  = 'edit';
         document.getElementById('paymentTermModalId').value    = id;
+        resetForm();
         document.getElementById('paymentTermModalTitle').textContent = `Edit Payment Term #${t.term_number}`;
 
+        populateLineItemSelect(t.contract_line_item_id);
         document.getElementById('pt_payment_term').value       = t.payment_term ?? '';
-        document.getElementById('pt_payment_percentage').value = t.payment_percentage ?? '';
+        document.getElementById('pt_period').value             = t.period ?? '';
         document.getElementById('pt_requirements').value       = t.requirements ?? '';
         document.getElementById('pt_invoice_number').value     = t.invoice_number ?? '';
         document.getElementById('pt_status').value             = t.status ?? 'Open';
@@ -9378,9 +10067,18 @@ window.PaymentTermPlan = (function () {
         if (t.paid_date && window._fpPtPaid) window._fpPtPaid.setDate(t.paid_date, false, 'Y-m-d');
         else if (t.paid_date) document.getElementById('pt_paid_date').value = t.paid_date;
 
+        if (t.basis === 'fixed') {
+            setBasis('fixed');
+            document.getElementById('pt_amount_disp').value = fmtThousands(t.amount);
+        } else {
+            setBasis('percentage');
+            document.getElementById('pt_payment_percentage').value = t.payment_percentage ?? '';
+            recalcAmount();
+        }
+
         toggleInvoiceRequired();
         togglePaidDateRequired();
-        recalcAmount();
+        checkOver();
         document.getElementById('paymentTermModal').classList.remove('hidden');
     }
 
@@ -9390,48 +10088,62 @@ window.PaymentTermPlan = (function () {
 
     // ── Save (create / update) ─────────────────────────────────────
     async function save() {
-        const mode = document.getElementById('paymentTermModalMode').value;
-        const term = document.getElementById('pt_payment_term').value.trim();
-        const pct  = document.getElementById('pt_payment_percentage').value;
+        const mode   = document.getElementById('paymentTermModalMode').value;
+        const term   = document.getElementById('pt_payment_term').value.trim();
+        const pct    = document.getElementById('pt_payment_percentage').value;
+        const fixed  = _basis === 'fixed';
+        const amount = parseAmount(document.getElementById('pt_amount_disp').value);
+        const lineId = document.getElementById('pt_line_item').value;
 
         const submitInvoiceDate = document.getElementById('pt_submit_invoice_date').value || null;
         const invoiceNumber     = document.getElementById('pt_invoice_number').value.trim();
         const paidDate          = document.getElementById('pt_paid_date').value || null;
         const status            = document.getElementById('pt_status').value;
 
+        if (_mode === 'line_item' && !lineId) { showNotification('Line Item is required in Line Item billing mode.', 'error'); return; }
         if (!term) { showNotification('Payment Term is required.', 'error'); return; }
-        if (pct === '' || isNaN(parseFloat(pct))) { showNotification('Payment % is required.', 'error'); return; }
-        if (parseFloat(pct) < 0 || parseFloat(pct) > 100) { showNotification('Payment % must be between 0 and 100.', 'error'); return; }
+        if (fixed) {
+            if (amount === null) { showNotification('Amount is required for a fixed-amount term.', 'error'); return; }
+        } else {
+            if (pct === '' || isNaN(parseFloat(pct))) { showNotification('Payment % is required.', 'error'); return; }
+            if (parseFloat(pct) < 0 || parseFloat(pct) > 100) { showNotification('Payment % must be between 0 and 100.', 'error'); return; }
+        }
         if (submitInvoiceDate && !invoiceNumber) { showNotification('Invoice Number is required when Submit Invoice Date is filled.', 'error'); return; }
         if (status === 'Paid' && !paidDate) { showNotification('Paid Date is required when Status is Paid.', 'error'); return; }
 
-        // Guard: total payment terms tidak boleh melebihi 100% / revenue
-        const editId    = mode === 'edit' ? parseInt(document.getElementById('paymentTermModalId').value, 10) : null;
-        const otherPct  = _terms.reduce((s, t) => (t.id === editId ? s : s + (Number(t.payment_percentage) || 0)), 0);
-        const totalPct  = otherPct + parseFloat(pct);
-        if (totalPct > 100 + 0.001) {
-            const rev      = currentRevenue();
-            const totalAmt = rev * totalPct / 100;
-            const pctLabel = (Number.isInteger(totalPct) ? totalPct.toString() : totalPct.toFixed(2).replace('.', ',')) + '%';
-            showNotification(`Total payment terms (${pctLabel} = ${fmtRp(totalAmt)}) cannot exceed the project revenue (${fmtRp(rev)}).`, 'error');
-            return;
+        // Guard: total termin basis % tidak boleh melebihi 100% / revenue.
+        // Nominal tetap tidak diblokir — hanya diperingatkan (lihat checkOver()).
+        const editId = mode === 'edit' ? parseInt(document.getElementById('paymentTermModalId').value, 10) : null;
+        if (!fixed) {
+            const otherPct = _terms.reduce((s, t) => (t.id === editId || t.basis === 'fixed' ? s : s + (Number(t.payment_percentage) || 0)), 0);
+            const totalPct = otherPct + parseFloat(pct);
+            if (totalPct > 100 + 0.001) {
+                const rev      = currentRevenue();
+                const pctLabel = (Number.isInteger(totalPct) ? totalPct.toString() : totalPct.toFixed(2).replace('.', ',')) + '%';
+                showNotification(`Total payment terms (${pctLabel} = ${fmtRp(rev * totalPct / 100)}) cannot exceed the project revenue (${fmtRp(rev)}).`, 'error');
+                return;
+            }
         }
 
         const btn = document.getElementById('paymentTermSaveBtn');
         const orig = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = '<svg class="animate-spin w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>';
+        btn.innerHTML = spinner();
 
         const payload = {
-            payment_term:        term,
-            payment_percentage:  parseFloat(pct),
-            requirements:        document.getElementById('pt_requirements').value.trim() || null,
-            estimated_date:      document.getElementById('pt_estimated_date').value || null,
-            submit_invoice_date: submitInvoiceDate,
-            invoice_number:      invoiceNumber || null,
-            paid_date:           paidDate,
-            status:              status,
-            _token:              getCsrf(),
+            basis:                 _basis,
+            contract_line_item_id: _mode === 'line_item' ? parseInt(lineId, 10) : null,
+            payment_term:          term,
+            period:                _mode === 'line_item' ? (document.getElementById('pt_period').value.trim() || null) : null,
+            payment_percentage:    fixed ? null : parseFloat(pct),
+            amount:                fixed ? amount : null,
+            requirements:          document.getElementById('pt_requirements').value.trim() || null,
+            estimated_date:        document.getElementById('pt_estimated_date').value || null,
+            submit_invoice_date:   submitInvoiceDate,
+            invoice_number:        invoiceNumber || null,
+            paid_date:             paidDate,
+            status:                status,
+            _token:                getCsrf(),
         };
 
         try {
@@ -9439,21 +10151,14 @@ window.PaymentTermPlan = (function () {
             if (mode === 'create') {
                 res = await axios.post(BASE_URL, payload);
             } else {
-                const id = document.getElementById('paymentTermModalId').value;
-                res = await axios.put(`${BASE_URL}/${id}`, payload);
+                res = await axios.put(`${BASE_URL}/${editId}`, payload);
             }
             showNotification(res.data.message ?? 'Saved.', 'success');
+            notifyWarnings(res.data.warnings);
             closeModal();
             await load();
         } catch (e) {
-            let msg = 'Something went wrong. Please try again.';
-            if (e.response?.data?.errors) {
-                const first = Object.values(e.response.data.errors)[0];
-                msg = Array.isArray(first) ? first[0] : String(first);
-            } else if (e.response?.data?.message) {
-                msg = e.response.data.message;
-            }
-            showNotification(msg, 'error');
+            showNotification(errMsg(e), 'error');
         } finally {
             btn.disabled = false;
             btn.innerHTML = orig;
@@ -9495,9 +10200,248 @@ window.PaymentTermPlan = (function () {
         }
     }
 
-    document.addEventListener('DOMContentLoaded', function () { load(); });
+    // ── Contract Line Item ─────────────────────────────────────────
+    function setPicker(fp, inputId, value) {
+        if (fp) { value ? fp.setDate(value, false, 'Y-m-d') : fp.clear(); }
+        else document.getElementById(inputId).value = value || '';
+    }
 
-    return { openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete, recalcAmount, toggleInvoiceRequired, togglePaidDateRequired, reload: load };
+    function onLineItemTypeChange() {
+        const recurring = document.getElementById('li_type').value === 'recurring';
+        document.getElementById('li_frequency_wrap').classList.toggle('hidden', !recurring);
+        document.getElementById('li_end_wrap').classList.toggle('hidden', !recurring);
+        document.getElementById('li_start_req').classList.toggle('hidden', !recurring);
+        document.getElementById('li_start_label').textContent  = recurring ? 'Start' : 'Billing Month';
+        document.getElementById('li_amount_label').textContent = recurring ? 'Nominal per period' : 'Nominal';
+        previewLineItem();
+    }
+
+    function previewLineItem() {
+        const box = document.getElementById('li_preview');
+        if (!box) return;
+        const amount = parseAmount(document.getElementById('li_amount').value) || 0;
+
+        if (document.getElementById('li_type').value !== 'recurring') {
+            box.textContent = `Contract value: ${fmtRp(amount)} (billed once).`;
+            return;
+        }
+        const periods = buildPeriods(
+            document.getElementById('li_frequency').value,
+            document.getElementById('li_start_date').value,
+            document.getElementById('li_end_date').value
+        );
+        box.textContent = periods.length
+            ? `${periods.length} period(s): ${periods[0]} to ${periods[periods.length - 1]} × ${fmtRp(amount)} = ${fmtRp(amount * periods.length)}`
+            : 'Fill in the start and end date to see the schedule.';
+    }
+
+    function openAddLineItem() {
+        document.getElementById('li_id').value = '';
+        document.getElementById('lineItemModalTitle').textContent = 'Add Line Item';
+        document.getElementById('li_name').value = '';
+        document.getElementById('li_type').value = 'one_time';
+        document.getElementById('li_frequency').value = 'monthly';
+        document.getElementById('li_amount').value = '';
+        setPicker(window._fpLiStart, 'li_start_date', null);
+        setPicker(window._fpLiEnd, 'li_end_date', null);
+        onLineItemTypeChange();
+        document.getElementById('lineItemModal').classList.remove('hidden');
+    }
+
+    function openEditLineItem(id) {
+        const li = lineItemById(id);
+        if (!li) return;
+        document.getElementById('li_id').value = li.id;
+        document.getElementById('lineItemModalTitle').textContent = `Edit Line Item: ${li.name}`;
+        document.getElementById('li_name').value = li.name;
+        document.getElementById('li_type').value = li.type;
+        document.getElementById('li_frequency').value = li.frequency || 'monthly';
+        document.getElementById('li_amount').value = fmtThousands(li.amount);
+        setPicker(window._fpLiStart, 'li_start_date', li.start_date);
+        setPicker(window._fpLiEnd, 'li_end_date', li.end_date);
+        onLineItemTypeChange();
+        document.getElementById('lineItemModal').classList.remove('hidden');
+    }
+
+    function closeLineItemModal() {
+        document.getElementById('lineItemModal').classList.add('hidden');
+    }
+
+    async function saveLineItem() {
+        const id        = document.getElementById('li_id').value;
+        const name      = document.getElementById('li_name').value.trim();
+        const type      = document.getElementById('li_type').value;
+        const amount    = parseAmount(document.getElementById('li_amount').value);
+        const startDate = document.getElementById('li_start_date').value || null;
+        const endDate   = document.getElementById('li_end_date').value || null;
+
+        if (!name) { showNotification('Line Item name is required.', 'error'); return; }
+        if (amount === null) { showNotification('Nominal is required.', 'error'); return; }
+        if (type === 'recurring') {
+            if (!startDate || !endDate) { showNotification('Start and End are required for a recurring line item.', 'error'); return; }
+            if (endDate < startDate) { showNotification('End must be on or after Start.', 'error'); return; }
+        }
+
+        const btn  = document.getElementById('lineItemSaveBtn');
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = spinner();
+
+        const payload = {
+            name, type, amount,
+            frequency:  type === 'recurring' ? document.getElementById('li_frequency').value : null,
+            start_date: startDate,
+            end_date:   type === 'recurring' ? endDate : null,
+            _token:     getCsrf(),
+        };
+
+        try {
+            const res = await axios.post(id ? `${LINE_URL}/${id}` : LINE_URL, payload);
+            showNotification(res.data.message ?? 'Saved.', 'success');
+            notifyWarnings(res.data.warnings);
+            closeLineItemModal();
+            await load();
+        } catch (e) {
+            showNotification(errMsg(e), 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    function openLineItemDelete(id) {
+        const li = lineItemById(id);
+        if (!li) return;
+        if (li.terms_count > 0) {
+            showNotification(`"${li.name}" still has ${li.terms_count} payment term(s). Delete those payment terms first.`, 'warning');
+            return;
+        }
+        document.getElementById('liDeleteId').value = li.id;
+        document.getElementById('liDeleteName').textContent = li.name;
+        document.getElementById('lineItemDeleteModal').classList.remove('hidden');
+    }
+
+    function closeLineItemDeleteModal() {
+        document.getElementById('lineItemDeleteModal').classList.add('hidden');
+    }
+
+    async function confirmDeleteLineItem() {
+        const id = document.getElementById('liDeleteId').value;
+        if (!id) return;
+        const btn  = document.getElementById('liDeleteConfirmBtn');
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = 'Deleting…';
+        try {
+            const res = await axios.post(`${LINE_URL}/${id}/delete`, {}, { headers: { 'X-CSRF-TOKEN': getCsrf() } });
+            closeLineItemDeleteModal();
+            showNotification(res.data.message ?? 'Deleted.', 'success');
+            await load();
+        } catch (e) {
+            showNotification(errMsg(e, 'Failed to delete.'), 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    }
+
+    // ── Generate Schedule (line item recurring) ────────────────────
+    function generateInputs() {
+        return {
+            amount:    parseAmount(document.getElementById('gs_amount').value),
+            frequency: document.getElementById('gs_frequency').value,
+            start:     document.getElementById('gs_start_date').value,
+            end:       document.getElementById('gs_end_date').value,
+        };
+    }
+
+    function previewGenerate() {
+        const li  = lineItemById(document.getElementById('gs_id').value);
+        const box = document.getElementById('gs_preview');
+        const btn = document.getElementById('generateScheduleBtn');
+        if (!li || !box) return;
+
+        const { amount, frequency, start, end } = generateInputs();
+        const periods  = buildPeriods(frequency, start, end);
+        const existing = new Set(_terms.filter(t => t.contract_line_item_id === li.id && t.period)
+            .map(t => t.period.toLowerCase()));
+        const fresh    = periods.filter(p => !existing.has(p.toLowerCase()));
+        const skipped  = periods.length - fresh.length;
+
+        const ok = fresh.length > 0 && amount !== null;
+        box.className = 'rounded-lg border px-3 py-2 text-sm ' + (ok ? 'border-green-200 bg-green-50 text-green-800' : 'border-gray-200 bg-gray-50 text-gray-600');
+
+        if (!periods.length) {
+            box.textContent = 'Fill in the start and end date to see the schedule.';
+        } else if (!fresh.length) {
+            box.textContent = `All ${periods.length} period(s) already have a payment term — nothing to generate.`;
+        } else {
+            box.textContent = `Will create ${fresh.length} payment term(s) (${li.name} – ${fresh[0]} to ${li.name} – ${fresh[fresh.length - 1]}), total ${fmtRp((amount || 0) * fresh.length)}.`
+                + (skipped ? ` ${skipped} existing period(s) will be skipped.` : '');
+        }
+
+        btn.disabled = !ok;
+        btn.textContent = ok ? `Generate ${fresh.length} term${fresh.length > 1 ? 's' : ''}` : 'Generate';
+    }
+
+    function openGenerate(id) {
+        const li = lineItemById(id);
+        if (!li) return;
+        document.getElementById('gs_id').value = li.id;
+        document.getElementById('gs_title').textContent = li.name;
+        document.getElementById('gs_amount').value = fmtThousands(li.amount);
+        document.getElementById('gs_frequency').value = li.frequency || 'monthly';
+        document.getElementById('gs_requirements').value = '';
+        setPicker(window._fpGsStart, 'gs_start_date', li.start_date);
+        setPicker(window._fpGsEnd, 'gs_end_date', li.end_date);
+        previewGenerate();
+        document.getElementById('generateScheduleModal').classList.remove('hidden');
+    }
+
+    function closeGenerateModal() {
+        document.getElementById('generateScheduleModal').classList.add('hidden');
+    }
+
+    async function confirmGenerate() {
+        const id = document.getElementById('gs_id').value;
+        const { amount, frequency, start, end } = generateInputs();
+        if (amount === null || !start || !end) { showNotification('Nominal, Start and End are required.', 'error'); return; }
+        if (end < start) { showNotification('End must be on or after Start.', 'error'); return; }
+
+        const btn  = document.getElementById('generateScheduleBtn');
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = spinner();
+
+        try {
+            const res = await axios.post(`${LINE_URL}/${id}/generate-schedule`, {
+                amount, frequency, start_date: start, end_date: end,
+                requirements: document.getElementById('gs_requirements').value.trim() || null,
+                _token: getCsrf(),
+            });
+            showNotification(res.data.message ?? 'Schedule generated.', 'success');
+            notifyWarnings(res.data.warnings);
+            closeGenerateModal();
+            await load();
+        } catch (e) {
+            showNotification(errMsg(e), 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+            previewGenerate();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () { renderMode(); load(); });
+
+    return {
+        openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete,
+        recalcAmount, toggleInvoiceRequired, togglePaidDateRequired, reload: load,
+        switchMode, setBasis, onLineItemChange, onAmountInput, toggleGroup,
+        openAddLineItem, openEditLineItem, closeLineItemModal, onLineItemTypeChange, previewLineItem, saveLineItem,
+        openLineItemDelete, closeLineItemDeleteModal, confirmDeleteLineItem,
+        openGenerate, closeGenerateModal, previewGenerate, confirmGenerate,
+    };
 })();
 </script>
 @endsection

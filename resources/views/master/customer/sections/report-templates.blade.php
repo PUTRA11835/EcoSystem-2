@@ -142,7 +142,7 @@
     }
 
     async function deleteReportTemplate(id) {
-        if (!confirm('Hapus template ini? Laporan yang sudah pernah dibuat dari template ini tidak terpengaruh.')) {
+        if (!(await showConfirm('Laporan yang sudah pernah dibuat dari template ini tidak terpengaruh.', 'Hapus Template?', 'danger', { okText: 'Hapus', cancelText: 'Batal' }))) {
             return;
         }
 

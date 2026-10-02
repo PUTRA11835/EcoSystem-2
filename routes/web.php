@@ -29,6 +29,7 @@ use App\Http\Controllers\DeliveryProjectPlanningImportController;
 use App\Http\Controllers\DeliveryProjectPlanningResetController;
 use App\Http\Controllers\DeliveryProjectRiskController;
 use App\Http\Controllers\DeliveryProjectPaymentTermController;
+use App\Http\Controllers\DeliveryProjectContractLineItemController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TicketViewController;
@@ -363,6 +364,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::patch('/projects/{project}/financial-info', [DeliveryProjectController::class, 'updateFinancialInfo'])->name('projects.updateFinancialInfo');
         // Ubah termin TOP yang sudah ada
         Route::put('/projects/{project}/payment-terms/{term}', [DeliveryProjectPaymentTermController::class, 'update'])->name('projects.paymentTerms.update');
+        // Mode penagihan TOP (% dari Revenue ↔ Line Item) & ubah Contract Line Item
+        Route::post('/projects/{project}/top-mode', [DeliveryProjectPaymentTermController::class, 'updateMode'])->name('projects.topMode.update');
+        Route::post('/projects/{project}/contract-line-items/{lineItem}', [DeliveryProjectContractLineItemController::class, 'update'])->name('projects.contractLineItems.update');
     });
 
     Route::middleware(['menu:delivery-project.delivery-data.edit', 'project.editable'])->group(function () {
@@ -374,6 +378,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::post('/projects/{project}/payment-terms',        [DeliveryProjectPaymentTermController::class, 'store'])->name('projects.paymentTerms.store');
         Route::delete('/projects/{project}/payment-terms/{term}',[DeliveryProjectPaymentTermController::class, 'destroy'])->name('projects.paymentTerms.destroy');
         Route::post('/projects/{project}/payment-terms/{term}/delete',[DeliveryProjectPaymentTermController::class, 'destroy'])->name('projects.paymentTerms.destroy.post');
+        // Contract Line Item (mode TOP Line Item) — tambah/hapus & generate termin berulang
+        Route::post('/projects/{project}/contract-line-items', [DeliveryProjectContractLineItemController::class, 'store'])->name('projects.contractLineItems.store');
+        Route::post('/projects/{project}/contract-line-items/{lineItem}/delete', [DeliveryProjectContractLineItemController::class, 'destroy'])->name('projects.contractLineItems.destroy');
+        Route::post('/projects/{project}/contract-line-items/{lineItem}/generate-schedule', [DeliveryProjectContractLineItemController::class, 'generateSchedule'])->name('projects.contractLineItems.generateSchedule');
     });
 
     // Term of Payment (TOP) Plan — read-only

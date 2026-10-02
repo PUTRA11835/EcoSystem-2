@@ -5,8 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectPaymentTerm;
 use App\Services\ProjectReminderService;
+use App\Services\ProjectTopPlan;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
+/**
+ * Term Of Payment Plan — dua mode penagihan (lihat ProjectTopPlan):
+ *   - percentage : amount = revenue × % / 100 (total % ≤ 100, diblokir).
+ *   - line_item  : termin wajib dikaitkan ke Contract Line Item; basis termin
+ *                  boleh % dari revenue ATAU nominal tetap (saling eksklusif).
+ *                  Nominal tetap yang membuat total > revenue hanya diperingatkan.
+ */
 class DeliveryProjectPaymentTermController extends Controller
 {
     // ──────────────────────────────────────────────────────────────
@@ -14,21 +23,14 @@ class DeliveryProjectPaymentTermController extends Controller
     // ──────────────────────────────────────────────────────────────
     public function index(DeliveryProject $project)
     {
-        $terms = DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
-            ->orderBy('term_number')
+        // Amount basis % = nilai turunan. Term yang dibuat saat revenue masih
+        // kosong tersimpan 0 dan tetap basi sampai form Financial di-save ulang
+        // → self-heal saat dibaca.
+        DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
             ->get()
-            ->map(function (DeliveryProjectPaymentTerm $t) use ($project) {
-                // Amount = nilai turunan (revenue × % / 100). Term yang dibuat saat
-                // revenue masih kosong tersimpan 0 dan tetap basi sampai form
-                // Financial di-save ulang → self-heal saat dibaca.
-                $this->resyncAmount($project, $t);
-                return $this->format($t);
-            });
+            ->each(fn(DeliveryProjectPaymentTerm $t) => $this->resyncAmount($project, $t));
 
-        return response()->json([
-            'payment_terms'  => $terms,
-            'project_revenue' => (float) ($project->revenue ?? 0),
-        ]);
+        return response()->json((new ProjectTopPlan($project))->payload());
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -36,9 +38,9 @@ class DeliveryProjectPaymentTermController extends Controller
     // ──────────────────────────────────────────────────────────────
     public function store(Request $request, DeliveryProject $project)
     {
-        $validated = $this->validatePayload($request);
+        $validated = $this->validatePayload($request, $project);
 
-        if ($error = $this->checkTotalWithinRevenue($project, $validated['payment_percentage'])) {
+        if ($error = $this->checkPercentageWithinRevenue($project, $validated)) {
             return $error;
         }
 
@@ -48,15 +50,18 @@ class DeliveryProjectPaymentTermController extends Controller
         $term = DeliveryProjectPaymentTerm::create(array_merge($validated, [
             'delivery_projects_id' => $project->id,
             'term_number'          => $nextNumber,
-            'amount'               => $this->computeAmount($project, $validated['payment_percentage']),
         ]));
+
+        $plan = new ProjectTopPlan($project);
+        $plan->resequence();
 
         // A new term may already be due/overdue → refresh the invoice reminders now.
         app(ProjectReminderService::class)->syncAllQuietly();
 
         return response()->json([
             'message'      => 'Payment term added successfully.',
-            'payment_term' => $this->format($term),
+            'payment_term' => ProjectTopPlan::formatTerm($term->fresh(), $plan->revenue()),
+            'warnings'     => $plan->warnings(),
         ], 201);
     }
 
@@ -69,22 +74,24 @@ class DeliveryProjectPaymentTermController extends Controller
             return response()->json(['message' => 'Not found.'], 404);
         }
 
-        $validated = $this->validatePayload($request);
+        $validated = $this->validatePayload($request, $project);
 
-        if ($error = $this->checkTotalWithinRevenue($project, $validated['payment_percentage'], $term->id)) {
+        if ($error = $this->checkPercentageWithinRevenue($project, $validated, $term->id)) {
             return $error;
         }
 
-        $term->update(array_merge($validated, [
-            'amount' => $this->computeAmount($project, $validated['payment_percentage']),
-        ]));
+        $term->update($validated);
+
+        $plan = new ProjectTopPlan($project);
+        $plan->resequence();
 
         // estimated_date / submit_invoice_date may have changed → re-evaluate reminders.
         app(ProjectReminderService::class)->syncAllQuietly();
 
         return response()->json([
             'message'      => 'Payment term updated successfully.',
-            'payment_term' => $this->format($term),
+            'payment_term' => ProjectTopPlan::formatTerm($term->fresh(), $plan->revenue()),
+            'warnings'     => $plan->warnings(),
         ]);
     }
 
@@ -100,12 +107,7 @@ class DeliveryProjectPaymentTermController extends Controller
         $term->delete();
 
         // Re-sequence remaining term numbers so "No" stays 1..N
-        DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
-            ->orderBy('term_number')
-            ->get()
-            ->each(function ($t, $i) {
-                $t->update(['term_number' => $i + 1]);
-            });
+        (new ProjectTopPlan($project))->resequence();
 
         // A deleted term must drop its reminder too.
         app(ProjectReminderService::class)->syncAllQuietly();
@@ -114,13 +116,75 @@ class DeliveryProjectPaymentTermController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────
+    // POST /projects/{project}/top-mode
+    // Ganti mode penagihan: percentage ↔ line_item
+    // ──────────────────────────────────────────────────────────────
+    public function updateMode(Request $request, DeliveryProject $project)
+    {
+        $validated = $request->validate([
+            'top_mode' => ['required', Rule::in(ProjectTopPlan::MODES)],
+        ]);
+
+        // Mode % tidak mengenal nominal tetap — termin fixed harus dihapus
+        // dulu supaya tidak ada termin yang amount-nya tiba-tiba berubah.
+        if ($validated['top_mode'] === 'percentage') {
+            $fixed = DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
+                ->where('basis', 'fixed')
+                ->count();
+
+            if ($fixed > 0) {
+                return response()->json([
+                    'message' => "Cannot switch to \"% of Revenue\": {$fixed} payment term(s) use a fixed amount. Delete them first.",
+                ], 422);
+            }
+        }
+
+        $project->update(['top_mode' => $validated['top_mode']]);
+
+        $plan = new ProjectTopPlan($project);
+        $plan->resequence();
+
+        return response()->json([
+            'message'  => $validated['top_mode'] === 'line_item'
+                ? 'Billing mode switched to Line Item.'
+                : 'Billing mode switched to % of Revenue.',
+            'top_mode' => $plan->mode(),
+        ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────
     // Helpers
     // ──────────────────────────────────────────────────────────────
-    private function validatePayload(Request $request): array
+
+    /**
+     * Validasi + normalisasi. Hasilnya siap disimpan:
+     *   - basis percentage → payment_percentage diisi, amount diturunkan dari revenue.
+     *   - basis fixed      → amount diisi user, payment_percentage = 0.
+     * Mode percentage selalu memaksa basis percentage tanpa line item.
+     */
+    private function validatePayload(Request $request, DeliveryProject $project): array
     {
-        return $request->validate([
+        $lineItemMode = (new ProjectTopPlan($project))->mode() === 'line_item';
+
+        // Normalisasi SEBELUM validasi: mode % tidak mengenal nominal tetap, jadi
+        // basis=fixed yang terkirim di mode % diperlakukan sebagai percentage
+        // (aturan required_if/required_unless di bawah bergantung pada nilai ini).
+        $request->merge([
+            'basis' => $lineItemMode && $request->input('basis') === 'fixed' ? 'fixed' : 'percentage',
+        ]);
+
+        $validated = $request->validate([
+            'basis'                 => ['nullable', Rule::in(['percentage', 'fixed'])],
+            'contract_line_item_id' => [
+                $lineItemMode ? 'required' : 'nullable',
+                'integer',
+                Rule::exists('delivery_project_contract_line_items', 'id')
+                    ->where('delivery_projects_id', $project->id),
+            ],
             'payment_term'        => 'required|string|max:255',
-            'payment_percentage'  => 'required|numeric|min:0|max:100',
+            'period'              => 'nullable|string|max:50',
+            'payment_percentage'  => 'nullable|required_unless:basis,fixed|numeric|min:0|max:100',
+            'amount'              => 'nullable|required_if:basis,fixed|numeric|min:0',
             'requirements'        => 'nullable|string',
             'estimated_date'      => 'nullable|date',
             'submit_invoice_date' => 'nullable|date',
@@ -130,36 +194,56 @@ class DeliveryProjectPaymentTermController extends Controller
             'paid_date'           => 'nullable|required_if:status,Paid|date',
             'status'              => 'required|string|in:Open,Paid,Delay',
         ], [
+            'contract_line_item_id.required' => 'Line Item is required in Line Item billing mode. Add a contract line item first.',
+            'contract_line_item_id.exists'   => 'The selected line item does not belong to this project.',
+            'payment_percentage.required_unless' => 'Payment % is required.',
+            'amount.required_if'           => 'Amount is required for a fixed-amount term.',
             'invoice_number.required_with' => 'Invoice Number is required when Submit Invoice Date is filled.',
             'paid_date.required_if'        => 'Paid Date is required when Status is Paid.',
         ]);
+
+        $basis = $validated['basis'];
+        $validated['contract_line_item_id'] = $lineItemMode ? (int) $validated['contract_line_item_id'] : null;
+
+        if ($basis === 'fixed') {
+            // Nominal tetap: TIDAK diambil dari revenue, persentase tidak dipakai.
+            $validated['amount']             = round((float) $validated['amount'], 2);
+            $validated['payment_percentage'] = 0;
+        } else {
+            $validated['payment_percentage'] = (float) $validated['payment_percentage'];
+            $validated['amount']             = $this->computeAmount($project, $validated['payment_percentage']);
+        }
+
+        return $validated;
     }
 
     /**
-     * Pastikan total payment term (existing + yang sedang disimpan) tidak melebihi
-     * revenue project. Karena amount = revenue × % / 100, ini setara dengan total
-     * percentage tidak melebihi 100%. Mengembalikan JsonResponse 422 bila melanggar,
-     * atau null bila aman. $excludeId dipakai saat update agar termin yang diedit
-     * tidak ikut dihitung dua kali.
+     * Termin basis % tetap tidak boleh membuat total % melebihi 100 (= revenue).
+     * Termin nominal tetap tidak dihitung di sini — kelebihannya hanya
+     * diperingatkan lewat ProjectTopPlan::warnings().
      */
-    private function checkTotalWithinRevenue(DeliveryProject $project, $newPercentage, $excludeId = null)
+    private function checkPercentageWithinRevenue(DeliveryProject $project, array $validated, $excludeId = null)
     {
+        if ($validated['basis'] !== 'percentage') {
+            return null;
+        }
+
         $existingPct = (float) DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
+            ->where('basis', 'percentage')
             ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
             ->sum('payment_percentage');
 
-        $totalPct = $existingPct + (float) $newPercentage;
+        $totalPct = $existingPct + (float) $validated['payment_percentage'];
 
         // toleransi floating point kecil
         if ($totalPct > 100.0 + 0.001) {
-            $revenue       = (float) ($project->revenue ?? 0);
-            $totalAmount   = round($revenue * $totalPct / 100, 2);
-            $fmtRevenue    = 'Rp ' . number_format($revenue, 0, ',', '.');
-            $fmtTotal      = 'Rp ' . number_format($totalAmount, 0, ',', '.');
-            $fmtTotalPct   = rtrim(rtrim(number_format($totalPct, 2, ',', '.'), '0'), ',');
+            $revenue     = (float) ($project->revenue ?? 0);
+            $totalAmount = round($revenue * $totalPct / 100, 2);
+            $fmtTotalPct = rtrim(rtrim(number_format($totalPct, 2, ',', '.'), '0'), ',');
 
             return response()->json([
-                'message' => "Total payment terms ({$fmtTotalPct}% = {$fmtTotal}) cannot exceed the project revenue ({$fmtRevenue}). Please adjust the payment percentage.",
+                'message' => "Total payment terms ({$fmtTotalPct}% = " . ProjectTopPlan::rp($totalAmount)
+                    . ') cannot exceed the project revenue (' . ProjectTopPlan::rp($revenue) . '). Please adjust the payment percentage.',
             ], 422);
         }
 
@@ -167,12 +251,17 @@ class DeliveryProjectPaymentTermController extends Controller
     }
 
     /**
-     * Perbarui amount tersimpan bila tidak lagi sesuai revenue project saat ini.
-     * Timestamps sengaja dimatikan agar audit trail term tidak berubah hanya
-     * karena halaman dibuka — begitu juga "Last Update Date" project.
+     * Perbarui amount tersimpan termin basis % bila tidak lagi sesuai revenue
+     * project saat ini. Termin nominal tetap tidak disentuh. Timestamps sengaja
+     * dimatikan agar audit trail term tidak berubah hanya karena halaman dibuka
+     * — begitu juga "Last Update Date" project.
      */
     private function resyncAmount(DeliveryProject $project, DeliveryProjectPaymentTerm $term): void
     {
+        if ($term->isFixed()) {
+            return;
+        }
+
         $amount = $this->computeAmount($project, $term->payment_percentage);
 
         if (abs((float) $term->amount - $amount) > 0.001) {
@@ -185,27 +274,6 @@ class DeliveryProjectPaymentTermController extends Controller
 
     private function computeAmount(DeliveryProject $project, $percentage): float
     {
-        $revenue = (float) ($project->revenue ?? 0);
-        return round($revenue * ((float) $percentage) / 100, 2);
-    }
-
-    private function format(DeliveryProjectPaymentTerm $term): array
-    {
-        return [
-            'id'                  => $term->id,
-            'term_number'         => $term->term_number,
-            'payment_term'        => $term->payment_term,
-            'payment_percentage'  => (float) $term->payment_percentage,
-            'amount'              => (float) $term->amount,
-            'requirements'        => $term->requirements,
-            'estimated_date'      => $term->estimated_date?->format('Y-m-d'),
-            'estimated_date_label'=> $term->estimated_date?->format('d M Y'),
-            'submit_invoice_date'       => $term->submit_invoice_date?->format('Y-m-d'),
-            'submit_invoice_date_label' => $term->submit_invoice_date?->format('d M Y'),
-            'invoice_number'      => $term->invoice_number,
-            'paid_date'           => $term->paid_date?->format('Y-m-d'),
-            'paid_date_label'     => $term->paid_date?->format('d M Y'),
-            'status'              => $term->status,
-        ];
+        return DeliveryProjectPaymentTerm::amountFor('percentage', $percentage, 0, $project->revenue);
     }
 }

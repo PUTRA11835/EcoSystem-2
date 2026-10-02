@@ -1010,13 +1010,16 @@ function handleTimesheetTypeChange() {
 // Project timesheets are always dated today (an edit keeps its original date).
 // Flow: context (non-working day + used time slots) → Project → Activity (only
 // ones assigned to the user AND running on that date). On a weekend / public
-// holiday no activity runs, so the user ticks "Log without activity" instead.
+// holiday no activity runs, so the user ticks "Log without activity" instead —
+// likewise on a working day when the user is not assigned to any activity of
+// the chosen project.
 // The device GPS location is mandatory for a new project timesheet; an edit
 // keeps the location captured at creation.
 
 let _tsEditing       = null;   // timesheet object being edited (null = new)
 let _tsProjectCtx    = null;   // { date, is_non_working_day, non_working_reason, booked }
 let _tsProjectCtxReq = null;   // pending context promise (onProjectSelected awaits it)
+let _tsNotAssigned   = false;  // selected project has no activity assigned to the user (working day)
 let _tsGps           = null;   // { lat, lng, accuracy } from the device
 let _tsGpsState      = 'idle'; // idle | pending | ok | denied | error | unsupported | kept
 
@@ -1078,6 +1081,7 @@ function resetProjectFormState() {
     _tsBooked = [];
     _tsProjectCtx = null;
     _tsProjectCtxReq = null;
+    _tsNotAssigned = false;
     renderBookedTimes();
     _tsValidateTimeOrder();
 }
@@ -1169,6 +1173,8 @@ async function onProjectSelected() {
     const actHint   = document.getElementById('projectActivityHint');
     if (!actField || !nwBox) return;
 
+    _tsNotAssigned = false;
+
     if (!projectId) {
         actField.classList.remove('hidden');
         nwBox.classList.add('hidden');
@@ -1208,6 +1214,21 @@ async function onProjectSelected() {
         if (document.getElementById('timesheetProjectId')?.value !== projectId) return;
 
         const activities = (res.ok && json.success) ? (json.data || []) : [];
+
+        // Not assigned to any activity of this project → no activity to pick,
+        // so offer "Log without activity" (same as a non-working day).
+        if (res.ok && json.success && json.has_assignment === false) {
+            _tsNotAssigned = true;
+            actField.classList.add('hidden');
+            setCustomDropdownValue('timesheetActivity', '');
+            const txt = document.getElementById('projectNonWorkingText');
+            if (txt) txt.textContent = 'You are not assigned to any activity in this project.';
+            nwBox.classList.remove('hidden');
+            const cb = document.getElementById('timesheetWithoutActivity');
+            if (cb && _tsEditing?.is_without_activity) cb.checked = true;
+            return;
+        }
+
         if (!activities.length) {
             _tsDdPlaceholder('timesheetActivity', 'No activity assigned to you is running on this date');
             if (actHint) actHint.textContent = `No activity of this project assigned to you runs on ${formatDisplayDate(date)}.`;
@@ -2429,7 +2450,7 @@ function _tsProjectCells(ts) {
     const projectName = ts.project_name || `Project #${ts.delivery_projects_id}`;
     const actName     = ts.activity?.name || ts.activity_name || '';
     const actLine = ts.is_without_activity
-        ? '<div class="mt-0.5"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-semibold" title="Logged on a weekend / public holiday without a project activity"><i class="fas fa-calendar-times"></i>No activity · Non-working day</span></div>'
+        ? '<div class="mt-0.5"><span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-semibold" title="Logged without a project activity (weekend / public holiday, or not assigned to any activity of the project)"><i class="fas fa-calendar-times"></i>No activity</span></div>'
         : (actName ? `<div class="text-xs text-gray-500 mt-0.5"><i class="fas fa-tasks mr-1"></i>${escapeHtml(actName)}</div>` : '');
 
     const projectCell = `
@@ -3197,11 +3218,13 @@ async function handleFormSubmit(e) {
         const projectId       = document.getElementById('timesheetProjectId')?.value || null;
         const activityId      = document.getElementById('timesheetActivity')?.value || null;
         const nonWorkingDay   = !!_tsProjectCtx?.is_non_working_day;
-        const withoutActivity = nonWorkingDay && !!document.getElementById('timesheetWithoutActivity')?.checked;
+        const noActivityMode  = nonWorkingDay || _tsNotAssigned;
+        const withoutActivity = noActivityMode && !!document.getElementById('timesheetWithoutActivity')?.checked;
 
         if (!projectId) return fail('Please select a project.');
         if (nonWorkingDay && !withoutActivity) return fail('Today is a non-working day — tick "Log without activity" to continue.');
-        if (!nonWorkingDay && !activityId) return fail('Please select an activity.');
+        if (_tsNotAssigned && !withoutActivity) return fail('You are not assigned to any activity in this project — tick "Log without activity" to continue.');
+        if (!noActivityMode && !activityId) return fail('Please select an activity.');
         if (!_tsValidateTimeOrder()) return fail(document.getElementById('timesheetTimeError')?.textContent || 'Invalid time range.');
 
         if (_tsNeedsGps() && !_tsGps) {

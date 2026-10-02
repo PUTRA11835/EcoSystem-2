@@ -7,6 +7,7 @@ use App\Models\DeliverySupport;
 use App\Models\Ticket;
 use App\Models\TicketDeliverable;
 use App\Services\OneDriveService;
+use App\Services\PlanCostDocumentLink;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -386,39 +387,8 @@ class AuditOneDriveShareLinks extends Command
     private function repairExpenseDocument($item, ?string $parentFolderId, string $name): string
     {
         try {
-            $fileId = $item->document_file_id;
-
-            // Baris lama: item ID belum pernah disimpan → cari di folder "Plan Cost".
-            if (!$fileId) {
-                if (!$parentFolderId) {
-                    $this->totals['failed']++;
-                    return 'FIX FAILED: owner has no OneDrive folder';
-                }
-
-                $planCost = collect($this->oneDrive->listSubFoldersByParentId($parentFolderId))
-                    ->first(fn($f) => mb_strtolower($f['name']) === 'plan cost');
-
-                if (!$planCost) {
-                    $this->totals['failed']++;
-                    return 'FIX FAILED: "Plan Cost" folder not found';
-                }
-
-                $file = $this->oneDrive->findFileInFolderByName($planCost['id'], (string) $item->document_name);
-
-                if (!$file) {
-                    $this->totals['failed']++;
-                    return 'FIX FAILED: file not found in "Plan Cost" folder';
-                }
-
-                $fileId = $file['id'];
-            }
-
-            $link = $this->oneDrive->createShareLink($fileId, 'view');
-
-            $item->update([
-                'document_file_id' => $fileId,
-                'document_url'     => $link['url'],
-            ]);
+            // Baris lama tanpa item ID dicari di folder "Plan Cost" oleh repair().
+            $link = (new PlanCostDocumentLink($this->oneDrive))->repair($item, $parentFolderId);
         } catch (\Throwable $e) {
             $this->totals['failed']++;
             Log::error('onedrive:audit-links — expense document repair failed', [
