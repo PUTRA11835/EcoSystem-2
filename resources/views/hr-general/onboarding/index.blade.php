@@ -53,8 +53,8 @@
         <div class="border-t border-gray-100 px-5 py-4">
             <p class="text-xs text-gray-500 leading-relaxed">
                 Nothing is typed in here. An item turns complete as soon as the data is saved in
-                <span class="font-semibold text-gray-700">Employee Data</span> or by the employee in
-                <span class="font-semibold text-gray-700">My Profile</span>. External consultants are assessed on basic profile items only.
+                <span class="font-semibold text-gray-700">Master › Employee</span> or by the employee in
+                <span class="font-semibold text-gray-700">My Profile</span>. External consultants are assessed on contact, identity, tax ID and bank account items only.
             </p>
         </div>
     </div>
@@ -99,6 +99,14 @@
                         @foreach($groups as $key => $label)
                             <option value="{{ $key }}" @selected($filters['missing'] === $key)>Missing: {{ $label }}</option>
                         @endforeach
+                        <option value="join_date" @selected($filters['missing'] === 'join_date')>Missing: Join date</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2">
+                    <select name="lock" aria-label="Profile lock" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                        @foreach(['all' => 'Lock: any', 'ready' => 'Ready to lock', 'locked' => 'Locked'] as $value => $label)
+                            <option value="{{ $value }}" @selected($filters['lock'] === $value)>{{ $label }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="col-span-2 md:col-span-2 flex gap-2">
@@ -110,6 +118,11 @@
             <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         </form>
 
+        {{-- HC-D64 — alat join date untuk HR (opsional): hanya saat filter "Missing: Join date" aktif & ada izinnya --}}
+        @if(($filters['missing'] ?? '') === 'join_date' && $can('general.onboarding.join-date'))
+            @include('hr-general.onboarding.partials.join-date-tools')
+        @endif
+
         <div class="border-t border-gray-100 overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
@@ -117,6 +130,7 @@
                         <th class="px-5 py-3 w-12">No</th>
                         <th class="px-3 py-3"><a href="{{ $sortUrl('name') }}" class="hover:text-gray-900">Employee <span class="text-gray-400">{{ $sortMark('name') }}</span></a></th>
                         <th class="px-3 py-3 whitespace-nowrap"><a href="{{ $sortUrl('join_date') }}" class="hover:text-gray-900">Join date <span class="text-gray-400">{{ $sortMark('join_date') }}</span></a></th>
+                        <th class="px-3 py-3">Status</th>
                         <th class="px-3 py-3">Type</th>
                         <th class="px-3 py-3 w-64"><a href="{{ $sortUrl('progress_asc', 'progress_desc') }}" class="hover:text-gray-900">Progress <span class="text-gray-400">{{ $sortMark('progress_asc', 'progress_desc') }}</span></a></th>
                         <th class="px-5 py-3 text-right">Action</th>
@@ -134,6 +148,14 @@
                         </td>
                         <td class="px-3 py-3.5 whitespace-nowrap text-gray-700">
                             {{ $e['join_date'] ? \Carbon\Carbon::parse($e['join_date'])->format('d M Y') : '—' }}
+                        </td>
+                        <td class="px-3 py-3.5 whitespace-nowrap text-gray-700">
+                            {{ \App\Services\HrProfile\EmploymentStatus::label($e['employment_status'] ?? null) }}
+                            @if(!empty($e['locked_at']))
+                                <p class="mt-1"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-gray-200 text-gray-700"><i class="fas fa-lock text-[9px]"></i> Locked</span></p>
+                            @elseif($e['status'] === 'complete')
+                                <p class="mt-1"><span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">Ready to lock</span></p>
+                            @endif
                         </td>
                         <td class="px-3 py-3.5">
                             <span class="inline-block px-2 py-0.5 rounded-full text-xs font-bold
@@ -165,7 +187,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="px-5 py-12 text-center text-gray-500">No employees match the filters.</td>
+                        <td colspan="7" class="px-5 py-12 text-center text-gray-500">No employees match the filters.</td>
                     </tr>
                     @endforelse
                 </tbody>

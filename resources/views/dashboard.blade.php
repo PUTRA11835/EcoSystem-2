@@ -58,7 +58,9 @@
         // Backward compat variables (dipakai di beberapa tempat lain di view ini)
         $showAllMenus = $can('management');
         $showMasterMenu = $can('master');
-        $showRpmoMenu = $can('rpmo');
+        // Grup RPMO tampil bagi pemegang izin INDUK atau ANAK mana pun (dulu hanya induk: role yang hanya dicentang
+        // rpmo.overview / rpmo.periods tak melihat menunya). Tak ada role yang terpengaruh saat ini (dicek di ec & ec_prod).
+        $showRpmoMenu = $can('rpmo') || $can('rpmo.overview') || $can('rpmo.periods');
         $showSlaMenu = $can('sla');
         $showLimitedMenus = false; // tidak dipakai lagi
         $canManageSla = $can('sla.config');
@@ -1733,32 +1735,15 @@
         }
     </script>
 
-    <script>
-        var isCalendarDropdownOpen = {{ Request::is('calendar*') ? 'true' : 'false' }};
-
-        function toggleCalendarDropdown() {
-
-            var dropdown = document.getElementById('calendarDropdown');
-            isCalendarDropdownOpen = !isCalendarDropdownOpen;
-            dropdown.classList.toggle('hidden', !isCalendarDropdownOpen);
-        }
-
-        var isHrGeneralDropdownOpen = {{ Request::is('hr-general*') ? 'true' : 'false' }};
-        function toggleHrGeneralDropdown() {
-            var dropdown = document.getElementById('hrGeneralDropdown');
-            var chevron = document.getElementById('hrGeneralChevron');
-            isHrGeneralDropdownOpen = !isHrGeneralDropdownOpen;
-            if (dropdown) dropdown.classList.toggle('hidden', !isHrGeneralDropdownOpen);
-            if (chevron) chevron.classList.toggle('rotate-180', isHrGeneralDropdownOpen);
-        }
-    </script>
-
+    {{-- Fungsi toggle dropdown sidebar (Calendar, HR & General, Master, Reporting, Delivery,
+         RPMO, Admin, SLA, Management, dst.) TIDAK lagi didefinisikan di sini. Dulu tiap grup
+         punya fungsi + variabel status `isXxxDropdownOpen` sendiri di sini DAN versi lain di
+         partials/sidebar.blade.php; versi layout dimuat belakangan sehingga menimpa versi
+         sidebar, lalu (a) beberapa grup tidak memutar chevron, (b) status dari URL lebih sempit
+         daripada yang dipakai Blade sehingga ikon terbalik. Kini satu sumber: DOM
+         (`hidden`) di partials/sidebar.blade.php. --}}
     <script>
         var isCollapsed = false;
-        var isMasterDropdownOpen = {{ Request::is('master*') ? 'true' : 'false' }};
-        var isHrGeneralMgmtDropdownOpen = {{ Request::is('general/settings*') ? 'true' : 'false' }};
-        var isDeliveryDropdownOpen = {{ Request::is('project*') || Request::is('support*') ? 'true' : 'false' }};
-        var isReportingDropdownOpen = {{ Request::is('reporting*') ? 'true' : 'false' }};
 
         // Desktop = docked sidebar (>= Tailwind lg breakpoint 1024px).
         // Below that we treat the sidebar as a slide-in drawer with a backdrop.
@@ -1822,94 +1807,6 @@
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape' && !isDesktopViewport()) closeSidebar();
         });
-
-        function toggleMasterDropdown() {
-            isMasterDropdownOpen = !isMasterDropdownOpen;
-            document.getElementById('masterDropdown').classList.toggle('hidden', !isMasterDropdownOpen);
-        }
-
-        function toggleHrGeneralMgmtDropdown() {
-            isHrGeneralMgmtDropdownOpen = !isHrGeneralMgmtDropdownOpen;
-            const panel   = document.getElementById('hrGeneralMgmtDropdown');
-            const chevron = document.getElementById('hrGeneralMgmtChevron');
-            if (panel) panel.classList.toggle('hidden', !isHrGeneralMgmtDropdownOpen);
-            if (chevron) chevron.classList.toggle('rotate-180', isHrGeneralMgmtDropdownOpen);
-        }
-
-        function toggleReportingDropdown() {
-            isReportingDropdownOpen = !isReportingDropdownOpen;
-            document.getElementById('reportingDropdown').classList.toggle('hidden', !isReportingDropdownOpen);
-        }
-
-        // Sub-grup Reporting (Project / Support). State dibaca dari DOM — bukan
-        // variabel — supaya tetap sinkron dengan kondisi awal yang di-render Blade
-        // (grup yang memuat halaman aktif dibuka otomatis).
-        function _toggleReportingGroup(submenuId, chevronId) {
-            const submenu = document.getElementById(submenuId);
-            const chevron = document.getElementById(chevronId);
-            if (!submenu) return;
-            const isOpen = !submenu.classList.contains('hidden');
-            submenu.classList.toggle('hidden', isOpen);
-            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
-        }
-
-        function toggleReportingProjectDropdown() {
-            _toggleReportingGroup('reportingProjectDropdown', 'reportingProjectChevron');
-        }
-
-        function toggleReportingSupportDropdown() {
-            _toggleReportingGroup('reportingSupportDropdown', 'reportingSupportChevron');
-        }
-
-        function toggleDeliveryDropdown() {
-            isDeliveryDropdownOpen = !isDeliveryDropdownOpen;
-            document.getElementById('deliveryDropdown').classList.toggle('hidden', !isDeliveryDropdownOpen);
-        }
-
-        let isRpmoDropdownOpen = {{ Request::is('rpmo*') ? 'true' : 'false' }};
-        function toggleRpmoDropdown() {
-            isRpmoDropdownOpen = !isRpmoDropdownOpen;
-            const submenu = document.getElementById('rpmoSubmenu');
-            const chevron = document.getElementById('rpmoChevron');
-            if (submenu) submenu.classList.toggle('hidden', !isRpmoDropdownOpen);
-            if (chevron) chevron.classList.toggle('rotate-180', isRpmoDropdownOpen);
-        }
-
-        function toggleAdminDropdown() {
-            const submenu = document.getElementById('adminDropdown');
-            const chevron = document.getElementById('adminChevron');
-            if (!submenu) return;
-            const isOpen = !submenu.classList.contains('hidden');
-            submenu.classList.toggle('hidden', isOpen);
-            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
-        }
-
-        function toggleSlaDropdown() {
-            const submenu = document.getElementById('slaDropdown');
-            const chevron = document.getElementById('slaChevron');
-            if (!submenu) return;
-            const isOpen = !submenu.classList.contains('hidden');
-            submenu.classList.toggle('hidden', isOpen);
-            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
-        }
-
-        function toggleManajemenDropdown() {
-            const submenu = document.getElementById('manajemenDropdown');
-            const chevron = document.getElementById('manajemenChevron');
-            if (!submenu) return;
-            const isOpen = !submenu.classList.contains('hidden');
-            submenu.classList.toggle('hidden', isOpen);
-            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
-        }
-
-        function toggleMasterMgmtDropdown() {
-            const submenu = document.getElementById('masterMgmtDropdown');
-            const chevron = document.getElementById('masterMgmtChevron');
-            if (!submenu) return;
-            const isOpen = !submenu.classList.contains('hidden');
-            submenu.classList.toggle('hidden', isOpen);
-            if (chevron) chevron.classList.toggle('rotate-180', !isOpen);
-        }
 
         function toggleUserDropdown() {
             document.getElementById('userDropdown').classList.toggle('hidden');
@@ -2312,6 +2209,7 @@
                         customer_mandays_proposed: { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice' },
                         resolution_days_proposed: { bg: '#e0e7ff', color: '#4f46e5', fa: 'fa-users' },
                         contract_end_reminder: { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-file-contract' },
+                        join_date_reminder: { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-calendar-check' },
                         top_invoice_reminder: { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice-dollar' },
                         ticket_member_added: { bg: '#dcfce7', color: '#16a34a', fa: 'fa-user-plus' },
                         ticket_member_removed: { bg: '#fee2e2', color: '#dc2626', fa: 'fa-user-minus' },
@@ -2339,6 +2237,7 @@
                             case 'customer_mandays_proposed': return 'Customer Mandays — needs review';
                             case 'resolution_days_proposed': return 'Resolution Days — needs review';
                             case 'contract_end_reminder': return 'Contract deadline reminder';
+                            case 'join_date_reminder': return 'HR needs your join date';
                             case 'top_invoice_reminder': return 'Invoice submission due';
                             case 'ticket_member_added': return (n.from_name || 'Someone') + ' added you to a ticket';
                             case 'ticket_member_removed': return (n.from_name || 'Someone') + ' removed a member from a ticket';

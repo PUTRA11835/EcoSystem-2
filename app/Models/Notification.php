@@ -91,6 +91,7 @@ class Notification extends Model
             'leave_permit_approved'        => 'Your Leave/Permit request was approved',
             'leave_permit_rejected'        => 'Your Leave/Permit request was rejected',
             'leave_permit_revision'        => 'Revision requested for your Leave/Permit request',
+            'join_date_reminder'           => 'HR needs your join date',
             default                        => $from . ' sent you a notification',
         };
     }

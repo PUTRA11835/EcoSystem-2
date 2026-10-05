@@ -100,9 +100,12 @@
                             <p class="text-xs text-gray-400 mt-1 leading-relaxed">Used for buttons and active states</p>
                         </div>
                         <div class="flex flex-wrap gap-2.5">
-                            @foreach(['#991b1b'=>'Default','#c62828'=>'Red','#1976d2'=>'Blue','#388e3c'=>'Green','#f57c00'=>'Orange',
-                                      '#7b1fa2'=>'Purple','#0097a7'=>'Teal','#5d4037'=>'Brown','#455a64'=>'Slate']
-                                     as $hex=>$label)
+                            @php
+                                $accentPresets = ['#991b1b'=>'Default','#c62828'=>'Red','#1976d2'=>'Blue','#388e3c'=>'Green','#f57c00'=>'Orange',
+                                                  '#7b1fa2'=>'Purple','#0097a7'=>'Teal','#5d4037'=>'Brown','#455a64'=>'Slate'];
+                                $accentIsCustom = !array_key_exists($preferences['primary_color'], $accentPresets);
+                            @endphp
+                            @foreach($accentPresets as $hex=>$label)
                             <button type="button" onclick="selectColor('{{ $hex }}')" title="{{ $label }}"
                                 class="color-option w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110 shadow-sm
                                        {{ $preferences['primary_color']===$hex ? 'ring-2 ring-offset-2 ring-gray-400 scale-110' : '' }}"
@@ -112,8 +115,19 @@
                                 @endif
                             </button>
                             @endforeach
+                            {{-- Warna bebas (color picker). Dibungkus <label> agar kotaknya membuka pemilih warna bawaan peramban;
+                                 inputnya sr-only tapi tetap bisa difokus dengan papan ketik. Teks sidebar PUTIH, jadi warna yang
+                                 terlalu terang otomatis digelapkan (lihat accentReadable di bawah dan SettingsController). --}}
+                            <label id="customColorSwatch" title="Custom color"
+                                class="color-custom w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer transition-all hover:scale-110 shadow-sm focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-gray-400
+                                       {{ $accentIsCustom ? 'ring-2 ring-offset-2 ring-gray-400 scale-110' : '' }}"
+                                style="background:{{ $accentIsCustom ? $preferences['primary_color'] : 'conic-gradient(#e53935,#fb8c00,#fdd835,#43a047,#1e88e5,#8e24aa,#e53935)' }}">
+                                <input type="color" id="customColorInput" class="sr-only" value="{{ $preferences['primary_color'] }}" aria-label="Custom accent color" oninput="pickCustomColor(this.value)">
+                                <i id="customColorIcon" class="fas {{ $accentIsCustom ? 'fa-check' : 'fa-plus' }} text-white text-xs" style="text-shadow:0 0 3px rgba(0,0,0,.45)"></i>
+                            </label>
                         </div>
                     </div>
+                    <p id="customColorNote" class="hidden mt-2 text-xs text-amber-600 text-right">Adjusted to a darker shade so white text stays readable.</p>
                 </div>
 
                 {{-- Sidebar Style --}}
@@ -538,6 +552,21 @@
     background:transparent; border:0; cursor:pointer;
 }
 .sound-dd-item:hover   { background:#f9fafb; }
+/* Halaman Settings memakai merah tetap untuk keadaan terpilih & tombol utama; ikuti Accent color
+   (ditimpa lewat variabel tema, jadi ikut berubah langsung saat warna dipilih). Merah "bahaya"
+   (text-red-500/600, hapus) sengaja TIDAK disentuh. */
+.border-red-600 { border-color: var(--primary-color) !important; }
+.hover\:border-red-400:hover { border-color: rgba(var(--primary-rgb), .55) !important; }
+.hover\:border-red-300:hover { border-color: rgba(var(--primary-rgb), .40) !important; }
+.bg-red-50\/50 { background-color: rgba(var(--primary-rgb), .06) !important; }
+.bg-red-50 { background-color: rgba(var(--primary-rgb), .08) !important; }
+.text-red-700 { color: var(--primary-color) !important; }
+.bg-red-700, .bg-red-800 { background-color: var(--primary-color) !important; }
+.hover\:bg-red-800:hover { background-color: rgb(var(--primary-dark-rgb)) !important; }
+.peer:checked ~ .peer-checked\:bg-red-700 { background-color: var(--primary-color) !important; }
+.focus\:ring-red-300:focus { --tw-ring-color: rgba(var(--primary-rgb), .35) !important; }
+.from-red-800 { --tw-gradient-from: rgb(var(--primary-rgb)) !important; }
+.to-red-950 { --tw-gradient-to: rgb(var(--primary-dark-rgb)) !important; }
 .sound-dd-item.is-active { background:#fef2f2; color:#991b1b; font-weight:600; }
 </style>
 
@@ -584,10 +613,53 @@ function selectColor(hex) {
         b.classList.remove('ring-2','ring-offset-2','ring-gray-400','scale-110');
         b.innerHTML = '';
     });
+    _resetCustomSwatch();
     const el = event.currentTarget;
     el.classList.add('ring-2','ring-offset-2','ring-gray-400','scale-110');
     el.innerHTML = '<i class="fas fa-check text-white text-xs"></i>';
+    document.getElementById('customColorNote')?.classList.add('hidden');
     _applyColor(hex);
+}
+
+// ── Color picker: warna bebas dengan pengaman keterbacaan ──────────────────────
+// Sidebar & tombol memakai teks PUTIH di atas warna ini. Warna yang terlalu terang (kuning, putih, pastel)
+// digelapkan otomatis. Ambang & langkahnya SAMA dengan SettingsController::readableAccent() — server tetap
+// pihak yang menentukan; fungsi ini hanya agar pratinjau langsung jujur. Orange bawaan (#f57c00) ~0.34, lolos.
+function _lum(r, g, b) {
+    const c = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * c(r) + 0.7152 * c(g) + 0.0722 * c(b);
+}
+function accentReadable(hex) {
+    const m = /^#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!m) return { hex: hex, adjusted: false };
+    const [r, g, b] = [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+    if (_lum(r, g, b) <= 0.40) return { hex: hex.toLowerCase(), adjusted: false };
+    let f = 1;
+    while (_lum(r * f, g * f, b * f) > 0.34 && f > 0.2) { f -= 0.04; }
+    const h = v => Math.round(v * f).toString(16).padStart(2, '0');
+    return { hex: '#' + h(r) + h(g) + h(b), adjusted: true };
+}
+function _resetCustomSwatch() {
+    const sw = document.getElementById('customColorSwatch');
+    if (!sw) return;
+    sw.classList.remove('ring-2','ring-offset-2','ring-gray-400','scale-110');
+    sw.style.background = 'conic-gradient(#e53935,#fb8c00,#fdd835,#43a047,#1e88e5,#8e24aa,#e53935)';
+    const ic = document.getElementById('customColorIcon');
+    if (ic) ic.className = 'fas fa-plus text-white text-xs';
+}
+function pickCustomColor(raw) {
+    const res = accentReadable(raw);
+    S.primary_color = res.hex;
+    document.querySelectorAll('.color-option').forEach(b => {
+        b.classList.remove('ring-2','ring-offset-2','ring-gray-400','scale-110');
+        b.innerHTML = '';
+    });
+    const sw = document.getElementById('customColorSwatch');
+    sw.classList.add('ring-2','ring-offset-2','ring-gray-400','scale-110');
+    sw.style.background = res.hex;
+    document.getElementById('customColorIcon').className = 'fas fa-check text-white text-xs';
+    document.getElementById('customColorNote').classList.toggle('hidden', !res.adjusted);
+    _applyColor(res.hex);
 }
 function selectSidebarStyle(style) {
     S.sidebar_style = style;
@@ -747,7 +819,7 @@ _loadSounds();
 function _csrf(){ return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''; }
 
 // ── Expose ────────────────────────────────────────────────────────────────────
-window.switchTab=switchTab; window.selectTheme=selectTheme; window.selectColor=selectColor;
+window.switchTab=switchTab; window.selectTheme=selectTheme; window.selectColor=selectColor; window.pickCustomColor=pickCustomColor; window.accentReadable=accentReadable;
 window.selectSidebarStyle=selectSidebarStyle; window.selectFontSize=selectFontSize;
 window.saveSettings=saveSettings; window.resetSettings=resetSettings;
 window.changePassword=changePassword; window.togglePassword=togglePassword;

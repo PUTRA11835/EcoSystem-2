@@ -195,6 +195,14 @@
     </div>
 </div>
 
+{{-- ── COMMAND CENTER (HC-D37) ───────────────────────────────────────────
+     Disisipkan di SINI, antara hero sapaan dan "Easy Access Daily" — bukan
+     paling atas (terasa janggal sebelum sapaan pribadi) dan bukan pula
+     setelah seluruh blok presensi (terlalu jauh ke bawah, perlu scroll).
+     Posisi ini hasil percobaan langsung pemilik 1 Okt: dua posisi lain sudah
+     dicoba dan ditolak. --}}
+@include('home.command-center')
+
 {{-- ── SISI HR ────────────────────────────────────────────────────────── --}}
 @if($canRecap)
 <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">

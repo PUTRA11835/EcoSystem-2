@@ -24,6 +24,10 @@ access for these tables:
 | `customer_bank` | — | `customer.section.bank.view` |
 | `customer_credential` | — | `customer.section.credential.view` |
 | `customer_identification` | — | `customer.section.identification.view` |
+| `recruitment_candidates`, `recruitment_candidate_documents`, `recruitment_candidate_status_histories` | — | `general.recruitment.candidates` |
+| `recruitment_interviews`, `recruitment_interview_interviewers` | — | `general.recruitment.schedule` |
+| `recruitment_offers` (compensation) | — | `general.recruitment.offers` |
+| `recruitment_job_openings`, `recruitment_job_opening_documents` (salary range) | — | `general.recruitment.jobs` |
 | `login_activity` | — | `control-center.login-log` |
 | `auth_users` | — | `control-center.login-log` |
 
@@ -79,6 +83,7 @@ blanket rule.
 | `employee_payment` | Individual payroll/salary figures |
 | `employee_contract` | Contract terms including the `salary` column (added 30 Sep 2026, HC-D32) |
 | `employee_hr_profile` | HR profile: health data (blood type), third-party emergency contact, dormant payroll data (PTKP, dependents, BPJS flags); added 30 Sep 2026 |
+| `recruitment_*` (candidates, offers, interviews, job openings) | Applicant personal data, offer compensation and salary ranges; applicants have no "own row" path (added 5 Oct 2026, HC-D65). Config tables `recruitment_options`, `recruitment_settings`, `recruitment_offer_components` stay open. |
 
 **Rule:** not freely queryable. An employee should be able to reach their
 own row (self-service, same as the existing profile pages); reaching

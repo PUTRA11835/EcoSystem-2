@@ -144,7 +144,7 @@
                                         @include($action, [
                                             'icon' => 'check', 'tone' => 'green', 'label' => 'Candidate accepted',
                                             'onclick' => 'openAcceptModal(JSON.parse(this.dataset.payload))',
-                                            'data' => ['id' => $offer->id, 'name' => $offer->candidate_name, 'email' => $offer->candidate_email],
+                                            'data' => ['id' => $offer->id, 'name' => $offer->candidate_name, 'email' => $offer->candidate_email, 'joining_date' => $offer->joining_date?->toDateString(), 'position' => $offer->position_title],
                                         ])
                                         @include($action, [
                                             'icon' => 'xmark', 'tone' => 'red', 'label' => 'Candidate rejected',
@@ -210,6 +210,26 @@
                         <label for="acceptEmail" class="block text-xs font-semibold text-gray-600 mb-1">Login Email <span class="text-red-500">*</span></label>
                         <input type="email" name="email" id="acceptEmail" required maxlength="150" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
                     </div>
+                    <div>
+                        <label for="acceptJoinDate" class="block text-xs font-semibold text-gray-600 mb-1">Join Date <span class="text-red-500">*</span></label>
+                        <input type="date" name="joining_date" id="acceptJoinDate" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                        <p class="text-[11px] text-gray-400 mt-1">Filled in from the Start Date on the offering letter. It becomes the employee's join date (Since Date), which only HR can change afterwards.</p>
+                    </div>
+                    <div>
+                        <label for="acceptHomeBase" class="block text-xs font-semibold text-gray-600 mb-1">Home Base <span class="text-red-500">*</span></label>
+                        <select name="home_base" id="acceptHomeBase" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">Select home base…</option>
+                            @foreach(\App\Enums\HomeBase::options() as $homeBase)
+                                <option value="{{ $homeBase }}">{{ $homeBase }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-[11px] text-gray-400 mt-1">The office this person works from. "Others" marks an External employee; every other choice is Internal.</p>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-semibold text-gray-600 mb-1">Position</span>
+                        <p id="acceptPosition" class="w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700">—</p>
+                        <p class="text-[11px] text-gray-400 mt-1">Taken from the offering letter.</p>
+                    </div>
                 </div>
                 <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
                     <button type="button" onclick="document.getElementById('acceptModal').classList.add('hidden')"
@@ -237,13 +257,18 @@
             document.getElementById('acceptEci').value = keep ? offer.eci ?? '' : '';
             document.getElementById('acceptNickName').value = keep ? offer.nick_name ?? '' : (offer.name ?? '').split(' ')[0];
             document.getElementById('acceptEmail').value = offer.email ?? '';
+            document.getElementById('acceptJoinDate').value = offer.joining_date ?? '';
+            document.getElementById('acceptHomeBase').value = keep ? offer.home_base ?? '' : '';
+            document.getElementById('acceptPosition').textContent = offer.position || '—';
             document.getElementById('acceptModal').classList.remove('hidden');
         }
 
         @if(old('_modal') === 'accept')
             document.addEventListener('DOMContentLoaded', () => openAcceptModal({{ Js::from([
                 'id' => old('_offer_id'), 'name' => $offers->firstWhere('id', (int) old('_offer_id'))?->candidate_name,
-                'eci' => old('eci'), 'nick_name' => old('nick_name'), 'email' => old('email'),
+                'eci' => old('eci'), 'nick_name' => old('nick_name'), 'email' => old('email'), 'home_base' => old('home_base'),
+                'position' => $offers->firstWhere('id', (int) old('_offer_id'))?->position_title,
+                'joining_date' => old('joining_date') ?? $offers->firstWhere('id', (int) old('_offer_id'))?->joining_date?->toDateString(),
             ]) }}, true));
         @endif
     </script>

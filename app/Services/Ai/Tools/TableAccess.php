@@ -86,6 +86,55 @@ class TableAccess
             'self_permission' => 'my-profile.section.hr_profile.view',
             'permission' => 'employee.section.hr_profile.view',
         ],
+        // HC-D47: engagement konsultan memuat TARIF. Seluruh tabel hanya terbuka bagi pemegang izin tarif;
+        // konsultan sendiri tidak punya jalur (tanpa self_permission).
+        'employee_engagement' => [
+            'self_field' => null,
+            'self_permission' => null,
+            'permission' => 'employee.section.engagement_rate.view',
+        ],
+        // HC-D65 (J3/X5): data rekrutmen (pelamar, dokumen, jadwal wawancara, kompensasi penawaran) tak punya
+        // jalur "milik sendiri" — pelamar belum menjadi pegawai. Hanya pemegang izin menu rekrutmen yang bersangkutan.
+        'recruitment_candidates' => [
+            'self_field' => null,
+            'self_permission' => null,
+            'permission' => 'general.recruitment.candidates',
+        ],
+        'recruitment_candidate_documents' => [
+            'self_field' => null,
+            'self_permission' => null,
+            'permission' => 'general.recruitment.candidates',
+        ],
+        'recruitment_candidate_status_histories' => [
+            'self_field' => null,
+            'self_permission' => null,
+            'permission' => 'general.recruitment.candidates',
+        ],
+        'recruitment_interviews' => [
+            'self_field' => null,
+            'self_permission' => null,
+            'permission' => 'general.recruitment.schedule',
+        ],
+        'recruitment_interview_interviewers' => [
+            'self_field' => null,
+            'self_permission' => null,
+            'permission' => 'general.recruitment.schedule',
+        ],
+        'recruitment_offers' => [
+            'self_field' => null,
+            'self_permission' => null,
+            'permission' => 'general.recruitment.offers',
+        ],
+        'recruitment_job_openings' => [
+            'self_field' => null,
+            'self_permission' => null,
+            'permission' => 'general.recruitment.jobs',
+        ],
+        'recruitment_job_opening_documents' => [
+            'self_field' => null,
+            'self_permission' => null,
+            'permission' => 'general.recruitment.jobs',
+        ],
         'customer_bank' => [
             'self_field' => null,
             'self_permission' => null,

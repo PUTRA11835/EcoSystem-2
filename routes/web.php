@@ -592,6 +592,12 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             ->middleware('menu:management.roles')
             ->name('roles.index');
 
+        // Menu Access per role — halaman penuh (HC-D63/D64), menggantikan modal sempit di daftar Role.
+        Route::get('/roles/{id}/menu-access', [\App\Http\Controllers\Management\RoleMenuAccessController::class, 'page'])
+            ->whereNumber('id')
+            ->middleware('menu:management.roles')
+            ->name('roles.menu-access');
+
         Route::get('/permissions', [MenuController::class, 'page'])
             ->middleware('menu:management.permissions')
             ->name('permissions.index');

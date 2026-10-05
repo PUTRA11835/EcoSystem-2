@@ -1261,6 +1261,20 @@ Route::prefix('general/onboarding')
     ->group(function () {
         Route::get('/', [OnboardingController::class, 'index'])->name('index');
         Route::get('/{employeeId}', [OnboardingController::class, 'show'])->whereNumber('employeeId')->name('show');
+
+        // Kunci profil (H3.11): POST-only; izin terpisah untuk mengunci dan membuka.
+        Route::post('/{employeeId}/lock', [OnboardingController::class, 'lock'])
+            ->whereNumber('employeeId')->middleware(['menu:general.onboarding.lock', 'throttle:60,1'])->name('lock');
+        Route::post('/{employeeId}/unlock', [OnboardingController::class, 'unlock'])
+            ->whereNumber('employeeId')->middleware(['menu:general.onboarding.unlock', 'throttle:60,1'])->name('unlock');
+
+        // Alat join date HR (HC-D64): isi tanggal, impor CSV (pratinjau → terapkan), pengingat. POST-only, izin sendiri.
+        Route::prefix('join-dates')->name('join-dates.')->middleware(['menu:general.onboarding.join-date', 'throttle:30,1'])->group(function () {
+            Route::post('/save',    [OnboardingController::class, 'joinDatesSave'])->name('save');
+            Route::post('/preview', [OnboardingController::class, 'joinDatesPreview'])->name('preview');
+            Route::post('/import',  [OnboardingController::class, 'joinDatesImport'])->name('import');
+            Route::post('/remind',  [OnboardingController::class, 'joinDatesRemind'])->name('remind');
+        });
     });
 
 /**

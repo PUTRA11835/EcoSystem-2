@@ -158,6 +158,11 @@ class CashAdvanceService
             return $request;
         });
 
+        $firstStep = $request->currentApproval();
+        if ($firstStep) {
+            $this->notifyApprovers($request, $firstStep, true);
+        }
+
         return ['allowed' => true, 'reason' => '', 'request' => $request];
     }
 
@@ -490,6 +495,13 @@ class CashAdvanceService
         });
 
         $this->notify($request, $completed ? 'approved' : 'progressed', $payload['notes'] ?? null);
+
+        if (!$completed) {
+            $next = $request->fresh()->currentApproval();
+            if ($next) {
+                $this->notifyApprovers($request, $next, false);
+            }
+        }
 
         return ['allowed' => true, 'reason' => '', 'completed' => $completed];
     }
@@ -1286,6 +1298,46 @@ class CashAdvanceService
             Log::error('Failed to send cash advance notification.', [
                 'request_id' => $request->id,
                 'outcome'    => $outcome,
+                'message'    => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Beri tahu penyetuju langkah yang sedang menunggu bahwa ada dokumen
+     * perlu tindakan mereka. Lihat komentar method sejenis di OvertimeService
+     * untuk alasan lengkap (Keputusan D44, pola yang sama di 5 modul).
+     */
+    private function notifyApprovers(CashAdvance $request, CashAdvanceApproval $step, bool $isFirstStep): void
+    {
+        try {
+            $recipients = \App\Support\ApprovalRecipients::forStep($step);
+            if (empty($recipients)) {
+                return;
+            }
+
+            $message = $isFirstStep
+                ? "Cash advance request {$request->request_no} needs your approval."
+                : "Cash advance request {$request->request_no} was approved at the previous step and now needs your approval.";
+
+            // Pengaju dikecualikan HANYA bila self-approval dimatikan — sama
+            // seperti gerbang di canAct().
+            $allowSelf = CashAdvanceSetting::current()->allow_self_approval;
+
+            foreach ($recipients as $employeeId) {
+                if ($employeeId === (int) $request->employee_id && !$allowSelf) {
+                    continue;
+                }
+                Notification::create([
+                    'employee_id' => $employeeId,
+                    'type'        => 'cash_advance_pending_approval',
+                    'preview'     => $message,
+                    'link'        => '/general/cash-advance',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Failed to notify cash advance approvers.', [
+                'request_id' => $request->id,
                 'message'    => $e->getMessage(),
             ]);
         }

@@ -155,7 +155,9 @@
 
 <div class="space-y-5">
 
-{{-- ── Row 1: Greeting + Attendance ───────────────────────────────────────── --}}
+{{-- ── Row 1: Greeting + Attendance (Command Center kini disisipkan DI DALAM
+     partial ini, antara hero sapaan dan "Easy Access Daily" — lihat HC-D37
+     di hr-general/dashboard/attendance.blade.php) ─────────────────────── --}}
 @include('hr-general.dashboard.attendance')
 
 {{-- ── Row 2: Dynamic Role-Based KPI Cards ───────────────────────────────────── --}}
