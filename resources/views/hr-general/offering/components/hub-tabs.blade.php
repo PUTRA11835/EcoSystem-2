@@ -21,3 +21,6 @@
         'strict' => true,
     ],
 ]])
+
+{{-- Warns before unsaved changes on this module's pages are lost. --}}
+@include('hr-general.recruitment.components.unsaved-guard')

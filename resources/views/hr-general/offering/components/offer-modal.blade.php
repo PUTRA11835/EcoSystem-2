@@ -6,14 +6,14 @@
       a letter's saved fields     — edit it (needs `id`)
 
     Expects from the controller: $components, $candidates, $settings,
-    $nextNumber, $defaults.
+    $ratioNote (the note of Offering Settings, as HTML), $languages,
+    $signatories (employees who can sign), $nextNumbers ([language => next
+    generated number]), $defaults.
 --}}
 @php
     $input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200';
     $label = 'block text-xs font-semibold text-gray-600 mb-1';
     $optional = '<span class="font-normal text-gray-400">(optional)</span>';
-    $minPercent = rtrim(rtrim(number_format($settings->offer_base_salary_min_percent, 2, '.', ''), '0'), '.');
-    $namesOf = fn (string $kind) => $components->where('kind', $kind)->where('is_active', true)->pluck('name')->implode(', ');
 @endphp
 
 <div id="offerModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
@@ -31,12 +31,33 @@
             </div>
 
             <div class="px-5 py-4 space-y-4 overflow-y-auto">
+                <p id="olSignedWarning" class="hidden text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3">
+                    <i class="fas fa-signature mr-1"></i> This letter is already signed. Saving a change removes the signature — sign it again before sending it.
+                </p>
+
+                {{-- Chosen per letter: the PDF, its email and the IN / EN segment of a generated number follow it. --}}
+                <div class="rounded-lg border border-indigo-100 bg-indigo-50/40 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <span class="block text-xs font-semibold text-gray-700">Letter Language <span class="text-red-500">*</span></span>
+                        <p class="text-[11px] text-gray-500 mt-0.5">
+                            The PDF and its email are written in it. A new letter starts in
+                            <strong>{{ $languages[$defaults['language']] ?? $defaults['language'] }}</strong>, the default set in Letter Templates.
+                        </p>
+                    </div>
+                    @include('hr-general.recruitment.components.language-switch', [
+                        'switchName' => 'language', 'switchId' => 'olLanguage', 'switchValue' => $defaults['language'], 'languages' => $languages,
+                    ])
+                </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label for="olNumber" class="{{ $label }}">Letter No.</label>
                         <input type="text" name="letter_number" id="olNumber" maxlength="60" class="{{ $input }}">
                         <p class="text-[11px] text-gray-400 mt-1" id="olNumberHint">
-                            Leave empty to generate it from the format in Offering Settings — for a letter dated today: {{ $nextNumber }}.
+                            Leave empty to generate it from the format in Offering Settings — for a letter dated today: <span id="olNextNumber" class="font-mono"></span>.
+                        </p>
+                        <p class="text-[11px] text-gray-400 mt-1 hidden" id="olNumberEditHint">
+                            A generated number follows the language: switching it changes the IN / EN part, the running number stays.
                         </p>
                     </div>
                     <div>
@@ -82,7 +103,7 @@
 
                 <div>
                     <label for="olBenefits" class="{{ $label }}">Benefits</label>
-                    <textarea name="benefits" id="olBenefits" rows="2" class="{{ $input }}"></textarea>
+                    <textarea name="benefits" id="olBenefits" rows="2" placeholder="e.g. BPJS Kesehatan & BPJS Ketenagakerjaan" class="{{ $input }}"></textarea>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
@@ -136,6 +157,21 @@
                     </div>
                 </div>
 
+                <div>
+                    <label for="olSignatory" class="{{ $label }}">Signatory</label>
+                    <select name="signatory_employee_id" id="olSignatory" data-searchable="true" data-search-placeholder="Search employee…" class="{{ $input }}">
+                        <option value="">-- Not from the employee list (cannot be signed) --</option>
+                        @foreach($signatories as $person)
+                            <option value="{{ $person['id'] }}">
+                                {{ $person['name'] }}{{ $person['position'] ? ' — ' . $person['position'] : '' }}{{ $person['has_signature'] ? '' : ' (no signature in master data yet)' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1">
+                        The letter is signed with this employee's signature from the employee master data, after it is generated. Picking one fills in the name and position printed under the signature.
+                    </p>
+                </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label for="olSignatoryName" class="{{ $label }}">Signatory Name <span class="text-red-500">*</span></label>
@@ -159,22 +195,16 @@
 
                 <div id="olRatio" class="rounded-lg border px-4 py-3 text-xs" aria-live="polite">
                     <div class="flex items-start justify-between gap-4">
-                        <div>
+                        <div class="min-w-0">
                             <p class="font-semibold text-gray-800">Base Salary Percentage</p>
-                            <p class="text-[11px] text-gray-500 mt-0.5">Legal basis: base salary of at least {{ $minPercent }}% of base salary + fixed allowances.</p>
+                            {{-- Written in Offering Settings; cleaned to bold / italic / underline and line breaks. --}}
+                            <div class="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{!! $ratioNote !!}</div>
                         </div>
                         <div class="text-right shrink-0">
                             <p class="text-xl font-bold" id="olRatioValue">0%</p>
-                            <p class="text-[11px]" id="olRatioVerdict"></p>
+                            <p class="text-[11px] max-w-[14rem]" id="olRatioVerdict"></p>
                         </div>
                     </div>
-                    <p class="text-[11px] text-gray-500 mt-2">
-                        Fixed allowances counted: {{ $namesOf('fixed') ?: 'none' }}.
-                        @if($namesOf('variable'))
-                            Variable components ({{ $namesOf('variable') }}) are not part of this ratio.
-                        @endif
-                    </p>
-                    <p class="text-[11px] text-gray-500 mt-1">{{ $settings->offer_legal_basis }}</p>
                 </div>
             </div>
 
@@ -196,13 +226,15 @@
         const storeUrl = @json(route('general.recruitment.offers.store'));
         const updateUrl = {{ Js::from(route('general.recruitment.offers.update', ['offer' => '__ID__'])) }};
         const minPercent = @json($settings->offer_base_salary_min_percent);
-        const defaults = {{ Js::from([...$defaults, 'benefits' => $settings->offer_default_benefits, 'has_probation' => true, 'salary_type' => 'gross']) }};
+        const defaults = {{ Js::from([...$defaults, 'has_probation' => true, 'salary_type' => 'gross']) }};
         const candidates = {{ Js::from($candidates->mapWithKeys(fn ($candidate) => [$candidate->id => [
             'candidate_name'  => $candidate->name,
             'candidate_email' => $candidate->email,
             'candidate_phone' => $candidate->phone,
             'position_title'  => $candidate->positionLabel() === '-' ? '' : $candidate->positionLabel(),
         ]])) }};
+        const signatories = {{ Js::from($signatories->keyBy('id')) }};
+        const nextNumbers = {{ Js::from($nextNumbers) }};
 
         // Field name => input id, for everything that is a plain value.
         const fields = {
@@ -221,6 +253,20 @@
             select.value = value == null ? '' : String(value);
             // Tells the enhanced dropdown (select-enhance.js) to show the new value.
             select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // The language switch, and the next generated number in that language (IN / EN).
+        const languageInputs = () => Array.from(form.querySelectorAll('input[name="language"]'));
+
+        function setLanguage(code) {
+            const inputs = languageInputs();
+            (inputs.find(input => input.value === code) || inputs[0]).checked = true;
+            showNextNumber();
+        }
+
+        function showNextNumber() {
+            const chosen = languageInputs().find(input => input.checked);
+            byId('olNextNumber').textContent = nextNumbers[chosen ? chosen.value : defaults.language] ?? '';
         }
 
         function recalculate() {
@@ -251,9 +297,12 @@
         }
 
         function fill(letter) {
+            // The signatory first: choosing one fills name and position, which the letter's own values then replace.
+            setSelect('olSignatory', letter.signatory_employee_id);
             Object.entries(fields).forEach(([name, id]) => { byId(id).value = letter[name] ?? ''; });
             byId('olProbation').checked = !!Number(letter.has_probation);
             setSelect('olSalaryType', letter.salary_type || 'gross');
+            setLanguage(letter.language || defaults.language);
 
             const amounts = letter.amounts || {};
             amountInputs().forEach(input => {
@@ -276,6 +325,8 @@
             byId('offerModalTitle').textContent = editing ? 'Edit Offering Letter' : 'Add Offering Letter';
             byId('offerModalSubmit').textContent = editing ? 'Update' : 'Save';
             byId('olNumberHint').classList.toggle('hidden', editing);
+            byId('olNumberEditHint').classList.toggle('hidden', !editing);
+            byId('olSignedWarning').classList.toggle('hidden', !(editing && letter.is_signed));
 
             // The dropdown first: choosing a candidate fills name, contact and position, which the letter's own values then replace.
             setSelect('olCandidate', letter.candidate_id);
@@ -288,10 +339,22 @@
             modal.classList.add('hidden');
         };
 
+        // Picking the signatory fills in the name and position printed under the signature; both can still be adjusted.
+        byId('olSignatory').addEventListener('change', function () {
+            const person = signatories[this.value];
+            if (!person) return;
+            byId('olSignatoryName').value = person.name;
+            if (person.position) byId('olSignatoryTitle').value = person.position;
+        });
+
         byId('olCandidate').addEventListener('change', function () {
             const candidate = candidates[this.value];
             if (!candidate) return;
             Object.entries(candidate).forEach(([name, value]) => { byId(fields[name]).value = value ?? ''; });
+        });
+
+        form.addEventListener('change', event => {
+            if (event.target.name === 'language') showNextNumber();
         });
 
         form.addEventListener('input', event => {

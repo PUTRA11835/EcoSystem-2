@@ -89,6 +89,9 @@
                             <td class="px-4 py-3 text-gray-400">{{ $offers->firstItem() + $loop->index }}</td>
                             <td class="px-4 py-3">
                                 <span class="font-semibold text-gray-800">{{ $offer->letter_number }}</span>
+                                @if($offer->isEnglish())
+                                    <span class="ml-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold align-middle" title="Written in English">EN</span>
+                                @endif
                                 <span class="block text-[10px] text-gray-400">{{ $offer->offer_date->format('d M Y') }}</span>
                             </td>
                             <td class="px-4 py-3">
@@ -100,6 +103,11 @@
                             <td class="px-4 py-3">{{ $offer->position_title }}</td>
                             <td class="px-4 py-3">
                                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap {{ \App\Models\Recruitment\Offer::STATUS_BADGES[$status] }}">{{ $statuses[$status] }}</span>
+                                @if($offer->isSigned())
+                                    <span class="block text-[10px] text-gray-400 mt-0.5" title="Signed with the signature of {{ $offer->signatory_name }} from the employee master data">
+                                        <i class="fas fa-signature text-[9px]"></i> {{ $offer->signatory_name }} · {{ $offer->signed_at->format('d M Y, H:i') }}
+                                    </span>
+                                @endif
                                 @if($offer->sent_at)
                                     <span class="block text-[10px] text-gray-400 mt-0.5" title="Last emailed to the candidate">
                                         <i class="fas fa-paper-plane text-[9px]"></i> {{ $offer->sent_at->format('d M Y, H:i') }}
@@ -119,10 +127,11 @@
                                             'data' => [
                                                 'id' => $offer->id,
                                                 ...$offer->only([
-                                                    'letter_number', 'candidate_id', 'candidate_name', 'candidate_email', 'candidate_phone',
+                                                    'letter_number', 'language', 'candidate_id', 'candidate_name', 'candidate_email', 'candidate_phone',
                                                     'position_title', 'job_description', 'benefits', 'has_probation', 'salary_type',
-                                                    'notes', 'signatory_name', 'signatory_title',
+                                                    'notes', 'signatory_name', 'signatory_title', 'signatory_employee_id',
                                                 ]),
+                                                'is_signed'    => $offer->isSigned(),
                                                 'offer_date'   => $offer->offer_date->toDateString(),
                                                 'joining_date' => $offer->joining_date?->toDateString(),
                                                 'amounts'      => $offer->lines()->pluck('amount', 'component_id'),
@@ -130,17 +139,32 @@
                                         ])
                                     @endif
                                     @include($action, [
-                                        'icon' => 'print', 'tone' => 'gray', 'label' => 'Print PDF', 'newTab' => true,
+                                        'icon' => 'print', 'tone' => 'gray', 'newTab' => true,
+                                        'label' => $offer->isSigned() ? 'Download signed PDF' : 'Print PDF (not signed yet)',
                                         'href' => route('general.recruitment.offers.print', $offer),
                                     ])
                                     @if($canEdit && $offer->isPending())
+                                        {{-- Generated -> signed with the master-data signature -> sent. --}}
                                         @include($action, [
-                                            'icon' => 'envelope', 'tone' => 'indigo',
-                                            'label' => $offer->sent_at ? 'Send to candidate again' : 'Send to candidate',
-                                            'post' => route('general.recruitment.offers.send', $offer),
-                                            'confirm' => 'Email offering letter ' . $offer->letter_number . ' as a PDF to ' . ($offer->candidate_email ?: '(no email on the letter)') . '?',
-                                            'confirmTitle' => 'Send Offering Letter', 'confirmOk' => 'Send',
+                                            'icon' => 'signature', 'tone' => 'green',
+                                            'label' => $offer->isSigned() ? 'Sign again with the master data signature' : 'Sign with the master data signature',
+                                            'post' => route('general.recruitment.offers.sign', $offer),
+                                            'confirm' => 'Sign offering letter ' . $offer->letter_number . ' with the signature of '
+                                                . ($offer->signatory_name ?: 'its signatory') . ' from the employee master data?',
+                                            'confirmTitle' => 'Sign Offering Letter', 'confirmOk' => 'Sign',
                                         ])
+                                        @if($offer->isSigned())
+                                            @include($action, [
+                                                'icon' => 'envelope', 'tone' => 'indigo',
+                                                'label' => $offer->sent_at ? 'Send to candidate again' : 'Send to candidate',
+                                                'onclick' => 'openSendModal(JSON.parse(this.dataset.payload))',
+                                                'data' => [
+                                                    'id' => $offer->id, 'number' => $offer->letter_number,
+                                                    'name' => $offer->candidate_name, 'email' => $offer->candidate_email,
+                                                    'again' => (bool) $offer->sent_at, ...$emails[$offer->id],
+                                                ],
+                                            ])
+                                        @endif
                                         @include($action, [
                                             'icon' => 'check', 'tone' => 'green', 'label' => 'Candidate accepted',
                                             'onclick' => 'openAcceptModal(JSON.parse(this.dataset.payload))',
@@ -194,8 +218,12 @@
                 </div>
                 <div class="px-5 py-4 space-y-3">
                     <p class="text-xs text-gray-500">
-                        This creates the employee record and login account of <strong id="acceptCandidateName"></strong> and emails them a link to set their password,
-                        so they can sign in and start onboarding straight away.
+                        This creates the employee record and login account of <strong id="acceptCandidateName"></strong> and emails them their username,
+                        email and the default password below. When they first sign in with it, they are asked to set their own password, then they can start onboarding.
+                    </p>
+                    <p class="text-xs text-gray-500">
+                        Their <strong>join date</strong> in the employee master data is taken from the Join Date below, and their position from the one on the letter.
+                        A new contract starts from that join date.
                     </p>
                     <div>
                         <label for="acceptEci" class="block text-xs font-semibold text-gray-600 mb-1">Employee ID (ECI) <span class="text-red-500">*</span></label>
@@ -203,8 +231,9 @@
                         <p class="text-[11px] text-gray-400 mt-1">Also the username they sign in with.</p>
                     </div>
                     <div>
-                        <label for="acceptNickName" class="block text-xs font-semibold text-gray-600 mb-1">Nick Name <span class="text-red-500">*</span></label>
-                        <input type="text" name="nick_name" id="acceptNickName" required maxlength="100" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                        <label for="acceptFullName" class="block text-xs font-semibold text-gray-600 mb-1">Full Name <span class="text-red-500">*</span></label>
+                        <input type="text" name="full_name" id="acceptFullName" required maxlength="150" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                        <p class="text-[11px] text-gray-400 mt-1">As it should appear on the employee record. A nick name is made from it and can be changed in Master Employee.</p>
                     </div>
                     <div>
                         <label for="acceptEmail" class="block text-xs font-semibold text-gray-600 mb-1">Login Email <span class="text-red-500">*</span></label>
@@ -230,11 +259,74 @@
                         <p id="acceptPosition" class="w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700">—</p>
                         <p class="text-[11px] text-gray-400 mt-1">Taken from the offering letter.</p>
                     </div>
+                    <div>
+                        <label for="acceptPassword" class="block text-xs font-semibold text-gray-600 mb-1">Default Password <span class="text-red-500">*</span></label>
+                        <div class="flex gap-1.5">
+                            <div class="relative flex-1 min-w-0">
+                                <input type="password" name="default_password" id="acceptPassword" required minlength="8" maxlength="100" autocomplete="new-password"
+                                    class="w-full border border-gray-200 rounded-lg pl-3 pr-9 py-2 text-sm font-mono">
+                                <button type="button" onclick="toggleAcceptPassword()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    title="Show / hide" aria-label="Show or hide the password">
+                                    <i class="fas fa-eye text-xs" id="acceptPasswordEye"></i>
+                                </button>
+                            </div>
+                            <button type="button" onclick="generateAcceptPassword()"
+                                class="px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50 whitespace-nowrap" title="Make up a random password">
+                                <i class="fas fa-wand-magic-sparkles text-[10px]"></i> Generate
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-gray-400 mt-1">At least 8 characters. Emailed to the candidate with their username; it only works until they set their own password.</p>
+                    </div>
                 </div>
                 <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
                     <button type="button" onclick="document.getElementById('acceptModal').classList.add('hidden')"
                         class="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
                     <button type="submit" class="px-4 py-2 text-xs font-semibold text-white bg-green-600 rounded-lg hover:opacity-90">Accept &amp; Create Employee</button>
+                </div>
+            </form>
+        </div>
+    </div>
+@endif
+
+@if($canEdit)
+    <!-- Modal: email the signed letter to the candidate, with a message HR can adjust -->
+    <div id="sendModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[92vh] flex flex-col">
+            <form id="sendForm" method="POST" class="flex flex-col min-h-0">
+                @csrf
+                <input type="hidden" name="_modal" value="send">
+                <input type="hidden" name="_offer_id" id="sendOfferId">
+                <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-gray-800">Send Offering Letter</h3>
+                    <button type="button" onclick="document.getElementById('sendModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600" aria-label="Close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="px-5 py-4 space-y-3 overflow-y-auto">
+                    <p id="sendAgainNote" class="hidden text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
+                        This letter was already emailed. Sending it again emails the candidate a second time.
+                    </p>
+                    <div>
+                        <span class="block text-xs font-semibold text-gray-600 mb-1">To</span>
+                        <p class="text-sm text-gray-800"><span id="sendName" class="font-semibold"></span> &lt;<span id="sendEmail"></span>&gt;</p>
+                    </div>
+                    <div>
+                        <label for="sendSubject" class="block text-xs font-semibold text-gray-600 mb-1">Subject <span class="text-red-500">*</span></label>
+                        <input type="text" name="subject" id="sendSubject" required maxlength="255" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label for="sendBody" class="block text-xs font-semibold text-gray-600 mb-1">Message <span class="text-red-500">*</span></label>
+                        <textarea name="body" id="sendBody" required rows="10" maxlength="10000" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm leading-relaxed"></textarea>
+                        <p class="text-[11px] text-gray-400 mt-1">Starts from the email text in the letter's language — adjust it as needed. A blank line starts a new paragraph.</p>
+                    </div>
+                    <p class="text-xs text-gray-500"><i class="fas fa-paperclip mr-1"></i> The signed letter <strong id="sendNumber"></strong> is attached as a PDF.</p>
+                </div>
+                <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+                    <button type="button" onclick="document.getElementById('sendModal').classList.add('hidden')"
+                        class="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white primary-gradient rounded-lg hover:opacity-90">
+                        <i class="fas fa-paper-plane text-[10px]"></i> Send
+                    </button>
                 </div>
             </form>
         </div>
@@ -248,6 +340,19 @@
     @push('scripts')
     <script>
         const acceptUrlTemplate = {{ Js::from(route('general.recruitment.offers.accept', ['offer' => '__ID__'])) }};
+        const sendUrlTemplate = {{ Js::from(route('general.recruitment.offers.send', ['offer' => '__ID__'])) }};
+
+        function openSendModal(offer) {
+            document.getElementById('sendForm').action = sendUrlTemplate.replace('__ID__', offer.id);
+            document.getElementById('sendOfferId').value = offer.id;
+            document.getElementById('sendName').textContent = offer.name ?? '';
+            document.getElementById('sendEmail').textContent = offer.email || '(no email on the letter)';
+            document.getElementById('sendNumber').textContent = offer.number ?? '';
+            document.getElementById('sendSubject').value = offer.subject ?? '';
+            document.getElementById('sendBody').value = offer.body ?? '';
+            document.getElementById('sendAgainNote').classList.toggle('hidden', !offer.again);
+            document.getElementById('sendModal').classList.remove('hidden');
+        }
 
         // `keep` = reopened after a failed save: what was typed stays as it was.
         function openAcceptModal(offer, keep) {
@@ -255,18 +360,50 @@
             document.getElementById('acceptOfferId').value = offer.id;
             document.getElementById('acceptCandidateName').textContent = offer.name ?? '';
             document.getElementById('acceptEci').value = keep ? offer.eci ?? '' : '';
-            document.getElementById('acceptNickName').value = keep ? offer.nick_name ?? '' : (offer.name ?? '').split(' ')[0];
+            document.getElementById('acceptFullName').value = keep ? offer.full_name ?? '' : offer.name ?? '';
             document.getElementById('acceptEmail').value = offer.email ?? '';
             document.getElementById('acceptJoinDate').value = offer.joining_date ?? '';
             document.getElementById('acceptHomeBase').value = keep ? offer.home_base ?? '' : '';
             document.getElementById('acceptPosition').textContent = offer.position || '—';
+            // A password is never sent back to the page after a failed save — it is typed or generated again.
+            document.getElementById('acceptPassword').value = '';
+            document.getElementById('acceptPassword').type = 'password';
+            document.getElementById('acceptPasswordEye').className = 'fas fa-eye text-xs';
             document.getElementById('acceptModal').classList.remove('hidden');
         }
+
+        function toggleAcceptPassword() {
+            const input = document.getElementById('acceptPassword');
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            document.getElementById('acceptPasswordEye').className = 'fas fa-eye' + (show ? '-slash' : '') + ' text-xs';
+        }
+
+        // 12 characters from letters and digits that cannot be mistaken for one another (no 0/O, 1/l/I).
+        function generateAcceptPassword() {
+            const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+            const bytes = crypto.getRandomValues(new Uint32Array(12));
+            const input = document.getElementById('acceptPassword');
+            input.value = Array.from(bytes, n => alphabet[n % alphabet.length]).join('');
+            input.type = 'text';
+            document.getElementById('acceptPasswordEye').className = 'fas fa-eye-slash text-xs';
+        }
+
+        @if(old('_modal') === 'send')
+            // Reopened after a failed check, with the subject and message as they were typed.
+            document.addEventListener('DOMContentLoaded', () => {
+                const offer = {{ Js::from($offers->firstWhere('id', (int) old('_offer_id'))?->only(['id', 'letter_number', 'candidate_name', 'candidate_email'])) }};
+                if (offer) openSendModal({
+                    id: offer.id, number: offer.letter_number, name: offer.candidate_name, email: offer.candidate_email,
+                    subject: @json(old('subject')), body: @json(old('body')),
+                });
+            });
+        @endif
 
         @if(old('_modal') === 'accept')
             document.addEventListener('DOMContentLoaded', () => openAcceptModal({{ Js::from([
                 'id' => old('_offer_id'), 'name' => $offers->firstWhere('id', (int) old('_offer_id'))?->candidate_name,
-                'eci' => old('eci'), 'nick_name' => old('nick_name'), 'email' => old('email'), 'home_base' => old('home_base'),
+                'eci' => old('eci'), 'full_name' => old('full_name'), 'email' => old('email'), 'home_base' => old('home_base'),
                 'position' => $offers->firstWhere('id', (int) old('_offer_id'))?->position_title,
                 'joining_date' => old('joining_date') ?? $offers->firstWhere('id', (int) old('_offer_id'))?->joining_date?->toDateString(),
             ]) }}, true));

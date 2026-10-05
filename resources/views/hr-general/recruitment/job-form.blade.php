@@ -15,9 +15,9 @@
     $isSelected = fn (string $field, $option) => (string) $value($field) === (string) $option;
     $dateTime = fn (string $field) => old($field, $job->{$field}?->format('Y-m-d\TH:i'));
     $money = fn (string $field) => old($field, $job->{$field} === null ? null : (float) $job->{$field});
-    // What this opening asks for per document type. A new opening starts from the defaults HR set in Settings.
+    // What this opening asks for per document type — decided here only; a new opening starts asking for nothing.
     $savedLevels = $job->exists ? $job->requestedDocuments->mapWithKeys(fn ($type) => [$type->id => $type->pivot->is_required ? 'required' : 'optional']) : collect();
-    $documentLevel = fn ($type) => old("documents.{$type->id}", $job->exists ? ($savedLevels[$type->id] ?? 'none') : ($type->is_active ? ($type->requirement ?? 'none') : 'none'));
+    $documentLevel = fn ($type) => old("documents.{$type->id}", $savedLevels[$type->id] ?? 'none');
 @endphp
 
 @section('title', 'Recruitment - ' . $pageTitle)
@@ -145,7 +145,7 @@
 
                     <div>
                         <span class="{{ $label }}">Documents Requested From Applicants</span>
-                        <p class="text-[11px] text-gray-400 mb-2">Choose per document whether this opening requires it, accepts it optionally, or does not ask for it. The accepted form of each document is set on the Settings tab.</p>
+                        <p class="text-[11px] text-gray-400 mb-2">Choose per document whether this opening requires it, accepts it optionally, or does not ask for it. Candidates of this opening can only attach the documents it asks for. How each document is handed in (file or link, formats) is set on the Settings tab.</p>
                         <div class="border border-gray-200 rounded-lg divide-y divide-gray-100">
                             @forelse($documentTypes as $documentType)
                                 @php $level = $documentLevel($documentType); @endphp

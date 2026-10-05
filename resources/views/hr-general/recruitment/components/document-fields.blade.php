@@ -6,11 +6,13 @@
          pick none and it disappears. Each line says whether the document is
          required or optional, what form it may take, and whether the
          candidate already has it; "+" starts a row of that type;
-      2. the rows being added: document type + file and/or link. A row follows
-         the rules HR set for its type on the Settings tab — picking the type
-         shows the file input, the link input, or both, and limits the file
-         picker to the accepted formats. The controller enforces the same
-         rules on save.
+      2. the rows being added: document type + file and/or link. The type
+         dropdown offers what the chosen job opening asks for; with no job
+         opening, or one that asks for nothing, it offers every active
+         document type. A row follows the rules HR set for its type on the
+         Settings tab — picking the type shows the file input, the link input,
+         or both, and limits the file picker to the accepted formats. The
+         controller enforces the same rules on save.
 
     Rows post as documents[i][type_id], documents[i][file], documents[i][url];
     add one from anywhere with addDocumentRow(containerId, typeId?).
@@ -28,7 +30,10 @@
 <div data-document-requirements data-job-select="{{ $jobSelect }}" data-rows="{{ $rows }}"
     data-attached='@json(array_values($attached ?? []))' data-can-add="{{ ($canAdd ?? false) ? '1' : '' }}" data-auto-rows="{{ ($autoRows ?? false) ? '1' : '' }}"
     class="hidden border border-gray-200 rounded-lg bg-gray-50 px-3 py-2.5 mb-2" aria-live="polite">
-    <p class="text-[11px] font-semibold text-gray-700 mb-1.5"><i class="fas fa-clipboard-list mr-1 text-gray-400"></i> Requested by this job opening</p>
+    <p class="text-[11px] font-semibold text-gray-700 mb-1.5">
+        <i class="fas fa-clipboard-list mr-1 text-gray-400"></i> Requested by this job opening
+        <span class="font-normal text-gray-500">— only these can be attached for it</span>
+    </p>
     <ul class="space-y-1.5" data-requirement-list></ul>
 </div>
 
@@ -38,11 +43,8 @@
 <template id="documentRowTemplate">
     <div class="flex items-start gap-2" data-document-row>
         <div class="w-44 shrink-0">
-            <select data-name="type_id" aria-label="Document type" onchange="syncDocumentRow(this.closest('[data-document-row]'))">
-                @foreach($documentTypes as $documentType)
-                    <option value="{{ $documentType->id }}">{{ $documentType->name }}</option>
-                @endforeach
-            </select>
+            {{-- Its options are filled in by addDocumentRow(), from what the job opening allows. --}}
+            <select data-name="type_id" aria-label="Document type" onchange="syncDocumentRow(this.closest('[data-document-row]'))"></select>
         </div>
         <div class="flex-1 min-w-0 space-y-1.5">
             <input type="file" data-name="file" data-document-file aria-label="File"
@@ -61,7 +63,19 @@
 <script>
     (function () {
         const rules = @json($documentRules);
+        // Every active document type — what a row offers when no job opening narrows it down.
+        const allTypes = @json($documentTypes->map(fn ($type) => ['id' => $type->id, 'name' => $type->name])->values());
         let nextIndex = 0;
+
+        // The types a row in this container may be: the job opening's, or all of them.
+        const choicesFor = container => container.dataset.allowedTypes ? JSON.parse(container.dataset.allowedTypes) : allTypes;
+
+        // Rebuilds a row's type dropdown; its current type stays when it is still allowed.
+        function fillTypes(select, choices) {
+            const current = select.value;
+            select.replaceChildren(...choices.map(choice => new Option(choice.name, choice.id)));
+            select.value = choices.some(choice => String(choice.id) === current) ? current : String(choices[0]?.id ?? '');
+        }
 
         // Show what the row's document type allows: a file, a link, or either.
         window.syncDocumentRow = function (row) {
@@ -90,6 +104,7 @@
                 el.disabled = !!container.closest('[data-block-off]');
             });
 
+            fillTypes(row.querySelector('select'), choicesFor(container));
             if (typeId) row.querySelector('select').value = String(typeId);
 
             // Once in the document, the global enhancer (select-enhance.js) restyles the row's <select> by itself.
@@ -97,6 +112,21 @@
             syncDocumentRow(row);
 
             return row;
+        };
+
+        /**
+         * Narrows the rows of a container to the given types — [{id, name}] —
+         * or, with null, opens them up to every active type again. Rows
+         * already added switch to an allowed type when theirs no longer is.
+         */
+        window.restrictDocumentRows = function (containerId, choices) {
+            const container = document.getElementById(containerId);
+            container.dataset.allowedTypes = choices && choices.length ? JSON.stringify(choices) : '';
+
+            container.querySelectorAll('[data-document-row]').forEach(row => {
+                fillTypes(row.querySelector('select'), choicesFor(container));
+                syncDocumentRow(row);
+            });
         };
     })();
 </script>
@@ -125,6 +155,9 @@
             function render() {
                 const requirements = window.recruitmentJobRequirements[select.value] || [];
                 panel.classList.toggle('hidden', requirements.length === 0);
+
+                // A job opening that asks for documents decides which ones can be attached.
+                restrictDocumentRows(panel.dataset.rows, requirements.map(requirement => ({ id: requirement.typeId, name: requirement.name })));
 
                 list.replaceChildren(...requirements.map(requirement => {
                     const has = attached.includes(String(requirement.typeId));

@@ -15,7 +15,7 @@ class RecruitmentOption extends Model
 {
     protected $table = 'recruitment_options';
 
-    protected $fillable = ['type', 'name', 'sort_order', 'is_active', 'requirement', 'submission', 'file_formats'];
+    protected $fillable = ['type', 'name', 'sort_order', 'is_active', 'submission', 'file_formats'];
 
     protected $casts = [
         'sort_order' => 'integer',
@@ -34,8 +34,12 @@ class RecruitmentOption extends Model
     ];
 
     // ── Document rules (document types only) ─────────────────────────────────
+    //
+    // A document type says how a document is handed in (file / link, accepted
+    // formats). Whether it is asked for at all is decided per job opening
+    // (recruitment_job_opening_documents), with the levels below.
 
-    /** How a new job opening asks for a document type by default. */
+    /** How a job opening asks for a document type. */
     public const REQUIREMENTS = [
         'required' => 'Required',
         'optional' => 'Optional',
