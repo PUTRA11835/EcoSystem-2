@@ -11,10 +11,12 @@ use Illuminate\Support\Collection;
  * Logika bersama Term Of Payment Plan (Delivery Project) untuk dua mode penagihan:
  *
  *   percentage → semua termin = % × revenue Sales Data. Total % ≤ 100 (diblokir).
- *   line_item  → termin dikaitkan ke Contract Line Item; boleh bernominal tetap
- *                (diisi user, TIDAK diturunkan dari revenue). Melebihi revenue
- *                hanya menghasilkan peringatan, karena kontrak bisa memuat
- *                pekerjaan yang ditagih di luar TOP (mis. license).
+ *   line_item  → termin dikaitkan ke Contract Line Item. Amount diambil dari
+ *                nilai kontrak line item: basis "line_item" (% × nilai line item)
+ *                atau "fixed" (nominal diisi user). Basis % dari revenue dikunci
+ *                untuk termin baru. Melebihi revenue hanya menghasilkan
+ *                peringatan, karena kontrak bisa memuat pekerjaan yang ditagih
+ *                di luar TOP (mis. license).
  */
 class ProjectTopPlan
 {
@@ -47,8 +49,28 @@ class ProjectTopPlan
     public function terms(): Collection
     {
         return DeliveryProjectPaymentTerm::where('delivery_projects_id', $this->project->id)
+            ->with('contractLineItem')
             ->orderBy('term_number')
             ->get();
+    }
+
+    /**
+     * Samakan amount tersimpan termin basis "line_item" dengan % × nilai kontrak
+     * line item terkini (nilai line item bisa berubah setelah termin dibuat).
+     * Seperti resequence(): efek samping, bukan perubahan oleh user.
+     */
+    public function resyncLineItemAmounts(): void
+    {
+        $this->terms()
+            ->filter(fn(DeliveryProjectPaymentTerm $t) => $t->isLineItemShare() && $t->contractLineItem)
+            ->each(function (DeliveryProjectPaymentTerm $t) {
+                $amount = DeliveryProjectPaymentTerm::lineItemAmount($t->payment_percentage, $t->contractLineItem->total());
+                if (abs((float) $t->amount - $amount) > 0.001) {
+                    $t->timestamps = false;
+                    DeliveryProject::withoutActivityTracking(fn () => $t->update(['amount' => $amount]));
+                    $t->timestamps = true;
+                }
+            });
     }
 
     /**
@@ -89,11 +111,11 @@ class ProjectTopPlan
         $revenue  = $this->revenue();
         $warnings = [];
 
-        $hasFixed = $terms->contains(fn($t) => $t->isFixed());
+        $hasFixed = $terms->contains(fn($t) => !$t->isRevenueShare());
         $total    = $terms->sum(fn($t) => $t->effectiveAmount($revenue));
 
         if ($hasFixed && $revenue <= 0) {
-            $warnings[] = 'Revenue in Sales Data is still empty, so fixed-amount terms cannot be checked against it.';
+            $warnings[] = 'Revenue in Sales Data is still empty, so line item terms cannot be checked against it.';
         } elseif ($total > $revenue + 0.01) {
             $warnings[] = 'Total payment terms (' . self::rp($total) . ') exceed the revenue recorded in Sales Data ('
                 . self::rp($revenue) . ') by ' . self::rp($total - $revenue) . '.';
@@ -138,18 +160,26 @@ class ProjectTopPlan
 
     public static function formatTerm(DeliveryProjectPaymentTerm $term, float $revenue): array
     {
-        $fixed = $term->isFixed();
+        $fixed  = $term->isFixed();
+        $amount = $term->effectiveAmount($revenue);
+
+        // Porsi termin terhadap nilai kontrak line item-nya (info untuk nominal tetap).
+        $liTotal = $term->contractLineItem?->total() ?? 0;
+        $share   = $term->isLineItemShare()
+            ? (float) $term->payment_percentage
+            : ($fixed && $liTotal > 0 ? round($amount / $liTotal * 100, 2) : null);
 
         return [
             'id'                        => $term->id,
             'term_number'               => $term->term_number,
-            'basis'                     => $fixed ? 'fixed' : 'percentage',
+            'basis'                     => $fixed ? 'fixed' : ($term->isLineItemShare() ? 'line_item' : 'percentage'),
             'contract_line_item_id'     => $term->contract_line_item_id,
             'payment_term'              => $term->payment_term,
             'period'                    => $term->period,
-            // Termin nominal tetap tidak punya persentase.
+            // Termin nominal tetap tidak punya persentase (lihat line_item_share).
             'payment_percentage'        => $fixed ? null : (float) $term->payment_percentage,
-            'amount'                    => $term->effectiveAmount($revenue),
+            'line_item_share'           => $share,
+            'amount'                    => $amount,
             'requirements'              => $term->requirements,
             'estimated_date'            => $term->estimated_date?->format('Y-m-d'),
             'estimated_date_label'      => $term->estimated_date?->format('d M Y'),

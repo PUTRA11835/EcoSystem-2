@@ -45,10 +45,14 @@ class DeliveryProjectContractLineItemController extends Controller
 
         $lineItem->update($this->validatePayload($request));
 
+        // Nilai kontrak bisa berubah → termin "% of Line Item" ikut menyesuaikan.
+        $plan = new ProjectTopPlan($project);
+        $plan->resyncLineItemAmounts();
+
         return response()->json([
             'message'   => 'Line item updated successfully.',
             'line_item' => ProjectTopPlan::formatLineItem($lineItem->fresh()),
-            'warnings'  => (new ProjectTopPlan($project))->warnings(),
+            'warnings'  => $plan->warnings(),
         ]);
     }
 
@@ -142,6 +146,7 @@ class DeliveryProjectContractLineItemController extends Controller
 
         $plan = new ProjectTopPlan($project);
         $plan->resequence();
+        $plan->resyncLineItemAmounts();
         app(ProjectReminderService::class)->syncAllQuietly();
 
         $skipped = count($periods) - $created;
@@ -158,7 +163,7 @@ class DeliveryProjectContractLineItemController extends Controller
     {
         $validated = $request->validate([
             'name'       => 'required|string|max:255',
-            'type'       => ['required', Rule::in(['one_time', 'recurring'])],
+            'type'       => ['required', Rule::in(DeliveryProjectContractLineItem::TYPES)],
             'frequency'  => ['nullable', 'required_if:type,recurring', Rule::in(array_keys(DeliveryProjectContractLineItem::FREQUENCY_MONTHS))],
             'start_date' => 'nullable|required_if:type,recurring|date',
             'end_date'   => 'nullable|required_if:type,recurring|date|after_or_equal:start_date',
@@ -169,7 +174,12 @@ class DeliveryProjectContractLineItemController extends Controller
             'end_date.required_if'   => 'End date is required for a recurring line item.',
         ]);
 
-        if ($validated['type'] === 'one_time') {
+        if ($validated['type'] === 'milestone') {
+            // Nilai kontrak tunggal; jadwal ditentukan oleh masing-masing termin.
+            $validated['frequency']  = null;
+            $validated['start_date'] = null;
+            $validated['end_date']   = null;
+        } elseif ($validated['type'] === 'one_time') {
             $validated['frequency'] = null;
             $validated['end_date']  = null;
         } else {
