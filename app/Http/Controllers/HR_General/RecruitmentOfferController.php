@@ -236,18 +236,28 @@ class RecruitmentOfferController extends Controller
             'email'            => 'required|email|max:150|unique:auth_users,email',
             // The same minimum as the password the person sets afterwards (PasswordSetupController).
             'default_password' => 'required|string|min:8|max:100',
-        ], ['email.unique' => 'Another account already signs in with that email.'], [
-            'eci' => 'employee ID (ECI)', 'full_name' => 'full name', 'default_password' => 'default password',
+            // HC-D65 (R3): Home Base menentukan Internal/External ("Others" = External); wajib agar tak diam-diam dianggap Internal.
+            'home_base'        => ['required', Rule::in(\App\Enums\HomeBase::options())],
+            // Tanggal bergabung = tanggal pada offering letter (terisi otomatis di form); wajib diisi HR bila penawaran tak memuatnya.
+            'joining_date'     => [Rule::requiredIf(!$offer->joining_date), 'nullable', 'date'],
+        ], [
+            'email.unique'           => 'Another account already signs in with that email.',
+            'joining_date.required' => 'The offer has no joining date — please enter the join date.',
+        ], [
+            'eci' => 'employee ID (ECI)', 'full_name' => 'full name', 'default_password' => 'default password', 'joining_date' => 'join date',
         ]);
 
         try {
+            $joinDate = $data['joining_date'] ?? $offer->joining_date?->toDateString();
+
             $employee = $hireService->hire([
                 'full_name' => $data['full_name'],
                 'eci'       => $data['eci'],
                 'email'     => $data['email'],
                 'password'  => $data['default_password'],
                 'position'  => $offer->position_title,
-            ]);
+                'home_base' => $data['home_base'],
+            ], $joinDate);
 
             $offer->update(['decision' => Offer::DECISION_ACCEPTED, 'decided_at' => now(), 'hired_employee_id' => $employee->employee_id]);
 
@@ -437,7 +447,8 @@ class RecruitmentOfferController extends Controller
             'position_title'  => 'required|string|max:150',
             'job_description' => 'nullable|string|max:5000',
             'benefits'        => 'nullable|string|max:5000',
-            'joining_date'    => 'nullable|date',
+            // Wajib (HC-D63): tanggal ini disalin otomatis menjadi Since Date saat akun karyawan dibuat (Accept).
+            'joining_date'    => 'required|date',
             'salary_type'     => ['required', Rule::in(array_keys(Offer::SALARY_TYPES))],
             'amounts'         => 'array',
             'amounts.*'       => 'nullable|numeric|min:0|max:9999999999999',

@@ -134,10 +134,16 @@ class ReimbursementService
             return $request;
         });
 
+        $fresh = $request->fresh(['items', 'approvals']);
+        $firstStep = $fresh->currentApproval();
+        if ($firstStep) {
+            $this->notifyApprovers($fresh, $firstStep, true);
+        }
+
         return [
             'allowed' => true,
             'reason'  => '',
-            'request' => $request->fresh(['items', 'approvals']),
+            'request' => $fresh,
         ];
     }
 
@@ -403,6 +409,13 @@ class ReimbursementService
         });
 
         $this->notify($request, $completed ? 'approved' : 'progressed', $payload['notes'] ?? null);
+
+        if (!$completed) {
+            $next = $request->fresh('approvals')->currentApproval();
+            if ($next) {
+                $this->notifyApprovers($request, $next, false);
+            }
+        }
 
         return ['allowed' => true, 'reason' => '', 'completed' => $completed];
     }
@@ -1005,6 +1018,46 @@ class ReimbursementService
             Log::error('Failed to send reimbursement notification.', [
                 'request_id' => $request->id,
                 'outcome'    => $outcome,
+                'message'    => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Beri tahu penyetuju langkah yang sedang menunggu bahwa ada dokumen
+     * perlu tindakan mereka. Lihat komentar method sejenis di OvertimeService
+     * untuk alasan lengkap (Keputusan D44, pola yang sama di 5 modul).
+     */
+    private function notifyApprovers(ReimbursementRequest $request, ReimbursementRequestApproval $step, bool $isFirstStep): void
+    {
+        try {
+            $recipients = \App\Support\ApprovalRecipients::forStep($step);
+            if (empty($recipients)) {
+                return;
+            }
+
+            $message = $isFirstStep
+                ? "Reimbursement request {$request->request_no} needs your approval."
+                : "Reimbursement request {$request->request_no} was approved at the previous step and now needs your approval.";
+
+            // Pengaju dikecualikan HANYA bila self-approval dimatikan — sama
+            // seperti gerbang di canAct().
+            $allowSelf = ReimbursementSetting::current()->allow_self_approval;
+
+            foreach ($recipients as $employeeId) {
+                if ($employeeId === (int) $request->employee_id && !$allowSelf) {
+                    continue;
+                }
+                Notification::create([
+                    'employee_id' => $employeeId,
+                    'type'        => 'reimbursement_pending_approval',
+                    'preview'     => $message,
+                    'link'        => '/general/reimbursement',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Failed to notify reimbursement approvers.', [
+                'request_id' => $request->id,
                 'message'    => $e->getMessage(),
             ]);
         }

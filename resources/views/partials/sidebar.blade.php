@@ -1,4 +1,4 @@
-<aside id="sidebar"
+<aside id="sidebar" data-rail="{{ $__env->hasSection('sidebar-nav') ? 'off' : 'on' }}"
     class="sidebar-transition fixed inset-y-0 left-0 h-screen flex flex-col overflow-hidden {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
     @php
         // HC-D25 — Favorit hanya untuk karyawan (portal pelanggan tidak memakainya).
@@ -8,10 +8,22 @@
             ? app(\App\Services\Sidebar\SidebarFavoriteService::class)->forEmployee((int) session('user.id'))
             : [];
     @endphp
+    {{-- Sprite ikon sidebar (Tabler, MIT) — dibangkitkan; lihat app/Support/SidebarIcons.php --}}
+    @include('partials.sidebar-icons')
     <script>
         window.__sidebarFavoritesEnabled = @json($sbFavoritesEnabled);
         window.__sidebarFavorites = @json($sbFavorites);
         window.__sidebarFavoritesMax = {{ \App\Services\Sidebar\SidebarFavoriteService::MAX }};
+        // Mode rail (ikon + panel) dipilih per perangkat; diterapkan di sini agar halaman tak berkedip.
+        // Dimatikan pada halaman yang menimpa isi sidebar (data-rail="off", mis. inbox Ticket).
+        (function () {
+            try {
+                var a = document.getElementById('sidebar');
+                if (a && a.getAttribute('data-rail') !== 'off' && localStorage.getItem('ecosystem:sidebar:layout:v1') === 'rail') {
+                    document.documentElement.setAttribute('data-sb-layout', 'rail');
+                }
+            } catch (e) { /* penyimpanan dinonaktifkan: tampilan penuh */ }
+        })();
     </script>
 
     {{-- HC: header TETAP (logo + pencarian menu). Dulu seluruh <aside> yang di-scroll
@@ -27,7 +39,8 @@
         </div>
 
         <!-- Pencarian menu -->
-        <div class="relative mt-3">
+        <div class="mt-3 flex items-center gap-1.5 sb-search-row">
+        <div class="relative flex-1 min-w-0">
             <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-white text-opacity-60 pointer-events-none"></i>
             <input id="sidebarSearch" type="search" autocomplete="off" spellcheck="false"
                 placeholder="Search menu..."
@@ -37,17 +50,22 @@
                 <i class="fas fa-times"></i>
             </button>
         </div>
-
-        {{-- HC-D25 — FAVORIT. Di header TETAP agar selalu terlihat; disembunyikan bila kosong.
-             Isinya SALINAN tautan yang sudah ada di sidebar (sudah disaring izin di server),
-             sehingga favorit tak bisa membuka halaman yang izinnya sudah dicabut. --}}
-        <div id="sidebarFavorites" class="hidden mt-3">
-            <button type="button" id="sidebarFavToggle" class="w-full flex items-center justify-between px-1 pb-1 text-left" aria-expanded="true" aria-controls="sidebarFavList">
-                <span class="sb-label-inline">Favorites</span>
-                <i class="fas fa-chevron-down text-[10px] text-white text-opacity-60 transition-transform" id="sidebarFavChevron"></i>
-            </button>
-            <div id="sidebarFavList" class="space-y-1"></div>
+        {{-- Buka/tutup SEMUA seksi sekaligus. Sengaja polos (tanpa latar) agar tak mengotori kepala sidebar;
+             ikon & label berganti menurut keadaan (lihat sbRefreshSections). --}}
+        <button type="button" id="sidebarToggleAll" onclick="toggleAllSidebarSections()" class="sb-toggle-all"
+            aria-label="Collapse all sections" title="Collapse all sections">
+            <i class="fas fa-angles-up"></i>
+        </button>
         </div>
+        {{-- Hanya tampil pada mode rail: membuka tampilan penuh & memfokuskan pencarian. --}}
+        <button type="button" id="sidebarRailSearch" class="sb-rail-only" onclick="sbRailSearch()" title="Search menu" aria-label="Search menu">
+            <svg class="sb-ico" aria-hidden="true" focusable="false"><use href="#ti-search"/></svg>
+        </button>
+
+        {{-- HC-D36 — Kotak ringkasan "Favorites" DIHAPUS dari sini (redundan dengan
+             tab "Favorite" di Command Center pada Dashboard, yang menampilkan hal
+             sama dengan kartu lebih lengkap). Ikon pin pada tiap tautan menu TETAP
+             ada (lihat IIFE "FAVORIT" di bawah) — itulah cara menyematkan/melepas. --}}
     </div>
 
     <!-- Navigation Menu (satu-satunya bagian yang di-scroll) -->
@@ -76,8 +94,8 @@
                 // sendiri di bawah, di luar cakupan fitur ini).
                 $essNav = [
                     'home' => [
-                        'label'   => 'Home',
-                        'icon'    => 'fas fa-home',
+                        'label'   => 'Dashboard',
+                        'icon'    => 'fas fa-gauge-high',
                         'href'    => route('dashboard'),
                         'active'  => Request::is('dashboard'),
                         'visible' => !empty($essConfig['home']),
@@ -86,7 +104,7 @@
                         'label'   => 'My Profile',
                         'icon'    => 'fas fa-user-circle',
                         'href'    => route('profile.my'),
-                        'active'  => Request::is('my-profile*') || Request::is('profile*'),
+                        'active'  => Request::is('my-profile*'),
                         'visible' => !empty($essConfig['my_profile']),
                     ],
                     'my_attendance' => [
@@ -194,6 +212,9 @@
                 // anggota PERTAMANYA. Tanpa satu pun grup terkonfigurasi
                 // (instalasi baru, atau sebelum D182), ini menghasilkan urutan
                 // yang identik dengan lima belas blok lama.
+                // Seksi tempat tiap item ESS dirender. Item di luar peta ini (mis. kunci ESS baru di masa depan)
+                // jatuh ke 'workspace' — TIDAK PERNAH hilang. Grup ESS buatan admin mengikuti seksi anggota pertamanya.
+                $essSecOf = ['home' => 'top', 'ai_assistant' => 'tools', 'ai_research' => 'tools'];
                 $essRenderedGroupIds = [];
                 $essOutput = [];
 
@@ -201,7 +222,7 @@
                     $essGroupId = $essGroupData['assignments'][$essKey] ?? null;
 
                     if ($essGroupId === null) {
-                        $essOutput[] = ['type' => 'item', 'item' => $essItem];
+                        $essOutput[] = ['type' => 'item', 'key' => $essKey, 'item' => $essItem];
                         continue;
                     }
 
@@ -214,7 +235,7 @@
                     if (!$essGroup) {
                         // Seharusnya sudah disaring getEssGroups() — jaga-jaga saja,
                         // supaya item tidak pernah hilang hanya karena grupnya cacat.
-                        $essOutput[] = ['type' => 'item', 'item' => $essItem];
+                        $essOutput[] = ['type' => 'item', 'key' => $essKey, 'item' => $essItem];
                         continue;
                     }
 
@@ -222,107 +243,75 @@
                         ->filter(fn ($it, $k) => ($essGroupData['assignments'][$k] ?? null) === $essGroupId)
                         ->values();
 
-                    $essOutput[] = ['type' => 'group', 'group' => $essGroup, 'members' => $essMembers];
+                    $essOutput[] = ['type' => 'group', 'key' => $essKey, 'group' => $essGroup, 'members' => $essMembers];
                     $essRenderedGroupIds[] = $essGroupId;
                 }
             @endphp
 
-            @foreach($essOutput as $essEntry)
-                @if($essEntry['type'] === 'item')
-                    @if($essEntry['item']['visible'])
-                        @include('partials.ess-nav-item', [
-                            'href'   => $essEntry['item']['href'],
-                            'icon'   => $essEntry['item']['icon'],
-                            'label'  => $essEntry['item']['label'],
-                            'active' => $essEntry['item']['active'],
-                            'nested' => false,
-                        ])
-                    @endif
-                @else
-                    @php
-                        $essVisibleMembers = $essEntry['members']->filter(fn ($m) => $m['visible'])->values();
-                        $essGroupActive    = $essVisibleMembers->contains('active', true);
-                    @endphp
-                    @if($essVisibleMembers->count() > 0)
-                        <div class="mb-2">
-                            <button onclick="toggleEssGroupDropdown('{{ $essEntry['group']['id'] }}')"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $essGroupActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="{{ $essEntry['group']['icon'] }}"></i>
-                                </span>
-                                <span class="nav-text flex-1 font-medium">{{ $essEntry['group']['label'] }}</span>
-                                <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $essGroupActive ? 'rotate-180' : '' }}" id="essGroup{{ $essEntry['group']['id'] }}Chevron"></i>
-                            </button>
-                            <div id="essGroup{{ $essEntry['group']['id'] }}Dropdown"
-                                class="nav-text {{ $essGroupActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
-                                @foreach($essVisibleMembers as $essMember)
-                                    @include('partials.ess-nav-item', [
-                                        'href'   => $essMember['href'],
-                                        'icon'   => $essMember['icon'],
-                                        'label'  => $essMember['label'],
-                                        'active' => $essMember['active'],
-                                        'nested' => true,
-                                    ])
-                                @endforeach
-                            </div>
-                        </div>
-                    @endif
-                @endif
-            @endforeach
+            @php $sb = []; @endphp
+
+            {{-- Dulu: HR & General adalah dropdown berisi 12 anak dengan gerbang luar berupa OR atas semua slug anak.
+                 Kini tiap anak berdiri sendiri di seksi yang sesuai dan dijaga gerbangnya SENDIRI (sama persis seperti
+                 di dalam dropdown) — gerbang luar itu superset anak-anaknya sehingga tak seorang pun bertambah/berkurang. --}}
+            {{-- 🔴 D175: Branches/Shifts/Attendance Settings/Overtime Settings
+                 pindah jadi tab DI DALAM dropdown ini (bukan lagi hidup di
+                 dropdown Management terpisah yang punya gerbangnya sendiri).
+                 Keempat slug itu — plus `general.attendance.monthly` yang
+                 sebelumnya juga terlewat — WAJIB ada di gerbang terluar ini.
+                 Tanpanya, orang yang HANYA memegang mis. `general.settings.
+                 branches` kehilangan SATU-SATUNYA jalan menuju Branches:
+                 dropdown-nya sendiri tidak pernah dirender. Ditemukan lewat
+                 uji nyata (render sidebar dengan satu slug terisolasi), bukan
+                 dugaan — lihat smoke-hub-tabs.php. --}}
+            {{-- 🔴 D177: Reimbursement/Purchase Request/Cash Advance Settings ikut
+                 masuk gerbang ini — kelas cacat yang sama dengan D175, kali ini
+                 dicegah dari awal alih-alih ditemukan lewat uji. --}}
+            {{-- 🔴 D180: kelima slug Approval Workflow ikut masuk gerbang ini juga,
+                 dengan alasan yang SAMA PERSIS — tanpanya, orang yang HANYA
+                 memegang mis. `general.approval-workflow.overtime` (dan tidak
+                 memegang slug HR & General lain apa pun) tidak akan pernah
+                 melihat dropdown-nya sama sekali. --}}
+
+@php ob_start(); @endphp
+@include('partials.ess-nav-list', ['essSecs' => ['top']])
+@php $sb['dashboard'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+@include('partials.ess-nav-list', ['essSecs' => ['workspace']])
+@php $sb['ess_workspace'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+@include('partials.ess-nav-list', ['essSecs' => ['tools']])
+@php $sb['ess_tools'] = ob_get_clean(); @endphp
 
             @php
                 $showEvents = !empty($essConfig['events_calendar']) && ($can('calendar.events') || Auth::check());
                 $showTimesheets = !empty($essConfig['my_timesheet']) && ($can('calendar.timesheets') || Auth::check());
-                $showCalendarMenu = ($can('calendar') || Auth::check()) && ($showEvents || $showTimesheets);
+                $calendarGate = ($can('calendar') || Auth::check());
             @endphp
-
-            @if($showCalendarMenu)
-                <!-- CALENDAR Dropdown -->
-                <div class="mb-2">
-                    <button onclick="toggleCalendarDropdown()"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('calendar*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-calendar-alt"></i>
-                        </span>
-                        <span class="nav-text flex-1 font-medium">Calendar</span>
-                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="calendarChevron"></i>
-                    </button>
-                    <div id="calendarDropdown"
-                        class="nav-text {{ Request::is('calendar*') ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
-                        @if($showEvents)
-                            <a href="{{ route('calendar.events') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/events*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-calendar-check text-xs"></i>
-                                </span>
-                                <span class="nav-text text-sm">Events</span>
-                            </a>
-                        @endif
-                        @if($showTimesheets)
-                            <a href="{{ route('calendar.timesheets') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/timesheets*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-clock text-xs"></i>
-                                </span>
-                                <span class="nav-text text-sm">Timesheets</span>
-                            </a>
-                        @endif
-                    </div>
-                </div>
+@php ob_start(); @endphp
+@if($calendarGate && $showEvents)
+                @include('partials.ess-nav-item', [
+                    'href'   => route('calendar.events'),
+                    'icon'   => 'fas fa-calendar-alt',
+                    'label'  => 'Calendar',
+                    'active' => Request::is('calendar*') && !Request::is('calendar/timesheets*'),
+                    'nested' => false,
+                ])
             @endif
-
-
-            {{-- Dropdown Reporting versi lengkap — memuat sub-grup Project & Support beserta Consultant Assignment dan Diagram Report. Fungsi _toggleReportingGroup() yang menggerakkannya ada di dashboard.blade.php. --}}
+@php $sb['calendar'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+@if($calendarGate && $showTimesheets)
+                @include('partials.ess-nav-item', [
+                    'href'   => route('calendar.timesheets'),
+                    'icon'   => 'fas fa-clock',
+                    'label'  => 'My Timesheet',
+                    'active' => Request::is('calendar/timesheets*'),
+                    'nested' => false,
+                ])
+            @endif
+@php $sb['timesheet'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+            {{-- Dropdown Reporting versi lengkap — memuat sub-grup Project & Support beserta Consultant Assignment dan Diagram Report. Buka/tutup digerakkan toggleSidebarDropdown() di bagian skrip bawah berkas ini. --}}
             @if($can('reporting'))
-            <!-- REPORTING Dropdown -->
-            <div class="mb-2">
-                <button onclick="toggleReportingDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('reporting*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                    <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                        <i class="fas fa-chart-line"></i>
-                    </span>
-                    <span class="nav-text flex-1 font-medium">Reporting</span>
-                    <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="reportingChevron"></i>
-                </button>
                 @php
                     // Reporting dipisah jadi dua grup: Project & Support. Grup hanya
                     // dirender kalau user punya minimal satu laporan di dalamnya —
@@ -347,7 +336,6 @@
                         || $can('reporting.log-shifting')
                         || $can('reporting.resolution-days');
                 @endphp
-                <div id="reportingDropdown" class="nav-text {{ Request::is('reporting*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                     @if($canRepProject)
                     {{-- Reporting → Project --}}
                     <div>
@@ -355,7 +343,7 @@
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-project-diagram text-xs"></i>
                             </span>
-                            <span class="nav-text text-sm flex-1">Project</span>
+                            <span class="nav-text text-sm flex-1">Project Reports</span>
                             <i class="fas fa-chevron-down text-[10px] nav-text transition-transform {{ $repProjectActive ? 'rotate-180' : '' }}" id="reportingProjectChevron"></i>
                         </button>
                         <div id="reportingProjectDropdown" class="nav-text {{ $repProjectActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
@@ -385,7 +373,7 @@
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-headset text-xs"></i>
                             </span>
-                            <span class="nav-text text-sm flex-1">Support</span>
+                            <span class="nav-text text-sm flex-1">Support Reports</span>
                             <i class="fas fa-chevron-down text-[10px] nav-text transition-transform {{ $repSupportActive ? 'rotate-180' : '' }}" id="reportingSupportChevron"></i>
                         </button>
                         <div id="reportingSupportDropdown" class="nav-text {{ $repSupportActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
@@ -406,15 +394,9 @@
                                 <span class="nav-text text-sm">MD Recap</span>
                             </a>
                         @endif
-                        @if($can('reporting.collection-outlook'))
-                            <a href="{{ route('reporting.collection-outlook') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ (Request::is('reporting/collection-outlook') || Request::is('reporting/collection-outlook/*')) ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-hand-holding-usd text-xs"></i>
-                                </span>
-                                <span class="nav-text text-sm">Collection Outlook</span>
-                            </a>
-                        @endif
+                        {{-- "Collection Outlook" polos DIHAPUS dari grup Support: rute, slug, dan pola
+                             aktifnya sama dengan item di Project (menyala ganda, dan grup Support
+                             tertutup saat itu aktif). Versi Support = "(Support)" di bawah. --}}
                         @if($can('reporting.collection-outlook-support'))
                             <a href="{{ route('reporting.collection-outlook-support') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/collection-outlook-support*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -439,7 +421,7 @@
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-puzzle-piece text-xs"></i>
                                 </span>
-                                <span class="nav-text text-sm">Ticket by Modul</span>
+                                <span class="nav-text text-sm">Ticket by Module</span>
                             </a>
                         @endif
                         @if($can('reporting.log-shifting'))
@@ -471,77 +453,51 @@
                         <span class="nav-text text-sm">Diagram Report</span>
                     </a>
                     @endif
-                </div>
-            </div>
             @endif
-
-            @if($can('master'))
-                <!-- MASTER Dropdown -->
-                <div class="mb-2">
-                    <button onclick="toggleMasterDropdown()"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('master*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-database"></i>
-                        </span>
-                        <span class="nav-text flex-1 font-medium">Master</span>
-                        <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="masterChevron"></i>
-                    </button>
-                    <div id="masterDropdown"
-                        class="nav-text {{ Request::is('master*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
-                        @if($can('master.employee'))
-                            <a href="{{ route('master.employee.index') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-users text-xs"></i>
-                                </span>
-                                <span class="nav-text text-sm">Employee</span>
-                            </a>
-                        @endif
-                        @if($can('master.customer'))
-                            <a href="{{ route('master.customer.index') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/customer*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-user-tie text-xs"></i>
-                                </span>
-                                <span class="nav-text text-sm">Business Partner</span>
-                            </a>
-                        @endif
+@php $sb['reporting'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+@if($can('master') && $can('master.employee'))
+                @include('partials.ess-nav-item', [
+                    'href'   => route('master.employee.index'),
+                    'icon'   => 'fas fa-users',
+                    'label'  => 'Employee Data',
+                    'active' => Request::is('master/employee*'),
+                    'nested' => false,
+                ])
+            @endif
+@php $sb['employee'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+@if($can('master') && $can('master.customer'))
+                @include('partials.ess-nav-item', [
+                    'href'   => route('master.customer.index'),
+                    'icon'   => 'fas fa-user-tie',
+                    'label'  => 'Business Partner',
+                    'active' => Request::is('master/customer*'),
+                    'nested' => false,
+                ])
+            @endif
+@php $sb['partner'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+            @if($can('general.onboarding'))
+                {{-- <div class="sb-label nav-text">Human Capital</div> --}}
+                    {{-- Item datar tingkat atas: memakai gaya tingkat atas (dulu gaya anak dropdown,
+                         sehingga tampak "melayang" setelah Master). --}}
+                    <div class="mb-2">
+                        <a href="{{ route('general.onboarding.index') }}"
+                            class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/onboarding*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                <i class="fas fa-user-check"></i>
+                            </span>
+                            <span class="nav-text font-medium">Onboarding</span>
+                        </a>
                     </div>
-                </div>
             @endif
-
-            {{-- HC-D18 — Grup "HUMAN CAPITAL" seperti pada aplikasi acuan (ESH). Label seksi +
-                 item yang SUDAH ada saja; item lain (Struktur Organisasi, Rekrutmen, Offering
-                 Letter, Kontrak, Template Kontrak, Offboarding) ditambahkan di sini saat
-                 modulnya dibangun — tidak ada tautan mati. Master → Employee TETAP ada
-                 (prinsip HC-D15: hanya penambahan). Gerbang tiap item = slug-nya sendiri,
-                 tanpa `|| $can('general')`, agar item tak muncul hanya karena memegang induk. --}}
-            @if($can('master.employee') || $can('general.onboarding'))
-                <div class="sb-label nav-text">Human Capital</div>
-                @if($can('master.employee'))
-                    <a href="{{ route('master.employee.index') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-users text-sm"></i>
-                        </span>
-                        <span class="nav-text text-sm">Employee Data</span>
-                    </a>
-                @endif
-                @if($can('general.onboarding'))
-                    <a href="{{ route('general.onboarding.index') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/onboarding*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-user-check text-sm"></i>
-                        </span>
-                        <span class="nav-text text-sm">Onboarding</span>
-                    </a>
-                @endif
-            @endif
-
+@php $sb['onboarding'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @if($can('financial'))
                 <!-- FINANCIAL -->
                 <div class="mb-2">
-                    <a href="#"
+                    <a href="{{ route('financial') }}"
                         class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('financial') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-coins"></i>
@@ -550,87 +506,19 @@
                     </a>
                 </div>
             @endif
-
-            {{-- 🔴 D175: Branches/Shifts/Attendance Settings/Overtime Settings
-                 pindah jadi tab DI DALAM dropdown ini (bukan lagi hidup di
-                 dropdown Management terpisah yang punya gerbangnya sendiri).
-                 Keempat slug itu — plus `general.attendance.monthly` yang
-                 sebelumnya juga terlewat — WAJIB ada di gerbang terluar ini.
-                 Tanpanya, orang yang HANYA memegang mis. `general.settings.
-                 branches` kehilangan SATU-SATUNYA jalan menuju Branches:
-                 dropdown-nya sendiri tidak pernah dirender. Ditemukan lewat
-                 uji nyata (render sidebar dengan satu slug terisolasi), bukan
-                 dugaan — lihat smoke-hub-tabs.php. --}}
-            {{-- 🔴 D177: Reimbursement/Purchase Request/Cash Advance Settings ikut
-                 masuk gerbang ini — kelas cacat yang sama dengan D175, kali ini
-                 dicegah dari awal alih-alih ditemukan lewat uji. --}}
-            {{-- 🔴 D180: kelima slug Approval Workflow ikut masuk gerbang ini juga,
-                 dengan alasan yang SAMA PERSIS — tanpanya, orang yang HANYA
-                 memegang mis. `general.approval-workflow.overtime` (dan tidak
-                 memegang slug HR & General lain apa pun) tidak akan pernah
-                 melihat dropdown-nya sama sekali. --}}
-            @if($can('general') || $can('hr_general.leave_permit.admin')
-                || $can('general.attendance') || $can('general.attendance.monthly') || $can('general.attendance.correction')
-                || $can('general.settings.branches') || $can('general.settings.shifts') || $can('general.settings.attendance')
-                || $can('general.overtime') || $can('general.settings.overtime')
-                || $can('general.reimbursement') || $can('general.settings.reimbursement')
-                || $can('general.purchase-request') || $can('general.settings.purchase-request')
-                || $can('general.cash-advance') || $can('management.cash-advance-settings')
-                || $can('general.cash-advance-report')
-                || $can('general.approval-workflow.overtime') || $can('general.approval-workflow.reimbursement')
-                || $can('general.approval-workflow.purchase-request') || $can('management.approval-workflow.cash-advance')
-                || $can('management.approval-workflow.cash-advance-report')
-                || $can('general.recruitment') || $can('general.recruitment.jobs') || $can('general.recruitment.candidates')
-                || $can('general.recruitment.schedule') || $can('general.recruitment.offers') || $can('general.recruitment.settings')
-                || $can('general.recruitment.offers.settings') || $can('general.letter-templates')
-                || $can('general.letters.dashboard') || $can('general.letters.requests') || $can('general.letters.register') || $can('general.letters.compose'))
-                <!-- HR & GENERAL -->
-                @php
-                    // 🔴 Daftar ini harus diperbarui setiap kali item baru masuk ke grup —
-                    // kelalaian yang sempat terjadi pada Cash Advance: itemnya menyala di
-                    // dalam grup, tetapi grupnya sendiri tetap TERLIPAT saat halamannya
-                    // dibuka. Sidebar yang ditulis tangan selalu punya dua daftar yang
-                    // harus dijaga sejalan: siapa boleh melihat, dan kapan grup terbuka.
-                    $hrGeneralOpen = Request::is('hr-general*')
-                        || Request::is('general/attendance*')
-                        || Request::is('general/overtime*')
-                        || Request::is('general/reimbursement*')
-                        || Request::is('general/purchase-request*')
-                        || Request::is('general/cash-advance*')
-                        // 🔴 D177 — Cash Advance Settings TETAP di URL lama
-                        // (management/cash-advance-settings*, lihat routes/hr-general.php),
-                        // tetapi kini tab di hub "Cash Advance (CA)". Tanpa baris ini,
-                        // membuka tab Settings membuat dropdown "HR & General" tertutup
-                        // sendiri padahal baris "Cash Advance (CA)" ikut menyala.
-                        || Request::is('management/cash-advance-settings*')
-                        || Request::is('general/kpi-evaluation*')
-                        // 🔴 D180 — hub Approval Workflow, satu prefix untuk kelima tab.
-                        || Request::is('general/approval-workflow*')
-                        || Request::is('general/recruitment*')
-                        || Request::is('general/letters*');
-                @endphp
-                <div class="mb-2">
-                    <button onclick="toggleHrGeneralDropdown()"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $hrGeneralOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-users-cog"></i>
-                        </span>
-                        <span class="nav-text flex-1 font-medium">HR & General</span>
-                        <i class="fas fa-chevron-down text-xs nav-text transition-transform {{ $hrGeneralOpen ? 'rotate-180' : '' }}"
-                            id="hrGeneralChevron"></i>
-                    </button>
-                    <div id="hrGeneralDropdown"
-                        class="nav-text {{ $hrGeneralOpen ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
-                        @if($can('hr_general.leave_permit.admin') || $can('general'))
+@php $sb['financial'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+                        @if($can('hr_general.leave_permit') || $can('general'))
                             <a href="{{ route('hr-general.leave-permit') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('hr-general/leave-permit*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-calendar-minus text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('hr-general/leave-permit*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-calendar-minus"></i>
                                 </span>
-                                <span class="nav-text text-sm">Leave & Permit</span>
+                                <span class="nav-text font-medium">Leave & Permit</span>
                             </a>
                         @endif
-
+@php $sb['leave'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
                         {{-- 🔴 SATU baris untuk hub Attendance (D175) — dulunya DUA
                              ("Attendance Recap" + "Attendance Corrections"), plus TIGA
                              baris lagi di Management → HR & General (Branches, Shifts,
@@ -665,14 +553,15 @@
                         @endphp
                         @if($attendanceGate)
                             <a href="{{ $attendanceLanding }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/attendance*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-clipboard-list text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/attendance*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-clipboard-list"></i>
                                 </span>
-                                <span class="nav-text text-sm">Attendance</span>
+                                <span class="nav-text font-medium">Attendance</span>
                             </a>
                         @endif
-
+@php $sb['attendance'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
                         {{-- 🔴 Label DISAMAKAN dengan `menu.name` (D174). Gerbang &
                              landasannya DILEBARKAN untuk D175: dulu hanya
                              `general.overtime` yang membuka baris ini, sehingga
@@ -687,15 +576,15 @@
                         @endphp
                         @if($overtimeGate)
                             <a href="{{ $overtimeLanding }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/overtime*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-clock text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/overtime*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-clock"></i>
                                 </span>
-                                <span class="nav-text text-sm">Overtime Management</span>
+                                <span class="nav-text font-medium">Overtime Management</span>
                             </a>
                         @endif
-
-
+@php $sb['overtime'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
                         {{-- 🔴 D177 — Gerbang & landasan DILEBARKAN, pola sama dengan
                              Overtime di atas: Reimbursement Settings kini tab kedua di
                              hub yang sama, jadi orang yang HANYA memegang slug
@@ -708,14 +597,15 @@
                         @endphp
                         @if($reimbursementGate)
                             <a href="{{ $reimbursementLanding }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/reimbursement*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-receipt text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/reimbursement*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-receipt"></i>
                                 </span>
-                                <span class="nav-text text-sm">Reimbursement Management</span>
+                                <span class="nav-text font-medium">Reimbursement Management</span>
                             </a>
                         @endif
-
+@php $sb['reimbursement'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
                         {{-- 🔴 D177 — sama seperti Reimbursement di atas. --}}
                         @php
                             $purchaseRequestGate = $can('general.purchase-request') || $can('general.settings.purchase-request') || $can('general');
@@ -725,14 +615,15 @@
                         @endphp
                         @if($purchaseRequestGate)
                             <a href="{{ $purchaseRequestLanding }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/purchase-request*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-cart-shopping text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/purchase-request*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-cart-shopping"></i>
                                 </span>
-                                <span class="nav-text text-sm">Purchase Request Management</span>
+                                <span class="nav-text font-medium">Purchase Request Management</span>
                             </a>
                         @endif
-
+@php $sb['purchase_request'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
                         {{-- 🔴 Namanya memakai singkatan — "Cash Advance (CA)", bukan
                              "Cash Advance" polos. Itulah PEMBEDA sisi admin dari item
                              ESS bernama sama (Keputusan D142/D151); tanpanya, dua baris
@@ -757,14 +648,15 @@
                                     : route('management.cash-advance-settings.edit');
                             @endphp
                             <a href="{{ $cashAdvanceLanding }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ $hrCaActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-hand-holding-usd text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ $hrCaActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-hand-holding-usd"></i>
                                 </span>
-                                <span class="nav-text text-sm">Cash Advance (CA)</span>
+                                <span class="nav-text font-medium">Cash Advance (CA)</span>
                             </a>
                         @endif
-
+@php $sb['cash_advance'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
                         {{-- 🔴 D179 — CAR TIDAK punya hub tab (D177 sengaja membiarkannya
                              terpisah dari Cash Advance), jadi badge "menunggu saya"-nya
                              ditaruh di baris sidebar ini langsung, bukan di sebuah tab.
@@ -776,29 +668,31 @@
                                     ->pendingIdsFor((int) session('user.id')));
                             @endphp
                             <a href="{{ route('general.cash-advance-report.index') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/cash-advance-report*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-file-invoice-dollar text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/cash-advance-report*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-file-invoice-dollar"></i>
                                 </span>
-                                <span class="nav-text text-sm flex-1">Cash Advance Report (CAR)</span>
+                                <span class="nav-text font-medium flex-1">Cash Advance Report (CAR)</span>
                                 @if($carPending > 0)
-                                    <span class="nav-text bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                    <span class="nav-text sb-badge">
                                         {{ $carPending > 99 ? '99+' : $carPending }}
                                     </span>
                                 @endif
                             </a>
                         @endif
-
+@php $sb['car'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
                         @if($can('general.kpi-evaluation') || $can('general'))
                             <a href="{{ route('general.kpi-evaluation.index') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/kpi-evaluation*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-chart-bar text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/kpi-evaluation*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-chart-bar"></i>
                                 </span>
-                                <span class="nav-text text-sm">KPI Evaluation</span>
+                                <span class="nav-text font-medium">KPI Evaluation</span>
                             </a>
                         @endif
-
+@php $sb['kpi'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
                         {{-- 🔴 D180 — "Approval Workflow", di BAWAH grup ini (posisi
                              disepakati pemilik sistem: konfigurasi berkala, bukan
                              operasional harian). Gerbangnya SENGAJA TIDAK memakai
@@ -826,14 +720,15 @@
                         @endphp
                         @if($approvalWorkflowGate)
                             <a href="{{ $approvalWorkflowLanding }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/approval-workflow*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-list-check text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/approval-workflow*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-list-check"></i>
                                 </span>
-                                <span class="nav-text text-sm">Approval Workflow</span>
+                                <span class="nav-text font-medium">Approval Workflow</span>
                             </a>
                         @endif
-
+@php $sb['approval'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
                         {{-- Rekrutmen — hub bertab (Dashboard / Selection Process / Schedule /
                              Job Openings / Settings), mengikuti pola Attendance & Overtime:
                              gerbangnya ATAU atas seluruh tab, landasannya tab PERTAMA
@@ -864,53 +759,52 @@
                         @endphp
                         @if($recruitmentGate)
                             <a href="{{ $recruitmentLanding }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ $recruitmentActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-user-tie text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ $recruitmentActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-user-tie"></i>
                                 </span>
-                                <span class="nav-text text-sm">Recruitment</span>
+                                <span class="nav-text font-medium">Recruitment</span>
                             </a>
                         @endif
-
+@php $sb['recruitment'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
                         {{-- Offering Letter — a standalone menu item with its own two tabs
                              (Letters / Settings), deliberately NOT tabs inside the Recruitment
                              hub, so it can be granted independently of the rest of the module.
                              It lands on the first tab the person actually holds. --}}
                         @if($can('general.recruitment.offers') || $can('general.recruitment.offers.settings'))
                             <a href="{{ $can('general.recruitment.offers') ? route('general.recruitment.offers.index') : route('general.recruitment.offers.settings.edit') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/recruitment/offers*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-file-signature text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/recruitment/offers*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-file-signature"></i>
                                 </span>
-                                <span class="nav-text text-sm flex-1">Offering Letter</span>
+                                <span class="nav-text font-medium flex-1">Offering Letter</span>
                                 @php $pendingOffers = $can('general.recruitment.offers') ? \App\Models\Recruitment\Offer::where('decision', 'pending')->count() : 0; @endphp
                                 @if($pendingOffers > 0)
-                                    <span class="nav-text bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                    <span class="nav-text sb-badge">
                                         {{ $pendingOffers > 99 ? '99+' : $pendingOffers }}
                                     </span>
                                 @endif
                             </a>
                         @endif
-
+                        
                         {{-- Letter Templates — the letters hub; opens the first of its five tabs the person can view. --}}
                         @if($can('general.letters.dashboard') || $can('general.letters.requests') || $can('general.letters.register')
                             || $can('general.letters.compose') || $can('general.letter-templates'))
                             <a href="{{ route('general.letters.index') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/letters*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
-                                    <i class="fas fa-file-lines text-xs"></i>
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/letters*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                                    <i class="fas fa-file-lines"></i>
                                 </span>
-                                <span class="nav-text text-sm">Letter Templates</span>
+                                <span class="nav-text font-medium">Letter Templates</span>
                             </a>
                         @endif
-                    </div>
-                </div>
-            @endif
-
+@php $sb['letter_templates'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @if($can('business'))
                 <!-- BUSINESS DEV -->
                 <div class="mb-2">
-                    <a href="#"
+                    <a href="{{ route('business') }}"
                         class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('business') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-briefcase"></i>
@@ -919,7 +813,8 @@
                     </a>
                 </div>
             @endif
-
+@php $sb['business'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @if($can('tickets.inbox'))
                 <!-- TICKET -->
                 <div class="mb-2">
@@ -935,7 +830,8 @@
                     </a>
                 </div>
             @endif
-
+@php $sb['ticket'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @if($can('ticket.my-tasks'))
                 <!-- MY TASKS -->
                 <div class="mb-2">
@@ -948,7 +844,8 @@
                     </a>
                 </div>
             @endif
-
+@php $sb['my_tasks'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @if($can('ticket.consultant-workload'))
                 <!-- CONSULTANT WORKLOAD -->
                 <div class="mb-2">
@@ -961,7 +858,8 @@
                     </a>
                 </div>
             @endif
-
+@php $sb['workload'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @if($can('tickets.staging'))
                 <!-- TICKET VALIDATION -->
                 <div class="mb-2">
@@ -975,14 +873,14 @@
                             $unvalidatedCount = \App\Models\StagingTicket::where('status', 'unvalidated')->count();
                         @endphp
                         <span id="sidebarValidationBadge"
-                            class="nav-text bg-yellow-400 text-gray-900 text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center {{ $unvalidatedCount > 0 ? '' : 'hidden' }}">
+                            class="nav-text sb-badge {{ $unvalidatedCount > 0 ? '' : 'hidden' }}">
                             {{ $unvalidatedCount > 99 ? '99+' : $unvalidatedCount }}
                         </span>
                     </a>
                 </div>
             @endif
-
-
+@php $sb['validation'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @if($can('delivery'))
                 <!-- DELIVERY Dropdown -->
                 <div class="mb-2">
@@ -1017,7 +915,8 @@
                     </div>
                 </div>
             @endif
-
+@php $sb['delivery'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @if($can('control-center'))
                 <!-- CONTROL CENTER -->
                 @php $adminOpen = Request::is('admin*'); @endphp
@@ -1103,10 +1002,11 @@
                     </div>
                 </div>
             @endif
-
+@php $sb['control_center'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @php
                 $showSlaMenu = isset($showSlaMenu) ? $showSlaMenu : $can('sla');
-                $canManageSla = isset($canManageSla) ? $canManageSla : ($can('sla.config') || $can('sla.manage'));
+                $canManageSla = isset($canManageSla) ? $canManageSla : $can('sla.config');
             @endphp
             @if($showSlaMenu || $canManageSla)
                 <!-- SLA Dropdown -->
@@ -1143,7 +1043,8 @@
                     </div>
                 </div>
             @endif
-
+@php $sb['sla'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @php
                 $showRpmoMenu = isset($showRpmoMenu) ? $showRpmoMenu : ($can('rpmo') || $can('rpmo.overview'));
             @endphp
@@ -1167,7 +1068,7 @@
                     <div id="rpmoSubmenu" class="{{ $rpmoDropdownOpen ? '' : 'hidden' }} pl-4 mt-1 space-y-1">
                         @if($can('rpmo.overview'))
                             <a href="{{ route('rpmo') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2 rounded-xl {{ Request::is('rpmo') && !Request::is('rpmo/*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all text-sm">
+                                class="nav-link flex items-center gap-3 px-4 py-2 rounded-xl {{ Request::is('rpmo') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all text-sm">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-tachometer-alt"></i>
                                 </span>
@@ -1186,11 +1087,12 @@
                     </div>
                 </div>
             @endif
-
+@php $sb['rpmo'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @if($can('legal'))
                 <!-- LEGAL -->
                 <div class="mb-2">
-                    <a href="#"
+                    <a href="{{ route('legal') }}"
                         class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('legal') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-balance-scale"></i>
@@ -1199,7 +1101,8 @@
                     </a>
                 </div>
             @endif
-
+@php $sb['legal'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             {{-- Dropdown Management.
 
                  🔴 D177 — `$can('management.cash-advance-settings')` DICABUT dari
@@ -1215,15 +1118,15 @@
                 <!-- MANAJEMEN -->
                 <div class="mb-2">
                     <button onclick="toggleManajemenDropdown()"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('management*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ (Request::is('management*') && !Request::is('management/cash-advance-settings*')) ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-shield-alt"></i>
+                            <i class="fas fa-user-shield"></i>
                         </span>
                         <span class="nav-text flex-1 font-medium">Management</span>
                         <i class="fas fa-chevron-down text-xs nav-text transition-transform" id="manajemenChevron"></i>
                     </button>
                     <div id="manajemenDropdown"
-                        class="nav-text {{ Request::is('management*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
+                        class="nav-text {{ (Request::is('management*') && !Request::is('management/cash-advance-settings*')) ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                         @if($can('management.roles'))
                             <a href="{{ route('management.roles.index') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/roles*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -1239,7 +1142,7 @@
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-key text-xs"></i>
                                 </span>
-                                <span class="nav-text text-sm">Menu Access</span>
+                                <span class="nav-text text-sm">Menu List</span>
                             </a>
                             <a href="{{ route('management.ess-settings.index') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/ess-settings*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -1278,7 +1181,7 @@
                             <div class="mt-1">
                                 <button onclick="toggleMasterMgmtDropdown()"
                                     class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                    <span class="w-4 h-4 flex items-center justify-center">
+                                    <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-users text-xs"></i>
                                     </span>
                                     <span class="nav-text text-sm flex-1">Employee</span>
@@ -1290,7 +1193,7 @@
                                     @if($can('management.employee.basic-data'))
                                         <a href="{{ route('management.employee.basic-data.index') }}"
                                             class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/basic-data*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
+                                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i
                                                     class="fas fa-id-card text-xs"></i></span>
                                             <span class="nav-text text-xs">Basic Data</span>
                                         </a>
@@ -1298,7 +1201,7 @@
                                     @if($can('management.employee.address'))
                                         <a href="{{ route('management.employee.address.index') }}"
                                             class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/address*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
+                                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i
                                                     class="fas fa-map-marker-alt text-xs"></i></span>
                                             <span class="nav-text text-xs">Address</span>
                                         </a>
@@ -1306,7 +1209,7 @@
                                     @if($can('management.employee.identification'))
                                         <a href="{{ route('management.employee.identification.index') }}"
                                             class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/identification*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
+                                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i
                                                     class="fas fa-fingerprint text-xs"></i></span>
                                             <span class="nav-text text-xs">Identification</span>
                                         </a>
@@ -1314,7 +1217,7 @@
                                     @if($can('management.employee.family'))
                                         <a href="{{ route('management.employee.family.index') }}"
                                             class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/family*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
+                                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i
                                                     class="fas fa-users text-xs"></i></span>
                                             <span class="nav-text text-xs">Family</span>
                                         </a>
@@ -1322,7 +1225,7 @@
                                     @if($can('management.employee.education'))
                                         <a href="{{ route('management.employee.education.index') }}"
                                             class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/education*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
+                                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i
                                                     class="fas fa-graduation-cap text-xs"></i></span>
                                             <span class="nav-text text-xs">Education</span>
                                         </a>
@@ -1330,7 +1233,7 @@
                                     @if($can('management.employee.qualification'))
                                         <a href="{{ route('management.employee.qualification.index') }}"
                                             class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/qualification*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
+                                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i
                                                     class="fas fa-certificate text-xs"></i></span>
                                             <span class="nav-text text-xs">Qualification</span>
                                         </a>
@@ -1338,7 +1241,7 @@
                                     @if($can('management.employee.contract'))
                                         <a href="{{ route('management.employee.contract.index') }}"
                                             class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/contract*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
+                                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i
                                                     class="fas fa-file-contract text-xs"></i></span>
                                             <span class="nav-text text-xs">Contract</span>
                                         </a>
@@ -1346,7 +1249,7 @@
                                     @if($can('management.employee.bank'))
                                         <a href="{{ route('management.employee.bank.index') }}"
                                             class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/bank*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
+                                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i
                                                     class="fas fa-university text-xs"></i></span>
                                             <span class="nav-text text-xs">Bank Account</span>
                                         </a>
@@ -1354,7 +1257,7 @@
                                     @if($can('management.employee.payment'))
                                         <a href="{{ route('management.employee.payment.index') }}"
                                             class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/payment*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
+                                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i
                                                     class="fas fa-money-bill text-xs"></i></span>
                                             <span class="nav-text text-xs">Basic Payment</span>
                                         </a>
@@ -1362,7 +1265,7 @@
                                     @if($can('management.employee.attachment'))
                                         <a href="{{ route('management.employee.attachment.index') }}"
                                             class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/attachment*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                            <span class="w-3 h-3 flex items-center justify-center"><i
+                                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i
                                                     class="fas fa-paperclip text-xs"></i></span>
                                             <span class="nav-text text-xs">Attachment</span>
                                         </a>
@@ -1373,10 +1276,40 @@
                     </div>
                 </div>
             @endif
+@php $sb['management'] = ob_get_clean(); @endphp
+
+            {{-- ===== SUSUNAN SIDEBAR (seksi berjudul, bisa dilipat; default terbuka) =====
+                 Tiap blok menu di atas ditangkap ke $sb[...] LALU dirakit di sini menurut seksi. Gerbang izin,
+                 alamat, dan pola aktif tiap menu TIDAK diubah — hanya letaknya. Seksi tanpa satu pun menu yang
+                 lolos gerbang tidak dirender (judulnya ikut hilang). Urutan: harian → HR → keuangan → pekerjaan →
+                 alat → bisnis → laporan (di bawah) → administrasi. Bukti "tidak ada menu hilang":
+                 docs/humancapital/tools/snapshot-sidebar.php --}}
+            @php
+                $sbSections = [
+                    ['id' => 'Workspace', 'title' => 'My Workspace',        'icon' => 'smart-home', 'keys' => ['ess_workspace', 'timesheet', 'calendar']],
+                    ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
+                    ['id' => 'Finance',   'title' => 'Finance & Requests',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_request', 'cash_advance', 'car', 'financial']],
+                    ['id' => 'Work',      'title' => 'Work & Service',      'icon' => 'tools', 'keys' => ['ticket', 'my_tasks', 'workload', 'validation', 'delivery', 'sla', 'rpmo']],
+                    ['id' => 'Ai',        'title' => 'AI Tools',            'icon' => 'sparkles', 'keys' => ['ess_tools']],
+                    ['id' => 'Business',  'title' => 'Business & Legal',    'icon' => 'building-skyscraper', 'keys' => ['partner', 'business', 'legal']],
+                    ['id' => 'Reporting', 'title' => 'Reporting',           'icon' => 'chart-histogram', 'keys' => ['reporting']],
+                    ['id' => 'Admin',     'title' => 'Administration',      'icon' => 'shield-cog', 'keys' => ['management', 'approval', 'control_center']],
+                ];
+            @endphp
+
+            <div class="sb-sec-body sb-solo">{!! \App\Support\SidebarIcons::apply($sb['dashboard'] ?? '') !!}</div>
+
+            @foreach($sbSections as $sbSec)
+                @php $sbBody = \App\Support\SidebarIcons::apply(implode("\n", array_map(fn ($k) => $sb[$k] ?? '', $sbSec['keys']))); @endphp
+                @if(str_contains($sbBody, 'nav-link'))
+                    @include('partials.sidebar-section', ['id' => $sbSec['id'], 'title' => $sbSec['title'], 'icon' => $sbSec['icon'], 'body' => $sbBody])
+                @endif
+            @endforeach
 
             <!-- Divider -->
             <div class="my-6 border-t border-white border-opacity-10"></div>
-
+            @php ob_start(); @endphp
+            <div class="sb-sec-body sb-solo">
             <!-- SETTINGS - Visible to all roles -->
             <div class="mb-2">
                 <a href="{{ route('settings.index') }}"
@@ -1387,9 +1320,21 @@
                     <span class="nav-text font-medium">Settings</span>
                 </a>
             </div>
+            </div>
+            @php echo \App\Support\SidebarIcons::apply(ob_get_clean()); @endphp
         </nav>
     @endif
     </div>{{-- /#sidebarScroll --}}
+    @unless($__env->hasSection('sidebar-nav'))
+    {{-- Pilihan tampilan: penuh <-> rail ikon (per perangkat; hanya layar lebar). Lihat sbApplyLayout(). --}}
+    <div class="sb-footer">
+        <button type="button" id="sidebarLayoutToggle" class="sb-footer-btn" onclick="toggleSidebarLayout()"
+            aria-pressed="false" title="Collapse to icons" aria-label="Collapse to icons">
+            <svg class="sb-ico" aria-hidden="true" focusable="false"><use href="#ti-layout-sidebar-left-collapse"/></svg>
+            <span class="sb-footer-label">Collapse to icons</span>
+        </button>
+    </div>
+    @endunless
 </aside>
 
 <style>
@@ -1403,28 +1348,282 @@
     #sidebar #sidebarSearch::placeholder { color: rgba(255, 255, 255, 0.6) !important; }
     #sidebar #sidebarSearch::-webkit-search-cancel-button { display: none; }
     #sidebar .sb-hide { display: none !important; }
-    /* Favorit */
-    #sidebar .sb-label-inline {
-        font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55);
-    }
-    #sidebarFavList { max-height: 30vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.35) transparent; }
-    #sidebar .sb-star {
+    {{-- Ikon pin (dulu bintang) — HANYA tampilannya yang berganti, mekanisme
+         penyimpanan (tabel user_menu_favorites, HC-D25) tidak disentuh. --}}
+    #sidebar .sb-pin {
         margin-left: auto; padding: 2px 4px; border-radius: 6px; font-size: 12px; line-height: 1;
         color: rgba(255, 255, 255, 0.75); opacity: 0; cursor: pointer; transition: opacity .15s;
     }
-    #sidebar a.nav-link:hover .sb-star, #sidebar .sb-star:focus, #sidebar .sb-star.on { opacity: 1; }
-    #sidebar .sb-star.on { color: #fde047; }
-    #sidebar .sb-star:hover { background: rgba(255, 255, 255, 0.18); }
-    @media (hover: none) { #sidebar .sb-star { opacity: .55; } #sidebar .sb-star.on { opacity: 1; } }
+    #sidebar a.nav-link:hover .sb-pin, #sidebar .sb-pin:focus, #sidebar .sb-pin.on { opacity: 1; }
+    #sidebar .sb-pin.on { color: #fde047; }
+    #sidebar .sb-pin:hover { background: rgba(255, 255, 255, 0.18); }
+    @media (hover: none) { #sidebar .sb-pin { opacity: .55; } #sidebar .sb-pin.on { opacity: 1; } }
     #sidebarScroll { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.35) transparent; }
     #sidebarScroll::-webkit-scrollbar { width: 6px; }
     #sidebarScroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.35); border-radius: 9999px; }
+    /* Seksi berjudul yang bisa dilipat. Semua baris menu tingkat-seksi disamakan ukurannya di sini
+       (sebelumnya campur py-3/py-2.5, ikon w-4/w-5) tanpa menyentuh baris bersarang di dalam dropdown. */
+    #sidebar .sb-sec { margin-top: .5rem; padding-top: .5rem; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+    #sidebar .sb-sec-btn {
+        display: flex; align-items: center; width: 100%; padding: .375rem 1rem; text-align: left;
+        font-size: .6875rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.62); border-radius: .5rem; transition: color .15s, background-color .15s;
+    }
+    #sidebar .sb-sec-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+    #sidebar .sb-sec-btn:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.5); outline-offset: -2px; }
+    #sidebar .sb-sec-btn .sb-sec-title { flex: 1; }
+    #sidebar .sb-sec-btn i { font-size: .625rem; }
+    #sidebar .sb-sec-body { margin-top: .125rem; }
+    #sidebar .sb-sec-body > a.nav-link,
+    #sidebar .sb-sec-body > div > a.nav-link,
+    #sidebar .sb-sec-body > div > button.nav-link {
+        padding-top: .5rem; padding-bottom: .5rem; border-radius: .5rem; font-size: .875rem; line-height: 1.25rem;
+    }
+    #sidebar .sb-sec-body > div.mb-2 { margin-bottom: .125rem; }
+    #sidebar .sb-sec-body > a.nav-link { margin-bottom: .125rem; }
+    #sidebar .sb-sec-body > a.nav-link .nav-icon,
+    #sidebar .sb-sec-body > div > a.nav-link .nav-icon,
+    #sidebar .sb-sec-body > div > button.nav-link .nav-icon { width: 1.25rem; height: 1.25rem; }
+    #sidebar .sb-sec-body > a.nav-link .nav-icon i,
+    #sidebar .sb-sec-body > div > a.nav-link .nav-icon i,
+    #sidebar .sb-sec-body > div > button.nav-link .nav-icon i { font-size: .875rem; }
+    #sidebar .sb-sec-body > a.nav-link.text-opacity-70,
+    #sidebar .sb-sec-body > div > a.nav-link.text-opacity-70,
+    #sidebar .sb-sec-body > div > button.nav-link.text-opacity-70 { --tw-text-opacity: .8; }
+    /* Penanda menu AKTIF: tegas tetapi NETRAL (putih transparan + garis di tepi kiri) sehingga tetap serasi
+       di warna Accent / gaya sidebar apa pun. Bayangan berwarna-tema bawaan (.nav-link.active) dimatikan di
+       sini. Induk dropdown yang anaknya aktif dibuat lebih lembut agar HALAMAN yang dibuka paling menonjol. */
+    #sidebar a.nav-link.active,
+    #sidebar a.nav-link.bg-opacity-15 {
+        position: relative; background-color: rgba(255, 255, 255, 0.24) !important;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16) !important;
+    }
+    #sidebar a.nav-link.active::before,
+    #sidebar a.nav-link.bg-opacity-15::before {
+        content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 3px;
+        border-radius: 0 3px 3px 0; background: #fff;
+    }
+    #sidebar button.nav-link.active { background-color: rgba(255, 255, 255, 0.11) !important; box-shadow: none !important; }
+    /* Lencana angka "perlu tindakan" — satu gaya untuk CAR, Offering Letter, Ticket Validation. */
+    #sidebar .sb-badge {
+        background: #fde68a; color: #78350f; font-size: 10px; font-weight: 700; line-height: 1;
+        padding: 3px 7px; border-radius: 9999px; min-width: 20px; text-align: center;
+    }
+    /* Titik di judul seksi TERLIPAT yang di dalamnya ada lencana (supaya tindakan tak terlewat). */
+    #sidebar .sb-dot {
+        width: 6px; height: 6px; margin-right: .5rem; border-radius: 9999px; background: #fbbf24;
+        box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.25); flex-shrink: 0;
+    }
+    #sidebar .sb-dot.hidden { display: none; }
+    #sidebar .sb-toggle-all {
+        flex-shrink: 0; width: 2rem; height: 2rem; border-radius: .5rem; font-size: .75rem;
+        color: rgba(255, 255, 255, 0.6); transition: color .15s, background-color .15s;
+    }
+    #sidebar .sb-toggle-all:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
+    #sidebar .sb-toggle-all:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.5); outline-offset: -2px; }
+    /* Ikon sidebar satu keluarga (outline, garis 1.75), mewarisi warna teks. UKURAN ditetapkan di sini sendiri
+       (bukan lewat kelas Tailwind): bila Tailwind dari CDN gagal dimuat (sinyal buruk) ikon tetap sebesar ikon,
+       tidak menjadi raksasa. Baris bersarang (kotak ikon w-3/w-4) memakai 1rem. */
+    .sb-ico {
+        display: block; flex-shrink: 0; width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor;
+        stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .nav-icon.w-3 > .sb-ico, .nav-icon.w-4 > .sb-ico { width: 1rem; height: 1rem; }
+    /* ===== Mode RAIL (ikon + panel kedua). Hanya layar lebar (>=1024px); layar kecil tetap laci penuh. =====
+       Lebar rail = 5rem (setara kelas w-20 yang sudah dipahami halaman Delivery untuk menggeser navigasi seksi).
+       Tombol hamburger di header tetap menyembunyikan/menampilkan sidebar seperti biasa. */
+    .sb-sec-icon, .sb-rail-only { display: none; }
+    .sb-footer { flex-shrink: 0; padding: .5rem .75rem; border-top: 1px solid rgba(255, 255, 255, 0.10); }
+    .sb-footer-btn {
+        display: flex; align-items: center; gap: .5rem; width: 100%; padding: .4rem .6rem; border-radius: .5rem;
+        font-size: .75rem; color: rgba(255, 255, 255, 0.65); transition: color .15s, background-color .15s;
+    }
+    .sb-footer-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.10); }
+    .sb-footer-btn .sb-ico { width: 1.125rem; height: 1.125rem; }
+    @media (max-width: 1023px) { .sb-footer { display: none; } }
+    @media (min-width: 1024px) {
+        html[data-sb-layout="rail"] #sidebar.w-64 { width: 5rem; overflow: visible; }
+        html[data-sb-layout="rail"] #mainContent.lg\:ml-64 { margin-left: 5rem; }
+        html[data-sb-layout="rail"] #sidebar #sidebarScroll { overflow: visible; }
+        html[data-sb-layout="rail"] #sidebar #sidebarHeader { padding-left: .75rem; padding-right: .75rem; }
+        /* logo: tampilkan hanya lambang "E" di kiri */
+        html[data-sb-layout="rail"] #sidebar .sidebar-logo > div { width: 2.35rem; padding: 0; margin: 0 auto; overflow: hidden; }
+        html[data-sb-layout="rail"] #sidebar .sidebar-logo img { width: 7.5rem; max-width: none; max-height: none; }
+        html[data-sb-layout="rail"] #sidebar .sb-search-row { display: none; }
+        html[data-sb-layout="rail"] #sidebar .sb-rail-only {
+            display: flex; align-items: center; justify-content: center; width: 3rem; height: 2.5rem; margin: .75rem auto 0;
+            border-radius: .75rem; color: rgba(255, 255, 255, 0.8); transition: background-color .15s;
+        }
+        html[data-sb-layout="rail"] #sidebar .sb-rail-only:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+        /* Dashboard & Settings: hanya ikon */
+        html[data-sb-layout="rail"] #sidebar .sb-solo .nav-text,
+        html[data-sb-layout="rail"] #sidebar .sb-solo .sb-pin { display: none; }
+        html[data-sb-layout="rail"] #sidebar .sb-solo a.nav-link { justify-content: center; padding-left: 0; padding-right: 0; }
+        /* judul seksi -> tombol ikon */
+        html[data-sb-layout="rail"] #sidebar .sb-sec { margin-top: .25rem; padding-top: .25rem; }
+        html[data-sb-layout="rail"] #sidebar .sb-sec-btn {
+            position: relative; justify-content: center; width: 3rem; height: 2.75rem; margin: 0 auto; padding: 0;
+            border-radius: .75rem; color: rgba(255, 255, 255, 0.82);
+        }
+        html[data-sb-layout="rail"] #sidebar .sb-sec-icon { display: block; width: 1.4rem; height: 1.4rem; }
+        html[data-sb-layout="rail"] #sidebar .sb-sec-title,
+        html[data-sb-layout="rail"] #sidebar .sb-sec-btn > i { display: none; }
+        html[data-sb-layout="rail"] #sidebar .sb-sec.has-active > .sb-sec-btn { background: rgba(255, 255, 255, 0.22); color: #fff; }
+        html[data-sb-layout="rail"] #sidebar .sb-sec.rail-open > .sb-sec-btn { background: rgba(255, 255, 255, 0.16); color: #fff; }
+        html[data-sb-layout="rail"] #sidebar .sb-sec.has-active > .sb-sec-btn::before {
+            content: ''; position: absolute; left: -.5rem; top: 22%; bottom: 22%; width: 3px; border-radius: 0 3px 3px 0; background: #fff;
+        }
+        html[data-sb-layout="rail"] #sidebar .sb-dot { position: absolute; top: .45rem; right: .55rem; margin: 0; }
+        /* panel kedua: isi seksi muncul di sebelah rail */
+        html[data-sb-layout="rail"] #sidebar .sb-sec > .sb-sec-body { display: none !important; }
+        html[data-sb-layout="rail"] #sidebar .sb-sec.rail-open > .sb-sec-body {
+            display: block !important; position: absolute; left: 100%; top: 0; bottom: 0; width: 16.5rem; margin: 0;
+            padding: .75rem; overflow-y: auto; z-index: 60; background: var(--primary-surface);
+            box-shadow: 8px 0 28px rgba(0, 0, 0, 0.28); border-radius: 0 .75rem .75rem 0;
+        }
+        html[data-sb-layout="rail"] #sidebar .sb-sec.rail-open > .sb-sec-body::before {
+            content: attr(data-title); display: block; padding: .25rem .5rem .6rem; font-size: .6875rem; font-weight: 600;
+            letter-spacing: .1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6);
+        }
+        html[data-sb-layout="rail"] #sidebar .sb-footer { padding: .5rem; }
+        html[data-sb-layout="rail"] #sidebar .sb-footer-btn { justify-content: center; width: 3rem; margin: 0 auto; padding: .5rem 0; }
+        html[data-sb-layout="rail"] #sidebar .sb-footer-label { display: none; }
+    }
     /* Label seksi (mis. HUMAN CAPITAL) */
     #sidebar .sb-label {
         font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
         color: rgba(255, 255, 255, 0.55); padding: 14px 16px 4px;
     }
 </style>
+
+<script>
+    /**
+     * Seksi sidebar yang bisa dilipat (default terbuka). Keadaan lipat diingat per peramban (localStorage),
+     * terpisah dari dropdown (sessionStorage). Seksi yang memuat halaman AKTIF tidak pernah dilipat saat
+     * dimuat, supaya menu tempat pengguna berada tidak lenyap. Selama pencarian, kelas `hidden` seksi
+     * dibuka/dikembalikan oleh pencarian sendiri — tidak lewat fungsi ini, jadi tidak tersimpan.
+     */
+    var SB_SEC_KEY = 'ecosystem:sidebar:sections:v1';
+    function sbSecRead() { try { return JSON.parse(localStorage.getItem(SB_SEC_KEY)) || {}; } catch (e) { return {}; } }
+    // ---- Mode RAIL: pilihan per perangkat. Hanya berlaku di layar lebar (CSS) & halaman yang mengizinkan.
+    var SB_LAYOUT_KEY = 'ecosystem:sidebar:layout:v1';
+    function sbIsRail() { return document.documentElement.getAttribute('data-sb-layout') === 'rail'; }
+    function sbRailAllowed() { var a = document.getElementById('sidebar'); return !!a && a.getAttribute('data-rail') !== 'off'; }
+    function sbCloseFlyouts(except) {
+        sbSections().forEach(function (sec) {
+            if (sec !== except && sec.classList.contains('rail-open')) {
+                sec.classList.remove('rail-open');
+                sec.querySelector('.sb-sec-btn').setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+    function sbToggleFlyout(id) {
+        var sec = document.querySelector('#sidebar .sb-sec[data-sec="' + id + '"]');
+        if (!sec) { return; }
+        var open = !sec.classList.contains('rail-open');
+        sbCloseFlyouts(open ? sec : null);
+        sec.classList.toggle('rail-open', open);
+        sec.querySelector('.sb-sec-btn').setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    function sbApplyLayout(rail, persist) {
+        if (rail && !sbRailAllowed()) { rail = false; }
+        if (rail) { document.documentElement.setAttribute('data-sb-layout', 'rail'); }
+        else { document.documentElement.removeAttribute('data-sb-layout'); }
+        sbCloseFlyouts();
+        // tooltip (judul seksi & item mandiri) hanya saat rail; di tampilan penuh teksnya sudah terlihat
+        sbSections().forEach(function (sec) {
+            var btn = sec.querySelector('.sb-sec-btn');
+            var title = sec.querySelector('.sb-sec-title');
+            if (rail) { btn.title = title ? title.textContent.trim() : ''; btn.setAttribute('aria-expanded', 'false'); }
+            else {
+                btn.removeAttribute('title');
+                btn.setAttribute('aria-expanded', sec.querySelector('.sb-sec-body').classList.contains('hidden') ? 'false' : 'true');
+            }
+        });
+        document.querySelectorAll('#sidebar .sb-solo a.nav-link').forEach(function (a) {
+            if (rail) { var t = a.querySelector('.nav-text'); a.title = t ? t.textContent.trim() : ''; }
+            else { a.removeAttribute('title'); }
+        });
+        var tg = document.getElementById('sidebarLayoutToggle');
+        if (tg) {
+            var label = rail ? 'Expand sidebar' : 'Collapse to icons';
+            tg.title = label; tg.setAttribute('aria-label', label); tg.setAttribute('aria-pressed', rail ? 'true' : 'false');
+            var lab = tg.querySelector('.sb-footer-label'); if (lab) { lab.textContent = label; }
+            var use = tg.querySelector('use'); if (use) { use.setAttribute('href', rail ? '#ti-layout-sidebar-left-expand' : '#ti-layout-sidebar-left-collapse'); }
+        }
+        if (persist) { try { localStorage.setItem(SB_LAYOUT_KEY, rail ? 'rail' : 'full'); } catch (e) { /* tak diingat saja */ } }
+        sbRefreshSections();
+    }
+    function toggleSidebarLayout() { sbApplyLayout(!sbIsRail(), true); }
+    function sbRailSearch() {
+        sbApplyLayout(false, true);
+        var i = document.getElementById('sidebarSearch'); if (i) { i.focus(); }
+    }
+    document.addEventListener('click', function (e) { if (sbIsRail() && !(e.target.closest && e.target.closest('#sidebar'))) { sbCloseFlyouts(); } });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sbIsRail()) { sbCloseFlyouts(); } });
+
+    function toggleSidebarSection(id) {
+        if (sbIsRail()) { sbToggleFlyout(id); return; }
+        var body = document.getElementById('sbSec' + id + 'Section');
+        if (!body) { return; }
+        body.classList.toggle('hidden');
+        try {
+            var c = sbSecRead();
+            if (body.classList.contains('hidden')) { c[id] = 1; } else { delete c[id]; }
+            localStorage.setItem(SB_SEC_KEY, JSON.stringify(c));
+        } catch (e) { /* penyimpanan dinonaktifkan: lipat tetap bekerja, hanya tak diingat */ }
+    }
+    function sbSections() { return Array.prototype.slice.call(document.querySelectorAll('#sidebar .sb-sec')); }
+    // Titik "perlu tindakan" pada seksi terlipat + ikon/label tombol buka-tutup semua mengikuti keadaan seksi.
+    function sbRefreshSections() {
+        var anyOpen = false;
+        sbSections().forEach(function (sec) {
+            var body = sec.querySelector('.sb-sec-body');
+            var closed = body.classList.contains('hidden');
+            if (!closed) { anyOpen = true; }
+            var dot = sec.querySelector('.sb-dot');
+            if (dot) { dot.classList.toggle('hidden', !((closed || sbIsRail()) && body.querySelector('.sb-badge:not(.hidden)'))); }
+            sec.classList.toggle('has-active', !!body.querySelector('a.nav-link.active, a.nav-link.bg-opacity-15'));
+        });
+        var btn = document.getElementById('sidebarToggleAll');
+        if (btn) {
+            var label = anyOpen ? 'Collapse all sections' : 'Expand all sections';
+            btn.setAttribute('aria-label', label);
+            btn.title = label;
+            var i = btn.querySelector('i');
+            if (i) { i.className = 'fas ' + (anyOpen ? 'fa-angles-up' : 'fa-angles-down'); }
+        }
+    }
+    function toggleAllSidebarSections() {
+        var secs = sbSections();
+        var collapse = secs.some(function (s) { return !s.querySelector('.sb-sec-body').classList.contains('hidden'); });
+        var c = {};
+        secs.forEach(function (sec) {
+            sec.querySelector('.sb-sec-body').classList.toggle('hidden', collapse);
+            if (collapse) { c[sec.getAttribute('data-sec')] = 1; }
+        });
+        try { localStorage.setItem(SB_SEC_KEY, JSON.stringify(c)); } catch (e) { /* tak diingat saja */ }
+        // Setelah "tutup semua" tampilkan daftar dari atas (posisi gulir lama tak berlaku lagi).
+        var sc = document.getElementById('sidebarScroll');
+        if (collapse && sc) { sc.scrollTop = 0; }
+    }
+    (function () {
+        var c = sbSecRead();
+        Object.keys(c).forEach(function (id) {
+            var body = document.getElementById('sbSec' + id + 'Section');
+            if (body && !body.querySelector('a.nav-link.active, a.nav-link.bg-opacity-15')) { body.classList.add('hidden'); }
+        });
+        sbApplyLayout(sbIsRail(), false); // tooltip/tombol footer sesuai mode yang sudah dipasang lebih awal
+        // Segarkan setiap kali seksi dilipat/dibuka (klik, pencarian, "semua") atau lencana muncul/hilang
+        // (mis. badge Ticket Validation diperbarui skrip halaman lain lewat kelas `hidden`).
+        if (window.MutationObserver) {
+            var ob = new MutationObserver(sbRefreshSections);
+            document.querySelectorAll('#sidebar .sb-sec-body, #sidebar .sb-badge').forEach(function (el) {
+                ob.observe(el, { attributes: true, attributeFilter: ['class'] });
+            });
+        }
+    })();
+</script>
 
 <script>
     /**
@@ -1476,7 +1675,7 @@
                 if (has(a)) { return true; }
                 for (var p = a.parentElement; p && p !== scroll; p = p.parentElement) {
                     var prev = p.previousElementSibling;
-                    if (prev && prev.matches && prev.matches('button.nav-link') && has(prev)) { return true; }
+                    if (prev && prev.matches && prev.matches('button.nav-link, button.sb-sec-btn') && has(prev)) { return true; }
                 }
                 return false;
             }
@@ -1519,23 +1718,21 @@
     })();
 
     /**
-     * FAVORIT (HC-D25). Bintang muncul saat menu di-hover/fokus; klik menyematkan menu ke
-     * bagian "Favorites" di header tetap (maks. window.__sidebarFavoritesMax).
-     *  - Yang disimpan hanya JALUR URL; tampilannya SALINAN tautan yang sudah ada di sidebar
-     *    (sudah disaring izin di server). Jalur yang tautannya tak ada lagi tidak ditampilkan.
+     * FAVORIT (HC-D25, kotak ringkasan dipindah ke Command Center di HC-D36).
+     * Ikon pin muncul saat menu di-hover/fokus (ikonnya sendiri diganti dari
+     * bintang ke thumbtack — lihat komentar makePin() di bawah); klik
+     * menyematkan/melepas menu lewat `/sidebar/favorites` (maks.
+     * window.__sidebarFavoritesMax). Tampilan daftar favorit sendiri kini
+     * HANYA di tab "Favorite" Command Center (Dashboard) — lihat
+     * `window.SidebarFavorites` di bawah, API yang dipakai halaman itu.
+     *  - Yang disimpan hanya JALUR URL; validasinya di server (lihat SidebarFavoriteService).
      *  - Simpan ke server semantik "replace"; bila gagal, keadaan dikembalikan + pemberitahuan.
-     *  - Tidak memakai innerHTML dengan data tersimpan (hanya cloneNode) → tidak ada jalur XSS.
      */
     (function () {
         var scroll = document.getElementById('sidebarScroll');
-        var box = document.getElementById('sidebarFavorites');
-        var list = document.getElementById('sidebarFavList');
-        var toggle = document.getElementById('sidebarFavToggle');
-        var chevron = document.getElementById('sidebarFavChevron');
-        if (!scroll || !box || !list || !window.__sidebarFavoritesEnabled) { return; }
+        if (!scroll || !window.__sidebarFavoritesEnabled) { return; }
 
         var MAX = window.__sidebarFavoritesMax || 6;
-        var COLLAPSED_KEY = 'ecosystem:sidebar:favorites:collapsed';
         var favs = Array.isArray(window.__sidebarFavorites) ? window.__sidebarFavorites.slice() : [];
         var FORBIDDEN = /^\/(api|auth|sidebar)(\/|$)|^\/logout(\/|$)/;
 
@@ -1551,16 +1748,21 @@
 
         var links = Array.prototype.slice.call(scroll.querySelectorAll('a.nav-link')).filter(function (a) { return pathOf(a) !== null; });
 
-        function makeStar(on) {
+        // Ikon pin (bukan bintang) — permintaan pemilik sistem. SATU gaya ikon
+        // untuk kedua keadaan (fa-thumbtack TIDAK punya varian "regular"/garis
+        // di Font Awesome Free, beda dari fa-star yang punya), dibedakan lewat
+        // warna+opacity lewat class `.on` (lihat CSS `.sb-pin.on`) — bukan lewat
+        // ganti ikon, supaya tidak pernah menampilkan ikon yang hilang.
+        function makePin(on) {
             var s = document.createElement('span');
-            s.className = 'sb-star' + (on ? ' on' : '');
+            s.className = 'sb-pin' + (on ? ' on' : '');
             s.setAttribute('role', 'button');
             s.setAttribute('tabindex', '0');
-            var label = on ? 'Remove from favorites' : 'Add to favorites';
+            var label = on ? 'Unpin from sidebar' : 'Pin to sidebar';
             s.setAttribute('aria-label', label);
             s.title = label;
             var i = document.createElement('i');
-            i.className = (on ? 'fas' : 'far') + ' fa-star';
+            i.className = 'fas fa-thumbtack';
             s.appendChild(i);
             return s;
         }
@@ -1570,27 +1772,18 @@
         }
 
         function render() {
-            // Bintang pada tautan utama.
+            // Pin pada tautan utama — satu-satunya tampilan favorit yang tersisa
+            // di sidebar sendiri (HC-D36: kotak ringkasan pindah ke Command Center).
             links.forEach(function (a) {
-                var old = a.querySelector('.sb-star');
+                var old = a.querySelector('.sb-pin');
                 if (old) { old.remove(); }
-                a.appendChild(makeStar(favs.indexOf(pathOf(a)) !== -1));
+                a.appendChild(makePin(favs.indexOf(pathOf(a)) !== -1));
             });
-            // Bagian Favorites: salinan tautan yang MASIH ada (berizin).
-            list.textContent = '';
-            var shown = 0;
-            favs.forEach(function (path) {
-                var src = links.filter(function (a) { return pathOf(a) === path; })[0];
-                if (!src) { return; }
-                var clone = src.cloneNode(true);
-                var oldStar = clone.querySelector('.sb-star');
-                if (oldStar) { oldStar.remove(); }
-                clone.removeAttribute('id');
-                clone.appendChild(makeStar(true));
-                list.appendChild(clone);
-                shown++;
-            });
-            box.classList.toggle('hidden', shown === 0);
+
+            // Beri tahu bagian lain halaman (Command Center di Dashboard) bahwa
+            // daftar favorit berubah, supaya mereka menyegarkan tampilannya sendiri
+            // tanpa reload.
+            window.dispatchEvent(new CustomEvent('sidebar:favorites-changed', { detail: { favorites: favs.slice() } }));
         }
 
         function save(previous) {
@@ -1632,33 +1825,29 @@
             save(previous);
         }
 
-        function starClick(e) {
-            var star = e.target.closest ? e.target.closest('.sb-star') : null;
-            if (!star) { return; }
-            var a = star.closest('a.nav-link');
+        function pinClick(e) {
+            var pin = e.target.closest ? e.target.closest('.sb-pin') : null;
+            if (!pin) { return; }
+            var a = pin.closest('a.nav-link');
             var path = a ? pathOf(a) : null;
             e.preventDefault();
             e.stopPropagation();
             if (path) { toggleFavorite(path); }
         }
         var sidebar = document.getElementById('sidebar');
-        sidebar.addEventListener('click', starClick, true);
+        sidebar.addEventListener('click', pinClick, true);
         sidebar.addEventListener('keydown', function (e) {
-            if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('sb-star')) { starClick(e); }
+            if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('sb-pin')) { pinClick(e); }
         }, true);
 
-        // Bagian Favorites dapat dilipat; pilihan diingat di peramban ini.
-        function applyCollapsed(collapsed) {
-            list.classList.toggle('hidden', collapsed);
-            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-            if (chevron) { chevron.classList.toggle('rotate-180', collapsed); }
-        }
-        try { applyCollapsed(localStorage.getItem(COLLAPSED_KEY) === '1'); } catch (e) { /* opsional */ }
-        toggle.addEventListener('click', function () {
-            var collapsed = !list.classList.contains('hidden');
-            applyCollapsed(collapsed);
-            try { localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0'); } catch (e) { /* opsional */ }
-        });
+        // HC-D36 — API publik minimal supaya Command Center (Dashboard) bisa
+        // menyematkan/melepas menu lewat jalur yang SAMA (kuota, simpan ke
+        // server, kembalikan keadaan bila gagal) tanpa menduplikasi logikanya.
+        window.SidebarFavorites = {
+            toggle: toggleFavorite,
+            list: function () { return favs.slice(); },
+            MAX: MAX
+        };
 
         render();
     })();
@@ -1731,9 +1920,8 @@
         }
         var boxes = scroll.querySelectorAll('[id$="Dropdown"], [id$="Submenu"]');
 
-        // Catat setiap buka/tutup dropdown dengan MENGAMATI kelas `hidden` di DOM. Layout
-        // (dashboard.blade.php) punya fungsi toggle sendiri per grup dengan variabel status
-        // berbeda-beda, jadi mengait ke satu fungsi tidak akan menjangkau semuanya.
+        // Catat setiap buka/tutup dropdown dengan MENGAMATI kelas `hidden` di DOM — cara ini
+        // menjangkau klik, pemulihan, maupun pencarian tanpa mengait ke satu fungsi toggle.
         // Selama pencarian aktif perubahan diabaikan (pencarian membuka grup sementara).
         if (window.MutationObserver) {
             var observer = new MutationObserver(function (mutations) {
@@ -1749,50 +1937,56 @@
             });
             boxes.forEach(function (box) { observer.observe(box, { attributes: true, attributeFilter: ['class'] }); });
         }
-
-        // Layout memegang variabel status sendiri (mis. `isHrGeneralDropdownOpen`) yang
-        // diisi dari URL SETELAH skrip ini berjalan. Bila dropdown sudah dibuka oleh
-        // pemulihan di atas tetapi variabelnya masih `false`, klik pertama pengguna
-        // menjadi "buka lagi" — terasa tidak bereaksi. Sinkronkan variabelnya dengan DOM.
-        document.addEventListener('DOMContentLoaded', function () {
-            boxes.forEach(function (box) {
-                var chevron = chevronOf(box);
-                if (!chevron) { return; }
-                var base = chevron.replace(/Chevron$/, '');
-                var name = 'is' + base.charAt(0).toUpperCase() + base.slice(1) + 'DropdownOpen';
-                if (!/^is[A-Za-z]+DropdownOpen$/.test(name)) { return; }
-                try {
-                    // Eval tidak langsung = lingkup global, menjangkau `var` maupun `let` di layout.
-                    (0, eval)('if (typeof ' + name + ' !== "undefined") { ' + name + ' = ' + (!box.classList.contains('hidden')) + '; }');
-                } catch (e) { /* CSP melarang eval: hanya klik pertama yang tidak bereaksi */ }
-            });
-        });
     })();
 </script>
 
 <script>
-    function toggleSidebarDropdown(dropdownId, chevronId) {
-        const dropdown = document.getElementById(dropdownId);
-        const chevron = document.getElementById(chevronId);
-        if (dropdown) dropdown.classList.toggle('hidden');
-        if (chevron) chevron.classList.toggle('rotate-180');
+    /**
+     * Buka/tutup dropdown sidebar — SATU sumber kebenaran: kelas `hidden` pada wadah dropdown.
+     * Chevron (`rotate-180` bila terbuka) dan `aria-expanded` pada tombolnya DISINKRONKAN
+     * otomatis oleh pengamat di bawah, apa pun yang membuka/menutup wadah (klik, pemulihan
+     * sessionStorage, pencarian menu). Dulu tiap grup punya fungsi + variabel status sendiri
+     * di dashboard.blade.php yang menimpa fungsi di sini — chevron tidak berputar / terbalik.
+     * Argumen kedua (id chevron) dipertahankan agar pemanggil lama tetap valid; diabaikan.
+     */
+    function toggleSidebarDropdown(dropdownId) {
+        var box = document.getElementById(dropdownId);
+        if (box) { box.classList.toggle('hidden'); }
     }
 
-    function toggleCalendarDropdown() { toggleSidebarDropdown('calendarDropdown', 'calendarChevron'); }
-    function toggleReportingDropdown() { toggleSidebarDropdown('reportingDropdown', 'reportingChevron'); }
-    function toggleMasterDropdown() { toggleSidebarDropdown('masterDropdown', 'masterChevron'); }
-    function toggleHrGeneralDropdown() { toggleSidebarDropdown('hrGeneralDropdown', 'hrGeneralChevron'); }
-    function toggleDeliveryDropdown() { toggleSidebarDropdown('deliveryDropdown', 'deliveryChevron'); }
-    function toggleAdminDropdown() { toggleSidebarDropdown('adminDropdown', 'adminChevron'); }
-    function toggleSlaDropdown() { toggleSidebarDropdown('slaDropdown', 'slaChevron'); }
-    function toggleRpmoDropdown() { toggleSidebarDropdown('rpmoSubmenu', 'rpmoChevron'); }
-    function toggleManajemenDropdown() { toggleSidebarDropdown('manajemenDropdown', 'manajemenChevron'); }
+    function toggleReportingProjectDropdown() { toggleSidebarDropdown('reportingProjectDropdown'); }
+    function toggleReportingSupportDropdown() { toggleSidebarDropdown('reportingSupportDropdown'); }
+    function toggleDeliveryDropdown() { toggleSidebarDropdown('deliveryDropdown'); }
+    function toggleAdminDropdown() { toggleSidebarDropdown('adminDropdown'); }
+    function toggleSlaDropdown() { toggleSidebarDropdown('slaDropdown'); }
+    function toggleRpmoDropdown() { toggleSidebarDropdown('rpmoSubmenu'); }
+    function toggleManajemenDropdown() { toggleSidebarDropdown('manajemenDropdown'); }
     // D182 — SATU fungsi generik untuk SELURUH grup ESS yang admin buat lewat
-    // Management -> ESS Settings, bukan satu fungsi bernama per grup seperti
-    // dropdown lain di atas — jumlah dan nama grupnya ditentukan admin saat
-    // dipakai, jadi tidak bisa dituliskan satu per satu di sini lebih dulu.
-    function toggleEssGroupDropdown(groupId) { toggleSidebarDropdown('essGroup' + groupId + 'Dropdown', 'essGroup' + groupId + 'Chevron'); }
-    function toggleMgmtDropdown() { toggleSidebarDropdown('manajemenDropdown', 'manajemenChevron'); }
-    function toggleHrGeneralMgmtDropdown() { toggleSidebarDropdown('hrGeneralMgmtDropdown', 'hrGeneralMgmtChevron'); }
-    function toggleMasterMgmtDropdown() { toggleSidebarDropdown('masterMgmtDropdown', 'masterMgmtChevron'); }
+    // Management -> ESS Settings; jumlah dan nama grupnya ditentukan admin saat dipakai.
+    function toggleEssGroupDropdown(groupId) { toggleSidebarDropdown('essGroup' + groupId + 'Dropdown'); }
+    function toggleMasterMgmtDropdown() { toggleSidebarDropdown('masterMgmtDropdown'); }
+
+    (function () {
+        var scroll = document.getElementById('sidebarScroll');
+        if (!scroll) { return; }
+
+        // Tombol pembuka = saudara SEBELUM wadah; chevron = elemen ber-id `*Chevron` di dalamnya.
+        function sync(box) {
+            var btn = box.previousElementSibling;
+            if (!btn || !btn.querySelector) { return; }
+            var open = !box.classList.contains('hidden');
+            var chevron = btn.querySelector('[id$="Chevron"]');
+            if (chevron) { chevron.classList.toggle('rotate-180', open); }
+            if (btn.tagName === 'BUTTON') { btn.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+        }
+
+        var boxes = scroll.querySelectorAll('[id$="Dropdown"], [id$="Submenu"], [id$="Section"]');
+        boxes.forEach(sync); // keadaan awal (dirender Blade / dipulihkan dari sessionStorage)
+        if (window.MutationObserver) {
+            var observer = new MutationObserver(function (mutations) {
+                mutations.forEach(function (m) { sync(m.target); });
+            });
+            boxes.forEach(function (box) { observer.observe(box, { attributes: true, attributeFilter: ['class'] }); });
+        }
+    })();
 </script>

@@ -174,6 +174,7 @@ class EmployeeController extends Controller
                 'user'                   => $user,
                 'profileSectionHidden'   => $hidden,
                 'profileSectionReadonly' => $readonly,
+                'profileLocked'          => app(\App\Services\HrProfile\ProfileLockService::class)->isLocked((int) $id),
             ]);
 
         } catch (\Exception $e) {
@@ -1321,6 +1322,7 @@ public function getRoles()
             DB::table('employee_role_assignment')->insert($pivotRows);
 
             Cache::forget("perm_slugs_{$id}");
+            Cache::forget("perm_matrix_{$id}"); // dulu terlewat: matriks C/E/D basi ≤ 60 menit
 
             $roles = DB::table('employee_role')->whereIn('id', $roleIds)->select('id', 'name')->get();
 

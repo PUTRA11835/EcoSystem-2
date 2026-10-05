@@ -130,7 +130,7 @@ class OnboardingRulesTest extends TestCase
         $this->assertContains('Active employment contract', $r['missing']);
     }
 
-    public function test_external_hanya_dinilai_pada_butir_profil_dasar(): void
+    public function test_external_dinilai_pada_kontak_identitas_npwp_dan_rekening(): void
     {
         $facts = $this->completeInternal();
         $facts['employee_type'] = 'External';
@@ -140,13 +140,43 @@ class OnboardingRulesTest extends TestCase
 
         $r = OnboardingRules::evaluate($this->items, $this->groups, $facts);
 
-        // 8 butir Internal-saja (NIK, 4 payroll, 2 BPJS, kontrak) tidak berlaku bagi
-        // External; tersisa 9 butir profil dasar + tanggal bergabung.
-        $this->assertSame(9, $r['total']);
-        $this->assertSame(9, $r['done']);
+        // HC-D46: External = HP, email kerja, alamat, KTP, NPWP, 3 butir rekening = 8.
+        $facts['identification'] = [
+            ['identification_type' => 'KTP', 'identification_number' => '3404010101900001'],
+            ['identification_type' => 'NPWP', 'identification_number' => '3404010101900001'],
+        ];
+        $facts['bank'] = [['bank_name' => 'BTN', 'account_number' => '0419876', 'account_holder' => 'Rehan']];
+        $r = OnboardingRules::evaluate($this->items, $this->groups, $facts);
+
+        $this->assertSame(8, $r['total']);
+        $this->assertSame(8, $r['done']);
         $this->assertSame('complete', $r['status']);
-        $this->assertSame(0, $r['groups']['payroll']['total']);
+        $this->assertSame(4, $r['groups']['profile']['total']);   // HP, email, alamat, KTP
+        $this->assertSame(4, $r['groups']['payroll']['total']);   // 3 rekening + NPWP
         $this->assertSame(0, $r['groups']['bpjs']['total']);
+        $this->assertSame(0, $r['groups']['contract']['total']);
+    }
+
+    public function test_external_tanpa_data_pribadi_tetap_dapat_tuntas_dan_kurang_bila_identitas_kosong(): void
+    {
+        $facts = $this->completeInternal();
+        $facts['employee_type'] = 'External';
+        // Data pribadi Internal-saja sengaja dikosongkan: tidak boleh memengaruhi External.
+        $facts['basic'] = array_fill_keys(array_keys($facts['basic']), null);
+
+        $r = OnboardingRules::evaluate($this->items, $this->groups, $facts);
+        $labels = array_column($r['items'], 'label');
+
+        $this->assertNotContains('Date of birth', $labels);
+        $this->assertNotContains('Religion', $labels);
+        $this->assertNotContains('Join date', $labels);
+
+        $facts['identification'] = [];   // tanpa KTP/NPWP
+        $facts['bank'] = [];
+        $r = OnboardingRules::evaluate($this->items, $this->groups, $facts);
+        $this->assertContains('Tax ID (NPWP)', $r['missing']);
+        $this->assertContains('Bank account number', $r['missing']);
+        $this->assertSame('in_progress', $r['status']);
     }
 
     public function test_jenis_karyawan_kosong_diperlakukan_sebagai_internal(): void
@@ -164,5 +194,26 @@ class OnboardingRulesTest extends TestCase
 
         $this->assertSame(94, $r['percent']);
         $this->assertSame('in_progress', $r['status']);
+    }
+
+    /** HC-D62: butir yang hanya diisi HR (kontrak, join date) ditandai agar kartu & penanda Command Center tak menyuruh pegawai mengisinya. */
+    public function test_butir_diurus_hr_ditandai_hr_only(): void
+    {
+        $r = OnboardingRules::evaluate($this->items, $this->groups, $this->completeInternal());
+        $hrOnly = array_values(array_map(fn ($i) => $i['key'], array_filter($r['items'], fn ($i) => $i['hr_only'])));
+        sort($hrOnly);
+
+        $this->assertSame(['contract', 'join_date'], $hrOnly);
+        $this->assertTrue(collect($r['items'])->every(fn ($i) => array_key_exists('hr_only', $i)));
+    }
+
+    /** Teks petunjuk singkat dan tanpa panah (permintaan pemilik 5 Okt 2026). */
+    public function test_petunjuk_singkat_tanpa_panah(): void
+    {
+        foreach ($this->items as $item) {
+            $this->assertNotSame('', trim($item['hint'] ?? ''), "{$item['key']} tanpa petunjuk");
+            $this->assertDoesNotMatchRegularExpression('/→|->|›/u', $item['hint'], "{$item['key']} memuat panah");
+            $this->assertLessThanOrEqual(135, mb_strlen($item['hint']), "{$item['key']} terlalu panjang");
+        }
     }
 }

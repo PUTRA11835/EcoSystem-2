@@ -4,8 +4,10 @@ namespace App\Services\Recruitment;
 
 use App\Enums\RoleId;
 use App\Models\Employee;
+use App\Models\EmployeeBasicData;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use App\Models\EmployeeBasicData;
 
 /**
  * Turns the person an accepted offer was made to into a real, login-capable Employee — the same
@@ -23,15 +25,14 @@ use Illuminate\Support\Facades\Hash;
 class CandidateHireService
 {
     /**
-     * The join date (`employee_basic_data.since_date`, "Since" in Master Employee and "Join Date"
-     * on the profile) is the day the account is created — the date Master Employee, onboarding
-     * and a new contract's start date read it from.
-     *
-     * @param  array{full_name: string, eci: string, email: string, password: string, position?: ?string}  $account
+        /**
+     * @param  array{full_name: string, eci: string, email: string, password: string, position?: ?string, home_base?: ?string}  $account
+     * @param  string|null  $joinDate  join date (Y-m-d) from the offering letter -> employee_basic_data.since_date;
+     *                                 falls back to today when the offer has none.
      */
-    public function hire(array $account): Employee
+    public function hire(array $account, ?string $joinDate = null): Employee
     {
-        return DB::transaction(function () use ($account) {
+        return DB::transaction(function () use ($account, $joinDate) {
             $employeeId = DB::table('employee')->insertGetId([
                 'eci'        => $account['eci'],
                 'is_active'  => true,
@@ -59,7 +60,9 @@ class CandidateHireService
                 'search_term_1' => strtoupper($firstName),
                 'search_term_2' => $lastName ? strtoupper($lastName) : null,
                 'nick_name'     => $this->uniqueNickName($account['full_name'], $account['eci']),
-                'since_date'    => now()->toDateString(),
+                'since_date'    => $joinDate ?? now()->toDateString(),
+                'home_base'     => $account['home_base'] ?? null,
+                'employee_type' => EmployeeBasicData::deriveEmployeeType($account['home_base'] ?? null),
                 'position'      => $account['position'] ?? null,
                 'created_by'    => session('user.eci', 'Recruitment'),
                 'created_on'    => now(),

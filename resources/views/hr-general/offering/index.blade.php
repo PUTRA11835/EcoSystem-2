@@ -168,7 +168,7 @@
                                         @include($action, [
                                             'icon' => 'check', 'tone' => 'green', 'label' => 'Candidate accepted',
                                             'onclick' => 'openAcceptModal(JSON.parse(this.dataset.payload))',
-                                            'data' => ['id' => $offer->id, 'name' => $offer->candidate_name, 'email' => $offer->candidate_email],
+                                            'data' => ['id' => $offer->id, 'name' => $offer->candidate_name, 'email' => $offer->candidate_email, 'joining_date' => $offer->joining_date?->toDateString(), 'position' => $offer->position_title],
                                         ])
                                         @include($action, [
                                             'icon' => 'xmark', 'tone' => 'red', 'label' => 'Candidate rejected',
@@ -222,8 +222,8 @@
                         email and the default password below. When they first sign in with it, they are asked to set their own password, then they can start onboarding.
                     </p>
                     <p class="text-xs text-gray-500">
-                        Their <strong>join date</strong> in the employee master data is set to <strong>today ({{ now()->format('d M Y') }})</strong>, the day the account is created,
-                        and their position to the one on the letter. A new contract starts from that join date.
+                        Their <strong>join date</strong> in the employee master data is taken from the Join Date below, and their position from the one on the letter.
+                        A new contract starts from that join date.
                     </p>
                     <div>
                         <label for="acceptEci" class="block text-xs font-semibold text-gray-600 mb-1">Employee ID (ECI) <span class="text-red-500">*</span></label>
@@ -238,6 +238,26 @@
                     <div>
                         <label for="acceptEmail" class="block text-xs font-semibold text-gray-600 mb-1">Login Email <span class="text-red-500">*</span></label>
                         <input type="email" name="email" id="acceptEmail" required maxlength="150" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label for="acceptJoinDate" class="block text-xs font-semibold text-gray-600 mb-1">Join Date <span class="text-red-500">*</span></label>
+                        <input type="date" name="joining_date" id="acceptJoinDate" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                        <p class="text-[11px] text-gray-400 mt-1">Filled in from the Start Date on the offering letter. It becomes the employee's join date (Since Date), which only HR can change afterwards.</p>
+                    </div>
+                    <div>
+                        <label for="acceptHomeBase" class="block text-xs font-semibold text-gray-600 mb-1">Home Base <span class="text-red-500">*</span></label>
+                        <select name="home_base" id="acceptHomeBase" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">Select home base…</option>
+                            @foreach(\App\Enums\HomeBase::options() as $homeBase)
+                                <option value="{{ $homeBase }}">{{ $homeBase }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-[11px] text-gray-400 mt-1">The office this person works from. "Others" marks an External employee; every other choice is Internal.</p>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-semibold text-gray-600 mb-1">Position</span>
+                        <p id="acceptPosition" class="w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700">—</p>
+                        <p class="text-[11px] text-gray-400 mt-1">Taken from the offering letter.</p>
                     </div>
                     <div>
                         <label for="acceptPassword" class="block text-xs font-semibold text-gray-600 mb-1">Default Password <span class="text-red-500">*</span></label>
@@ -342,6 +362,9 @@
             document.getElementById('acceptEci').value = keep ? offer.eci ?? '' : '';
             document.getElementById('acceptFullName').value = keep ? offer.full_name ?? '' : offer.name ?? '';
             document.getElementById('acceptEmail').value = offer.email ?? '';
+            document.getElementById('acceptJoinDate').value = offer.joining_date ?? '';
+            document.getElementById('acceptHomeBase').value = keep ? offer.home_base ?? '' : '';
+            document.getElementById('acceptPosition').textContent = offer.position || '—';
             // A password is never sent back to the page after a failed save — it is typed or generated again.
             document.getElementById('acceptPassword').value = '';
             document.getElementById('acceptPassword').type = 'password';
@@ -380,7 +403,9 @@
         @if(old('_modal') === 'accept')
             document.addEventListener('DOMContentLoaded', () => openAcceptModal({{ Js::from([
                 'id' => old('_offer_id'), 'name' => $offers->firstWhere('id', (int) old('_offer_id'))?->candidate_name,
-                'eci' => old('eci'), 'full_name' => old('full_name'), 'email' => old('email'),
+                'eci' => old('eci'), 'full_name' => old('full_name'), 'email' => old('email'), 'home_base' => old('home_base'),
+                'position' => $offers->firstWhere('id', (int) old('_offer_id'))?->position_title,
+                'joining_date' => old('joining_date') ?? $offers->firstWhere('id', (int) old('_offer_id'))?->joining_date?->toDateString(),
             ]) }}, true));
         @endif
     </script>

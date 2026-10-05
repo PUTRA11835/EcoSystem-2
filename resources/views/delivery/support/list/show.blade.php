@@ -2472,12 +2472,13 @@ function syncNavWithSidebar() {
     const sidebar    = document.getElementById('sidebar');
     const sectionNav = document.getElementById('sectionNav');
     if (!sidebar || !sectionNav) return;
-    sectionNav.style.left = sidebar.classList.contains('w-20') ? '80px' : '256px';
+    sectionNav.style.left = (sidebar.classList.contains('w-20') || document.documentElement.getAttribute('data-sb-layout') === 'rail') ? '80px' : '256px';
 }
 
 const supSidebarEl = document.getElementById('sidebar');
 if (supSidebarEl) {
     new MutationObserver(syncNavWithSidebar).observe(supSidebarEl, { attributes: true, attributeFilter: ['class'] });
+    new MutationObserver(syncNavWithSidebar).observe(document.documentElement, { attributes: true, attributeFilter: ['data-sb-layout'] });
 }
 syncNavWithSidebar();
 </script>

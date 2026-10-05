@@ -10,6 +10,8 @@
  * Berkas ini satu-satunya tempat mengubah apa yang dianggap "lengkap".
  *
  * Bentuk mengikuti panel "Status Kesiapan Data" pada aplikasi acuan (ESH):
+ * `field` = selektor kolom isian pada halaman master/My Profile (kartu kesiapan data memakainya untuk
+ * "klik → langsung ke kolom"); `prefill` = nilai dropdown yang diisi otomatis (mis. tipe identitas NPWP).
  * Tiap butir punya `hint` (satu baris cara mengisi, HC-D31) yang tampil di banner My Profile
  * dan halaman detail Onboarding. Ubah teks di sini tanpa migrasi.
  *
@@ -24,10 +26,17 @@
  *   bank             salah satu baris employee_bank berisi kolom  (column)
  *   contract_active  ada kontrak aktif yang punya start_date
  *
- * `applies` = jenis karyawan yang dikenai butir. Default: butir identitas resmi,
- * payroll, BPJS, dan kontrak HANYA untuk Internal — karyawan External (konsultan,
- * saat ini 0% memiliki KTP/rekening di sistem) hanya dinilai pada data profil dasar.
- * Ini nilai bawaan sampai pemilik memutuskan (keputusan M5).
+ * `applies` = jenis karyawan yang dikenai butir.
+ *   Internal (17): semua butir.
+ *   External (8, HC-D46 / keputusan E2): kontak (HP, email kerja, alamat), identitas (KTP),
+ *   NPWP, dan rekening (bank, nomor, pemilik) — mengikuti form konsultan ESH. Data pribadi
+ *   (tanggal/tempat lahir, gender, agama, status nikah), tanggal bergabung, BPJS, dan
+ *   kontrak karyawan tidak diminta dari konsultan. (Aturan lama 9 butir — HC-D17 — keliru:
+ *   diturunkan dari data yang masih kosong, bukan dari kebutuhan.)
+ *
+ * `hr_only` = butir yang HANYA diisi HR (mis. join date dari offering letter/kontrak). Pegawai tidak bisa
+ *   mengisinya, jadi kartu Data readiness menampilkannya sebagai "HR" (tidak bisa diklik) dan penanda
+ *   "needs attention" di Command Center tidak menghitungnya untuk pegawai.
  *
  * `section` = kunci tab pada halaman master employee (?section=...) untuk tautan
  * "lengkapi sekarang".
@@ -47,61 +56,79 @@ return [
     'items' => [
         // ── Profile ─────────────────────────────────────────────────────────
         ['key' => 'gender',        'group' => 'profile', 'label' => 'Gender',
-         'hint' => 'Basic Data tab → Gender.',
-         'source' => 'basic', 'column' => 'gender', 'section' => 'basic-data', 'applies' => $both],
+         'hint' => 'Choose your gender on the Basic Data tab.',
+         'field' => '#gender',
+         'source' => 'basic', 'column' => 'gender', 'section' => 'basic-data', 'applies' => $internal],
         ['key' => 'birth_place',   'group' => 'profile', 'label' => 'Place of birth',
-         'hint' => 'Basic Data tab → Birth Place (city, as on your ID card).',
-         'source' => 'basic', 'column' => 'birth_place', 'section' => 'basic-data', 'applies' => $both],
+         'hint' => 'Enter your city of birth, as shown on your ID card, on the Basic Data tab.',
+         'field' => '#birthPlace',
+         'source' => 'basic', 'column' => 'birth_place', 'section' => 'basic-data', 'applies' => $internal],
         ['key' => 'birth_date',    'group' => 'profile', 'label' => 'Date of birth',
-         'hint' => 'Basic Data tab → Birth Date.',
-         'source' => 'basic', 'column' => 'birth_date', 'section' => 'basic-data', 'applies' => $both],
+         'hint' => 'Enter your date of birth on the Basic Data tab.',
+         'field' => '#birthDate',
+         'source' => 'basic', 'column' => 'birth_date', 'section' => 'basic-data', 'applies' => $internal],
         ['key' => 'religion',      'group' => 'profile', 'label' => 'Religion',
-         'hint' => 'Basic Data tab → Religion.',
-         'source' => 'basic', 'column' => 'religion', 'section' => 'basic-data', 'applies' => $both],
+         'hint' => 'Choose your religion on the Basic Data tab.',
+         'field' => '#religion',
+         'source' => 'basic', 'column' => 'religion', 'section' => 'basic-data', 'applies' => $internal],
         ['key' => 'marital',       'group' => 'profile', 'label' => 'Marital status',
-         'hint' => 'Basic Data tab → Marital Status.',
-         'source' => 'basic', 'column' => 'marital_status', 'section' => 'basic-data', 'applies' => $both],
+         'hint' => 'Choose your marital status on the Basic Data tab.',
+         'field' => '#maritalStatus',
+         'source' => 'basic', 'column' => 'marital_status', 'section' => 'basic-data', 'applies' => $internal],
         ['key' => 'cell_phone',    'group' => 'profile', 'label' => 'Mobile phone',
-         'hint' => 'Address tab → Cell Phone (an active number, e.g. 0812…).',
+         'hint' => 'Add an active mobile number (for example 0812…) on the Address tab.',
+         'field' => '#cellPhone',
          'source' => 'address_any', 'column' => 'cell_phone', 'section' => 'address', 'applies' => $both],
         ['key' => 'email_work',    'group' => 'profile', 'label' => 'Work email',
-         'hint' => 'Address tab → Email (Work): your company email address.',
+         'hint' => 'Add your company email address on the Address tab.',
+         'field' => '#emailWork',
          'source' => 'address_any', 'column' => 'email_work', 'section' => 'address', 'applies' => $both],
         ['key' => 'address',       'group' => 'profile', 'label' => 'Home address',
-         'hint' => 'Address tab → Street: your home address (as on your ID card or where you live).',
+         'hint' => 'Enter your home address, as on your ID card or where you live, on the Address tab.',
+         'field' => '#street',
          'source' => 'address_any', 'column' => 'street', 'section' => 'address', 'applies' => $both],
         ['key' => 'nik',           'group' => 'profile', 'label' => 'National ID (NIK / KTP)',
-         'hint' => 'Identification tab → Type: ID Card (KTP), then the 16-digit NIK printed on your KTP.',
-         'source' => 'identification', 'types' => ['KTP'], 'section' => 'identification', 'applies' => $internal],
+         'hint' => 'On the Identification tab, select ID Card (KTP) and enter the 16-digit NIK printed on it.',
+         'field' => '#identificationNumber', 'prefill' => ['identificationType' => 'KTP'],
+         'source' => 'identification', 'types' => ['KTP'], 'section' => 'identification', 'applies' => $both],
 
         // ── Payroll ─────────────────────────────────────────────────────────
         ['key' => 'bank_name',     'group' => 'payroll', 'label' => 'Bank name',
-         'hint' => 'Bank Account tab → Bank Name.',
-         'source' => 'bank', 'column' => 'bank_name', 'section' => 'bank', 'applies' => $internal],
+         'hint' => 'Select your bank on the Bank Account tab.',
+         'field' => '#bankName',
+         'source' => 'bank', 'column' => 'bank_name', 'section' => 'bank', 'applies' => $both],
         ['key' => 'bank_account',  'group' => 'payroll', 'label' => 'Bank account number',
-         'hint' => 'Bank Account tab → Account Number (digits only, as on your passbook or banking app).',
-         'source' => 'bank', 'column' => 'account_number', 'section' => 'bank', 'applies' => $internal],
+         'hint' => 'Enter your account number (digits only) on the Bank Account tab.',
+         'field' => '#bankAccountNumber',
+         'source' => 'bank', 'column' => 'account_number', 'section' => 'bank', 'applies' => $both],
         ['key' => 'bank_holder',   'group' => 'payroll', 'label' => 'Account holder name',
-         'hint' => 'Bank Account tab → Account Holder (name exactly as registered at the bank).',
-         'source' => 'bank', 'column' => 'account_holder', 'section' => 'bank', 'applies' => $internal],
+         'hint' => 'Enter the account holder name exactly as registered at your bank, on the Bank Account tab.',
+         'field' => '#bankAccountHolder',
+         'source' => 'bank', 'column' => 'account_holder', 'section' => 'bank', 'applies' => $both],
         ['key' => 'npwp',          'group' => 'payroll', 'label' => 'Tax ID (NPWP)',
-         'hint' => 'Identification tab → Type: Tax ID (NPWP), then your 15–16 digit number. Pick this exact type — “Other” is not counted.',
-         'source' => 'identification', 'types' => ['NPWP'], 'section' => 'identification', 'applies' => $internal],
+         'hint' => 'On the Identification tab, select Tax ID (NPWP) and enter your 15 or 16 digit number. The type “Other” is not counted.',
+         'field' => '#identificationNumber', 'prefill' => ['identificationType' => 'NPWP'],
+         'source' => 'identification', 'types' => ['NPWP'], 'section' => 'identification', 'applies' => $both],
 
         // ── BPJS ────────────────────────────────────────────────────────────
         ['key' => 'bpjs_health',   'group' => 'bpjs', 'label' => 'BPJS Kesehatan number',
-         'hint' => 'Identification tab → Type: BPJS Kesehatan, then the number on your BPJS Kesehatan card. Pick this exact type — “Other” is not counted.',
+         'hint' => 'On the Identification tab, select BPJS Kesehatan and enter the number on your card. The type “Other” is not counted.',
+         'field' => '#identificationNumber', 'prefill' => ['identificationType' => 'BPJS_KESEHATAN'],
          'source' => 'identification', 'types' => ['BPJS_KESEHATAN'], 'section' => 'identification', 'applies' => $internal],
         ['key' => 'bpjs_employ',   'group' => 'bpjs', 'label' => 'BPJS Ketenagakerjaan (KPJ) number',
-         'hint' => 'Identification tab → Type: BPJS Ketenagakerjaan, then your KPJ number. Pick this exact type — “Other” is not counted.',
+         'hint' => 'On the Identification tab, select BPJS Ketenagakerjaan and enter your KPJ number. The type “Other” is not counted.',
+         'field' => '#identificationNumber', 'prefill' => ['identificationType' => 'BPJS_KETENAGAKERJAAN'],
          'source' => 'identification', 'types' => ['BPJS_KETENAGAKERJAAN'], 'section' => 'identification', 'applies' => $internal],
 
         // ── Contract ────────────────────────────────────────────────────────
         ['key' => 'contract',      'group' => 'contract', 'label' => 'Active employment contract',
-         'hint' => 'Maintained by HR. Contact HR if your active contract is missing.',
+         'hint' => 'Managed by HR. Please contact HR if your active contract is missing.',
+         'hr_only' => true,
          'source' => 'contract_active', 'section' => 'contract', 'applies' => $internal],
         ['key' => 'join_date',     'group' => 'contract', 'label' => 'Join date',
-         'hint' => 'Maintained by HR (Basic Data → Since Date). Contact HR if it is missing.',
-         'source' => 'basic', 'column' => 'since_date', 'section' => 'basic-data', 'applies' => $both],
+         'hint' => 'Set by HR when your offer is accepted. Please contact HR if it is missing.',
+         'field' => '#sinceDate',
+         'hr_only' => true,
+         'source' => 'basic', 'column' => 'since_date', 'section' => 'basic-data', 'applies' => $internal],
     ],
 ];

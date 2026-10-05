@@ -12,27 +12,65 @@ class NotificationController extends Controller
     /**
      * GET /notifications
      * Web page — list all notifications for the current employee.
+     *
+     * Mendukung `?tab=unread|read|all` (bawaan: all), `?q=` pencarian teks
+     * bebas pada kolom `preview`, dan `?type=pending_approval` — ditambahkan
+     * Keputusan HC-D39/HC-D40 untuk menyamai pola "Pusat Notifikasi" ESH
+     * (kartu ringkasan + tab + cari) DAN menjadi tujuan klik langsung dari
+     * kotak "N Pending Approval" di Command Center (Dashboard): filter
+     * `type=pending_approval` mempersempit daftar ke 5 tipe `*_pending_approval`
+     * — dokumen yang BENAR-BENAR menunggu tindakan orang ini, bukan seluruh
+     * riwayat notifikasi. Hitungan Unread/Total pada kartu ringkasan dihitung
+     * dari SELURUH baris milik karyawan ini (dalam cakupan filter yang sama),
+     * bukan hanya halaman yang sedang tampil.
      */
-    public function index()
+    public function index(Request $request)
     {
         $sessionUser = session('user');
         if (!$sessionUser) {
             return redirect()->route('login');
         }
 
-        $employeeId = $sessionUser['id'];
+        $employeeId     = $sessionUser['id'];
+        $tab            = in_array($request->query('tab'), ['unread', 'read'], true) ? $request->query('tab') : 'all';
+        $search         = trim((string) $request->query('q', ''));
+        $pendingOnly    = $request->query('type') === 'pending_approval';
 
-        $notifications = Notification::with([
+        $base = Notification::where('employee_id', $employeeId)
+            ->when($pendingOnly, fn ($q) => $q->where('type', 'like', '%_pending_approval'));
+
+        $unreadCount = (clone $base)->where('is_read', false)->count();
+        $totalCount  = (clone $base)->count();
+
+        $query = Notification::with([
                 'ticket:ticket_id,ticket_number,customer_id',
                 'ticket.customer:customer_id,customer_code',
             ])
             ->where('employee_id', $employeeId)
-            ->orderBy('created_at', 'desc')
-            ->paginate(30);
+            ->when($pendingOnly, fn ($q) => $q->where('type', 'like', '%_pending_approval'));
+
+        if ($tab === 'unread') {
+            $query->where('is_read', false);
+        } elseif ($tab === 'read') {
+            $query->where('is_read', true);
+        }
+
+        if ($search !== '') {
+            $query->where('preview', 'like', '%' . $search . '%');
+        }
+
+        $notifications = $query->orderBy('created_at', 'desc')
+            ->paginate(30)
+            ->withQueryString();
 
         return view('notifications.index', [
             'user'          => $sessionUser,
             'notifications' => $notifications,
+            'tab'           => $tab,
+            'search'        => $search,
+            'pendingOnly'   => $pendingOnly,
+            'unreadCount'   => $unreadCount,
+            'totalCount'    => $totalCount,
         ]);
     }
 

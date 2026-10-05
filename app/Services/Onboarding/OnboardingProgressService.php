@@ -3,6 +3,7 @@
 namespace App\Services\Onboarding;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Progres kelengkapan data master employee (menu Onboarding).
@@ -33,8 +34,13 @@ class OnboardingProgressService
         $items  = config('hc_onboarding.items', []);
         $groups = config('hc_onboarding.groups', []);
 
+        // H3.9: status kepegawaian dari profil HR. Dijaga bila tabelnya belum ada (kode dirilis sebelum
+        // migrasi) agar halaman Onboarding tidak ikut rusak — kolom Status saja yang kosong.
+        $hasProfile = Schema::hasTable('employee_hr_profile');
+
         $base = DB::table('employee as e')
             ->join('employee_basic_data as b', 'b.employee_id', '=', 'e.employee_id')
+            ->when($hasProfile, fn ($q) => $q->leftJoin('employee_hr_profile as hp', 'hp.employee_id', '=', 'e.employee_id'))
             ->where('e.is_active', 1)
             ->where(function ($q) {
                 $q->where('b.deletion_flag', 0)->orWhereNull('b.deletion_flag');
@@ -46,6 +52,8 @@ class OnboardingProgressService
                 'b.position', 'b.department', 'b.employee_type',
                 'b.gender', 'b.religion', 'b.marital_status',
                 'b.birth_date', 'b.birth_place', 'b.since_date',
+                $hasProfile ? 'hp.employment_status' : DB::raw('NULL as employment_status'),
+                $hasProfile ? 'hp.locked_at' : DB::raw('NULL as locked_at'),
             ])
             ->orderBy('b.first_name')
             ->get();
@@ -90,6 +98,8 @@ class OnboardingProgressService
                 'department'  => OnboardingRules::filled($row->department) ? $row->department : null,
                 'type'        => OnboardingRules::filled($row->employee_type) ? $row->employee_type : OnboardingRules::DEFAULT_TYPE,
                 'join_date'   => $row->since_date,
+                'employment_status' => $row->employment_status ?? null,
+                'locked_at'   => $row->locked_at ?? null,
             ];
 
             $summary['employees']++;

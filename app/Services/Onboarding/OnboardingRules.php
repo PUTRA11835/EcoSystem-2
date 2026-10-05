@@ -129,6 +129,9 @@ class OnboardingRules
                 'label'   => $item['label'],
                 'section' => $item['section'] ?? null,
                 'hint'    => $item['hint'] ?? null,
+                'field'   => $item['field'] ?? null,
+                'prefill' => $item['prefill'] ?? null,
+                'hr_only' => (bool) ($item['hr_only'] ?? false),
                 'done'    => $isDone,
             ];
 

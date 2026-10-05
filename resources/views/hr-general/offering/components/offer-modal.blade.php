@@ -108,8 +108,9 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
                     <div>
-                        <label for="olJoining" class="{{ $label }}">Start Date</label>
-                        <input type="date" name="joining_date" id="olJoining" class="{{ $input }}">
+                        <label for="olJoining" class="{{ $label }}">Start Date <span class="text-red-500">*</span></label>
+                        <input type="date" name="joining_date" id="olJoining" required class="{{ $input }}">
+                        <p class="text-[11px] text-gray-400 mt-1">Becomes the employee's join date when the offer is accepted.</p>
                     </div>
                     <div class="sm:pt-6">
                         <label class="inline-flex items-center gap-2.5 cursor-pointer text-sm text-gray-700">
