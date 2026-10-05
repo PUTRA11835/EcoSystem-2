@@ -36,11 +36,22 @@
                     <input type="text" name="offer_number_format" id="offer_number_format" required maxlength="100"
                         value="{{ $setting('offer_number_format') }}" class="{{ $input }} font-mono">
                     <p class="{{ $help }}">
-                        <code>{seq}</code> running number, restarts every year ·
+                        <code>{seq}</code> running number, restarts every year and continues across languages ·
+                        <code>{lang}</code> the letter's language: IN (Indonesian) or EN (English) ·
                         <code>{day}</code> <code>{month}</code> <code>{year}</code> <code>{yy}</code> of the offer date ·
                         <code>{roman}</code> month in Roman numerals. Everything else is printed as typed.
                     </p>
                     <p class="text-[11px] text-gray-600 mt-1">Next letter dated today: <strong id="numberPreview" class="font-mono"></strong></p>
+                    {{-- What is shared with the letters of Letter Templates, and what is not. --}}
+                    <div class="mt-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-[11px] text-blue-900 leading-relaxed">
+                        <p class="font-semibold"><i class="fas fa-circle-info mr-1"></i> How this relates to Letter Templates → Settings</p>
+                        <ul class="mt-1 list-disc list-inside space-y-0.5">
+                            <li><strong>The format is its own</strong> — this one. Changing the number format in Letter Templates does not change offering letter numbers.</li>
+                            <li><strong>The running number <code>{seq}</code> is shared</strong> with every other outgoing letter, so one register has no two letters with the same number.
+                                After an employment certificate takes 005, the next offering letter gets 006.</li>
+                            <li><strong>What <code>{lang}</code> prints</strong> (IN / EN) is set once in Letter Templates → Settings, for all letters.</li>
+                        </ul>
+                    </div>
                 </div>
                 <div>
                     <label for="offer_number_digits" class="{{ $label }}">Digits of the Running Number <span class="text-red-500">*</span></label>
@@ -64,15 +75,6 @@
                     <p class="{{ $help }}">How long the candidate has to sign and return the letter.</p>
                 </div>
                 <div>
-                    <label for="offer_default_benefits" class="{{ $label }}">Default Benefits</label>
-                    <input type="text" name="offer_default_benefits" id="offer_default_benefits" maxlength="500"
-                        value="{{ $setting('offer_default_benefits') }}" class="{{ $input }}">
-                    <p class="{{ $help }}">Filled into "Benefits" of a new letter; it can be changed per letter.</p>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 border-t border-gray-100 pt-4">
-                <div>
                     <label for="offer_base_salary_min_percent" class="{{ $label }}">Minimum Base Salary Percentage <span class="text-red-500">*</span></label>
                     <div class="relative">
                         <input type="number" name="offer_base_salary_min_percent" id="offer_base_salary_min_percent" required min="0" max="100" step="0.01"
@@ -81,11 +83,40 @@
                     </div>
                     <p class="{{ $help }}">Base salary as a share of base salary + fixed allowances. A letter below it is flagged while it is written, not blocked.</p>
                 </div>
-                <div class="lg:col-span-2">
-                    <label for="offer_legal_basis" class="{{ $label }}">Legal Basis <span class="text-red-500">*</span></label>
-                    <input type="text" name="offer_legal_basis" id="offer_legal_basis" required maxlength="255"
-                        value="{{ $setting('offer_legal_basis') }}" class="{{ $input }}">
-                    <p class="{{ $help }}">The regulation cited under the percentage in the letter form.</p>
+            </div>
+
+            <div class="border-t border-gray-100 pt-4">
+                <span id="ratioNoteLabel" class="{{ $label }}">Base Salary Percentage Note <span class="text-red-500">*</span></span>
+                <div class="border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-indigo-200 {{ $canEdit ? 'bg-white' : 'bg-gray-50' }}">
+                    @if($canEdit)
+                        <div class="flex flex-wrap items-center gap-1 px-2 py-1.5 border-b border-gray-100 bg-gray-50 rounded-t-lg" role="toolbar" aria-label="Formatting">
+                            @foreach(['bold' => 'Bold (Ctrl+B)', 'italic' => 'Italic (Ctrl+I)', 'underline' => 'Underline (Ctrl+U)'] as $command => $tip)
+                                <button type="button" data-command="{{ $command }}" title="{{ $tip }}" aria-label="{{ $tip }}" aria-pressed="false"
+                                    class="w-7 h-7 inline-flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-200 aria-pressed:bg-indigo-100 aria-pressed:text-indigo-700">
+                                    <i class="fas fa-{{ $command }} text-xs"></i>
+                                </button>
+                            @endforeach
+                            <span class="w-px h-5 bg-gray-200 mx-1"></span>
+                            <span class="text-[11px] text-gray-500 mr-0.5">Insert:</span>
+                            @foreach($ratioPlaceholders as $placeholder => $meaning)
+                                <button type="button" data-insert="{{ $placeholder }}" title="{{ $meaning }}"
+                                    class="px-2 py-0.5 rounded-md border border-gray-200 bg-white text-[11px] font-mono text-gray-600 hover:bg-gray-100">{{ $placeholder }}</button>
+                            @endforeach
+                        </div>
+                    @endif
+                    <div id="ratioNoteEditor" role="textbox" aria-multiline="true" aria-labelledby="ratioNoteLabel" @if($canEdit) contenteditable="true" @endif
+                        class="min-h-[5.5rem] px-3 py-2 text-sm text-gray-700 leading-relaxed focus:outline-none">{!! $ratioNote !!}</div>
+                </div>
+                <input type="hidden" name="offer_ratio_note" id="offer_ratio_note">
+                <p class="{{ $help }}">
+                    Shown under the base salary percentage in the offering letter form. The placeholders follow this page by themselves:
+                    @foreach($ratioPlaceholders as $placeholder => $meaning)
+                        <code>{{ $placeholder }}</code> {{ strtolower($meaning) }}{{ $loop->last ? '.' : ',' }}
+                    @endforeach
+                </p>
+                <div class="mt-2 rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-[11px] text-gray-600">
+                    <span class="font-semibold text-gray-700">As it shows now, with the saved settings and components:</span>
+                    <div class="mt-0.5 leading-relaxed">{!! $ratioPreview !!}</div>
                 </div>
             </div>
         </fieldset>
@@ -102,7 +133,8 @@
         <div class="px-5 py-4 border-b border-gray-100">
             <h3 class="text-sm font-bold text-gray-800">Compensation Components</h3>
             <p class="text-[11px] text-gray-400 mt-0.5">
-                The amounts a letter can carry, under the name printed on it. A fixed allowance counts in the base salary percentage; a variable one does not.
+                The amounts a letter can carry, under the name printed on it — an English letter prints the English name, or the name itself when that is empty.
+                A fixed allowance counts in the base salary percentage; a variable one does not.
                 Every change is saved as you make it. An inactive component disappears from new letters but stays on the letters that already carry it.
             </p>
         </div>
@@ -112,10 +144,12 @@
                 <li class="px-5 py-2.5 flex items-center gap-2">
                     @if($canEdit)
                         <form action="{{ route('general.recruitment.offers.settings.components.update', $component) }}" method="POST" data-autosave
-                            class="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_11rem_6.5rem] sm:items-center gap-x-3 gap-y-2">
+                            class="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem_7.5rem] sm:items-center gap-x-3 gap-y-2">
                             @csrf
                             <input type="text" name="name" value="{{ $component->name }}" required maxlength="100" aria-label="Component name"
                                 class="{{ $rowInput }} {{ $component->is_active ? '' : 'text-gray-400' }}">
+                            <input type="text" name="name_en" value="{{ $component->name_en }}" maxlength="100" placeholder="English name" aria-label="{{ $component->name }} in English"
+                                class="{{ $rowInput }}">
 
                             @if($component->isBase())
                                 <span class="text-[11px] font-semibold text-gray-500"><i class="fas fa-lock text-[9px] mr-1"></i> Base salary</span>
@@ -129,18 +163,16 @@
                                     </select>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <label class="flex items-center gap-1 text-[11px] text-gray-600" title="Offered on new letters">
-                                        <input type="checkbox" name="is_active" value="1" @checked($component->is_active)
-                                            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                        Active
-                                    </label>
+                                    @include('hr-general.recruitment.components.toggle-switch', [
+                                        'toggleName' => 'is_active', 'toggleChecked' => $component->is_active, 'toggleTitle' => 'Offered on new letters',
+                                    ])
                                     <span class="w-4 text-center text-xs" data-save-state aria-live="polite"></span>
                                 </div>
                             @endif
                         </form>
                     @else
                         <span class="flex-1 min-w-0 text-xs {{ $component->is_active ? 'text-gray-800' : 'text-gray-400' }}">
-                            {{ $component->name }}
+                            {{ $component->name }}@if($component->name_en) <span class="text-gray-400">/ {{ $component->name_en }}</span>@endif
                             <span class="block text-[11px] text-gray-500">{{ $component->isBase() ? 'Base salary' : $kinds[$component->kind] }}{{ $component->is_active ? '' : ' · Inactive' }}</span>
                         </span>
                     @endif
@@ -166,6 +198,8 @@
                 @csrf
                 <input type="text" name="name" required maxlength="100" placeholder="New component, e.g. Tunjangan Komunikasi" aria-label="New component name"
                     class="{{ $rowInput }} flex-1 min-w-0">
+                <input type="text" name="name_en" maxlength="100" placeholder="English name, e.g. Communication Allowance" aria-label="New component name in English"
+                    class="{{ $rowInput }} flex-1 min-w-0">
                 <div class="sm:w-44">
                     <select name="kind" aria-label="New component counts as">
                         @foreach($kinds as $value => $kindLabel)
@@ -188,7 +222,7 @@
                 plain paper — no letterhead is ticked for Offering Letter yet
             @endif
             @if($can('general.letter-templates'))
-                (<a href="{{ route('general.letter-templates.index') }}" class="font-semibold" style="color: var(--primary-color);">Letter Templates</a>).
+                (<a href="{{ route('general.letters.settings.index') }}" class="font-semibold" style="color: var(--primary-color);">Letter Templates</a>).
             @else
                 (set in HR &amp; General → Letter Templates).
             @endif
@@ -214,14 +248,52 @@
                 '{seq}': String(@json($nextSequence)).padStart(Math.min(Math.max(Number(digits.value) || 1, 1), 6), '0'),
                 '{day}': two(now.getDate()), '{month}': two(now.getMonth() + 1), '{roman}': roman[now.getMonth()],
                 '{year}': String(now.getFullYear()), '{yy}': String(now.getFullYear()).slice(-2),
+                '{lang}': @json(\App\Models\LetterTypeSetting::numberCode(\App\Models\LetterTypeSetting::languageFor(\App\Models\Letterhead::TYPE_OFFERING_LETTER))),
             };
             document.getElementById('numberPreview').textContent =
-                format.value.replace(/\{(seq|day|month|roman|year|yy)\}/g, token => tokens[token]);
+                format.value.replace(/\{(seq|lang|day|month|roman|year|yy)\}/g, token => tokens[token]);
         }
 
         format.addEventListener('input', previewNumber);
         digits.addEventListener('input', previewNumber);
         previewNumber();
+
+        // ── Note editor: bold / italic / underline and placeholders, sent as HTML ──
+        const editor = document.getElementById('ratioNoteEditor');
+        const noteField = document.getElementById('offer_ratio_note');
+        const commands = document.querySelectorAll('[data-command]');
+
+        noteField.value = editor.innerHTML;
+        editor.closest('form').addEventListener('submit', () => { noteField.value = editor.innerHTML; });
+
+        if (editor.isContentEditable) {
+            const syncToolbar = () => {
+                if (!editor.contains(document.getSelection()?.anchorNode)) return;
+                commands.forEach(button => button.setAttribute('aria-pressed', document.queryCommandState(button.dataset.command)));
+            };
+
+            // A toolbar click must not take the focus (and the selection) away from the text.
+            document.querySelectorAll('[data-command], [data-insert]').forEach(button => {
+                button.addEventListener('mousedown', event => event.preventDefault());
+            });
+            commands.forEach(button => button.addEventListener('click', () => {
+                editor.focus();
+                document.execCommand(button.dataset.command);
+                syncToolbar();
+            }));
+            document.querySelectorAll('[data-insert]').forEach(button => button.addEventListener('click', () => {
+                editor.focus();
+                document.execCommand('insertText', false, button.dataset.insert);
+            }));
+
+            // Pasted text arrives without its outside formatting.
+            editor.addEventListener('paste', event => {
+                event.preventDefault();
+                document.execCommand('insertText', false, event.clipboardData.getData('text/plain'));
+            });
+
+            document.addEventListener('selectionchange', syncToolbar);
+        }
 
         // ── Components: a row saves itself the moment it changes ──
         document.querySelectorAll('form[data-autosave]').forEach(form => {
@@ -250,6 +322,7 @@
                     savedName = name.value;
                     if (active) name.classList.toggle('text-gray-400', !active.checked);
                     mark('<i class="fas fa-check text-green-600"></i>', 'Saved');
+                    window.UnsavedGuard?.markSaved(form); // saved in the background: nothing left unsaved
                     setTimeout(() => { if (state.title === 'Saved') mark('', ''); }, 2500);
                 } catch (error) {
                     name.value = savedName;

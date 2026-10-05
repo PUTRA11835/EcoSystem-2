@@ -12,7 +12,7 @@
     $optionHelp = [
         'platform'        => 'Where job openings are posted and where candidates come from.',
         'employment_type' => 'Offered as "Employee Type" on a job opening.',
-        'document_type'   => 'The documents a job opening can ask applicants for, and the rules each one follows when it is attached to a candidate.',
+        'document_type'   => 'How each document is handed in when it is attached to a candidate — a file, a link or either, and the accepted file formats. Which documents an opening asks for is chosen on the job opening itself.',
     ];
 @endphp
 
@@ -20,7 +20,7 @@
 <style>
     /* Document Types rows: stacked on small screens, one aligned row of columns from lg up. */
     @media (min-width: 1024px) {
-        .recruitment-document-grid { grid-template-columns: minmax(10rem, 1fr) 10rem 9rem minmax(18rem, 1.4fr) 6.5rem; }
+        .recruitment-document-grid { grid-template-columns: minmax(10rem, 1fr) 9rem minmax(18rem, 1.4fr) 7.5rem; }
     }
 </style>
 @endpush
@@ -147,7 +147,6 @@
                         <div class="hidden lg:grid recruitment-document-grid gap-3 pl-4 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-bold uppercase tracking-wider text-gray-500"
                             style="padding-right: {{ $canDelete ? '3.5rem' : '1rem' }};">
                             <span>Document</span>
-                            <span title="How a new job opening asks for this document by default">New openings ask for it as</span>
                             <span>Handed in as</span>
                             <span>Accepted file formats</span>
                             <span></span>
@@ -165,13 +164,6 @@
                                             class="{{ $rowInput }} {{ $isDocuments ? '' : 'flex-1 min-w-0' }} {{ $option->is_active ? '' : 'text-gray-400' }}">
 
                                         @if($isDocuments)
-                                            <div>
-                                                <select name="requirement" aria-label="New job openings ask for {{ $option->name }} as">
-                                                    @foreach(\App\Models\Recruitment\RecruitmentOption::REQUIREMENTS as $key => $requirementLabel)
-                                                        <option value="{{ $key }}" @selected(($option->requirement ?? 'none') === $key)>{{ $requirementLabel }}</option>
-                                                    @endforeach
-                                                </select>
-                                            </div>
                                             <div>
                                                 <select name="submission" aria-label="{{ $option->name }} is handed in as" data-submission>
                                                     @foreach(\App\Models\Recruitment\RecruitmentOption::SUBMISSIONS as $key => $submissionLabel)
@@ -192,11 +184,9 @@
                                         @endif
 
                                         <div class="flex items-center gap-2 shrink-0">
-                                            <label class="flex items-center gap-1 text-[11px] text-gray-600" title="Shown in dropdowns">
-                                                <input type="checkbox" name="is_active" value="1" @checked($option->is_active)
-                                                    class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                                Active
-                                            </label>
+                                            @include('hr-general.recruitment.components.toggle-switch', [
+                                                'toggleName' => 'is_active', 'toggleChecked' => $option->is_active, 'toggleTitle' => 'Shown in dropdowns',
+                                            ])
                                             <span class="w-4 text-center text-xs" data-save-state aria-live="polite"></span>
                                         </div>
                                     </form>
@@ -205,7 +195,7 @@
                                         {{ $option->name }}
                                         @if($isDocuments)
                                             <span class="block text-[11px] text-gray-500">
-                                                {{ \App\Models\Recruitment\RecruitmentOption::REQUIREMENTS[$option->requirement ?? 'none'] }} by default · {{ $option->rulesHint() }}
+                                                {{ $option->rulesHint() }}
                                             </span>
                                         @endif
                                     </span>
@@ -292,6 +282,7 @@
                     savedName = name.value;
                     name.classList.toggle('text-gray-400', !form.querySelector('input[name="is_active"]').checked);
                     mark('<i class="fas fa-check text-green-600"></i>', 'Saved');
+                    window.UnsavedGuard?.markSaved(form); // saved in the background: nothing left unsaved
                     setTimeout(() => { if (state.title === 'Saved') mark('', ''); }, 2500);
                 } catch (error) {
                     name.value = savedName;

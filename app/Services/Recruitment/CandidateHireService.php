@@ -3,11 +3,9 @@
 namespace App\Services\Recruitment;
 
 use App\Enums\RoleId;
-use App\Http\Controllers\PasswordSetupController;
 use App\Models\Employee;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 /**
  * Turns the person an accepted offer was made to into a real, login-capable Employee — the same
@@ -15,19 +13,25 @@ use Illuminate\Support\Str;
  * hire (employee + employee_basic_data + auth_users), just triggered from an
  * accepted Offer instead of the Master Employee form.
  *
- * The account starts passwordless (a random placeholder hash) and
- * `is_already_cp = false`; PasswordSetupController::generateAndSendToken()
- * emails the candidate a "set your password" link — the exact flow already
- * used for every other new account in this system.
+ * The account starts with the default password HR typed in the acceptance
+ * form and `is_already_cp = false` — the "initial password" shape the system
+ * already knows (see AdminBackupController): signing in with it does not open
+ * a session, it emails the person a link to set their own password first
+ * (AuthController::login → PasswordSetupController::generateAndSendToken).
+ * The sign-in details themselves are emailed by OfferMailer::sendAccountDetails().
  */
 class CandidateHireService
 {
     /**
-     * @param  array{eci: string, nick_name: string, email: string}  $account
+     * The join date (`employee_basic_data.since_date`, "Since" in Master Employee and "Join Date"
+     * on the profile) is the day the account is created — the date Master Employee, onboarding
+     * and a new contract's start date read it from.
+     *
+     * @param  array{full_name: string, eci: string, email: string, password: string, position?: ?string}  $account
      */
-    public function hire(string $fullName, array $account): Employee
+    public function hire(array $account): Employee
     {
-        return DB::transaction(function () use ($fullName, $account) {
+        return DB::transaction(function () use ($account) {
             $employeeId = DB::table('employee')->insertGetId([
                 'eci'        => $account['eci'],
                 'is_active'  => true,
@@ -46,7 +50,7 @@ class CandidateHireService
                 ]);
             }
 
-            [$firstName, $lastName] = $this->splitName($fullName);
+            [$firstName, $lastName] = $this->splitName($account['full_name']);
 
             DB::table('employee_basic_data')->insert([
                 'employee_id'   => $employeeId,
@@ -54,27 +58,26 @@ class CandidateHireService
                 'last_name'     => $lastName,
                 'search_term_1' => strtoupper($firstName),
                 'search_term_2' => $lastName ? strtoupper($lastName) : null,
-                'nick_name'     => $account['nick_name'],
+                'nick_name'     => $this->uniqueNickName($account['full_name'], $account['eci']),
+                'since_date'    => now()->toDateString(),
+                'position'      => $account['position'] ?? null,
                 'created_by'    => session('user.eci', 'Recruitment'),
                 'created_on'    => now(),
                 'block'         => false,
                 'deletion_flag' => false,
             ]);
 
-            $authUserId = DB::table('auth_users')->insertGetId([
+            DB::table('auth_users')->insert([
                 'employee_id'   => $employeeId,
                 'customer_id'   => null,
                 'username'      => $account['eci'],
                 'email'         => $account['email'],
-                'password'      => Hash::make(Str::random(32)),
+                'password'      => Hash::make($account['password']),
                 'is_active'     => true,
                 'is_already_cp' => false,
                 'created_at'    => now(),
                 'updated_at'    => now(),
             ]);
-
-            $authUser = DB::table('auth_users')->where('id', $authUserId)->first();
-            PasswordSetupController::generateAndSendToken($authUser);
 
             return Employee::findOrFail($employeeId);
         });
@@ -86,5 +89,29 @@ class CandidateHireService
         $parts = preg_split('/\s+/', trim($fullName), 2);
 
         return [$parts[0] ?? $fullName, $parts[1] ?? null];
+    }
+
+    /**
+     * A nick name no other employee has (the column is unique): the first
+     * name, then the first two names, then the whole name, then the first
+     * name with the ECI. It can be changed later in Master Employee.
+     */
+    private function uniqueNickName(string $fullName, string $eci): string
+    {
+        $words = preg_split('/\s+/', trim($fullName));
+        $candidates = array_unique(array_filter([
+            $words[0] ?? null,
+            isset($words[1]) ? "{$words[0]} {$words[1]}" : null,
+            trim($fullName),
+            ($words[0] ?? $fullName) . " {$eci}",
+        ]));
+
+        foreach ($candidates as $nickName) {
+            if (!DB::table('employee_basic_data')->where('nick_name', $nickName)->exists()) {
+                return $nickName;
+            }
+        }
+
+        return "{$fullName} {$eci}";
     }
 }

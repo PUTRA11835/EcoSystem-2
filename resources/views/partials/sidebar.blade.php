@@ -157,6 +157,14 @@
                         'active'  => false,
                         'visible' => !empty($essConfig['loans']),
                     ],
+                    // Gerbang GANDA: sakelar ESS DAN slug izin (role User System Registered).
+                    'my_letter_requests' => [
+                        'label'   => 'My Letter Requests',
+                        'icon'    => 'fas fa-envelope-open-text',
+                        'href'    => route('general.my-letter-requests.index'),
+                        'active'  => Request::is('general/my-letter-requests*'),
+                        'visible' => !empty($essConfig['my_letter_requests']) && $can('general.my-letter-requests'),
+                    ],
                     'my_kpis' => [
                         'label'   => 'My KPI',
                         'icon'    => 'fas fa-chart-line',
@@ -574,7 +582,8 @@
                 || $can('management.approval-workflow.cash-advance-report')
                 || $can('general.recruitment') || $can('general.recruitment.jobs') || $can('general.recruitment.candidates')
                 || $can('general.recruitment.schedule') || $can('general.recruitment.offers') || $can('general.recruitment.settings')
-                || $can('general.recruitment.offers.settings') || $can('general.letter-templates'))
+                || $can('general.recruitment.offers.settings') || $can('general.letter-templates')
+                || $can('general.letters.dashboard') || $can('general.letters.requests') || $can('general.letters.register') || $can('general.letters.compose'))
                 <!-- HR & GENERAL -->
                 @php
                     // 🔴 Daftar ini harus diperbarui setiap kali item baru masuk ke grup —
@@ -598,7 +607,7 @@
                         // 🔴 D180 — hub Approval Workflow, satu prefix untuk kelima tab.
                         || Request::is('general/approval-workflow*')
                         || Request::is('general/recruitment*')
-                        || Request::is('general/letter-templates*');
+                        || Request::is('general/letters*');
                 @endphp
                 <div class="mb-2">
                     <button onclick="toggleHrGeneralDropdown()"
@@ -883,10 +892,11 @@
                             </a>
                         @endif
 
-                        {{-- Letter Templates — letterheads shared by the letters HR prints. --}}
-                        @if($can('general.letter-templates'))
-                            <a href="{{ route('general.letter-templates.index') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/letter-templates*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        {{-- Letter Templates — the letters hub; opens the first of its five tabs the person can view. --}}
+                        @if($can('general.letters.dashboard') || $can('general.letters.requests') || $can('general.letters.register')
+                            || $can('general.letters.compose') || $can('general.letter-templates'))
+                            <a href="{{ route('general.letters.index') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('general/letters*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-file-lines text-xs"></i>
                                 </span>

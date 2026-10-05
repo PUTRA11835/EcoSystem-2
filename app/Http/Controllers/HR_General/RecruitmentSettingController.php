@@ -100,8 +100,8 @@ class RecruitmentSettingController extends Controller
             ...$data,
             'sort_order' => (int) RecruitmentOption::ofType($data['type'])->max('sort_order') + 1,
             'is_active'  => true,
-            // A new document type starts as a file that job openings do not ask for until HR says so.
-            ...($data['type'] === RecruitmentOption::TYPE_DOCUMENT_TYPE ? ['requirement' => 'none', 'submission' => 'file'] : []),
+            // A new document type starts as a file; each job opening decides whether it asks for it.
+            ...($data['type'] === RecruitmentOption::TYPE_DOCUMENT_TYPE ? ['submission' => 'file'] : []),
         ]);
 
         return back()->with('success', 'Option added.');
@@ -116,7 +116,6 @@ class RecruitmentSettingController extends Controller
             ],
             'is_active' => 'nullable|boolean',
             ...($option->type === RecruitmentOption::TYPE_DOCUMENT_TYPE ? [
-                'requirement'    => ['required', Rule::in(array_keys(RecruitmentOption::REQUIREMENTS))],
                 'submission'     => ['required', Rule::in(array_keys(RecruitmentOption::SUBMISSIONS))],
                 'file_formats'   => 'nullable|array',
                 'file_formats.*' => [Rule::in(array_keys(RecruitmentOption::FILE_FORMATS))],
@@ -127,7 +126,6 @@ class RecruitmentSettingController extends Controller
             'name'      => $data['name'],
             'is_active' => $request->boolean('is_active'),
             ...($option->type === RecruitmentOption::TYPE_DOCUMENT_TYPE ? [
-                'requirement'  => $data['requirement'],
                 'submission'   => $data['submission'],
                 // Every format ticked is the same as none ticked: no restriction.
                 'file_formats' => count($data['file_formats'] ?? []) === count(RecruitmentOption::FILE_FORMATS) ? null : ($data['file_formats'] ?? null),

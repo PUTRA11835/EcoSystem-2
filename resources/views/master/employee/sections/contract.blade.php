@@ -462,9 +462,10 @@
         document.getElementById('contractNumber').value = '';
         document.getElementById('contractName').value = '';
         setCustomDropdownValue('contractType', '');
-        document.getElementById('contractPosition').value = '';
+        // A new contract starts from the employee's join date ("Since" in Basic Data) and position — both still editable.
+        document.getElementById('contractPosition').value = document.getElementById('position')?.value || '';
         document.getElementById('contractDate').value = '';
-        document.getElementById('contractStartDate').value = '';
+        document.getElementById('contractStartDate').value = document.getElementById('sinceDate')?.value || '';
         document.getElementById('contractEndDate').value = '';
         document.getElementById('contractSalary').value = '';
         document.getElementById('contractIsActive').checked = false;
