@@ -33,6 +33,7 @@ return [
         'general.my-purchase-request',
         'general.my-kpi',
         'profile.my',
+        'general.my-letter-requests',
     ],
     // awalan yang juga dianggap global oleh layar Menu Access lama (ess.my_leave_permit dst.)
     'global_ess_patterns' => ['ess', 'ess.*'],
@@ -56,6 +57,9 @@ return [
         'general.recruitment.offers',
         'general.recruitment.offers.settings',
         'general.letter-templates',
+        'general.letters.requests',
+        'general.letters.register',
+        'general.letters.compose',
     ],
 
     // Urutan tampil di kolom kiri. `match` = pola slug (Str::is). Pola pertama yang cocok menang.
@@ -66,7 +70,12 @@ return [
         ['key' => 'hr-reimb',    'label' => 'HR · Reimbursement',        'match' => ['general.reimbursement', 'general.reimbursement.*', 'general.settings.reimbursement*']],
         ['key' => 'hr-pr',       'label' => 'HR · Purchase Request',     'match' => ['general.purchase-request', 'general.purchase-request.*', 'general.settings.purchase-request*']],
         ['key' => 'hr-ca',       'label' => 'HR · Cash Advance',         'match' => ['general.cash-advance', 'general.cash-advance.*', 'general.cash-advance-report', 'general.cash-advance-report.*', 'management.cash-advance-settings*', 'management.approval-workflow.cash-advance*']],
-        ['key' => 'hr-recruit',  'label' => 'HR · Recruitment & Offering', 'match' => ['general.recruitment', 'general.recruitment.*', 'general.letter-templates', 'general.letter-templates.*']],
+        ['key' => 'hr-recruit',  'label' => 'HR · Recruitment & Offering', 'match' => [
+            'general.recruitment', 'general.recruitment.*', 'general.offering-letter', 'general.offering-letter.*',
+        ]],
+        ['key' => 'hr-docs',  'label' => 'HR · Docs & Letters', 'match' => [
+            'general.letter-templates', 'general.letter-templates.*', 'general.letters', 'general.letters.*',
+        ]],
         ['key' => 'hr-kpi',      'label' => 'HR · KPI',                  'match' => ['general.kpi-evaluation', 'general.kpi-evaluation.*']],
         ['key' => 'hr-onboard',  'label' => 'HR · Onboarding & Command Center', 'match' => ['general.onboarding', 'general.onboarding.*', 'general.command-center*']],
         ['key' => 'hr-approval', 'label' => 'HR · Approval Workflow',    'match' => ['general.approval-workflow', 'general.approval-workflow.*']],

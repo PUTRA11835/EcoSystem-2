@@ -37,7 +37,7 @@
         .grid { width: 100%; margin: 0 0 12pt; }
         .grid th, .grid td { border: 0.75pt solid #444; padding: 4pt 6pt; vertical-align: top; text-align: left; }
         .grid th { background: #eee; }
-        .signatures { width: 100%; margin-top: 24pt; page-break-inside: avoid; }
+        .signatures { width: 200pt; float: right; margin-top: 24pt; page-break-inside: avoid; }
         .signatures td { vertical-align: top; }
         .signatures td.gap { height: 70pt; vertical-align: middle; }
         .signatures img.signature { max-height: 64pt; max-width: 160pt; }
@@ -56,7 +56,7 @@
 
     @yield('body')
 
-    <table class="signatures">
+    <table class="signatures" align="right">
         <tr><td>{{ $city }}, {{ $date($letter->letter_date) }}<br>@yield('closing', __('letters.closing'))</td></tr>
         <tr>
             <td class="gap">@if($signature)<img src="{{ $signature }}" class="signature">@endif</td>
