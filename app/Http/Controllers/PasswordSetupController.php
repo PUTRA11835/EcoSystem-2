@@ -254,7 +254,7 @@ HTML;
                 'email'        => $authUser->email,
                 'type'         => $type,
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('PasswordSetupController: gagal kirim email', [
                 'auth_user_id' => $authUser->id,
                 'type'         => $type,
@@ -300,7 +300,13 @@ HTML;
                     throw new \RuntimeException('Failed to obtain access token' . $response->body());
                 }
 
-                return $response->json('access_token');
+                $accessToken = $response->json('access_token');
+                if (!is_string($accessToken) || $accessToken === '') {
+                    // Tanpa ini null lolos sebagai TypeError (return type string) dan MEMBATALKAN pembuatan akun.
+                    throw new \RuntimeException('Microsoft token response has no access_token');
+                }
+
+                return $accessToken;
             }
         );
     }

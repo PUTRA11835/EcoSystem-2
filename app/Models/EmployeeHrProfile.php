@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -14,6 +15,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class EmployeeHrProfile extends Model
 {
+    use Auditable;
+
+    protected static ?string $auditModule = 'Employee';
+
+    /**
+     * Nilai yang TIDAK boleh masuk jejak audit (data kesehatan/pribadi pihak ketiga). Audit tetap
+     * mencatat siapa, kapan, dan field mana yang berubah — tetapi bukan isinya. Kolom `$hidden`
+     * (catatan HR, payroll nonaktif, path berkas) otomatis ikut disamarkan.
+     */
+    protected static array $auditExcept = [
+        'blood_type', 'mother_maiden_name',
+        'emergency_contact_name', 'emergency_contact_relation', 'emergency_contact_phone',
+    ];
+
     protected $table = 'employee_hr_profile';
 
     protected $fillable = [

@@ -98,6 +98,17 @@ class ProfileController extends Controller
             $profileSectionReadonly[$key] = $canView && !$canUpdate;
         }
 
+        // H3.11: profil terkunci → seksi yang dinilai Onboarding tampil READ-ONLY (View Only) bagi pemilik.
+        // Penegakan sebenarnya di CheckEmployeeSectionAccess; ini hanya agar tampilannya jujur.
+        $profileLocked = app(\App\Services\HrProfile\ProfileLockService::class)->isLocked((int) $employeeId);
+        if ($profileLocked) {
+            foreach (\App\Services\HrProfile\ProfileLockPolicy::LOCKED_SECTIONS as $lockedKey) {
+                if (array_key_exists($lockedKey, $profileSectionHidden) && !$profileSectionHidden[$lockedKey]) {
+                    $profileSectionReadonly[$lockedKey] = true;
+                }
+            }
+        }
+
         // HC-D14: progres kelengkapan data MILIK SENDIRI untuk banner di halaman ini.
         // Kegagalan menghitung tidak boleh merusak My Profile — banner saja yang hilang.
         $onboarding = null;
@@ -117,6 +128,7 @@ class ProfileController extends Controller
             'profileSectionHidden'   => $profileSectionHidden,
             'profileSectionReadonly' => $profileSectionReadonly,
             'onboarding'             => $onboarding,
+            'profileLocked'          => $profileLocked,
         ]);
     }
 
@@ -154,10 +166,16 @@ class ProfileController extends Controller
                 'total'   => $p['total'],
                 'percent' => $p['percent'],
                 'status'  => $p['status'],
+                'groups'  => array_map(fn ($g) => ['label' => $g['label'], 'done' => $g['done'], 'total' => $g['total']], $p['groups']),
                 'items'   => array_map(fn ($i) => [
+                    'key'     => $i['key'],
+                    'group'   => $i['group'],
                     'label'   => $i['label'],
                     'section' => $i['section'],
                     'hint'    => $i['hint'] ?? null,
+                    'field'   => $i['field'] ?? null,
+                    'prefill' => $i['prefill'] ?? null,
+                    'hr_only' => (bool) ($i['hr_only'] ?? false),
                     'done'    => (bool) $i['done'],
                 ], $p['items']),
             ],

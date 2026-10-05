@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Models\Employee;
+use App\Services\HrProfile\ProfileLockPolicy;
+use App\Services\HrProfile\ProfileLockService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -54,6 +56,28 @@ class CheckEmployeeSectionAccess
                 'Akses ditolak. Akun Anda tidak memiliki izin untuk mengubah data ini. Hubungi administrator.',
                 403
             );
+        }
+
+        // H3.11 (HC-D29): profil yang sudah di-"Verify & Lock" HR tidak dapat diubah PEMILIKNYA pada seksi yang
+        // dinilai Onboarding. Hanya target == diri sendiri; HR/admin yang mengubah orang lain tidak tertahan.
+        // isLocked() tidak pernah melempar galat (tabel belum ada → dianggap tidak terkunci).
+        if ($ability === 'update' && $targetId === $selfId && $targetId !== 0
+            && ProfileLockPolicy::blocksOwnerUpdate(app(ProfileLockService::class)->isLocked($selfId), $sectionKey)) {
+            return $this->deny(
+                $request,
+                'Your profile has been verified and locked by HR. Please contact HR if you need to change this data.',
+                403
+            );
+        }
+
+        // HC-D62: Since Date (join date) HANYA diisi HR — otomatis dari offering letter saat Accept, kelak dari kontrak.
+        // Pemilik (target == diri sendiri) mengirim since_date dari form Basic Data; nilainya DIBUANG dari permintaan agar
+        // kolom tersimpan tidak tertimpa (store() hanya memperbarui kolom yang dikirim). HR yang mengubah orang lain tak terpengaruh.
+        if ($sectionKey === 'basic_data' && $ability === 'update' && $targetId === $selfId && $targetId !== 0) {
+            $request->request->remove('since_date');
+            if ($request->isJson()) {
+                $request->json()->remove('since_date');
+            }
         }
 
         return $next($request);

@@ -120,10 +120,35 @@
                 <input type="text" id="birthPlace" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
             <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Since Date</label>
-                <input type="date" id="sinceDate" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Since Date
+                    @if(!empty($isOwnProfile))<i class="fas fa-lock text-[10px] text-gray-400 ml-1" aria-hidden="true"></i>@endif
+                </label>
+                {{-- HC-D62: di My Profile kolom ini hanya-baca (diisi HR). Server juga membuang kirimannya (CheckEmployeeSectionAccess). --}}
+                <input type="date" id="sinceDate" @if(!empty($isOwnProfile)) readonly tabindex="-1" title="Set by HR" @endif
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent {{ !empty($isOwnProfile) ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : '' }}">
+                @if(!empty($isOwnProfile))
+                <p class="text-xs text-gray-400 mt-1">Set by HR when your offer is accepted.</p>
+                @endif
             </div>
         </div>
+        @if(!empty($hrPersonal))
+        {{-- HC-D54: data pribadi tambahan ESH (disimpan lewat tabel profil HR; ikut tombol Save Changes di atas). --}}
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
+            <div class="flex flex-col">
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Blood Type</label>
+                <select id="hrBlood" data-field="blood_type" data-hr-group="personal" @disabled(!empty($hrRo)) class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                    <option value="">Select blood type</option>
+                    @foreach(['A', 'B', 'AB', 'O'] as $bt)<option value="{{ $bt }}">{{ $bt }}</option>@endforeach
+                </select>
+                <p class="text-xs text-red-600 mt-1 hidden" data-error-for="blood_type"></p>
+            </div>
+            <div class="flex flex-col md:col-span-2">
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Mother's Maiden Name</label>
+                <input type="text" id="hrMother" data-field="mother_maiden_name" data-hr-group="personal" maxlength="150" @disabled(!empty($hrRo)) class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <p class="text-xs text-red-600 mt-1 hidden" data-error-for="mother_maiden_name"></p>
+            </div>
+        </div>
+        @endif
     </div>
 
     <!-- Employee Information -->

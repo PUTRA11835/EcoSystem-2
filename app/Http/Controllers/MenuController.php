@@ -158,6 +158,7 @@ class MenuController extends Controller
         if ($role) {
             $role->employees()->pluck('employee.employee_id')->each(function ($empId) {
                 Cache::forget("perm_slugs_{$empId}");
+                Cache::forget("perm_matrix_{$empId}"); // dulu terlewat: matriks C/E/D basi ≤ 60 menit
             });
         }
     }

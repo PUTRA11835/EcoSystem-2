@@ -5,6 +5,7 @@ namespace App\Services\Recruitment;
 use App\Enums\RoleId;
 use App\Http\Controllers\PasswordSetupController;
 use App\Models\Employee;
+use App\Models\EmployeeBasicData;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -23,11 +24,14 @@ use Illuminate\Support\Str;
 class CandidateHireService
 {
     /**
-     * @param  array{eci: string, nick_name: string, email: string}  $account
+     * @param  array{eci: string, nick_name: string, email: ?string, home_base?: ?string, position?: ?string}  $account
+     *         home_base -> employee_basic_data.home_base (+ employee_type diturunkan); position -> .position (HC-D65).
+     * @param  string|null  $joinDate  tanggal bergabung (Y-m-d) dari offering letter -> employee_basic_data.since_date
+     *                                 (HC-D62: join date diisi HR/otomatis, bukan oleh pegawai).
      */
-    public function hire(string $fullName, array $account): Employee
+    public function hire(string $fullName, array $account, ?string $joinDate = null): Employee
     {
-        return DB::transaction(function () use ($fullName, $account) {
+        return DB::transaction(function () use ($fullName, $account, $joinDate) {
             $employeeId = DB::table('employee')->insertGetId([
                 'eci'        => $account['eci'],
                 'is_active'  => true,
@@ -55,6 +59,11 @@ class CandidateHireService
                 'search_term_1' => strtoupper($firstName),
                 'search_term_2' => $lastName ? strtoupper($lastName) : null,
                 'nick_name'     => $account['nick_name'],
+                'since_date'    => $joinDate,
+                'home_base'     => $account['home_base'] ?? null,
+                // Tanpa home base tetap 'Internal' (perilaku lama); dengan home base mengikuti deriveEmployeeType().
+                'employee_type' => EmployeeBasicData::deriveEmployeeType($account['home_base'] ?? null),
+                'position'      => $account['position'] ?? null,
                 'created_by'    => session('user.eci', 'Recruitment'),
                 'created_on'    => now(),
                 'block'         => false,

@@ -159,10 +159,16 @@ class RecruitmentOfferController extends Controller
             'eci'       => 'required|string|max:50|unique:employee,eci|unique:auth_users,username',
             'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name',
             'email'     => 'required|email|max:150',
-        ]);
+            // HC-D65 (R3): Home Base menentukan Internal/External ("Others" = External); wajib agar tak diam-diam dianggap Internal.
+            'home_base' => ['required', Rule::in(\App\Enums\HomeBase::options())],
+            // Tanggal bergabung = tanggal pada offering letter (terisi otomatis di form); wajib diisi HR bila penawaran tak memuatnya.
+            'joining_date' => [Rule::requiredIf(!$offer->joining_date), 'nullable', 'date'],
+        ], ['joining_date.required' => 'The offer has no joining date — please enter the join date.'], ['joining_date' => 'join date']);
 
         try {
-            $employee = $hireService->hire($offer->candidate_name, $data);
+            $joinDate = $data['joining_date'] ?? $offer->joining_date?->toDateString();
+            // Position dari jabatan pada offering letter (bukan isian bebas), supaya data pegawai sama dengan surat.
+            $employee = $hireService->hire($offer->candidate_name, $data + ['position' => $offer->position_title], $joinDate);
 
             $offer->update(['decision' => Offer::DECISION_ACCEPTED, 'decided_at' => now(), 'hired_employee_id' => $employee->employee_id]);
 
@@ -300,7 +306,8 @@ class RecruitmentOfferController extends Controller
             'position_title'  => 'required|string|max:150',
             'job_description' => 'nullable|string|max:5000',
             'benefits'        => 'nullable|string|max:5000',
-            'joining_date'    => 'nullable|date',
+            // Wajib (HC-D63): tanggal ini disalin otomatis menjadi Since Date saat akun karyawan dibuat (Accept).
+            'joining_date'    => 'required|date',
             'salary_type'     => ['required', Rule::in(array_keys(Offer::SALARY_TYPES))],
             'amounts'         => 'array',
             'amounts.*'       => 'nullable|numeric|min:0|max:9999999999999',

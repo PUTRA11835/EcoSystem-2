@@ -1,13 +1,15 @@
 @extends('dashboard')
 @section('title', 'Notifications')
 @section('page-title', 'Notifications')
-@section('page-subtitle', 'Your mention notifications')
+@section('page-subtitle', 'Approvals, document updates, and reminders for your account')
 
 @section('content')
 <div class="py-6 px-4">
 
-    <div class="flex items-center justify-between mb-4">
-        <h2 class="text-base font-semibold text-gray-800">All Notifications</h2>
+    <div class="flex items-center justify-between mb-1">
+        <h2 class="text-base font-semibold text-gray-800">
+            {{ $pendingOnly ? 'Pending Approval' : 'All Notifications' }}
+        </h2>
         <div class="flex gap-2">
             <button id="markAllReadBtn" onclick="markAllRead()"
                 class="text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:border-red-700 hover:text-red-700 transition-all font-medium">
@@ -19,6 +21,62 @@
             </button>
         </div>
     </div>
+
+    {{-- HC-D40 — konteks saat datang dari kotak "N Pending Approval" di Command
+         Center: tegaskan ini daftar yang DIPERSEMPIT, dengan jalan keluar ke
+         daftar lengkap. --}}
+    @if($pendingOnly)
+    <p class="text-xs text-gray-400 mb-4">
+        Showing only documents waiting for your approval.
+        <a href="{{ route('notifications.index', ['tab' => $tab]) }}" class="text-red-700 font-semibold hover:underline">View all notifications →</a>
+    </p>
+    @else
+    <div class="mb-4"></div>
+    @endif
+
+    {{-- Kartu ringkasan (HC-D39, gaya ESH) --}}
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Unread</p>
+            <p class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($unreadCount) }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">Needs your attention or follow-up.</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Notifications</p>
+            <p class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($totalCount) }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">History for your account.</p>
+        </div>
+    </div>
+
+    {{-- Cari + tab Semua/Unread/Read (HC-D39). Satu mekanisme saja (tab), tanpa
+         dropdown status terpisah — ESH punya keduanya tapi mengontrol hal yang
+         sama; disederhanakan di sini supaya tidak ada dua kontrol yang saling
+         tumpang tindih. --}}
+    <form method="GET" action="{{ route('notifications.index') }}" class="mb-4">
+        <input type="hidden" name="tab" value="{{ $tab }}">
+        @if($pendingOnly)
+        <input type="hidden" name="type" value="pending_approval">
+        @endif
+        <div class="flex flex-col sm:flex-row gap-2 mb-3">
+            <div class="relative flex-1">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                <input type="search" name="q" value="{{ $search }}" placeholder="Search notifications..."
+                    class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-opacity-20 focus:border-red-700">
+            </div>
+            <button type="submit" class="text-xs px-4 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-black transition">Search</button>
+            @if($search !== '')
+            <a href="{{ route('notifications.index', array_filter(['tab' => $tab, 'type' => $pendingOnly ? 'pending_approval' : null])) }}" class="text-xs px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition text-center">Reset</a>
+            @endif
+        </div>
+        <div class="inline-flex rounded-lg bg-gray-100 p-0.5 text-xs font-semibold">
+            @foreach(['all' => 'All', 'unread' => 'Unread', 'read' => 'Read'] as $key => $label)
+            <a href="{{ route('notifications.index', array_filter(['tab' => $key, 'q' => $search ?: null, 'type' => $pendingOnly ? 'pending_approval' : null])) }}"
+                class="px-3 py-1.5 rounded-md transition {{ $tab === $key ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700' }}">
+                {{ $label }}
+            </a>
+            @endforeach
+        </div>
+    </form>
 
     @php
         $lateExceptionTypes = [
@@ -32,6 +90,7 @@
             'resolution_days_proposed'    => ['icon' => 'fa-users',               'color' => 'indigo', 'title' => 'Resolution Days Proposal — needs review'],
             'customer_mandays_canceled'   => ['icon' => 'fa-times-circle',        'color' => 'orange', 'title' => 'Customer Mandays Proposal canceled'],
             'contract_end_reminder'       => ['icon' => 'fa-file-contract',       'color' => 'yellow', 'title' => 'Contract deadline reminder'],
+            'join_date_reminder'          => ['icon' => 'fa-calendar-check',      'color' => 'yellow', 'title' => 'HR needs your join date'],
             'top_invoice_reminder'        => ['icon' => 'fa-file-invoice-dollar', 'color' => 'blue',   'title' => 'Invoice submission due'],
             'customer_email_reply'        => ['icon' => 'fa-envelope',            'color' => 'green',  'title' => null], // title built dynamically from from_name
             'ticket_reply'                => ['icon' => 'fa-reply',               'color' => 'blue',   'title' => null],
@@ -43,6 +102,31 @@
             'leave_permit_approved'       => ['icon' => 'fa-calendar-check',      'color' => 'green',  'title' => null],
             'leave_permit_rejected'       => ['icon' => 'fa-calendar-times',      'color' => 'red',    'title' => null],
             'leave_permit_revision'       => ['icon' => 'fa-calendar-alt',        'color' => 'blue',   'title' => null],
+
+            // Lima modul alur kerja HR & General (Keputusan HC-D39) — judul statis
+            // di sini, detail dokumennya (nomor, pesan) sudah lengkap di kolom
+            // `preview` yang dibangun di masing-masing Service, jadi tidak perlu
+            // logika dinamis tambahan di if/elseif bawah seperti tipe lama.
+            'overtime_pending_approval'            => ['icon' => 'fa-business-time',        'color' => 'yellow', 'title' => 'Overtime — Needs Your Approval'],
+            'overtime_approved'                    => ['icon' => 'fa-check-circle',         'color' => 'green',  'title' => 'Overtime — Approved'],
+            'overtime_rejected'                    => ['icon' => 'fa-times-circle',         'color' => 'red',    'title' => 'Overtime — Rejected'],
+            'overtime_progressed'                  => ['icon' => 'fa-forward',              'color' => 'blue',   'title' => 'Overtime — Progressed'],
+            'reimbursement_pending_approval'       => ['icon' => 'fa-receipt',              'color' => 'yellow', 'title' => 'Reimbursement — Needs Your Approval'],
+            'reimbursement_approved'               => ['icon' => 'fa-check-circle',         'color' => 'green',  'title' => 'Reimbursement — Approved'],
+            'reimbursement_rejected'               => ['icon' => 'fa-times-circle',         'color' => 'red',    'title' => 'Reimbursement — Rejected'],
+            'reimbursement_progressed'             => ['icon' => 'fa-forward',              'color' => 'blue',   'title' => 'Reimbursement — Progressed'],
+            'purchase_request_pending_approval'    => ['icon' => 'fa-cart-shopping',        'color' => 'yellow', 'title' => 'Purchase Request — Needs Your Approval'],
+            'purchase_request_approved'            => ['icon' => 'fa-check-circle',         'color' => 'green',  'title' => 'Purchase Request — Approved'],
+            'purchase_request_rejected'            => ['icon' => 'fa-times-circle',         'color' => 'red',    'title' => 'Purchase Request — Rejected'],
+            'purchase_request_progressed'          => ['icon' => 'fa-forward',              'color' => 'blue',   'title' => 'Purchase Request — Progressed'],
+            'cash_advance_pending_approval'        => ['icon' => 'fa-hand-holding-dollar',  'color' => 'yellow', 'title' => 'Cash Advance — Needs Your Approval'],
+            'cash_advance_approved'                => ['icon' => 'fa-check-circle',         'color' => 'green',  'title' => 'Cash Advance — Approved'],
+            'cash_advance_rejected'                => ['icon' => 'fa-times-circle',         'color' => 'red',    'title' => 'Cash Advance — Rejected'],
+            'cash_advance_progressed'              => ['icon' => 'fa-forward',              'color' => 'blue',   'title' => 'Cash Advance — Progressed'],
+            'cash_advance_report_pending_approval' => ['icon' => 'fa-file-invoice-dollar',  'color' => 'yellow', 'title' => 'Cash Advance Report — Needs Your Approval'],
+            'cash_advance_report_approved'         => ['icon' => 'fa-check-circle',         'color' => 'green',  'title' => 'Cash Advance Report — Approved'],
+            'cash_advance_report_rejected'         => ['icon' => 'fa-times-circle',         'color' => 'red',    'title' => 'Cash Advance Report — Rejected'],
+            'cash_advance_report_progressed'       => ['icon' => 'fa-forward',              'color' => 'blue',   'title' => 'Cash Advance Report — Progressed'],
         ];
         $colorMap = [
             'yellow' => ['bg' => 'bg-yellow-100', 'icon' => 'text-yellow-600'],

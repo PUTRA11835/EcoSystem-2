@@ -126,10 +126,16 @@ class OvertimeService
             return $request;
         });
 
+        $fresh = $request->fresh('approvals');
+        $firstStep = $fresh->currentApproval();
+        if ($firstStep) {
+            $this->notifyApprovers($fresh, $firstStep, true);
+        }
+
         return [
             'allowed' => true,
             'reason'  => '',
-            'request' => $request->fresh('approvals'),
+            'request' => $fresh,
         ];
     }
 
@@ -290,6 +296,13 @@ class OvertimeService
             $completed ? 'approved' : 'progressed',
             $payload['notes'] ?? null
         );
+
+        if (!$completed) {
+            $next = $request->fresh('approvals')->currentApproval();
+            if ($next) {
+                $this->notifyApprovers($request, $next, false);
+            }
+        }
 
         return ['allowed' => true, 'reason' => '', 'completed' => $completed];
     }
@@ -770,6 +783,51 @@ class OvertimeService
             Log::error('Failed to send overtime notification.', [
                 'request_id' => $request->id,
                 'outcome'    => $outcome,
+                'message'    => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Beri tahu penyetuju langkah yang sedang menunggu bahwa ada dokumen
+     * perlu tindakan mereka — baik saat pengajuan baru masuk ($isFirstStep)
+     * maupun saat alurnya baru maju ke langkah berikutnya.
+     *
+     * Dibungkus try/catch dengan alasan sama seperti notify() (Keputusan D44):
+     * kegagalan mengirim notifikasi tidak boleh membatalkan persetujuan yang
+     * sudah tersimpan.
+     */
+    private function notifyApprovers(OvertimeRequest $request, OvertimeRequestApproval $step, bool $isFirstStep): void
+    {
+        try {
+            $recipients = \App\Support\ApprovalRecipients::forStep($step);
+            if (empty($recipients)) {
+                return;
+            }
+
+            $message = $isFirstStep
+                ? "Overtime request {$request->request_no} needs your approval."
+                : "Overtime request {$request->request_no} was approved at the previous step and now needs your approval.";
+
+            // Pengaju dikecualikan HANYA bila self-approval dimatikan — bila
+            // menyala, pengaju memang penyetuju sah untuk dokumennya sendiri
+            // (sama seperti gerbang di canAct()) dan tetap perlu diberi tahu.
+            $allowSelf = OvertimeSetting::current()->allow_self_approval;
+
+            foreach ($recipients as $employeeId) {
+                if ($employeeId === (int) $request->employee_id && !$allowSelf) {
+                    continue;
+                }
+                Notification::create([
+                    'employee_id' => $employeeId,
+                    'type'        => 'overtime_pending_approval',
+                    'preview'     => $message,
+                    'link'        => '/general/overtime',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Failed to notify overtime approvers.', [
+                'request_id' => $request->id,
                 'message'    => $e->getMessage(),
             ]);
         }
