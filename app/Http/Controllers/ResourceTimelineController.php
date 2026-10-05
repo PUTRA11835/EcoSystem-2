@@ -8,6 +8,7 @@ use App\Services\ResourceTimelineService;
 use App\Support\SessionUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ResourceTimelineController extends Controller
@@ -31,7 +32,7 @@ class ResourceTimelineController extends Controller
         ]);
     }
 
-    public function consultants()
+    public function customers()
     {
         $guard = $this->guard();
         if ($guard instanceof \Illuminate\Http\JsonResponse) {
@@ -40,7 +41,7 @@ class ResourceTimelineController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $this->service->consultantOptions(),
+            'data'    => $this->service->customerCodeOptions(),
         ]);
     }
 
@@ -56,10 +57,22 @@ class ResourceTimelineController extends Controller
             $year     = $request->integer('year', now()->year);
             $homeBase = $request->string('home_base')->toString() ?: null;
 
+            if ($request->query('view') === 'yearly') {
+                $grid = $this->service->buildYearGrid($year, $homeBase);
+
+                return response()->json([
+                    'success' => true,
+                    'view'    => 'yearly',
+                    'year'    => $year,
+                    'rows'    => $grid['rows'],
+                ]);
+            }
+
             $grid = $this->service->buildGrid($month, $year, $homeBase);
 
             return response()->json([
                 'success' => true,
+                'view'    => 'monthly',
                 'month'   => $month,
                 'year'    => $year,
                 'days'    => $grid['days'],
@@ -103,7 +116,9 @@ class ResourceTimelineController extends Controller
 
         try {
             $validated = $this->validateRange($request, [
-                'location'             => 'nullable|string|max:255',
+                // Location = customer code. Nilai lama (teks bebas) tetap boleh
+                // dihapus/di-edit lewat previous_location, tapi nilai baru harus customer code valid.
+                'location'             => ['nullable', 'string', 'max:255', Rule::exists('customer', 'customer_code')],
                 'previous_start_date'  => 'nullable|date',
                 'previous_end_date'    => 'nullable|date|after_or_equal:previous_start_date',
                 'previous_location'    => 'nullable|string|max:255',

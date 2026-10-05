@@ -792,6 +792,7 @@
                             <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="w-full h-auto"/>
                         </div>
                 </div>
+                @unless(View::hasSection('sidebar-nav'))
                 <div class="px-4 pb-2">
                     <div class="relative">
                         <i class="fas fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-white/50"></i>
@@ -799,6 +800,7 @@
                             class="w-full pl-8 pr-3 py-2 rounded-lg bg-white/10 placeholder-white/50 text-white text-sm border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 focus:bg-white/15 transition-all">
                     </div>
                 </div>
+                @endunless
             </div>
 
             <!-- Navigation Menu (only this part scrolls) -->
