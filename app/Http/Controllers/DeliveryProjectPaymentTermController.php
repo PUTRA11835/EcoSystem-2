@@ -3,18 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\DeliveryProject;
+use App\Models\DeliveryProjectContractLineItem;
 use App\Models\DeliveryProjectPaymentTerm;
 use App\Services\ProjectReminderService;
 use App\Services\ProjectTopPlan;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Term Of Payment Plan — dua mode penagihan (lihat ProjectTopPlan):
  *   - percentage : amount = revenue × % / 100 (total % ≤ 100, diblokir).
- *   - line_item  : termin wajib dikaitkan ke Contract Line Item; basis termin
- *                  boleh % dari revenue ATAU nominal tetap (saling eksklusif).
- *                  Nominal tetap yang membuat total > revenue hanya diperingatkan.
+ *   - line_item  : termin wajib dikaitkan ke Contract Line Item; amount diambil
+ *                  dari nilai kontrak line item — basis "line_item" (% × nilai
+ *                  line item) ATAU "fixed" (nominal). Basis % dari revenue
+ *                  dikunci (hanya termin lama yang sudah memakainya boleh tetap).
+ *                  Total > revenue hanya diperingatkan.
  */
 class DeliveryProjectPaymentTermController extends Controller
 {
@@ -30,7 +34,10 @@ class DeliveryProjectPaymentTermController extends Controller
             ->get()
             ->each(fn(DeliveryProjectPaymentTerm $t) => $this->resyncAmount($project, $t));
 
-        return response()->json((new ProjectTopPlan($project))->payload());
+        $plan = new ProjectTopPlan($project);
+        $plan->resyncLineItemAmounts();
+
+        return response()->json($plan->payload());
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -74,7 +81,7 @@ class DeliveryProjectPaymentTermController extends Controller
             return response()->json(['message' => 'Not found.'], 404);
         }
 
-        $validated = $this->validatePayload($request, $project);
+        $validated = $this->validatePayload($request, $project, $term);
 
         if ($error = $this->checkPercentageWithinRevenue($project, $validated, $term->id)) {
             return $error;
@@ -125,16 +132,17 @@ class DeliveryProjectPaymentTermController extends Controller
             'top_mode' => ['required', Rule::in(ProjectTopPlan::MODES)],
         ]);
 
-        // Mode % tidak mengenal nominal tetap — termin fixed harus dihapus
-        // dulu supaya tidak ada termin yang amount-nya tiba-tiba berubah.
+        // Mode % hanya mengenal % dari revenue — termin yang amount-nya diambil
+        // dari line item harus dihapus dulu supaya tidak ada termin yang
+        // amount-nya tiba-tiba berubah.
         if ($validated['top_mode'] === 'percentage') {
-            $fixed = DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
-                ->where('basis', 'fixed')
+            $fromLineItem = DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
+                ->whereIn('basis', ['fixed', 'line_item'])
                 ->count();
 
-            if ($fixed > 0) {
+            if ($fromLineItem > 0) {
                 return response()->json([
-                    'message' => "Cannot switch to \"% of Revenue\": {$fixed} payment term(s) use a fixed amount. Delete them first.",
+                    'message' => "Cannot switch to \"% of Revenue\": {$fromLineItem} payment term(s) take their amount from a contract line item. Delete them first.",
                 ], 422);
             }
         }
@@ -146,8 +154,8 @@ class DeliveryProjectPaymentTermController extends Controller
 
         return response()->json([
             'message'  => $validated['top_mode'] === 'line_item'
-                ? 'Billing mode switched to Line Item.'
-                : 'Billing mode switched to % of Revenue.',
+                ? 'TOP type switched to Contract Line Item.'
+                : 'TOP type switched to % of Revenue.',
             'top_mode' => $plan->mode(),
         ]);
     }
@@ -159,22 +167,34 @@ class DeliveryProjectPaymentTermController extends Controller
     /**
      * Validasi + normalisasi. Hasilnya siap disimpan:
      *   - basis percentage → payment_percentage diisi, amount diturunkan dari revenue.
+     *   - basis line_item  → payment_percentage diisi, amount = % × nilai line item.
      *   - basis fixed      → amount diisi user, payment_percentage = 0.
-     * Mode percentage selalu memaksa basis percentage tanpa line item.
+     * Mode percentage selalu memaksa basis percentage tanpa line item. Mode
+     * line_item mengunci basis percentage, kecuali termin lama yang memang
+     * sudah memakainya (supaya data lama tetap bisa diedit).
      */
-    private function validatePayload(Request $request, DeliveryProject $project): array
+    private function validatePayload(Request $request, DeliveryProject $project, ?DeliveryProjectPaymentTerm $existing = null): array
     {
         $lineItemMode = (new ProjectTopPlan($project))->mode() === 'line_item';
+        $requested    = $request->input('basis');
 
-        // Normalisasi SEBELUM validasi: mode % tidak mengenal nominal tetap, jadi
-        // basis=fixed yang terkirim di mode % diperlakukan sebagai percentage
-        // (aturan required_if/required_unless di bawah bergantung pada nilai ini).
-        $request->merge([
-            'basis' => $lineItemMode && $request->input('basis') === 'fixed' ? 'fixed' : 'percentage',
-        ]);
+        // Normalisasi SEBELUM validasi (aturan required_if/required_unless di
+        // bawah bergantung pada nilai ini).
+        if (!$lineItemMode) {
+            $basis = 'percentage';
+        } elseif (in_array($requested, ['line_item', 'fixed'], true)) {
+            $basis = $requested;
+        } elseif ($existing && $existing->isRevenueShare()) {
+            $basis = 'percentage';
+        } else {
+            throw ValidationException::withMessages([
+                'basis' => '"% of Revenue" is locked in Contract Line Item mode. Use "% of Line Item" or "Amount".',
+            ]);
+        }
+        $request->merge(['basis' => $basis]);
 
         $validated = $request->validate([
-            'basis'                 => ['nullable', Rule::in(['percentage', 'fixed'])],
+            'basis'                 => ['required', Rule::in(DeliveryProjectPaymentTerm::BASES)],
             'contract_line_item_id' => [
                 $lineItemMode ? 'required' : 'nullable',
                 'integer',
@@ -187,13 +207,15 @@ class DeliveryProjectPaymentTermController extends Controller
             'amount'              => 'nullable|required_if:basis,fixed|numeric|min:0',
             'requirements'        => 'nullable|string',
             'estimated_date'      => 'nullable|date',
-            'submit_invoice_date' => 'nullable|date',
+            // Status Invoiced = invoice sudah dikirim → tanggalnya wajib ada
+            'submit_invoice_date' => 'nullable|required_if:status,Invoiced|date',
             // Invoice number wajib diisi ketika Submit Invoice Date terisi
             'invoice_number'      => 'nullable|required_with:submit_invoice_date|string|max:255',
             // Paid date wajib diisi ketika status = Paid
             'paid_date'           => 'nullable|required_if:status,Paid|date',
-            'status'              => 'required|string|in:Open,Paid,Delay',
+            'status'              => ['required', 'string', Rule::in(DeliveryProjectPaymentTerm::STATUSES)],
         ], [
+            'submit_invoice_date.required_if' => 'Submit Invoice Date is required when Status is Invoiced.',
             'contract_line_item_id.required' => 'Line Item is required in Line Item billing mode. Add a contract line item first.',
             'contract_line_item_id.exists'   => 'The selected line item does not belong to this project.',
             'payment_percentage.required_unless' => 'Payment % is required.',
@@ -209,6 +231,11 @@ class DeliveryProjectPaymentTermController extends Controller
             // Nominal tetap: TIDAK diambil dari revenue, persentase tidak dipakai.
             $validated['amount']             = round((float) $validated['amount'], 2);
             $validated['payment_percentage'] = 0;
+        } elseif ($basis === 'line_item') {
+            // % dari nilai kontrak line item (bukan dari revenue).
+            $lineItem = DeliveryProjectContractLineItem::find($validated['contract_line_item_id']);
+            $validated['payment_percentage'] = (float) $validated['payment_percentage'];
+            $validated['amount'] = DeliveryProjectPaymentTerm::lineItemAmount($validated['payment_percentage'], $lineItem?->total() ?? 0);
         } else {
             $validated['payment_percentage'] = (float) $validated['payment_percentage'];
             $validated['amount']             = $this->computeAmount($project, $validated['payment_percentage']);
@@ -258,7 +285,9 @@ class DeliveryProjectPaymentTermController extends Controller
      */
     private function resyncAmount(DeliveryProject $project, DeliveryProjectPaymentTerm $term): void
     {
-        if ($term->isFixed()) {
+        // Hanya basis % dari revenue; basis line item disinkronkan oleh
+        // ProjectTopPlan::resyncLineItemAmounts().
+        if (!$term->isRevenueShare()) {
             return;
         }
 

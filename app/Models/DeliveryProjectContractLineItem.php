@@ -9,7 +9,13 @@ use Illuminate\Support\Carbon;
 
 /**
  * Contract Line Item — pekerjaan dalam kontrak (mis. Service, License, ATS) yang
- * menjadi acuan termin bernominal tetap pada mode TOP "line_item".
+ * menjadi acuan termin pada mode TOP "line_item".
+ *
+ * Type:
+ *   - one_time  : ditagih sekali.
+ *   - recurring : ditagih berkala (nominal per periode × jumlah periode).
+ *   - milestone : satu nilai kontrak yang ditagih dalam beberapa termin
+ *                 (mis. 30% / 40% / 30% per milestone).
  */
 class DeliveryProjectContractLineItem extends Model
 {
@@ -26,6 +32,8 @@ class DeliveryProjectContractLineItem extends Model
         'semiannual' => 6,
         'yearly'     => 12,
     ];
+
+    public const TYPES = ['one_time', 'recurring', 'milestone'];
 
     public const FREQUENCY_LABELS = [
         'monthly'    => 'Monthly',
@@ -68,6 +76,11 @@ class DeliveryProjectContractLineItem extends Model
     public function isRecurring(): bool
     {
         return $this->type === 'recurring';
+    }
+
+    public function isMilestone(): bool
+    {
+        return $this->type === 'milestone';
     }
 
     /**
@@ -128,6 +141,10 @@ class DeliveryProjectContractLineItem extends Model
     /** Teks kolom "Schedule", mis. "Once" atau "Jan 2027 – Dec 2027 (12x)". */
     public function scheduleLabel(): string
     {
+        if ($this->isMilestone()) {
+            return 'Billed per milestone';
+        }
+
         if (!$this->isRecurring()) {
             return $this->start_date ? 'Once · ' . $this->start_date->format('M Y') : 'Once';
         }
@@ -138,6 +155,10 @@ class DeliveryProjectContractLineItem extends Model
 
     public function typeLabel(): string
     {
+        if ($this->isMilestone()) {
+            return 'Milestone / Term-based';
+        }
+
         return $this->isRecurring()
             ? 'Recurring ' . strtolower(self::FREQUENCY_LABELS[$this->frequency] ?? '')
             : 'One-time';
