@@ -251,14 +251,17 @@ class RecruitmentCandidateController extends Controller
     }
 
     /**
-     * Holds every submitted document to the rules HR set for its type on the
-     * Settings tab: whether it may be a file, a link or either, and which
-     * file formats are accepted.
+     * Holds every submitted document to the job opening and to the rules HR
+     * set for its type on the Settings tab: a job opening that asks for
+     * documents only takes those (with no job opening, or one that asks for
+     * nothing, any type goes), and each type may be a file, a link or either,
+     * in the accepted file formats.
      */
     private function assertDocumentRules(Request $request): void
     {
         $types = RecruitmentOption::ofType(RecruitmentOption::TYPE_DOCUMENT_TYPE)->get()->keyBy('id');
         $anyFormat = collect(RecruitmentOption::FILE_FORMATS)->flatMap->extensions->all();
+        $requested = JobOpening::with('requestedDocuments')->find($request->input('job_opening_id'))?->requestedDocuments ?? collect();
         $errors = [];
 
         foreach ($request->input('documents', []) as $index => $row) {
@@ -266,6 +269,11 @@ class RecruitmentCandidateController extends Controller
             $url = $row['url'] ?? null;
             $type = $types->get($row['type_id'] ?? null);
             $name = $type->name ?? 'Document';
+
+            if (($file || $url) && $requested->isNotEmpty() && !$requested->contains('id', $type?->id)) {
+                $errors["documents.{$index}.type_id"] = "This job opening does not ask for {$name} — attach one of: " . $requested->pluck('name')->implode(', ') . '.';
+                continue;
+            }
 
             if ($file && !($type?->acceptsFile() ?? true)) {
                 $errors["documents.{$index}.file"] = "{$name} must be given as a link, not a file.";

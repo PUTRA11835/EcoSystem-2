@@ -13,7 +13,12 @@ use App\Http\Controllers\HR_General\DashboardAttendanceController;
 use App\Http\Controllers\HR_General\MyCashAdvanceController;
 use App\Http\Controllers\HR_General\MyCashAdvanceReportController;
 use App\Http\Controllers\HR_General\GeoLookupController;
+use App\Http\Controllers\HR_General\LetterComposeController;
+use App\Http\Controllers\HR_General\LetterDashboardController;
+use App\Http\Controllers\HR_General\LetterRegisterController;
+use App\Http\Controllers\HR_General\LetterRequestController;
 use App\Http\Controllers\HR_General\LetterTemplateController;
+use App\Http\Controllers\HR_General\MyLetterRequestController;
 use App\Http\Controllers\HR_General\MyAttendanceController;
 use App\Http\Controllers\HR_General\MyOvertimeController;
 use App\Http\Controllers\HR_General\MyPurchaseRequestController;
@@ -1038,7 +1043,7 @@ Route::prefix('general')
         //   Schedule           C jadwalkan interview · E reschedule / sync · D cancel
         //   Job Openings       C buat · E ubah / tutup · D hapus
         //   Settings           E simpan pengaturan & ubah opsi · C tambah opsi · D hapus opsi
-        //   Offering Letter    C buat surat · E ubah / kirim / terima / tolak
+        //   Offering Letter    C buat surat · E ubah / tanda tangani / kirim / terima / tolak
         //   Offering Settings  E simpan pengaturan & ubah komponen · C tambah komponen · D hapus komponen
         //
         // Rute STATIS ('settings', 'jobs', 'candidates', 'schedule') memakai
@@ -1148,6 +1153,8 @@ Route::prefix('general')
                 Route::whereNumber('offer')->group(function () use ($can) {
                     Route::get('/{offer}/print', [RecruitmentOfferController::class, 'print'])->name('print');
                     Route::post('/{offer}/update', [RecruitmentOfferController::class, 'update'])->name('update')->middleware($can('edit'));
+                    // Sign with the signatory's signature from the employee master data; only a signed letter is sent.
+                    Route::post('/{offer}/sign', [RecruitmentOfferController::class, 'sign'])->name('sign')->middleware($can('edit'));
                     Route::post('/{offer}/send', [RecruitmentOfferController::class, 'send'])->name('send')->middleware($can('edit'));
                     Route::post('/{offer}/accept', [RecruitmentOfferController::class, 'accept'])->name('accept')->middleware($can('edit'));
                     Route::post('/{offer}/reject', [RecruitmentOfferController::class, 'reject'])->name('reject')->middleware($can('edit'));
@@ -1156,23 +1163,130 @@ Route::prefix('general')
         });
 
         // =====================================================================
-        // LETTER TEMPLATES — kop surat (header & footer) untuk surat-surat HR
+        // LETTER TEMPLATES — hub surat: Dashboard · Requests · Letter Register ·
+        // Create Letter · Settings (docs/planning/letters-hub-plan.md)
         // =====================================================================
-        // Satu slug, kotak C / E / D: C tambah kop · E ubah kop & surat yang
-        // memakainya · D hapus kop. Surat yang bisa dicentang terdaftar di
-        // App\Models\Letterhead::LETTER_TYPES.
-        Route::prefix('letter-templates')->name('letter-templates.')->middleware('menu:general.letter-templates')->group(function () {
-            $can = fn (string $action) => "menu.can:general.letter-templates,{$action}";
+        // 🔴 Setiap tab punya slug SENDIRI, kotak V / C / E / D-nya diatur di
+        // Management → Roles. Arti tiap kotak:
+        //
+        //   Dashboard        V saja (ringkasan)
+        //   Requests         E proses / tolak / tanda tangani / selesaikan & kirim / kirim ulang
+        //                      (Process juga butuh C di Create Letter)
+        //   Letter Register  C catat surat manual · E ubah catatan / unggah scan ·
+        //                    D void surat keluar / hapus surat masuk manual
+        //   Create Letter    C buat surat · E ubah & buat ulang / tanda tangani / kirim · D void
+        //   Settings         C tambah kop / kode · E ubah pengaturan · D hapus kop / kode
+        //
+        // Grup `general.letters` di Menu Access hanyalah INDUK tab-tab ini; ia
+        // tidak menjaga rute mana pun — Dashboard punya slug sendiri.
+        // Alamat lama halaman ini (sebelum menjadi hub).
+        Route::redirect('letter-templates', '/general/letters/settings')->name('letter-templates.legacy');
 
-            Route::get('/', [LetterTemplateController::class, 'index'])->name('index');
-            Route::post('/', [LetterTemplateController::class, 'store'])
-                ->name('store')->middleware($can('create'));
-            Route::get('/{letterhead}/image/{part}', [LetterTemplateController::class, 'image'])
-                ->name('image')->where('part', 'header|footer');
-            Route::post('/{letterhead}/update', [LetterTemplateController::class, 'update'])
-                ->name('update')->middleware($can('edit'));
-            Route::post('/{letterhead}/delete', [LetterTemplateController::class, 'destroy'])
-                ->name('destroy')->middleware($can('delete'));
+        Route::prefix('letters')->name('letters.')->group(function () {
+            $tabs = 'menu:general.letters.dashboard,general.letters.requests,general.letters.register,general.letters.compose,general.letter-templates';
+
+            // Pintu masuk sidebar: membuka tab pertama yang boleh dibuka.
+            Route::get('/', [LetterDashboardController::class, 'home'])->name('index')->middleware($tabs);
+
+            Route::get('/dashboard', [LetterDashboardController::class, 'index'])->name('dashboard')->middleware('menu:general.letters.dashboard');
+
+            Route::prefix('requests')->name('requests.')->middleware('menu:general.letters.requests')->group(function () {
+                $edit = 'menu.can:general.letters.requests,edit';
+
+                Route::get('/', [LetterRequestController::class, 'index'])->name('index');
+                Route::whereNumber('letterRequest')->group(function () use ($edit) {
+                    Route::post('/{letterRequest}/process', [LetterRequestController::class, 'process'])->name('process')->middleware($edit);
+                    Route::post('/{letterRequest}/reject', [LetterRequestController::class, 'reject'])->name('reject')->middleware($edit);
+                    Route::post('/{letterRequest}/sign', [LetterRequestController::class, 'sign'])->name('sign')->middleware($edit);
+                    Route::post('/{letterRequest}/complete', [LetterRequestController::class, 'complete'])->name('complete')->middleware($edit);
+                    Route::post('/{letterRequest}/resend', [LetterRequestController::class, 'resend'])->name('resend')->middleware($edit);
+                });
+            });
+
+            Route::prefix('register')->name('register.')->middleware('menu:general.letters.register')->group(function () {
+                $can = fn (string $action) => "menu.can:general.letters.register,{$action}";
+
+                Route::get('/', [LetterRegisterController::class, 'index'])->name('index');
+                Route::get('/create', [LetterRegisterController::class, 'create'])->name('create')->middleware($can('create'));
+                Route::post('/', [LetterRegisterController::class, 'store'])->name('store')->middleware($can('create'));
+                Route::whereNumber('letter')->group(function () use ($can) {
+                    Route::get('/{letter}/edit', [LetterRegisterController::class, 'edit'])->name('edit')->middleware($can('edit'));
+                    Route::post('/{letter}/update', [LetterRegisterController::class, 'update'])->name('update')->middleware($can('edit'));
+                    Route::post('/{letter}/void', [LetterRegisterController::class, 'void'])->name('void')->middleware($can('delete'));
+                    Route::post('/{letter}/delete', [LetterRegisterController::class, 'destroy'])->name('destroy')->middleware($can('delete'));
+                });
+            });
+
+            Route::prefix('compose')->name('compose.')->middleware('menu:general.letters.compose')->group(function () {
+                $can = fn (string $action) => "menu.can:general.letters.compose,{$action}";
+
+                Route::get('/', [LetterComposeController::class, 'index'])->name('index');
+                // Pratinjau: tidak menyimpan dan tidak memakai nomor — cukup hak View.
+                Route::post('/preview', [LetterComposeController::class, 'preview'])->name('preview');
+                Route::post('/', [LetterComposeController::class, 'store'])->name('store')->middleware($can('create'));
+                Route::whereNumber('letter')->group(function () use ($can) {
+                    Route::get('/{letter}/edit', [LetterComposeController::class, 'edit'])->name('edit')->middleware($can('edit'));
+                    Route::post('/{letter}/update', [LetterComposeController::class, 'update'])->name('update')->middleware($can('edit'));
+                    Route::post('/{letter}/sign', [LetterComposeController::class, 'sign'])->name('sign')->middleware($can('edit'));
+                    Route::post('/{letter}/send', [LetterComposeController::class, 'send'])->name('send')->middleware($can('edit'));
+                    Route::post('/{letter}/void', [LetterComposeController::class, 'void'])->name('void')->middleware($can('delete'));
+                });
+            });
+
+            Route::prefix('settings')->name('settings.')->middleware('menu:general.letter-templates')->group(function () {
+                $can = fn (string $action) => "menu.can:general.letter-templates,{$action}";
+
+                Route::get('/', [LetterTemplateController::class, 'index'])->name('index');
+                Route::post('/templates', [LetterTemplateController::class, 'updateTemplates'])->name('templates.update')->middleware($can('edit'));
+                Route::post('/numbering', [LetterTemplateController::class, 'updateNumbering'])->name('numbering.update')->middleware($can('edit'));
+
+                // Who can be picked as the signatory on Create Letter.
+                Route::post('/signers', [LetterTemplateController::class, 'storeSigner'])->name('signers.store')->middleware($can('create'));
+                Route::post('/signers/{signer}/update', [LetterTemplateController::class, 'updateSigner'])->whereNumber('signer')->name('signers.update')->middleware($can('edit'));
+                Route::post('/signers/{signer}/delete', [LetterTemplateController::class, 'destroySigner'])->whereNumber('signer')->name('signers.destroy')->middleware($can('delete'));
+
+                // What employees can request in My Letter Requests.
+                Route::post('/request-types', [LetterTemplateController::class, 'storeRequestType'])->name('request-types.store')->middleware($can('create'));
+                Route::post('/request-types/settings', [LetterTemplateController::class, 'updateRequestSettings'])->name('request-types.settings')->middleware($can('edit'));
+                Route::post('/request-types/{requestType}/update', [LetterTemplateController::class, 'updateRequestType'])->whereNumber('requestType')->name('request-types.update')->middleware($can('edit'));
+                Route::post('/request-types/{requestType}/delete', [LetterTemplateController::class, 'destroyRequestType'])->whereNumber('requestType')->name('request-types.destroy')->middleware($can('delete'));
+
+                Route::post('/codes', [LetterTemplateController::class, 'storeCode'])->name('codes.store')->middleware($can('create'));
+                Route::post('/codes/{code}/update', [LetterTemplateController::class, 'updateCode'])->name('codes.update')->middleware($can('edit'));
+                Route::post('/codes/{code}/delete', [LetterTemplateController::class, 'destroyCode'])->name('codes.destroy')->middleware($can('delete'));
+
+                Route::post('/letterheads', [LetterTemplateController::class, 'store'])->name('store')->middleware($can('create'));
+                Route::get('/letterheads/{letterhead}/image', [LetterTemplateController::class, 'image'])->name('image');
+                Route::post('/letterheads/{letterhead}/update', [LetterTemplateController::class, 'update'])->name('update')->middleware($can('edit'));
+                Route::post('/letterheads/{letterhead}/delete', [LetterTemplateController::class, 'destroy'])->name('destroy')->middleware($can('delete'));
+            });
+
+            // Berkas surat — dari tab mana pun yang mendaftar surat.
+            Route::whereNumber('letter')->middleware('menu:general.letters.dashboard,general.letters.requests,general.letters.register,general.letters.compose')
+                ->group(function () {
+                    Route::get('/{letter}/pdf', [LetterRegisterController::class, 'pdf'])->name('pdf');
+                    Route::get('/{letter}/file', [LetterRegisterController::class, 'file'])->name('file');
+                });
+        });
+
+        // =====================================================================
+        // MY LETTER REQUESTS — layanan mandiri, untuk SELURUH karyawan
+        // =====================================================================
+        // Slug `general.my-letter-requests` (role User System Registered)
+        // menjaga pintunya, TETAPI kepemilikan diperiksa di controller pada
+        // setiap aksi — kalau tidak, siapa pun dapat membaca surat rekannya
+        // hanya dengan menebak id-nya.
+        Route::prefix('my-letter-requests')->name('my-letter-requests.')->middleware('menu:general.my-letter-requests')->group(function () {
+            $can = fn (string $action) => "menu.can:general.my-letter-requests,{$action}";
+
+            Route::get('/', [MyLetterRequestController::class, 'index'])->name('index');
+            Route::post('/', [MyLetterRequestController::class, 'store'])->name('store')->middleware($can('create'));
+            Route::get('/letters/{letter}/download', [MyLetterRequestController::class, 'downloadLetter'])->whereNumber('letter')->name('letters.download');
+            Route::whereNumber('letterRequest')->group(function () use ($can) {
+                Route::post('/{letterRequest}/update', [MyLetterRequestController::class, 'update'])->name('update')->middleware($can('edit'));
+                Route::post('/{letterRequest}/cancel', [MyLetterRequestController::class, 'cancel'])->name('cancel')->middleware($can('delete'));
+                Route::get('/{letterRequest}/download', [MyLetterRequestController::class, 'download'])->name('download');
+            });
         });
     });
 

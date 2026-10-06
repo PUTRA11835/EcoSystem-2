@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Profil HR karyawan (1:1). Lihat migrasi 2026_09_30_000003 untuk alasan & aturan tiap kelompok kolom.
@@ -65,5 +66,29 @@ class EmployeeHrProfile extends Model
     public function isLocked(): bool
     {
         return $this->locked_at !== null;
+    }
+
+    /** Disk privat tempat foto & tanda tangan disimpan — layar unggahnya wajib memakai disk yang sama. */
+    public const FILE_DISK = 'local';
+
+    /**
+     * Berkas tanda tangan karyawan di master data, atau null bila belum diunggah / berkasnya hilang.
+     * Dibaca surat yang ditandatangani dari master data (Offering Letter).
+     */
+    public static function signaturePathOf(?int $employeeId): ?string
+    {
+        if (!$employeeId) {
+            return null;
+        }
+
+        $path = static::where('employee_id', $employeeId)->value('signature_path');
+
+        return $path && Storage::disk(self::FILE_DISK)->exists($path) ? $path : null;
+    }
+
+    /** @return int[] id karyawan yang tanda tangannya sudah tercatat di master data */
+    public static function employeeIdsWithSignature(): array
+    {
+        return static::whereNotNull('signature_path')->where('signature_path', '!=', '')->pluck('employee_id')->all();
     }
 }

@@ -117,6 +117,11 @@ class EssSettingsController extends Controller
             'route' => null,
             'icon'  => 'fas fa-landmark',
         ],
+        'my_letter_requests' => [
+            'name'  => 'My Letter Requests',
+            'route' => 'general.my-letter-requests.index',
+            'icon'  => 'fas fa-envelope-open-text',
+        ],
         'my_kpis' => [
             'name'  => 'My KPI',
             'route' => 'general.my-kpi.index',
