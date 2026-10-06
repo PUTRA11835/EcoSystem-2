@@ -405,6 +405,9 @@
                                         @if($ind?->description)
                                             <p class="text-[11px] text-gray-400 mt-0.5">{{ $ind->description }}</p>
                                         @endif
+                                        @if(!$isPara && $ind?->target_value !== null)
+                                            <p class="text-[11px] text-indigo-600 font-semibold mt-0.5">Target: {{ rtrim(rtrim(number_format($ind->target_value, 2), '0'), '.') }}</p>
+                                        @endif
                                     </div>
                                     @if($isPara)
                                     <textarea name="scores[{{ $detail->id }}][notes]" rows="3"
@@ -680,7 +683,12 @@ async function executeKpiReview() {
     });
     const data = await res.json();
     showToast(data.message, data.success ? 'success' : 'error');
-    if (data.success) setTimeout(() => location.reload(), 1000);
+    if (data.success) {
+        // The assessor who just sent it to HR is done here: go back to their My KPI tab (it is read-only now).
+        // A saved draft, or HR itself, stays on / reloads the page.
+        const sent = (window._kpiReviewAction || 'draft') === 'submit';
+        setTimeout(() => { if (sent && @json((bool) $isLeadReviewer)) { location.href = @json($backUrl); } else { location.reload(); } }, 1000);
+    }
 }
 
 function openApproveModal() { showKpiModal('approveModal'); }

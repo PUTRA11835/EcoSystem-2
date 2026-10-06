@@ -86,13 +86,16 @@
                 </div>
             </div>
 
-            @if(isset($isHR) && $isHR)
-                <!-- HR Action Buttons -->
+            @if($canDo('hr_general.leave_permit', 'edit') || $canDo('hr_general.leave_permit.tab-inbox', 'edit'))
+                <!-- HR Action Buttons: Edit box of the page (override) and Edit box of the Approval Inbox tab (decision) -->
                 <div class="pt-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
+                    @if($canDo('hr_general.leave_permit', 'edit'))
                     <button type="button" id="btnHREditOverride" onclick="openHREditModal()"
                         class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5">
-                        <i class="fas fa-pencil-alt text-gray-500"></i> Edit Details (HR Override)
+                        Edit Details (HR Override)
                     </button>
+                    @endif
+                    @if($canDo('hr_general.leave_permit.tab-inbox', 'edit'))
                     <div id="reviewHRActionButtons" class="flex flex-wrap items-center gap-2">
                         <button type="button" onclick="confirmReviewAction('reject')"
                             class="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5">
@@ -107,6 +110,7 @@
                             <i class="fas fa-check-circle"></i> Approve
                         </button>
                     </div>
+                    @endif
                 </div>
             @endif
         </div>

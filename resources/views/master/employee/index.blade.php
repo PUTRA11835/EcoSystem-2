@@ -63,7 +63,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         </div>
 
         <!-- Pagination -->
-        <div id="employeePagination" class="flex items-center justify-end mt-4 px-1 min-h-[36px]"></div>
+        <div id="employeePagination" class="mt-4 px-1 min-h-[36px]"></div>
     </div>
 </div>
 
@@ -609,7 +609,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     let deleteEmployeeId = null;
     let currentPage = 1;
     let paginationMeta = null;
-    const PER_PAGE = 200;
+    // Rows per page is chosen in the pagination footer and remembered for the session.
+    const PER_PAGE_OPTIONS = [10, 25, 50, 100, 200];
+    let perPage = (() => { const v = parseInt(sessionStorage.getItem('employeeManagementPerPage'), 10); return PER_PAGE_OPTIONS.includes(v) ? v : 50; })();
 
     /**
      * Tampilkan semua error validasi dari response API sebagai toast.
@@ -644,7 +646,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
     async function fetchEmployees(filters = {}, page = currentPage) {
         try {
-            const params = new URLSearchParams({ ...filters, page, per_page: PER_PAGE });
+            const params = new URLSearchParams({ ...filters, page, per_page: perPage });
             const response = await fetch(`/api/employees?${params}`, {
                 method: 'GET',
                 headers: {
@@ -691,54 +693,58 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 ? `Showing ${total} employee${total !== 1 ? 's' : ''}`
                 : `Showing ${from}–${to} of ${total} employees`;
         }
-
-        if (last_page <= 1) {
+        if (total === 0) {
             el.innerHTML = '';
             return;
         }
 
-        // Build page buttons (max 5 around current)
-        const pages = [];
-        const delta = 2;
-        for (let i = Math.max(1, current_page - delta); i <= Math.min(last_page, current_page + delta); i++) {
-            pages.push(i);
-        }
-        if (pages[0] > 1) {
-            pages.unshift('...');
-            pages.unshift(1);
-        }
-        if (pages[pages.length - 1] < last_page) {
-            pages.push('...');
-            pages.push(last_page);
-        }
+        // Numbered footer (same look as KPI Evaluation / Recruitment): arrows, up to 5 pages around the current one,
+        // "Showing x to y of z" and a "Rows per page" selector.
+        const start = Math.max(1, Math.min(current_page - 2, last_page - 4));
+        const end = Math.min(last_page, start + 4);
+        const page = 'w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 font-semibold flex items-center justify-center text-xs shadow-sm transition-all';
+        const arrow = 'w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 flex items-center justify-center text-xs shadow-sm transition-all';
+        const arrowOff = 'w-8 h-8 rounded-lg border border-gray-100 bg-gray-50 text-gray-300 flex items-center justify-center text-xs cursor-not-allowed';
+        const dots = '<span class="w-5 text-center text-gray-400 text-xs">...</span>';
+        const link = (n) => `<button type="button" onclick="goToPage(${n})" class="${page}">${n}</button>`;
 
-        const btn = (label, page, disabled = false, active = false) => {
-            const base = 'inline-flex items-center justify-center w-8 h-8 text-xs font-medium rounded-lg border transition-all';
-            const cls = active
-                ? `${base} primary-gradient text-white border-transparent`
-                : disabled
-                    ? `${base} bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed`
-                    : `${base} bg-white text-gray-600 border-gray-300 hover:bg-gray-50`;
-            const click = (!disabled && !active) ? `onclick="goToPage(${page})"` : '';
-            return `<button type="button" ${click} class="${cls}" ${disabled ? 'disabled' : ''}>${label}</button>`;
-        };
+        let nav = current_page > 1
+            ? `<button type="button" onclick="goToPage(${current_page - 1})" class="${arrow}" aria-label="Previous page"><i class="fas fa-chevron-left text-[10px]"></i></button>`
+            : `<span class="${arrowOff}"><i class="fas fa-chevron-left text-[10px]"></i></span>`;
+        if (start > 1) { nav += link(1) + (start > 2 ? dots : ''); }
+        for (let n = start; n <= end; n++) {
+            nav += n === current_page
+                ? `<span class="w-8 h-8 rounded-lg text-white font-bold flex items-center justify-center text-xs shadow-sm" aria-current="page" style="background: var(--primary-surface, var(--primary-color)) !important;">${n}</span>`
+                : link(n);
+        }
+        if (end < last_page) { nav += (end < last_page - 1 ? dots : '') + link(last_page); }
+        nav += current_page < last_page
+            ? `<button type="button" onclick="goToPage(${current_page + 1})" class="${arrow}" aria-label="Next page"><i class="fas fa-chevron-right text-[10px]"></i></button>`
+            : `<span class="${arrowOff}"><i class="fas fa-chevron-right text-[10px]"></i></span>`;
 
-        const pageButtons = pages.map(p =>
-            p === '...'
-                ? `<span class="text-xs text-gray-400 px-1">…</span>`
-                : btn(p, p, false, p === current_page)
-        ).join('');
-
+        const options = PER_PAGE_OPTIONS.map(n => `<option value="${n}" ${n === perPage ? 'selected' : ''}>${n}</option>`).join('');
         el.innerHTML = `
-            <div class="flex items-center gap-1">
-                ${btn('&lsaquo;', current_page - 1, current_page === 1)}
-                ${pageButtons}
-                ${btn('&rsaquo;', current_page + 1, current_page === last_page)}
-            </div>
-        `;
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
+                <nav class="flex items-center gap-1.5 flex-wrap" aria-label="Pagination">
+                    ${nav}
+                    <span class="text-xs text-gray-500 ml-3 font-normal whitespace-nowrap">Showing ${from || 0} to ${to || 0} of ${total} results</span>
+                </nav>
+                <div class="flex items-center gap-2">
+                    <label for="employeePerPage" class="text-xs text-gray-500 font-normal whitespace-nowrap">Rows per page:</label>
+                    <div class="w-20"><select id="employeePerPage" onchange="changePerPage(this.value)">${options}</select></div>
+                </div>
+            </div>`;
     }
 
-    // Filter state lives in window.EMP_F (components/header-filter.blade.php); the API takes lists comma-joined.
+    function changePerPage(value) {
+        const n = parseInt(value, 10);
+        if (!PER_PAGE_OPTIONS.includes(n)) return;
+        perPage = n;
+        sessionStorage.setItem('employeeManagementPerPage', String(n));
+        currentPage = 1;
+        fetchEmployees(getCurrentFilters(), 1);
+    }
+
     function getCurrentFilters() {
         const f = window.EMP_F;
         return {

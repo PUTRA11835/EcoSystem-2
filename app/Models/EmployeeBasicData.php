@@ -212,6 +212,28 @@ class EmployeeBasicData extends Model
     /**
      * Scope: Search by name (first_name, last_name, search_term)
      */
+    /**
+     * Scope: match a typed name against the nick name, first / last name or the FULL name ("first last").
+     * Every word must match somewhere (AND between words), so "Siti Rahma" finds a Siti whose nick name is "Sita"
+     * and "rahma" alone still works. Used by the Attendance search boxes (they used to look at nick_name only).
+     */
+    public function scopeMatchesName($query, string $search)
+    {
+        $terms = preg_split('/\s+/', trim($search), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return $query->where(function ($outer) use ($terms) {
+            foreach ($terms as $term) {
+                $like = '%' . $term . '%';
+                $outer->where(function ($q) use ($like) {
+                    $q->where('nick_name', 'like', $like)
+                      ->orWhere('first_name', 'like', $like)
+                      ->orWhere('last_name', 'like', $like)
+                      ->orWhereRaw("CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) LIKE ?", [$like]);
+                });
+            }
+        });
+    }
+
     public function scopeSearchByName($query, $searchTerm)
     {
         $searchTerm = strtoupper($searchTerm);

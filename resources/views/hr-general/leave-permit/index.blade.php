@@ -61,12 +61,13 @@
                     </select>
                 </div>
 
-                <!-- Action Buttons -->
+                <!-- Action Buttons — "Log Leave / Permit" is available on every tab, so it is the Create box of the page itself -->
+                @if($canDo('hr_general.leave_permit', 'create'))
                 <button onclick="openApplyModal()"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm">
-                    <i class="fas fa-plus text-xs"></i>
-                    <span>Log Leave / Permit</span>
+                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm">
+                    Log Leave / Permit
                 </button>
+                @endif
             </div>
         </div>
 
@@ -230,10 +231,12 @@
                             class="px-3 py-2 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-800 text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 whitespace-nowrap">
                             <i class="fas fa-rotate-left text-[10px]"></i> Reset Filter
                         </button>
+                        @if($canDo('hr_general.leave_permit.tab-types', 'create'))
                         <button onclick="openAddTypeModal()"
                             class="px-3.5 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm">
-                            + Add New Leave Type
+                            Add New Leave Type
                         </button>
+                        @endif
                     </div>
                 </div>
                 <div class="overflow-x-auto">
@@ -270,9 +273,40 @@
                                     </div>
                                 </th>
 
-                                <th class="px-3 py-3 text-center">Default Quota</th>
-                                <th class="px-3 py-3 text-center">Paid Status</th>
-                                <th class="px-3 py-3 text-center">Gender Target</th>
+                                @php
+                                    // One floating popover per column: [column key, label, dot id, options value => label]
+                                    $typeFilterCols = [
+                                        'quota'  => ['Default Quota', ['' => 'Default order', 'asc' => 'Lowest first  ↑', 'desc' => 'Highest first  ↓'], 'Sort · Default Quota'],
+                                        'paid'   => ['Paid Status',   ['' => 'All', '1' => 'Paid', '0' => 'Unpaid'], 'Filter · Paid Status'],
+                                        'gender' => ['Gender Target', ['' => 'All', 'all' => 'Everyone', 'P' => 'Female (P)', 'L' => 'Male (L)'], 'Filter · Gender Target'],
+                                    ];
+                                @endphp
+                                @foreach($typeFilterCols as $col => [$colLabel, $colOptions, $colTitle])
+                                <th class="px-3 py-3 text-center">
+                                    <div class="flex items-center justify-center gap-1.5">
+                                        <span>{{ $colLabel }}</span>
+                                        <button type="button" data-hf-btn onclick="toggleHF(event, 'masterTypes{{ ucfirst($col) }}FilterBox')"
+                                            class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="{{ $colTitle }}">
+                                            <i class="fas {{ $col === 'quota' ? 'fa-sort' : 'fa-filter' }} text-[10px]"></i>
+                                            <span id="masterTypes{{ ucfirst($col) }}FilterDot" class="hidden absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
+                                        </button>
+                                    </div>
+                                    <div id="masterTypes{{ ucfirst($col) }}FilterBox" class="header-filter-popover hidden w-44 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden text-left normal-case font-normal" onclick="event.stopPropagation()">
+                                        <div class="px-3 py-2 border-b border-gray-100">
+                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{{ $colTitle }}</span>
+                                        </div>
+                                        <div class="py-1" data-mt-options="{{ $col }}">
+                                            @foreach($colOptions as $optValue => $optLabel)
+                                            <button type="button" data-value="{{ $optValue }}" onclick="setMasterTypesColumnFilter('{{ $col }}', this.dataset.value)"
+                                                class="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors text-gray-700">
+                                                <span class="truncate">{{ $optLabel }}</span>
+                                                <i class="fas fa-check text-[10px] shrink-0 hidden" data-mt-check></i>
+                                            </button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                </th>
+                                @endforeach
 
                                 {{-- Status filter --}}
                                 <th class="px-3 py-3 text-center min-w-28">
@@ -304,7 +338,10 @@
                             @foreach($allTypes as $idx => $t)
                                 <tr class="hover:bg-gray-50 transition-colors"
                                     data-search="{{ strtolower($t->code.' '.$t->name) }}"
-                                    data-active="{{ $t->is_active ? '1' : '0' }}">
+                                    data-active="{{ $t->is_active ? '1' : '0' }}"
+                                    data-quota="{{ (float) $t->default_quota }}"
+                                    data-paid="{{ $t->is_paid ? '1' : '0' }}"
+                                    data-gender="{{ $t->gender_target }}">
                                     <td class="px-3 py-3 text-center font-bold text-gray-500">{{ $idx + 1 }}</td>
                                     <td class="px-3 py-3 font-bold primary-text">{{ $t->code }}</td>
                                     <td class="px-4 py-3 font-semibold text-gray-900">{{ $t->name }}</td>
@@ -334,6 +371,7 @@
                                     <td class="px-4 py-3 text-gray-600 leading-relaxed">{{ $t->description }}</td>
                                     <td class="px-4 py-3 text-right">
                                         <div class="inline-flex items-center justify-end gap-2">
+                                            @if($canDo('hr_general.leave_permit.tab-types', 'edit'))
                                             <!-- Edit Pencil Icon Button -->
                                             <button onclick='openEditTypeModal(@json($t))' title="Edit Leave Type"
                                                 class="w-8 h-8 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 inline-flex items-center justify-center transition-all">
@@ -347,6 +385,7 @@
                                                 <span
                                                     class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $t->is_active ? 'translate-x-4' : 'translate-x-0' }}"></span>
                                             </button>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
@@ -702,7 +741,7 @@
             inbox:       { page: 1, perPage: PAGE_SIZE, data: [], filtered: [], filters: { employee: '', type: '', status: 'pending' } },
             allQuotas:   { page: 1, perPage: 25, pageSizes: [25, 50, 100, 200], data: [], filtered: [], filters: { employee: '', eci: '' }, sort: { key: '', dir: '' } },
             rptEmployee: { page: 1, perPage: PAGE_SIZE, data: [], filtered: [], filters: { employee: '' } },
-            masterTypes: { page: 1, perPage: PAGE_SIZE, rows: [], filters: { search: '', status: '' } },
+            masterTypes: { page: 1, perPage: PAGE_SIZE, rows: [], filters: { search: '', status: '', paid: '', gender: '', quota: '' } },
         };
 
         function goToPage(key, page) {
@@ -990,9 +1029,25 @@
             closeAllHF();
         }
 
+        // Default Quota (sort asc/desc), Paid Status and Gender Target share one handler: col = quota | paid | gender.
+        function setMasterTypesColumnFilter(col, val) {
+            paginationState.masterTypes.filters[col] = val;
+            toggleFilterDot('masterTypes' + col.charAt(0).toUpperCase() + col.slice(1) + 'FilterDot', val !== '');
+            document.querySelectorAll('[data-mt-options="' + col + '"] button').forEach(b => {
+                const on = b.dataset.value === val && val !== '';
+                b.classList.toggle('font-semibold', on);
+                b.style.color = on ? 'var(--primary-color)' : '';
+                b.querySelector('[data-mt-check]').classList.toggle('hidden', !on);
+            });
+            paginationState.masterTypes.page = 1;
+            renderMasterTypesPage();
+            closeAllHF();
+        }
+
         function resetMasterTypesFilters() {
             clearTimeout(_masterTypesDebounce);
-            paginationState.masterTypes.filters = { search: '', status: '' };
+            ['quota', 'paid', 'gender'].forEach(col => setMasterTypesColumnFilter(col, ''));
+            paginationState.masterTypes.filters = { search: '', status: '', paid: '', gender: '', quota: '' };
             const el = document.getElementById('masterTypesSearch');
             if (el) el.value = '';
             toggleFilterDot('masterTypesSearchFilterDot', false);
@@ -1004,6 +1059,7 @@
 
         // Izin per tab (lihat $tabOk di atas). Tab tanpa izin tidak memuat datanya.
         const TAB_OK = @json($tabOk);
+        const CAN_REVIEW = @json($canDo('hr_general.leave_permit.tab-inbox', 'edit'));   // approve / reject / ask for revision
         const FIRST_TAB = @json($firstTab);
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1121,7 +1177,7 @@
                     <td class="px-4 py-3 text-center">${renderStatusBadge(app.status)}</td>
                     <td class="px-5 py-3 text-right">
                         <button onclick='openReviewModal(${JSON.stringify(app)})' class="px-3 py-1 primary-gradient text-white text-[11px] font-semibold rounded hover:opacity-90">
-                            Review / Edit
+                            ${CAN_REVIEW ? 'Review / Edit' : 'View'}
                         </button>
                     </td>
                 </tr>
@@ -1260,8 +1316,23 @@
             const visibleRows = state.rows.filter(row => {
                 if (f.search && !row.dataset.search.includes(f.search.toLowerCase())) return false;
                 if (f.status !== '' && row.dataset.active !== f.status) return false;
+                if (f.paid !== '' && row.dataset.paid !== f.paid) return false;
+                if (f.gender !== '' && row.dataset.gender !== f.gender) return false;
                 return true;
             });
+
+            // Default Quota: ascending / descending (ties keep the original order); the matching rows are moved in the table.
+            if (f.quota !== '') {
+                const dir = f.quota === 'desc' ? -1 : 1;
+                visibleRows.sort((a, b) => dir * (parseFloat(a.dataset.quota) - parseFloat(b.dataset.quota)) || (state.rows.indexOf(a) - state.rows.indexOf(b)));
+                const body = document.getElementById('tblMasterTypesBody');
+                visibleRows.forEach(row => body.appendChild(row));
+            } else {
+                // back to the original order (the "No" column)
+                const body = document.getElementById('tblMasterTypesBody');
+                state.rows.forEach(row => body.appendChild(row));
+                visibleRows.sort((a, b) => state.rows.indexOf(a) - state.rows.indexOf(b));
+            }
 
             // Hide everything first, then reveal only the current page's matches.
             state.rows.forEach(row => { row.style.display = 'none'; });
@@ -1283,8 +1354,18 @@
         }
 
         // ── Master Leave Type CRUD & Activation Protection (Requirement 1 & 2) ──
+        // The <select>s are wrapped by select-enhance.js: setting .value alone leaves the visible label stale
+        // (it kept showing "All" for a gender target of P/L). A 'change' event makes the wrapper redraw.
+        function setSelectValue(id, value) {
+            const el = document.getElementById(id);
+            el.value = value;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
         function openAddTypeModal() {
-            document.getElementById('formMasterType').reset();
+            const form = document.getElementById('formMasterType');
+            form.reset();
+            form.querySelectorAll('select').forEach(sel => sel.dispatchEvent(new Event('change', { bubbles: true })));
             document.getElementById('typeFormId').value = '';
             document.getElementById('modalTypeFormTitle').innerText = 'Add Master Leave Type';
             document.getElementById('modalMasterTypeForm').classList.remove('hidden');
@@ -1294,11 +1375,11 @@
             document.getElementById('typeFormId').value = t.id;
             document.getElementById('typeFormCode').value = t.code;
             document.getElementById('typeFormName').value = t.name;
-            document.getElementById('typeFormCategory').value = t.category;
+            setSelectValue('typeFormCategory', t.category);
             document.getElementById('typeFormDefaultQuota').value = t.default_quota;
             document.getElementById('typeFormMinService').value = t.min_service_period || '';
-            document.getElementById('typeFormIsPaid').value = t.is_paid ? '1' : '0';
-            document.getElementById('typeFormGenderTarget').value = t.gender_target;
+            setSelectValue('typeFormIsPaid', t.is_paid ? '1' : '0');
+            setSelectValue('typeFormGenderTarget', t.gender_target || 'all');
             document.getElementById('typeFormRequiresAttachment').checked = !!t.requires_attachment;
             document.getElementById('typeFormDescription').value = t.description || '';
             document.getElementById('modalTypeFormTitle').innerText = 'Edit Master Leave Type (' + t.code + ')';

@@ -116,8 +116,12 @@ final class MenuAccessLayout
             $row['menu_ids'] = [$m['id']];
 
             if ($crudEnforced($m['slug'])) {
+                $only = $this->config['crud_labels'][$m['slug']] ?? null;   // null = all three boxes work
                 foreach (['c' => 'Create', 'e' => 'Edit', 'd' => 'Delete'] as $k => $label) {
-                    $row['cells'][$k] = ['id' => $m['id'], 'k' => $k, 'label' => $label, 'slug' => $m['slug'], 'covers' => [$k]];
+                    if ($only !== null && !isset($only[$k])) {
+                        continue;
+                    }
+                    $row['cells'][$k] = ['id' => $m['id'], 'k' => $k, 'label' => $label, 'name' => $only[$k] ?? null, 'slug' => $m['slug'], 'covers' => [$k]];
                 }
             }
             $this->fold($row, $owned[$m['id']] ?? [], $m['name']);

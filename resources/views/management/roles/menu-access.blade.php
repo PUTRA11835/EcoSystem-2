@@ -318,7 +318,7 @@
     // Kotak untuk flag C/E/D milik halaman itu sendiri (hanya halaman yang menegakkannya di server).
     function flagBox(row, cell) {
         const e = eff(cell.id);
-        return `<input type="checkbox" data-id="${cell.id}" data-k="${cell.k}" data-row="${esc(row.key)}" ${e && e[cell.k] ? 'checked' : ''} ${e ? '' : 'disabled'} title="${e ? '' : 'Give View to this row first'}" aria-label="${esc(COL[cell.k])} — ${esc(row.name)}">`;
+        return `<input type="checkbox" data-id="${cell.id}" data-k="${cell.k}" data-row="${esc(row.key)}" ${e && e[cell.k] ? 'checked' : ''} ${e ? '' : 'disabled'} title="${esc(e ? (cell.name || '') : 'Give View to this row first')}" aria-label="${esc(COL[cell.k])} — ${esc(row.name)}">`;
     }
 
     function actionBox(row, a) {

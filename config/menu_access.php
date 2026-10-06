@@ -60,6 +60,9 @@ return [
         'general.letters.requests',
         'general.letters.register',
         'general.letters.compose',
+        'hr_general.leave_permit',              // Create = Log Leave / Permit, Edit = edit a logged application
+        'hr_general.leave_permit.tab-inbox',    // Edit = approve / reject / ask for revision
+        'hr_general.leave_permit.tab-types',    // Create = add a leave type, Edit = edit / (de)activate a type
         'general.my-letter-requests', // Global ESS: baris terkunci di layar, tetapi rutenya memakai menu.can
     ],
 
@@ -89,6 +92,16 @@ return [
         'my-profile.section.'       => 'My Profile',
         'delivery-project.'         => 'Project detail',
         'delivery-support.'         => 'Support detail',
+    ],
+
+    /*
+     * crud_labels — slug yang hanya memakai SEBAGIAN kotak C/E/D: tampilkan hanya kotak yang berfungsi, dengan arti
+     * yang sebenarnya sebagai tooltip (kotak lain tidak dirender, jadi tak ada yang mengira "Delete" berfungsi).
+     */
+    'crud_labels' => [
+        'hr_general.leave_permit'             => ['c' => 'Log Leave / Permit (on behalf of an employee, all tabs)', 'e' => 'Edit a logged application (HR override)'],
+        'hr_general.leave_permit.tab-inbox'   => ['e' => 'Approve / Reject / Ask for revision'],
+        'hr_general.leave_permit.tab-types'   => ['c' => 'Add a leave type', 'e' => 'Edit or (de)activate a leave type'],
     ],
 
     // Urutan tampil di kolom kiri. `match` = pola slug (Str::is). Pola pertama yang cocok menang.

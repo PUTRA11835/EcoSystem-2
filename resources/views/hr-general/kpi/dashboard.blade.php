@@ -219,7 +219,7 @@
                                 </div>
                                 <div class="p-2.5">
                                     <div class="relative">
-                                        <input type="text" id="headerEmployeeSearch" value="{{ $search ?? '' }}" placeholder="Type a name or ECI…" autocomplete="off"
+                                        <input type="text" id="headerEmployeeSearch" value="{{ $search ?? '' }}" placeholder="Name, ECI, position or department…" autocomplete="off"
                                             oninput="debouncedFilterSubmit('headerSearchInput', this.value)"
                                             onkeydown="if(event.key==='Enter'){event.preventDefault();onSearchEnter(this.value);}"
                                             class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
@@ -321,7 +321,9 @@
                             <div id="templateFilterBox" class="header-filter-popover hidden w-72 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
                                 <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
                                     <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Template</span>
+                                    @if(!empty($templateIds) || !empty($typeFilters))
                                     <button type="button" onclick="clearTemplateFilter()" class="text-[10px] font-semibold text-red-500 hover:text-red-600">Clear</button>
+                                    @endif
                                 </div>
                                 <div class="px-3 pt-2.5">
                                     <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">By type</p>
@@ -389,7 +391,7 @@
                             @php
                                 $statusOptions = [
                                     ''             => 'All Status',
-                                    'not_created'  => 'Not Created',
+                                    'not_created'  => 'Not Created (no evaluation)',
                                     'draft'        => 'Draft',
                                     'self_assessed'=> 'Self-Assessed',
                                     'reviewed'     => 'Reviewed',
