@@ -25,6 +25,8 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class OnboardingController extends Controller
 {
     private const PER_PAGE = 25;
+    private const PER_PAGE_OPTIONS = [10, 25, 50, 100];
+    private const BULK_LOCK_MAX = 500;
 
     public function index(Request $request, OnboardingProgressService $progress)
     {
@@ -36,21 +38,35 @@ class OnboardingController extends Controller
             ->sort(fn (array $a, array $b) => $this->compare($a, $b, $filters['sort']))
             ->values();
 
+        $perPage = (int) $request->query('per_page', self::PER_PAGE);
+        $perPage = in_array($perPage, self::PER_PAGE_OPTIONS, true) ? $perPage : self::PER_PAGE;
+
         $page = LengthAwarePaginator::resolveCurrentPage();
         $paginator = new LengthAwarePaginator(
-            $rows->forPage($page, self::PER_PAGE)->values(),
+            $rows->forPage($page, $perPage)->values(),
             $rows->count(),
-            self::PER_PAGE,
+            $perPage,
             $page,
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
         return view('hr-general.onboarding.index', [
             'rows'    => $paginator,
+            'readyCount' => $this->readyCount($data['employees'], $filters),
+            'perPage' => $perPage,
+            'perPageOptions' => self::PER_PAGE_OPTIONS,
             'summary' => $data['summary'],
             'filters' => $filters,
             'groups'  => config('hc_onboarding.groups'),
         ]);
+    }
+
+    /** Berapa profil "Ready to lock" pada filter yang sedang dipakai (sama dengan yang dikunci tombol massal). */
+    private function readyCount(array $employees, array $filters): int
+    {
+        $f = array_merge($filters, ['lock' => 'ready', 'status' => 'all']);
+
+        return collect($employees)->filter(fn (array $e) => $this->matches($e, $f))->count();
     }
 
     public function show(int $employeeId, OnboardingProgressService $progress)
@@ -97,6 +113,37 @@ class OnboardingController extends Controller
         };
 
         return response()->json(['success' => $r['ok'], 'message' => $r['message'], 'code' => $r['code']], $status);
+    }
+
+    /**
+     * Kunci massal: semua karyawan yang "Ready to lock" (progres 100%, belum terkunci) pada FILTER yang sedang
+     * dipakai HR. Tetap memakai ProfileLockService::lock() per orang, jadi aturan, riwayat karyawan, dan pemeriksaan
+     * "harus 100%" identik dengan tombol Verify & Lock satuan. Izin sama dengan satuan: general.onboarding.lock.
+     */
+    public function lockReady(Request $request, OnboardingProgressService $progress, ProfileLockService $locks): JsonResponse
+    {
+        if (!$request->ajax()) {
+            return response()->json(['success' => false, 'message' => 'Invalid request.'], 400);
+        }
+
+        $filters = $this->filters($request);
+        $filters['lock'] = 'ready';                       // hanya yang siap
+        $filters['status'] = 'all';
+        $ids = collect($progress->all()['employees'])
+            ->filter(fn (array $e) => $this->matches($e, $filters))
+            ->pluck('employee_id')->take(self::BULK_LOCK_MAX)->all();
+
+        $actor = (int) (session('user')['id'] ?? 0);
+        $locked = 0;
+        $skipped = 0;
+        foreach ($ids as $id) {
+            $r = $locks->lock((int) $id, $actor);
+            $r['ok'] ? $locked++ : $skipped++;
+        }
+
+        $message = $locked . ' profile(s) verified and locked' . ($skipped ? ", {$skipped} skipped." : '.');
+
+        return response()->json(['success' => true, 'message' => $message, 'data' => ['locked' => $locked, 'skipped' => $skipped]]);
     }
 
     // ── Alat join date untuk HR (HC-D64) ─────────────────────────────────────
@@ -169,13 +216,13 @@ class OnboardingController extends Controller
     {
         $groups = array_keys(config('hc_onboarding.groups'));
 
-        $status = (string) $request->query('status', 'in_progress');
+        $status = (string) $request->query('status', 'all');
         $type   = (string) $request->query('type', 'all');
         $missing = (string) $request->query('missing', 'all');
         $sort   = (string) $request->query('sort', 'progress_asc');
         $lock   = (string) $request->query('lock', 'all');
 
-        $status = in_array($status, ['all', 'in_progress', 'complete'], true) ? $status : 'in_progress';
+        $status = in_array($status, ['all', 'in_progress', 'complete'], true) ? $status : 'all';
         $lock   = in_array($lock, ['all', 'ready', 'locked'], true) ? $lock : 'all';
         // "Ready to lock"/"Locked" hanya berisi karyawan yang progresnya 100%; filter status bawaan "In progress"
         // akan selalu mengosongkan hasilnya (bertentangan). Saat filter kunci dipakai, status "In progress" diabaikan.

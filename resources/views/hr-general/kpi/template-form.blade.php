@@ -404,10 +404,11 @@
             {{-- Column headers --}}
             <div class="hidden sm:grid grid-cols-12 gap-2 px-1 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                 <div class="col-span-1 text-center">No</div>
-                <div class="col-span-4">Indicator name / question</div>
+                <div class="col-span-3">Indicator name / question</div>
                 <div class="col-span-2">Answer type</div>
                 <div class="col-span-2 text-center">Weight (%)</div>
-                <div class="col-span-2 text-center">Scale max</div>
+                <div class="col-span-1 text-center">Scale max</div>
+                <div class="col-span-2 text-center">Target</div>
                 <div class="col-span-1"></div>
             </div>
 
@@ -418,7 +419,7 @@
                     <div class="col-span-2 sm:col-span-1 flex sm:justify-center">
                         <span class="indicator-no inline-flex w-7 h-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 text-xs font-bold">{{ $loop->iteration }}</span>
                     </div>
-                    <div class="col-span-10 sm:col-span-4">
+                    <div class="col-span-10 sm:col-span-3">
                         <textarea name="indicators[__I__][name]" required rows="2"
                             placeholder="Indicator name / question *"
                             class="indicator-name-input w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 resize-y">{{ $r->name ?? '' }}</textarea>
@@ -436,9 +437,15 @@
                             class="weight-input w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 text-center font-bold {{ $isPara ? 'bg-gray-100 text-gray-400' : '' }}"
                             oninput="weightsManual = true; updateWeightSum()">
                     </div>
-                    <div class="col-span-9 sm:col-span-2">
+                    <div class="col-span-4 sm:col-span-1">
                         <input type="number" value="{{ $vDivisor ?: 5 }}" readonly tabindex="-1"
-                            class="rating-max-input w-full px-2.5 py-2 text-xs text-center border border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed">
+                            class="rating-max-input w-full px-1 py-2 text-xs text-center border border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed">
+                    </div>
+                    <div class="col-span-5 sm:col-span-2">
+                        {{-- Target the employee is expected to reach (free number; the unit goes in the description). Rating rows only. --}}
+                        <input type="number" name="indicators[__I__][target_value]" value="{{ $r->target_value ?? '' }}"
+                            placeholder="Target" min="0" step="0.01" {{ $isPara ? 'disabled' : '' }}
+                            class="target-input w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-400 text-center {{ $isPara ? 'bg-gray-100 text-gray-400' : '' }}">
                     </div>
                     <div class="col-span-3 sm:col-span-1 flex items-center justify-center">
                         <button type="button" title="Remove indicator"
@@ -515,6 +522,12 @@ function addIndicatorRow() {
 function toggleIndicatorType(sel) {
     const row = sel.closest('.indicator-row');
     const para = sel.value === 'paragraph';
+    row.querySelectorAll('.target-input').forEach(el => {
+        el.disabled = para;
+        el.classList.toggle('bg-gray-100', para);
+        el.classList.toggle('text-gray-400', para);
+        if (para) el.value = '';
+    });
     row.querySelectorAll('.weight-input').forEach(el => {
         el.disabled = para;
         el.classList.toggle('bg-gray-100', para);

@@ -145,8 +145,8 @@
                             <span class="block text-xs text-gray-400">{{ $record->attendance_date->format('Y-m-d') }}</span>
                         </td>
                         <td class="px-3 py-3 whitespace-nowrap">
-                            <div class="font-medium text-gray-900">{{ $basic?->nick_name ?? '—' }}</div>
-                            <div class="text-xs text-gray-400">{{ $record->employee?->eci }}</div>
+                            <div class="font-medium text-gray-900">{{ $basic?->full_name ?: ($basic?->nick_name ?? '—') }}</div>
+                            <div class="text-xs text-gray-400">{{ $record->employee?->eci }}@if($basic?->nick_name && $basic->full_name !== $basic->nick_name) · “{{ $basic->nick_name }}” @endif</div>
                         </td>
                         <td class="px-3 py-3 text-gray-600 text-xs">{{ $basic?->department ?: '—' }}</td>
                         <td class="px-3 py-3 text-gray-600 text-xs">{{ $basic?->position ?: '—' }}</td>

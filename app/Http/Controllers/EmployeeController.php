@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use App\Enums\RoleId;
 use App\Exports\EmployeeExport;
@@ -224,6 +225,15 @@ class EmployeeController extends Controller
                     'eb.block',
                     'eb.deletion_flag'
                 );
+
+            // Profil terkunci oleh HR (Onboarding › Verify & Lock). Subquery, bukan join, supaya tidak menggandakan
+            // baris; tabel belum ada (rilis sebelum migrasi) → kolom diabaikan.
+            if (Schema::hasTable('employee_hr_profile')) {
+                $query->selectSub(
+                    DB::table('employee_hr_profile as hp')->select('hp.locked_at')->whereColumn('hp.employee_id', 'e.employee_id')->limit(1),
+                    'profile_locked_at'
+                );
+            }
 
             $this->applyEmployeeListFilters($query, $request);
 
@@ -461,15 +471,38 @@ class EmployeeController extends Controller
         // filled() mencegah filter jalan saat nilai null/'' — kalau tidak,
         // "LIKE '%%'" akan MEMBUANG semua baris dengan department NULL (mis.
         // hasil import yang kolom department-nya kosong).
+        // Multi-select (comma-separated, exact names from the Department list). A value that is not one of the
+        // selected names is not matched, so a single name still works the same as the old text search for
+        // callers that send one department.
         if ($request->filled('department')) {
-            $query->where('eb.department', 'like', "%{$request->department}%");
-            Log::info('Filter applied: department', ['department' => $request->department]);
+            $departments = array_values(array_filter(array_map('trim', explode(',', $request->department)), fn ($v) => $v !== ''));
+            if ($departments) {
+                $query->whereIn('eb.department', $departments);
+            }
+            Log::info('Filter applied: department', ['department' => $departments]);
         }
 
         // Global search
         if ($request->filled('search')) {
             $this->applyNameSearch($query, $request->search, true);
             Log::info('Global search applied', ['search' => $request->search]);
+        }
+
+        // Filter by profile lock state (Onboarding › Verify & Lock): 'locked' | 'unlocked'.
+        if (in_array($request->input('lock'), ['locked', 'unlocked'], true) && Schema::hasTable('employee_hr_profile')) {
+            $locked = DB::table('employee_hr_profile as hpf')->selectRaw('1')
+                ->whereColumn('hpf.employee_id', 'e.employee_id')->whereNotNull('hpf.locked_at');
+            $request->input('lock') === 'locked' ? $query->whereExists($locked) : $query->whereNotExists($locked);
+        }
+
+        // Filter by employee group / division (multi-select, comma-separated).
+        foreach (['employee_group' => 'eb.employee_group', 'division' => 'eb.division'] as $param => $column) {
+            if ($request->filled($param)) {
+                $values = array_values(array_filter(array_map('trim', explode(',', $request->input($param))), fn ($v) => $v !== ''));
+                if ($values) {
+                    $query->whereIn($column, $values);
+                }
+            }
         }
 
         // Filter by home base (multi-select, comma-separated).

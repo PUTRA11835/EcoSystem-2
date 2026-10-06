@@ -76,6 +76,10 @@ class RoleMenuAccessService
             'role' => ['id' => (int) $role->id, 'name' => $role->name, 'description' => $role->description, 'employees_count' => (int) $role->employees_count],
             'modules' => $this->rules->modules(),
             'menus' => $list,
+            'rows' => (new MenuAccessLayout((array) config('menu_access')))->build(
+                array_map(fn ($m) => ['id' => $m['id'], 'parent_id' => $m['parent_id'], 'name' => $m['name'], 'slug' => $m['slug'], 'type' => $m['type']], $list),
+                fn (string $slug) => $this->rules->crudEnforced($slug),
+            ),
             'grants' => $state,
         ];
     }

@@ -13,89 +13,6 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         <h2 class="text-2xl font-bold text-gray-900">Employee Management</h2>
     </div>
 
-    <!-- Filter Section -->
-    <div class="bg-gray-50 rounded-lg p-5 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Status</label>
-                <div class="custom-dd relative" data-onchange="applyFilters">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Status</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterStatus" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="active">Active</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="blocked">Inactive</button>
-                    </div>
-                </div>
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Employee</label>
-                <input type="text" id="filterEmployee" placeholder="Search by ECI or name..." oninput="debouncedApplyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Department</label>
-                <input type="text" id="filterDepartment" placeholder="Search department..." oninput="debouncedApplyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Module</label>
-                <div class="custom-dd relative" id="ddFilterModules" data-multi="true" data-onchange="applyFilters">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Modules</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterModules" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Modules</button>
-                        <!-- Module items populated dynamically from /api/modules -->
-                    </div>
-                </div>
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Home Base</label>
-                <div class="custom-dd relative" id="ddFilterHomeBase" data-multi="true" data-onchange="applyFilters">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Home Base</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterHomeBase" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Home Base</button>
-                        @foreach(\App\Enums\HomeBase::options() as $hb)
-                        <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $hb }}"><span class="custom-dd-item-text">{{ $hb }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Position</label>
-                <div class="custom-dd relative" id="ddFilterPosition" data-multi="true" data-onchange="applyFilters">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Position</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterPosition" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Position</button>
-                        @foreach(($positionOptions ?? []) as $pos)
-                        <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $pos }}"><span class="custom-dd-item-text">{{ $pos }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="flex gap-3 justify-end">
-            <button onclick="applyFilters()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Apply
-            </button>
-            <button onclick="resetFilters()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                Reset
-            </button>
-        </div>
-    </div>
-
     <!-- Table Section -->
     <div class="mt-6">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
@@ -104,6 +21,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 <span id="employeeShowingText" class="text-xs text-gray-500"></span>
             </div>
             <div class="flex items-center gap-2.5">
+                <button type="button" id="employeeResetFilters" onclick="resetFilters()" class="hidden inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 hover:text-red-700">
+                    <i class="fas fa-filter-circle-xmark text-[11px]"></i> Reset filters
+                </button>
                 <button onclick="exportEmployees()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-green-600">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -123,15 +43,16 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:100px;">ECI</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:200px;">Full Name</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Position</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Module</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:130px;">Employee Group</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Division</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200" style="min-width:220px;">Department</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Home Base</th>
+                        @include('master.employee.components.header-filter', ['key' => 'employee', 'label' => 'Full Name', 'type' => 'search', 'placeholder' => 'Search by ECI or name…', 'thStyle' => 'min-width:200px;'])
+                        @include('master.employee.components.header-filter', ['key' => 'position', 'label' => 'Position', 'type' => 'checkboxes', 'options' => array_combine($positionOptions ?? [], $positionOptions ?? [])])
+                        @include('master.employee.components.header-filter', ['key' => 'modules', 'label' => 'Module', 'type' => 'checkboxes', 'dynamic' => true])
+                        @include('master.employee.components.header-filter', ['key' => 'employee_group', 'label' => 'Employee Group', 'type' => 'checkboxes', 'options' => array_combine($employeeGroupOptions ?? [], $employeeGroupOptions ?? []), 'thStyle' => 'min-width:130px;'])
+                        @include('master.employee.components.header-filter', ['key' => 'division', 'label' => 'Division', 'type' => 'checkboxes', 'options' => array_combine($divisionOptions ?? [], $divisionOptions ?? [])])
+                        @include('master.employee.components.header-filter', ['key' => 'department', 'label' => 'Department', 'type' => 'checkboxes', 'options' => array_combine($departmentOptions ?? [], $departmentOptions ?? []), 'thStyle' => 'min-width:220px;'])
+                        @include('master.employee.components.header-filter', ['key' => 'home_base', 'label' => 'Home Base', 'type' => 'checkboxes', 'options' => array_combine(\App\Enums\HomeBase::options(), \App\Enums\HomeBase::options())])
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Since Date</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Status</th>
+                        @include('master.employee.components.header-filter', ['key' => 'status', 'label' => 'Status', 'type' => 'options', 'allLabel' => 'All Status', 'options' => ['active' => 'Active', 'blocked' => 'Inactive']])
+                        @include('master.employee.components.header-filter', ['key' => 'lock', 'label' => 'Profile', 'type' => 'options', 'allLabel' => 'All profiles', 'options' => ['locked' => 'Locked by HR', 'unlocked' => 'Not locked']])
                         <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Actions</th>
                     </tr>
                 </thead>
@@ -142,7 +63,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         </div>
 
         <!-- Pagination -->
-        <div id="employeePagination" class="flex items-center justify-end mt-4 px-1 min-h-[36px]"></div>
+        <div id="employeePagination" class="mt-4 px-1 min-h-[36px]"></div>
     </div>
 </div>
 
@@ -688,7 +609,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     let deleteEmployeeId = null;
     let currentPage = 1;
     let paginationMeta = null;
-    const PER_PAGE = 200;
+    // Rows per page is chosen in the pagination footer and remembered for the session.
+    const PER_PAGE_OPTIONS = [10, 25, 50, 100, 200];
+    let perPage = (() => { const v = parseInt(sessionStorage.getItem('employeeManagementPerPage'), 10); return PER_PAGE_OPTIONS.includes(v) ? v : 50; })();
 
     /**
      * Tampilkan semua error validasi dari response API sebagai toast.
@@ -723,7 +646,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
     async function fetchEmployees(filters = {}, page = currentPage) {
         try {
-            const params = new URLSearchParams({ ...filters, page, per_page: PER_PAGE });
+            const params = new URLSearchParams({ ...filters, page, per_page: perPage });
             const response = await fetch(`/api/employees?${params}`, {
                 method: 'GET',
                 headers: {
@@ -770,62 +693,76 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 ? `Showing ${total} employee${total !== 1 ? 's' : ''}`
                 : `Showing ${from}–${to} of ${total} employees`;
         }
-
-        if (last_page <= 1) {
+        if (total === 0) {
             el.innerHTML = '';
             return;
         }
 
-        // Build page buttons (max 5 around current)
-        const pages = [];
-        const delta = 2;
-        for (let i = Math.max(1, current_page - delta); i <= Math.min(last_page, current_page + delta); i++) {
-            pages.push(i);
-        }
-        if (pages[0] > 1) {
-            pages.unshift('...');
-            pages.unshift(1);
-        }
-        if (pages[pages.length - 1] < last_page) {
-            pages.push('...');
-            pages.push(last_page);
-        }
+        // Numbered footer (same look as KPI Evaluation / Recruitment): arrows, up to 5 pages around the current one,
+        // "Showing x to y of z" and a "Rows per page" selector.
+        const start = Math.max(1, Math.min(current_page - 2, last_page - 4));
+        const end = Math.min(last_page, start + 4);
+        const page = 'w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 font-semibold flex items-center justify-center text-xs shadow-sm transition-all';
+        const arrow = 'w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 flex items-center justify-center text-xs shadow-sm transition-all';
+        const arrowOff = 'w-8 h-8 rounded-lg border border-gray-100 bg-gray-50 text-gray-300 flex items-center justify-center text-xs cursor-not-allowed';
+        const dots = '<span class="w-5 text-center text-gray-400 text-xs">...</span>';
+        const link = (n) => `<button type="button" onclick="goToPage(${n})" class="${page}">${n}</button>`;
 
-        const btn = (label, page, disabled = false, active = false) => {
-            const base = 'inline-flex items-center justify-center w-8 h-8 text-xs font-medium rounded-lg border transition-all';
-            const cls = active
-                ? `${base} primary-gradient text-white border-transparent`
-                : disabled
-                    ? `${base} bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed`
-                    : `${base} bg-white text-gray-600 border-gray-300 hover:bg-gray-50`;
-            const click = (!disabled && !active) ? `onclick="goToPage(${page})"` : '';
-            return `<button type="button" ${click} class="${cls}" ${disabled ? 'disabled' : ''}>${label}</button>`;
-        };
+        let nav = current_page > 1
+            ? `<button type="button" onclick="goToPage(${current_page - 1})" class="${arrow}" aria-label="Previous page"><i class="fas fa-chevron-left text-[10px]"></i></button>`
+            : `<span class="${arrowOff}"><i class="fas fa-chevron-left text-[10px]"></i></span>`;
+        if (start > 1) { nav += link(1) + (start > 2 ? dots : ''); }
+        for (let n = start; n <= end; n++) {
+            nav += n === current_page
+                ? `<span class="w-8 h-8 rounded-lg text-white font-bold flex items-center justify-center text-xs shadow-sm" aria-current="page" style="background: var(--primary-surface, var(--primary-color)) !important;">${n}</span>`
+                : link(n);
+        }
+        if (end < last_page) { nav += (end < last_page - 1 ? dots : '') + link(last_page); }
+        nav += current_page < last_page
+            ? `<button type="button" onclick="goToPage(${current_page + 1})" class="${arrow}" aria-label="Next page"><i class="fas fa-chevron-right text-[10px]"></i></button>`
+            : `<span class="${arrowOff}"><i class="fas fa-chevron-right text-[10px]"></i></span>`;
 
-        const pageButtons = pages.map(p =>
-            p === '...'
-                ? `<span class="text-xs text-gray-400 px-1">…</span>`
-                : btn(p, p, false, p === current_page)
-        ).join('');
-
+        const options = PER_PAGE_OPTIONS.map(n => `<option value="${n}" ${n === perPage ? 'selected' : ''}>${n}</option>`).join('');
         el.innerHTML = `
-            <div class="flex items-center gap-1">
-                ${btn('&lsaquo;', current_page - 1, current_page === 1)}
-                ${pageButtons}
-                ${btn('&rsaquo;', current_page + 1, current_page === last_page)}
-            </div>
-        `;
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
+                <nav class="flex items-center gap-1.5 flex-wrap" aria-label="Pagination">
+                    ${nav}
+                    <span class="text-xs text-gray-500 ml-3 font-normal whitespace-nowrap">Showing ${from || 0} to ${to || 0} of ${total} results</span>
+                </nav>
+                <div class="flex items-center gap-2">
+                    <label for="employeePerPage" class="text-xs text-gray-500 font-normal whitespace-nowrap">Rows per page:</label>
+                    <div class="w-20"><select id="employeePerPage" onchange="changePerPage(this.value)">${options}</select></div>
+                </div>
+            </div>`;
+    }
+
+    function changePerPage(value) {
+        const n = parseInt(value, 10);
+        if (!PER_PAGE_OPTIONS.includes(n)) return;
+        perPage = n;
+        sessionStorage.setItem('employeeManagementPerPage', String(n));
+        currentPage = 1;
+        fetchEmployees(getCurrentFilters(), 1);
     }
 
     function getCurrentFilters() {
+        const f = window.EMP_F;
         return {
-            status: document.getElementById('filterStatus').value,
-            employee: document.getElementById('filterEmployee').value,
-            department: document.getElementById('filterDepartment').value,
-            modules: document.getElementById('filterModules').value,
-            home_base: document.getElementById('filterHomeBase').value,
-            position: document.getElementById('filterPosition').value,
+            status: f.status,
+            employee: f.employee,
+            department: f.department.join(','),
+            modules: f.modules.join(','),
+            home_base: f.home_base.join(','),
+            position: f.position.join(','),
+            employee_group: f.employee_group.join(','),
+            division: f.division.join(','),
+            lock: f.lock,
         };
+    }
+
+    function toggleResetFilters() {
+        const any = Object.values(getCurrentFilters()).some(v => v !== '');
+        document.getElementById('employeeResetFilters')?.classList.toggle('hidden', !any);
     }
 
     function goToPage(page) {
@@ -867,7 +804,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         if (data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="11" class="px-4 py-16 text-center">
+                    <td colspan="12" class="px-4 py-16 text-center">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                         </svg>
@@ -917,6 +854,11 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                     <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full ${statusInfo.class}">
                         ${statusInfo.label}
                     </span>
+                </td>
+                <td class="px-4 py-3.5 text-sm">
+                    ${emp.profile_locked_at
+                        ? '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-semibold rounded-full bg-gray-200 text-gray-700" title="Verified and locked by HR"><i class="fas fa-lock text-[9px]"></i> Locked</span>'
+                        : '<span class="text-gray-400">—</span>'}
                 </td>
                 <td class="px-4 py-3.5 text-sm">
                     ${canEmployeeAction ? `<div class="action-buttons" onclick="event.stopPropagation()">
@@ -1349,6 +1291,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
     function applyFilters() {
         currentPage = 1;
+        toggleResetFilters();
         fetchEmployees(getCurrentFilters());
     }
 
@@ -1363,30 +1306,10 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         window.location.href = '{{ route("master.employee.export") }}' + (qs ? '?' + qs : '');
     }
 
-    let _employeeSearchTimer;
-    function debouncedApplyFilters() {
-        clearTimeout(_employeeSearchTimer);
-        _employeeSearchTimer = setTimeout(applyFilters, 400);
-    }
-
     function resetFilters() {
-        if (typeof setCustomDropdownValue === 'function') {
-            setCustomDropdownValue('filterStatus', '');
-        } else {
-            document.getElementById('filterStatus').value = '';
-        }
-        document.getElementById('filterEmployee').value = '';
-        document.getElementById('filterDepartment').value = '';
-        if (typeof clearCustomDropdownMulti === 'function') {
-            clearCustomDropdownMulti('filterModules');
-            clearCustomDropdownMulti('filterHomeBase');
-            clearCustomDropdownMulti('filterPosition');
-        } else {
-            document.getElementById('filterModules').value = '';
-            document.getElementById('filterHomeBase').value = '';
-            document.getElementById('filterPosition').value = '';
-        }
+        ehfResetAll();
         currentPage = 1;
+        toggleResetFilters();
         fetchEmployees({});
     }
 
@@ -1639,31 +1562,21 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             sessionStorage.removeItem(EMP_FILTER_STORAGE_KEY);
         }
 
-        // Set hidden input values SEBELUM initCustomDropdowns() supaya Home Base &
-        // Position (multi-select statis) langsung ke-sync visual/label-nya saat init jalan.
+        // Module options come from the API; load them first so a restored selection can be ticked.
         if (restored) {
-            document.getElementById('filterEmployee').value   = restored.employee   || '';
-            document.getElementById('filterDepartment').value = restored.department || '';
-            document.getElementById('filterHomeBase').value   = restored.home_base  || '';
-            document.getElementById('filterPosition').value   = restored.position   || '';
-            document.getElementById('filterModules').value    = restored.modules    || '';
+            const list = v => (v || '').split(',').filter(Boolean);
+            Object.assign(window.EMP_F, {
+                status: restored.status || '', employee: restored.employee || '', department: list(restored.department),
+                modules: list(restored.modules), home_base: list(restored.home_base), position: list(restored.position),
+                employee_group: list(restored.employee_group), division: list(restored.division), lock: restored.lock || '',
+            });
             if (restored.page) currentPage = restored.page;
         }
 
-        if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
-
-        // Status: single-select, label-nya perlu di-set eksplisit (tidak auto-sync saat init).
-        if (restored && restored.status && typeof setCustomDropdownValue === 'function') {
-            setCustomDropdownValue('filterStatus', restored.status);
-        }
-
-        // Module: item panel-nya baru ada setelah fetch /api/modules selesai,
-        // jadi visual checked-state-nya baru bisa di-sync ulang sesudah ini.
+        if (typeof initCustomDropdowns === 'function') initCustomDropdowns();   // dropdowns in the create/edit modal
         await loadModuleFilterOptions();
-        if (restored && restored.modules) {
-            const ddModules = document.getElementById('ddFilterModules');
-            if (ddModules && typeof _syncMultiVisualState === 'function') _syncMultiVisualState(ddModules);
-        }
+        ehfSyncAll();
+        toggleResetFilters();
 
         fetchEmployees(getCurrentFilters(), currentPage);
 
@@ -1672,10 +1585,8 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         if (menu) document.body.appendChild(menu);
     });
 
-    // Populate Module filter panel dari /api/modules — dinamis karena daftar module
-    // bisa berubah kapan saja lewat Master Module, jadi tidak di-hardcode di blade.
-    // Item ditambahkan setelah initCustomDropdowns() jalan; klik tetap kepegang karena
-    // custom-dropdown.js pakai event delegation di level panel (lihat custom-dropdown.js).
+    // Populate the Module header filter from /api/modules — dynamic because the module list can change
+    // at any time through Master Module, so it is not hard-coded in the blade.
     async function loadModuleFilterOptions() {
         try {
             const response = await fetch('/api/modules?is_active=1', {
@@ -1683,20 +1594,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 credentials: 'same-origin'
             });
             const data = await response.json();
-            if (!data.success) return;
-
-            const panel = document.querySelector('#ddFilterModules .custom-dd-panel');
-            if (!panel) return;
-
-            data.data.forEach(mod => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors';
-                btn.dataset.value = mod.name;
-                btn.innerHTML = `<span class="custom-dd-item-text"></span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>`;
-                btn.querySelector('.custom-dd-item-text').textContent = mod.name;
-                panel.appendChild(btn);
-            });
+            if (data.success) ehfSetOptions('modules', data.data.map(mod => mod.name));
         } catch (err) {
             console.warn('[Employee Filter] failed to load modules:', err.message);
         }

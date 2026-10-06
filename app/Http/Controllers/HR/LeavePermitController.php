@@ -65,21 +65,25 @@ class LeavePermitController extends Controller
     /**
      * Display HR Leave & Permit Management Page
      */
+    /**
+     * Rights come from Management → Roles → Menu Access (page `hr_general.leave_permit` and its tabs), not from a
+     * hard-coded role list: Create = log a request on behalf of an employee (and backdate), Edit = edit a logged one.
+     */
+    private function menuCan(string $flag, string $slug = 'hr_general.leave_permit'): bool
+    {
+        $id = session('user')['id'] ?? null;
+        $employee = $id ? Employee::find($id) : null;
+
+        return $employee ? $employee->hasMenuPermission($slug, $flag) : false;
+    }
+
     public function index(Request $request)
     {
         $user       = session('user');
         $employeeId = $user['id'] ?? null;
-        $shared     = \Illuminate\Support\Facades\View::getShared();
-        $permSlugs  = $shared['permSlugs'] ?? [];
 
-        $employeeModel = $employeeId ? Employee::find($employeeId) : null;
-        $isHR = false;
-
-        if ($employeeModel) {
-            $isHR = $employeeModel->canAccessMenu('hr-general.leave-permit.manage')
-                || $employeeModel->hasAnyRole([1, 4, 5, 7])
-                || in_array('hr-general.leave-permit.manage', $permSlugs);
-        }
+        // The HR page itself is gated by `menu:hr_general.leave_permit`; $isHR only switches on the HR action buttons.
+        $isHR = $this->menuCan('can_create') || $this->menuCan('can_edit') || $this->menuCan('can_edit', 'hr_general.leave_permit.tab-inbox');
 
         $allTypes    = LeavePermitType::orderBy('id', 'asc')->get();
         $activeTypes = LeavePermitType::where('is_active', true)->get();
@@ -542,12 +546,7 @@ class LeavePermitController extends Controller
         $user = session('user');
         $currentEmpId = $user['id'] ?? null;
 
-        $employeeModel = $currentEmpId ? Employee::find($currentEmpId) : null;
-        $isHR = false;
-        if ($employeeModel) {
-            $isHR = $employeeModel->canAccessMenu('hr_general.leave-permit.manage')
-                || $employeeModel->hasAnyRole([1, 4, 5, 7]);
-        }
+        $isHR = $this->menuCan('can_create');   // "Log Leave / Permit" box of hr_general.leave_permit
 
         $validated = $request->validate([
             'employee_id'          => 'nullable|exists:employee,employee_id',
@@ -743,12 +742,7 @@ class LeavePermitController extends Controller
         $user = session('user');
         $currentEmpId = $user['id'] ?? null;
 
-        $employeeModel = $currentEmpId ? Employee::find($currentEmpId) : null;
-        $isHR = false;
-        if ($employeeModel) {
-            $isHR = $employeeModel->canAccessMenu('hr_general.leave-permit.manage')
-                || $employeeModel->hasAnyRole([1, 4, 5, 7]);
-        }
+        $isHR = $this->menuCan('can_edit');     // "Edit" box of hr_general.leave_permit
 
         $application = LeavePermitApplication::findOrFail($id);
 

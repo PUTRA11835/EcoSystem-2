@@ -1376,6 +1376,10 @@ Route::prefix('general/onboarding')
         Route::get('/', [OnboardingController::class, 'index'])->name('index');
         Route::get('/{employeeId}', [OnboardingController::class, 'show'])->whereNumber('employeeId')->name('show');
 
+        // Kunci massal "semua yang siap" (mengikuti filter aktif); izin = kunci satuan.
+        Route::post('/lock-ready', [OnboardingController::class, 'lockReady'])
+            ->middleware(['menu:general.onboarding.lock', 'throttle:6,1'])->name('lock-ready');
+
         // Kunci profil (H3.11): POST-only; izin terpisah untuk mengunci dan membuka.
         Route::post('/{employeeId}/lock', [OnboardingController::class, 'lock'])
             ->whereNumber('employeeId')->middleware(['menu:general.onboarding.lock', 'throttle:60,1'])->name('lock');

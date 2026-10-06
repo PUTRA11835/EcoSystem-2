@@ -57,7 +57,7 @@ class AttendanceCorrectionController extends Controller
             ->whereDate('attendance_date', $data['attendance_date'])
             ->first();
 
-        AttendanceCorrection::create([
+        $correction = AttendanceCorrection::create([
             'attendance_record_id' => $record?->id,
             'employee_id'          => $employeeId,
             'attendance_date'      => $data['attendance_date'],
@@ -67,7 +67,10 @@ class AttendanceCorrectionController extends Controller
             'status'               => AttendanceCorrection::STATUS_PENDING,
         ]);
 
-        return back()->with('success',
+        // HR reviewers get a bell notification; a failure here never blocks the submission.
+        $this->notifyReviewers($correction);
+
+        return redirect()->route('general.my-attendance.index')->with('success',
             'Your attendance correction has been submitted and is waiting for HR review.');
     }
 
@@ -83,12 +86,12 @@ class AttendanceCorrectionController extends Controller
         }
 
         if (!$correction->isPending()) {
-            return back()->with('error', 'That correction has already been reviewed.');
+            return redirect()->route('general.my-attendance.index')->with('error', 'That correction has already been reviewed.');
         }
 
         $correction->update(['status' => AttendanceCorrection::STATUS_CANCELLED]);
 
-        return back()->with('success', 'Correction request cancelled.');
+        return redirect()->route('general.my-attendance.index')->with('success', 'Correction request cancelled.');
     }
 
     // ── Sisi HR ─────────────────────────────────────────────────────────────
@@ -105,7 +108,7 @@ class AttendanceCorrectionController extends Controller
                 $q->where(function ($inner) use ($search) {
                     $inner->where('reason', 'like', "%{$search}%")
                           ->orWhereHas('employee', fn ($e) => $e->where('eci', 'like', "%{$search}%"))
-                          ->orWhereHas('employee.basicData', fn ($b) => $b->where('nick_name', 'like', "%{$search}%"));
+                          ->orWhereHas('employee.basicData', fn ($b) => $b->matchesName($search));
                 });
             })
             ->orderByRaw("FIELD(status, 'pending') DESC")
@@ -137,7 +140,7 @@ class AttendanceCorrectionController extends Controller
     public function approve(Request $request, AttendanceCorrection $correction, AttendanceService $attendance)
     {
         if (!$correction->isPending()) {
-            return back()->with('error', 'That correction has already been reviewed.');
+            return $this->backToReview($request)->with('error', 'That correction has already been reviewed.');
         }
 
         $validated = $request->validate([
@@ -209,13 +212,13 @@ class AttendanceCorrectionController extends Controller
 
         $this->notify($correction, 'approved');
 
-        return back()->with('success', 'Correction approved and attendance updated.');
+        return $this->backToReview($request)->with('success', 'Correction approved and attendance updated.');
     }
 
     public function reject(Request $request, AttendanceCorrection $correction)
     {
         if (!$correction->isPending()) {
-            return back()->with('error', 'That correction has already been reviewed.');
+            return $this->backToReview($request)->with('error', 'That correction has already been reviewed.');
         }
 
         // Catatan WAJIB saat menolak. Penolakan tanpa alasan hanya memindahkan
@@ -236,10 +239,61 @@ class AttendanceCorrectionController extends Controller
 
         $this->notify($correction, 'rejected');
 
-        return back()->with('success', 'Correction rejected.');
+        return $this->backToReview($request)->with('success', 'Correction rejected.');
     }
 
     // ── internal ────────────────────────────────────────────────────────────
+
+    /**
+     * Back to the review list by NAME (keeping the status / search the reviewer was looking at), instead of
+     * back(): that follows the Referer or the session's "previous URL", and either can be a JSON endpoint or a
+     * POST-only address, which the browser then reports as "this page can't be reached".
+     */
+    private function backToReview(Request $request)
+    {
+        return redirect()->route('general.attendance.corrections.index', array_filter([
+            'status' => $request->input('return_status'),
+            'search' => $request->input('return_search'),
+        ]));
+    }
+
+    /** Tell everyone who may review corrections (View on `general.attendance.correction.approve`) that one is waiting. */
+    private function notifyReviewers(AttendanceCorrection $correction): void
+    {
+        try {
+            $ids = DB::table('employee_role_assignment as era')
+                ->join('role_menu as rm', 'rm.role_id', '=', 'era.role_id')
+                ->join('menu as m', 'm.id', '=', 'rm.menu_id')
+                ->join('employee as e', 'e.employee_id', '=', 'era.employee_id')
+                ->where('m.slug', 'general.attendance.correction.approve')
+                ->where('m.is_active', true)
+                ->where('rm.can_view', true)
+                ->where('e.is_active', true)
+                ->where('era.employee_id', '!=', $correction->employee_id)
+                ->distinct()
+                ->pluck('era.employee_id');
+
+            $submitter = $correction->employee?->basicData;
+            $name = $submitter?->full_name ?: ($submitter?->nick_name ?: 'An employee');
+            $date = Carbon::parse($correction->attendance_date)->format('d M Y');
+
+            foreach ($ids as $id) {
+                Notification::create([
+                    'employee_id'      => $id,
+                    'type'             => 'attendance_correction_pending_approval',
+                    'from_employee_id' => $correction->employee_id,
+                    'from_name'        => $name,
+                    'preview'          => "{$name} requested an attendance correction for {$date}.",
+                    'link'             => '/general/attendance/corrections',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Failed to notify HR of an attendance correction.', [
+                'correction_id' => $correction->id,
+                'message'       => $e->getMessage(),
+            ]);
+        }
+    }
 
     private function validateSubmission(Request $request, AttendanceSetting $settings): array
     {

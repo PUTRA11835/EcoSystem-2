@@ -83,7 +83,8 @@ class KpiController extends Controller
         $evaluations = KpiEvaluation::where('period_month', $periodMonth)->get();
 
         $countCreated     = $evaluations->count();
-        $countNotCreated  = max(0, $totalEmployees - $countCreated);
+        $countNotCreated  = Employee::where('is_active', true)
+            ->whereDoesntHave('kpiEvaluations', fn ($k) => $k->where('period_month', $periodMonth))->count();
         $countDraft       = $evaluations->where('status', KpiEvaluation::STATUS_DRAFT)->count();
         $countSelfAssessed = $evaluations->where('status', KpiEvaluation::STATUS_SELF_ASSESSED)->count();
         $countReviewed    = $evaluations->where('status', KpiEvaluation::STATUS_REVIEWED)->count();
@@ -157,7 +158,9 @@ class KpiController extends Controller
 
             $empQuery->where(function ($q) use ($matchedSupIds, $periodMonth) {
                 $q->whereHas('basicData', fn($b) => $b->whereIn('direct_supervision', $matchedSupIds))
-                  ->orWhereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)->whereIn('supervisor_id', $matchedSupIds));
+                  ->orWhereHas('kpiEvaluations', fn($k) => $k->where('period_month', $periodMonth)->whereIn('supervisor_id', $matchedSupIds))
+                  // the Supervisor column shows the project manager first ("Project" badge), so filter on that too
+                  ->orWhereHas('deliveryProjects', fn($p) => $p->whereIn('project_manager_id', $matchedSupIds));
             });
         }
 
@@ -244,6 +247,7 @@ class KpiController extends Controller
         // ── Employee Positions for position dropdown ──────────────────────────
         $positions = \App\Models\EmployeeBasicData::whereNotNull('position')
             ->where('position', '!=', '')
+            ->whereIn('employee_id', Employee::where('is_active', true)->select('employee_id'))
             ->distinct()
             ->orderBy('position')
             ->pluck('position');

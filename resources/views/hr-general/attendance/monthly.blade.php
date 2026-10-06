@@ -130,9 +130,10 @@
                             {{ method_exists($employees, 'firstItem') ? $employees->firstItem() + $index : $index + 1 }}
                         </td>
                         <td class="px-3 py-3 recap-sticky recap-sticky-name">
-                            <div class="font-medium text-gray-900">{{ $basic?->nick_name ?? '—' }}</div>
+                            <div class="font-medium text-gray-900">{{ $basic?->full_name ?: ($basic?->nick_name ?? '—') }}</div>
                             <div class="text-xs text-gray-400">
                                 {{ $row['employee']->eci }}
+                                @if($basic?->nick_name && $basic->full_name !== $basic->nick_name) · “{{ $basic->nick_name }}” @endif
                                 @if($basic?->department) · {{ $basic->department }} @endif
                             </div>
                         </td>
