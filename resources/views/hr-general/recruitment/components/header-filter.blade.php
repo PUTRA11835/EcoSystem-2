@@ -26,6 +26,9 @@
       $note         — small hint under the controls
       $align        — 'left' (default) | 'right'
       $thClass      — extra classes for the <th>
+      $sortUrl / $sortMark — optional: the label becomes a sort link (url, ↑ ↓ ⇅ mark)
+      $inline       — true: render only the funnel + popover (no <th>) so one <th> can hold two funnels
+      $hideLabel    — true: omit the label text (the surrounding <th> already shows it)
 --}}
 @php
     $type = $type ?? 'search';
@@ -38,9 +41,13 @@
     $active = $type === 'checkboxes' ? $selected !== [] : ($selected !== '' && $selected !== (string) $default);
     $optionRow = 'w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors';
 @endphp
-<th class="px-4 py-3 {{ $thClass ?? '' }}">
+@unless($inline ?? false)<th class="px-4 py-3 {{ $thClass ?? '' }}">@endunless
     <div class="flex items-center gap-1.5 {{ $align === 'right' ? 'justify-end' : 'justify-between' }}">
-        <span>{{ $label }}</span>
+        @if(!empty($sortUrl))
+            <a href="{{ $sortUrl }}" class="hover:text-gray-900">{{ $label }} <span class="text-gray-400">{{ $sortMark ?? '' }}</span></a>
+        @elseif(!($hideLabel ?? false))
+            <span>{{ $label }}</span>
+        @endif
         <button type="button" data-hf-btn data-hf-target="{{ $popoverId }}" onclick="toggleHF(event, '{{ $popoverId }}')"
             class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ $active ? '' : 'text-gray-400 hover:text-gray-600' }}"
             @if($active) style="color: var(--primary-color);" @endif
@@ -112,7 +119,7 @@
             </div>
         @endif
     </div>
-</th>
+@unless($inline ?? false)</th>@endunless
 
 @once
 @push('scripts')

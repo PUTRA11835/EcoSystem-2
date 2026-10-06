@@ -411,7 +411,7 @@
 
                             <div>
                                 <button type="button" onclick="confirmChangePassword()"
-                                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                                        class="inline-flex items-center justify-center px-5 py-2.5 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 focus:outline-none focus:ring-4 focus:ring-red-700/20 transition-all duration-200">
                                     Change Password
                                 </button>
                             </div>
@@ -474,11 +474,11 @@
         </div>
         <div class="border-t border-gray-100 px-7 py-4 flex justify-end gap-3 bg-gray-50">
             <button onclick="closeModal()"
-                    class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                    class="inline-flex items-center justify-center px-5 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-300/40 transition-all duration-200">
                 Cancel
             </button>
             <button id="confirmBtn" onclick="submitChangePassword()"
-                    class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    class="inline-flex items-center justify-center px-5 py-2.5 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 focus:outline-none focus:ring-4 focus:ring-red-700/20 transition-all duration-200">
                 Yes, Change Password
             </button>
         </div>
@@ -602,7 +602,8 @@ document.getElementById('confirmModal').addEventListener('click', function(e) {
 async function submitChangePassword() {
     const btn = document.getElementById('confirmBtn');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    btn.classList.add('opacity-60', 'cursor-not-allowed');
+    btn.textContent = 'Saving…';
     closeModal();
 
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -635,7 +636,8 @@ async function submitChangePassword() {
         showAlert('error', 'A network error occurred. Please try again.');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-key"></i> Yes, Change Password';
+        btn.classList.remove('opacity-60', 'cursor-not-allowed');
+        btn.textContent = 'Yes, Change Password';
     }
 }
 </script>

@@ -24,8 +24,8 @@
             @endif
         </div>
         <div class="flex gap-2 js-section-action">
-            <button type="button" id="hrSaveBtn" onclick="hrSave()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
-                <i class="fas fa-save text-xs"></i> <span id="hrSaveBtnText">Save</span>
+            <button type="button" id="hrSaveBtn" onclick="hrSave()" class="inline-flex items-center px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+                <span id="hrSaveBtnText">Save</span>
             </button>
         </div>
     </div>
@@ -42,8 +42,12 @@
                 </div>
                 <div class="space-y-2 js-section-action">
                     <input type="file" id="hrPhotoInput" accept="image/jpeg,image/png,image/webp" class="hidden">
-                    <button type="button" onclick="document.getElementById('hrPhotoInput').click()" class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"><i class="fas fa-upload mr-1"></i> Choose photo</button>
-                    <button type="button" id="hrPhotoRemove" onclick="hrRemoveImage('photo')" class="hidden px-3 py-2 text-xs font-semibold rounded-lg border border-red-300 text-red-700 hover:bg-red-50"><i class="fas fa-trash mr-1"></i> Remove photo</button>
+                    <button type="button" onclick="document.getElementById('hrPhotoInput').click()" class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+                        Choose photo
+                    </button>
+                    <button type="button" id="hrPhotoRemove" onclick="hrRemoveImage('photo')" class="hidden px-3 py-2 text-xs font-semibold rounded-lg border border-red-300 text-red-700 hover:bg-red-50">
+                        Remove photo
+                    </button>
                 </div>
             </div>
         </div>
@@ -65,10 +69,16 @@
                 <div class="space-y-2 js-section-action">
                     @if($hrIsSelf)
                         <input type="file" id="hrSigInput" accept="image/png,image/jpeg" class="hidden">
-                        <button type="button" onclick="hrOpenSigPad()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-red-800 text-white hover:bg-red-900"><i class="fas fa-pen-nib mr-1"></i> Draw signature</button>
-                        <button type="button" onclick="document.getElementById('hrSigInput').click()" class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"><i class="fas fa-upload mr-1"></i> Upload image</button>
+                        <button type="button" onclick="hrOpenSigPad()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-red-800 text-white hover:bg-red-900">
+                            Draw signature
+                        </button>
+                        <button type="button" onclick="document.getElementById('hrSigInput').click()" class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+                            Upload image
+                        </button>
                     @endif
-                    <button type="button" id="hrSigRemove" onclick="hrRemoveImage('signature')" class="hidden px-3 py-2 text-xs font-semibold rounded-lg border border-red-300 text-red-700 hover:bg-red-50"><i class="fas fa-trash mr-1"></i> Remove signature</button>
+                    <button type="button" id="hrSigRemove" onclick="hrRemoveImage('signature')" class="hidden px-3 py-2 text-xs font-semibold rounded-lg border border-red-300 text-red-700 hover:bg-red-50">
+                        Remove signature
+                    </button>
                 </div>
             </div>
         </div>
@@ -111,7 +121,9 @@
                 <h5 class="text-sm font-bold text-gray-900">Engagement <span class="ml-1 text-xs font-normal text-gray-500">(consultant, maintained by HR)</span></h5>
                 <p class="text-xs text-gray-500 mt-0.5">Client, assignment and engagement period. The rate is visible only to users with rate permission.</p>
             </div>
-            <button type="button" id="hrEngSave" onclick="hrEngSave()" class="js-eng-action px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900"><i class="fas fa-save mr-1"></i> <span id="hrEngSaveText">Save engagement</span></button>
+            <button type="button" id="hrEngSave" onclick="hrEngSave()" class="js-eng-action px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900">
+                <span id="hrEngSaveText">Save engagement</span>
+            </button>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -185,7 +197,9 @@
         <p class="text-xs text-gray-500 mt-1 mb-3">Use your mouse, finger or stylus and sign inside the box. This is a drawn signature image used on your documents; it is not a certified digital signature.</p>
         <canvas id="hrSigCanvas" class="w-full rounded-lg border-2 border-dashed border-gray-300 bg-white" style="height:200px;touch-action:none;cursor:crosshair"></canvas>
         <div class="flex items-center justify-between mt-4">
-            <button type="button" onclick="hrSigClear()" class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"><i class="fas fa-eraser mr-1"></i> Clear</button>
+            <button type="button" onclick="hrSigClear()" class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+                Clear
+            </button>
             <div class="flex gap-2">
                 <button type="button" onclick="hrCloseSigPad()" class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
                 <button type="button" id="hrSigUse" onclick="hrSigSave()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-red-800 text-white hover:bg-red-900">Use this signature</button>

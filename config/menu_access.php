@@ -60,6 +60,35 @@ return [
         'general.letters.requests',
         'general.letters.register',
         'general.letters.compose',
+        'general.my-letter-requests', // Global ESS: baris terkunci di layar, tetapi rutenya memakai menu.can
+    ],
+
+    /*
+     * hubs — halaman yang isinya TAB. Tiap slug di sini adalah satu tab dengan izin sendiri (satu role bisa diberi
+     * sebagian tab saja). Urutan = urutan tab di layar. Hanya memengaruhi pengelompokan di halaman Menu Access.
+     */
+    'hubs' => [
+        ['key' => 'attendance',     'label' => 'Attendance',          'tabs' => ['general.attendance', 'general.attendance.monthly', 'general.attendance.correction', 'general.settings.branches', 'general.settings.shifts', 'general.settings.attendance']],
+        ['key' => 'overtime',       'label' => 'Overtime',            'tabs' => ['general.overtime', 'general.settings.overtime']],
+        ['key' => 'reimbursement',  'label' => 'Reimbursement',       'tabs' => ['general.reimbursement', 'general.settings.reimbursement']],
+        ['key' => 'purchase-req',   'label' => 'Purchase Request',    'tabs' => ['general.purchase-request', 'general.settings.purchase-request']],
+        ['key' => 'cash-advance',   'label' => 'Cash Advance',        'tabs' => ['general.cash-advance', 'management.cash-advance-settings']],
+        ['key' => 'approval-wf',    'label' => 'Approval Workflow',   'tabs' => ['general.approval-workflow.overtime', 'general.approval-workflow.reimbursement', 'general.approval-workflow.purchase-request', 'management.approval-workflow.cash-advance', 'management.approval-workflow.cash-advance-report']],
+        ['key' => 'recruitment',    'label' => 'Recruitment',         'tabs' => ['general.recruitment', 'general.recruitment.candidates', 'general.recruitment.schedule', 'general.recruitment.jobs', 'general.recruitment.settings']],
+        ['key' => 'offering',       'label' => 'Offering Letter',     'tabs' => ['general.recruitment.offers', 'general.recruitment.offers.settings']],
+        ['key' => 'letters',        'label' => 'Docs & Letters',      'tabs' => ['general.letters.dashboard', 'general.letters.requests', 'general.letters.register', 'general.letters.compose', 'general.letter-templates']],
+        ['key' => 'kpi-eval',       'label' => 'KPI Evaluation',      'tabs' => ['general.kpi-evaluation', 'general.kpi-evaluation.templates', 'general.kpi-evaluation.teams']],
+        ['key' => 'my-kpi',         'label' => 'My KPI',              'tabs' => ['general.my-kpi', 'general.my-kpi.tab-self', 'general.my-kpi.tab-lead', 'general.my-kpi.tab-peer', 'general.my-kpi.tab-upward']],
+        ['key' => 'leave-permit',   'label' => 'Leave & Permit',      'tabs' => ['hr_general.leave_permit', 'hr_general.leave_permit.tab-inbox', 'hr_general.leave_permit.tab-types', 'hr_general.leave_permit.tab-quotas', 'hr_general.leave_permit.tab-report']],
+    ],
+
+    // Section/tab pada halaman detail (slug `<prefix>.<seksi>.view|update|...`) dikelompokkan menurut awalan.
+    'section_hubs' => [
+        'employee.section.'         => 'Employee detail',
+        'customer.section.'         => 'Business Partner detail',
+        'my-profile.section.'       => 'My Profile',
+        'delivery-project.'         => 'Project detail',
+        'delivery-support.'         => 'Support detail',
     ],
 
     // Urutan tampil di kolom kiri. `match` = pola slug (Str::is). Pola pertama yang cocok menang.
@@ -80,7 +109,7 @@ return [
         ['key' => 'hr-onboard',  'label' => 'HR · Onboarding & Command Center', 'match' => ['general.onboarding', 'general.onboarding.*', 'general.command-center*']],
         ['key' => 'hr-approval', 'label' => 'HR · Approval Workflow',    'match' => ['general.approval-workflow', 'general.approval-workflow.*']],
         ['key' => 'hr-leave',    'label' => 'HR · Leave & Permit',       'match' => ['hr_general', 'hr_general.*']],
-        ['key' => 'hr-other',    'label' => 'HR & General (lainnya)',    'match' => ['general', 'general.*']],
+        ['key' => 'hr-other',    'label' => 'HR & General (umbrella)',   'match' => ['general', 'general.*']],
         ['key' => 'employee',    'label' => 'Master · Employee',         'match' => ['employee', 'employee.*', 'master.employee*']],
         ['key' => 'customer',    'label' => 'Master · Customer',         'match' => ['customer', 'customer.*', 'master', 'master.customer*']],
         ['key' => 'ticketing',   'label' => 'Ticketing',                 'match' => ['tickets', 'tickets.*', 'ticket', 'ticket.*', 'room-chat', 'room-chat.*', 'ui', 'ui.*', 'staging']],
