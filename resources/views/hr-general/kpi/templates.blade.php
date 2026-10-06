@@ -225,7 +225,8 @@
                             @if($tmpl->indicators->count())
                             <div class="flex flex-wrap gap-1.5 mt-1.5">
                                 @foreach($tmpl->indicators->take(4) as $ind)
-                                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded-full text-[11px] text-gray-600">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded-full text-[11px] text-gray-600"
+                                      @if($ind->target_value !== null) title="Target: {{ rtrim(rtrim(number_format($ind->target_value, 2), '0'), '.') }}" @endif>
                                     {{ Str::limit($ind->name, 28) }}
                                     @if(($ind->answer_type ?? 'rating') === 'paragraph')
                                         <span class="text-gray-400">¶</span>

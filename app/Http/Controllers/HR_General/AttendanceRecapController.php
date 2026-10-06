@@ -117,13 +117,13 @@ class AttendanceRecapController extends Controller
                 $q->where(function ($inner) use ($search) {
                     $inner->whereHas('employee', fn ($e) => $e->where('eci', 'like', "%{$search}%"))
                           ->orWhereHas('employee.basicData', fn ($b) => $b
-                              ->where('nick_name', 'like', "%{$search}%")
+                              ->matchesName($search)
                               ->orWhere('position', 'like', "%{$search}%")
                               ->orWhere('department', 'like', "%{$search}%"));
                 });
             })
             ->get()
-            ->sortBy(fn ($r) => $r->employee?->basicData?->nick_name ?? '')
+            ->sortBy(fn ($r) => $r->employee?->basicData?->full_name ?: ($r->employee?->basicData?->nick_name ?? ''))
             ->values();
     }
 
@@ -188,13 +188,13 @@ class AttendanceRecapController extends Controller
 
         // Query 1 — karyawan
         $employeeQuery = Employee::query()
-            ->with('basicData:employee_id,nick_name,department,position,home_base')
+            ->with('basicData:employee_id,first_name,last_name,nick_name,department,position,home_base')
             ->where('is_active', true)
             ->when($filters['search'] !== '', function ($q) use ($filters) {
                 $search = $filters['search'];
                 $q->where(function ($inner) use ($search) {
                     $inner->where('eci', 'like', "%{$search}%")
-                          ->orWhereHas('basicData', fn ($b) => $b->where('nick_name', 'like', "%{$search}%"));
+                          ->orWhereHas('basicData', fn ($b) => $b->matchesName($search));
                 });
             })
             ->orderBy('eci');

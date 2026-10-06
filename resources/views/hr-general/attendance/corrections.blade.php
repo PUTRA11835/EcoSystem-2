@@ -81,7 +81,7 @@
                     <tr class="hover:bg-gray-50 transition-colors align-top">
                         <td class="px-4 py-3 text-gray-400">{{ $corrections->firstItem() + $index }}</td>
                         <td class="px-4 py-3">
-                            <div class="font-medium text-gray-900">{{ $correction->employee?->basicData?->nick_name ?? '—' }}</div>
+                            <div class="font-medium text-gray-900">{{ $correction->employee?->basicData?->full_name ?: ($correction->employee?->basicData?->nick_name ?? '—') }}</div>
                             <div class="text-xs text-gray-400">
                                 {{ $correction->employee?->eci }}
                                 @if($correction->employee?->basicData?->department)
@@ -137,6 +137,8 @@
                                   data-date="{{ $correction->attendance_date->format('d M Y') }}"
                                   action="{{ route('general.attendance.corrections.approve', $correction) }}">
                                 @csrf
+                                <input type="hidden" name="return_status" value="{{ $status }}">
+                                <input type="hidden" name="return_search" value="{{ $search }}">
                                 <textarea name="hr_note" rows="2" maxlength="255"
                                           placeholder="HR note (optional to approve, required to reject)"
                                           class="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-800"></textarea>

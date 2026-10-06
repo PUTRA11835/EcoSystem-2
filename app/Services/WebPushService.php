@@ -21,7 +21,7 @@ class WebPushService
             ],
         ];
 
-        $this->webPush = new WebPush($auth);
+        $this->webPush = new WebPush($auth, [], 5);   // 5 s timeout per push (default 30 s blocks the server)
         $this->webPush->setReuseVAPIDHeaders(true);
         $this->webPush->setAutomaticPadding(false);
     }

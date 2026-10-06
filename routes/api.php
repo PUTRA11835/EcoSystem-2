@@ -543,16 +543,16 @@ Route::middleware(['web'])->group(function () {
         Route::get('/employee-quota-detail/{employee_id}', [\App\Http\Controllers\HR\LeavePermitController::class, 'getEmployeeQuotaDetail']);
         
         Route::get('/master-types',                        [\App\Http\Controllers\HR\LeavePermitController::class, 'getMasterTypes']);
-        Route::post('/master-types',                       [\App\Http\Controllers\HR\LeavePermitController::class, 'storeType']);
-        Route::post('/master-types/{id}/update',            [\App\Http\Controllers\HR\LeavePermitController::class, 'updateType']);
-        Route::post('/master-types/{id}/toggle-active',     [\App\Http\Controllers\HR\LeavePermitController::class, 'toggleTypeActive']);
+        Route::post('/master-types',                       [\App\Http\Controllers\HR\LeavePermitController::class, 'storeType'])->middleware('menu.can:hr_general.leave_permit.tab-types,create');
+        Route::post('/master-types/{id}/update',            [\App\Http\Controllers\HR\LeavePermitController::class, 'updateType'])->middleware('menu.can:hr_general.leave_permit.tab-types,edit');
+        Route::post('/master-types/{id}/toggle-active',     [\App\Http\Controllers\HR\LeavePermitController::class, 'toggleTypeActive'])->middleware('menu.can:hr_general.leave_permit.tab-types,edit');
 
         Route::get('/applications',               [\App\Http\Controllers\HR\LeavePermitController::class, 'getApplications']);
         Route::post('/applications',              [\App\Http\Controllers\HR\LeavePermitController::class, 'storeApplication']);
         Route::post('/applications/{id}/update',   [\App\Http\Controllers\HR\LeavePermitController::class, 'updateApplication']);
-        Route::post('/applications/{id}/approve',  [\App\Http\Controllers\HR\LeavePermitController::class, 'approve']);
-        Route::post('/applications/{id}/reject',   [\App\Http\Controllers\HR\LeavePermitController::class, 'reject']);
-        Route::post('/applications/{id}/revision', [\App\Http\Controllers\HR\LeavePermitController::class, 'requestRevision']);
+        Route::post('/applications/{id}/approve',  [\App\Http\Controllers\HR\LeavePermitController::class, 'approveApplication'])->middleware('menu.can:hr_general.leave_permit.tab-inbox,edit');
+        Route::post('/applications/{id}/reject',   [\App\Http\Controllers\HR\LeavePermitController::class, 'rejectApplication'])->middleware('menu.can:hr_general.leave_permit.tab-inbox,edit');
+        Route::post('/applications/{id}/revision', [\App\Http\Controllers\HR\LeavePermitController::class, 'requestRevision'])->middleware('menu.can:hr_general.leave_permit.tab-inbox,edit');
         
         Route::get('/reports', [\App\Http\Controllers\HR\LeavePermitController::class, 'getReport']);
     });
