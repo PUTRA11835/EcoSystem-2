@@ -120,36 +120,38 @@
                 {{ strtoupper(substr(($employee->first_name ?? 'N'), 0, 1) . substr(($employee->last_name ?? 'A'), 0, 1)) }}
             </div>
             <div class="flex-1 w-full min-w-0">
-                <div class="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between gap-2 mb-4">
-                    <div>
+                <div class="flex flex-col sm:flex-row items-center sm:items-start sm:justify-between gap-2 sm:gap-4 mb-4">
+                    <div class="min-w-0">
                         <h1 id="headerFullName" class="text-2xl sm:text-3xl font-bold text-gray-900">{{ trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? '')) ?: 'N/A' }}</h1>
                         <p id="headerPosition" class="text-lg text-gray-600 mt-1">{{ $employee->position ?? 'N/A' }}</p>
                     </div>
-                    @php
-                        $statusClass = 'bg-gray-100 text-gray-800';
-                        $statusLabel = 'Unknown';
-
-                        if (isset($employee->deletion_flag) && $employee->deletion_flag) {
-                            $statusClass = 'bg-red-100 text-red-800';
-                            $statusLabel = 'Flagged for Deletion';
-                        } elseif (isset($employee->block) && $employee->block) {
-                            $statusClass = 'bg-yellow-100 text-yellow-800';
-                            $statusLabel = 'Blocked';
-                        } elseif (isset($employee->is_active) && $employee->is_active) {
-                            $statusClass = 'bg-green-100 text-green-800';
-                            $statusLabel = 'Active';
-                        } else {
+                    <div class="gap-2 flex flex-wrap items-center justify-center sm:justify-start">
+                        @php
                             $statusClass = 'bg-gray-100 text-gray-800';
-                            $statusLabel = 'Inactive';
-                        }
-                    @endphp
-                    <span id="headerStatusBadge" class="inline-block px-4 py-2 text-sm font-semibold rounded-full {{ $statusClass }}">
-                        {{ $statusLabel }}
-                    </span>
-                    @php $empType = $employee->employee_type ?: 'Internal'; @endphp
-                    <span id="headerTypeBadge" class="inline-block mt-2 px-4 py-2 text-sm font-semibold rounded-full {{ $empType === 'External' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700' }}">
-                        {{ $empType }}
-                    </span>
+                            $statusLabel = 'Unknown';
+
+                            if (isset($employee->deletion_flag) && $employee->deletion_flag) {
+                                $statusClass = 'bg-red-100 text-red-800';
+                                $statusLabel = 'Flagged for Deletion';
+                            } elseif (isset($employee->block) && $employee->block) {
+                                $statusClass = 'bg-yellow-100 text-yellow-800';
+                                $statusLabel = 'Blocked';
+                            } elseif (isset($employee->is_active) && $employee->is_active) {
+                                $statusClass = 'bg-green-100 text-green-800';
+                                $statusLabel = 'Active';
+                            } else {
+                                $statusClass = 'bg-gray-100 text-gray-800';
+                                $statusLabel = 'Inactive';
+                            }
+                        @endphp
+                        <span id="headerStatusBadge" class="inline-block px-4 py-2 text-sm font-semibold rounded-full {{ $statusClass }}">
+                            {{ $statusLabel }}
+                        </span>
+                        @php $empType = $employee->employee_type ?: 'Internal'; @endphp
+                        <span id="headerTypeBadge" class="inline-block px-4 py-2 text-sm font-semibold rounded-full {{ $empType === 'External' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700' }}">
+                            {{ $empType }}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -286,11 +288,11 @@
     <!-- Tabs Navigation -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
         <div class="border-b border-gray-200">
-            <nav class="flex -mb-px overflow-x-auto">
+            <nav class="flex -mb-px overflow-x-auto" aria-label="Profile sections">
                 @foreach($visibleSections as $key => [$tabId, $label, $partial])
                 <button onclick="switchSection('{{ $tabId }}')" data-section="{{ $tabId }}"
                     class="section-tab px-6 py-4 text-sm font-semibold border-b-2 whitespace-nowrap
-                        {{ $key === $firstKey ? 'border-red-800 text-red-800' : 'border-transparent text-gray-600 hover:text-red-800 hover:border-gray-300' }}">
+                        {{ $key === $firstKey ? 'border-red-800 text-red-800 bg-red-50/60' : 'border-transparent text-gray-600 hover:text-red-800 hover:bg-gray-50 hover:border-gray-300' }}">
                     {{ $label }}
                 </button>
                 @endforeach
@@ -350,6 +352,13 @@
 .profile-readonly .se-wrap { pointer-events: none !important; cursor: not-allowed !important; }
 .profile-readonly .se-btn { background: #f9fafb !important; color: #6b7280 !important; border-color: #e5e7eb !important; }
 .profile-readonly .js-section-action { display: none !important; }
+
+/* Text-only action buttons in every section (New / Save / Copy / Delete …): clear keyboard focus + disabled look. */
+.js-section-action button:focus-visible, button.js-section-action:focus-visible,
+#section-basic-data button[onclick*="save"]:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(153, 27, 27, .25); }
+.js-section-action button:disabled, button.js-section-action:disabled { opacity: .6; cursor: not-allowed; }
+/* Fields: a visible focus ring so the user always sees where they are typing. */
+#profileContent input:focus, #profileContent select:focus, #profileContent textarea:focus { border-color: #991b1b; }
 </style>
 
 <script>
@@ -361,31 +370,32 @@
     // Switch between sections/tabs
     function switchSection(sectionName) {
         currentSection = sectionName;
-        
+
         // Hide all sections
         document.querySelectorAll('.section-content').forEach(section => {
             section.classList.add('hidden');
         });
-        
+
         // Remove active from all tabs
         document.querySelectorAll('.section-tab').forEach(tab => {
-            tab.classList.remove('border-red-800', 'text-red-800');
+            tab.classList.remove('border-red-800', 'text-red-800', 'bg-red-50/60');
             tab.classList.add('border-transparent', 'text-gray-600');
         });
-        
+
         // Show selected section
         const selectedSection = document.getElementById('section-' + sectionName);
         if (selectedSection) {
             selectedSection.classList.remove('hidden');
         }
-        
+
         // Add active to selected tab
         const selectedTab = document.querySelector(`[data-section="${sectionName}"]`);
         if (selectedTab) {
-            selectedTab.classList.add('border-red-800', 'text-red-800');
+            selectedTab.classList.add('border-red-800', 'text-red-800', 'bg-red-50/60');
             selectedTab.classList.remove('border-transparent', 'text-gray-600');
+            selectedTab.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
         }
-        
+
         // Load data for specific sections
         loadSectionData(sectionName);
     }
@@ -494,10 +504,10 @@
             });
 
             const result = await response.json();
-            
+
             if (result.success && result.data) {
                 const basicData = result.data;
-                
+
                 // General Information
                 setValue('title', basicData.title);
                 setValue('firstName', basicData.first_name);
@@ -511,7 +521,7 @@
                 setValue('birthDate', basicData.birth_date);
                 setValue('birthPlace', basicData.birth_place);
                 setValue('sinceDate', basicData.since_date);
-                
+
                 // Employee Information
                 setValue('personnelArea', basicData.personnel_area);
                 setValue('personnelSubarea', basicData.personnel_subarea);
@@ -529,13 +539,13 @@
                 // Status
                 setCheckbox('block', basicData.block);
                 setCheckbox('deletionFlag', basicData.deletion_flag);
-                
+
                 // Audit Information
                 setText('createdBy', basicData.created_by);
                 setText('createdOn', formatDateTime(basicData.created_on));
                 setText('lastChangedBy', basicData.last_changed_by);
                 setText('lastChangedOn', formatDateTime(basicData.last_changed_on));
-                
+
             } else {
             }
         } catch (error) {
@@ -596,7 +606,7 @@
             });
 
             const data = await response.json();
-            
+
             if (data.success) {
                 showNotification('Basic data saved successfully!', 'success');
                 loadEmployeeBasicData(employeeId);

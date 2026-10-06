@@ -9,8 +9,11 @@
     Cara kerja (ringkas):
       - Perubahan hanya DRAF di peramban sampai "Review & Save" ditekan; server menulis semuanya sebagai SATU unit
         (transaksi + riwayat + audit log) lewat /api/roles/{id}/menu-access/apply.
-      - Kolom Create/Edit/Delete hanya aktif untuk menu yang benar-benar menegakkannya di server (matrix.menus[].crud);
-        menu lain cukup satu kotak View. Flag lama yang tak berfungsi tidak dihapus, hanya ditandai.
+      - Satu baris = satu HALAMAN atau TAB (matrix.rows, disusun MenuAccessLayout). Izin aksi ("Create Evaluation",
+        "Approve / Reject", "Update …") dilipat ke baris halamannya: Create/Edit/Delete jadi kotak centang di kolomnya,
+        aksi lain di kolom "Other actions". Tiap kotak tetap menulis ke slug-nya sendiri — data & penegakan tak berubah.
+      - Tab punya izin sendiri dan dikelompokkan di bawah judul hub, sehingga role bisa diberi sebagian tab saja.
+      - Flag C/E/D lama yang tak berfungsi tidak dihapus, hanya ditandai.
       - Item "Global ESS" selalu diizinkan backend untuk semua karyawan → terkunci. Slug terlindung (EC Administrator)
         tidak bisa dicabut dari sini.
     Semua keputusan (teks, aturan) berasal dari server (config/menu_access.php); halaman ini hanya menampilkannya.
@@ -39,11 +42,13 @@
             </div>
         </div>
 
-        <div class="mt-4 rounded-lg bg-blue-50 border border-blue-100 text-blue-900 text-xs px-3 py-2 leading-relaxed">
-            <strong>How it works.</strong> Tick boxes freely — nothing is saved until you press <em>Review &amp; Save</em>.
-            <span class="whitespace-nowrap"><i class="fas fa-lock text-[10px]"></i> Global ESS</span> items are always on for every employee and cannot be changed per role.
-            <span class="whitespace-nowrap"><i class="fas fa-shield-halved text-[10px] text-amber-600"></i> Sensitive</span> items ask for an extra confirmation.
-            Create / Edit / Delete are only available where the application really enforces them; elsewhere a single <em>Access</em> box is enough.
+        <div class="mt-4 rounded-lg bg-blue-50 border border-blue-100 text-blue-900 text-xs px-3 py-2 leading-relaxed space-y-1">
+            <p><strong>How to read this page.</strong> Each row is a <em>page</em> or a <em>tab</em>. Tick <strong>View</strong> to let the role open it, then tick what it may do there:
+                <strong>Create / Edit / Delete</strong>, or the special permissions under <strong>Other actions</strong> (Approve, Export, …). A dash (–) means that action does not exist for the row.</p>
+            <p><span class="ma-badge bg-indigo-50 text-indigo-700"><i class="fas fa-table-columns text-[9px]"></i>Tab</span> rows are listed one by one under their page, so you can give a role only some of the tabs.
+                Nothing is saved until you press <em>Review &amp; Save</em>. <span class="whitespace-nowrap"><i class="fas fa-lock text-[10px]"></i> Global ESS</span> is always on for every employee.
+                <span class="whitespace-nowrap"><i class="fas fa-shield-halved text-[10px] text-amber-600"></i> Sensitive</span> items ask for an extra confirmation.
+                Turning View off also removes that row's actions.</p>
         </div>
     </div>
 
@@ -51,7 +56,7 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col lg:flex-row lg:items-center gap-3">
         <div class="relative flex-1 min-w-0">
             <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
-            <input id="maSearch" type="search" placeholder="Search menu name or slug…" aria-label="Search menu name or slug"
+            <input id="maSearch" type="search" placeholder="Search page, tab, action or slug…" aria-label="Search page, tab, action or slug"
                 class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
         </div>
         <div class="inline-flex rounded-lg bg-gray-100 p-0.5 text-xs font-semibold" role="tablist" aria-label="Filter">
@@ -77,12 +82,12 @@
                     <p id="maShownInfo" class="text-xs text-gray-500"></p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <button type="button" id="maBulkGrant" class="ma-btn ma-btn-sm" title="Give View access to every item currently shown"><i class="fas fa-plus mr-1"></i> Grant View to shown</button>
-                    <button type="button" id="maBulkRevoke" class="ma-btn ma-btn-sm" title="Remove access from every item currently shown"><i class="fas fa-minus mr-1"></i> Revoke from shown</button>
+                    <button type="button" id="maBulkGrant" class="ma-btn ma-btn-sm" title="Give View to every row currently shown"><i class="fas fa-plus mr-1"></i> Grant View to shown</button>
+                    <button type="button" id="maBulkRevoke" class="ma-btn ma-btn-sm" title="Remove View (and its actions) from every row currently shown"><i class="fas fa-minus mr-1"></i> Revoke from shown</button>
                 </div>
             </div>
             <div class="hidden sm:grid ma-grid px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-100 bg-white sticky top-0 z-10">
-                <div>Menu</div><div class="text-center">View</div><div class="text-center">Create</div><div class="text-center">Edit</div><div class="text-center">Delete</div>
+                <div>Page / Tab</div><div class="text-center">View</div><div class="text-center">Create</div><div class="text-center">Edit</div><div class="text-center">Delete</div><div>Other actions</div>
             </div>
             <div id="maRows" class="divide-y divide-gray-100"></div>
             <p id="maEmpty" class="hidden text-center text-sm text-gray-400 py-10">Nothing matches the current search / filter.</p>
@@ -127,21 +132,34 @@
     .ma-mod:hover { background:#f3f4f6; }
     .ma-mod.is-on { background:rgba(var(--primary-rgb, 153,27,27), .10); color:var(--primary-color, #991b1b); font-weight:700; }
     .ma-count { font-size:.6875rem; color:#6b7280; white-space:nowrap; }
-    .ma-grid { display:grid; grid-template-columns:minmax(0,1fr) 4.5rem 4.5rem 4.5rem 4.5rem; align-items:center; column-gap:.25rem; }
+    .ma-grid { display:grid; grid-template-columns:minmax(0,1fr) 3.75rem 3.75rem 3.75rem 3.75rem minmax(8rem,15rem); align-items:center; column-gap:.25rem; }
     .ma-row { padding:.5rem 1rem; }
     .ma-row:hover { background:#fafafa; }
     .ma-row.is-changed { background:#fffbeb; box-shadow:inset 3px 0 0 #f59e0b; }
     .ma-cell { display:flex; justify-content:center; align-items:center; min-height:1.5rem; }
-    .ma-cell input[type=checkbox] { width:1.05rem; height:1.05rem; accent-color:var(--primary-color, #991b1b); cursor:pointer; }
-    .ma-cell input[disabled] { cursor:not-allowed; opacity:.55; }
+    .ma-cell input[type=checkbox], .ma-act input[type=checkbox] { width:1.05rem; height:1.05rem; accent-color:var(--primary-color, #991b1b); cursor:pointer; }
+    .ma-cell input[disabled], .ma-act input[disabled] { cursor:not-allowed; opacity:.5; }
+    .ma-cell label { display:inline-flex; align-items:center; gap:.3rem; }
+    .ma-cell.is-linked input[type=checkbox] { outline:2px dotted #a5b4fc; outline-offset:2px; border-radius:2px; }
+    .ma-lbl { display:none; font-size:.6875rem; color:#6b7280; }
+    .ma-acts { display:flex; flex-direction:column; gap:.15rem; min-width:0; }
+    .ma-act { display:flex; align-items:center; gap:.4rem; font-size:.75rem; color:#374151; min-width:0; cursor:pointer; }
+    .ma-act span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ma-act-toggle { font-size:.75rem; font-weight:600; color:#4b5563; padding:.15rem .5rem; border:1px solid #e5e7eb; border-radius:9999px; white-space:nowrap; }
+    .ma-act-toggle:hover { background:#f3f4f6; }
+    .ma-panel { margin:.4rem 0 .15rem; padding:.5rem .75rem; background:#f9fafb; border:1px solid #f1f5f9; border-radius:.5rem; display:grid; grid-template-columns:repeat(auto-fill,minmax(15rem,1fr)); gap:.3rem .75rem; }
+    .ma-panel .ma-act span { white-space:normal; }
+    .ma-hub { display:flex; align-items:center; gap:.5rem; padding:.4rem 1rem; background:#eef2ff; border-top:1px solid #e0e7ff; font-size:.75rem; color:#3730a3; }
     .ma-badge { display:inline-flex; align-items:center; gap:.25rem; font-size:.6875rem; font-weight:600; padding:.05rem .4rem; border-radius:9999px; white-space:nowrap; }
     .ma-note { font-size:.6875rem; color:#9ca3af; }
     /* bilah draf mengikuti lebar sidebar saat mode rail (5rem) */
     @media (min-width: 1024px) { html[data-sb-layout="rail"] #maBar { left: 5rem; } }
     @media (max-width: 639px) {
         .ma-grid { grid-template-columns:minmax(0,1fr) auto; row-gap:.35rem; }
-        .ma-cell-c, .ma-cell-e, .ma-cell-d { display:none; }
-        .ma-row.show-crud .ma-cell-c, .ma-row.show-crud .ma-cell-e, .ma-row.show-crud .ma-cell-d { display:flex; grid-column:auto; }
+        .ma-cell-c, .ma-cell-e, .ma-cell-d, .ma-cell-a { grid-column:1 / -1; justify-content:flex-start; }
+        .ma-cell-c:has(.ma-dash), .ma-cell-e:has(.ma-dash), .ma-cell-d:has(.ma-dash) { display:none; }
+        .ma-lbl { display:inline; }
+        .ma-cell-a .ma-act-toggle { margin-left:0; }
     }
 </style>
 
@@ -157,8 +175,11 @@
 
     let data = null;                 // matriks dari server
     let menusById = {};
-    let childrenOf = {};
     let orderIndex = {};
+    let rows = [];                   // baris tampil dari server (halaman / tab / seksi / aksi tunggal)
+    let rowByKey = {};
+    let rowChildren = {};
+    const expanded = new Set();      // baris yang panel "Other actions"-nya terbuka
     let grants = {};                 // menu_id -> {v,c,e,d} | undefined
     const draft = new Map();         // menu_id -> {v,c,e,d} | null   (keadaan yang DIINGINKAN, hanya yang berbeda dari server)
     let moduleSel = 'all', filter = 'all', query = '';
@@ -189,18 +210,20 @@
         if (!r.ok) { notify('Could not load menu access (' + r.status + ').', 'error'); return; }
         data = r.json.data;
         grants = data.grants || {};
-        menusById = {}; childrenOf = {}; orderIndex = {};
+        menusById = {}; orderIndex = {};
         data.menus.forEach((m, i) => { menusById[m.id] = m; orderIndex[m.id] = i; });
-        data.menus.forEach((m) => { const p = m.parent_id && menusById[m.parent_id] ? m.parent_id : 0; (childrenOf[p] = childrenOf[p] || []).push(m.id); });
+        rows = data.rows || []; rowByKey = {}; rowChildren = {};
+        rows.forEach((r) => { rowByKey[r.key] = r; });
+        rows.forEach((r) => { const p = r.parent_key && rowByKey[r.parent_key] ? r.parent_key : ''; (rowChildren[p] = rowChildren[p] || []).push(r.key); });
         draft.clear();
         render();
     }
 
-    // urutan tampil: pohon (induk dulu), lalu filter modul/pencarian/status
-    function flatOrder() {
+    // urutan tampil: pohon baris (induk dulu)
+    function flatRows() {
         const out = [];
-        const walk = (pid, depth) => (childrenOf[pid] || []).forEach((id) => { out.push({ id, depth }); walk(id, depth + 1); });
-        walk(0, 0);
+        const walk = (pk) => (rowChildren[pk] || []).forEach((k) => { out.push(rowByKey[k]); walk(k); });
+        walk('');
         return out;
     }
 
@@ -208,24 +231,47 @@
     function canGrant(m) { return m.is_active && !locked(m); }
     function canRevoke(m) { return !locked(m) && !m.protected; }
 
+    const rowMain = (r) => menusById[r.main];
+    const rowLocked = (r) => locked(rowMain(r));
+    const rowModule = (r) => rowMain(r).module;
+    const rowChanged = (r) => r.menu_ids.some((id) => changed(id));
+    const rowOn = (r) => !!eff(r.main);
+    const allCells = (r) => ['c', 'e', 'd'].map((k) => r.cells[k]).filter(Boolean);
+
+    function rowMatches(r, q) {
+        if (r.name.toLowerCase().includes(q) || r.slug.toLowerCase().includes(q)) { return true; }
+        if (r.hub && r.hub.label.toLowerCase().includes(q)) { return true; }
+        return allCells(r).concat(r.actions).some((c) => (c.name || c.label).toLowerCase().includes(q) || c.slug.toLowerCase().includes(q));
+    }
+
+    // Tab satu hub ditaruh berurutan di bawah satu judul hub; sisanya mengikuti pohon.
     function visibleRows() {
         const q = query.trim().toLowerCase();
-        return flatOrder().filter(({ id }) => {
-            const m = menusById[id];
-            if (moduleSel !== 'all' && m.module !== moduleSel) { return false; }
-            if (q && !(m.name.toLowerCase().includes(q) || m.slug.toLowerCase().includes(q))) { return false; }
-            const e = eff(id);
-            if (filter === 'granted' && !e) { return false; }
-            if (filter === 'not' && e) { return false; }
-            if (filter === 'changed' && !changed(id)) { return false; }
+        const base = flatRows().filter((r) => {
+            if (moduleSel !== 'all' && rowModule(r) !== moduleSel) { return false; }
+            if (q && !rowMatches(r, q)) { return false; }
+            if (filter === 'granted' && !rowOn(r)) { return false; }
+            if (filter === 'not' && rowOn(r)) { return false; }
+            if (filter === 'changed' && !rowChanged(r)) { return false; }
             return true;
         });
+        const out = [], done = {};
+        base.forEach((r) => {
+            if (!r.hub) { out.push({ row: r }); return; }
+            if (done[r.hub.key]) { return; }
+            done[r.hub.key] = true;
+            const members = base.filter((x) => x.hub && x.hub.key === r.hub.key)
+                .map((x, i) => ({ x, i })).sort((a, b) => (a.x.hub.order - b.x.hub.order) || (a.i - b.i)).map((o) => o.x);
+            out.push({ hub: r.hub, members, row: r });
+            members.forEach((m) => out.push({ row: m, inHub: true }));
+        });
+        return out;
     }
 
     // kedalaman relatif: hanya hitung leluhur yang ikut tampil di modul yang sama
-    function relDepth(id) {
-        let d = 0, p = menusById[id].parent_id;
-        while (p && menusById[p]) { if (moduleSel === 'all' || menusById[p].module === moduleSel) { d++; } p = menusById[p].parent_id; }
+    function relDepth(r) {
+        let d = 0, p = r.parent_key && rowByKey[r.parent_key];
+        while (p) { if (moduleSel === 'all' || rowModule(p) === moduleSel) { d++; } p = p.parent_key && rowByKey[p.parent_key]; }
         return d;
     }
 
@@ -239,12 +285,12 @@
     function renderModules() {
         const counts = {};
         data.modules.forEach((mod) => { counts[mod.key] = { total: 0, on: 0, changed: 0 }; });
-        data.menus.forEach((m) => {
-            const c = counts[m.module] || (counts[m.module] = { total: 0, on: 0, changed: 0 });
-            if (locked(m)) { return; }
+        rows.forEach((r) => {
+            const c = counts[rowModule(r)] || (counts[rowModule(r)] = { total: 0, on: 0, changed: 0 });
+            if (rowLocked(r)) { return; }
             c.total++;
-            if (eff(m.id)) { c.on++; }
-            if (changed(m.id)) { c.changed++; }
+            if (rowOn(r)) { c.on++; }
+            if (rowChanged(r)) { c.changed++; }
         });
         const li = (key, label, c) => `<li><button type="button" class="ma-mod ${moduleSel === key ? 'is-on' : ''}" data-mod="${esc(key)}" aria-pressed="${moduleSel === key}">
             <span class="truncate">${esc(label)}${c.changed ? ' <span class="ml-1 px-1.5 rounded-full bg-amber-200 text-amber-900 text-[10px]">' + c.changed + '</span>' : ''}</span>
@@ -258,59 +304,106 @@
         return `<span class="ma-badge ${cls}" title="${esc(title || text)}"><i class="fas ${icon} text-[9px]"></i>${esc(text)}</span>`;
     }
 
-    function rowHtml({ id }) {
-        const m = menusById[id];
-        const e = eff(id), sv = server(id);
-        const depth = relDepth(id);
-        const lock = locked(m);
-        const typeIcon = m.type === 'group' ? 'fa-folder text-amber-500' : (m.type === 'function' ? 'fa-bolt text-orange-400' : 'fa-file-lines text-blue-400');
-        const hasKids = (childrenOf[id] || []).length > 0;
+    const COL = { c: 'Create', e: 'Edit', d: 'Delete' };
+
+    // Kotak untuk SATU slug fungsi (aksi) — menulis View pada menu fungsi itu.
+    function fnBox(row, cell, label, title) {
+        const m = menusById[cell.id], e = eff(cell.id);
+        const parentOn = rowOn(row) || rowLocked(row);
+        const disabled = locked(m) || (e ? !canRevoke(m) : (!canGrant(m) || !parentOn));
+        const why = locked(m) ? 'Always on (Global ESS)' : (!e && !parentOn ? 'Give View to this row first' : (title || ''));
+        return `<input type="checkbox" data-id="${cell.id}" data-k="v" data-row="${esc(row.key)}" ${e ? 'checked' : ''} ${disabled ? 'disabled' : ''} title="${esc(why)}" aria-label="${esc(label)} — ${esc(row.name)}">`;
+    }
+
+    // Kotak untuk flag C/E/D milik halaman itu sendiri (hanya halaman yang menegakkannya di server).
+    function flagBox(row, cell) {
+        const e = eff(cell.id);
+        return `<input type="checkbox" data-id="${cell.id}" data-k="${cell.k}" data-row="${esc(row.key)}" ${e && e[cell.k] ? 'checked' : ''} ${e ? '' : 'disabled'} title="${e ? '' : 'Give View to this row first'}" aria-label="${esc(COL[cell.k])} — ${esc(row.name)}">`;
+    }
+
+    function actionBox(row, a) {
+        return `<label class="ma-act" title="${esc((a.name || a.label) + ' · ' + a.slug)}">${fnBox(row, a, a.label)}<span>${esc(a.label)}</span></label>`;
+    }
+
+    function rowHtml({ row }) {
+        const m = rowMain(row);
+        const e = eff(row.main), sv = server(row.main);
+        const depth = relDepth(row);
+        const lock = rowLocked(row);
+        const isTab = row.kind === 'tab' || row.kind === 'section';
+        const typeIcon = row.kind === 'group' ? 'fa-folder text-amber-500' : (isTab ? 'fa-table-columns text-indigo-400' : (row.kind === 'action' ? 'fa-bolt text-orange-400' : 'fa-file-lines text-blue-400'));
+        const hasKids = (rowChildren[row.key] || []).length > 0;
         const badges = [];
+        if (isTab) { badges.push(badge('bg-indigo-50 text-indigo-700', 'fa-table-columns', 'Tab', 'This tab has its own permission')); }
         if (lock) { badges.push(badge('bg-gray-100 text-gray-600', 'fa-lock', 'Global ESS', 'Always on for every employee — cannot be changed per role')); }
         if (m.class === 'sensitive') { badges.push(badge('bg-amber-50 text-amber-800', 'fa-shield-halved', 'Sensitive', 'Gives access to sensitive data or administration')); }
         if (m.protected) { badges.push(badge('bg-red-50 text-red-700', 'fa-user-shield', 'Protected', 'Cannot be revoked from this role (would lock administrators out)')); }
         if (!m.is_active) { badges.push(badge('bg-gray-100 text-gray-500', 'fa-ban', 'Inactive')); }
-        if (m.gated_routes === 0 && m.type !== 'group' && !lock) { badges.push(badge('bg-gray-50 text-gray-400', 'fa-circle-question', 'No route gate', 'No route uses this slug as a gate. It may still control a menu item or screen.')); }
-
-        const checked = (k) => (e && e[k] ? 'checked' : '');
-        const vDisabled = lock || (!canGrant(m) && !e) || (m.protected && !!e);
-        const crud = !!m.crud;
-        const legacy = sv && (sv.c || sv.e || sv.d) && !crud
+        if (m.gated_routes === 0 && row.kind !== 'group' && row.kind !== 'section' && !lock && !allCells(row).length && !row.actions.length) { badges.push(badge('bg-gray-50 text-gray-400', 'fa-circle-question', 'No route gate', 'No route uses this slug as a gate. It may still control a menu item or screen.')); }
+        const legacy = sv && (sv.c || sv.e || sv.d) && !m.crud
             ? `<span class="ma-note" title="Create/Edit/Delete values saved earlier for this menu. The application does not use them, so they are kept but cannot be changed here.">stored ${['c', 'e', 'd'].filter((k) => sv[k]).map((k) => k.toUpperCase()).join('·')} · not enforced</span>` : '';
 
-        const cell = (k, label) => {
-            if (lock) { return `<div class="ma-cell ma-cell-${k}"><span class="ma-note">—</span></div>`; }
-            if (!crud) { return `<div class="ma-cell ma-cell-${k}"><span class="ma-note" title="${esc(label)} is not enforced for this menu">–</span></div>`; }
-            return `<div class="ma-cell ma-cell-${k}"><input type="checkbox" data-id="${id}" data-k="${k}" ${checked(k)} ${(!e) ? 'disabled' : ''} aria-label="${esc(label)} — ${esc(m.name)}"></div>`;
-        };
+        const vDisabled = lock || (!canGrant(m) && !e) || (m.protected && !!e);
         const vTitle = lock ? 'Always on (Global ESS)' : (m.protected && e ? 'Protected — cannot be revoked' : '');
-        return `<div class="ma-row ma-grid ${changed(id) ? 'is-changed' : ''} ${crud ? 'show-crud' : ''}" data-row="${id}">
+
+        const cell = (k) => {
+            const c = row.cells[k];
+            if (lock) { return `<div class="ma-cell ma-cell-${k}"><span class="ma-note ma-dash">—</span></div>`; }
+            if (!c) { return `<div class="ma-cell ma-cell-${k}"><span class="ma-note ma-dash" title="${COL[k]} does not exist for this row">–</span></div>`; }
+            const linked = c.covers && c.covers.length > 1;
+            const tip = linked ? `${c.name || c.label} — one permission shared by ${c.covers.map((x) => COL[x]).join(' + ')}` : (c.name || '');
+            const box = c.k === 'v' ? fnBox(row, c, COL[k], tip) : flagBox(row, c);
+            return `<div class="ma-cell ma-cell-${k} ${linked ? 'is-linked' : ''}"><label>${box}<span class="ma-lbl">${COL[k]}</span></label></div>`;
+        };
+
+        let actCell = '';
+        if (!lock && row.actions.length) {
+            const on = row.actions.filter((a) => eff(a.id)).length;
+            actCell = row.actions.length <= 3
+                ? `<div class="ma-acts">${row.actions.map((a) => actionBox(row, a)).join('')}</div>`
+                : `<button type="button" class="ma-act-toggle" data-expand="${esc(row.key)}" aria-expanded="${expanded.has(row.key)}"><i class="fas fa-chevron-${expanded.has(row.key) ? 'down' : 'right'} text-[9px] mr-1"></i>${on}/${row.actions.length} actions</button>`;
+        }
+        const panel = !lock && row.actions.length > 3 && expanded.has(row.key)
+            ? `<div class="ma-panel">${row.actions.map((a) => actionBox(row, a)).join('')}</div>` : '';
+
+        return `<div class="ma-row ${rowChanged(row) ? 'is-changed' : ''}" data-row="${esc(row.key)}">
+          <div class="ma-grid">
             <div class="min-w-0" style="padding-left:${depth * 18}px">
                 <div class="flex items-center gap-2 min-w-0">
                     <i class="fas ${typeIcon} text-xs flex-shrink-0" aria-hidden="true"></i>
-                    <span class="text-sm ${m.type === 'group' ? 'font-bold' : 'font-medium'} text-gray-900 truncate" title="${esc(m.name)}">${esc(m.name)}</span>
-                    ${hasKids && !lock ? `<button type="button" class="text-[11px] text-gray-400 hover:text-gray-700 flex-shrink-0" data-tree="${id}" title="Toggle this item and everything below it" aria-label="Toggle ${esc(m.name)} and everything below"><i class="fas fa-sitemap"></i></button>` : ''}
+                    <span class="text-sm ${row.kind === 'group' ? 'font-bold' : 'font-medium'} text-gray-900 truncate" title="${esc(row.name)}">${esc(row.name)}</span>
+                    ${hasKids && !lock ? `<button type="button" class="text-[11px] text-gray-400 hover:text-gray-700 flex-shrink-0" data-tree="${esc(row.key)}" title="Toggle View for this row and the rows nested below it" aria-label="Toggle ${esc(row.name)} and the rows below"><i class="fas fa-sitemap"></i></button>` : ''}
                 </div>
                 <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
-                    <code class="text-[11px] text-gray-400 break-all">${esc(m.slug)}</code>${badges.join('')}${legacy}
+                    <code class="text-[11px] text-gray-400 break-all">${esc(row.slug)}</code>${badges.join('')}${legacy}
                 </div>
             </div>
-            <div class="ma-cell ma-cell-v"><input type="checkbox" data-id="${id}" data-k="v" ${lock ? 'checked' : checked('v')} ${vDisabled ? 'disabled' : ''} title="${esc(vTitle)}" aria-label="${crud ? 'View' : 'Access'} — ${esc(m.name)}"></div>
-            ${cell('c', 'Create')}${cell('e', 'Edit')}${cell('d', 'Delete')}
+            <div class="ma-cell ma-cell-v"><label><input type="checkbox" data-id="${row.main}" data-k="v" data-row="${esc(row.key)}" ${lock || e ? 'checked' : ''} ${vDisabled ? 'disabled' : ''} title="${esc(vTitle)}" aria-label="View — ${esc(row.name)}"><span class="ma-lbl">View</span></label></div>
+            ${cell('c')}${cell('e')}${cell('d')}
+            <div class="ma-cell-a min-w-0">${actCell}</div>
+          </div>${panel}
         </div>`;
     }
 
+    function hubHtml(item) {
+        const on = item.members.filter((r) => rowOn(r)).length;
+        const pad = 16 + relDepth(item.row) * 18;
+        return `<div class="ma-hub" style="padding-left:${pad}px"><i class="fas fa-table-columns text-[11px]"></i>
+            <strong>${esc(item.hub.label)}</strong><span class="text-indigo-500">· ${item.members.length} tabs, each with its own permission</span>
+            <span class="ma-count ml-auto">${on}/${item.members.length}</span></div>`;
+    }
+
     function renderRows() {
-        const rows = visibleRows();
-        document.getElementById('maRows').innerHTML = rows.map(rowHtml).join('');
-        document.getElementById('maEmpty').classList.toggle('hidden', rows.length > 0);
+        const items = visibleRows();
+        const shownRows = items.filter((i) => !i.hub).map((i) => i.row);
+        document.getElementById('maRows').innerHTML = items.map((i) => i.hub ? hubHtml(i) : rowHtml(i)).join('');
+        document.getElementById('maEmpty').classList.toggle('hidden', shownRows.length > 0);
         const mod = data.modules.find((x) => x.key === moduleSel);
         document.getElementById('maModuleTitle').textContent = moduleSel === 'all' ? 'All modules' : (mod ? mod.label : moduleSel);
-        const granted = rows.filter(({ id }) => eff(id)).length;
-        document.getElementById('maShownInfo').textContent = `${rows.length} shown · ${granted} granted`;
-        const shown = rows.map(({ id }) => menusById[id]);
-        document.getElementById('maBulkGrant').disabled = !shown.some((m) => canGrant(m) && !eff(m.id));
-        document.getElementById('maBulkRevoke').disabled = !shown.some((m) => canRevoke(m) && !!eff(m.id));
+        const granted = shownRows.filter(rowOn).length;
+        document.getElementById('maShownInfo').textContent = `${shownRows.length} rows shown · ${granted} with View`;
+        document.getElementById('maBulkGrant').disabled = !shownRows.some((r) => canGrant(rowMain(r)) && !rowOn(r));
+        document.getElementById('maBulkRevoke').disabled = !shownRows.some((r) => canRevoke(rowMain(r)) && rowOn(r));
     }
 
     function renderBar() {
@@ -338,7 +431,12 @@
         const next = Object.assign({}, cur, { [k]: on ? 1 : 0, v: 1 });
         setDraft(id, next);
     }
-    function subtree(id) { const out = [id]; (childrenOf[id] || []).forEach((c) => out.push(...subtree(c))); return out; }
+    function subtreeRows(key) { const out = [rowByKey[key]]; (rowChildren[key] || []).forEach((c) => out.push(...subtreeRows(c))); return out; }
+    // View pada baris; mencabut View juga mencabut semua aksi milik baris itu (aksi tanpa halaman tak ada gunanya).
+    function setRowView(row, on) {
+        toggleView(row.main, on);
+        if (!on) { row.menu_ids.forEach((id) => { if (id !== row.main) { toggleView(id, false); } }); }
+    }
 
     // ───────────────────────────────────────────────── modal
     const modal = document.getElementById('maModal');
@@ -529,22 +627,25 @@
     document.getElementById('maRows').addEventListener('change', (e) => {
         const cb = e.target; if (!cb.dataset || !cb.dataset.k) { return; }
         const id = parseInt(cb.dataset.id, 10);
-        if (cb.dataset.k === 'v') { toggleView(id, cb.checked); } else { toggleCrud(id, cb.dataset.k, cb.checked); }
+        const row = rowByKey[cb.dataset.row];
+        if (cb.dataset.k === 'v') { if (row && id === row.main) { setRowView(row, cb.checked); } else { toggleView(id, cb.checked); } }
+        else { toggleCrud(id, cb.dataset.k, cb.checked); }
         render();
     });
     document.getElementById('maRows').addEventListener('click', (e) => {
+        const x = e.target.closest('[data-expand]');
+        if (x) { const k = x.dataset.expand; if (expanded.has(k)) { expanded.delete(k); } else { expanded.add(k); } renderRows(); return; }
         const b = e.target.closest('[data-tree]'); if (!b) { return; }
-        const id = parseInt(b.dataset.tree, 10);
-        const ids = subtree(id).map((x) => menusById[x]).filter((m) => !locked(m));
-        const turnOn = !ids.every((m) => eff(m.id));
-        ids.forEach((m) => toggleView(m.id, turnOn));
+        const list = subtreeRows(b.dataset.tree).filter((r) => !rowLocked(r));
+        const turnOn = !list.every(rowOn);
+        list.forEach((r) => setRowView(r, turnOn));
         render();
     });
-    document.getElementById('maBulkGrant').addEventListener('click', () => { visibleRows().forEach(({ id }) => { const m = menusById[id]; if (canGrant(m) && !eff(id)) { toggleView(id, true); } }); render(); });
+    document.getElementById('maBulkGrant').addEventListener('click', () => { visibleRows().filter((i) => !i.hub).forEach(({ row }) => { if (canGrant(rowMain(row)) && !rowOn(row)) { setRowView(row, true); } }); render(); });
     document.getElementById('maBulkRevoke').addEventListener('click', () => {
-        const targets = visibleRows().map(({ id }) => menusById[id]).filter((m) => canRevoke(m) && eff(m.id));
-        if (targets.length > 25 && !confirm('Revoke access from ' + targets.length + ' items? You can still review before saving.')) { return; }
-        targets.forEach((m) => toggleView(m.id, false)); render();
+        const targets = visibleRows().filter((i) => !i.hub).map((i) => i.row).filter((r) => canRevoke(rowMain(r)) && rowOn(r));
+        if (targets.length > 25 && !confirm('Revoke access from ' + targets.length + ' rows (and their actions)? You can still review before saving.')) { return; }
+        targets.forEach((r) => setRowView(r, false)); render();
     });
     document.getElementById('maDiscard').addEventListener('click', () => { if (confirm('Discard all ' + draft.size + ' unsaved change(s)?')) { draft.clear(); render(); } });
     document.getElementById('maReview').addEventListener('click', openReview);

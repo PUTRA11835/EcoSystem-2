@@ -5,11 +5,20 @@
 
 @php
     $pendingReqCount = $pendingCount ?? 0;
+    // Tiap tab punya izin sendiri (Menu Access › HR · Leave & Permit). Tab yang tak dipegang tidak dirender
+    // tombolnya dan datanya tidak diminta; panelnya tetap ada di DOM (disembunyikan) agar skrip halaman tidak error.
+    $tabOk = [
+        'inbox'      => $can('hr_general.leave_permit.tab-inbox'),
+        'types'      => $can('hr_general.leave_permit.tab-types'),
+        'all_quotas' => $can('hr_general.leave_permit.tab-quotas'),
+        'report'     => $can('hr_general.leave_permit.tab-report'),
+    ];
+    $firstTab = collect($tabOk)->filter()->keys()->first();
 @endphp
 
 @section('page-actions')
 <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-    @if($pendingReqCount > 0)
+    @if($pendingReqCount > 0 && $tabOk['inbox'])
     <button type="button" onclick="switchTab('inbox')"
         title="{{ $pendingReqCount }} pending validation"
         class="inline-flex items-center gap-1.5 border text-xs font-semibold px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg hover:opacity-80 transition shadow-sm whitespace-nowrap active:scale-95"
@@ -64,32 +73,40 @@
         <!-- Navigation Tabs (styled like the Attendance hub tab bar) -->
         <div class="mb-2 bg-white rounded-lg shadow-sm border border-gray-200">
             <nav class="flex flex-wrap gap-1 p-1" aria-label="Tabs">
+                @if($tabOk['inbox'])
                 <button id="tabBtnInbox" onclick="switchTab('inbox')"
                     class="hub-tab-btn primary-gradient text-white shadow-sm flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all flex items-center justify-center gap-2">
                     <i class="fas fa-inbox"></i> Approval Inbox
                     <span id="badgePendingCount"
                         class="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full hidden">0</span>
                 </button>
+                @endif
 
+                @if($tabOk['types'])
                 <button id="tabBtnTypes" onclick="switchTab('types')"
                     class="hub-tab-btn flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all text-gray-600 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center gap-2">
                     <i class="fas fa-layer-group"></i> Master Data Leave Type
                 </button>
+                @endif
 
+                @if($tabOk['all_quotas'])
                 <button id="tabBtnAllQuotas" onclick="switchTab('all_quotas')"
                     class="hub-tab-btn flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all text-gray-600 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center gap-2">
                     <i class="fas fa-users"></i> All Employee Quotas
                 </button>
+                @endif
 
+                @if($tabOk['report'])
                 <button id="tabBtnReport" onclick="switchTab('report')"
                     class="hub-tab-btn flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all text-gray-600 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center gap-2">
                     <i class="fas fa-chart-bar"></i> Reports & Analytics
                 </button>
+                @endif
             </nav>
         </div>
 
         <!-- ==================== TAB 1: HR APPROVAL INBOX ==================== -->
-        <div id="tabContentInbox" class="space-y-4">
+        <div id="tabContentInbox" class="space-y-4 {{ $firstTab === 'inbox' ? '' : 'hidden' }}">
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div
                     class="px-5 py-3.5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -985,10 +1002,15 @@
             renderMasterTypesPage();
         }
 
+        // Izin per tab (lihat $tabOk di atas). Tab tanpa izin tidak memuat datanya.
+        const TAB_OK = @json($tabOk);
+        const FIRST_TAB = @json($firstTab);
+
         document.addEventListener('DOMContentLoaded', () => {
-            loadInboxApplications();
-            loadAllEmployeesQuotas();
+            if (TAB_OK.inbox) loadInboxApplications();
+            if (TAB_OK.all_quotas) loadAllEmployeesQuotas();
             initMasterTypesPagination();
+            if (FIRST_TAB && FIRST_TAB !== 'inbox') switchTab(FIRST_TAB);
         });
 
         function onGlobalYearChange() {
@@ -996,12 +1018,13 @@
             // Sync year display in report tab
             const rptYearDisplay = document.getElementById('rptYearDisplay');
             if (rptYearDisplay) rptYearDisplay.innerText = globalYear;
-            loadInboxApplications();
-            loadAllEmployeesQuotas();
-            loadReportData();
+            if (TAB_OK.inbox) loadInboxApplications();
+            if (TAB_OK.all_quotas) loadAllEmployeesQuotas();
+            if (TAB_OK.report) loadReportData();
         }
 
         function switchTab(tabName) {
+            if (!TAB_OK[tabName]) return;
             const tabs = ['inbox', 'types', 'all_quotas', 'report'];
             tabs.forEach(t => {
                 const btn = document.getElementById('tabBtn' + capitalize(t));

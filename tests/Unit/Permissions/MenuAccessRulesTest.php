@@ -46,7 +46,7 @@ class MenuAccessRulesTest extends TestCase
             ['general.cash-advance-report', 'hr-ca'],
             ['management.cash-advance-settings', 'hr-ca'],
             ['general.recruitment.offers', 'hr-recruit'],
-            ['general.letter-templates', 'hr-recruit'],
+            ['general.letter-templates', 'hr-docs'],
             ['general.kpi-evaluation.create', 'hr-kpi'],
             ['general.onboarding.lock', 'hr-onboard'],
             ['general.command-center.pending-approval', 'hr-onboard'],
