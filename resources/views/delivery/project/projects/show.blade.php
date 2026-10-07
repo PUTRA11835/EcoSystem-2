@@ -769,16 +769,16 @@
 
             {{-- ── Term Of Payment (TOP) Plan ─────────────────────────── --}}
             <div class="mt-8 pt-6 border-t border-gray-200" data-project-id="{{ $project->id }}">
-                {{-- Mode penagihan: % dari revenue Sales Data, atau Line Item bernominal tetap --}}
+                {{-- Type TOP: % dari revenue Sales Data, atau amount dari Contract Line Item --}}
                 <div class="flex items-center flex-wrap gap-x-4 gap-y-2 mb-5">
-                    <span class="text-sm font-semibold text-gray-900">Billing mode</span>
+                    <span class="text-sm font-semibold text-gray-900">TOP Type</span>
                     <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden" role="group" id="ptModeToggle">
                         <button type="button" data-mode="percentage" data-perm-action="edit"
                                 onclick="PaymentTermPlan.switchMode('percentage')"
                                 class="pt-mode-btn px-4 py-2 text-sm font-medium transition">% of Revenue</button>
                         <button type="button" data-mode="line_item" data-perm-action="edit"
                                 onclick="PaymentTermPlan.switchMode('line_item')"
-                                class="pt-mode-btn px-4 py-2 text-sm font-medium border-l border-gray-300 transition">Line Item (fixed amount)</button>
+                                class="pt-mode-btn px-4 py-2 text-sm font-medium border-l border-gray-300 transition">Contract Line Item</button>
                     </div>
                     <p id="ptModeHint" class="text-xs text-gray-500 basis-full sm:basis-auto"></p>
                 </div>
@@ -791,7 +791,7 @@
                     <div class="flex justify-between items-center flex-wrap gap-3 mb-4">
                         <div>
                             <h4 class="text-lg font-medium text-gray-900">Contract Line Items</h4>
-                            <p class="text-xs text-gray-500 mt-0.5">Add the contract line items first — fixed-amount payment terms are linked to one of them.</p>
+                            <p class="text-xs text-gray-500 mt-0.5">Add the contract line items first — every payment term takes its amount from one of them.</p>
                         </div>
                         <button type="button" onclick="PaymentTermPlan.openAddLineItem()"
                                 class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
@@ -815,6 +815,8 @@
                                 </tr>
                             </thead>
                             <tbody id="ptLineItemBody" class="divide-y divide-gray-100 bg-white"></tbody>
+                            {{-- Total nilai kontrak vs revenue Sales Data --}}
+                            <tfoot id="ptLineItemFoot" class="bg-gray-50 border-t-2 border-gray-200"></tfoot>
                         </table>
                     </div>
                 </div>
@@ -2494,17 +2496,22 @@
                 <input type="hidden" id="paymentTermModalMode" value="create">
                 <input type="hidden" id="paymentTermModalId" value="">
 
-                {{-- Basis perhitungan — % dan nominal tetap saling eksklusif.
-                     Nominal tetap hanya tersedia di mode Line Item. --}}
+                {{-- Basis perhitungan — saling eksklusif:
+                       % of Revenue   → hanya di TOP Type "% of Revenue" (dikunci di Contract Line Item)
+                       % of Line Item → isi Payment %, Amount = % × nilai line item
+                       Amount         → isi nominal, % terhadap line item dihitung otomatis --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Calculation basis</label>
                     <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden" role="group">
                         <button type="button" id="pt_basis_percentage" data-perm-keep
                                 onclick="PaymentTermPlan.setBasis('percentage')"
-                                class="pt-basis-btn px-4 py-2 text-sm font-medium transition">% of Revenue</button>
+                                class="pt-basis-btn px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed">% of Revenue</button>
+                        <button type="button" id="pt_basis_line_item" data-perm-keep
+                                onclick="PaymentTermPlan.setBasis('line_item')"
+                                class="pt-basis-btn px-4 py-2 text-sm font-medium border-l border-gray-300 transition disabled:cursor-not-allowed">Payment %</button>
                         <button type="button" id="pt_basis_fixed" data-perm-keep
                                 onclick="PaymentTermPlan.setBasis('fixed')"
-                                class="pt-basis-btn px-4 py-2 text-sm font-medium border-l border-gray-300 transition">Fixed amount</button>
+                                class="pt-basis-btn px-4 py-2 text-sm font-medium border-l border-gray-300 transition disabled:cursor-not-allowed">Amount</button>
                     </div>
                     <p id="pt_basis_hint" class="mt-1 text-xs text-gray-400"></p>
                 </div>
@@ -2528,9 +2535,12 @@
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {{-- Payment % — terkunci saat basis nominal tetap --}}
+                    {{-- Payment % — terkunci saat basis Amount (menampilkan porsi terhadap line item) --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Payment % <span id="pt_pct_req" class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Payment % <span id="pt_pct_req" class="text-red-500">*</span>
+                            <span id="pt_pct_of" class="text-gray-400 font-normal"></span>
+                        </label>
                         <div class="relative">
                             <input type="number" id="pt_payment_percentage" min="0" max="100" step="0.01" autocomplete="off"
                                    oninput="PaymentTermPlan.recalcAmount()"
@@ -2540,7 +2550,7 @@
                         </div>
                     </div>
 
-                    {{-- Amount — auto dari revenue (basis %) atau diisi sendiri (nominal tetap) --}}
+                    {{-- Amount — auto dari revenue / nilai line item (basis %) atau diisi sendiri (basis Amount) --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             Amount <span id="pt_amount_req" class="text-red-500 hidden">*</span>
@@ -2549,7 +2559,7 @@
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
                             <input type="text" id="pt_amount_disp" readonly tabindex="-1" inputmode="numeric" autocomplete="off"
-                                   oninput="PaymentTermPlan.onAmountInput(this)"
+                                   oninput="PaymentTermPlan.onAmountInput(this); PaymentTermPlan.recalcAmount()"
                                    class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed text-sm text-gray-600 text-right"
                                    placeholder="0">
                         </div>
@@ -2584,12 +2594,15 @@
                                placeholder="dd/mm/yyyy">
                     </div>
 
-                    {{-- Submit Invoice Date --}}
+                    {{-- Submit Invoice Date — wajib saat Status = Invoiced --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Submit Invoice Date</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Submit Invoice Date <span id="pt_submit_invoice_req" class="text-red-500 hidden">*</span>
+                        </label>
                         <input type="text" id="pt_submit_invoice_date" autocomplete="off"
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
                                placeholder="dd/mm/yyyy">
+                        <p id="pt_submit_invoice_hint" class="mt-1 text-xs text-gray-400 hidden">Required because Status is Invoiced.</p>
                     </div>
                 </div>
 
@@ -2621,7 +2634,7 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
                         <select id="pt_status" onchange="PaymentTermPlan.togglePaidDateRequired()"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
-                            @foreach(['Open','Paid','Delay'] as $s)
+                            @foreach(\App\Models\DeliveryProjectPaymentTerm::STATUSES as $s)
                                 <option value="{{ $s }}">{{ $s }}</option>
                             @endforeach
                         </select>
@@ -2708,6 +2721,7 @@
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
                             <option value="one_time">One-time</option>
                             <option value="recurring">Recurring</option>
+                            <option value="milestone">Milestone / Term-based</option>
                         </select>
                     </div>
                     <div id="li_frequency_wrap" class="hidden">
@@ -2723,7 +2737,7 @@
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
+                    <div id="li_start_wrap">
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             <span id="li_start_label">Billing Month</span> <span id="li_start_req" class="text-red-500 hidden">*</span>
                         </label>
@@ -9455,11 +9469,12 @@ window.StakeholderRegister = (function () {
 window.PaymentTermPlan = (function () {
     'use strict';
 
-    // Dua mode penagihan (lihat App\Services\ProjectTopPlan):
+    // Dua Type TOP (lihat App\Services\ProjectTopPlan):
     //   percentage → Amount = Payment % × revenue Sales Data (total % ≤ 100, diblokir)
-    //   line_item  → termin dikaitkan ke Contract Line Item; basis termin boleh %
-    //                ATAU nominal tetap (saling eksklusif). Nominal tetap diisi
-    //                sendiri — melebihi revenue hanya diperingatkan, tidak diblokir.
+    //   line_item  → termin dikaitkan ke Contract Line Item; amount diambil dari
+    //                nilai line item: basis "line_item" (Payment % × nilai line item)
+    //                ATAU "fixed" (Amount diisi, % terhadap line item dihitung).
+    //                Basis % of Revenue dikunci. Melebihi revenue hanya diperingatkan.
     const PROJECT_ID   = {{ $project->id }};
     const BASE_URL     = `/projects/${PROJECT_ID}/payment-terms`;
     const MODE_URL     = `/projects/${PROJECT_ID}/top-mode`;
@@ -9475,6 +9490,7 @@ window.PaymentTermPlan = (function () {
     let _lineItems = [];
     let _warnings  = [];
     let _basis     = 'percentage';   // basis termin yang sedang diedit di modal
+    let _legacyPct = false;          // termin lama basis % revenue di mode Line Item (boleh tetap)
     const _expanded = new Set();     // id line item yang grupnya sedang dibuka penuh
     // Revenue acuan untuk hitung Amount = revenue × % / 100
     let _revenue = parseFloat('{{ $project->revenue ?? 0 }}') || 0;
@@ -9528,9 +9544,10 @@ window.PaymentTermPlan = (function () {
 
     function statusBadge(status) {
         const map = {
-            'Open':  'bg-yellow-100 text-yellow-800',
-            'Paid':  'bg-green-100 text-green-800',
-            'Delay': 'bg-red-100 text-red-700',
+            'Open':     'bg-yellow-100 text-yellow-800',
+            'Invoiced': 'bg-blue-100 text-blue-800',
+            'Paid':     'bg-green-100 text-green-800',
+            'Delay':    'bg-red-100 text-red-700',
         };
         const cls = map[status] ?? 'bg-gray-100 text-gray-700';
         return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${esc(status)}</span>`;
@@ -9557,6 +9574,23 @@ window.PaymentTermPlan = (function () {
     // Peringatan dari server ditampilkan setelah notifikasi sukses.
     function notifyWarnings(warnings) {
         (warnings || []).forEach(w => showNotification(w, 'warning'));
+    }
+
+    // Info perbandingan sebuah total dengan revenue Sales Data (sesuai / kurang / lebih).
+    function revenueCompareHtml(total, revenue) {
+        const pill = (cls, text) => `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${cls}">${text}</span>`;
+        const head = `Revenue in Sales Data: <span class="font-semibold text-gray-700">${fmtRp(revenue)}</span>`;
+        if (revenue <= 0) {
+            return head + pill('bg-gray-100 text-gray-600', 'Revenue is empty — cannot compare');
+        }
+        const diff = total - revenue;
+        if (Math.abs(diff) < 1) {
+            return head + pill('bg-green-100 text-green-800', '✓ Matches revenue');
+        }
+        const pct = fmtPct(Math.round(Math.abs(diff) / revenue * 10000) / 100);
+        return diff > 0
+            ? head + pill('bg-red-100 text-red-700', `Over revenue by ${fmtRp(diff)} (${pct})`)
+            : head + pill('bg-amber-100 text-amber-800', `Below revenue by ${fmtRp(-diff)} (${pct})`);
     }
 
     // ── Periode (mirror DeliveryProjectContractLineItem::buildPeriods) ──
@@ -9627,7 +9661,7 @@ window.PaymentTermPlan = (function () {
         const hint = document.getElementById('ptModeHint');
         if (hint) {
             hint.textContent = _mode === 'line_item'
-                ? `Terms are linked to a contract line item. Fixed amounts are entered manually and checked against the revenue in Sales Data (${fmtRp(currentRevenue())}).`
+                ? `Amount is taken from the contract line items (Payment % of the line item value, or a fixed Amount) and compared with the revenue in Sales Data (${fmtRp(currentRevenue())}).`
                 : `Amount = Payment % × revenue in Sales Data (${fmtRp(currentRevenue())}).`;
         }
 
@@ -9649,9 +9683,10 @@ window.PaymentTermPlan = (function () {
     function renderLineItems() {
         const tbody = document.getElementById('ptLineItemBody');
         if (!tbody) return;
+        renderLineItemFoot();
 
         if (!_lineItems.length) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-gray-400 text-sm">No line items yet. Add the contract line items (e.g. Service, License, ATS) before creating fixed-amount payment terms.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-gray-400 text-sm">No line items yet. Add the contract line items (e.g. Service, License, ATS) before creating payment terms.</td></tr>`;
             return;
         }
 
@@ -9670,7 +9705,11 @@ window.PaymentTermPlan = (function () {
                     <button type="button" onclick="PaymentTermPlan.openGenerate(${li.id})"
                             class="inline-flex items-center px-3 py-1.5 mr-1 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
                         Generate Schedule
-                    </button>` : ''}
+                    </button>` : `
+                    <button type="button" onclick="PaymentTermPlan.openAdd(${li.id})"
+                            class="inline-flex items-center px-3 py-1.5 mr-1 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        Add Term
+                    </button>`}
                     <button type="button" onclick="PaymentTermPlan.openEditLineItem(${li.id})" title="Edit Line Item"
                             class="inline-flex items-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -9682,6 +9721,27 @@ window.PaymentTermPlan = (function () {
                 </td>
             </tr>`;
         }).join('');
+    }
+
+    // Footer tabel Line Item: total nilai kontrak & total yang sudah masuk TOP vs revenue.
+    function renderLineItemFoot() {
+        const tfoot = document.getElementById('ptLineItemFoot');
+        if (!tfoot) return;
+        if (!_lineItems.length) { tfoot.innerHTML = ''; return; }
+
+        const total  = _lineItems.reduce((s, li) => s + (Number(li.total) || 0), 0);
+        const billed = _lineItems.reduce((s, li) => s + (Number(li.billed_total) || 0), 0);
+        const billedCls = billed > total + 0.01 ? 'text-red-600' : (Math.abs(billed - total) < 1 ? 'text-green-700' : 'text-gray-700');
+
+        tfoot.innerHTML = `<tr class="font-semibold text-gray-700">
+                <td class="px-3 py-3 text-xs" colspan="4">Total Contract Value</td>
+                <td class="px-3 py-3 text-xs text-right whitespace-nowrap">${fmtRp(total)}</td>
+                <td class="px-3 py-3 text-xs text-right whitespace-nowrap ${billedCls}">${fmtRp(billed)}</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="px-3 pb-3 text-xs font-normal text-gray-500" colspan="7">${revenueCompareHtml(total, currentRevenue())}</td>
+            </tr>`;
     }
 
     function colCount() { return _mode === 'line_item' ? 12 : 11; }
@@ -9772,41 +9832,49 @@ window.PaymentTermPlan = (function () {
         const tfoot = document.getElementById('paymentTermFoot');
         if (!tfoot) return;
 
+        if (!_terms.length) { tfoot.innerHTML = ''; return; }
+
         const totalAmt = _terms.reduce((s, t) => s + (Number(t.amount) || 0), 0);
-        const pctTerms = _terms.filter(t => t.basis !== 'fixed');
-        const totalPct = pctTerms.reduce((s, t) => s + (Number(t.payment_percentage) || 0), 0);
         const revenue  = currentRevenue();
         const over     = totalAmt - revenue;
-
-        const pctCell = pctTerms.length
+        // Total % hanya bermakna untuk basis % of Revenue (= porsi revenue).
+        const revTerms = _terms.filter(t => t.basis === 'percentage');
+        const totalPct = revTerms.reduce((s, t) => s + (Number(t.payment_percentage) || 0), 0);
+        const pctCell  = _mode === 'percentage' && revTerms.length
             ? `<td class="px-3 py-3 text-center ${totalPct > 100 ? 'text-red-600' : 'text-gray-700'}">${fmtPct(totalPct)}</td>`
             : `<td class="px-3 py-3 text-center text-gray-400">—</td>`;
 
-        if (_mode === 'line_item') {
-            tfoot.innerHTML = `<tr class="font-semibold text-gray-700">
-                <td class="px-3 py-3" colspan="3">Total</td>
+        // Rincian status penagihan (dari total TOP).
+        const byStatus = s => _terms.filter(t => t.status === s).reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+        const statusInfo = ['Paid', 'Invoiced']
+            .map(s => ({ s, v: byStatus(s) })).filter(x => x.v > 0)
+            .map(x => `${x.s} ${fmtRp(x.v)}`).join(' · ');
+
+        const lead = _mode === 'line_item' ? 3 : 2;
+        tfoot.innerHTML = `<tr class="font-semibold text-gray-700">
+                <td class="px-3 py-3" colspan="${lead}">Total</td>
                 ${pctCell}
                 <td class="px-3 py-3 text-right whitespace-nowrap ${over > 0.01 ? 'text-red-600' : ''}">${fmtRp(totalAmt)}</td>
                 <td class="px-3 py-3 text-xs font-normal text-gray-500" colspan="7">
-                    Revenue in Sales Data: <span class="font-semibold text-gray-700">${fmtRp(revenue)}</span>
-                    ${over > 0.01 ? `<span class="ml-2 font-semibold text-red-600">Over by ${fmtRp(over)}</span>`
-                                  : (revenue - totalAmt > 0.01 ? `<span class="ml-2">· Outside TOP: ${fmtRp(revenue - totalAmt)}</span>` : '')}
+                    ${revenueCompareHtml(totalAmt, revenue)}
+                    ${statusInfo ? `<span class="ml-2 text-gray-400">· ${statusInfo}</span>` : ''}
                 </td>
             </tr>`;
-        } else {
-            tfoot.innerHTML = `<tr class="font-semibold text-gray-700">
-                <td class="px-3 py-3 text-center" colspan="2">Total</td>
-                ${pctCell}
-                <td class="px-3 py-3 text-right">${fmtRp(totalAmt)}</td>
-                <td class="px-3 py-3" colspan="7"></td>
-            </tr>`;
-        }
     }
 
     function rowHtml(t) {
-        const pctCell = t.basis === 'fixed'
-            ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-500">Fixed</span>`
-            : fmtPct(t.payment_percentage);
+        // % of Revenue → "x%" (+ "of revenue" di mode Line Item, data lama);
+        // % of Line Item → "x% of item"; Amount → badge Fixed + porsinya ke line item.
+        const sub = txt => `<div class="text-[10px] font-normal text-gray-400">${txt}</div>`;
+        let pctCell;
+        if (t.basis === 'fixed') {
+            pctCell = `<span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-500">Fixed</span>`
+                + (t.line_item_share !== null && t.line_item_share !== undefined ? sub(`${fmtPct(t.line_item_share)} of item`) : '');
+        } else if (t.basis === 'line_item') {
+            pctCell = fmtPct(t.payment_percentage) + sub('of item');
+        } else {
+            pctCell = fmtPct(t.payment_percentage) + (_mode === 'line_item' ? sub('of revenue') : '');
+        }
 
         return `<tr class="hover:bg-gray-50 align-top">
             <td class="px-3 py-3 text-center text-xs font-mono text-gray-600">${t.term_number}</td>
@@ -9847,48 +9915,82 @@ window.PaymentTermPlan = (function () {
         if (mode === _mode) return;
 
         const question = mode === 'line_item'
-            ? 'Existing % terms stay as they are. New payment terms must be linked to a contract line item, and fixed amounts are no longer taken from the revenue.'
-            : 'Contract line items are kept but hidden. Only possible when no fixed-amount term exists.';
+            ? 'Existing % of Revenue terms stay as they are. New payment terms must be linked to a contract line item and take their amount from it — "% of Revenue" is locked.'
+            : 'Contract line items are kept but hidden. Only possible when no term takes its amount from a line item.';
         const title = mode === 'line_item'
-            ? 'Switch to "Line Item (fixed amount)"?'
-            : 'Switch back to "% of Revenue"?';
-        if (!(await showConfirm(question, title, 'primary', { okText: 'Switch Mode' }))) return;
+            ? 'Switch TOP Type to "Contract Line Item"?'
+            : 'Switch TOP Type back to "% of Revenue"?';
+        if (!(await showConfirm(question, title, 'primary', { okText: 'Switch Type' }))) return;
 
         try {
             const res = await axios.post(MODE_URL, { top_mode: mode, _token: getCsrf() });
             showNotification(res.data.message ?? 'Billing mode updated.', 'success');
             await load();
         } catch (e) {
-            showNotification(errMsg(e, 'Failed to change billing mode.'), 'error');
+            showNotification(errMsg(e, 'Failed to change TOP type.'), 'error');
         }
     }
 
-    // ── Modal Payment Term: basis % ↔ nominal tetap ────────────────
+    // ── Modal Payment Term: basis ──────────────────────────────────
+    // Ketersediaan basis per Type TOP:
+    //   % of Revenue       → hanya Type "% of Revenue". Di Contract Line Item
+    //                        dikunci, kecuali termin lama yang sudah memakainya.
+    //   Payment % / Amount → hanya Type "Contract Line Item" (acuan: nilai line item).
+    function basisAllowed(basis) {
+        if (_mode !== 'line_item') return basis === 'percentage';
+        return basis !== 'percentage' || _legacyPct;
+    }
+
+    function selectedLineItem() {
+        return lineItemById(document.getElementById('pt_line_item')?.value);
+    }
+
+    function round2(n) { return Math.round(n * 100) / 100; }
+
+    // Porsi (%) nilai line item yang belum masuk TOP — prefill Payment %.
+    function remainingShare(li) {
+        if (!li || !(li.total > 0)) return 0;
+        const editId = document.getElementById('paymentTermModalMode').value === 'edit'
+            ? parseInt(document.getElementById('paymentTermModalId').value, 10) : null;
+        const billed = _terms.filter(t => t.id !== editId && t.contract_line_item_id === li.id)
+            .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+        return Math.max(0, round2(100 - billed / li.total * 100));
+    }
+
     function setBasis(basis) {
-        if (basis === 'fixed' && _mode !== 'line_item') {
-            showNotification('Fixed amount is only available in "Line Item" billing mode.', 'warning');
+        if (!basisAllowed(basis)) {
+            showNotification(_mode === 'line_item'
+                ? '"% of Revenue" is locked for TOP Type "Contract Line Item". Use "Payment %" or "Amount".'
+                : 'Payment % / Amount of a line item is only available in TOP Type "Contract Line Item".', 'warning');
             return;
         }
+        const prevAmount = modalAmount();   // nilai sebelum pindah basis → dipertahankan
         _basis = basis;
         const fixed = basis === 'fixed';
 
-        ['percentage', 'fixed'].forEach(b => {
+        ['percentage', 'line_item', 'fixed'].forEach(b => {
             const btn = document.getElementById('pt_basis_' + b);
             if (!btn) return;
-            const active = b === basis;
+            const active  = b === basis;
+            const allowed = basisAllowed(b);
+            btn.disabled = !allowed;
+            btn.title = !allowed && b === 'percentage' ? 'Locked for TOP Type "Contract Line Item"' : '';
             btn.classList.toggle('primary-gradient', active);
             btn.classList.toggle('text-white', active);
             btn.classList.toggle('bg-white', !active);
-            btn.classList.toggle('text-gray-700', !active);
-            // Mode %: tombol nominal tetap tampil redup (tidak tersedia)
-            btn.classList.toggle('opacity-50', b === 'fixed' && _mode !== 'line_item');
+            btn.classList.toggle('text-gray-700', !active && allowed);
+            btn.classList.toggle('text-gray-400', !active && !allowed);
+            btn.classList.toggle('bg-gray-100', !active && !allowed);
+            // Type "% of Revenue" hanya punya satu basis — tombol lain disembunyikan.
+            if (b !== 'percentage') btn.classList.toggle('hidden', _mode !== 'line_item');
         });
 
-        // Satu terisi → yang lain terkunci.
+        // Payment % ↔ Amount: satu diisi, yang lain dihitung otomatis.
         const pct = document.getElementById('pt_payment_percentage');
         pct.disabled = fixed;
-        if (fixed) pct.value = '';
         document.getElementById('pt_pct_req').classList.toggle('hidden', fixed);
+        document.getElementById('pt_pct_of').textContent =
+            basis === 'percentage' ? '(of revenue)' : (fixed ? '(of line item, auto)' : '(of line item)');
 
         const amt = document.getElementById('pt_amount_disp');
         amt.readOnly = !fixed;
@@ -9902,53 +10004,76 @@ window.PaymentTermPlan = (function () {
         document.getElementById('pt_amount_req').classList.toggle('hidden', !fixed);
         document.getElementById('pt_amount_auto').classList.toggle('hidden', fixed);
 
-        document.getElementById('pt_basis_hint').textContent = fixed
-            ? 'Amount is entered manually (not taken from revenue). Payment % is disabled.'
-            : `Amount = Payment % × revenue in Sales Data (${fmtRp(currentRevenue())}). Fixed amount is disabled.`;
+        document.getElementById('pt_basis_hint').textContent = {
+            percentage: `Amount = Payment % × revenue in Sales Data (${fmtRp(currentRevenue())}).`,
+            line_item:  'Fill in Payment % — Amount = Payment % × the selected line item value.',
+            fixed:      'Fill in the Amount — its share (%) of the selected line item value is calculated automatically.',
+        }[basis];
 
+        // Pertahankan nilai yang sudah terisi saat berpindah Payment % ↔ Amount.
+        const li = selectedLineItem();
         if (fixed) {
-            amt.value = '';
-            onLineItemChange(true);
-        } else {
-            recalcAmount();
+            amt.value = prevAmount > 0 ? fmtThousands(prevAmount) : '';
+            if (!amt.value) { onLineItemChange(true); return; }
+        } else if (basis === 'line_item') {
+            if (prevAmount > 0 && li && li.total > 0) pct.value = round2(prevAmount / li.total * 100);
+            if (pct.value === '') { onLineItemChange(true); return; }
         }
-        checkOver();
+        recalcAmount();
     }
 
     function populateLineItemSelect(selectedId) {
         const sel = document.getElementById('pt_line_item');
         if (!sel) return;
         sel.innerHTML = `<option value="">— Select line item —</option>` +
-            _lineItems.map(li => `<option value="${li.id}">${esc(li.name)} · ${esc(li.type_label)} · ${fmtRp(li.amount)}</option>`).join('');
+            _lineItems.map(li => `<option value="${li.id}">${esc(li.name)} · ${esc(li.type_label)} · ${
+                li.type === 'recurring' ? fmtRp(li.amount) + ' / period' : fmtRp(li.total)}</option>`).join('');
         sel.value = selectedId ? String(selectedId) : '';
     }
 
-    // Prefill nominal (dan nama termin) dari line item yang dipilih — tetap bisa diubah.
+    // Prefill dari line item yang dipilih — tetap bisa diubah:
+    //   Amount    → nominal line item (per periode untuk recurring)
+    //   Payment % → sisa porsi line item yang belum masuk TOP
     function onLineItemChange(fromBasisSwitch) {
-        const li  = lineItemById(document.getElementById('pt_line_item')?.value);
+        const li  = selectedLineItem();
         const amt = document.getElementById('pt_amount_disp');
+        const pct = document.getElementById('pt_payment_percentage');
         if (li && _basis === 'fixed' && (fromBasisSwitch === true || parseAmount(amt.value) === null)) {
             amt.value = fmtThousands(li.amount);
         }
+        if (li && _basis === 'line_item' && pct.value === '') {
+            const rem = remainingShare(li);
+            if (rem > 0) pct.value = rem;
+        }
         const name = document.getElementById('pt_payment_term');
         if (li && fromBasisSwitch !== true && !name.value.trim()) name.value = li.name;
-        checkOver();
+        recalcAmount();
     }
 
     // ── Amount auto-calc (preview di modal) ────────────────────────
     function recalcAmount() {
-        if (_basis === 'fixed') { checkOver(); return; }
-        const pct = parseFloat(document.getElementById('pt_payment_percentage').value);
-        const amount = (isNaN(pct) ? 0 : currentRevenue() * pct / 100);
-        const disp = document.getElementById('pt_amount_disp');
-        if (disp) disp.value = fmtThousands(amount);
+        const pctEl = document.getElementById('pt_payment_percentage');
+        const disp  = document.getElementById('pt_amount_disp');
+        if (_basis === 'fixed') {
+            // Basis Amount: tampilkan porsinya terhadap nilai line item.
+            const li     = selectedLineItem();
+            const amount = parseAmount(disp.value) || 0;
+            pctEl.value  = li && li.total > 0 && amount > 0 ? round2(amount / li.total * 100) : '';
+        } else if (disp) {
+            disp.value = fmtThousands(modalAmount());
+        }
         checkOver();
     }
 
     function modalAmount() {
         if (_basis === 'fixed') return parseAmount(document.getElementById('pt_amount_disp').value) || 0;
         const pct = parseFloat(document.getElementById('pt_payment_percentage').value);
-        return isNaN(pct) ? 0 : currentRevenue() * pct / 100;
+        if (isNaN(pct)) return 0;
+        if (_basis === 'line_item') {
+            const li = selectedLineItem();
+            return li ? (Number(li.total) || 0) * pct / 100 : 0;
+        }
+        return currentRevenue() * pct / 100;
     }
 
     // Notifikasi (tidak memblokir) bila total TOP melebihi revenue / nilai line item.
@@ -9992,13 +10117,20 @@ window.PaymentTermPlan = (function () {
         if (hint) hint.classList.toggle('hidden', !hasDate);
     }
 
-    // Toggle indikator "wajib" pada Paid Date sesuai nilai Status (Paid → wajib)
+    // Toggle indikator "wajib" sesuai nilai Status:
+    //   Paid     → Paid Date wajib
+    //   Invoiced → Submit Invoice Date wajib (invoice sudah dikirim)
     function togglePaidDateRequired() {
-        const isPaid = document.getElementById('pt_status').value === 'Paid';
+        const status = document.getElementById('pt_status').value;
+        const isPaid = status === 'Paid';
         const req  = document.getElementById('pt_paid_date_req');
         const hint = document.getElementById('pt_paid_date_hint');
         if (req)  req.classList.toggle('hidden', !isPaid);
         if (hint) hint.classList.toggle('hidden', !isPaid);
+
+        const isInvoiced = status === 'Invoiced';
+        document.getElementById('pt_submit_invoice_req')?.classList.toggle('hidden', !isInvoiced);
+        document.getElementById('pt_submit_invoice_hint')?.classList.toggle('hidden', !isInvoiced);
     }
 
     // ── Modal helpers ──────────────────────────────────────────────
@@ -10017,6 +10149,7 @@ window.PaymentTermPlan = (function () {
         if (window._fpPtSubmitInvoice) window._fpPtSubmitInvoice.clear();
         if (window._fpPtPaid)          window._fpPtPaid.clear();
 
+        _legacyPct = false;
         const lineMode = _mode === 'line_item';
         document.getElementById('pt_line_item_wrap').classList.toggle('hidden', !lineMode);
         document.getElementById('pt_period_wrap').classList.toggle('hidden', !lineMode);
@@ -10027,10 +10160,11 @@ window.PaymentTermPlan = (function () {
         togglePaidDateRequired();
     }
 
-    function openAdd() {
-        // Nominal tetap butuh dropdown Contract Line Item → line item wajib ada dulu.
+    // lineItemId (opsional) → dibuka dari tombol "Add Term" pada baris line item.
+    function openAdd(lineItemId) {
+        // Amount diambil dari Contract Line Item → line item wajib ada dulu.
         if (_mode === 'line_item' && !_lineItems.length) {
-            showNotification('Add a contract line item first — payment terms in Line Item mode must be linked to one.', 'warning');
+            showNotification('Add a contract line item first — payment terms in Contract Line Item mode must be linked to one.', 'warning');
             openAddLineItem();
             return;
         }
@@ -10039,7 +10173,9 @@ window.PaymentTermPlan = (function () {
         document.getElementById('paymentTermModalId').value    = '';
         resetForm();
         document.getElementById('paymentTermModalTitle').textContent = 'Add Payment Term';
-        setBasis(_mode === 'line_item' ? 'fixed' : 'percentage');
+        if (lineItemId) populateLineItemSelect(lineItemId);
+        setBasis(_mode === 'line_item' ? 'line_item' : 'percentage');
+        if (lineItemId) onLineItemChange();
         document.getElementById('paymentTermModal').classList.remove('hidden');
     }
 
@@ -10067,14 +10203,15 @@ window.PaymentTermPlan = (function () {
         if (t.paid_date && window._fpPtPaid) window._fpPtPaid.setDate(t.paid_date, false, 'Y-m-d');
         else if (t.paid_date) document.getElementById('pt_paid_date').value = t.paid_date;
 
+        // Termin lama basis % of Revenue di Type Contract Line Item tetap boleh diedit apa adanya.
+        _legacyPct = _mode === 'line_item' && t.basis === 'percentage';
+        setBasis(t.basis === 'fixed' || t.basis === 'line_item' ? t.basis : 'percentage');
         if (t.basis === 'fixed') {
-            setBasis('fixed');
             document.getElementById('pt_amount_disp').value = fmtThousands(t.amount);
         } else {
-            setBasis('percentage');
             document.getElementById('pt_payment_percentage').value = t.payment_percentage ?? '';
-            recalcAmount();
         }
+        recalcAmount();
 
         toggleInvoiceRequired();
         togglePaidDateRequired();
@@ -10100,7 +10237,7 @@ window.PaymentTermPlan = (function () {
         const paidDate          = document.getElementById('pt_paid_date').value || null;
         const status            = document.getElementById('pt_status').value;
 
-        if (_mode === 'line_item' && !lineId) { showNotification('Line Item is required in Line Item billing mode.', 'error'); return; }
+        if (_mode === 'line_item' && !lineId) { showNotification('Line Item is required in Contract Line Item mode.', 'error'); return; }
         if (!term) { showNotification('Payment Term is required.', 'error'); return; }
         if (fixed) {
             if (amount === null) { showNotification('Amount is required for a fixed-amount term.', 'error'); return; }
@@ -10108,14 +10245,15 @@ window.PaymentTermPlan = (function () {
             if (pct === '' || isNaN(parseFloat(pct))) { showNotification('Payment % is required.', 'error'); return; }
             if (parseFloat(pct) < 0 || parseFloat(pct) > 100) { showNotification('Payment % must be between 0 and 100.', 'error'); return; }
         }
+        if (status === 'Invoiced' && !submitInvoiceDate) { showNotification('Submit Invoice Date is required when Status is Invoiced.', 'error'); return; }
         if (submitInvoiceDate && !invoiceNumber) { showNotification('Invoice Number is required when Submit Invoice Date is filled.', 'error'); return; }
         if (status === 'Paid' && !paidDate) { showNotification('Paid Date is required when Status is Paid.', 'error'); return; }
 
-        // Guard: total termin basis % tidak boleh melebihi 100% / revenue.
-        // Nominal tetap tidak diblokir — hanya diperingatkan (lihat checkOver()).
+        // Guard: total termin basis % of Revenue tidak boleh melebihi 100% / revenue.
+        // Basis line item tidak diblokir — hanya diperingatkan (lihat checkOver()).
         const editId = mode === 'edit' ? parseInt(document.getElementById('paymentTermModalId').value, 10) : null;
-        if (!fixed) {
-            const otherPct = _terms.reduce((s, t) => (t.id === editId || t.basis === 'fixed' ? s : s + (Number(t.payment_percentage) || 0)), 0);
+        if (_basis === 'percentage') {
+            const otherPct = _terms.reduce((s, t) => (t.id === editId || t.basis !== 'percentage' ? s : s + (Number(t.payment_percentage) || 0)), 0);
             const totalPct = otherPct + parseFloat(pct);
             if (totalPct > 100 + 0.001) {
                 const rev      = currentRevenue();
@@ -10207,12 +10345,16 @@ window.PaymentTermPlan = (function () {
     }
 
     function onLineItemTypeChange() {
-        const recurring = document.getElementById('li_type').value === 'recurring';
+        const type      = document.getElementById('li_type').value;
+        const recurring = type === 'recurring';
+        const milestone = type === 'milestone';
         document.getElementById('li_frequency_wrap').classList.toggle('hidden', !recurring);
         document.getElementById('li_end_wrap').classList.toggle('hidden', !recurring);
+        // Milestone: jadwal ditentukan per termin, jadi tanpa bulan tagih.
+        document.getElementById('li_start_wrap').classList.toggle('hidden', milestone);
         document.getElementById('li_start_req').classList.toggle('hidden', !recurring);
         document.getElementById('li_start_label').textContent  = recurring ? 'Start' : 'Billing Month';
-        document.getElementById('li_amount_label').textContent = recurring ? 'Nominal per period' : 'Nominal';
+        document.getElementById('li_amount_label').textContent = recurring ? 'Nominal per period' : (milestone ? 'Contract value' : 'Nominal');
         previewLineItem();
     }
 
@@ -10221,6 +10363,10 @@ window.PaymentTermPlan = (function () {
         if (!box) return;
         const amount = parseAmount(document.getElementById('li_amount').value) || 0;
 
+        if (document.getElementById('li_type').value === 'milestone') {
+            box.textContent = `Contract value: ${fmtRp(amount)} — billed in several terms (milestones). Add each term with "Payment %" of this line item.`;
+            return;
+        }
         if (document.getElementById('li_type').value !== 'recurring') {
             box.textContent = `Contract value: ${fmtRp(amount)} (billed once).`;
             return;
@@ -10290,7 +10436,7 @@ window.PaymentTermPlan = (function () {
         const payload = {
             name, type, amount,
             frequency:  type === 'recurring' ? document.getElementById('li_frequency').value : null,
-            start_date: startDate,
+            start_date: type === 'milestone' ? null : startDate,
             end_date:   type === 'recurring' ? endDate : null,
             _token:     getCsrf(),
         };
