@@ -8,6 +8,7 @@ use Anthropic\Messages\InputJSONDelta;
 use Anthropic\Messages\TextBlockParam;
 use Anthropic\Messages\TextDelta;
 use Anthropic\Messages\ToolUseBlock;
+use App\Services\Ai\AiUsageRecorder;
 use App\Services\Ai\Drivers\Contracts\ChatDriver;
 use Closure;
 
@@ -48,7 +49,7 @@ class AnthropicChatDriver implements ChatDriver
             tools: $tools,
         );
 
-        return $this->consumeStream($stream, $onDelta, $isAborted);
+        return $this->consumeStream($stream, $model, $onDelta, $isAborted);
     }
 
     /**
@@ -58,20 +59,29 @@ class AnthropicChatDriver implements ChatDriver
      *
      * @return array{0: ?array<int, array<string, mixed>>, 1: array<int, array<string, mixed>>, 2: ?string}
      */
-    private function consumeStream($stream, Closure $onDelta, Closure $isAborted): array
+    private function consumeStream($stream, string $model, Closure $onDelta, Closure $isAborted): array
     {
         /** @var array<int, array<string, mixed>> $blocks */
         $blocks = [];
         $stopReason = null;
+        $startUsage = null;
+        $deltaUsage = null;
 
         foreach ($stream as $event) {
             if ($isAborted()) {
                 $stream->close();
 
+                // Token yang sudah terkirim tetap ditagih provider.
+                AiUsageRecorder::recordAnthropicStream($model, 'chat', $startUsage, $deltaUsage);
+
                 return [null, [], null];
             }
 
             switch ($event->type) {
+                case 'message_start':
+                    $startUsage = $event->message->usage;
+                    break;
+
                 case 'content_block_start':
                     $block = $event->contentBlock;
                     $blocks[$event->index] = $block instanceof ToolUseBlock
@@ -91,12 +101,15 @@ class AnthropicChatDriver implements ChatDriver
 
                 case 'message_delta':
                     $stopReason = $event->delta->stopReason;
+                    $deltaUsage = $event->usage;
                     break;
 
                 case 'message_stop':
                     break 2;
             }
         }
+
+        AiUsageRecorder::recordAnthropicStream($model, 'chat', $startUsage, $deltaUsage);
 
         ksort($blocks);
 

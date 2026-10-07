@@ -231,6 +231,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'control-center.sounds',        'name' => 'Notif Sounds',            'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.sounds',             'icon' => null,                   'order_seq' => 6],
             ['slug' => 'control-center.ai-settings',   'name' => 'AI Settings',             'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.ai-settings',        'icon' => null,                   'order_seq' => 8],
             ['slug' => 'control-center.seasonal-theme', 'name' => 'Seasonal Theme',         'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.seasonal-theme',     'icon' => null,                   'order_seq' => 9],
+            ['slug' => 'control-center.ai-usage',      'name' => 'AI Usage',                'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.ai-usage',           'icon' => null,                   'order_seq' => 11],
             ['slug' => 'control-center.two-factor-enforcement', 'name' => 'Two-Factor Enforcement', 'type' => 'page', 'parent_slug' => 'control-center', 'route_name' => 'admin.two-factor-enforcement', 'icon' => null,               'order_seq' => 10],
 
             // ── SLA ───────────────────────────────────────────────────────────────
@@ -428,6 +429,7 @@ class MenuSeeder extends Seeder
             'control-center.backup'       => [self::ADMIN=>$v],
             'control-center.sounds'       => [self::ADMIN=>$v],
             'control-center.ai-settings'  => [self::ADMIN=>$v],
+            'control-center.ai-usage'      => [self::ADMIN=>$v],
             'control-center.seasonal-theme' => [self::ADMIN=>$v],
             'control-center.two-factor-enforcement' => [self::ADMIN=>$v],
             // SLA
