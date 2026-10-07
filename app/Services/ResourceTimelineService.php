@@ -19,11 +19,11 @@ use Illuminate\Support\Facades\DB;
 class ResourceTimelineService
 {
     /** Position yang masuk sebagai resource di timeline. */
-    public const RESOURCE_POSITIONS = ['SAP CONSULTANT', 'PROJECT MANAGEMENT OFFICER'];
+    public const RESOURCE_POSITIONS = ['SAP CONSULTANT', 'SALESFORCE CONSULTANT', 'PROJECT MANAGEMENT OFFICER'];
 
     /**
      * Query dasar: seluruh employee aktif dengan position di RESOURCE_POSITIONS
-     * (SAP Consultant & Project Management Officer) yang tidak di-block dan
+     * (SAP Consultant, Salesforce Consultant & Project Management Officer) yang tidak di-block dan
      * tidak kena deletion_flag.
      *
      * $homeBase opsional: batasi ke satu lokasi kantor (App\Enums\HomeBase).

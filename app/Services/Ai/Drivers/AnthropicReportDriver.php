@@ -8,6 +8,7 @@ use Anthropic\Beta\Messages\BetaSkillParams;
 use Anthropic\Client;
 use Anthropic\Core\FileParam;
 use App\Models\Employee;
+use App\Services\Ai\AiUsageRecorder;
 use App\Services\Ai\Drivers\Contracts\ReportGenerationDriver;
 use App\Services\Ai\Tools\AiTool;
 use RuntimeException;
@@ -67,6 +68,8 @@ class AnthropicReportDriver implements ReportGenerationDriver
             betas: ['files-api-2025-04-14'],
         );
 
+        AiUsageRecorder::recordAnthropic($model, 'report', $response->usage);
+
         $text = $this->extractText($response->content);
 
         if (null === $text) {
@@ -106,6 +109,8 @@ class AnthropicReportDriver implements ReportGenerationDriver
                 messages: $messages,
                 outputConfig: $effort ? ['effort' => $effort] : null,
             );
+
+            AiUsageRecorder::recordAnthropic($model, 'report', $response->usage);
 
             $messages[] = ['role' => 'assistant', 'content' => $response->content];
 
@@ -170,6 +175,8 @@ class AnthropicReportDriver implements ReportGenerationDriver
                 outputConfig: $effort ? ['effort' => $effort] : null,
                 betas: self::BETAS,
             );
+
+            AiUsageRecorder::recordAnthropic($model, 'report', $response->usage);
 
             // Ikut sertakan blok apa adanya (termasuk bash_code_execution_tool_result)
             // supaya Claude "ingat" file yang sudah dibuat di iterasi sebelumnya.

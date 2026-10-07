@@ -3,6 +3,7 @@
 namespace App\Services\Ai\Drivers;
 
 use App\Services\Ai\Drivers\Concerns\TranslatesCanonicalMessages;
+use App\Services\Ai\AiUsageRecorder;
 use App\Services\Ai\Drivers\Contracts\ResearchDriver;
 use Closure;
 use OpenAI\Client;
@@ -83,6 +84,8 @@ class OpenAiResearchDriver implements ResearchDriver
                 case 'response.completed':
                 case 'response.incomplete':
                 case 'response.failed':
+                    AiUsageRecorder::recordOpenAi($model, 'research', $event->response->response->usage ?? null);
+
                     return $this->finalize($event->response->response);
 
                 case 'error':

@@ -1296,6 +1296,12 @@
                             <span class="nav-text text-sm">AI Settings</span>
                         </a>
                         @endif
+                        @if($can('control-center.ai-usage'))
+                        <a href="{{ route('admin.ai-usage') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/ai-usage*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-chart-line text-xs"></i></span>
+                            <span class="nav-text text-sm">AI Usage</span>
+                        </a>
+                        @endif
                         @if($can('control-center.two-factor-enforcement'))
                         <a href="{{ route('admin.two-factor-enforcement') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/two-factor-enforcement*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-shield-halved text-xs"></i></span>
