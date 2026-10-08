@@ -161,13 +161,19 @@ class EmployeeController extends Controller
             // walaupun checkbox-nya dimatikan di Control Center.
             // Padanan untuk halaman /profile ada di ProfileController.
             $viewer   = Employee::find($user['id'] ?? null);
+            $matrix   = $viewer?->allPermissionMatrix() ?? [];
             $hidden   = [];
             $readonly = [];
+            $crud     = [];
             foreach (array_keys(SettingsController::PROFILE_SECTIONS) as $key) {
                 $canView   = (bool) $viewer?->canAccessMenu("employee.section.{$key}.view");
                 $canUpdate = (bool) $viewer?->canAccessMenu("employee.section.{$key}.update");
+                // Create / Delete of a tab are the flags of its `.view` row (Menu Access boxes); Edit is `.update`.
+                $canCreate = $canView && (bool) ($matrix["employee.section.{$key}.view"]['create'] ?? false);
+                $canDelete = $canView && (bool) ($matrix["employee.section.{$key}.view"]['delete'] ?? false);
                 $hidden[$key]   = !$canView;
-                $readonly[$key] = $canView && !$canUpdate;
+                $readonly[$key] = $canView && !$canUpdate && !$canCreate && !$canDelete;
+                $crud[$key]     = ['create' => $canCreate, 'edit' => $canUpdate, 'delete' => $canDelete];
             }
 
             return view('master.employee.show', [
@@ -175,6 +181,7 @@ class EmployeeController extends Controller
                 'user'                   => $user,
                 'profileSectionHidden'   => $hidden,
                 'profileSectionReadonly' => $readonly,
+                'profileSectionCrud'     => $crud,
                 'profileLocked'          => app(\App\Services\HrProfile\ProfileLockService::class)->isLocked((int) $id),
             ]);
 

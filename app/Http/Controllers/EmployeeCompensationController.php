@@ -8,7 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Seksi "Compensation" karyawan: komponen gaji + penanda PTKP/BPJS (HC-D21; data payroll NONAKTIF).
+ * Seksi "Compensation" karyawan: penanda PTKP/BPJS untuk payroll + ringkasan gaji (baca saja). Komponen gaji diedit di kotak
+ * Salary Components (Master Employee → Contract; EmployeeSalaryComponentController).
  *
  * IZIN: rute memakai `employee.section:compensation[,view]` → `employee.section.compensation.{view|update}`
  * (hanya halaman Master > Employee; tidak ada padanan My Profile, jadi target diri sendiri ikut ditolak
@@ -36,38 +37,6 @@ class EmployeeCompensationController extends Controller
         ]), $this->actorId());
 
         return $this->respond($result, 'Tax & BPJS settings saved.');
-    }
-
-    public function saveComponent(Request $request, int $employeeId, ?int $componentId = null): JsonResponse
-    {
-        if ($denied = $this->requireAjax($request)) {
-            return $denied;
-        }
-
-        try {
-            $result = $this->service->saveComponent($employeeId, $componentId, $request->only([
-                'name', 'category', 'amount', 'effective_from', 'effective_to', 'is_active', 'taxable', 'bpjs_base',
-            ]), $this->actorId());
-        } catch (\Throwable $e) {
-            Log::error('Compensation: gagal menyimpan komponen', ['employee_id' => $employeeId, 'error' => $e->getMessage()]);
-
-            return response()->json(['success' => false, 'message' => 'Could not save the component. Please try again.'], 500);
-        }
-
-        return $this->respond($result, 'Salary component saved.');
-    }
-
-    public function deleteComponent(Request $request, int $employeeId, int $componentId): JsonResponse
-    {
-        if ($denied = $this->requireAjax($request)) {
-            return $denied;
-        }
-
-        $result = $this->service->deleteComponent($employeeId, $componentId);
-
-        return $result['ok']
-            ? response()->json(['success' => true, 'message' => 'Salary component deleted.'])
-            : response()->json(['success' => false, 'message' => $result['message']], 422);
     }
 
     private function respond(array $result, string $okMessage): JsonResponse

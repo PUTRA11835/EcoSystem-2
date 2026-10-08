@@ -2,6 +2,7 @@
 
 namespace App\Services\Payroll;
 
+use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollSetting;
 use App\Services\HolidayService;
 use App\Support\Payroll\Money;
@@ -372,15 +373,13 @@ class PayrollEngine
     /** @param int[] $ids @return array<string,mixed> data per karyawan, diindeks employee_id */
     private function loadEmployeeData(array $ids, string $start, string $end, ?int $periodId, array $ctx): array
     {
-        $components = DB::table('employee_salary_components')->whereIn('employee_id', $ids)
+        // Tabel yang sama dengan kotak Salary Components (Master Employee → Contract): `kind` dipetakan ke kategori aturan
+        // payroll oleh EmployeeSalaryComponent::toRuleRow(). Baris tanpa effective_to berlaku seterusnya.
+        $components = EmployeeSalaryComponent::query()->whereIn('employee_id', $ids)
             ->where('effective_from', '<=', $end)
             ->where(fn ($q) => $q->whereNull('effective_to')->orWhere('effective_to', '>=', $start))
             ->get()->groupBy('employee_id')
-            ->map(fn ($g) => $g->map(fn ($r) => [
-                'id' => (int) $r->id, 'name' => $r->name, 'category' => $r->category, 'amount' => (float) $r->amount,
-                'effective_from' => (string) $r->effective_from, 'effective_to' => $r->effective_to ? (string) $r->effective_to : null,
-                'is_active' => (bool) $r->is_active, 'taxable' => (bool) $r->taxable, 'bpjs_base' => (bool) $r->bpjs_base,
-            ])->all())->all();
+            ->map(fn ($g) => $g->map(fn (EmployeeSalaryComponent $c) => $c->toRuleRow())->all())->all();
 
         $overtime = DB::table('overtime_requests')->whereIn('employee_id', $ids)->where('status', 'approved')
             ->whereBetween('overtime_date', [$start, $end])->orderBy('overtime_date')->get()

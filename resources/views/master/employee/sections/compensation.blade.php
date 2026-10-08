@@ -1,7 +1,7 @@
-{{-- Compensation (Payroll Fase 0; HC-D21 — data dikumpulkan sekarang, BELUM dipakai perhitungan sampai saklar payroll menyala).
-     Komponen gaji = sumber kebenaran gaji pokok payroll. Data dari GET /api/employees/{id}/compensation.
-     Izin dipilih server (employee.section.compensation.view|update). Warna tombol mengikuti Accent colour (kelas
-     `primary-gradient`, sama seperti sidebar); fokus memakai ring red-800 yang sudah dipetakan ke Accent oleh layout. --}}
+{{-- Compensation (Payroll; HC-D21): penanda PAJAK & BPJS untuk payroll + ringkasan gaji (baca saja).
+     Komponen gaji TIDAK diedit di sini — itu kotak "Salary Components" di tab Contract (tabel yang sama, terisi dari Offering
+     Letter); payroll hanya membacanya. Data dari GET /api/employees/{id}/compensation. Izin dipilih server
+     (employee.section.compensation.view|update). Warna mengikuti Accent colour (primary-gradient / partials.accent-brand-red). --}}
 @include('partials.money-input')
 @php
     $cpReadonly = isset($isReadonly) && $isReadonly;
@@ -19,7 +19,8 @@
     </div>
 
     <p class="text-xs text-gray-500 -mt-3">
-        Salary components and tax/BPJS markers are collected here ahead of time. They are not used by any payslip or report until the payroll module is switched on.
+        Tax and BPJS markers used when payroll is calculated. Salary components (base salary, allowances) are managed in the
+        <button type="button" class="font-semibold underline" onclick="switchSection('contract')">Contract tab → Salary Components</button>; payroll reads them from there.
     </p>
 
     {{-- Ringkasan hari ini --}}
@@ -58,67 +59,20 @@
         </div>
     </div>
 
-    {{-- Komponen gaji --}}
+    {{-- Komponen gaji yang dibaca payroll (baca saja) --}}
     <div class="border border-gray-200 rounded-xl p-4">
-        <div class="flex items-center justify-between mb-3">
-            <div>
-                <h5 class="text-sm font-bold text-gray-900">Salary components</h5>
-                <p class="text-xs text-gray-500 mt-0.5">Exactly one Base Salary can be active at any date. To raise it, end the current one and add the new one from the next date.</p>
-            </div>
-            <button type="button" onclick="cpOpenForm(null)" class="js-section-action inline-flex items-center px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90">+ Add component</button>
-        </div>
+        <h5 class="text-sm font-bold text-gray-900">Salary components payroll will use</h5>
+        <p class="text-xs text-gray-500 mt-0.5 mb-3">Read-only view of the Salary Components box. A component counts for a payroll period when the period overlaps its dates.</p>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead>
                     <tr class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
-                        <th class="py-2 pr-3">Component</th><th class="py-2 pr-3">Category</th><th class="py-2 pr-3 text-right">Amount (IDR)</th>
-                        <th class="py-2 pr-3">Effective</th><th class="py-2 pr-3">Flags</th><th class="py-2 pr-3">Status</th><th class="py-2 text-right js-section-action">Action</th>
+                        <th class="py-2 pr-3">Component</th><th class="py-2 pr-3">Type</th><th class="py-2 pr-3 text-right">Amount (IDR)</th><th class="py-2 pr-3">Effective</th><th class="py-2 pr-3">Counts for tax / BPJS</th><th class="py-2">Today</th>
                     </tr>
                 </thead>
                 <tbody id="cpRows" class="divide-y divide-gray-100"></tbody>
             </table>
-            <p id="cpEmpty" class="hidden text-sm text-gray-500 py-6 text-center">No salary component yet. Add the Base Salary first.</p>
-        </div>
-    </div>
-
-    {{-- Modal tambah/ubah --}}
-    <div id="cpModal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-5">
-            <h4 id="cpModalTitle" class="text-base font-bold text-gray-900 mb-4">Add component</h4>
-            <div class="grid grid-cols-2 gap-4">
-                <div class="col-span-2">
-                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Name</label>
-                    <input type="text" id="cpfName" maxlength="120" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    <p class="text-xs text-red-600 mt-1 hidden" data-cp-error="name"></p>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Category</label>
-                    <select id="cpfCategory" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-800"></select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Amount (IDR)</label>
-                    <input type="text" inputmode="decimal" id="cpfAmount" placeholder="0,00" class="js-money w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-red-800">
-                    <p class="text-xs text-red-600 mt-1 hidden" data-cp-error="amount"></p>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Effective from</label>
-                    <input type="date" id="cpfFrom" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    <p class="text-xs text-red-600 mt-1 hidden" data-cp-error="effective_from"></p>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Effective until <span class="font-normal text-gray-400">(optional)</span></label>
-                    <input type="date" id="cpfTo" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    <p class="text-xs text-red-600 mt-1 hidden" data-cp-error="effective_to"></p>
-                </div>
-                <label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" id="cpfTaxable" class="rounded border-gray-300 text-red-800"> Taxable (PPh 21)</label>
-                <label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" id="cpfBpjs" class="rounded border-gray-300 text-red-800"> Part of BPJS wage base</label>
-                <label class="flex items-center gap-2 text-sm text-gray-700 col-span-2"><input type="checkbox" id="cpfActive" class="rounded border-gray-300 text-red-800"> Active</label>
-            </div>
-            <p id="cpfError" class="hidden text-sm text-red-600 mt-3"></p>
-            <div class="flex justify-end gap-2 mt-5">
-                <button type="button" onclick="cpCloseForm()" class="px-4 py-2 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-                <button type="button" id="cpfSave" onclick="cpSaveComponent()" class="px-4 py-2 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90">Save</button>
-            </div>
+            <p id="cpEmpty" class="hidden text-sm text-gray-500 py-6 text-center">No salary component yet. Add the Base Salary in the Contract tab → Salary Components.</p>
         </div>
     </div>
 </div>
@@ -136,7 +90,6 @@
     const num = (n) => Number(n).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const idr = (n) => (n === null || n === undefined) ? '—' : 'Rp ' + num(n);
     let state = null;
-    let editingId = null;
 
     async function api(method, url, body) {
         const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf() };
@@ -149,10 +102,7 @@
 
     function cell(text, cls) { const td = document.createElement('td'); td.className = cls || 'py-2 pr-3'; td.textContent = text; return td; }
 
-    function clearErrors() {
-        root.querySelectorAll('[data-cp-error]').forEach(e => { e.classList.add('hidden'); e.textContent = ''; });
-        $('cpfError').classList.add('hidden');
-    }
+    function clearErrors() { root.querySelectorAll('[data-cp-error]').forEach(e => { e.classList.add('hidden'); e.textContent = ''; }); }
     function showErrors(errors, fallback) {
         let shown = false;
         Object.entries(errors || {}).forEach(([k, v]) => {
@@ -182,32 +132,20 @@
         $('cpBpjsEmp').checked = !!d.tax.bpjs_employment_active;
         $('cpActivated').checked = !!d.tax.payroll_activated;
 
-        const cat = $('cpfCategory');
-        cat.innerHTML = '';
-        Object.entries(d.categories).forEach(([k, v]) => { const o = document.createElement('option'); o.value = k; o.textContent = v; cat.appendChild(o); });
-
         const tbody = $('cpRows');
         tbody.innerHTML = '';
         $('cpEmpty').classList.toggle('hidden', d.components.length > 0);
         d.components.forEach(c => {
             const tr = document.createElement('tr');
-            tr.appendChild(cell(c.name + (c.is_mandatory ? ' (required)' : ''), 'py-2 pr-3 font-medium text-gray-900'));
+            tr.appendChild(cell(c.name, 'py-2 pr-3 font-medium text-gray-900'));
             tr.appendChild(cell(d.categories[c.category] || c.category));
             tr.appendChild(cell(idr(c.amount), 'py-2 pr-3 text-right tabular-nums'));
             tr.appendChild(cell(c.effective_from + (c.effective_to ? ' → ' + c.effective_to : ' → open')));
-            tr.appendChild(cell([c.taxable ? 'Taxable' : null, c.bpjs_base ? 'BPJS' : null].filter(Boolean).join(' · ') || '—', 'py-2 pr-3 text-xs text-gray-500'));
-            const st = document.createElement('td'); st.className = 'py-2 pr-3';
+            tr.appendChild(cell([c.taxable ? 'Tax' : null, c.bpjs_base ? 'BPJS' : null].filter(Boolean).join(' · ') || '—', 'py-2 pr-3 text-xs text-gray-500'));
+            const st = document.createElement('td'); st.className = 'py-2';
             const b = document.createElement('span');
-            b.className = 'inline-block px-2 py-0.5 text-xs font-semibold rounded ' + (c.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600');
-            b.textContent = c.is_active ? 'Active' : 'Inactive'; st.appendChild(b); tr.appendChild(st);
-            const act = document.createElement('td'); act.className = 'py-2 text-right whitespace-nowrap js-section-action';
-            const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'px-2 py-1 text-xs font-semibold rounded border border-gray-300 text-gray-700 hover:bg-gray-50'; edit.textContent = 'Edit';
-            edit.addEventListener('click', () => window.cpOpenForm(c.id)); act.appendChild(edit);
-            if (!c.is_mandatory) {
-                const del = document.createElement('button'); del.type = 'button'; del.className = 'ml-1 px-2 py-1 text-xs font-semibold rounded border border-red-300 text-red-700 hover:bg-red-50'; del.textContent = 'Delete';
-                del.addEventListener('click', () => cpDelete(c)); act.appendChild(del);
-            }
-            tr.appendChild(act);
+            b.className = 'inline-block px-2 py-0.5 text-xs font-semibold rounded ' + (c.active_today ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600');
+            b.textContent = c.active_today ? 'Active' : 'Not active'; st.appendChild(b); tr.appendChild(st);
             tbody.appendChild(tr);
         });
     }
@@ -239,47 +177,6 @@
         if (r.ok && r.json?.success) { notify(r.json.message, 'success'); load(); return; }
         showErrors(r.json?.errors, r.json?.message || 'Could not save.');
     };
-
-    window.cpOpenForm = function (id) {
-        clearErrors();
-        editingId = id;
-        const c = id ? state.components.find(x => x.id === id) : null;
-        $('cpModalTitle').textContent = c ? 'Edit component' : 'Add component';
-        $('cpfName').value = c ? c.name : '';
-        $('cpfCategory').value = c ? c.category : (state.components.some(x => x.category === 'base' && x.is_active) ? 'fixed_allowance' : 'base');
-        $('cpfCategory').disabled = !!(c && c.is_mandatory);
-        $('cpfAmount').value = c ? num(c.amount) : '';
-        $('cpfFrom').value = c ? c.effective_from : new Date().toISOString().slice(0, 10);
-        $('cpfTo').value = c && c.effective_to ? c.effective_to : '';
-        $('cpfTaxable').checked = c ? c.taxable : true;
-        $('cpfBpjs').checked = c ? c.bpjs_base : true;
-        $('cpfActive').checked = c ? c.is_active : true;
-        if (!c) { $('cpfName').value = $('cpfCategory').value === 'base' ? 'Basic Salary' : ''; }
-        $('cpModal').classList.remove('hidden');
-    };
-    window.cpCloseForm = function () { $('cpModal').classList.add('hidden'); };
-
-    window.cpSaveComponent = async function () {
-        clearErrors();
-        const btn = $('cpfSave'); btn.disabled = true;
-        const payload = {
-            name: $('cpfName').value, category: $('cpfCategory').value, amount: $('cpfAmount').value,
-            effective_from: $('cpfFrom').value, effective_to: $('cpfTo').value,
-            taxable: $('cpfTaxable').checked, bpjs_base: $('cpfBpjs').checked, is_active: $('cpfActive').checked,
-        };
-        const r = await api('POST', BASE + '/components' + (editingId ? '/' + editingId : ''), payload);
-        btn.disabled = false;
-        if (r.ok && r.json?.success) { cpCloseForm(); notify(r.json.message, 'success'); load(); return; }
-        showErrors(r.json?.errors, null);
-        if (r.json?.errors?._ || !r.json?.errors) { const e = $('cpfError'); e.textContent = r.json?.message || 'Could not save.'; e.classList.remove('hidden'); }
-    };
-
-    async function cpDelete(c) {
-        if (!confirm('Delete "' + c.name + '"? Use an end date instead if it was ever used for payroll.')) { return; }
-        const r = await api('POST', BASE + '/components/' + c.id + '/delete');
-        if (r.ok && r.json?.success) { notify(r.json.message, 'success'); load(); return; }
-        notify(r.json?.message || 'Could not delete.', 'error');
-    }
 
     load();
 })();

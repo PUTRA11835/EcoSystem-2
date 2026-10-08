@@ -3,12 +3,12 @@
 namespace App\Console\Commands;
 
 use App\Models\EmployeeSalaryComponent;
-use App\Support\Payroll\SalaryComponentRules;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Isi awal `employee_salary_components` dari kontrak AKTIF (Payroll Fase 0, langkah 2).
+ * Isi awal `employee_salary_components` (kotak Salary Components di Master Employee → Contract) dari kontrak AKTIF.
+ * Hanya untuk karyawan yang BELUM punya komponen; yang sudah diisi dari Offering Letter dilewati.
  *
  * AMAN: default hanya mensimulasikan (dry-run); `--apply` baru menulis. Hanya MENAMBAH baris, tidak pernah
  * mengubah/menghapus. Karyawan yang sudah punya komponen apa pun dilewati (jadi aman dijalankan ulang, dan
@@ -46,10 +46,10 @@ class PayrollImportContractSalary extends Command
             $from = $contract->start_date ?: now()->toDateString();
             $to   = $contract->end_date ?: null;
 
-            $lines = [['Basic Salary', SalaryComponentRules::BASE, (float) $contract->salary, true]];
+            $lines = [['Basic Salary', 'base', (float) $contract->salary]];
             foreach ((array) json_decode((string) ($contract->salary_components ?? '[]'), true) as $c) {
                 if (!empty($c['name']) && isset($c['amount']) && (float) $c['amount'] > 0) {
-                    $lines[] = [mb_substr((string) $c['name'], 0, 120), SalaryComponentRules::FIXED_ALLOWANCE, (float) $c['amount'], false];
+                    $lines[] = [mb_substr((string) $c['name'], 0, 100), 'fixed', (float) $c['amount']];
                 }
             }
 
@@ -57,11 +57,11 @@ class PayrollImportContractSalary extends Command
 
             if ($apply) {
                 DB::transaction(function () use ($employeeId, $lines, $from) {
-                    foreach ($lines as [$name, $category, $amount, $mandatory]) {
+                    foreach ($lines as [$name, $kind, $amount]) {
                         EmployeeSalaryComponent::create([
-                            'employee_id' => $employeeId, 'name' => $name, 'category' => $category, 'amount' => $amount,
-                            'effective_from' => $from, 'effective_to' => null,
-                            'is_mandatory' => $mandatory, 'is_active' => true, 'taxable' => true, 'bpjs_base' => true,
+                            'employee_id' => $employeeId, 'name' => $name, 'kind' => $kind, 'amount' => $amount,
+                            'effective_from' => $from, 'source' => EmployeeSalaryComponent::SOURCE_MANUAL,
+                            'notes' => 'Imported from the active contract', 'created_by' => 'payroll:import-contract-salary',
                         ]);
                     }
                 });

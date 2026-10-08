@@ -44,7 +44,7 @@ return [
         'general.approval-workflow', 'general.approval-workflow.*',
         'master.employee.action',
         'employee.section.contract.*', 'employee.section.payment.*', 'employee.section.bank.*',
-        'employee.section.engagement_rate.*', 'employee.section.hr_profile.*',
+        'employee.section.engagement_rate.*', 'employee.section.hr_profile.*', 'employee.section.salary.*',
         'employee.section.compensation.*',
         'finance.payroll', 'finance.payroll.*',
         'general.onboarding.lock', 'general.onboarding.unlock', 'general.onboarding.join-date',
@@ -74,6 +74,18 @@ return [
         'hr_general.leave_permit.tab-inbox',    // Edit = approve / reject / ask for revision
         'hr_general.leave_permit.tab-types',    // Create = add a leave type, Edit = edit / (de)activate a type
         'general.my-letter-requests', // Global ESS: baris terkunci di layar, tetapi rutenya memakai menu.can
+        // Tab Master Employee yang berisi daftar rekaman: Create/Delete = flag pada baris `.view`-nya (middleware
+        // employee.section:<tab>,create|delete), Edit = slug `.update` seperti sebelumnya.
+        'employee.section.address.view',
+        'employee.section.identification.view',
+        'employee.section.family.view',
+        'employee.section.education.view',
+        'employee.section.qualification.view',
+        'employee.section.contract.view',
+        'employee.section.bank.view',
+        'employee.section.payment.view',
+        'employee.section.attachment.view',
+        'employee.section.salary.view',
     ],
 
     /*
@@ -123,6 +135,16 @@ return [
         'hr_general.leave_permit'             => ['c' => 'Log Leave / Permit (on behalf of an employee, all tabs)', 'e' => 'Edit a logged application (HR override)'],
         'hr_general.leave_permit.tab-inbox'   => ['e' => 'Approve / Reject / Ask for revision'],
         'hr_general.leave_permit.tab-types'   => ['c' => 'Add a leave type', 'e' => 'Edit or (de)activate a leave type'],
+        'employee.section.address.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'employee.section.identification.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'employee.section.family.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'employee.section.education.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'employee.section.qualification.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'employee.section.contract.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'employee.section.bank.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'employee.section.payment.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'employee.section.attachment.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'employee.section.salary.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
     ],
 
     // Urutan tampil di kolom kiri. `match` = pola slug (Str::is). Pola pertama yang cocok menang.

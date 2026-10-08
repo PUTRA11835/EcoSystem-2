@@ -84,10 +84,10 @@ class TableAccess
         'payroll_slips'       => ['permission' => 'finance.payroll.periods'],
         'payroll_slip_items'  => ['permission' => 'finance.payroll.periods'],
         'payroll_adjustments' => ['permission' => 'finance.payroll.periods'],
-        // Komponen gaji (sumber kebenaran gaji pokok payroll). Hanya pemegang slug
-        // `employee.section.compensation.view`; tanpa self_field, karyawan pun tak membacanya lewat asisten.
+        // Komponen gaji (kotak Salary Components; sumber kebenaran gaji pokok payroll). Hanya pemegang slug
+        // `employee.section.salary.view`; tanpa self_field, karyawan pun tak membacanya lewat asisten.
         'employee_salary_components' => [
-            'permission' => 'employee.section.compensation.view',
+            'permission' => 'employee.section.salary.view',
         ],
         // HC-D20/D21: profil HR memuat data kesehatan, kontak darurat pihak ketiga, dan data payroll
         // NONAKTIF. Slug `*.hr_profile.view` dibuat di langkah H3.4; SEBELUM itu tak seorang pun
