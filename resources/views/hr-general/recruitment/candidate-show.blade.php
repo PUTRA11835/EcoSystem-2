@@ -14,6 +14,8 @@
     $canCancelInterview = $onSchedule && $canDo('general.recruitment.schedule', 'delete');
     $input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-50 disabled:text-gray-500';
     $selected = fn (string $field, $value) => (string) old($field, $candidate->{$field}) === (string) $value;
+    // "Other" = a source typed in rather than picked from the platform list.
+    $sourceOther = old('source_other') !== null ? old('source_other') === '1' : (!$candidate->source_id && filled($candidate->source_detail));
 @endphp
 
 @section('content')
@@ -84,10 +86,17 @@
                         <select name="source_id" id="source_id" class="{{ $input }}">
                             <option value="">-- None --</option>
                             @foreach($sources as $source)
-                                <option value="{{ $source->id }}" @selected($selected('source_id', $source->id))>{{ $source->name }}</option>
+                                <option value="{{ $source->id }}" @selected(!$sourceOther && $selected('source_id', $source->id))>{{ $source->name }}</option>
                             @endforeach
+                            <option value="other" @selected($sourceOther)>Other…</option>
                         </select>
                     </div>
+                </div>
+
+                <div id="sourceDetailBox" @class(['hidden' => !$sourceOther])>
+                    <label for="source_detail" class="block text-xs font-semibold text-gray-600 mb-1">Other Source <span class="text-red-500">*</span></label>
+                    <input type="text" name="source_detail" id="source_detail" maxlength="150" @required($sourceOther) value="{{ old('source_detail', $candidate->source_detail) }}"
+                        placeholder="e.g. Referred by Budi (Finance)" class="{{ $input }}">
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -296,6 +305,17 @@
             form.addEventListener('change', markDirty);
         }
         form.addEventListener('submit', () => { leaving = true; });
+
+        // "Other…" in Source reveals the box to type the source into.
+        const sourceSelect = document.getElementById('source_id');
+        const sourceBox = document.getElementById('sourceDetailBox');
+        const sourceText = document.getElementById('source_detail');
+        sourceSelect.addEventListener('change', function () {
+            const other = this.value === 'other';
+            sourceBox.classList.toggle('hidden', !other);
+            sourceText.required = other;
+            if (other) sourceText.focus();
+        });
 
         // The interview forms on this page reload it too, which would drop unsaved edits of the details.
         document.addEventListener('submit', async function (event) {

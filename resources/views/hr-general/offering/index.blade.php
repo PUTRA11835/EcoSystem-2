@@ -161,7 +161,7 @@
                                                 'data' => [
                                                     'id' => $offer->id, 'number' => $offer->letter_number,
                                                     'name' => $offer->candidate_name, 'email' => $offer->candidate_email,
-                                                    'again' => (bool) $offer->sent_at, ...$emails[$offer->id],
+                                                    'again' => (bool) $offer->sent_at, 'pdf' => route('general.recruitment.offers.print', $offer), ...$emails[$offer->id],
                                                 ],
                                             ])
                                         @endif
@@ -291,18 +291,19 @@
 @if($canEdit)
     <!-- Modal: email the signed letter to the candidate, with a message HR can adjust -->
     <div id="sendModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[92vh] flex flex-col">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-6xl max-h-[92vh] flex flex-col">
             <form id="sendForm" method="POST" class="flex flex-col min-h-0">
                 @csrf
                 <input type="hidden" name="_modal" value="send">
                 <input type="hidden" name="_offer_id" id="sendOfferId">
                 <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                     <h3 class="text-sm font-bold text-gray-800">Send Offering Letter</h3>
-                    <button type="button" onclick="document.getElementById('sendModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600" aria-label="Close">
+                    <button type="button" onclick="closeSendModal()" class="text-gray-400 hover:text-gray-600" aria-label="Close">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <div class="px-5 py-4 space-y-3 overflow-y-auto">
+                <div class="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+                <div class="lg:w-5/12 px-5 py-4 space-y-3 lg:overflow-y-auto">
                     <p id="sendAgainNote" class="hidden text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
                         This letter was already emailed. Sending it again emails the candidate a second time.
                     </p>
@@ -320,9 +321,21 @@
                         <p class="text-[11px] text-gray-400 mt-1">Starts from the email text in the letter's language — adjust it as needed. A blank line starts a new paragraph.</p>
                     </div>
                     <p class="text-xs text-gray-500"><i class="fas fa-paperclip mr-1"></i> The signed letter <strong id="sendNumber"></strong> is attached as a PDF.</p>
+                    <label class="flex items-start gap-2 text-xs text-gray-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 cursor-pointer">
+                        <input type="checkbox" id="sendReviewed" required class="mt-0.5 rounded border-gray-300">
+                        <span>I have read the letter on the right and this message, and the details are correct.</span>
+                    </label>
+                </div>
+                <div class="lg:w-7/12 border-t lg:border-t-0 lg:border-l border-gray-100 bg-gray-50 flex flex-col min-h-[26rem] lg:min-h-0">
+                    <div class="px-4 py-2 border-b border-gray-100 flex items-center justify-between gap-3">
+                        <span class="text-xs font-semibold text-gray-700"><i class="fas fa-file-pdf text-red-600 mr-1"></i> The letter as it is attached</span>
+                        <a id="sendPreviewLink" href="#" target="_blank" rel="noopener" class="text-[11px] font-semibold text-gray-500 hover:text-gray-800">Open in a new tab <i class="fas fa-arrow-up-right-from-square text-[9px]"></i></a>
+                    </div>
+                    <iframe id="sendPreview" title="Preview of the letter PDF" class="flex-1 w-full min-h-[24rem] bg-white" loading="lazy"></iframe>
+                </div>
                 </div>
                 <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
-                    <button type="button" onclick="document.getElementById('sendModal').classList.add('hidden')"
+                    <button type="button" onclick="closeSendModal()"
                         class="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
                     <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white primary-gradient rounded-lg hover:opacity-90">
                         <i class="fas fa-paper-plane text-[10px]"></i> Send
@@ -351,7 +364,16 @@
             document.getElementById('sendSubject').value = offer.subject ?? '';
             document.getElementById('sendBody').value = offer.body ?? '';
             document.getElementById('sendAgainNote').classList.toggle('hidden', !offer.again);
+            // The PDF is the very file that gets attached: HR reads it next to the email before sending.
+            document.getElementById('sendReviewed').checked = false;
+            document.getElementById('sendPreview').src = offer.pdf ? offer.pdf + '#view=FitH' : 'about:blank';
+            document.getElementById('sendPreviewLink').href = offer.pdf || '#';
             document.getElementById('sendModal').classList.remove('hidden');
+        }
+
+        function closeSendModal() {
+            document.getElementById('sendPreview').src = 'about:blank';
+            document.getElementById('sendModal').classList.add('hidden');
         }
 
         // `keep` = reopened after a failed save: what was typed stays as it was.
@@ -395,6 +417,7 @@
                 const offer = {{ Js::from($offers->firstWhere('id', (int) old('_offer_id'))?->only(['id', 'letter_number', 'candidate_name', 'candidate_email'])) }};
                 if (offer) openSendModal({
                     id: offer.id, number: offer.letter_number, name: offer.candidate_name, email: offer.candidate_email,
+                    pdf: {{ Js::from(route('general.recruitment.offers.print', ['offer' => (int) old('_offer_id')])) }},
                     subject: @json(old('subject')), body: @json(old('body')),
                 });
             });

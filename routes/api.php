@@ -12,6 +12,7 @@ use App\Http\Controllers\EmployeeQualificationController;
 use App\Http\Controllers\EmployeeContractController;
 use App\Http\Controllers\EmployeeBankController;
 use App\Http\Controllers\EmployeePaymentController;
+use App\Http\Controllers\EmployeeSalaryComponentController;
 use App\Http\Controllers\EmployeeAttachmentController;
 use App\Http\Controllers\EmployeeHrProfileController;
 use App\Http\Controllers\EmployeeEngagementController;
@@ -121,10 +122,10 @@ Route::middleware(['web'])->group(function () {
     Route::middleware(['auth.session'])->group(function () {
         Route::get('/employees/{employeeId}/addresses', [EmployeeAddressController::class, 'index']);
         Route::get('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'show']);
-        Route::post('/employees/{employeeId}/addresses', [EmployeeAddressController::class, 'store'])->middleware('employee.section:address');
+        Route::post('/employees/{employeeId}/addresses', [EmployeeAddressController::class, 'store'])->middleware('employee.section:address,create');
         Route::put('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'update'])->middleware('employee.section:address');
-        Route::delete('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'destroy'])->middleware('employee.section:address');
-        Route::post('/employees/{employeeId}/addresses/{addressId}/delete', [EmployeeAddressController::class, 'destroy'])->middleware('employee.section:address');
+        Route::delete('/employees/{employeeId}/addresses/{addressId}', [EmployeeAddressController::class, 'destroy'])->middleware('employee.section:address,delete');
+        Route::post('/employees/{employeeId}/addresses/{addressId}/delete', [EmployeeAddressController::class, 'destroy'])->middleware('employee.section:address,delete');
         Route::patch('/employees/{employeeId}/addresses/{addressId}/set-primary', [EmployeeAddressController::class, 'setPrimary'])->middleware('employee.section:address');
 
         // Referensi wilayah Indonesia — dropdown alamat cascading
@@ -135,11 +136,11 @@ Route::middleware(['web'])->group(function () {
     // Employee Identification endpoints
     Route::prefix('employees/{employeeId}/identifications')->group(function () {
         Route::get('/', [EmployeeIdentificationController::class, 'index']);
-        Route::post('/', [EmployeeIdentificationController::class, 'store'])->middleware('employee.section:identification');
+        Route::post('/', [EmployeeIdentificationController::class, 'store'])->middleware('employee.section:identification,create');
         Route::get('/{identificationId}', [EmployeeIdentificationController::class, 'show']);
         Route::put('/{identificationId}', [EmployeeIdentificationController::class, 'update'])->middleware('employee.section:identification');
-        Route::delete('/{identificationId}', [EmployeeIdentificationController::class, 'destroy'])->middleware('employee.section:identification');
-        Route::post('/{identificationId}/delete', [EmployeeIdentificationController::class, 'destroy'])->middleware('employee.section:identification');
+        Route::delete('/{identificationId}', [EmployeeIdentificationController::class, 'destroy'])->middleware('employee.section:identification,delete');
+        Route::post('/{identificationId}/delete', [EmployeeIdentificationController::class, 'destroy'])->middleware('employee.section:identification,delete');
     });
 
     // Employee Family endpoints
@@ -147,50 +148,50 @@ Route::middleware(['web'])->group(function () {
         Route::get('/family', [EmployeeFamilyController::class, 'index']);
         Route::get('/family/statistics', [EmployeeFamilyController::class, 'statistics']);
         Route::get('/family/{familyId}', [EmployeeFamilyController::class, 'show']);
-        Route::post('/family', [EmployeeFamilyController::class, 'store'])->middleware('employee.section:family');
+        Route::post('/family', [EmployeeFamilyController::class, 'store'])->middleware('employee.section:family,create');
         Route::put('/family/{familyId}', [EmployeeFamilyController::class, 'update'])->middleware('employee.section:family');
-        Route::delete('/family/{familyId}', [EmployeeFamilyController::class, 'destroy'])->middleware('employee.section:family');
-        Route::post('/family/{familyId}/delete', [EmployeeFamilyController::class, 'destroy'])->middleware('employee.section:family');
+        Route::delete('/family/{familyId}', [EmployeeFamilyController::class, 'destroy'])->middleware('employee.section:family,delete');
+        Route::post('/family/{familyId}/delete', [EmployeeFamilyController::class, 'destroy'])->middleware('employee.section:family,delete');
     });
 
     // Employee Education endpoints
     Route::prefix('employees/{employeeId}/education')->group(function () {
         Route::get('/', [EmployeeEducationController::class, 'index']);
         Route::get('/{educationId}', [EmployeeEducationController::class, 'show']);
-        Route::post('/', [EmployeeEducationController::class, 'store'])->middleware('employee.section:education');
+        Route::post('/', [EmployeeEducationController::class, 'store'])->middleware('employee.section:education,create');
         Route::put('/{educationId}', [EmployeeEducationController::class, 'update'])->middleware('employee.section:education');
-        Route::delete('/{educationId}', [EmployeeEducationController::class, 'destroy'])->middleware('employee.section:education');
-        Route::post('/{educationId}/delete', [EmployeeEducationController::class, 'destroy'])->middleware('employee.section:education');
+        Route::delete('/{educationId}', [EmployeeEducationController::class, 'destroy'])->middleware('employee.section:education,delete');
+        Route::post('/{educationId}/delete', [EmployeeEducationController::class, 'destroy'])->middleware('employee.section:education,delete');
     });
 
     // Employee Qualification endpoints
     Route::prefix('employees/{employeeId}/qualification')->group(function () {
         Route::get('/', [EmployeeQualificationController::class, 'index']);
         Route::get('/{qualificationId}', [EmployeeQualificationController::class, 'show']);
-        Route::post('/', [EmployeeQualificationController::class, 'store'])->middleware('employee.section:qualification');
+        Route::post('/', [EmployeeQualificationController::class, 'store'])->middleware('employee.section:qualification,create');
         Route::put('/{qualificationId}', [EmployeeQualificationController::class, 'update'])->middleware('employee.section:qualification');
-        Route::delete('/{qualificationId}', [EmployeeQualificationController::class, 'destroy'])->middleware('employee.section:qualification');
-        Route::post('/{qualificationId}/delete', [EmployeeQualificationController::class, 'destroy'])->middleware('employee.section:qualification');
+        Route::delete('/{qualificationId}', [EmployeeQualificationController::class, 'destroy'])->middleware('employee.section:qualification,delete');
+        Route::post('/{qualificationId}/delete', [EmployeeQualificationController::class, 'destroy'])->middleware('employee.section:qualification,delete');
     });
 
     // Employee Contract endpoints
     Route::prefix('employees/{employeeId}/contract')->group(function () {
         Route::get('/', [EmployeeContractController::class, 'index']);
         Route::get('/{contractId}', [EmployeeContractController::class, 'show']);
-        Route::post('/', [EmployeeContractController::class, 'store'])->middleware('employee.section:contract');
+        Route::post('/', [EmployeeContractController::class, 'store'])->middleware('employee.section:contract,create');
         Route::put('/{contractId}', [EmployeeContractController::class, 'update'])->middleware('employee.section:contract');
-        Route::delete('/{contractId}', [EmployeeContractController::class, 'destroy'])->middleware('employee.section:contract');
-        Route::post('/{contractId}/delete', [EmployeeContractController::class, 'destroy'])->middleware('employee.section:contract');
+        Route::delete('/{contractId}', [EmployeeContractController::class, 'destroy'])->middleware('employee.section:contract,delete');
+        Route::post('/{contractId}/delete', [EmployeeContractController::class, 'destroy'])->middleware('employee.section:contract,delete');
     });
 
     // Employee Bank endpoints
     Route::prefix('employees/{employeeId}/bank')->group(function () {
         Route::get('/', [EmployeeBankController::class, 'index']);
         Route::get('/{bankId}', [EmployeeBankController::class, 'show']);
-        Route::post('/', [EmployeeBankController::class, 'store'])->middleware('employee.section:bank');
+        Route::post('/', [EmployeeBankController::class, 'store'])->middleware('employee.section:bank,create');
         Route::put('/{bankId}', [EmployeeBankController::class, 'update'])->middleware('employee.section:bank');
-        Route::delete('/{bankId}', [EmployeeBankController::class, 'destroy'])->middleware('employee.section:bank');
-        Route::post('/{bankId}/delete', [EmployeeBankController::class, 'destroy'])->middleware('employee.section:bank');
+        Route::delete('/{bankId}', [EmployeeBankController::class, 'destroy'])->middleware('employee.section:bank,delete');
+        Route::post('/{bankId}/delete', [EmployeeBankController::class, 'destroy'])->middleware('employee.section:bank,delete');
     });
 
     // Employee HR Profile endpoints (H3.5). Hanya GET/POST (verb DELETE diblokir edge production).
@@ -214,22 +215,32 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [EmployeeEngagementController::class, 'save'])->middleware(['employee.section:engagement', 'throttle:60,1']);
     });
 
+    // Salary Components — komponen gaji aktif karyawan (sumber utama payroll, BPJS, referensi kontrak).
+    // Tidak ada padanan my-profile: pemilik tidak mengelola komponen gajinya sendiri.
+    Route::prefix('employees/{employeeId}/salary-components')->group(function () {
+        Route::get('/', [EmployeeSalaryComponentController::class, 'index'])->middleware('employee.section:salary,view');
+        Route::post('/', [EmployeeSalaryComponentController::class, 'store'])->middleware('employee.section:salary,create');
+        Route::put('/{componentId}', [EmployeeSalaryComponentController::class, 'update'])->middleware('employee.section:salary');
+        Route::delete('/{componentId}', [EmployeeSalaryComponentController::class, 'destroy'])->middleware('employee.section:salary,delete');
+        Route::post('/{componentId}/delete', [EmployeeSalaryComponentController::class, 'destroy'])->middleware('employee.section:salary,delete');
+    });
+
     // Employee Payment endpoints
     Route::prefix('employees/{employeeId}/payment')->group(function () {
         Route::get('/', [EmployeePaymentController::class, 'index']);
         Route::get('/{paymentId}', [EmployeePaymentController::class, 'show']);
-        Route::post('/', [EmployeePaymentController::class, 'store'])->middleware('employee.section:payment');
+        Route::post('/', [EmployeePaymentController::class, 'store'])->middleware('employee.section:payment,create');
         Route::put('/{paymentId}', [EmployeePaymentController::class, 'update'])->middleware('employee.section:payment');
-        Route::delete('/{paymentId}', [EmployeePaymentController::class, 'destroy'])->middleware('employee.section:payment');
-        Route::post('/{paymentId}/delete', [EmployeePaymentController::class, 'destroy'])->middleware('employee.section:payment');
+        Route::delete('/{paymentId}', [EmployeePaymentController::class, 'destroy'])->middleware('employee.section:payment,delete');
+        Route::post('/{paymentId}/delete', [EmployeePaymentController::class, 'destroy'])->middleware('employee.section:payment,delete');
     });
 
     // Employee Attachment endpoints
     Route::prefix('employees/{employeeId}/attachments')->group(function () {
         Route::get('/', [EmployeeAttachmentController::class, 'index']);
-        Route::post('/', [EmployeeAttachmentController::class, 'store'])->middleware('employee.section:attachment');
-        Route::delete('/{attachmentId}', [EmployeeAttachmentController::class, 'destroy'])->middleware('employee.section:attachment');
-        Route::post('/{attachmentId}/delete', [EmployeeAttachmentController::class, 'destroy'])->middleware('employee.section:attachment');
+        Route::post('/', [EmployeeAttachmentController::class, 'store'])->middleware('employee.section:attachment,create');
+        Route::delete('/{attachmentId}', [EmployeeAttachmentController::class, 'destroy'])->middleware('employee.section:attachment,delete');
+        Route::post('/{attachmentId}/delete', [EmployeeAttachmentController::class, 'destroy'])->middleware('employee.section:attachment,delete');
     });
 
     // Employee Module endpoints

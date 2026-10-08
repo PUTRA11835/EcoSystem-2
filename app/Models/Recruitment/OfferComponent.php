@@ -16,11 +16,21 @@ class OfferComponent extends Model
 {
     protected $table = 'recruitment_offer_components';
 
-    protected $fillable = ['name', 'name_en', 'kind', 'sort_order', 'is_active'];
+    protected $fillable = ['name', 'name_en', 'kind', 'default_type', 'default_value', 'sort_order', 'is_active'];
 
     protected $casts = [
-        'sort_order' => 'integer',
-        'is_active'  => 'boolean',
+        'sort_order'    => 'integer',
+        'is_active'     => 'boolean',
+        'default_value' => 'float',
+    ];
+
+    public const DEFAULT_AMOUNT  = 'amount';
+    public const DEFAULT_PERCENT = 'percent';
+
+    /** What a default can be: a rupiah amount, or a percentage of the letter's base salary. */
+    public const DEFAULT_TYPES = [
+        self::DEFAULT_AMOUNT  => 'Rp',
+        self::DEFAULT_PERCENT => '% of base',
     ];
 
     public const KIND_BASE     = 'base';
@@ -59,9 +69,10 @@ class OfferComponent extends Model
         ];
     }
 
-    /** True while a saved letter carries this line — such a component is deactivated, not deleted. */
+    /** True while a saved letter or an employee carries this line — such a component is deactivated, not deleted. */
     public function isInUse(): bool
     {
-        return Offer::whereJsonContains('compensation', [['component_id' => $this->id]])->exists();
+        return Offer::whereJsonContains('compensation', [['component_id' => $this->id]])->exists()
+            || \App\Models\EmployeeSalaryComponent::where('component_id', $this->id)->exists();
     }
 }

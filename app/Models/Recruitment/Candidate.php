@@ -12,7 +12,7 @@ class Candidate extends Model
     protected $table = 'recruitment_candidates';
 
     protected $fillable = [
-        'job_opening_id', 'position_id', 'source_id', 'name', 'email', 'phone',
+        'job_opening_id', 'position_id', 'source_id', 'source_detail', 'name', 'email', 'phone',
         'status', 'notes', 'hired_employee_id',
     ];
 

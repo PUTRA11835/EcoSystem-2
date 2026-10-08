@@ -440,7 +440,7 @@
                                             'label' => $row->email_status === Letter::EMAIL_FAILED ? 'Resend the failed email' : 'Send',
                                             'onclick' => 'openLetterSendModal(JSON.parse(this.dataset.payload))',
                                             'data' => [
-                                                'action' => route('general.letters.compose.send', $row),
+                                                'action' => route('general.letters.compose.send', $row), 'pdf' => route('general.letters.pdf', $row),
                                                 'title' => $row->request && $row->request->isOpen() ? 'Complete & Send' : 'Send Letter',
                                                 'again' => $row->email_status === Letter::EMAIL_FAILED,
                                                 'number' => $row->letter_number, 'name' => $row->counterparty, 'email' => $row->recipient_email,

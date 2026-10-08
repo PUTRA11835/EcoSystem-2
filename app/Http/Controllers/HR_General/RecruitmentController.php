@@ -54,7 +54,7 @@ class RecruitmentController extends Controller
             'calendar'  => $calendar->between($weekStart, $weekEnd),
             'charts'    => [
                 'status'   => $this->statusChart($statusCounts),
-                'source'   => $this->groupedChart('recruitment_options', 'source_id', 'No source'),
+                'source'   => $this->groupedChart('recruitment_options', 'source_id', 'No source', 'source_detail'),
                 'position' => $this->groupedChart('positions', 'position_id', 'No position'),
             ],
         ]);
@@ -70,11 +70,16 @@ class RecruitmentController extends Controller
     }
 
     /** Candidates per related master row (source platform / position), largest first, top 10. */
-    private function groupedChart(string $table, string $foreignKey, string $emptyLabel): array
+    private function groupedChart(string $table, string $foreignKey, string $emptyLabel, ?string $otherColumn = null): array
     {
+        // A typed-in source has no platform row; it is counted as "Other" rather than "No source".
+        $empty = $otherColumn
+            ? "case when c.{$otherColumn} is not null then 'Other' else '{$emptyLabel}' end"
+            : "'{$emptyLabel}'";
+
         $rows = DB::table('recruitment_candidates as c')
             ->leftJoin("{$table} as t", 't.id', '=', "c.{$foreignKey}")
-            ->select(DB::raw("coalesce(t.name, '{$emptyLabel}') as label"), DB::raw('count(*) as total'))
+            ->select(DB::raw("coalesce(t.name, {$empty}) as label"), DB::raw('count(*) as total'))
             ->groupBy('label')
             ->orderByDesc('total')
             ->limit(10)

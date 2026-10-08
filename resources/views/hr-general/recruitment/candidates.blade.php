@@ -96,7 +96,16 @@
                                     <span class="text-gray-300">-</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3">{!! $candidate->source ? e($candidate->source->name) : '<span class="text-gray-300">-</span>' !!}</td>
+                            <td class="px-4 py-3">
+                                @if($candidate->source)
+                                    {{ $candidate->source->name }}
+                                @elseif($candidate->source_detail)
+                                    {{ $candidate->source_detail }}
+                                    <span class="block text-[10px] text-gray-400">Other</span>
+                                @else
+                                    <span class="text-gray-300">-</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 text-gray-500">
                                 @if($candidate->email || $candidate->phone)
                                     {{ $candidate->email }}

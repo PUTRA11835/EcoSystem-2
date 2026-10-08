@@ -140,6 +140,17 @@ final class MenuAccessLayout
             $row['menu_ids'] = [$view['id']];
             $row['order_hint'] = $order[($sec['group']['id'] ?? $view['id'])];
             $this->fold($row, $sec['fns'], $name);
+
+            // Create / Delete of a tab are flags on its `.view` row; Edit stays the `.update` slug folded above.
+            if ($crudEnforced($view['slug'])) {
+                $only = $this->config['crud_labels'][$view['slug']] ?? null;
+                foreach (['c' => 'Create', 'd' => 'Delete'] as $k => $label) {
+                    if ($row['cells'][$k] !== null || ($only !== null && !isset($only[$k]))) {
+                        continue;
+                    }
+                    $row['cells'][$k] = ['id' => $view['id'], 'k' => $k, 'label' => $label, 'name' => $only[$k] ?? null, 'slug' => $view['slug'], 'covers' => [$k]];
+                }
+            }
             $rows[$key] = $row;
         }
 
